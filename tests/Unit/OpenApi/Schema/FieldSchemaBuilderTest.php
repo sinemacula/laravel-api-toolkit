@@ -133,6 +133,20 @@ final class FieldSchemaBuilderTest extends TestCase
     }
 
     /**
+     * Test that a required token marks an enum field required, and an exclude
+     * rule relaxes it.
+     *
+     * @return void
+     */
+    public function testRequiredTokenMarksEnumFieldRequired(): void
+    {
+        $builder = new FieldSchemaBuilder;
+
+        self::assertTrue($builder->build(['required', 'enum-class:' . UserStatus::class])['required']);
+        self::assertFalse($builder->build(['required', 'exclude', 'enum-class:' . UserStatus::class])['required']);
+    }
+
+    /**
      * Test that a sometimes token relaxes an otherwise required field.
      *
      * @return void
@@ -151,6 +165,71 @@ final class FieldSchemaBuilderTest extends TestCase
     public function testAbsentPresenceTokenIsNotRequired(): void
     {
         self::assertFalse((new FieldSchemaBuilder)->build(['string'])['required']);
+    }
+
+    /**
+     * Test that a present token marks the field required, as the validator
+     * refuses a body missing it, unless sometimes relaxes it.
+     *
+     * @return void
+     */
+    public function testPresentTokenMarksFieldRequired(): void
+    {
+        self::assertTrue((new FieldSchemaBuilder)->build(['present', 'array'])['required']);
+        self::assertFalse((new FieldSchemaBuilder)->build(['sometimes', 'present'])['required']);
+    }
+
+    /**
+     * Test that an exclude rule, which may drop the field from validation,
+     * relaxes an otherwise required field.
+     *
+     * @return void
+     */
+    public function testExcludeRuleRelaxesRequired(): void
+    {
+        self::assertFalse((new FieldSchemaBuilder)->build(['exclude_if:kind,a', 'required', 'string'])['required']);
+    }
+
+    /**
+     * Provide the token lists of fields whose rules refuse or allow an empty
+     * value, each with the schema it builds.
+     *
+     * @return iterable<string, array{0: list<string>, 1: array<string, mixed>}>
+     */
+    public static function emptyValueProvider(): iterable
+    {
+        $reference = ['$ref' => '#/components/schemas/UserStatus'];
+
+        yield from [
+            'required array'            => [['required', 'array'], ['type' => 'array', 'minItems' => 1]],
+            'filled array'              => [['filled', 'array'], ['type' => 'array', 'minItems' => 1]],
+            'sometimes required array'  => [['sometimes', 'required', 'array'], ['type' => 'array', 'minItems' => 1]],
+            'required array above one'  => [['required', 'array', 'min:3'], ['type' => 'array', 'minItems' => 3]],
+            'required array below one'  => [['required', 'array', 'between:0,2'], ['type' => 'array', 'minItems' => 1, 'maxItems' => 2]],
+            'required array sized zero' => [['required', 'array', 'size:0'], ['type' => 'array', 'minItems' => 1, 'maxItems' => 0]],
+            'required nullable array'   => [['nullable', 'required', 'array'], ['type' => 'array', 'minItems' => 1]],
+            'filled nullable string'    => [['nullable', 'filled', 'string'], ['type' => 'string']],
+            'required nullable enum'    => [['required', 'nullable', 'enum-class:' . UserStatus::class], $reference],
+            'present array'             => [['present', 'array'], ['type' => 'array']],
+            'excludable required array' => [['exclude_if:kind,a', 'required', 'nullable', 'array'], ['type' => ['array', 'null']]],
+            'excludable filled array'   => [['filled', 'exclude_unless:kind,a', 'array'], ['type' => 'array']],
+            'required string'           => [['required', 'string', 'min:0'], ['type' => 'string', 'minLength' => 0]],
+        ];
+    }
+
+    /**
+     * Test that a sent array must hold an element and no sent value may be null
+     * when the field's rules refuse an empty value, unless an exclude rule may
+     * drop the field.
+     *
+     * @param  list<string>  $tokens
+     * @param  array<string, mixed>  $expected
+     * @return void
+     */
+    #[DataProvider('emptyValueProvider')]
+    public function testAFieldRefusingAnEmptyValueRefusesAnEmptyArrayAndNull(array $tokens, array $expected): void
+    {
+        self::assertSame($expected, (new FieldSchemaBuilder)->build($tokens)['schema']);
     }
 
     /**

@@ -5,6 +5,10 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Schema;
 
 use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\Rules\ExcludeIf;
+use Illuminate\Validation\Rules\ExcludeUnless;
+use Illuminate\Validation\Rules\ExcludeWith;
+use Illuminate\Validation\Rules\ExcludeWithout;
 use Illuminate\Validation\Rules\In;
 use Illuminate\Validation\Rules\Password;
 use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
@@ -21,16 +25,26 @@ use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
  * Enum or PureEnum contributes an `enum-class:` token naming the enum class so
  * the builder can reference its named component, either narrowed by only() or
  * except() contributes an `enum-values:` token listing exactly what it accepts,
- * an In contributes the same `in:` token its string form renders, and a
- * Password contributes `string` plus its minimum length; any other object,
- * NotIn included, is dropped, keeping the field while discarding the constraint
- * it could not translate.
+ * an In contributes the same `in:` token its string form renders, a Password
+ * contributes `string` plus its minimum length, and an exclude rule object
+ * contributes the bare name of its rule, its condition unread, so the field
+ * stays one the validator may drop; any other object, NotIn included, is
+ * dropped, keeping the field while discarding the constraint it could not
+ * translate.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class RuleNormaliser
 {
+    /** The exclude rule objects mapped to the rule each expresses */
+    private const array EXCLUDE_RULES = [
+        ExcludeIf::class      => 'exclude_if',
+        ExcludeUnless::class  => 'exclude_unless',
+        ExcludeWith::class    => 'exclude_with',
+        ExcludeWithout::class => 'exclude_without',
+    ];
+
     /**
      * Normalise a rule definition into a flat list of string tokens.
      *
@@ -94,8 +108,21 @@ final readonly class RuleNormaliser
             $rule instanceof In       => [(string) $rule],
             $rule instanceof PureEnum => $this->pureEnumTokens($rule),
             $rule instanceof Password => $this->passwordTokens($rule),
-            default                   => [],
+            default                   => $this->excludeTokens($rule),
         };
+    }
+
+    /**
+     * Expand an exclude rule object into the bare name of the rule it
+     * expresses, so the field stays one the validator may drop, or nothing for
+     * any other object.
+     *
+     * @param  object  $rule
+     * @return list<string>
+     */
+    private function excludeTokens(object $rule): array
+    {
+        return array_values(array_filter(self::EXCLUDE_RULES, static fn (string $class): bool => $rule instanceof $class, ARRAY_FILTER_USE_KEY));
     }
 
     /**

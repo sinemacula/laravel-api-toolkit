@@ -304,7 +304,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
 
     /**
      * Test that dotted keys weave into a nested object property carrying its
-     * own required list.
+     * own required list, the object required for holding a required field.
      *
      * @return void
      */
@@ -321,6 +321,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
                     'required'   => ['city'],
                 ],
             ],
+            'required' => ['address'],
         ], $schema);
     }
 
@@ -731,6 +732,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
                 'user'  => ['type' => 'object', 'properties' => ['a' => [], 'p' => ['type' => 'string']]],
                 'items' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['a' => []]]],
             ],
+            'required' => ['user'],
         ], $schema);
     }
 
@@ -760,7 +762,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     {
         yield 'array' => [
             ['tags' => ['required', 'array'], 'tags.0' => ['required', 'string']],
-            ['type' => 'array'],
+            ['type' => 'array', 'minItems' => 1],
         ];
 
         yield 'nullable array' => [
@@ -989,6 +991,385 @@ final class RulesToSchemaTranslatorTest extends TestCase
      */
     #[DataProvider('keyedArrayBodies')]
     public function testKeyedArrayFieldAcceptsWhatTheValidatorAccepts(array $rules, array $bodies): void
+    {
+        $schema = $this->translator()->translate($rules);
+
+        foreach ($bodies as $body) {
+            self::assertSame(
+                Validator::make((array) json_decode($body, true, 512, JSON_THROW_ON_ERROR), $rules)->passes(),
+                $this->isPayloadAcceptedBySchema($schema, $body),
+                sprintf('The schema and the validator disagree on %s.', $body),
+            );
+        }
+    }
+
+    /**
+     * Provide rules whose fields refuse an empty value or require a field held
+     * by their parent, each with the schema of the field they shape.
+     *
+     * @return iterable<string, array{0: array<string, mixed>, 1: string, 2: array<string, mixed>}>
+     */
+    public static function requiredPresenceProvider(): iterable
+    {
+        yield 'required keyed array' => [
+            ['tags' => 'required|array', 'tags.name' => 'sometimes|string'],
+            'tags',
+            ['type' => ['object', 'array'], 'minItems' => 1, 'properties' => ['name' => ['type' => 'string']], 'minProperties' => 1],
+        ];
+
+        yield 'filled keyed array above one' => [
+            ['tags' => 'filled|array|min:2', 'tags.name' => 'sometimes|string'],
+            'tags',
+            ['type' => ['object', 'array'], 'minItems' => 2, 'properties' => ['name' => ['type' => 'string']], 'minProperties' => 2],
+        ];
+
+        yield 'required untyped parent' => [
+            ['meta' => 'required', 'meta.x' => 'sometimes|string'],
+            'meta',
+            ['type' => 'object', 'properties' => ['x' => ['type' => 'string']], 'minProperties' => 1],
+        ];
+
+        yield 'nullable untyped parent' => [
+            ['meta' => 'nullable', 'meta.x' => 'sometimes|string'],
+            'meta',
+            ['type' => ['object', 'null'], 'properties' => ['x' => ['type' => 'string']]],
+        ];
+
+        yield 'required nullable untyped parent' => [
+            ['meta' => 'required|nullable', 'meta.x' => 'sometimes|string'],
+            'meta',
+            ['type' => 'object', 'properties' => ['x' => ['type' => 'string']], 'minProperties' => 1],
+        ];
+
+        yield 'nullable untyped parent with a required child' => [
+            ['meta' => 'nullable', 'meta.x' => 'required|string'],
+            'meta',
+            ['type' => 'object', 'properties' => ['x' => ['type' => 'string']], 'required' => ['x']],
+        ];
+
+        yield 'nullable array with a child required without its sibling' => [
+            ['address' => 'nullable|array', 'address.city' => 'required_without:address.zip', 'address.zip' => 'string'],
+            'address',
+            ['type' => 'object', 'properties' => ['city' => [], 'zip' => ['type' => 'string']], 'anyOf' => [['required' => ['city']], ['required' => ['zip']]]],
+        ];
+
+        yield 'required array holding a required child' => [
+            ['address' => 'required|array', 'address.city' => 'required'],
+            'address',
+            ['type' => 'object', 'properties' => ['city' => []], 'required' => ['city'], 'minProperties' => 1],
+        ];
+
+        yield 'nullable array with a required index' => [
+            ['tags' => 'nullable|array', 'tags.0' => 'required|string', 'tags.name' => 'sometimes|string'],
+            'tags',
+            ['type' => ['object', 'array'], 'properties' => ['name' => ['type' => 'string']]],
+        ];
+
+        yield 'nullable wildcard element holding a required field' => [
+            ['items' => 'array', 'items.*' => 'nullable', 'items.*.name' => 'required'],
+            'items',
+            ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['name' => []], 'required' => ['name']]],
+        ];
+
+        yield 'deeply nested required field' => [
+            ['a' => 'nullable', 'a.b' => 'sometimes|nullable', 'a.b.c' => 'required'],
+            'a',
+            ['type' => 'object', 'properties' => ['b' => ['type' => 'object', 'properties' => ['c' => []], 'required' => ['c']]], 'required' => ['b']],
+        ];
+
+        yield 'array with a required index and a required named child' => [
+            ['tags' => 'array', 'tags.0' => 'required', 'tags.name' => 'required'],
+            'tags',
+            ['type' => 'object', 'properties' => ['name' => []], 'required' => ['name']],
+        ];
+
+        yield 'array with a named child required and holding one required without the array' => [
+            ['tags' => 'array', 'tags.name' => 'required', 'tags.name.sub' => 'required_without:tags'],
+            'tags',
+            ['type' => 'object', 'properties' => ['name' => ['type' => 'object', 'properties' => ['sub' => []], 'minProperties' => 1]], 'required' => ['name']],
+        ];
+
+        yield 'array with a child required without the array' => [
+            ['address' => 'nullable|array', 'address.city' => 'required_without:address'],
+            'address',
+            ['type' => ['object', 'array'], 'properties' => ['city' => []]],
+        ];
+
+        yield 'required array beneath an excludable parent' => [
+            ['meta' => 'exclude|array', 'meta.tags' => 'required|nullable|array', 'meta.x.y' => 'required'],
+            'meta',
+            ['type' => ['object', 'array'], 'properties' => ['tags' => ['type' => ['array', 'null']], 'x' => ['type' => 'object', 'properties' => ['y' => []]]]],
+        ];
+
+        yield 'excludable parent' => [
+            ['a' => 'string', 'meta' => 'exclude_if:a,x|nullable', 'meta.x' => 'required'],
+            'meta',
+            ['type' => ['object', 'null'], 'properties' => ['x' => []]],
+        ];
+    }
+
+    /**
+     * Test that a field refusing an empty value documents a non-empty array or
+     * object and no null, and a parent whose fields demand it be sent refuses
+     * null and any list holding none of them.
+     *
+     * @param  array<string, mixed>  $rules
+     * @param  string  $field
+     * @param  array<string, mixed>  $expected
+     * @return void
+     */
+    #[DataProvider('requiredPresenceProvider')]
+    public function testRequiredPresenceShapesTheFieldSchema(array $rules, string $field, array $expected): void
+    {
+        self::assertSame($expected, $this->translator()->translate($rules)['properties'][$field]);
+    }
+
+    /**
+     * Provide rules whose fields require a field held by their parent, each
+     * with the fields the top-level object requires.
+     *
+     * @return iterable<string, array{0: array<string, mixed>, 1: list<string>}>
+     */
+    public static function requiredParentProvider(): iterable
+    {
+        yield 'required child' => [['address' => 'array', 'address.city' => 'required'], ['address']];
+        yield 'undeclared parent' => [['address.city' => 'required'], ['address']];
+        yield 'sometimes parent' => [['address' => 'sometimes|array', 'address.city' => 'required'], ['address']];
+        yield 'nullable parent' => [['address' => 'nullable|array', 'address.city' => 'required'], ['address']];
+        yield 'list parent' => [['tags' => 'list', 'tags.name' => 'required'], ['tags']];
+        yield 'required index' => [['tags' => 'array', 'tags.0' => 'required'], ['tags']];
+        yield 'deep child' => [['p.q.r' => 'required'], ['p']];
+        yield 'deep child beneath a sometimes node' => [['p' => 'array', 'p.q' => 'sometimes|array', 'p.q.r' => 'required'], ['p']];
+        yield 'present child' => [['address.city' => 'present'], ['address']];
+        yield 'required without within' => [['address.city' => 'required_without:address.zip', 'address.zip' => 'string'], ['address']];
+        yield 'required without the parent' => [['address.city' => 'required_without:address'], ['address']];
+        yield 'required without any within' => [['other' => 'string', 'address.city' => 'required_without:other,address.zip'], ['address']];
+        yield 'required without all within' => [['address.city' => 'required_without_all:address.zip,address.st'], ['address']];
+        yield 'sometimes child' => [['address' => 'array', 'address.city' => 'sometimes|required'], []];
+        yield 'excludable child' => [['a' => 'string', 'address.city' => 'exclude_if:a,x|required'], []];
+        yield 'excludable parent' => [['a' => 'string', 'address' => 'exclude_if:a,x|array', 'address.city' => 'required'], []];
+        yield 'excludable middle' => [['a' => 'string', 'x.y' => 'exclude_if:a,x|array', 'x.y.z' => 'required'], []];
+        yield 'excludable grandparent' => [['p' => 'exclude|array', 'p.q.r' => 'required'], []];
+        yield 'required parent of an excludable child' => [['p' => 'required|array', 'p.q' => 'exclude_if:x,y|required'], ['p']];
+        yield 'wildcard parent' => [['items' => 'array', 'items.*.name' => 'required'], []];
+        yield 'wildcard middle' => [['w.*.b.c' => 'required'], []];
+        yield 'required with' => [['address.city' => 'required_with:address.zip', 'address.zip' => 'string'], []];
+        yield 'required with all' => [['address.city' => 'required_with_all:address.zip'], []];
+        yield 'required without outside' => [['other' => 'string', 'address.city' => 'required_without:other'], []];
+        yield 'required without all mixed' => [['other' => 'string', 'address.city' => 'required_without_all:other,address.zip'], []];
+        yield 'prohibited parent' => [['tags' => 'prohibited', 'tags.name' => 'required'], []];
+    }
+
+    /**
+     * Test that a parent is required exactly when one of its fields refuses
+     * every body missing the parent.
+     *
+     * @param  array<string, mixed>  $rules
+     * @param  list<string>  $required
+     * @return void
+     */
+    #[DataProvider('requiredParentProvider')]
+    public function testParentIsRequiredWhenItsFieldsRefuseItMissing(array $rules, array $required): void
+    {
+        self::assertSame($required, $this->translator()->translate($rules)['required'] ?? []);
+    }
+
+    /**
+     * Provide rules whose fields refuse an empty value or require a field held
+     * by their parent, each with JSON request bodies the validator accepts and
+     * refuses.
+     *
+     * @return iterable<string, array{0: array<string, mixed>, 1: list<string>}>
+     */
+    public static function requiredPresenceBodies(): iterable
+    {
+        yield 'required array' => [
+            ['tags' => 'required|array'],
+            ['{}', '{"tags":[]}', '{"tags":{}}', '{"tags":null}', '{"tags":["a"]}'],
+        ];
+
+        yield 'required nullable array' => [
+            ['tags' => 'nullable|required|array'],
+            ['{"tags":[]}', '{"tags":null}', '{"tags":["a"]}'],
+        ];
+
+        yield 'present array' => [
+            ['tags' => 'present|array'],
+            ['{}', '{"tags":[]}', '{"tags":null}', '{"tags":["a"]}'],
+        ];
+
+        yield 'present child' => [
+            ['address' => 'array', 'address.city' => 'present'],
+            ['{}', '{"address":{}}', '{"address":{"city":null}}'],
+        ];
+
+        yield 'filled array' => [
+            ['tags' => 'filled|array'],
+            ['{}', '{"tags":[]}', '{"tags":null}', '{"tags":["a"]}'],
+        ];
+
+        yield 'filled nullable array' => [
+            ['tags' => 'nullable|filled|array'],
+            ['{}', '{"tags":null}', '{"tags":[]}'],
+        ];
+
+        yield 'sometimes required array' => [
+            ['tags' => 'sometimes|required|array'],
+            ['{}', '{"tags":[]}', '{"tags":["a"]}'],
+        ];
+
+        yield 'required sized arrays' => [
+            ['a' => 'required|array|size:0', 'b' => 'required|array|between:0,2', 'c' => 'sometimes|required|array|min:2'],
+            ['{"a":[],"b":["x"]}', '{"a":["x"],"b":["x"]}', '{"a":["x"],"b":[]}', '{"a":["x"],"b":["x"],"c":["x"]}'],
+        ];
+
+        yield 'excluded required array' => [
+            ['a' => 'string', 'tags' => 'exclude_if:a,x|required|array'],
+            ['{"a":"x"}', '{"a":"x","tags":[]}', '{"a":"y","tags":["z"]}'],
+        ];
+
+        yield 'required nullable string' => [
+            ['s' => 'required|nullable|string', 't' => 'sometimes|filled|nullable|string'],
+            ['{"s":null}', '{"s":"x"}', '{"s":"x","t":null}', '{"s":"x","t":"y"}'],
+        ];
+
+        yield 'required keyed array' => [
+            ['tags' => 'required|array', 'tags.name' => 'sometimes|string'],
+            ['{}', '{"tags":[]}', '{"tags":{}}', '{"tags":["a"]}', '{"tags":{"name":"x"}}', '{"tags":{"other":1}}'],
+        ];
+
+        yield 'required untyped parent' => [
+            ['meta' => 'required', 'meta.x' => 'sometimes|string'],
+            ['{"meta":{}}', '{"meta":[]}', '{"meta":{"y":1}}', '{"meta":{"x":"a"}}', '{"meta":null}'],
+        ];
+
+        yield 'required child' => [
+            ['address' => 'array', 'address.city' => 'required'],
+            ['{}', '{"address":{}}', '{"address":[]}', '{"address":["x"]}', '{"address":null}', '{"address":{"city":"x"}}'],
+        ];
+
+        yield 'sometimes parent' => [
+            ['address' => 'sometimes|array', 'address.city' => 'required'],
+            ['{}', '{"address":{"city":"x"}}'],
+        ];
+
+        yield 'nullable parent' => [
+            ['address' => 'nullable|array', 'address.city' => 'required'],
+            ['{}', '{"address":null}', '{"address":{"city":"x"}}'],
+        ];
+
+        yield 'sometimes child' => [
+            ['address' => 'array', 'address.city' => 'sometimes|required'],
+            ['{}', '{"address":{}}', '{"address":{"city":"x"}}'],
+        ];
+
+        yield 'excluded child' => [
+            ['a' => 'string', 'address' => 'array', 'address.city' => 'exclude_if:a,x|required'],
+            ['{"a":"x"}', '{"a":"y","address":{"city":"z"}}'],
+        ];
+
+        yield 'excluded parent' => [
+            ['a' => 'string', 'address' => 'exclude_if:a,x|array', 'address.city' => 'required'],
+            ['{"a":"x"}', '{"a":"y","address":{"city":"z"}}'],
+        ];
+
+        yield 'excluded grandparent' => [
+            ['a' => 'exclude|array', 'a.b' => 'required|array', 'a.c' => 'array', 'a.c.d' => 'required'],
+            ['{"a":{}}', '{"a":{"b":[]}}', '{"a":{"c":{}}}', '{}'],
+        ];
+
+        yield 'excluded element' => [
+            ['a' => 'array', 'a.0' => 'exclude', 'a.*.b' => 'filled|array', 'c' => 'array', 'c.0' => 'exclude', 'c.*' => 'filled|array'],
+            ['{"a":[{"b":[]}]}', '{"a":[]}', '{"c":[[]]}', '{}'],
+        ];
+
+        yield 'excluded by a rule object' => [
+            ['a' => [Rule::excludeIf(true), 'array'], 'a.b' => 'required', 'c' => [Rule::excludeUnless(false)], 'c.d' => 'required'],
+            ['{}', '{"a":{}}'],
+        ];
+
+        yield 'required without the parent or its index' => [
+            ['a' => 'nullable|array', 'a.city' => 'required_without:a', 'b' => 'array', 'b.city' => 'required_without_all:b.0,b.zip', 'b.zip' => 'string'],
+            ['{"a":["x"],"b":["x"]}', '{"a":{"city":"x"},"b":{"zip":"y"}}', '{"a":null,"b":["x"]}', '{"a":["x"]}'],
+        ];
+
+        yield 'required beneath an index' => [
+            ['a' => 'array', 'a.0.b' => 'required', 'a.name' => 'sometimes|string'],
+            ['{"a":[{"b":1}]}', '{}'],
+        ];
+
+        yield 'excluded nullable parent' => [
+            ['a' => 'string', 'meta' => 'exclude_if:a,x|nullable', 'meta.x' => 'required'],
+            ['{"a":"x","meta":null}', '{"a":"y","meta":{"x":1}}'],
+        ];
+
+        yield 'wildcard parent' => [
+            ['items' => 'array', 'items.*.name' => 'required'],
+            ['{}', '{"items":[]}', '{"items":[{}]}', '{"items":[{"name":"x"}]}'],
+        ];
+
+        yield 'nullable wildcard element' => [
+            ['items' => 'array', 'items.*' => 'nullable', 'items.*.name' => 'required'],
+            ['{"items":[null]}', '{"items":[{"name":"x"}]}'],
+        ];
+
+        yield 'deep' => [
+            ['a' => 'nullable', 'a.b' => 'sometimes|nullable', 'a.b.c' => 'required'],
+            ['{}', '{"a":null}', '{"a":{}}', '{"a":{"b":null}}', '{"a":{"b":{}}}', '{"a":{"b":{"c":1}}}'],
+        ];
+
+        yield 'required with' => [
+            ['address' => 'array', 'address.city' => 'required_with:address.zip', 'address.zip' => 'string'],
+            ['{}', '{"address":{"zip":"x"}}', '{"address":{"city":"x","zip":"y"}}'],
+        ];
+
+        yield 'required without' => [
+            ['address' => 'nullable|array', 'address.city' => 'required_without:address.zip', 'address.zip' => 'string'],
+            ['{}', '{"address":null}', '{"address":["x"]}', '{"address":{}}', '{"address":{"zip":"x"}}', '{"address":{"city":"x"}}'],
+        ];
+
+        yield 'required without outside' => [
+            ['other' => 'string', 'address' => 'array', 'address.city' => 'required_without:other'],
+            ['{"other":"x"}', '{"other":"x","address":{}}'],
+        ];
+
+        yield 'required without any' => [
+            ['other' => 'string', 'address' => 'array', 'address.city' => 'required_without:other,address.zip', 'address.zip' => 'string'],
+            ['{"other":"x"}', '{"other":"x","address":{"zip":"y"}}'],
+        ];
+
+        yield 'required without all' => [
+            ['address' => 'array', 'address.city' => 'required_without_all:address.zip,address.st', 'address.zip' => 'string', 'address.st' => 'string'],
+            ['{}', '{"address":{"zip":"x"}}', '{"address":{}}'],
+        ];
+
+        yield 'nullable untyped parent' => [
+            ['meta' => 'nullable', 'meta.x' => 'sometimes|string'],
+            ['{}', '{"meta":null}', '{"meta":{}}', '{"meta":{"x":"a"}}', '{"meta":{"x":1}}'],
+        ];
+
+        yield 'nullable untyped parent with a required child' => [
+            ['meta' => 'nullable', 'meta.x' => 'required|string'],
+            ['{}', '{"meta":null}', '{"meta":{}}', '{"meta":{"x":"a"}}'],
+        ];
+
+        yield 'required index' => [
+            ['tags' => 'nullable|array', 'tags.0' => 'required|string'],
+            ['{}', '{"tags":null}', '{"tags":["a"]}'],
+        ];
+    }
+
+    /**
+     * Test that the request schema accepts exactly the JSON bodies the
+     * validator accepts when fields refuse an empty value or require a field
+     * held by their parent.
+     *
+     * @param  array<string, mixed>  $rules
+     * @param  list<string>  $bodies
+     * @return void
+     */
+    #[DataProvider('requiredPresenceBodies')]
+    public function testRequiredPresenceAcceptsWhatTheValidatorAccepts(array $rules, array $bodies): void
     {
         $schema = $this->translator()->translate($rules);
 

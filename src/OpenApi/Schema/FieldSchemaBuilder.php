@@ -18,8 +18,9 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
  * tokens are mapped to the keyword pair matching the resolved type - lengths
  * for strings, bounds for numbers, item counts for arrays - and any token it
  * does not recognise is skipped so the field survives even when a constraint
- * cannot be expressed. A prohibited or missing field becomes the false schema:
- * it may never be sent.
+ * cannot be expressed. A required or filled field refuses an empty value, so it
+ * never admits null and a sent array holds an element. A prohibited or missing
+ * field becomes the false schema: it may never be sent.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -56,6 +57,7 @@ final readonly class FieldSchemaBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\InRuleValues  $inValues
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumValuesToken  $exactValues
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\FieldPresence  $presence
      */
     public function __construct(
 
@@ -67,6 +69,9 @@ final readonly class FieldSchemaBuilder
 
         /** The reader resolving an `enum-values:` argument into enum values. */
         private EnumValuesToken $exactValues = new EnumValuesToken,
+
+        /** The reader of how the field's rules govern its presence. */
+        private FieldPresence $presence = new FieldPresence,
     ) {}
 
     /**
@@ -87,7 +92,7 @@ final readonly class FieldSchemaBuilder
         $enumClass = $this->argument($tokens, 'enum-class');
 
         if ($enumClass !== null && $enumClass !== '') {
-            return ['schema' => $this->enumReferenceSchema($enumClass, $tokens), 'required' => $this->isRequired($tokens)];
+            return ['schema' => $this->enumReferenceSchema($enumClass, $tokens), 'required' => $this->presence->isRequired($tokens)];
         }
 
         $type   = $this->resolveType($tokens);
@@ -100,7 +105,7 @@ final readonly class FieldSchemaBuilder
         $this->applySize($schema, $tokens, $type);
         $this->applyNullable($schema, $tokens);
 
-        return ['schema' => $schema, 'required' => $this->isRequired($tokens)];
+        return ['schema' => $schema, 'required' => $this->presence->isRequired($tokens)];
     }
 
     /**
@@ -122,7 +127,7 @@ final readonly class FieldSchemaBuilder
 
         $reference = ['$ref' => self::SCHEMA_REF_PREFIX . SchemaComponentName::fromEnum($enumClass)];
 
-        return $this->hasToken($tokens, 'nullable')
+        return $this->presence->acceptsNull($tokens)
             ? ['anyOf' => [$reference, ['type' => 'null']]]
             : $reference;
     }
@@ -286,6 +291,10 @@ final readonly class FieldSchemaBuilder
 
         [$min, $max] = $this->bounds($tokens);
 
+        if ($type === 'array' && $this->presence->rejectsEmpty($tokens)) {
+            $min = (string) max((int) $min, 1);
+        }
+
         if ($min !== null) {
             $schema[$keys[0]] = $this->cast($min, $type);
         }
@@ -308,7 +317,7 @@ final readonly class FieldSchemaBuilder
      */
     private function applyNullable(array &$schema, array $tokens): void
     {
-        if (!$this->hasToken($tokens, 'nullable')) {
+        if (!$this->presence->acceptsNull($tokens)) {
             return;
         }
 
@@ -321,18 +330,6 @@ final readonly class FieldSchemaBuilder
         }
 
         $schema['enum'] = [...$schema['enum'], null];
-    }
-
-    /**
-     * Determine whether the field is required: a required token present and no
-     * sometimes token relaxing it.
-     *
-     * @param  list<string>  $tokens
-     * @return bool
-     */
-    private function isRequired(array $tokens): bool
-    {
-        return $this->hasToken($tokens, 'required') && !$this->hasToken($tokens, 'sometimes');
     }
 
     /**

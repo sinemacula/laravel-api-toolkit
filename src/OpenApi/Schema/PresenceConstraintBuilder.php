@@ -40,6 +40,17 @@ final readonly class PresenceConstraintBuilder
     ];
 
     /**
+     * Constructor.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\FieldPresence  $fields
+     */
+    public function __construct(
+
+        /** The reader of how a field's rules govern its presence. */
+        private FieldPresence $fields = new FieldPresence,
+    ) {}
+
+    /**
      * Add the confirmation siblings and presence constraints to an object
      * schema whose properties and required list are already folded in.
      *
@@ -74,7 +85,7 @@ final readonly class PresenceConstraintBuilder
             $name = (string) $key;
             $own  = $tokens[$key] ?? [];
 
-            if (in_array($name, $required, true) || $this->arguments($own, 'sometimes') !== [] || $this->isExcludable($own)) {
+            if (in_array($name, $required, true) || $this->arguments($own, 'sometimes') !== [] || $this->fields->isExcludable($own)) {
                 continue;
             }
 
@@ -98,7 +109,7 @@ final readonly class PresenceConstraintBuilder
      */
     private function confirm(array $constraints, array $declared, string $prefix, string $name, array $tokens): array
     {
-        $excludable = $this->isExcludable($tokens);
+        $excludable = $this->fields->isExcludable($tokens);
 
         foreach ($this->confirmationTargets($prefix, $name, $tokens) as $target) {
             if (!array_key_exists($target, $declared)) {
@@ -370,23 +381,6 @@ final readonly class PresenceConstraintBuilder
         }
 
         return $arguments;
-    }
-
-    /**
-     * Determine whether any exclude rule may drop the field from validation.
-     *
-     * @param  list<string>  $tokens
-     * @return bool
-     */
-    private function isExcludable(array $tokens): bool
-    {
-        foreach ($tokens as $token) {
-            if (str_starts_with($this->parse($token)[0], 'exclude')) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
