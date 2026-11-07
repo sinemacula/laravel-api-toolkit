@@ -32,7 +32,7 @@ abstract class ApiRepository extends Repository
 {
     use ResolvesResource;
 
-    /** @var array<int, string> */
+    /** @var array<string, string|null> */
     protected array $casts = [];
 
     /**
@@ -110,8 +110,10 @@ abstract class ApiRepository extends Repository
      * Set the attributes for the given model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array|\Illuminate\Support\Collection  $attributes
+     * @param  array<string, mixed>|\Illuminate\Support\Collection<string, mixed>  $attributes
      * @return bool
+     *
+     * @throws \Illuminate\Database\QueryException
      */
     public function setAttributes(Model $model, array|Collection $attributes): bool
     {

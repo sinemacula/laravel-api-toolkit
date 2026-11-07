@@ -27,6 +27,8 @@ use SineMacula\ApiToolkit\Traits\OrdersFields;
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2025 Sine Macula Limited.
+ *
+ * @method static \SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection collection(mixed $resource)
  */
 abstract class ApiResource extends BaseResource implements ApiResourceInterface
 {
@@ -164,7 +166,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      * - Associative entries are scoped with a closure: ['bindings' => fn ($q) => ...]
      *
      * @param  array<int, string>  $fields
-     * @return array<int|string, mixed>
+     * @return array<int|string, (\Closure(\Illuminate\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>
      */
     public static function eagerLoadMapFor(array $fields): array
     {
@@ -596,7 +598,7 @@ abstract class ApiResource extends BaseResource implements ApiResourceInterface
      * @param  array<int, string>  $fields
      * @param  string  $prefix
      * @param  array<int, string>  $plain
-     * @param  array<string, mixed>  $scoped
+     * @param  array<string, \Closure(\Illuminate\Database\Eloquent\Relations\Relation<*, *, *>): mixed>  $scoped
      * @param  array<string, bool>  $visited
      * @return void
      */
