@@ -818,6 +818,190 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
+     * Provide array fields addressed by named children or restricted to named
+     * keys, each with the schema it documents.
+     *
+     * @return iterable<string, array{0: array<string, mixed>, 1: array<string, mixed>}>
+     */
+    public static function keyedArrayProvider(): iterable
+    {
+        yield 'optional named child' => [
+            ['tags' => 'array', 'tags.name' => 'sometimes|string'],
+            ['type' => ['object', 'array'], 'properties' => ['name' => ['type' => 'string']]],
+        ];
+
+        yield 'nullable' => [
+            ['tags' => 'nullable|array', 'tags.name' => 'string'],
+            ['type' => ['object', 'array', 'null'], 'properties' => ['name' => ['type' => 'string']]],
+        ];
+
+        yield 'sized' => [
+            ['tags' => 'array|between:1,3', 'tags.name' => 'string'],
+            [
+                'type'          => ['object', 'array'],
+                'minItems'      => 1,
+                'maxItems'      => 3,
+                'properties'    => ['name' => ['type' => 'string']],
+                'minProperties' => 1,
+                'maxProperties' => 3,
+            ],
+        ];
+
+        yield 'required named child' => [
+            ['tags' => 'nullable|array|in:a|min:1', 'tags.name' => 'required|string'],
+            ['type' => 'object', 'properties' => ['name' => ['type' => 'string']], 'required' => ['name'], 'minProperties' => 1],
+        ];
+
+        yield 'list' => [
+            ['tags' => 'list', 'tags.name' => 'required|string', 'tags.0' => 'string'],
+            [],
+        ];
+
+        yield 'list with items' => [
+            ['tags' => 'list', 'tags.*' => 'string', 'tags.name' => 'integer'],
+            ['type' => 'array', 'items' => ['type' => 'string']],
+        ];
+
+        yield 'array keys' => [
+            ['tags' => 'array:name,email'],
+            ['type' => ['object', 'array'], 'properties' => ['name' => [], 'email' => []], 'additionalProperties' => false, 'maxItems' => 0],
+        ];
+
+        yield 'array keys with children' => [
+            ['tags' => ['array', 'array:name,"e,mail"'], 'tags.name' => 'string', 'tags.extra' => 'string'],
+            [
+                'type'                 => ['object', 'array'],
+                'properties'           => ['name' => ['type' => 'string'], 'extra' => false, 'e,mail' => []],
+                'additionalProperties' => false,
+                'maxItems'             => 0,
+            ],
+        ];
+
+        yield 'array keys left empty' => [
+            ['tags' => 'array:'],
+            ['type' => ['object', 'array'], 'properties' => ['' => []], 'additionalProperties' => false, 'maxItems' => 0],
+        ];
+
+        yield 'array keys naming indices' => [
+            ['tags' => 'array:0,1,x|max:5'],
+            [
+                'type'                 => ['object', 'array'],
+                'maxItems'             => 2,
+                'properties'           => [0 => [], 1 => [], 'x' => []],
+                'additionalProperties' => false,
+                'maxProperties'        => 5,
+            ],
+        ];
+
+        yield 'array keys under a lower size' => [
+            ['tags' => 'array:0,1|max:1'],
+            [
+                'type'                 => ['object', 'array'],
+                'maxItems'             => 1,
+                'properties'           => [0 => [], 1 => []],
+                'additionalProperties' => false,
+                'maxProperties'        => 1,
+            ],
+        ];
+
+        yield 'array keys with a required child' => [
+            ['tags' => 'array:name', 'tags.name' => 'required|string'],
+            ['type' => 'object', 'properties' => ['name' => ['type' => 'string']], 'required' => ['name'], 'additionalProperties' => false],
+        ];
+    }
+
+    /**
+     * Test that an array field addressed by named children or restricted to
+     * named keys documents the object it may be and the list it may be sent as.
+     *
+     * @param  array<string, mixed>  $rules
+     * @param  array<string, mixed>  $expected
+     * @return void
+     */
+    #[DataProvider('keyedArrayProvider')]
+    public function testKeyedArrayFieldDocumentsItsObjectAndListForms(array $rules, array $expected): void
+    {
+        self::assertSame($expected, $this->translator()->translate($rules)['properties']['tags']);
+    }
+
+    /**
+     * Provide array fields addressed by named children or restricted to named
+     * keys, each with JSON request bodies the validator accepts and refuses.
+     *
+     * @return iterable<string, array{0: array<string, mixed>, 1: list<string>}>
+     */
+    public static function keyedArrayBodies(): iterable
+    {
+        yield 'optional named child' => [
+            ['tags' => 'array', 'tags.name' => 'sometimes|string'],
+            ['{"tags":["a"]}', '{"tags":[]}', '{"tags":{}}', '{"tags":{"name":"x"}}', '{"tags":{"name":1}}', '{"tags":{"other":1}}', '{"tags":"a"}'],
+        ];
+
+        yield 'nullable' => [
+            ['tags' => 'nullable|array', 'tags.name' => 'string'],
+            ['{"tags":null}', '{"tags":["a"]}', '{"tags":{"name":"x"}}', '{"tags":{"name":null}}'],
+        ];
+
+        yield 'sized' => [
+            ['tags' => 'array|min:2|max:3', 'tags.name' => 'sometimes|string'],
+            ['{"tags":{"name":"x"}}', '{"tags":{"name":"x","a":1}}', '{"tags":{"a":1,"b":2,"c":3,"d":4}}', '{"tags":["a"]}', '{"tags":["a","b"]}', '{"tags":["a","b","c","d"]}'],
+        ];
+
+        yield 'required named child' => [
+            ['tags' => 'nullable|array', 'tags.name' => 'required|string'],
+            ['{"tags":null}', '{"tags":[]}', '{"tags":["a"]}', '{"tags":{"name":"x"}}', '{"tags":{"other":"x"}}'],
+        ];
+
+        yield 'required with a named sibling' => [
+            ['tags' => 'array', 'tags.a' => 'required_with:tags.b|string', 'tags.b' => 'string'],
+            ['{"tags":["x"]}', '{"tags":{"b":"y"}}', '{"tags":{"a":"x","b":"y"}}'],
+        ];
+
+        yield 'confirmed' => [
+            ['tags' => 'array|confirmed', 'tags.name' => 'sometimes|string'],
+            ['{"tags":{"name":"x"},"tags_confirmation":{"name":"x"}}', '{"tags":["a"],"tags_confirmation":["a"]}', '{"tags":["a"]}'],
+        ];
+
+        yield 'list' => [
+            ['tags' => 'list', 'tags.name' => 'sometimes|string', 'tags.0' => 'string'],
+            ['{"tags":["a"]}', '{"tags":[]}', '{"tags":{}}', '{"tags":{"0":"a"}}'],
+        ];
+
+        yield 'array keys' => [
+            ['tags' => 'array:name,email', 'tags.name' => 'sometimes|string', 'tags.extra' => 'sometimes|string'],
+            ['{"tags":[]}', '{"tags":["a"]}', '{"tags":{"name":"x"}}', '{"tags":{"email":1}}', '{"tags":{"name":1}}', '{"tags":{"zzz":"x"}}', '{"tags":{"extra":"x"}}'],
+        ];
+
+        yield 'array keys naming indices' => [
+            ['tags' => 'array:0,1,x'],
+            ['{"tags":["a"]}', '{"tags":["a","b"]}', '{"tags":["a","b","c"]}', '{"tags":{"x":1}}', '{"tags":{"y":1}}'],
+        ];
+    }
+
+    /**
+     * Test that the request schema accepts exactly the JSON bodies the
+     * validator accepts for an array field addressed by named children or
+     * restricted to named keys, whether each is sent as an object or a list.
+     *
+     * @param  array<string, mixed>  $rules
+     * @param  list<string>  $bodies
+     * @return void
+     */
+    #[DataProvider('keyedArrayBodies')]
+    public function testKeyedArrayFieldAcceptsWhatTheValidatorAccepts(array $rules, array $bodies): void
+    {
+        $schema = $this->translator()->translate($rules);
+
+        foreach ($bodies as $body) {
+            self::assertSame(
+                Validator::make((array) json_decode($body, true, 512, JSON_THROW_ON_ERROR), $rules)->passes(),
+                $this->isPayloadAcceptedBySchema($schema, $body),
+                sprintf('The schema and the validator disagree on %s.', $body),
+            );
+        }
+    }
+
+    /**
      * Build a translator over the real normaliser and field builder.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator
@@ -836,8 +1020,21 @@ final class RulesToSchemaTranslatorTest extends TestCase
      */
     private function isAcceptedBySchema(array $schema, array $body): bool
     {
+        return $this->isPayloadAcceptedBySchema($schema, json_encode((object) $body, JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Determine whether a translated schema accepts a JSON request body, read
+     * as sent, so an empty object and an empty list stay distinct.
+     *
+     * @param  array<string, mixed>  $schema
+     * @param  string  $payload
+     * @return bool
+     */
+    private function isPayloadAcceptedBySchema(array $schema, string $payload): bool
+    {
         $document = (new SchemaObjectNormaliser)->normalise(['schema' => ['$schema' => 'https://json-schema.org/draft/2020-12/schema', ...$schema]]);
 
-        return (new SchemaValidator)->validate(Helper::toJSON((object) $body), Helper::toJSON($document['schema']))->isValid();
+        return (new SchemaValidator)->validate(json_decode($payload, false, 512, JSON_THROW_ON_ERROR), Helper::toJSON($document['schema']))->isValid();
     }
 }

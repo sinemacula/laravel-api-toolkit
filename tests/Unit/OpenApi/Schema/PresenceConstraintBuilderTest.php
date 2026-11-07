@@ -88,6 +88,24 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
+     * Test that a confirmation sibling of a field declaring several types
+     * mirrors each of them but null.
+     *
+     * @return void
+     */
+    public function testConfirmationOfAMultiTypedFieldMirrorsItsTypes(): void
+    {
+        $schema = $this->builder()->build(
+            ['type' => 'object', 'properties' => ['tags' => ['type' => ['object', 'array', 'null']], 'meta' => ['type' => ['null', 'object', 'array']]]],
+            '',
+            ['tags' => ['confirmed'], 'meta' => ['confirmed']],
+        );
+
+        self::assertSame(['type' => ['object', 'array']], $schema['properties']['tags_confirmation']);
+        self::assertSame(['type' => ['object', 'array']], $schema['properties']['meta_confirmation']);
+    }
+
+    /**
      * Test that a confirmed rule naming its confirmation field adds and
      * requires that sibling instead of the default name.
      *
