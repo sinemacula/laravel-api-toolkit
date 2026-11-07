@@ -1414,4 +1414,50 @@ final class PayloadTest extends TestCase
         self::assertSame(['clientName' => 'Unmapped'], $unmapped->toArray());
         self::assertSame(['client_name' => 'Mapped'], $mapped->toArray());
     }
+
+    /**
+     * Test that a top-level rule key PHP casts to an integer is validated and
+     * leaves the body keys of the payload's properties resolvable.
+     *
+     * @return void
+     */
+    public function testFromResolvesANumericTopLevelRuleKey(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with a snake_case mapped property.
+             *
+             * @param  string  $clientName
+             */
+            public function __construct(
+
+                /** The client name, keyed as client_name in the body. */
+                public readonly string $clientName = '',
+            ) {}
+
+            /**
+             * Validate a field keyed by an index beside the client name.
+             *
+             * @return array<array-key, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['0' => ['required', 'string'], 'client_name' => ['required', 'string']];
+            }
+        };
+
+        $input = $definition::from(['0' => 'first', 'client_name' => 'Acme']);
+
+        self::assertSame('Acme', $input->clientName);
+        self::assertSame(['client_name' => 'Acme'], $input->toArray());
+
+        try {
+            $definition::from(['client_name' => 'Acme']);
+
+            self::fail('Expected a ValidationException for the missing index field.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['0'], array_map(strval(...), array_keys($exception->errors())));
+        }
+    }
 }
