@@ -171,9 +171,11 @@ final readonly class RulesToSchemaTranslator
         $excludable = array_keys(array_filter($map, $this->fields->isExcludable(...)));
 
         foreach ($map as $key => $tokens) {
-            if ($this->isWithinAny(explode('.', (string) $key), $excludable)) {
-                $map[$key] = [...$tokens, 'exclude'];
+            if (!$this->isWithinAny(explode('.', (string) $key), $excludable)) {
+                continue;
             }
+
+            $map[$key] = [...$tokens, 'exclude'];
         }
 
         return $map;
