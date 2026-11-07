@@ -18,8 +18,7 @@ use SineMacula\ApiToolkit\Traits\Lockable;
 abstract class Service implements ServiceInterface
 {
     /** @use \SineMacula\ApiToolkit\Services\Traits\HasServiceLifecycle<TPayload> */
-    use HasServiceLifecycle;
-    use Lockable;
+    use HasServiceLifecycle, Lockable;
 
     /**
      * Prepare the service for execution.
@@ -28,9 +27,7 @@ abstract class Service implements ServiceInterface
      *
      * @throws Exception
      */
-    public function prepare(): void
-    {
-    }
+    public function prepare(): void {}
 
     /**
      * Run the service.

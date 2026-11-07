@@ -31,8 +31,7 @@ use SineMacula\ApiToolkit\Traits\Lockable;
 abstract class InjectableService implements ServiceInterface
 {
     /** @use \SineMacula\ApiToolkit\Services\Traits\HasServiceLifecycle<TPayload> */
-    use HasServiceLifecycle;
-    use Lockable;
+    use HasServiceLifecycle, Lockable;
 
     /**
      * Run the service.

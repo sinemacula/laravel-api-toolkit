@@ -63,8 +63,8 @@ trait HasServiceLifecycle
     /**
      * Instruct the service to use database transactions.
      *
-     * Transactions are only supported on MySQL databases running the InnoDB
-     * engine.
+     * NOTE: Transactions are only supported on MySQL databases running the
+     * InnoDB engine
      *
      * @return static
      */
@@ -89,8 +89,6 @@ trait HasServiceLifecycle
 
     /**
      * Instruct the service to use a cache lock.
-     *
-     * @SuppressWarnings("php:S112")
      *
      * @return static
      */
@@ -122,21 +120,15 @@ trait HasServiceLifecycle
      *
      * @return void
      */
-    public function success(): void
-    {
-    }
+    public function success(): void {}
 
     /**
      * Method is triggered if the handle method failed.
      *
-     * @SuppressWarnings("php:S1172")
-     *
      * @param  Throwable  $exception
      * @return void
      */
-    public function failed(Throwable $exception): void
-    {
-    }
+    public function failed(Throwable $exception): void {}
 
     /**
      * Initialize the service.
