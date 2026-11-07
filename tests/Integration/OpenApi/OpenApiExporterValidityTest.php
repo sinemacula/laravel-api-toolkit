@@ -1045,10 +1045,10 @@ final class OpenApiExporterValidityTest extends TestCase
 
         self::assertSame(
             '{"type":"object","properties":{'
-            . '"tags":{"type":["object","array"],"properties":{"name":{"type":"string"}}},'
+            . '"tags":{"type":["object","array"],"minItems":1,"properties":{"name":{"type":"string"}},"minProperties":1},'
             . '"address":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]},'
             . '"labels":{"type":["object","array","null"],"properties":{"primary":{},"secondary":{}},"additionalProperties":false,"maxItems":0},'
-            . '"items":{}},"required":["tags"]}',
+            . '"items":{}},"required":["tags","address"]}',
             json_encode($schema, JSON_THROW_ON_ERROR),
         );
 
@@ -1060,6 +1060,10 @@ final class OpenApiExporterValidityTest extends TestCase
             '{"tags":["a"],"address":["x"]}'                                      => false,
             '{"tags":["a"],"address":{"city":"x"},"labels":{"other":1}}'          => false,
             '{"tags":["a"],"address":{"city":"x"},"items":{"0":"a"}}'             => true,
+            '{"tags":[],"address":{"city":"x"}}'                                  => false,
+            '{"tags":{},"address":{"city":"x"}}'                                  => false,
+            '{"tags":["a"]}'                                                      => false,
+            '{"tags":["a"],"address":null}'                                       => false,
         ];
 
         foreach ($payloads as $payload => $accepted) {
@@ -1091,8 +1095,8 @@ final class OpenApiExporterValidityTest extends TestCase
         $indexed  = $document['paths']['/indexed']['post']['requestBody']['content']['application/json']['schema'];
 
         self::assertSame(
-            '{"type":"object","properties":{"0":{"type":"string"},"tags":{"type":"array"},'
-            . '"meta":{"type":"object","properties":{"0":{"type":"string"}},"required":["0"]}},"required":["0","tags"]}',
+            '{"type":"object","properties":{"0":{"type":"string"},"tags":{"type":"array","minItems":1},'
+            . '"meta":{"type":"object","properties":{"0":{"type":"string"}},"required":["0"]}},"required":["0","tags","meta"]}',
             json_encode($numbered, JSON_THROW_ON_ERROR),
         );
         self::assertSame(

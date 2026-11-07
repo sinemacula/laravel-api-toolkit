@@ -296,6 +296,25 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
+     * Test that each exclude rule object expands to the bare name of the rule
+     * it expresses, whatever its condition, so the field stays droppable.
+     *
+     * @return void
+     */
+    public function testExcludeRuleObjectsExpandToTheirRuleNames(): void
+    {
+        $tokens = (new RuleNormaliser)->normalise([
+            Rule::excludeIf(false),
+            Rule::excludeUnless(true),
+            Rule::excludeWith('a'),
+            Rule::excludeWithout('b'),
+            Rule::notIn(['x']),
+        ]);
+
+        self::assertSame(['exclude_if', 'exclude_unless', 'exclude_with', 'exclude_without'], $tokens);
+    }
+
+    /**
      * Test that an object definition passed directly, not wrapped in an array,
      * is expanded.
      *
