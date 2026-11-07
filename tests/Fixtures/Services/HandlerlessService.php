@@ -2,7 +2,7 @@
 
 namespace Tests\Fixtures\Services;
 
-use SineMacula\ApiToolkit\Services\Service;
+use SineMacula\ApiToolkit\Services\InjectableService;
 
 /**
  * Service that does not define a handler.
@@ -12,7 +12,7 @@ use SineMacula\ApiToolkit\Services\Service;
  *
  * @internal
  */
-class HandlerlessService extends Service
+class HandlerlessService extends InjectableService
 {
     /** @var bool Whether the prepare hook ran */
     public bool $prepared = false;
