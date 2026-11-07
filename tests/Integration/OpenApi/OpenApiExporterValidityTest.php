@@ -38,11 +38,13 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ColumnlessIntrospectionProvider;
+use Tests\Fixtures\OpenApi\KeyedArrayRequestInput;
 use Tests\Fixtures\OpenApi\NumericKeyRequestInput;
 use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathHeaderedUserController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
+use Tests\Fixtures\OpenApi\PathKeyedArrayController;
 use Tests\Fixtures\OpenApi\PathNumericKeyController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
@@ -1023,6 +1025,51 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
             'A document with narrowed enum fields must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+    }
+
+    /**
+     * Test that a write route whose rules address array fields by named keys
+     * exports each as the object and list forms the validator accepts, agrees
+     * with the validator on bodies sending either form, and the document stays
+     * valid OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testKeyedArrayFieldsEmitValidRequestBodies(): void
+    {
+        $this->router()->post('keyed', [PathKeyedArrayController::class, 'store']);
+
+        $document = $this->export()->document;
+        $schema   = $document['paths']['/keyed']['post']['requestBody']['content']['application/json']['schema'];
+
+        self::assertSame(
+            '{"type":"object","properties":{'
+            . '"tags":{"type":["object","array"],"properties":{"name":{"type":"string"}}},'
+            . '"address":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]},'
+            . '"labels":{"type":["object","array","null"],"properties":{"primary":{},"secondary":{}},"additionalProperties":false,"maxItems":0},'
+            . '"items":{}},"required":["tags"]}',
+            json_encode($schema, JSON_THROW_ON_ERROR),
+        );
+
+        $payloads = [
+            '{"tags":["a"],"address":{"city":"x"},"labels":null,"items":["a"]}'   => true,
+            '{"tags":{"name":"x"},"address":{"city":"x"},"labels":{"primary":1}}' => true,
+            '{"tags":["a"],"address":{"city":"x"},"labels":[],"items":[]}'        => true,
+            '{"tags":{"name":1},"address":{"city":"x"}}'                          => false,
+            '{"tags":["a"],"address":["x"]}'                                      => false,
+            '{"tags":["a"],"address":{"city":"x"},"labels":{"other":1}}'          => false,
+            '{"tags":["a"],"address":{"city":"x"},"items":{"0":"a"}}'             => true,
+        ];
+
+        foreach ($payloads as $payload => $accepted) {
+            self::assertSame($accepted, RequestValidator::make(json_decode($payload, true, 512, JSON_THROW_ON_ERROR), KeyedArrayRequestInput::rules())->passes(), $payload);
+            self::assertSame($accepted, $this->validateRequestBody($document, '/keyed', $payload)->isValid(), $payload);
+        }
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document with keyed array fields must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
         );
     }
 

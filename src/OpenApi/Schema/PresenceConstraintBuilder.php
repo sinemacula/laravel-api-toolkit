@@ -405,16 +405,21 @@ final readonly class PresenceConstraintBuilder
     }
 
     /**
-     * Build the schema for a confirmation sibling, mirroring the base type of
-     * the confirmed field.
+     * Build the schema for a confirmation sibling, mirroring the types of the
+     * confirmed field other than null, or a string when it declares none.
      *
      * @param  mixed  $schema
-     * @return array<string, string>
+     * @return array{type: non-empty-list<string>|string}
      */
     private function confirmationSchema(mixed $schema): array
     {
-        $type = is_array($schema) ? $schema['type'] ?? null : null;
+        $type  = is_array($schema) ? $schema['type'] ?? null : null;
+        $types = array_values(array_filter((array) $type, static fn (mixed $name): bool => is_string($name) && $name !== 'null'));
 
-        return is_string($type) ? ['type' => $type] : ['type' => 'string'];
+        return match (count($types)) {
+            0       => ['type' => 'string'],
+            1       => ['type' => $types[0]],
+            default => ['type' => $types],
+        };
     }
 }

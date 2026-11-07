@@ -10,13 +10,16 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
  * The rules array is the single source the request-body documentation is built
  * from. Each field's rules are normalised to tokens and turned into a property
  * schema, while dotted keys weave the properties into nested objects and a
- * `field.*` sibling supplies the items schema of an array field. Each object
- * then gains the confirmation siblings and presence constraints its fields'
- * confirmed and conditional presence rules express, while a field that may
- * never be sent is the false schema, with no children and no constraint. The
- * result is a `{type: object, properties, required}` fragment inlined by the
- * caller, never a registered component; nothing here throws, so an unrecognised
- * rule degrades to a skipped constraint rather than a failure.
+ * `field.*` sibling supplies the items schema of an array field. An array field
+ * with named children is an object that may also be sent as a list unless it
+ * requires a child, its `array:` keys restricting the names it admits, while a
+ * list ignores its named children. Each object then gains the confirmation
+ * siblings and presence constraints its fields' confirmed and conditional
+ * presence rules express, while a field that may never be sent is the false
+ * schema, with no children and no constraint. The result is a `{type: object,
+ * properties, required}` fragment inlined by the caller, never a registered
+ * component; nothing here throws, so an unrecognised rule degrades to a skipped
+ * constraint rather than a failure.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -71,19 +74,24 @@ final readonly class RulesToSchemaTranslator
      */
     private function buildNode(array $map, string $path): array
     {
-        $field   = $this->builder->build($map[''] ?? []);
+        $tokens  = $map[''] ?? [];
+        $field   = $this->builder->build($tokens);
         $schema  = $field['schema'];
         $grouped = $this->groupChildren($map);
+        $isArray = is_array($schema) && in_array('array', (array) ($schema['type'] ?? []), true);
 
-        if (is_array($schema) && in_array('array', (array) ($schema['type'] ?? []), true)) {
+        if ($isArray) {
             $grouped = $this->withoutIndices($grouped);
         }
 
-        if ($schema !== false && $grouped !== []) {
-            $schema = isset($grouped['*'])
-                ? $this->arrayNode($schema, $grouped['*'], $path)
-                : $this->objectNode($schema, $grouped, $path);
-        }
+        $schema = match (true) {
+            $schema === false               => false,
+            isset($grouped['*'])            => $this->arrayNode($schema, $grouped['*'], $path),
+            in_array('list', $tokens, true) => $schema,
+            $isArray                        => $this->keyedArrayNode($schema, $grouped, $path, $tokens),
+            $grouped !== []                 => $this->objectNode($schema, $grouped, $path),
+            default                         => $schema,
+        };
 
         return ['schema' => $schema, 'required' => $field['required']];
     }
@@ -191,6 +199,128 @@ final readonly class RulesToSchemaTranslator
         }
 
         return $this->presence->build($schema, $path, $tokens);
+    }
+
+    /**
+     * Build an array field whose children, if any, name its keys: it is also an
+     * object holding them, whose keys its `array:` rule restricts to the keys
+     * it names, and may still be sent as a list, a list being an array carrying
+     * no named key, unless the object requires one.
+     *
+     * @param  array<string, mixed>  $schema
+     * @param  array<array-key, array<array-key, list<string>>>  $grouped
+     * @param  string  $path
+     * @param  list<string>  $tokens
+     * @return array<string, mixed>
+     */
+    private function keyedArrayNode(array $schema, array $grouped, string $path, array $tokens): array
+    {
+        $keys = $this->allowedKeys($tokens);
+
+        if ($grouped === [] && $keys === null) {
+            return $schema;
+        }
+
+        $object = $this->objectNode($schema, $grouped + array_fill_keys($keys ?? [], []), $path);
+        $object = $this->withPropertyCounts($keys === null ? $object : $this->restrictKeys($object, $keys));
+
+        if (isset($object['required'])) {
+            unset($object['items'], $object['minItems'], $object['maxItems']);
+
+            return $object;
+        }
+
+        $object['type'] = ['object', ...(array) $schema['type']];
+
+        if ($keys !== null) {
+            $object['maxItems'] = min($object['maxItems'] ?? PHP_INT_MAX, $this->listLength($keys));
+        }
+
+        return $object;
+    }
+
+    /**
+     * Bound an array field's object form by the element counts its size rules
+     * set, since the validator counts an object's keys as it counts a list's
+     * elements.
+     *
+     * @param  array<string, mixed>  $object
+     * @return array<string, mixed>
+     */
+    private function withPropertyCounts(array $object): array
+    {
+        foreach (['minItems' => 'minProperties', 'maxItems' => 'maxProperties'] as $items => $properties) {
+            if (!isset($object[$items])) {
+                continue;
+            }
+
+            $object[$properties] = $object[$items];
+        }
+
+        return $object;
+    }
+
+    /**
+     * Read the keys an `array:` rule restricts the field to, as the validator
+     * parses them, or null when no rule restricts its keys.
+     *
+     * @param  list<string>  $tokens
+     * @return list<string>|null
+     */
+    private function allowedKeys(array $tokens): ?array
+    {
+        foreach ($tokens as $token) {
+            if (str_starts_with($token, 'array:')) {
+                return array_map(static fn (?string $key): string => (string) $key, str_getcsv(substr($token, 6), ',', '"', '\\'));
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Restrict an object to the allowed keys, forbidding any declared property
+     * the keys leave out and any undeclared one.
+     *
+     * @param  array<string, mixed>  $object
+     * @param  list<string>  $keys
+     * @return array<string, mixed>
+     */
+    private function restrictKeys(array $object, array $keys): array
+    {
+        /** @var array<array-key, mixed> $properties */
+        $properties = $object['properties'];
+
+        foreach (array_keys($properties) as $name) {
+            if (in_array((string) $name, $keys, true)) {
+                continue;
+            }
+
+            $properties[$name] = false;
+        }
+
+        $object['properties']           = $properties;
+        $object['additionalProperties'] = false;
+
+        return $object;
+    }
+
+    /**
+     * Count the leading list indices the allowed keys name, the longest list
+     * the key restriction admits.
+     *
+     * @param  list<string>  $keys
+     * @return int
+     */
+    private function listLength(array $keys): int
+    {
+        $length = 0;
+
+        while (in_array((string) $length, $keys, true)) {
+            $length++;
+        }
+
+        return $length;
     }
 
     /**
