@@ -132,7 +132,7 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      * standard Laravel rule syntax. Cross-field constraints such as confirmed
      * or after:other_field are also expressed here.
      *
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     #[\Override]
     public static function rules(): array
@@ -167,7 +167,7 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      */
     private static function resolveBodyKeys(string $class): array
     {
-        $segments = array_map(static fn (string $key): string => Str::before($key, '.'), array_keys($class::rules()));
+        $segments = array_map(static fn (int|string $key): string => Str::before((string) $key, '.'), array_keys($class::rules()));
         $camel    = [];
 
         foreach ($segments as $segment) {
