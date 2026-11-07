@@ -2,29 +2,19 @@
 
 namespace Tests\Unit\Services;
 
-use Illuminate\Cache\ArrayStore;
-use Illuminate\Cache\Repository as CacheRepository;
-use Illuminate\Container\Container;
-use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Facade;
-use LogicException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SineMacula\ApiToolkit\Services\Service;
-use Tests\Fixtures\Services\FakeDatabaseManager;
-use Tests\Fixtures\Services\HandlerlessService;
-use Tests\Fixtures\Services\InjectedService;
+use SineMacula\ApiToolkit\Services\Traits\HasServiceLifecycle;
+use Tests\Fixtures\PayloadService;
+use Tests\Fixtures\Services\NamesakeTraitService;
 use Tests\Fixtures\Services\OptionalDependencyService;
-use Tests\Fixtures\Services\PrivateHandlerService;
+use Tests\Fixtures\Services\OverridingService;
 use Tests\Fixtures\Services\RecordingService;
-use Tests\Fixtures\Services\ServiceLog;
-use Tests\Fixtures\Services\ServiceProbe;
-use Tests\Fixtures\Services\UnresolvableService;
-use Throwable;
 
 /**
  * Service run tests.
@@ -35,49 +25,9 @@ use Throwable;
  * @internal
  */
 #[CoversClass(Service::class)]
-class ServiceRunTest extends TestCase
+#[CoversTrait(HasServiceLifecycle::class)]
+class ServiceRunTest extends ServiceTestCase
 {
-    /** @var \Tests\Fixtures\Services\ServiceLog The log shared by the services and the database */
-    private ServiceLog $log;
-
-    /** @var \Tests\Fixtures\Services\FakeDatabaseManager The database the transactions run on */
-    private FakeDatabaseManager $db;
-
-    /**
-     * Bind a fresh container with a logging database and an array cache.
-     *
-     * @return void
-     */
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->log = new ServiceLog();
-        $this->db  = new FakeDatabaseManager($this->log);
-
-        $container = new Container();
-        $container->instance(ServiceLog::class, $this->log);
-        $container->instance('db', $this->db);
-        $container->instance('cache', new CacheRepository(new ArrayStore()));
-
-        Container::setInstance($container);
-        Facade::setFacadeApplication($container);
-    }
-
-    /**
-     * Drop the container and the resolved facades.
-     *
-     * @return void
-     */
-    protected function tearDown(): void
-    {
-        Facade::clearResolvedInstances();
-        Facade::setFacadeApplication(null);
-        Container::setInstance(null);
-
-        parent::tearDown();
-    }
-
     /**
      * A parameterless handler runs inside a transaction given three attempts.
      *
@@ -207,43 +157,8 @@ class ServiceRunTest extends TestCase
     }
 
     /**
-     * Handler parameters are resolved from the container and a scalar parameter
-     * keeps its default.
-     *
-     * @return void
-     */
-    #[Test]
-    public function handlerParametersAreResolvedFromTheContainer(): void
-    {
-        $probe = new ServiceProbe();
-        Container::getInstance()->instance(ServiceProbe::class, $probe);
-
-        $service = new InjectedService();
-
-        static::assertTrue($service->run());
-        static::assertSame($probe, $service->probe);
-        static::assertSame(['begin', 'handle:default', 'commit'], $this->log->entries);
-    }
-
-    /**
-     * An injected handler's result is returned when transactions are off.
-     *
-     * @return void
-     */
-    #[Test]
-    public function injectedHandlerRunsWithoutATransaction(): void
-    {
-        $service = (new InjectedService(['result' => false]))->dontUseTransaction();
-
-        static::assertFalse($service->run());
-        static::assertInstanceOf(ServiceProbe::class, $service->probe);
-        static::assertSame(['handle:default'], $this->log->entries);
-        static::assertSame([], $this->db->attempts);
-    }
-
-    /**
-     * A handler without required parameters is called without the container,
-     * so its optional parameters keep their defaults.
+     * A handler's optional parameters keep their defaults rather than being
+     * resolved from the container.
      *
      * @return void
      */
@@ -257,88 +172,81 @@ class ServiceRunTest extends TestCase
     }
 
     /**
-     * A failing injected handler leaves no contextual binding behind.
+     * A service that marks its overridden hooks with the override attribute
+     * loads and runs each of them.
      *
      * @return void
      */
     #[Test]
-    public function failingInjectedHandlerLeavesNoContextBehind(): void
+    public function overrideAttributedHooksRun(): void
     {
-        $container = Container::getInstance();
-        $container->bind('choice', fn () => 'global');
-        $container->when(InjectedService::class)->needs('choice')->give(fn () => 'service');
+        $service = (new OverridingService())->useLock();
 
-        $exception = new RuntimeException('injected');
-        $service   = (new InjectedService(['exception' => $exception]))->dontUseTransaction();
+        static::assertTrue($service->run());
+        static::assertSame(['prepare', 'handle', 'success'], $service->ran);
+    }
+
+    /**
+     * The prepare hook can be called directly and can call its parent.
+     *
+     * @return void
+     */
+    #[Test]
+    public function prepareCanBeCalledDirectly(): void
+    {
+        (new RecordingService(['log' => $this->log]))->prepare();
+
+        static::assertSame(['prepare'], $this->log->entries);
+    }
+
+    /**
+     * The prepare hook still exists on a service that does not override it.
+     *
+     * @return void
+     */
+    #[Test]
+    public function inheritedPrepareDoesNothing(): void
+    {
+        $service = new PayloadService();
+
+        $service->prepare();
+
+        static::assertTrue(method_exists($service, 'prepare'));
+        static::assertTrue($service->run());
+    }
+
+    /**
+     * A prepare exception runs the failed hook and propagates unchanged without
+     * running the handler or opening a transaction.
+     *
+     * @return void
+     */
+    #[Test]
+    public function prepareExceptionPropagatesAfterTheFailedHook(): void
+    {
+        $exception = new RuntimeException('not ready');
+        $service   = new RecordingService(['log' => $this->log, 'prepare_exception' => $exception]);
 
         static::assertSame($exception, $this->runExpectingFailure($service));
-        static::assertSame('global', $container->make('choice'));
-    }
-
-    /**
-     * A handler dependency the container cannot build fails the service.
-     *
-     * @return void
-     */
-    #[Test]
-    public function unresolvableHandlerDependencyRunsTheFailedHook(): void
-    {
-        $service   = new UnresolvableService();
-        $exception = $this->runExpectingFailure($service);
-
-        static::assertInstanceOf(BindingResolutionException::class, $exception);
-        static::assertSame($exception, $service->failure);
-    }
-
-    /**
-     * A service without a handler is rejected before it is prepared.
-     *
-     * @return void
-     */
-    #[Test]
-    public function serviceWithoutAHandlerIsRejected(): void
-    {
-        $service = new HandlerlessService();
-
-        try {
-            $service->run();
-            static::fail('The missing handler was not rejected');
-        } catch (LogicException $exception) {
-            static::assertSame('Service [' . HandlerlessService::class . '] must define a protected handle() method', $exception->getMessage());
-        }
-
-        static::assertFalse($service->prepared);
+        static::assertSame(['prepare', 'failed:not ready'], $this->log->entries);
         static::assertSame([], $this->db->attempts);
     }
 
     /**
-     * A private handler the base class cannot call is rejected.
+     * A service trait's initializer and success callback each run once, even
+     * when the trait shares its name with the toolkit's own lifecycle trait.
      *
      * @return void
      */
     #[Test]
-    public function privateHandlerIsRejected(): void
+    public function serviceTraitCallbacksRunOnce(): void
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Service [' . PrivateHandlerService::class . '] must define a protected handle() method');
+        NamesakeTraitService::$initializations = 0;
 
-        (new PrivateHandlerService())->run();
-    }
+        $service = new NamesakeTraitService();
 
-    /**
-     * Run the service and return the exception it throws.
-     *
-     * @param  \SineMacula\ApiToolkit\Services\Service  $service
-     * @return \Throwable
-     */
-    private function runExpectingFailure(Service $service): Throwable
-    {
-        try {
-            $service->run();
-        } catch (Throwable $exception) {
-            return $exception;
-        }
-
-        static::fail('The service did not throw');
+        static::assertTrue($service->run());
+        static::assertSame(1, NamesakeTraitService::$initializations);
+        static::assertSame(1, $service->successes);
     }
 }

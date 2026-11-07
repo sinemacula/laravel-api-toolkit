@@ -3,7 +3,7 @@
 namespace Tests\Fixtures\Services;
 
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInterface;
-use SineMacula\ApiToolkit\Services\Service;
+use SineMacula\ApiToolkit\Services\InjectableService;
 use Throwable;
 
 /**
@@ -14,7 +14,7 @@ use Throwable;
  *
  * @internal
  */
-class UnresolvableService extends Service
+class UnresolvableService extends InjectableService
 {
     /** @var \Throwable|null The exception passed to the failed hook */
     public ?Throwable $failure = null;

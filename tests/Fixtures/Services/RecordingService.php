@@ -22,10 +22,20 @@ class RecordingService extends Service
      * Prepare the service for execution.
      *
      * @return void
+     *
+     * @throws \Throwable
      */
     public function prepare(): void
     {
+        parent::prepare();
+
         $this->log()->add('prepare');
+
+        $exception = $this->payload->get('prepare_exception');
+
+        if ($exception instanceof Throwable) {
+            throw $exception;
+        }
     }
 
     /**

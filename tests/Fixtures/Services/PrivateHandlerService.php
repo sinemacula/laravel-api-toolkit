@@ -2,7 +2,7 @@
 
 namespace Tests\Fixtures\Services;
 
-use SineMacula\ApiToolkit\Services\Service;
+use SineMacula\ApiToolkit\Services\InjectableService;
 
 /**
  * Service whose handler is private and so cannot be called by the base class.
@@ -12,7 +12,7 @@ use SineMacula\ApiToolkit\Services\Service;
  *
  * @internal
  */
-class PrivateHandlerService extends Service
+class PrivateHandlerService extends InjectableService
 {
     /**
      * Handle the service.
