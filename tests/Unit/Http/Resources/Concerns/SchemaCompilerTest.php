@@ -852,6 +852,30 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
+     * Test that the extras, needs and fields of a field keep only their string
+     * entries, reindexed as a list.
+     *
+     * @return void
+     */
+    public function testCompileKeepsOnlyTheStringEntriesOfAFieldsLists(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'avatar' => [
+                'extras' => [1, 'media', null],
+                'needs'  => ['first' => 'id', 'second' => 2],
+                'fields' => [true, 'name'],
+            ],
+        ]);
+
+        $field = SchemaCompiler::compile($resourceClass)->getField('avatar');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        self::assertSame(['media'], $field->extras);
+        self::assertSame(['id'], $field->needs);
+        self::assertSame(['name'], $field->fields);
+    }
+
+    /**
      * Test that an openapi schema is threaded into the compiled field
      * definition's openApi property.
      *

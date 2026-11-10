@@ -208,6 +208,23 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
+     * Test that persist associates a BelongsTo relation given the related model
+     * itself.
+     *
+     * @return void
+     */
+    public function testPersistAssociatesRelationGivenTheModel(): void
+    {
+        $org  = Organization::create(['name' => 'Acme', 'slug' => 'acme']);
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        $this->setProperty($this->attributeSetter, 'casts', ['organization' => 'associate']);
+
+        self::assertTrue($this->attributeSetter->persist($user, ['organization' => $org], User::class));
+        self::assertSame($org->id, $user->organization_id);
+    }
+
+    /**
      * Test that persist syncs a BelongsToMany relation after saving the model.
      *
      * @return void
