@@ -213,6 +213,8 @@ final readonly class ServerListValidator
      *
      * @param  mixed  $values
      * @return bool
+     *
+     * @phpstan-assert-if-true non-empty-list<string> $values
      */
     private function isStringList(mixed $values): bool
     {

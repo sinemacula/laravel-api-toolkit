@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
@@ -18,6 +19,7 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaNameCollisionGuard;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
@@ -105,6 +107,7 @@ final readonly class ResourceSchemaBuilder
         $built       = array_fill_keys(array_values($resourceMap), true);
 
         foreach ($resourceMap as $modelClass => $resourceClass) {
+
             $name = $this->schemaName($resourceClass);
 
             $guard->claim($claimed, $name, $resourceClass);
@@ -138,7 +141,7 @@ final readonly class ResourceSchemaBuilder
      * Build a single resource's object schema.
      *
      * @param  class-string  $resourceClass
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  class-string  $modelClass
      * @param  array<string, true>  $built
      * @return array<string, mixed>
      */
@@ -196,7 +199,7 @@ final readonly class ResourceSchemaBuilder
      *
      * @param  string  $fieldKey
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  class-string  $modelClass
      * @param  array<string, true>  $built
      * @return array<string, mixed>
      */
@@ -204,6 +207,10 @@ final readonly class ResourceSchemaBuilder
     {
         if ($field->relation !== null && $field->resource !== null) {
             return $this->buildRelationProperty($field->relation, $field->resource, $modelClass, $built);
+        }
+
+        if (!is_subclass_of($modelClass, Model::class)) {
+            return ($field->openApi ?? OpenApiFieldSchema::undocumented())->toArray();
         }
 
         return $this->resolver->resolve($fieldKey, $field, $modelClass)->toArray();
@@ -228,14 +235,14 @@ final readonly class ResourceSchemaBuilder
      * afresh on every read.
      *
      * @param  string  $relation
-     * @param  class-string  $childResource
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  string  $childResource
+     * @param  class-string  $modelClass
      * @param  array<string, true>  $built
      * @return array<string, mixed>
      */
     private function buildRelationProperty(string $relation, string $childResource, string $modelClass, array $built): array
     {
-        $target = isset($built[$childResource])
+        $target = isset($built[$childResource]) && class_exists($childResource)
             ? ['$ref' => self::SCHEMA_REF_PREFIX . $this->schemaName($childResource)]
             : ['type' => 'object', self::UNDOCUMENTED_KEY => true];
         $instance = $this->resolveRelation($relation, $modelClass);
@@ -255,12 +262,12 @@ final readonly class ResourceSchemaBuilder
      * relation cannot be resolved.
      *
      * @param  string  $relation
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  class-string  $modelClass
      * @return \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>|null
      */
     private function resolveRelation(string $relation, string $modelClass): ?Relation
     {
-        if (!class_exists($modelClass)) {
+        if (!is_subclass_of($modelClass, Model::class)) {
             return null;
         }
 

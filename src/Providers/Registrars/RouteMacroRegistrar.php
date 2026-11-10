@@ -68,7 +68,7 @@ final class RouteMacroRegistrar
             'notDocumentedIn' => array_values(array_merge((array) ($current['notDocumentedIn'] ?? []), $notDocumentedIn)),
         ];
 
-        $action                                     = $route->getAction();
+        $action                                     = $route->action;
         $action[AudienceResolver::ROUTE_ACTION_KEY] = $merged;
 
         $route->setAction($action);

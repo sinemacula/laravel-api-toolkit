@@ -30,6 +30,8 @@ final readonly class EnumSchemaBuilder
      * @param  list<class-string>  $enums
      * @param  array<string, string>  $reserved
      * @return array<string, array<string, mixed>>
+     *
+     * @throws \LogicException
      */
     public function build(array $enums, array $reserved = []): array
     {
@@ -38,6 +40,11 @@ final readonly class EnumSchemaBuilder
         $schemas = [];
 
         foreach ($enums as $enum) {
+
+            if (!enum_exists($enum)) {
+                throw new \LogicException(sprintf('The referenced class [%s] is not an enum', $enum));
+            }
+
             $name = SchemaComponentName::fromEnum($enum);
 
             $guard->claim($claimed, $name, $enum);
@@ -51,7 +58,7 @@ final readonly class EnumSchemaBuilder
     /**
      * List the enum's wire values in case declaration order.
      *
-     * @param  class-string  $enum
+     * @param  class-string<\UnitEnum>  $enum
      * @return list<int|string>
      */
     private function values(string $enum): array
@@ -71,7 +78,7 @@ final readonly class EnumSchemaBuilder
      * Resolve the JSON Schema type for the enum's backing type: integer for an
      * int-backed enum, string for a string-backed or non-backed enum.
      *
-     * @param  class-string  $enum
+     * @param  class-string<\UnitEnum>  $enum
      * @return string
      */
     private function backingType(string $enum): string
