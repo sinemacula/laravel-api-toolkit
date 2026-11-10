@@ -8,6 +8,7 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Search\ColumnCondition;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
@@ -109,11 +110,8 @@ final class SqliteSearchDriver implements SearchDriver
                 continue;
             }
 
-            // @phpstan-ignore staticMethod.dynamicCall
-            $query->orWhereRaw(
-                sprintf('%s like ? escape \'%s\'', $query->getQuery()->getGrammar()->wrap($qualified), SearchTerm::ESCAPE_CHARACTER),
-                [$term->pattern($strategy)],
-            );
+            $query->orWhere(ColumnCondition::escapedPattern($qualified));
+            $query->getQuery()->addBinding($term->pattern($strategy), 'where');
         }
     }
 }

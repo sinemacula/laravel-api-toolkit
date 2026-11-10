@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\Search\Drivers;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Search\ColumnCondition;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
@@ -80,11 +81,8 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
     {
         foreach ($columns as $column) {
 
-            // @phpstan-ignore staticMethod.dynamicCall
-            $query->orWhereRaw(
-                sprintf('%s like ? escape \'%s\'', $this->wrap($query, $column), SearchTerm::ESCAPE_CHARACTER),
-                [$term->pattern(SearchStrategy::PREFIX)],
-            );
+            $query->orWhere(ColumnCondition::escapedPattern($query->qualifyColumn($column)));
+            $query->getQuery()->addBinding($term->pattern(SearchStrategy::PREFIX), 'where');
         }
     }
 
@@ -101,13 +99,8 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
     #[\Override]
     protected function applySubstringMatch(Builder $query, array $columns, SearchTerm $term): void
     {
-        $matched = array_map(fn (string $column): string => $this->wrap($query, $column), $columns);
-
-        // @phpstan-ignore staticMethod.dynamicCall
-        $query->orWhereRaw(
-            sprintf('match (%s) against (? in boolean mode)', implode(', ', $matched)),
-            [$term->phrase()],
-        );
+        $query->orWhere(ColumnCondition::booleanFullText(array_map($query->qualifyColumn(...), $columns)));
+        $query->getQuery()->addBinding($term->phrase(), 'where');
     }
 
     /**

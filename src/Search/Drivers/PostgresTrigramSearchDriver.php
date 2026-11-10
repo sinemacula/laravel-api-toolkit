@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\Search\Drivers;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Search\ColumnCondition;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
@@ -117,11 +118,8 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     {
         foreach ($columns as $column) {
 
-            // @phpstan-ignore staticMethod.dynamicCall
-            $query->orWhereRaw(
-                sprintf('%s ilike ? escape \'%s\'', $this->wrap($query, $column), SearchTerm::ESCAPE_CHARACTER),
-                [$term->pattern($strategy)],
-            );
+            $query->orWhere(ColumnCondition::escapedPattern($query->qualifyColumn($column), 'ilike'));
+            $query->getQuery()->addBinding($term->pattern($strategy), 'where');
         }
     }
 
