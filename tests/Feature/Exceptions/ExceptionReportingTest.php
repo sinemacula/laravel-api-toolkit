@@ -4,8 +4,6 @@ declare(strict_types = 1);
 
 namespace Tests\Feature\Exceptions;
 
-use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Log\Logger;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
@@ -127,7 +125,7 @@ final class ExceptionReportingTest extends TestCase
     {
         $captured = [];
 
-        $exceptions = new Exceptions(app(ExceptionHandlerContract::class));
+        $exceptions = $this->exceptionConfiguration();
 
         $exceptions->report(static function (\Throwable $exception) use (&$captured): void {
             $captured[] = $exception;

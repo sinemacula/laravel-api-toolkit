@@ -6,7 +6,6 @@ namespace Tests\Feature\Middleware;
 
 use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Illuminate\Contracts\Foundation\MaintenanceMode;
-use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -132,7 +131,7 @@ final class MaintenanceModeTest extends TestCase
 
         self::assertFalse($handler->shouldReport(new MaintenanceModeException(null, ['Retry-After' => '60'])));
 
-        (new Exceptions($handler))->report(static function (\Throwable $exception) use ($reported): void {
+        $this->exceptionConfiguration()->report(static function (\Throwable $exception) use ($reported): void {
             $reported->append($exception);
         });
 

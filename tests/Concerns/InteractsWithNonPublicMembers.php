@@ -83,10 +83,7 @@ trait InteractsWithNonPublicMembers
      */
     protected function setStaticProperty(string $class, string $property, mixed $value): void
     {
-        $reflection = new \ReflectionClass($class);
-        $prop       = $reflection->getProperty($property);
-
-        $prop->setValue(null, $value);
+        (new \ReflectionProperty($class, $property))->setValue(null, $value);
     }
 
     /**
@@ -98,9 +95,6 @@ trait InteractsWithNonPublicMembers
      */
     protected function getStaticProperty(string $class, string $property): mixed
     {
-        $reflection = new \ReflectionClass($class);
-        $prop       = $reflection->getProperty($property);
-
-        return $prop->getValue(null);
+        return (new \ReflectionProperty($class, $property))->getValue(null);
     }
 }
