@@ -5,8 +5,8 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories;
 
 use Illuminate\Contracts\Pagination\CursorPaginator;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -813,7 +813,9 @@ final class ApiRepositoryTest extends TestCase
     /**
      * Get the AttributeSetter collaborator from the given repository.
      *
-     * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model>  $repository
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<TModel>  $repository
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter
      *
      * @SuppressWarnings("php:S3011")

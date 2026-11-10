@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Services\Events\ServiceCompleted;
 use SineMacula\ApiToolkit\Services\ServiceResult;
+use Tests\Fixtures\Services\SimpleService;
 use Tests\Fixtures\Services\StubActor;
 
 /**
@@ -29,7 +30,7 @@ final class ServiceCompletedTest extends TestCase
     public function testExposesPayload(): void
     {
         $actor         = new StubActor;
-        $service       = 'App\Services\ExampleService';
+        $service       = SimpleService::class;
         $result        = ServiceResult::success(['id' => 1]);
         $duration      = 0.042;
         $correlationId = 'corr-abc-123';
@@ -56,7 +57,7 @@ final class ServiceCompletedTest extends TestCase
 
         $event = new ServiceCompleted(
             $actor,
-            'App\Services\ExampleService',
+            SimpleService::class,
             ServiceResult::success(),
             0.1,
             'corr-xyz',

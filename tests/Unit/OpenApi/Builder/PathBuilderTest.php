@@ -382,7 +382,7 @@ final class PathBuilderTest extends TestCase
     {
         $this->registerRestRoutes('auth');
 
-        $statuses = array_keys($this->build()['/users']['post']['responses']);
+        $statuses = array_keys($this->responsesOf('/users', 'post'));
 
         sort($statuses);
 
@@ -1234,7 +1234,7 @@ final class PathBuilderTest extends TestCase
     {
         $this->router()->get('articles', [PathRequestBodyController::class, 'index']);
 
-        self::assertArrayNotHasKey('requestBody', $this->build()['/articles']['get']);
+        self::assertArrayNotHasKey('requestBody', $this->operation('/articles', 'get'));
     }
 
     /**
@@ -1246,7 +1246,7 @@ final class PathBuilderTest extends TestCase
     {
         $this->router()->delete('articles/{article}', [PathRequestBodyController::class, 'destroy']);
 
-        self::assertArrayNotHasKey('requestBody', $this->build()['/articles/{article}']['delete']);
+        self::assertArrayNotHasKey('requestBody', $this->operation('/articles/{article}', 'delete'));
     }
 
     /**
@@ -1363,7 +1363,7 @@ final class PathBuilderTest extends TestCase
     {
         $this->router()->get('readbody', [PathRequestBodyController::class, 'store']);
 
-        self::assertArrayNotHasKey('requestBody', $this->build()['/readbody']['get']);
+        self::assertArrayNotHasKey('requestBody', $this->operation('/readbody', 'get'));
     }
 
     /**
@@ -1418,7 +1418,7 @@ final class PathBuilderTest extends TestCase
 
         self::assertSame(
             [201, 401, 403, 409, 422, 500],
-            array_keys($this->build()['/users']['post']['responses']),
+            array_keys($this->responsesOf('/users', 'post')),
         );
     }
 
@@ -1470,7 +1470,7 @@ final class PathBuilderTest extends TestCase
     {
         $this->router()->put('errors/{error}', [PathErrorController::class, 'update'])->middleware('auth');
 
-        $statuses = array_keys($this->build()['/errors/{error}']['put']['responses']);
+        $statuses = array_keys($this->responsesOf('/errors/{error}', 'put'));
 
         self::assertSame([200, 401, 403, 404, 422, 500], $statuses);
     }
@@ -1602,7 +1602,7 @@ final class PathBuilderTest extends TestCase
     {
         $this->registerRestRoutes();
 
-        self::assertSame([200, 403, 500], array_keys($this->build()['/users']['get']['responses']));
+        self::assertSame([200, 403, 500], array_keys($this->responsesOf('/users', 'get')));
     }
 
     /**
@@ -1656,7 +1656,7 @@ final class PathBuilderTest extends TestCase
     {
         $this->router()->get('report', [PathRouteFactsController::class, 'report']);
 
-        self::assertSame([200, 403, 500], array_keys($this->build()['/report']['get']['responses']));
+        self::assertSame([200, 403, 500], array_keys($this->responsesOf('/report', 'get')));
     }
 
     /**
@@ -1766,7 +1766,7 @@ final class PathBuilderTest extends TestCase
     {
         $this->router()->get('items/{item}', static fn (): null => null)->middleware('auth');
 
-        self::assertSame([200, 401, 404, 500], array_keys($this->build()['/items/{item}']['get']['responses']));
+        self::assertSame([200, 401, 404, 500], array_keys($this->responsesOf('/items/{item}', 'get')));
     }
 
     /**
@@ -2192,11 +2192,13 @@ final class PathBuilderTest extends TestCase
      * List the shared query-parameter component names the operation references,
      * in the order it carries them.
      *
-     * @param  array<mixed>  $operation
+     * @param  mixed  $operation
      * @return array<int, string>
      */
-    private function referencedParameterNames(array $operation): array
+    private function referencedParameterNames(mixed $operation): array
     {
+        self::assertIsArray($operation);
+
         $names      = [];
         $parameters = $operation['parameters'] ?? [];
 
@@ -2221,15 +2223,51 @@ final class PathBuilderTest extends TestCase
     /**
      * Reduce a parameter list to its path parameters.
      *
-     * @param  array<int, array<string, mixed>>  $parameters
-     * @return array<int, array<string, mixed>>
+     * @param  mixed  $parameters
+     * @return list<mixed>
      */
-    private function pathParametersIn(array $parameters): array
+    private function pathParametersIn(mixed $parameters): array
     {
+        self::assertIsArray($parameters);
+
         return array_values(array_filter(
             $parameters,
-            static fn (array $parameter): bool => ($parameter['in'] ?? null) === 'path',
+            static fn (mixed $parameter): bool => is_array($parameter) && ($parameter['in'] ?? null) === 'path',
         ));
+    }
+
+    /**
+     * Build the paths object and read one operation from it, failing the test
+     * when the operation is absent.
+     *
+     * @param  string  $path
+     * @param  string  $method
+     * @return array<array-key, mixed>
+     */
+    private function operation(string $path, string $method): array
+    {
+        $operation = $this->build()[$path][$method] ?? null;
+
+        self::assertIsArray($operation);
+
+        return $operation;
+    }
+
+    /**
+     * Build the paths object and read the responses one operation documents,
+     * failing the test when they are absent.
+     *
+     * @param  string  $path
+     * @param  string  $method
+     * @return array<array-key, mixed>
+     */
+    private function responsesOf(string $path, string $method): array
+    {
+        $responses = $this->operation($path, $method)['responses'] ?? null;
+
+        self::assertIsArray($responses);
+
+        return $responses;
     }
 
     /**

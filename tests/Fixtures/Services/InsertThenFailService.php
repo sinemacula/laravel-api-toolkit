@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Services\Service;
  * a 500 envelope while the row stays absent, proving the rollback and the
  * rendered error together.
  *
- * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Input\ArrayInput, never>
+ * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Contracts\ServiceInput, never>
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

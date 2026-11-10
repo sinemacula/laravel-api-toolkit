@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Services\Events\ServiceFailed;
 use SineMacula\ApiToolkit\Services\ServiceResult;
+use Tests\Fixtures\Services\SimpleService;
 use Tests\Fixtures\Services\StubActor;
 
 /**
@@ -29,7 +30,7 @@ final class ServiceFailedTest extends TestCase
     public function testCarriesFailureResult(): void
     {
         $actor         = new StubActor;
-        $service       = 'App\Services\ExampleService';
+        $service       = SimpleService::class;
         $cause         = new \RuntimeException('something went wrong');
         $result        = ServiceResult::failure($cause);
         $duration      = 0.007;
@@ -58,7 +59,7 @@ final class ServiceFailedTest extends TestCase
 
         $event = new ServiceFailed(
             $actor,
-            'App\Services\ExampleService',
+            SimpleService::class,
             ServiceResult::failure(),
             0.05,
             'corr-xyz',

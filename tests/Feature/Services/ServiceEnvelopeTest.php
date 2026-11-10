@@ -82,7 +82,7 @@ final class ServiceEnvelopeTest extends TestCase
             $service = new AuthorizingService;
             $user    = $request->user();
 
-            if ($user !== null) {
+            if ($user instanceof User) {
                 $service->by(EloquentActor::for($user));
             }
 

@@ -12,7 +12,7 @@ use Tests\Fixtures\Exceptions\ServiceExecutionException;
 /**
  * Fixture service that always fails.
  *
- * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Input\ArrayInput, never>
+ * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Contracts\ServiceInput, never>
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

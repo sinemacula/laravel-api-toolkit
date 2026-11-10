@@ -329,12 +329,17 @@ final class SchemaIntrospectorTest extends TestCase
         $introspector->getIndexes($this->tenantModel());
         $after = SchemaIdentity::of(DB::connection('tenant'));
 
+        $columns = $this->getProperty($introspector, 'columns');
+        $indexes = $this->getProperty($introspector, 'indexes');
+
+        self::assertIsArray($columns);
+        self::assertIsArray($indexes);
         self::assertNotSame($before, $after);
-        self::assertCount(2, $this->getProperty($introspector, 'columns'));
-        self::assertCount(2, $this->getProperty($introspector, 'indexes'));
+        self::assertCount(2, $columns);
+        self::assertCount(2, $indexes);
 
         foreach ([$before, $after] as $identity) {
-            self::assertArrayHasKey($identity . '|' . $this->tenantModel()::class, $this->getProperty($introspector, 'columns'));
+            self::assertArrayHasKey($identity . '|' . $this->tenantModel()::class, $columns);
             self::assertIsArray(Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$identity, $this->tenantModel()::class]))));
         }
     }
