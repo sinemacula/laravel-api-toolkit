@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Resources;
 
+use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -893,7 +894,7 @@ final class ApiResourceTest extends TestCase
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Relation::to('items', TagResource::class)->constrain(static function (Builder $query): void {
+                    Relation::to('items', TagResource::class)->constrain(static function (BuilderContract $query): void {
                         $query->where('active', true);
                     }),
                 );
@@ -2111,7 +2112,7 @@ final class ApiResourceTest extends TestCase
                 return Field::set(
                     Field::scalar('id'),
                     Relation::to('organization', OrganizationResource::class)
-                        ->constrain(static function (Builder $query): void {
+                        ->constrain(static function (BuilderContract $query): void {
                             $query->where('name', 'Active');
                         }),
                 );
@@ -2258,7 +2259,7 @@ final class ApiResourceTest extends TestCase
                 return Field::set(
                     Field::scalar('id'),
                     Relation::to('organization', OrganizationResource::class)
-                        ->constrain(static function (Builder|MorphTo $query): void {}),
+                        ->constrain(static function (BuilderContract $query): void {}),
                 );
             }
         };

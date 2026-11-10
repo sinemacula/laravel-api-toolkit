@@ -340,8 +340,8 @@ final class EagerLoadPlanner
      * Wrap a constraint closure to safely handle MorphTo, EloquentRelation, and
      * Builder instances.
      *
-     * @param  \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void  $constraint
-     * @return \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void
+     * @param  \Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void  $constraint
+     * @return \Closure(mixed): void
      */
     private static function wrapConstraint(\Closure $constraint): \Closure
     {

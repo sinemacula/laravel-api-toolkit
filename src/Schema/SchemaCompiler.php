@@ -413,7 +413,7 @@ final class SchemaCompiler
      * Resolve the eager-loading constraint closure for a field definition.
      *
      * @param  array<string, mixed>  $definition
-     * @return (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null
+     * @return (\Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null
      */
     private static function resolveFieldConstraint(array $definition): ?\Closure
     {
