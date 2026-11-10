@@ -7,6 +7,8 @@ namespace SineMacula\ApiToolkit\Contracts;
 /**
  * API resource interface.
  *
+ * @phpstan-type AggregateLoad array{relation: string|array<string, \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void>, column: string}
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -68,7 +70,7 @@ interface ApiResourceInterface
      * Build a withSum-ready entry list for this resource.
      *
      * @param  array<string, mixed>|null  $requestedSums
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     public static function eagerLoadSumsFor(?array $requestedSums = null): array;
 
@@ -76,7 +78,7 @@ interface ApiResourceInterface
      * Build a withAvg-ready entry list for this resource.
      *
      * @param  array<string, mixed>|null  $requestedAverages
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     public static function eagerLoadAveragesFor(?array $requestedAverages = null): array;
 

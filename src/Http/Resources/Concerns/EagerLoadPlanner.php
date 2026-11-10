@@ -22,6 +22,8 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * compiled schema, handling plain relations, scoped constraints, extra paths,
  * child resource recursion, and cycle prevention.
  *
+ * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -35,7 +37,7 @@ final class EagerLoadPlanner
     /** @var array<string, array<int|string, mixed>> Memo of count maps, keyed by resource class + alias signature. */
     private static array $countCache = [];
 
-    /** @var array<string, list<array<string, mixed>>> Memo of aggregate entry lists, keyed by metric:resource class + requested signature. */
+    /** @var array<string, list<AggregateLoad>> Memo of aggregate entry lists, keyed by metric:resource class + requested signature. */
     private static array $aggregateCache = [];
 
     /**
@@ -139,7 +141,7 @@ final class EagerLoadPlanner
      *
      * @param  string  $resourceClass
      * @param  array<string, mixed>|null  $requested
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     public static function buildSumMap(string $resourceClass, ?array $requested = null): array
     {
@@ -155,7 +157,7 @@ final class EagerLoadPlanner
      *
      * @param  string  $resourceClass
      * @param  array<string, mixed>|null  $requested
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     public static function buildAvgMap(string $resourceClass, ?array $requested = null): array
     {
@@ -202,7 +204,7 @@ final class EagerLoadPlanner
      * @param  string  $resourceClass
      * @param  string  $metric
      * @param  array<string, mixed>|null  $requested
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     private static function buildAggregateMap(string $resourceClass, string $metric, ?array $requested): array
     {

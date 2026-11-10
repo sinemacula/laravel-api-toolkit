@@ -24,6 +24,8 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * evaluation, schema compilation, and eager-load planning to dedicated
  * collaborator classes.
  *
+ * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -154,7 +156,7 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      * Build a withSum-ready entry list for this resource.
      *
      * @param  array<string, mixed>|null  $requestedSums
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     #[\Override]
     public static function eagerLoadSumsFor(?array $requestedSums = null): array
@@ -166,7 +168,7 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      * Build a withAvg-ready entry list for this resource.
      *
      * @param  array<string, mixed>|null  $requestedAverages
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     #[\Override]
     public static function eagerLoadAveragesFor(?array $requestedAverages = null): array
