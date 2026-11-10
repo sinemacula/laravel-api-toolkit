@@ -327,6 +327,17 @@ final class SchemaCompiler
     }
 
     /**
+     * Return the string entries of the given list, reindexed.
+     *
+     * @param  array<array-key, mixed>  $values
+     * @return list<string>
+     */
+    private static function stringList(array $values): array
+    {
+        return array_values(array_filter($values, is_string(...)));
+    }
+
+    /**
      * Build a CompiledFieldDefinition from a raw definition array.
      *
      * @param  array<string, mixed>  $definition
@@ -339,10 +350,10 @@ final class SchemaCompiler
             compute         : $definition['compute']  ?? null,
             relation        : self::resolveFieldRelation($definition),
             resource        : self::resolveFieldResource($definition),
-            fields          : $definition['fields'] ?? null,
+            fields          : is_array($definition['fields'] ?? null) ? self::stringList($definition['fields']) : null,
             constraint      : self::resolveFieldConstraint($definition),
-            extras          : (array) ($definition['extras'] ?? []),
-            needs           : (array) ($definition['needs'] ?? []),
+            extras          : self::stringList((array) ($definition['extras'] ?? [])),
+            needs           : self::stringList((array) ($definition['needs'] ?? [])),
             guards          : $definition['guards']       ?? [],
             transformers    : $definition['transformers'] ?? [],
             openApi         : self::resolveFieldOpenApi($definition),
