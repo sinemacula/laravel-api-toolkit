@@ -7,11 +7,9 @@ namespace Tests\Unit\Schema\Validation\Rules;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Enums\CallableList;
-use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidatesCallableLists;
+use Tests\Concerns\CompilesRawSchemas;
 
 /**
  * Tests for the ValidatesCallableLists base validation rule.
@@ -24,28 +22,21 @@ use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidatesCallableLists;
 #[CoversClass(ValidatesCallableLists::class)]
 final class ValidatesCallableListsTest extends TestCase
 {
+    use CompilesRawSchemas;
+
     /**
      * Test that a field whose callable list is fully callable produces no
      * errors.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testNoErrorsWhenEveryEntryIsCallable(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: [fn ($value, $model) => true],
-            transformers: [],
-        );
-
-        $schema = new CompiledSchema(fields: ['name' => $field], counts: []);
+        $schema = $this->compileRawSchema([
+            'name' => ['accessor' => 'name', 'guards' => [fn ($value, $model) => true]],
+        ]);
 
         self::assertSame([], $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema));
     }
@@ -55,23 +46,14 @@ final class ValidatesCallableListsTest extends TestCase
      * label.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testReportsNonCallableEntry(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: ['not_a_function'],
-            transformers: [],
-        );
-
-        $schema = new CompiledSchema(fields: ['name' => $field], counts: []);
+        $schema = $this->compileRawSchema([
+            'name' => ['accessor' => 'name', 'guards' => ['not_a_function']],
+        ]);
 
         $errors = $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema);
 
@@ -107,21 +89,13 @@ final class ValidatesCallableListsTest extends TestCase
      * @return void
      *
      * @throws \ReflectionException
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testContinuesPastNullFieldDefinition(): void
     {
-        $bad = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: ['not_a_function'],
-            transformers: [],
-        );
+        $bad = $this->compileRawSchema([
+            'name' => ['accessor' => 'name', 'guards' => ['not_a_function']],
+        ])->getField('name');
 
         $reflection = new \ReflectionClass(CompiledSchema::class);
         $schema     = $reflection->newInstanceWithoutConstructor();
@@ -141,36 +115,15 @@ final class ValidatesCallableListsTest extends TestCase
      * final field's errors surviving.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testAccumulatesErrorsAcrossFields(): void
     {
-        $first = new CompiledFieldDefinition(
-            accessor: 'first',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: ['not_a_function'],
-            transformers: [],
-        );
-
-        $second = new CompiledFieldDefinition(
-            accessor: 'second',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: ['also_not_a_function'],
-            transformers: [],
-        );
-
-        $schema = new CompiledSchema(fields: ['first' => $first, 'second' => $second], counts: []);
+        $schema = $this->compileRawSchema([
+            'first'  => ['accessor' => 'first', 'guards' => ['not_a_function']],
+            'second' => ['accessor' => 'second', 'guards' => ['also_not_a_function']],
+        ]);
 
         $errors = $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema);
 
@@ -184,23 +137,14 @@ final class ValidatesCallableListsTest extends TestCase
      * so the collected errors accumulate rather than only the first surviving.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testReportsEveryNonCallableEntryInAList(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: ['not_a_function', 'also_not_a_function'],
-            transformers: [],
-        );
-
-        $schema = new CompiledSchema(fields: ['name' => $field], counts: []);
+        $schema = $this->compileRawSchema([
+            'name' => ['accessor' => 'name', 'guards' => ['not_a_function', 'also_not_a_function']],
+        ]);
 
         $errors = $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema);
 
@@ -214,23 +158,14 @@ final class ValidatesCallableListsTest extends TestCase
      * non-callable entry is still reported at its true index.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testContinuesPastCallableEntryInList(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: [fn ($value, $model) => true, 'not_a_function'],
-            transformers: [],
-        );
-
-        $schema = new CompiledSchema(fields: ['name' => $field], counts: []);
+        $schema = $this->compileRawSchema([
+            'name' => ['accessor' => 'name', 'guards' => [fn ($value, $model) => true, 'not_a_function']],
+        ]);
 
         $errors = $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema);
 
@@ -244,33 +179,18 @@ final class ValidatesCallableListsTest extends TestCase
      * accumulating every error in field, count, then aggregate order.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testAccumulatesCountAndAggregateErrorsAfterFieldErrors(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: ['not_a_function'],
-            transformers: [],
-        );
-
-        $schema = new CompiledSchema(
-            fields: ['name' => $field],
-            counts: [
-                'comments_count' => $this->makeCount('comments_count', ['not_a_function']),
-                'likes_count'    => $this->makeCount('likes_count', [fn ($value, $model) => true, 'not_a_function']),
-            ],
-            aggregates: [
-                'sum:reviews_rating' => $this->makeAggregate('reviews_rating', ['not_a_function']),
-                'sum:orders_total'   => $this->makeAggregate('orders_total', ['not_a_function']),
-            ],
-        );
+        $schema = $this->compileRawSchema([
+            'comments_count' => $this->countDefinition(['not_a_function']),
+            'reviews_rating' => $this->aggregateDefinition(['not_a_function']),
+            'likes_count'    => $this->countDefinition([fn ($value, $model) => true, 'not_a_function']),
+            'orders_total'   => $this->aggregateDefinition(['not_a_function']),
+            'name'           => ['accessor' => 'name', 'guards' => ['not_a_function']],
+        ]);
 
         $errors = $this->makeRule()->validate('App\Http\Resources\PostResource', null, $schema);
 
@@ -296,34 +216,15 @@ final class ValidatesCallableListsTest extends TestCase
      * the concrete rule selects, so the other list is never reported.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testValidatesCountAndAggregateListsSelectedByHook(): void
     {
-        $count = new CompiledCountDefinition(
-            presentKey: 'comments_count',
-            relation: 'comments',
-            constraint: null,
-            isDefault: false,
-            guards: [],
-            transformers: ['not_a_function'],
-        );
-
-        $aggregate = new CompiledAggregateDefinition(
-            presentKey: 'reviews_rating',
-            relation: 'reviews',
-            column: 'rating',
-            metric: 'sum',
-            constraint: null,
-            isDefault: false,
-            guards: [],
-            transformers: ['not_a_function'],
-        );
-
-        $schema = new CompiledSchema(
-            fields: [],
-            counts: ['comments_count' => $count],
-            aggregates: ['sum:reviews_rating' => $aggregate],
-        );
+        $schema = $this->compileRawSchema([
+            'comments_count' => $this->countDefinition([], ['not_a_function']),
+            'reviews_rating' => $this->aggregateDefinition([], ['not_a_function']),
+        ]);
 
         self::assertSame([], $this->makeRule()->validate('App\Http\Resources\PostResource', null, $schema));
     }
@@ -334,31 +235,16 @@ final class ValidatesCallableListsTest extends TestCase
      * transformer label.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testReportsTransformerDefectsAcrossDefinitionsWhenTransformersSelected(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: [],
-            transformers: ['not_a_function'],
-        );
-
-        $schema = new CompiledSchema(
-            fields: ['name' => $field],
-            counts: [
-                'comments_count' => $this->makeCount('comments_count', [], [fn ($value, $model) => $value, 'not_a_function']),
-            ],
-            aggregates: [
-                'sum:reviews_rating' => $this->makeAggregate('reviews_rating', [], ['not_a_function']),
-            ],
-        );
+        $schema = $this->compileRawSchema([
+            'name'           => ['accessor' => 'name', 'transformers' => ['not_a_function']],
+            'comments_count' => $this->countDefinition([], [fn ($value, $model) => $value, 'not_a_function']),
+            'reviews_rating' => $this->aggregateDefinition([], ['not_a_function']),
+        ]);
 
         $errors = $this->makeRule(CallableList::TRANSFORMERS)->validate('App\Http\Resources\PostResource', null, $schema);
 
@@ -377,38 +263,27 @@ final class ValidatesCallableListsTest extends TestCase
     }
 
     /**
-     * Build a compiled count definition with the given callable lists.
+     * Build a raw count definition declaring the given callable lists.
      *
-     * @param  string  $presentKey
      * @param  array<int, mixed>  $guards
      * @param  array<int, mixed>  $transformers
-     * @return \SineMacula\ApiToolkit\Schema\CompiledCountDefinition
+     * @return array<string, mixed>
      */
-    private function makeCount(string $presentKey, array $guards, array $transformers = []): CompiledCountDefinition
+    private function countDefinition(array $guards, array $transformers = []): array
     {
-        return new CompiledCountDefinition(presentKey: $presentKey, relation: 'comments', constraint: null, isDefault: false, guards: $guards, transformers: $transformers);
+        return ['metric' => 'count', 'relation' => 'comments', 'guards' => $guards, 'transformers' => $transformers];
     }
 
     /**
-     * Build a compiled sum aggregate definition with the given callable lists.
+     * Build a raw sum aggregate definition declaring the given callable lists.
      *
-     * @param  string  $presentKey
      * @param  array<int, mixed>  $guards
      * @param  array<int, mixed>  $transformers
-     * @return \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition
+     * @return array<string, mixed>
      */
-    private function makeAggregate(string $presentKey, array $guards, array $transformers = []): CompiledAggregateDefinition
+    private function aggregateDefinition(array $guards, array $transformers = []): array
     {
-        return new CompiledAggregateDefinition(
-            presentKey: $presentKey,
-            relation: 'reviews',
-            column: 'rating',
-            metric: 'sum',
-            constraint: null,
-            isDefault: false,
-            guards: $guards,
-            transformers: $transformers,
-        );
+        return ['metric' => 'sum', 'relation' => 'reviews', 'column' => 'rating', 'guards' => $guards, 'transformers' => $transformers];
     }
 
     /**

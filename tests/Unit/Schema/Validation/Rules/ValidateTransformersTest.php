@@ -6,11 +6,8 @@ namespace Tests\Unit\Schema\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateTransformers;
+use Tests\Concerns\CompilesRawSchemas;
 
 /**
  * Tests for the ValidateTransformers validation rule.
@@ -25,30 +22,20 @@ use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateTransformers;
 #[CoversClass(ValidateTransformers::class)]
 final class ValidateTransformersTest extends TestCase
 {
+    use CompilesRawSchemas;
+
     /**
      * Test no errors for schema with callable transformers.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testNoErrorsForSchemaWithCallableTransformers(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: [],
-            transformers: [fn ($value, $model) => is_string($value) ? strtoupper($value) : $value],
-        );
-
-        $schema = new CompiledSchema(
-            fields: ['name' => $field],
-            counts: [],
-        );
+        $schema = $this->compileRawSchema([
+            'name' => ['accessor' => 'name', 'transformers' => [fn ($value, $model) => is_string($value) ? strtoupper($value) : $value]],
+        ]);
 
         $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
@@ -60,26 +47,14 @@ final class ValidateTransformersTest extends TestCase
      * Test reports non-callable transformer on field.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testReportsNonCallableTransformerOnField(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: [],
-            transformers: ['not_a_function'],
-        );
-
-        $schema = new CompiledSchema(
-            fields: ['name' => $field],
-            counts: [],
-        );
+        $schema = $this->compileRawSchema([
+            'name' => ['accessor' => 'name', 'transformers' => ['not_a_function']],
+        ]);
 
         $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
@@ -94,26 +69,14 @@ final class ValidateTransformersTest extends TestCase
      * Test reports multiple non-callable transformers.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testReportsMultipleNonCallableTransformers(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'email',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: [],
-            transformers: ['invalid_one', 'invalid_two'],
-        );
-
-        $schema = new CompiledSchema(
-            fields: ['email' => $field],
-            counts: [],
-        );
+        $schema = $this->compileRawSchema([
+            'email' => ['accessor' => 'email', 'transformers' => ['invalid_one', 'invalid_two']],
+        ]);
 
         $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
@@ -127,22 +90,14 @@ final class ValidateTransformersTest extends TestCase
      * Test reports non-callable transformer on count definition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testReportsNonCallableTransformerOnCountDefinition(): void
     {
-        $count = new CompiledCountDefinition(
-            presentKey: 'comments_count',
-            relation: 'comments',
-            constraint: null,
-            isDefault: false,
-            guards: [],
-            transformers: ['not_a_function'],
-        );
-
-        $schema = new CompiledSchema(
-            fields: [],
-            counts: ['comments_count' => $count],
-        );
+        $schema = $this->compileRawSchema([
+            'comments_count' => ['metric' => 'count', 'relation' => 'comments', 'transformers' => ['not_a_function']],
+        ]);
 
         $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\PostResource', null, $schema);
@@ -156,25 +111,14 @@ final class ValidateTransformersTest extends TestCase
      * Test reports non-callable transformer on aggregate definition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testReportsNonCallableTransformerOnAggregateDefinition(): void
     {
-        $aggregate = new CompiledAggregateDefinition(
-            presentKey: 'reviews_rating',
-            relation: 'reviews',
-            column: 'rating',
-            metric: 'sum',
-            constraint: null,
-            isDefault: false,
-            guards: [],
-            transformers: ['not_a_function'],
-        );
-
-        $schema = new CompiledSchema(
-            fields: [],
-            counts: [],
-            aggregates: ['sum:reviews_rating' => $aggregate],
-        );
+        $schema = $this->compileRawSchema([
+            'reviews_rating' => ['metric' => 'sum', 'relation' => 'reviews', 'column' => 'rating', 'transformers' => ['not_a_function']],
+        ]);
 
         $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\ProductResource', null, $schema);
@@ -188,26 +132,14 @@ final class ValidateTransformersTest extends TestCase
      * Test no errors for schema with no transformers.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testNoErrorsForSchemaWithNoTransformers(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: [],
-            transformers: [],
-        );
-
-        $schema = new CompiledSchema(
-            fields: ['name' => $field],
-            counts: [],
-        );
+        $schema = $this->compileRawSchema([
+            'name' => ['accessor' => 'name'],
+        ]);
 
         $rule   = new ValidateTransformers;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);

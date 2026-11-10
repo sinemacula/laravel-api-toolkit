@@ -6,11 +6,8 @@ namespace Tests\Unit\Schema\Validation\Rules;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateGuards;
+use Tests\Concerns\CompilesRawSchemas;
 
 /**
  * Tests for the ValidateGuards validation rule.
@@ -25,30 +22,20 @@ use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateGuards;
 #[CoversClass(ValidateGuards::class)]
 final class ValidateGuardsTest extends TestCase
 {
+    use CompilesRawSchemas;
+
     /**
      * Test no errors for schema with callable guards.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testNoErrorsForSchemaWithCallableGuards(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: [fn ($value, $model) => true],
-            transformers: [],
-        );
-
-        $schema = new CompiledSchema(
-            fields: ['name' => $field],
-            counts: [],
-        );
+        $schema = $this->compileRawSchema([
+            'name' => ['accessor' => 'name', 'guards' => [fn ($value, $model) => true]],
+        ]);
 
         $rule   = new ValidateGuards;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
@@ -60,26 +47,14 @@ final class ValidateGuardsTest extends TestCase
      * Test reports non-callable guard on field.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testReportsNonCallableGuardOnField(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: ['not_a_function'],
-            transformers: [],
-        );
-
-        $schema = new CompiledSchema(
-            fields: ['name' => $field],
-            counts: [],
-        );
+        $schema = $this->compileRawSchema([
+            'name' => ['accessor' => 'name', 'guards' => ['not_a_function']],
+        ]);
 
         $rule   = new ValidateGuards;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
@@ -94,21 +69,14 @@ final class ValidateGuardsTest extends TestCase
      * Test reports non-callable guard on count definition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testReportsNonCallableGuardOnCountDefinition(): void
     {
-        $count = new CompiledCountDefinition(
-            presentKey: 'comments_count',
-            relation: 'comments',
-            constraint: null,
-            isDefault: false,
-            guards: ['not_a_function'],
-        );
-
-        $schema = new CompiledSchema(
-            fields: [],
-            counts: ['comments_count' => $count],
-        );
+        $schema = $this->compileRawSchema([
+            'comments_count' => ['metric' => 'count', 'relation' => 'comments', 'guards' => ['not_a_function']],
+        ]);
 
         $rule   = new ValidateGuards;
         $errors = $rule->validate('App\Http\Resources\PostResource', null, $schema);
@@ -123,24 +91,14 @@ final class ValidateGuardsTest extends TestCase
      * Test reports non-callable guard on aggregate definition.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testReportsNonCallableGuardOnAggregateDefinition(): void
     {
-        $aggregate = new CompiledAggregateDefinition(
-            presentKey: 'reviews_rating',
-            relation: 'reviews',
-            column: 'rating',
-            metric: 'sum',
-            constraint: null,
-            isDefault: false,
-            guards: ['not_a_function'],
-        );
-
-        $schema = new CompiledSchema(
-            fields: [],
-            counts: [],
-            aggregates: ['sum:reviews_rating' => $aggregate],
-        );
+        $schema = $this->compileRawSchema([
+            'reviews_rating' => ['metric' => 'sum', 'relation' => 'reviews', 'column' => 'rating', 'guards' => ['not_a_function']],
+        ]);
 
         $rule   = new ValidateGuards;
         $errors = $rule->validate('App\Http\Resources\ProductResource', null, $schema);
@@ -155,26 +113,14 @@ final class ValidateGuardsTest extends TestCase
      * Test reports multiple non-callable guards.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testReportsMultipleNonCallableGuards(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'email',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: ['invalid_one', 'invalid_two'],
-            transformers: [],
-        );
-
-        $schema = new CompiledSchema(
-            fields: ['email' => $field],
-            counts: [],
-        );
+        $schema = $this->compileRawSchema([
+            'email' => ['accessor' => 'email', 'guards' => ['invalid_one', 'invalid_two']],
+        ]);
 
         $rule   = new ValidateGuards;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
@@ -189,34 +135,15 @@ final class ValidateGuardsTest extends TestCase
      * accumulated rather than the count loop discarding earlier errors.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testAccumulatesFieldAndCountGuardErrors(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: ['not_a_function'],
-            transformers: [],
-        );
-
-        $count = new CompiledCountDefinition(
-            presentKey: 'comments_count',
-            relation: 'comments',
-            constraint: null,
-            isDefault: false,
-            guards: ['not_a_function'],
-        );
-
-        $schema = new CompiledSchema(
-            fields: ['name' => $field],
-            counts: ['comments_count' => $count],
-        );
+        $schema = $this->compileRawSchema([
+            'name'           => ['accessor' => 'name', 'guards' => ['not_a_function']],
+            'comments_count' => ['metric' => 'count', 'relation' => 'comments', 'guards' => ['not_a_function']],
+        ]);
 
         $rule   = new ValidateGuards;
         $errors = $rule->validate('App\Http\Resources\PostResource', null, $schema);
@@ -230,26 +157,14 @@ final class ValidateGuardsTest extends TestCase
      * Test no errors for schema with no guards.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function testNoErrorsForSchemaWithNoGuards(): void
     {
-        $field = new CompiledFieldDefinition(
-            accessor: 'name',
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: [],
-            transformers: [],
-        );
-
-        $schema = new CompiledSchema(
-            fields: ['name' => $field],
-            counts: [],
-        );
+        $schema = $this->compileRawSchema([
+            'name' => ['accessor' => 'name'],
+        ]);
 
         $rule   = new ValidateGuards;
         $errors = $rule->validate('App\Http\Resources\UserResource', null, $schema);
