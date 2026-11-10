@@ -751,6 +751,7 @@ final class ApiQueryParserTest extends TestCase
             'invalid' => 'not_an_array',
         ]);
 
+        self::assertIsArray($result);
         self::assertArrayHasKey('valid', $result);
         self::assertArrayNotHasKey('invalid', $result);
     }
@@ -768,7 +769,9 @@ final class ApiQueryParserTest extends TestCase
             'valid'   => ['fields' => 'amount'],
         ]);
 
+        self::assertIsArray($result);
         self::assertArrayNotHasKey('invalid', $result);
+        self::assertIsArray($result);
         self::assertArrayHasKey('valid', $result);
     }
 

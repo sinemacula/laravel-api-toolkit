@@ -802,6 +802,7 @@ final class ApiResourceTest extends TestCase
         $result   = $resource->resolve();
 
         self::assertArrayHasKey('counts', $result);
+        self::assertIsArray($result['counts']);
         self::assertArrayHasKey('posts', $result['counts']);
         self::assertSame(2, $result['counts']['posts']);
     }
@@ -836,6 +837,7 @@ final class ApiResourceTest extends TestCase
         $result   = $resource->resolve();
 
         self::assertArrayHasKey('counts', $result);
+        self::assertIsArray($result['counts']);
         self::assertArrayHasKey('posts', $result['counts']);
     }
 

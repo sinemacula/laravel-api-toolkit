@@ -83,6 +83,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $instanceCache = $this->getProperty($introspector, 'columns');
 
+        self::assertIsArray($instanceCache);
         self::assertArrayHasKey(SchemaIdentity::of(DB::connection('testing')) . '|' . User::class, $instanceCache);
     }
 

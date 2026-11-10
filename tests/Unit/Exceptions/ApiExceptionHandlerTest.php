@@ -342,6 +342,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $data = $response->getData(true);
 
+        self::assertIsArray($data);
         self::assertArrayHasKey('error', $data);
         self::assertArrayHasKey('status', $data['error']);
         self::assertArrayHasKey('code', $data['error']);
@@ -370,6 +371,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $data = $response->getData(true);
 
+        self::assertIsArray($data['error']);
         self::assertArrayHasKey('meta', $data['error']);
         self::assertArrayHasKey('exception', $data['error']['meta']);
         self::assertArrayHasKey('trace', $data['error']['meta']);
@@ -598,6 +600,7 @@ final class ApiExceptionHandlerTest extends TestCase
         $data = $response->getData(true);
 
         self::assertIsArray($data);
+        self::assertIsArray($data['error']);
         self::assertArrayNotHasKey('meta', $data['error']);
     }
 
@@ -623,6 +626,7 @@ final class ApiExceptionHandlerTest extends TestCase
         $data = $response->getData(true);
 
         self::assertIsArray($data);
+        self::assertIsArray($data['error']);
         self::assertArrayHasKey('meta', $data['error']);
         self::assertSame(self::GENERIC_ERROR_MESSAGE, $data['error']['meta']['message']);
         self::assertArrayHasKey('trace', $data['error']['meta']);
@@ -650,6 +654,7 @@ final class ApiExceptionHandlerTest extends TestCase
         $data = $response->getData(true);
 
         self::assertIsArray($data);
+        self::assertIsArray($data['error']);
         self::assertArrayNotHasKey('meta', $data['error']);
     }
 
@@ -711,6 +716,7 @@ final class ApiExceptionHandlerTest extends TestCase
         self::assertSame(\RuntimeException::class, $meta['exception']);
         self::assertSame($previous->getFile(), $meta['file']);
         self::assertSame($previous->getLine(), $meta['line']);
+        self::assertIsArray($meta);
         self::assertArrayHasKey('trace', $meta);
     }
 

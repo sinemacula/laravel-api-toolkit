@@ -119,6 +119,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
         ));
 
         self::assertNotSame([], $accepted);
+        self::assertIsArray($schema);
         self::assertArrayNotHasKey('$ref', $schema);
         self::assertSame($accepted, $schema['enum']);
     }

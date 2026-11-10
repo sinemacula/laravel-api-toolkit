@@ -95,6 +95,7 @@ final class CollectionEagerLoadRegressionTest extends TestCase
         // eager loading rather than a firewall returning missing values.
         self::assertSame('Acme Corp', $large['first']['organization']['name']);
         self::assertNotEmpty($large['first']['posts']);
+        self::assertIsArray($large['first']['posts'][0]);
         self::assertArrayHasKey('title', $large['first']['posts'][0]);
     }
 
@@ -130,7 +131,9 @@ final class CollectionEagerLoadRegressionTest extends TestCase
         // Prove the aggregates actually resolved rather than the constant count
         // reflecting nothing loaded.
         self::assertSame(2, $large['first']['counts']['posts']);
+        self::assertIsArray($large['first']['sums']);
         self::assertArrayHasKey('posts_id', $large['first']['sums']);
+        self::assertIsArray($large['first']['averages']);
         self::assertArrayHasKey('posts_id', $large['first']['averages']);
     }
 

@@ -60,6 +60,7 @@ final class ControllerTest extends TestCase
 
         $content = json_decode($response->getContent(), true);
 
+        self::assertIsArray($content);
         self::assertArrayHasKey('data', $content);
         self::assertSame($data, $content['data']);
     }

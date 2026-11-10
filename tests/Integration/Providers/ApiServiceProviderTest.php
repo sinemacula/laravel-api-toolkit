@@ -812,6 +812,7 @@ final class ApiServiceProviderTest extends TestCase
     {
         $config = $this->getConfig()->get('api-toolkit.resources');
 
+        self::assertIsArray($config);
         self::assertArrayHasKey('validate_schemas', $config);
         self::assertFalse($config['validate_schemas']);
     }

@@ -111,6 +111,7 @@ final class OpenApiAssemblerTest extends TestCase
         $document = $this->assemble();
 
         self::assertArrayHasKey('openapi', $document);
+        self::assertIsString($document['openapi']);
         self::assertStringStartsWith('3.1', $document['openapi']);
     }
 
@@ -123,6 +124,7 @@ final class OpenApiAssemblerTest extends TestCase
     {
         $document = $this->assemble();
 
+        self::assertIsArray($document['info']);
         self::assertArrayHasKey('title', $document['info']);
         self::assertArrayHasKey('version', $document['info']);
     }
@@ -171,6 +173,7 @@ final class OpenApiAssemblerTest extends TestCase
 
         self::assertSame('Acme API', $info['title']);
         self::assertSame('2.0.0', $info['version']);
+        self::assertIsArray($info);
         self::assertArrayNotHasKey('description', $info);
     }
 
@@ -296,6 +299,7 @@ final class OpenApiAssemblerTest extends TestCase
 
         $schemas = $this->assemble()['components']['schemas'];
 
+        self::assertIsArray($schemas);
         self::assertArrayHasKey('User', $schemas);
         self::assertArrayHasKey('Organization', $schemas);
         self::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
@@ -334,6 +338,7 @@ final class OpenApiAssemblerTest extends TestCase
     {
         $schemas = $this->assemble()['components']['schemas'];
 
+        self::assertIsArray($schemas);
         self::assertArrayHasKey(EnvelopeBuilder::PAGINATION_META_SCHEMA_NAME, $schemas);
         self::assertArrayHasKey(EnvelopeBuilder::PAGINATION_LINKS_SCHEMA_NAME, $schemas);
         self::assertArrayHasKey(EnvelopeBuilder::CURSOR_PAGINATION_META_SCHEMA_NAME, $schemas);
@@ -368,6 +373,7 @@ final class OpenApiAssemblerTest extends TestCase
 
         $schemas = $document['components']['schemas'];
 
+        self::assertIsArray($schemas);
         self::assertArrayHasKey(EnvelopeBuilder::CURSOR_PAGINATION_META_SCHEMA_NAME, $schemas);
         self::assertArrayHasKey(EnvelopeBuilder::CURSOR_PAGINATION_LINKS_SCHEMA_NAME, $schemas);
     }
@@ -389,6 +395,7 @@ final class OpenApiAssemblerTest extends TestCase
 
         $schemes = $this->assemble()['components']['securitySchemes'];
 
+        self::assertIsArray($schemes);
         self::assertSame(['bearerAuth', 'basicAuth', 'cookieAuth'], array_keys($schemes));
         self::assertSame(['type' => 'http', 'scheme' => 'bearer'], $schemes['bearerAuth']);
         self::assertSame(['type' => 'http', 'scheme' => 'basic'], $schemes['basicAuth']);
@@ -419,6 +426,7 @@ final class OpenApiAssemblerTest extends TestCase
     {
         $headers = $this->assemble()['components']['headers'];
 
+        self::assertIsArray($headers);
         self::assertArrayHasKey(EnvelopeBuilder::TOTAL_COUNT_HEADER_NAME, $headers);
     }
 
@@ -432,6 +440,7 @@ final class OpenApiAssemblerTest extends TestCase
     {
         $parameters = $this->assemble()['components']['parameters'];
 
+        self::assertIsArray($parameters);
         self::assertArrayHasKey('Filters', $parameters);
         self::assertArrayHasKey('Fields', $parameters);
         self::assertArrayHasKey('Order', $parameters);
@@ -448,6 +457,7 @@ final class OpenApiAssemblerTest extends TestCase
     {
         $responses = $this->assemble()['components']['responses'];
 
+        self::assertIsArray($responses);
         self::assertArrayHasKey('ErrorResponse10103', $responses);
     }
 
@@ -499,6 +509,7 @@ final class OpenApiAssemblerTest extends TestCase
 
         $schemes = $this->assemble()['components']['securitySchemes'];
 
+        self::assertIsArray($schemes);
         self::assertArrayHasKey('bearerAuth', $schemes);
         self::assertArrayHasKey('cookieAuth', $schemes);
     }
@@ -513,6 +524,7 @@ final class OpenApiAssemblerTest extends TestCase
     {
         $schemas = $this->assembleEmptyAudience()['components']['schemas'];
 
+        self::assertIsArray($schemas);
         self::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
     }
 

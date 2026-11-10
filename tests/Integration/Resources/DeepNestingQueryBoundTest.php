@@ -107,6 +107,7 @@ final class DeepNestingQueryBoundTest extends TestCase
 
         $firstPost = $large['first']['posts'][0];
 
+        self::assertIsArray($firstPost);
         self::assertArrayHasKey('tags', $firstPost);
         self::assertNotEmpty($firstPost['tags']);
         self::assertArrayHasKey('name', $firstPost['tags'][0]);

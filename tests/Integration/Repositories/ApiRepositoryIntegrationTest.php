@@ -63,8 +63,8 @@ final class ApiRepositoryIntegrationTest extends TestCase
 
         $results = $this->repository->paginate();
 
-        self::assertCount(2, $results);
         self::assertInstanceOf(LengthAwarePaginator::class, $results);
+        self::assertCount(2, $results);
     }
 
     /**

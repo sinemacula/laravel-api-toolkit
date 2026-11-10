@@ -117,6 +117,7 @@ final class OrdersFieldsTest extends TestCase
 
         $result = $this->invokeMethod($consumer, 'orderByDefault', $input);
 
+        self::assertIsArray($result);
         self::assertSame($expectedKeyOrder, array_keys($result));
     }
 
@@ -191,6 +192,7 @@ final class OrdersFieldsTest extends TestCase
 
         $result = $this->invokeMethod($consumer, 'orderByRequestedFields', $data);
 
+        self::assertIsArray($result);
         self::assertSame($expectedKeyOrder, array_keys($result));
     }
 
@@ -212,6 +214,7 @@ final class OrdersFieldsTest extends TestCase
         $defaultConsumer = $this->createConsumer(FieldOrderingStrategy::DEFAULT);
         $defaultResult   = $this->invokeMethod($defaultConsumer, 'orderResolvedFields', $data);
 
+        self::assertIsArray($defaultResult);
         self::assertSame('_type', array_key_first($defaultResult));
 
         $requestedConsumer = $this->createConsumer(
@@ -220,6 +223,7 @@ final class OrdersFieldsTest extends TestCase
         );
         $requestedResult = $this->invokeMethod($requestedConsumer, 'orderResolvedFields', $data);
 
+        self::assertIsArray($requestedResult);
         self::assertSame('name', array_key_first($requestedResult));
     }
 

@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories;
 
 use Illuminate\Contracts\Pagination\CursorPaginator;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
@@ -222,6 +223,7 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->paginate();
 
+        self::assertInstanceOf(LengthAwarePaginator::class, $result);
         self::assertCount(2, $result);
     }
 
@@ -475,6 +477,7 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->usingResource(UserResource::class)->withApiCriteria()->paginate();
 
+        self::assertInstanceOf(LengthAwarePaginator::class, $result);
         self::assertCount(1, $result);
         self::assertInstanceOf(User::class, $result[0]);
         self::assertSame('Alice', $result[0]->name);
@@ -500,6 +503,7 @@ final class ApiRepositoryTest extends TestCase
             ->scopeById($alice->id)
             ->paginate();
 
+        self::assertInstanceOf(LengthAwarePaginator::class, $result);
         self::assertCount(1, $result);
         self::assertInstanceOf(User::class, $result[0]);
         self::assertSame($alice->id, $result[0]->id);

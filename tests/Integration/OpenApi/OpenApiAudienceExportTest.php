@@ -125,6 +125,7 @@ final class OpenApiAudienceExportTest extends TestCase
 
         $partner = $this->export('partner')->document;
 
+        self::assertIsArray($partner['paths']);
         self::assertArrayHasKey('/organizations', $partner['paths']);
         self::assertSame(
             ['type' => 'string', 'const' => 'organizations'],
@@ -136,6 +137,7 @@ final class OpenApiAudienceExportTest extends TestCase
         $default = $this->export()->document;
 
         self::assertSame('{}', json_encode($default['paths']));
+        self::assertIsArray($default['components']['schemas']);
         self::assertArrayNotHasKey('Organization', $default['components']['schemas']);
 
         $this->assertValid($partner);
@@ -163,8 +165,10 @@ final class OpenApiAudienceExportTest extends TestCase
 
             $document = $this->export($audience)->document;
 
+            self::assertIsArray($document['paths']);
             self::assertArrayHasKey('/widgets', $document['paths']);
             self::assertArrayNotHasKey('/organizations', $document['paths']);
+            self::assertIsArray($document['components']['schemas']);
             self::assertArrayNotHasKey('Organization', $document['components']['schemas']);
 
             $this->assertValid($document);
@@ -189,6 +193,7 @@ final class OpenApiAudienceExportTest extends TestCase
 
         $internal = $this->export('internal')->document;
 
+        self::assertIsArray($internal['paths']);
         self::assertArrayHasKey('/tags', $internal['paths']);
         self::assertSame(
             ['type' => 'string', 'const' => 'tags'],
@@ -200,6 +205,7 @@ final class OpenApiAudienceExportTest extends TestCase
         // The public audience documents no route here, so its paths object is
         // emitted empty; cast it before asserting the tag route is absent.
         self::assertArrayNotHasKey('/tags', (array) $public['paths']);
+        self::assertIsArray($public['components']['schemas']);
         self::assertArrayNotHasKey('Tag', $public['components']['schemas']);
 
         // The default audience resolves to public and must agree with it.
@@ -233,6 +239,7 @@ final class OpenApiAudienceExportTest extends TestCase
 
         $internal = $this->export('internal')->document;
 
+        self::assertIsArray($internal['paths']);
         self::assertArrayHasKey('/organizations', $internal['paths']);
 
         $this->assertValid($public);
@@ -258,8 +265,10 @@ final class OpenApiAudienceExportTest extends TestCase
 
         $public = $this->export('public')->document;
 
+        self::assertIsArray($public['paths']);
         self::assertArrayHasKey('/organizations', $public['paths']);
         self::assertArrayNotHasKey('/tags', $public['paths']);
+        self::assertIsArray($public['components']['schemas']);
         self::assertArrayHasKey('Organization', $public['components']['schemas']);
         self::assertArrayNotHasKey('Tag', $public['components']['schemas']);
 
@@ -268,6 +277,7 @@ final class OpenApiAudienceExportTest extends TestCase
         // unbuilt.
         $internal = $this->export('internal')->document;
 
+        self::assertIsArray($internal['components']['schemas']);
         self::assertArrayHasKey('Tag', $internal['components']['schemas']);
 
         $this->assertValid($public);
@@ -305,6 +315,7 @@ final class OpenApiAudienceExportTest extends TestCase
 
         $public = $this->export('public')->document;
 
+        self::assertIsArray($public['components']['schemas']);
         self::assertArrayNotHasKey('QueryableTag', $public['components']['schemas']);
 
         // The surface rides the property rather than the parameter components,

@@ -87,6 +87,7 @@ final class OpenApiSecurityExportTest extends TestCase
             $document['paths']['/users']['get']['security'],
         );
 
+        self::assertIsArray($document['components']['securitySchemes']);
         self::assertSame(['bearerAuth'], array_keys($document['components']['securitySchemes']));
 
         self::assertSame(
@@ -224,6 +225,7 @@ final class OpenApiSecurityExportTest extends TestCase
             $document['paths']['/users']['get']['security'],
         );
 
+        self::assertIsArray($document['components']['securitySchemes']);
         self::assertSame(['bearerAuth'], array_keys($document['components']['securitySchemes']));
 
         $this->assertValid($document);
@@ -241,6 +243,7 @@ final class OpenApiSecurityExportTest extends TestCase
 
         self::assertSame([], $document['paths']['/users']['get']['security']);
 
+        self::assertIsArray($document['components']);
         self::assertArrayNotHasKey('securitySchemes', $document['components']);
 
         $this->assertValid($document);

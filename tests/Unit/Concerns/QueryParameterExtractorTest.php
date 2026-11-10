@@ -343,6 +343,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
+        self::assertIsArray($parameters['filters']);
         self::assertArrayHasKey('a', $parameters['filters']);
     }
 

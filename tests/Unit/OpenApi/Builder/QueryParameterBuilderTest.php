@@ -84,6 +84,8 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $operators = $this->makeBuilder()->build()['Filters']['schema']['x-operators'];
 
+        self::assertIsIterable($operators);
+
         foreach (self::OPERATOR_TOKENS as $token) {
             self::assertContains($token, $operators);
         }
@@ -97,6 +99,8 @@ final class QueryParameterBuilderTest extends TestCase
     public function testFilterParameterCoversEveryStructuralOperator(): void
     {
         $operators = $this->makeBuilder()->build()['Filters']['schema']['x-operators'];
+
+        self::assertIsIterable($operators);
 
         foreach (self::STRUCTURAL_OPERATORS as $token) {
             self::assertContains($token, $operators);
@@ -113,6 +117,7 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $operators = $this->makeBuilder()->build()['Filters']['schema']['x-operators'];
 
+        self::assertIsArray($operators);
         self::assertCount(15, $operators);
     }
 
@@ -126,7 +131,9 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $filter = $this->makeBuilder()->build()['Filters'];
 
+        self::assertIsString($filter['description']);
         self::assertStringContainsString('$eq', $filter['description']);
+        self::assertIsString($filter['description']);
         self::assertStringContainsString('$and', $filter['description']);
     }
 
@@ -140,7 +147,9 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $schema = $this->makeBuilder()->build()['Filters']['schema'];
 
+        self::assertIsArray($schema);
         self::assertArrayNotHasKey('enum', $schema);
+        self::assertIsArray($schema);
         self::assertArrayNotHasKey('properties', $schema);
     }
 
@@ -170,7 +179,9 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $description = $this->makeBuilder()->build()['Filters']['description'];
 
+        self::assertIsString($description);
         self::assertStringStartsWith('Generic filter grammar. Filters are a URL-encoded JSON object keyed by field', $description);
+        self::assertIsString($description);
         self::assertStringEndsWith('each resource accepts only the fields it declares filterable.', $description);
     }
 
@@ -218,6 +229,7 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $schema = $this->makeBuilder(0)->build()['Limit']['schema'];
 
+        self::assertIsArray($schema);
         self::assertArrayNotHasKey('maximum', $schema);
         self::assertSame(1, $schema['minimum']);
     }
@@ -233,6 +245,7 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $schema = $this->builderReporting([])->build()['Limit']['schema'];
 
+        self::assertIsArray($schema);
         self::assertArrayNotHasKey('maximum', $schema);
         self::assertSame(1, $schema['minimum']);
     }
@@ -248,7 +261,9 @@ final class QueryParameterBuilderTest extends TestCase
         $pagination = $this->makeBuilder()->build()['Pagination'];
 
         self::assertSame(['type' => 'string', 'enum' => ['cursor']], $pagination['schema']);
+        self::assertIsString($pagination['description']);
         self::assertStringContainsString('length-aware', $pagination['description']);
+        self::assertIsString($pagination['description']);
         self::assertStringContainsString('cursor', $pagination['description']);
     }
 
@@ -294,13 +309,21 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
+        self::assertIsString($parameters['Fields']['description']);
         self::assertStringContainsString('fields[users]=id,name', $parameters['Fields']['description']);
+        self::assertIsString($parameters['Search']['description']);
         self::assertStringContainsString('search=John Smith', $parameters['Search']['description']);
+        self::assertIsString($parameters['Order']['description']);
         self::assertStringContainsString('order=name,created_at:desc', $parameters['Order']['description']);
+        self::assertIsString($parameters['Counts']['description']);
         self::assertStringContainsString('counts[users]=posts', $parameters['Counts']['description']);
+        self::assertIsString($parameters['Sums']['description']);
         self::assertStringContainsString('sums[users][posts]=id', $parameters['Sums']['description']);
+        self::assertIsString($parameters['Averages']['description']);
         self::assertStringContainsString('averages[users][posts]=id', $parameters['Averages']['description']);
+        self::assertIsString($parameters['Filters']['description']);
         self::assertStringContainsString('filters={"status":{"$eq":"active"}}', $parameters['Filters']['description']);
+        self::assertIsString($parameters['Trashed']['description']);
         self::assertStringContainsString('trashed=with', $parameters['Trashed']['description']);
     }
 
@@ -314,8 +337,11 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
+        self::assertIsString($parameters['Limit']['description']);
         self::assertStringContainsString('maximum number of records', $parameters['Limit']['description']);
+        self::assertIsString($parameters['Page']['description']);
         self::assertStringContainsString('Page number', $parameters['Page']['description']);
+        self::assertIsString($parameters['Cursor']['description']);
         self::assertStringContainsString('cursor', $parameters['Cursor']['description']);
     }
 
@@ -416,8 +442,11 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $description = $this->makeBuilder()->build()['Trashed']['description'];
 
+        self::assertIsString($description);
         self::assertStringStartsWith('Soft-delete visibility: with returns soft-deleted records alongside the live ones', $description);
+        self::assertIsString($description);
         self::assertStringContainsString('Omitting it returns live records only.', $description);
+        self::assertIsString($description);
         self::assertStringContainsString('has not opted in', $description);
     }
 

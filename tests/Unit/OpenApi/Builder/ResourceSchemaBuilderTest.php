@@ -110,7 +110,9 @@ final class ResourceSchemaBuilderTest extends TestCase
         $properties = $this->makeGhostBuilder(['GhostModel' => 'GhostResource', Post::class => PostResource::class])
             ->build()['Ghost']['properties'];
 
+        self::assertIsArray($properties);
         self::assertArrayNotHasKey('ghost', $properties);
+        self::assertIsArray($properties);
         self::assertArrayHasKey('posts', $properties);
         self::assertSame(['$ref' => '#/components/schemas/Post'], $properties['posts']['oneOf'][0]);
     }
@@ -143,6 +145,8 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas    = $this->makeBuilder($this->fullResourceMap())->build();
         $properties = $schemas['User']['properties'];
 
+        self::assertIsArray($properties);
+
         foreach (['id', 'name', 'email', 'status', 'created_at', 'updated_at', 'full_label'] as $fieldKey) {
             self::assertArrayHasKey($fieldKey, $properties);
         }
@@ -162,6 +166,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     {
         $schemas = $this->makeBuilder($this->fullResourceMap())->build();
 
+        self::assertIsArray($schemas['Organization']['properties']);
         self::assertArrayHasKey('users', $schemas['Organization']['properties']);
     }
 
@@ -203,7 +208,9 @@ final class ResourceSchemaBuilderTest extends TestCase
         $property = $schemas['User']['properties']['status'];
 
         self::assertSame('#/components/schemas/UserStatus', $property['$ref']);
+        self::assertIsArray($property);
         self::assertArrayNotHasKey('type', $property);
+        self::assertIsArray($property);
         self::assertArrayNotHasKey('x-undocumented', $property);
     }
 
@@ -236,7 +243,9 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         self::assertSame('array', $property['type']);
         self::assertSame(['$ref' => '#/components/schemas/Post'], $property['items']);
+        self::assertIsArray($property);
         self::assertArrayNotHasKey('oneOf', $property);
+        self::assertIsArray($property);
         self::assertArrayNotHasKey('x-cardinality', $property);
     }
 
@@ -253,6 +262,7 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         self::assertSame('array', $property['type']);
         self::assertSame(['$ref' => '#/components/schemas/Tag'], $property['items']);
+        self::assertIsArray($property);
         self::assertArrayNotHasKey('x-cardinality', $property);
     }
 
@@ -303,6 +313,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['User']['properties']['profile_bio'];
 
+        self::assertIsArray($property);
         self::assertArrayNotHasKey('oneOf', $property);
         self::assertTrue($property['x-undocumented']);
     }
@@ -347,6 +358,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $required = $schemas['User']['required'];
 
+        self::assertIsIterable($required);
         self::assertContains('id', $required);
         self::assertContains('name', $required);
         self::assertContains('full_label', $required);
@@ -366,6 +378,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $org     = $schemas['Organization'];
 
         self::assertArrayHasKey('required', $org);
+        self::assertIsIterable($org['required']);
         self::assertNotContains('users', $org['required']);
     }
 
@@ -381,6 +394,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $property = $schemas['User']['properties']['full_label'];
 
         self::assertTrue($property['x-undocumented']);
+        self::assertIsArray($property);
         self::assertArrayNotHasKey('type', $property);
     }
 
@@ -423,6 +437,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     {
         $schemas = $this->makeBuilder($this->fullResourceMap())->build();
 
+        self::assertIsIterable($schemas['User']['required']);
         self::assertContains('_type', $schemas['User']['required']);
     }
 
@@ -444,6 +459,7 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         $ghost = (new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector()))->build()['Ghost'];
 
+        self::assertIsArray($ghost['properties']);
         self::assertArrayNotHasKey('_type', $ghost['properties']);
         self::assertArrayNotHasKey('required', $ghost);
     }
@@ -499,6 +515,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schema = $this->makeBuilder([User::class => GuardedUserResource::class])->build()['GuardedUser'];
 
         self::assertSame(['x-undocumented' => true], $schema['properties']['email']);
+        self::assertIsIterable($schema['required']);
         self::assertContains('id', $schema['required']);
         self::assertNotContains('email', $schema['required']);
     }
@@ -589,6 +606,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     {
         $properties = $this->makeBuilder($this->fullResourceMap())->build()['User']['properties'];
 
+        self::assertIsArray($properties['full_label']);
         self::assertArrayNotHasKey('x-query-surface', $properties['full_label']);
     }
 
@@ -640,6 +658,7 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         self::assertSame(['key' => 'id', 'strategy' => 'exact'], $properties['id']['x-query-surface']['search']);
         self::assertSame(['key' => 'name', 'strategy' => 'substring'], $properties['name']['x-query-surface']['search']);
+        self::assertIsArray($properties['status']);
         self::assertArrayNotHasKey('x-query-surface', $properties['status']);
     }
 
@@ -662,6 +681,7 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         $properties = $this->buildGhost(new CompiledSchema(['email' => $field], []))['properties'];
 
+        self::assertIsArray($properties['email']);
         self::assertArrayNotHasKey('x-query-surface', $properties['email']);
     }
 
@@ -726,6 +746,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $vocabulary = array_values(array_diff($this->vocabulary(), ['$contains']));
         $surface    = $this->buildGhost($schema, $vocabulary)['properties']['payload']['x-query-surface'];
 
+        self::assertIsArray($surface);
         self::assertArrayNotHasKey('filter', $surface);
         self::assertSame(['key' => 'payload', 'indexed' => true], $surface['sort']);
     }

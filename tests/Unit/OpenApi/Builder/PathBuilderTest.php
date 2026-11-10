@@ -151,6 +151,7 @@ final class PathBuilderTest extends TestCase
 
         $response = $this->build()['/users/{user}']['get']['responses'];
 
+        self::assertIsArray($response);
         self::assertArrayHasKey('200', $response);
         self::assertSame('The requested resource.', $response['200']['description']);
         self::assertSame(
@@ -170,6 +171,7 @@ final class PathBuilderTest extends TestCase
 
         $response = $this->build()['/users']['post']['responses'];
 
+        self::assertIsArray($response);
         self::assertArrayHasKey('201', $response);
         self::assertSame('The newly created resource.', $response['201']['description']);
         self::assertSame(
@@ -191,6 +193,7 @@ final class PathBuilderTest extends TestCase
         $item = $this->build()['/users/{user}'];
 
         self::assertSame($item['put'], $item['patch']);
+        self::assertIsArray($item['put']['responses']);
         self::assertArrayHasKey('200', $item['put']['responses']);
         self::assertSame('The updated resource.', $item['put']['responses']['200']['description']);
         self::assertSame(
@@ -210,6 +213,7 @@ final class PathBuilderTest extends TestCase
 
         $response = $this->build()['/users/{user}']['delete']['responses'];
 
+        self::assertIsArray($response);
         self::assertArrayHasKey('204', $response);
         self::assertSame('The resource was deleted.', $response['204']['description']);
         self::assertArrayNotHasKey('content', $response['204']);
@@ -226,6 +230,8 @@ final class PathBuilderTest extends TestCase
         $this->registerRestRoutes('auth');
 
         $responses = $this->build()['/users']['get']['responses'];
+
+        self::assertIsArray($responses);
 
         foreach (['401', '403', '500'] as $status) {
             self::assertArrayHasKey($status, $responses);
@@ -247,6 +253,8 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/users/{user}']['get']['responses'];
 
+        self::assertIsArray($responses);
+
         foreach (['401', '403', '404', '500'] as $status) {
             self::assertArrayHasKey($status, $responses);
         }
@@ -266,6 +274,8 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/users']['post']['responses'];
 
+        self::assertIsArray($responses);
+
         foreach (['401', '403', '422', '500'] as $status) {
             self::assertArrayHasKey($status, $responses);
         }
@@ -284,6 +294,8 @@ final class PathBuilderTest extends TestCase
         $this->registerRestRoutes('auth');
 
         $responses = $this->build()['/users/{user}']['delete']['responses'];
+
+        self::assertIsArray($responses);
 
         foreach (['204', '401', '403', '404', '500'] as $status) {
             self::assertArrayHasKey($status, $responses);
@@ -309,6 +321,7 @@ final class PathBuilderTest extends TestCase
             ['$ref' => '#/components/schemas/ErrorEnvelope'],
             $response['content']['application/json']['schema'],
         );
+        self::assertIsArray($response['content']['application/json']);
         self::assertArrayNotHasKey('examples', $response['content']['application/json']);
     }
 
@@ -330,6 +343,7 @@ final class PathBuilderTest extends TestCase
         $media = $notFound['content']['application/json'];
 
         self::assertSame(['$ref' => '#/components/schemas/ErrorEnvelope'], $media['schema']);
+        self::assertIsArray($media['examples']);
         self::assertArrayHasKey('NotFoundException', $media['examples']);
         self::assertSame(
             ['status' => 404, 'code' => 10103],
@@ -349,6 +363,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/users']['post']['responses'];
 
+        self::assertIsArray($responses);
         self::assertArrayHasKey('409', $responses);
         self::assertSame('Conflict.', $responses['409']['description']);
         self::assertSame(
@@ -407,6 +422,7 @@ final class PathBuilderTest extends TestCase
             'required' => true,
             'schema'   => ['type' => 'string'],
         ], $parameters[0]);
+        self::assertIsArray($parameters);
         self::assertSame([], $this->pathParametersIn(array_slice($parameters, 1)));
     }
 
@@ -576,6 +592,7 @@ final class PathBuilderTest extends TestCase
             $this->undocumentedEnvelope(),
             $operation['responses']['200']['content']['application/json']['schema'],
         );
+        self::assertIsArray($operation['responses']);
         self::assertArrayNotHasKey('401', $operation['responses']);
     }
 
@@ -591,6 +608,7 @@ final class PathBuilderTest extends TestCase
 
         $operation = $this->build()['/users/export']['get'];
 
+        self::assertIsArray($operation['responses']);
         self::assertArrayHasKey('200', $operation['responses']);
         self::assertSame(
             $this->undocumentedEnvelope(),
@@ -731,6 +749,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/posts']['post']['responses'];
 
+        self::assertIsArray($responses);
         self::assertArrayHasKey('201', $responses);
         self::assertSame(
             'The request succeeded and a resource was created.',
@@ -754,6 +773,7 @@ final class PathBuilderTest extends TestCase
         $response = $this->build()['/posts/{post}']['delete']['responses']['204'];
 
         self::assertSame('The request succeeded with no content.', $response['description']);
+        self::assertIsArray($response);
         self::assertArrayNotHasKey('content', $response);
     }
 
@@ -862,7 +882,9 @@ final class PathBuilderTest extends TestCase
         $operation = $this->build()['/users']['post'];
 
         self::assertSame(['User'], $operation['tags']);
+        self::assertIsArray($operation);
         self::assertArrayNotHasKey('parameters', $operation);
+        self::assertIsArray($operation);
         self::assertArrayHasKey('requestBody', $operation);
         self::assertSame([201, 403, 422, 429, 500], array_keys($operation['responses']));
         self::assertSame([
@@ -887,7 +909,9 @@ final class PathBuilderTest extends TestCase
 
         self::assertSame(['User'], $operation['tags']);
         self::assertSame([['name' => 'user', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string']]], $operation['parameters']);
+        self::assertIsArray($operation);
         self::assertArrayNotHasKey('requestBody', $operation);
+        self::assertIsArray($operation['responses']);
         self::assertSame([200, 403, 404, 422, 500], array_keys($operation['responses']));
         self::assertSame([
             'description' => 'The request succeeded.',
@@ -908,6 +932,7 @@ final class PathBuilderTest extends TestCase
         $operation = $this->build()['/users/{user}']['get'];
 
         self::assertSame([], $this->referencedParameterNames($operation));
+        self::assertIsArray($operation['responses']);
         self::assertSame([200, 403, 404, 500], array_keys($operation['responses']));
         self::assertSame(
             (new EnvelopeBuilder)->singleEnvelopeFor(WidgetShape::schema()),
@@ -930,12 +955,15 @@ final class PathBuilderTest extends TestCase
         $paths    = $this->build();
         $envelope = new EnvelopeBuilder;
 
+        self::assertIsArray($paths['/users']['get']);
         self::assertArrayNotHasKey('parameters', $paths['/users']['get']);
+        self::assertIsArray($paths['/users']['get']['responses']);
         self::assertSame([206, 403, 500], array_keys($paths['/users']['get']['responses']));
         self::assertSame([
             'description' => 'Partial Content.',
             'content'     => ['application/json' => ['schema' => $envelope->collectionEnvelopeFor(WidgetShape::schema())]],
         ], $paths['/users']['get']['responses'][206]);
+        self::assertIsArray($paths['/users/{user}']['delete']['responses']);
         self::assertSame([200, 403, 404, 500], array_keys($paths['/users/{user}']['delete']['responses']));
         self::assertSame([
             'description' => 'OK.',
@@ -959,6 +987,7 @@ final class PathBuilderTest extends TestCase
 
         self::assertSame(['User'], $operation['tags']);
         self::assertSame(['Fields', 'Counts', 'Sums', 'Averages'], $this->referencedParameterNames($operation));
+        self::assertIsArray($operation['responses']);
         self::assertSame([201, 403, 409, 422, 500], array_keys($operation['responses']));
         self::assertSame([
             'description' => 'The newly created resource.',
@@ -1086,6 +1115,7 @@ final class PathBuilderTest extends TestCase
 
         $single = (new UserResource($user))->response()->getData(true);
 
+        self::assertIsArray($single);
         self::assertSame(
             $envelope->singleEnvelope($reference)['required'],
             array_keys($single),
@@ -1096,14 +1126,17 @@ final class PathBuilderTest extends TestCase
             UserResource::class,
         ))->response()->getData(true);
 
+        self::assertIsArray($lengthAware);
         self::assertSame(
             $envelope->collectionEnvelope($reference)['required'],
             array_keys($lengthAware),
         );
+        self::assertIsArray($lengthAware['meta']);
         self::assertSame(
             $schemas[EnvelopeBuilder::PAGINATION_META_SCHEMA_NAME]['required'],
             array_keys($lengthAware['meta']),
         );
+        self::assertIsArray($lengthAware['links']);
         self::assertSame(
             $schemas[EnvelopeBuilder::PAGINATION_LINKS_SCHEMA_NAME]['required'],
             array_keys($lengthAware['links']),
@@ -1114,14 +1147,17 @@ final class PathBuilderTest extends TestCase
             UserResource::class,
         ))->response()->getData(true);
 
+        self::assertIsArray($cursor);
         self::assertSame(
             $envelope->cursorCollectionEnvelope($reference)['required'],
             array_keys($cursor),
         );
+        self::assertIsArray($cursor['meta']);
         self::assertSame(
             $schemas[EnvelopeBuilder::CURSOR_PAGINATION_META_SCHEMA_NAME]['required'],
             array_keys($cursor['meta']),
         );
+        self::assertIsArray($cursor['links']);
         self::assertSame(
             $schemas[EnvelopeBuilder::CURSOR_PAGINATION_LINKS_SCHEMA_NAME]['required'],
             array_keys($cursor['links']),
@@ -1181,6 +1217,7 @@ final class PathBuilderTest extends TestCase
 
         $operation = $this->build()['/articles/{article}']['put'];
 
+        self::assertIsArray($operation);
         self::assertArrayHasKey('requestBody', $operation);
         self::assertArrayHasKey(
             'title',
@@ -1224,6 +1261,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/articles']['post']['responses'];
 
+        self::assertIsArray($responses);
         self::assertArrayHasKey('201', $responses);
         self::assertSame(
             $this->undocumentedEnvelope(),
@@ -1340,6 +1378,7 @@ final class PathBuilderTest extends TestCase
 
         $operation = $this->build()['/errors']['get'];
 
+        self::assertIsArray($operation);
         self::assertArrayNotHasKey('requestBody', $operation);
         self::assertSame(
             (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
@@ -1359,6 +1398,7 @@ final class PathBuilderTest extends TestCase
 
         $operation = $this->build()['/errors']['post'];
 
+        self::assertIsArray($operation);
         self::assertArrayHasKey('requestBody', $operation);
         self::assertArrayHasKey(
             'title',
@@ -1394,6 +1434,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/errors/{error}']['get']['responses'];
 
+        self::assertIsArray($responses);
         self::assertArrayHasKey('503', $responses);
         self::assertSame('Service unavailable.', $responses['503']['description']);
         self::assertSame(
@@ -1414,6 +1455,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/errors/{error}']['get']['responses'];
 
+        self::assertIsArray($responses);
         self::assertArrayHasKey('422', $responses);
         self::assertSame('The request payload failed validation.', $responses['422']['description']);
     }
@@ -1462,6 +1504,7 @@ final class PathBuilderTest extends TestCase
 
         $parameters = $this->build()['/teams/{team}/members/{member}']['get']['parameters'];
 
+        self::assertIsArray($parameters);
         self::assertSame(['team', 'member'], array_column($parameters, 'name'));
     }
 
@@ -1501,12 +1544,14 @@ final class PathBuilderTest extends TestCase
 
         $operation = $this->build()['/drafts']['get'];
 
+        self::assertIsArray($operation['responses']);
         self::assertSame([200, 500], array_keys($operation['responses']));
         self::assertSame('The request succeeded.', $operation['responses'][200]['description']);
         self::assertSame(
             $this->undocumentedEnvelope(),
             $operation['responses'][200]['content']['application/json']['schema'],
         );
+        self::assertIsArray($operation);
         self::assertArrayNotHasKey('parameters', $operation);
     }
 
@@ -1522,6 +1567,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/gaps/{gap}']['delete']['responses'];
 
+        self::assertIsArray($responses);
         self::assertSame([204, 401, 403, 404, 500], array_keys($responses));
         self::assertSame('The resource was deleted.', $responses[204]['description']);
     }
@@ -1538,6 +1584,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/gaps']['get']['responses'];
 
+        self::assertIsArray($responses);
         self::assertSame([200, 401, 403, 500], array_keys($responses));
         self::assertSame(
             (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
@@ -1571,8 +1618,10 @@ final class PathBuilderTest extends TestCase
 
         $paths = $this->build();
 
+        self::assertIsArray($paths['/private']['get']['responses']);
         self::assertSame([200, 401, 500], array_keys($paths['/private']['get']['responses']));
         self::assertSame('Unauthenticated.', $paths['/private']['get']['responses'][401]['description']);
+        self::assertIsArray($paths['/public']['get']['responses']);
         self::assertSame([200, 500], array_keys($paths['/public']['get']['responses']));
     }
 
@@ -1588,6 +1637,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/limited']['get']['responses'];
 
+        self::assertIsArray($responses);
         self::assertSame([200, 429, 500], array_keys($responses));
         self::assertSame('Too many requests.', $responses[429]['description']);
         self::assertSame(
@@ -1622,7 +1672,9 @@ final class PathBuilderTest extends TestCase
 
         $paths = $this->build();
 
+        self::assertIsArray($paths['/articles']['post']['responses']);
         self::assertSame([201, 422, 500], array_keys($paths['/articles']['post']['responses']));
+        self::assertIsArray($paths['/reports']['post']['responses']);
         self::assertSame([200, 500], array_keys($paths['/reports']['post']['responses']));
     }
 
@@ -1640,7 +1692,9 @@ final class PathBuilderTest extends TestCase
 
         $paths = $this->build();
 
+        self::assertIsArray($paths['/imports']['post']['responses']);
         self::assertSame([200, 422, 500], array_keys($paths['/imports']['post']['responses']));
+        self::assertIsArray($paths['/posts']['post']['responses']);
         self::assertSame([201, 403, 500], array_keys($paths['/posts']['post']['responses']));
     }
 
@@ -1658,6 +1712,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/sign-in']['post']['responses'];
 
+        self::assertIsArray($responses);
         self::assertSame([200, 401, 403, 419, 429, 500], array_keys($responses));
         self::assertSame('Unauthenticated.', $responses[401]['description']);
         self::assertSame('Token mismatch.', $responses[419]['description']);
@@ -1677,6 +1732,7 @@ final class PathBuilderTest extends TestCase
             ['TooManyRequestsException' => ['value' => ['error' => ['status' => 429, 'code' => 10107]]]],
             $responses[429]['content']['application/json']['examples'],
         );
+        self::assertIsArray($responses[500]['content']['application/json']);
         self::assertArrayNotHasKey('examples', $responses[500]['content']['application/json']);
     }
 
@@ -1694,7 +1750,9 @@ final class PathBuilderTest extends TestCase
 
         $paths = $this->build();
 
+        self::assertIsArray($paths['/grouped']['get']['responses']);
         self::assertSame([200, 401, 429, 500], array_keys($paths['/grouped']['get']['responses']));
+        self::assertIsArray($paths['/unthrottled']['get']['responses']);
         self::assertSame([200, 401, 500], array_keys($paths['/unthrottled']['get']['responses']));
     }
 
@@ -1723,6 +1781,7 @@ final class PathBuilderTest extends TestCase
 
         $success = $this->build()['/sign-in']['post']['responses'][200];
 
+        self::assertIsArray($success);
         self::assertSame(['description', 'headers', 'content'], array_keys($success));
         self::assertSame('The request succeeded.', $success['description']);
         self::assertSame([
@@ -1747,6 +1806,7 @@ final class PathBuilderTest extends TestCase
 
         $success = $this->build()['/users']['get']['responses']['200'];
 
+        self::assertIsArray($success);
         self::assertSame(['description', 'headers', 'content'], array_keys($success));
         self::assertSame(
             [
@@ -1807,13 +1867,17 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/sign-in']['post']['responses'];
 
+        self::assertIsArray($responses[429]);
         self::assertSame(['description', 'headers', 'content'], array_keys($responses[429]));
         self::assertSame(
             ['Retry-After' => ['description' => 'The number of seconds to wait before retrying.', 'schema' => ['type' => 'integer']]],
             $responses[429]['headers'],
         );
+        self::assertIsArray($responses[429]['content']['application/json']['examples']);
         self::assertSame(['BurstLimitedException'], array_keys($responses[429]['content']['application/json']['examples']));
+        self::assertIsArray($responses[409]);
         self::assertSame(['description', 'content'], array_keys($responses[409]));
+        self::assertIsArray($responses[500]);
         self::assertSame(['description', 'content'], array_keys($responses[500]));
     }
 
@@ -1830,6 +1894,7 @@ final class PathBuilderTest extends TestCase
         $response = $this->build()['/quota']['post']['responses'][429];
 
         self::assertSame('Too many requests.', $response['description']);
+        self::assertIsArray($response['headers']);
         self::assertSame(
             ['retry-after', 'X-Quota-Reset', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
             array_keys($response['headers']),
@@ -1848,6 +1913,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/bare']['get']['responses'];
 
+        self::assertIsArray($responses);
         self::assertSame([200, 409, 500], array_keys($responses));
         self::assertSame(['description' => 'The request succeeded.', 'content' => ['application/json' => ['schema' => $this->undocumentedEnvelope()]]], $responses[200]);
         self::assertStringNotContainsString('"headers"', (string) json_encode($responses));
@@ -1865,6 +1931,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/users/{user}']['put']['responses'];
 
+        self::assertIsArray($responses);
         self::assertSame([204, 403, 404, 422, 500], array_keys($responses));
         self::assertSame([
             'description' => 'No Content.',
@@ -1884,6 +1951,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/sessions']['delete']['responses'];
 
+        self::assertIsArray($responses);
         self::assertSame([204, 500], array_keys($responses));
         self::assertSame([
             'description' => 'No Content.',
@@ -1905,8 +1973,10 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/reset']['post']['responses'];
 
+        self::assertIsArray($responses);
         self::assertSame([205, 500], array_keys($responses));
         self::assertSame('Reset Content.', $responses[205]['description']);
+        self::assertIsArray($responses[205]);
         self::assertArrayNotHasKey('content', $responses[205]);
     }
 
@@ -1922,6 +1992,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/jobs']['post']['responses'];
 
+        self::assertIsArray($responses);
         self::assertSame([202, 500], array_keys($responses));
         self::assertSame([
             'description' => 'Accepted.',
@@ -1942,6 +2013,7 @@ final class PathBuilderTest extends TestCase
 
         $responses = $this->build()['/items']['post']['responses'];
 
+        self::assertIsArray($responses);
         self::assertSame([200, 500], array_keys($responses));
         self::assertSame('OK.', $responses[200]['description']);
         self::assertSame(['schema' => $this->undocumentedEnvelope()], $responses[200]['content']['application/json']);
@@ -1962,11 +2034,13 @@ final class PathBuilderTest extends TestCase
         $item  = $paths['/items/{item}']['delete']['responses'];
         $user  = $paths['/users/{user}']['delete']['responses'];
 
+        self::assertIsArray($item);
         self::assertSame([200, 404, 500], array_keys($item));
         self::assertSame(
             (new EnvelopeBuilder)->singleEnvelopeFor(WidgetShape::schema()),
             $item[200]['content']['application/json']['schema'],
         );
+        self::assertIsArray($user);
         self::assertSame([200, 403, 404, 500], array_keys($user));
         self::assertSame([
             'description' => 'OK.',
@@ -1988,8 +2062,10 @@ final class PathBuilderTest extends TestCase
         $responses = $this->build()['/users']['get']['responses'];
         $envelope  = new EnvelopeBuilder;
 
+        self::assertIsArray($responses);
         self::assertSame([206, 403, 500], array_keys($responses));
         self::assertSame('Partial Content.', $responses[206]['description']);
+        self::assertIsArray($responses[206]['headers']);
         self::assertSame(['Total-Count', 'X-Request-Id'], array_keys($responses[206]['headers']));
         self::assertSame(
             [

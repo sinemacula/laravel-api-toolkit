@@ -76,7 +76,7 @@ trait InteractsWithNonPublicMembers
     /**
      * Set a non-public static property value on the given class.
      *
-     * @param  string  $class
+     * @param  class-string  $class
      * @param  string  $property
      * @param  mixed  $value
      * @return void
@@ -89,7 +89,7 @@ trait InteractsWithNonPublicMembers
     /**
      * Get a non-public static property value from the given class.
      *
-     * @param  string  $class
+     * @param  class-string  $class
      * @param  string  $property
      * @return mixed
      */
