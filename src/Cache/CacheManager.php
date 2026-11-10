@@ -107,7 +107,8 @@ final readonly class CacheManager
      */
     private function resetQueryParser(): void
     {
-        $alias = Config::get('api-toolkit.parser.alias', 'api.query');
+        $alias = Config::get('api-toolkit.parser.alias');
+        $alias = is_string($alias) ? $alias : 'api.query';
 
         if (!$this->container->bound($alias)) {
             return;

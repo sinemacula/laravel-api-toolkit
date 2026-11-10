@@ -113,7 +113,9 @@ final readonly class ContainerBindingRegistrar
      */
     private function registerQueryParser(): void
     {
-        $this->container->scoped(Config::get('api-toolkit.parser.alias'), fn ($app) => new ApiQueryParser);
+        $alias = Config::get('api-toolkit.parser.alias');
+
+        $this->container->scoped(is_string($alias) ? $alias : 'api.query', fn ($app) => new ApiQueryParser);
     }
 
     /**

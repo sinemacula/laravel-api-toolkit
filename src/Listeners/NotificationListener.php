@@ -46,21 +46,21 @@ final class NotificationListener
      * @param  string  $level
      * @param  string  $message
      * @param  \Illuminate\Notifications\Notification  $notification
-     * @param  object  $notifiable
+     * @param  mixed  $notifiable
      * @param  string  $channel
      * @return void
      */
-    private function log(string $level, string $message, Notification $notification, object $notifiable, string $channel): void
+    private function log(string $level, string $message, Notification $notification, mixed $notifiable, string $channel): void
     {
         $excludedClasses = config('api-toolkit.notifications.excluded_classes', []);
 
-        if (in_array($notification::class, $excludedClasses, true)) {
+        if (is_array($excludedClasses) && in_array($notification::class, $excludedClasses, true)) {
             return;
         }
 
         $payload = array_filter([
             'notification'    => $notification::class,
-            'notifiable_type' => $notifiable::class,
+            'notifiable_type' => is_object($notifiable) ? $notifiable::class : null,
             'notifiable_id'   => $notifiable instanceof Model ? $notifiable->getKey() : null,
             'channel'         => $channel,
         ], static fn (mixed $value): bool => $value !== null);

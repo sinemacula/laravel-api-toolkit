@@ -53,7 +53,7 @@ abstract class ToolkitCollection extends AnonymousResourceCollection
         $negotiator = App::make($class);
         assert($negotiator instanceof ExportNegotiator);
 
-        return $negotiator->collection($this, $this->collects, $request)
+        return $negotiator->collection($this, class_exists($this->collects) ? $this->collects : null, $request)
             ?? ExportNegotiator::varyAccept(parent::toResponse($request));
     }
 }

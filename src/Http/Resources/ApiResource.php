@@ -93,7 +93,8 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     #[\Override]
     public function resolve(#[\SensitiveParameter] mixed $request = null): array
     {
-        $schema = SchemaCompiler::compile(static::class);
+        $request = $request instanceof Request ? $request : null;
+        $schema  = SchemaCompiler::compile(static::class);
         $data   = ['_type' => static::getResourceType()];
         $fields = $this->fieldResolver->getFields(
             $schema,
@@ -340,10 +341,10 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      *
      * @param  array<string, mixed>  $data
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @param  mixed  $request
+     * @param  \Illuminate\Http\Request|null  $request
      * @return void
      */
-    private function appendMetricPayloads(array &$data, CompiledSchema $schema, mixed $request): void
+    private function appendMetricPayloads(array &$data, CompiledSchema $schema, ?Request $request): void
     {
         if ($this->fieldResolver->shouldIncludeCountsField(static::getResourceType(), static::getDefaultFields())) {
             $counts = $this->valueResolver->resolveCountsPayload($this, $schema, static::getResourceType(), $request);

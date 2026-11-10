@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\MorphMapRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\RouteMacroRegistrar;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use SineMacula\ApiToolkit\Support\ResourceMap;
 
 /**
  * API service provider.
@@ -205,9 +206,9 @@ final class ApiServiceProvider extends ServiceProvider
             return;
         }
 
-        $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
+        $resourceMap = ResourceMap::configured();
 
-        if (!is_array($resourceMap) || $resourceMap === []) {
+        if ($resourceMap === []) {
             return;
         }
 

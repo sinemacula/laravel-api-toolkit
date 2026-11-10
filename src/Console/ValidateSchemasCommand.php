@@ -5,9 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Console;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use SineMacula\ApiToolkit\Support\ResourceMap;
 
 /**
  * Artisan command to validate all registered resource schemas.
@@ -31,9 +31,9 @@ final class ValidateSchemasCommand extends Command
      */
     public function handle(SchemaValidator $validator): int
     {
-        $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
+        $resourceMap = ResourceMap::configured();
 
-        if (!is_array($resourceMap) || $resourceMap === []) {
+        if ($resourceMap === []) {
 
             $this->components->warn('No resources registered in the resource map.');
             return self::SUCCESS;
