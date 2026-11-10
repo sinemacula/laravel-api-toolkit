@@ -6,6 +6,7 @@ namespace Tests\Unit\OpenApi\Naming;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use Tests\Fixtures\Enums\Alternate\Tier as AlternateTier;
 use Tests\Fixtures\Enums\UserStatus;
@@ -114,12 +115,15 @@ final class SchemaComponentNameTest extends TestCase
 
     /**
      * Test that a name is not read off a class the autoloader cannot produce,
-     * so a stale mapping entry names nothing rather than raising.
+     * so a stale resource map entry names nothing rather than raising.
      *
      * @return void
      */
     public function testAClassThatCannotBeLoadedCarriesNoOverride(): void
     {
-        self::assertSame('Missing', SchemaComponentName::fromResource('Tests\Fixtures\Resources\MissingResource'));
+        $catalogue = self::createStub(MetadataCatalogue::class);
+        $catalogue->method('getResourceMap')->willReturn([User::class => 'Tests\Fixtures\Resources\MissingResource']);
+
+        self::assertSame([User::class => 'Missing'], array_map(SchemaComponentName::fromResource(...), $catalogue->getResourceMap()));
     }
 }
