@@ -261,7 +261,7 @@ final class EngineSearchDriverTest extends TestCase
     {
         $query = $this->apply(['name'], SearchStrategy::SUBSTRING);
 
-        self::assertSame('select * from "users" where instr("users"."name", ?) > 0', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertSame('select * from "users" where "users"."name" glob ?', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
         self::assertSame([self::TERM], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
