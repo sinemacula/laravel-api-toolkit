@@ -982,8 +982,9 @@ final class PathBuilderTest extends TestCase
         $paths    = $this->build();
         $envelope = new EnvelopeBuilder;
 
-        /** @var array<string, mixed> $operation */
         $operation = $paths['/users']['get'];
+
+        self::assertIsArray($operation);
 
         self::assertSame($paths['/members']['get'], $operation);
         self::assertSame(['User'], $operation['tags']);
@@ -1016,11 +1017,13 @@ final class PathBuilderTest extends TestCase
     {
         $this->router()->get('users/{user}', [PathDeclaredResourceUserController::class, 'show']);
 
-        /** @var array<string, mixed> $operation */
         $operation = $this->build()['/users/{user}']['get'];
 
-        /** @var array<int, mixed> $responses */
+        self::assertIsArray($operation);
+
         $responses = $operation['responses'];
+
+        self::assertIsArray($responses);
 
         self::assertSame(['User'], $operation['tags']);
         self::assertSame(['Fields', 'Counts', 'Sums', 'Averages'], $this->referencedParameterNames($operation));
@@ -1046,11 +1049,13 @@ final class PathBuilderTest extends TestCase
         $paths    = $this->build();
         $envelope = new EnvelopeBuilder;
 
-        /** @var array<string, mixed> $store */
         $store = $paths['/users']['post'];
 
-        /** @var array<string, mixed> $update */
+        self::assertIsArray($store);
+
         $update = $paths['/users/{user}']['put'];
+
+        self::assertIsArray($update);
 
         self::assertArrayNotHasKey('parameters', $store);
         self::assertSame([
@@ -2111,7 +2116,7 @@ final class PathBuilderTest extends TestCase
      * List the shared query-parameter component names the operation references,
      * in the order it carries them.
      *
-     * @param  array<string, mixed>  $operation
+     * @param  array<mixed>  $operation
      * @return array<int, string>
      */
     private function referencedParameterNames(array $operation): array
