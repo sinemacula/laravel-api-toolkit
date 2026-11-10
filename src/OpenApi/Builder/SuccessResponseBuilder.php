@@ -23,7 +23,8 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
  * also builds the success body of an action documented outside the resource
  * contract: the shape its #[ResponseSchema] declares, or the undocumented
  * envelope. An action declaring a #[ResponseSchema] is documented outside the
- * resource contract even on a resource route.
+ * resource contract even on a resource route, unless it names that route's
+ * resource in the shape the route already documents.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -82,16 +83,20 @@ final readonly class SuccessResponseBuilder
     }
 
     /**
-     * Determine whether the action declares its own success body through a
-     * #[ResponseSchema] directive, replacing any resource body.
+     * Determine whether the action declares a success body replacing the given
+     * resource through a #[ResponseSchema] directive: one naming anything but
+     * the resource alone, or the resource in a shape other than the given one.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
+     * @param  class-string  $resourceClass
+     * @param  bool  $collection
      * @return bool
      */
-    public function declaresBody(?string $controllerClass, string $action): bool
+    public function replacesResource(?string $controllerClass, string $action, string $resourceClass, bool $collection): bool
     {
-        return $this->responseSchema->declares($controllerClass, $action);
+        return $this->responseSchema->declares($controllerClass, $action)
+            && !$this->responseSchema->declaresResource($controllerClass, $action, $resourceClass, $collection);
     }
 
     /**

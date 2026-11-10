@@ -702,9 +702,12 @@ classes to document a response that answers with any one of them, exported as a 
 item of a collection). Give each member of a union a required property holding a constant of its own, such as a
 `status`, so a client can tell the shapes apart. If any named class is neither a registered resource nor a
 `DefinesSchema`, the body is left undocumented rather than documented in part. On a resource controller's `index`,
-`show`, `store`, `update`, or `destroy` the declared body replaces the resource body, so an action answering with
-something other than its resource documents what it returns. Such an action keeps its status, headers, request body,
-tag, and error responses, but lists none of the resource's query parameters, since its body is not the resource:
+`show`, `store`, `update`, or `destroy`, declaring the controller's own resource alone, as a collection on `index` and a
+single item on any other action, changes nothing: the action keeps the full resource documentation, so an `index` still
+lists every query parameter it honours, both pagination shapes, and the `Total-Count` header. Any other declared body
+replaces the resource body, so an action answering with something other than its resource documents what it returns.
+Such an action keeps its status, headers, request body, tag, and error responses, but lists none of the resource's query
+parameters, since its body is not the resource:
 
 ```php
 use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseSchema;

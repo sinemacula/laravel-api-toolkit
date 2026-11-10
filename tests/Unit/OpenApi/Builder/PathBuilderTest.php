@@ -37,6 +37,7 @@ use Tests\Fixtures\OpenApi\ArticleRequestInput;
 use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathAttributelessController;
 use Tests\Fixtures\OpenApi\PathDeclaredBodyUserController;
+use Tests\Fixtures\OpenApi\PathDeclaredResourceUserController;
 use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathExcludedController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
@@ -964,6 +965,108 @@ final class PathBuilderTest extends TestCase
             'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelope('#/components/schemas/User')]],
         ], $operation['responses'][201]);
         self::assertSame([], $this->referencedParameterNames($paths['/users/{user}']['put']));
+    }
+
+    /**
+     * Test that a resource index declaring its own resource as a collection is
+     * documented exactly as one declaring nothing, keeping the query grammar,
+     * both pagination envelopes, and the total-count header.
+     *
+     * @return void
+     */
+    public function testResourceIndexDeclaringItsOwnCollectionKeepsTheResource(): void
+    {
+        $this->router()->get('users', [PathDeclaredResourceUserController::class, 'index']);
+        $this->router()->get('members', [PathFixtureController::class, 'index']);
+
+        $paths    = $this->build();
+        $envelope = new EnvelopeBuilder;
+
+        $operation = $paths['/users']['get'];
+
+        self::assertIsArray($operation);
+
+        self::assertSame($paths['/members']['get'], $operation);
+        self::assertSame(['User'], $operation['tags']);
+        self::assertSame(
+            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            $this->referencedParameterNames($operation),
+        );
+        self::assertSame(
+            ['Total-Count' => ['$ref' => '#/components/headers/Total-Count']],
+            $operation['responses']['200']['headers'],
+        );
+        self::assertSame(
+            [
+                'anyOf' => [
+                    $envelope->collectionEnvelope('#/components/schemas/User'),
+                    $envelope->cursorCollectionEnvelope('#/components/schemas/User'),
+                ],
+            ],
+            $operation['responses']['200']['content']['application/json']['schema'],
+        );
+    }
+
+    /**
+     * Test that a resource show declaring its own resource keeps the resource
+     * body and the query parameters shaping a single record.
+     *
+     * @return void
+     */
+    public function testResourceShowDeclaringItsOwnResourceKeepsTheResource(): void
+    {
+        $this->router()->get('users/{user}', [PathDeclaredResourceUserController::class, 'show']);
+
+        $operation = $this->build()['/users/{user}']['get'];
+
+        self::assertIsArray($operation);
+
+        $responses = $operation['responses'];
+
+        self::assertIsArray($responses);
+
+        self::assertSame(['User'], $operation['tags']);
+        self::assertSame(['Fields', 'Counts', 'Sums', 'Averages'], $this->referencedParameterNames($operation));
+        self::assertSame([200, 403, 404, 500], array_keys($responses));
+        self::assertSame([
+            'description' => 'The requested resource.',
+            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelope('#/components/schemas/User')]],
+        ], $operation['responses'][200]);
+    }
+
+    /**
+     * Test that a resource action declaring its own resource in another shape,
+     * or another resource, documents the declared body with no resource query
+     * parameter.
+     *
+     * @return void
+     */
+    public function testResourceActionsDeclaringAnotherResourceOrShapeDocumentIt(): void
+    {
+        $this->router()->post('users', [PathDeclaredResourceUserController::class, 'store']);
+        $this->router()->put('users/{user}', [PathDeclaredResourceUserController::class, 'update']);
+
+        $paths    = $this->build();
+        $envelope = new EnvelopeBuilder;
+
+        $store = $paths['/users']['post'];
+
+        self::assertIsArray($store);
+
+        $update = $paths['/users/{user}']['put'];
+
+        self::assertIsArray($update);
+
+        self::assertArrayNotHasKey('parameters', $store);
+        self::assertSame([
+            'description' => 'The request succeeded and a resource was created.',
+            'content'     => ['application/json' => ['schema' => $envelope->collectionEnvelope('#/components/schemas/User')]],
+        ], $store['responses'][201]);
+        self::assertSame([], $this->referencedParameterNames($update));
+        self::assertSame([
+            'description' => 'The request succeeded.',
+            'content'     => ['application/json' => ['schema' => $envelope->singleEnvelope('#/components/schemas/Article')]],
+        ], $update['responses'][200]);
     }
 
     /**
@@ -2013,7 +2116,7 @@ final class PathBuilderTest extends TestCase
      * List the shared query-parameter component names the operation references,
      * in the order it carries them.
      *
-     * @param  array<string, mixed>  $operation
+     * @param  array<mixed>  $operation
      * @return array<int, string>
      */
     private function referencedParameterNames(array $operation): array

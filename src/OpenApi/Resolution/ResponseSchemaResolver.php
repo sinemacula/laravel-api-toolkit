@@ -15,8 +15,9 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
  * Resolves the declared success body of an action.
  *
  * An action names its response body with a #[ResponseSchema] directive, which
- * on a resource route replaces the resource body. Each named class is resolved
- * to an inner `data` schema node wrapped by the shared envelope: a registered
+ * on a resource route replaces the resource body unless it names that resource
+ * in the shape the route already documents. Each named class is resolved to an
+ * inner `data` schema node wrapped by the shared envelope: a registered
  * resource emits a reference to its component schema, and a self-describing
  * class inlines its own JSON-Schema fragment. A reference is emitted only when
  * the resource is a value of the catalogue's resource map, so the referenced
@@ -65,6 +66,25 @@ final readonly class ResponseSchemaResolver
     public function declares(?string $controllerClass, string $action): bool
     {
         return $this->directive($controllerClass, $action) !== null;
+    }
+
+    /**
+     * Determine whether the action's #[ResponseSchema] directive names the
+     * given resource and no other class, in the given shape.
+     *
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @param  class-string  $resourceClass
+     * @param  bool  $collection
+     * @return bool
+     */
+    public function declaresResource(?string $controllerClass, string $action, string $resourceClass, bool $collection): bool
+    {
+        $directive = $this->directive($controllerClass, $action);
+
+        return $directive !== null
+            && $directive->collection            === $collection
+            && array_unique($directive->schemas) === [$resourceClass];
     }
 
     /**
