@@ -25,7 +25,7 @@ final class Relation extends BaseDefinition
     /** @var array<int, string>|null Child field projection for eager-load planning */
     private ?array $fields = null;
 
-    /** @var (callable(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null */
+    /** @var (callable(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null Eager-load constraint callback */
     private mixed $constraint = null;
 
     /** @var bool Whether this relation is declared externally traversable */
