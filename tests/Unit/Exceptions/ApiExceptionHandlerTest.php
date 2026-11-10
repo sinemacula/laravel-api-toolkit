@@ -7,6 +7,7 @@ namespace Tests\Unit\Exceptions;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\RecordsNotFoundException;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -436,7 +437,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         config()->set('app.debug', false);
 
-        $validator = new Validator(app('translator'), [], []);
+        $validator = new Validator(app(Translator::class), [], []);
         $exception = new ValidationException($validator);
 
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
@@ -769,7 +770,7 @@ final class ApiExceptionHandlerTest extends TestCase
             // rendered frame retains call arguments regardless of depth.
             $renderedFramesWithArgs = array_filter(
                 $data['error']['meta']['trace'],
-                static fn (array $frame): bool => array_key_exists('args', $frame),
+                static fn (mixed $frame): bool => is_array($frame) && array_key_exists('args', $frame),
             );
 
             self::assertSame([], $renderedFramesWithArgs);

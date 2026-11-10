@@ -46,6 +46,7 @@ final class SumTest extends TestCase
         $sum = Sum::of('posts', 'id');
         $key = array_key_first($sum->toArray());
 
+        self::assertIsString($key);
         self::assertStringStartsWith('__sum__:', $key);
     }
 

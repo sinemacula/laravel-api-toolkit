@@ -290,11 +290,14 @@ final class ExceptionRenderingTest extends TestCase
 
         self::assertEqualsCanonicalizing(array_keys($properties), array_keys($full));
 
-        $minimal = (array) $this->getJson('/unhandled')->json('error');
+        $minimal  = (array) $this->getJson('/unhandled')->json('error');
+        $envelope = Helper::toJSON($schema);
+
+        self::assertIsObject($envelope);
 
         foreach ([$full, $minimal] as $payload) {
 
-            $result = (new Validator)->validate(Helper::toJSON(['error' => $payload]), Helper::toJSON($schema));
+            $result = (new Validator)->validate(Helper::toJSON(['error' => $payload]), $envelope);
 
             self::assertTrue(
                 $result->isValid(),

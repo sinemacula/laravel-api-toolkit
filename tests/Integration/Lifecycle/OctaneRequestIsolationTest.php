@@ -106,6 +106,8 @@ final class OctaneRequestIsolationTest extends TestCase
 
         $alias = config('api-toolkit.parser.alias');
 
+        self::assertIsString($alias);
+
         // Request A: parse a fully-populated query string.
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parserA */
         $parserA = $app->make($alias);
@@ -219,7 +221,11 @@ final class OctaneRequestIsolationTest extends TestCase
         // Schema-level state established at boot.
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry $registry */
         $registry = $app->make(OperatorRegistry::class);
-        $registry->register('$starts', $registry->resolve('$eq'));
+        $equal    = $registry->resolve('$eq');
+
+        self::assertNotNull($equal);
+
+        $registry->register('$starts', $equal);
 
         Relation::morphMap(['users' => User::class]);
 

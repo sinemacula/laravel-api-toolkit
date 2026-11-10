@@ -383,7 +383,7 @@ final class OpenApiSecurityExportTest extends TestCase
      * to `true`. Both work around opis annotation/reference gaps without
      * weakening any validity-bearing constraint; see the fixtures README.
      *
-     * @param  array<string, mixed>  $node
+     * @param  array<array-key, mixed>  $node
      * @return void
      */
     private function adaptForOpis(array &$node): void

@@ -36,10 +36,12 @@ final class WritePoolFlushExceptionTest extends TestCase
                     [
                         'records'   => [['name' => 'a']],
                         'exception' => 'Insert failed',
+                        'exception_class' => \RuntimeException::class,
                     ],
                     [
                         'records'   => [['name' => 'b']],
                         'exception' => 'Insert failed',
+                        'exception_class' => \RuntimeException::class,
                     ],
                 ],
             ],
@@ -67,6 +69,7 @@ final class WritePoolFlushExceptionTest extends TestCase
                     [
                         'records'   => [['name' => 'foo']],
                         'exception' => 'Duplicate entry',
+                        'exception_class' => \RuntimeException::class,
                     ],
                 ],
             ],

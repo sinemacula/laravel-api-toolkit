@@ -128,6 +128,7 @@ final class PolymorphicResourceTest extends TestCase
 
         $result = $resource->toArray(request());
 
+        self::assertIsArray($result);
         self::assertArrayHasKey('name', $result);
         self::assertArrayHasKey('email', $result);
         self::assertArrayHasKey('status', $result);
@@ -197,6 +198,7 @@ final class PolymorphicResourceTest extends TestCase
 
         $result = $resource->toArray(request());
 
+        self::assertIsArray($result);
         self::assertArrayHasKey('_type', $result);
         self::assertArrayHasKey('name', $result);
     }
@@ -317,6 +319,7 @@ final class PolymorphicResourceTest extends TestCase
 
         $result = $resource->toArray(request());
 
+        self::assertIsArray($result);
         self::assertArrayHasKey('_type', $result);
         self::assertArrayHasKey('name', $result);
         self::assertArrayNotHasKey('email', $result);

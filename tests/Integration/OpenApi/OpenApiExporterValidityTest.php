@@ -1708,7 +1708,11 @@ final class OpenApiExporterValidityTest extends TestCase
 
         assert($resolver instanceof SchemaResolver);
 
-        $resolver->registerRaw(Helper::toJSON($document), self::EXPORTED_DOCUMENT_ID);
+        $exported = Helper::toJSON($document);
+
+        self::assertIsObject($exported);
+
+        $resolver->registerRaw($exported, self::EXPORTED_DOCUMENT_ID);
 
         return $validator->validate(Helper::toJSON((object) $payload), self::EXPORTED_DOCUMENT_ID . '#' . $pointer);
     }
@@ -1729,7 +1733,11 @@ final class OpenApiExporterValidityTest extends TestCase
 
         assert($resolver instanceof SchemaResolver);
 
-        $resolver->registerRaw(Helper::toJSON($document), self::EXPORTED_DOCUMENT_ID);
+        $exported = Helper::toJSON($document);
+
+        self::assertIsObject($exported);
+
+        $resolver->registerRaw($exported, self::EXPORTED_DOCUMENT_ID);
 
         return $validator->validate(
             json_decode($payload, false, 512, JSON_THROW_ON_ERROR),
@@ -1801,7 +1809,7 @@ final class OpenApiExporterValidityTest extends TestCase
      * annotation/reference gaps without weakening any validity-bearing
      * constraint; see the fixtures README.
      *
-     * @param  array<string, mixed>  $node
+     * @param  array<array-key, mixed>  $node
      * @return void
      */
     private function adaptForOpis(array &$node): void
@@ -1937,7 +1945,7 @@ final class OpenApiExporterValidityTest extends TestCase
      * List the shared query-parameter component names the operation references,
      * in the order it carries them.
      *
-     * @param  array<string, mixed>  $operation
+     * @param  array<array-key, mixed>  $operation
      * @return array<int, string>
      */
     private function referencedParameterNames(array $operation): array

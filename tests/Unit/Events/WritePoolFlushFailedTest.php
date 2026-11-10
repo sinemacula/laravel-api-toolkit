@@ -36,6 +36,7 @@ final class WritePoolFlushFailedTest extends TestCase
                     [
                         'records'   => [['name' => 'foo']],
                         'exception' => 'Insert failed',
+                        'exception_class' => \RuntimeException::class,
                     ],
                 ],
             ],

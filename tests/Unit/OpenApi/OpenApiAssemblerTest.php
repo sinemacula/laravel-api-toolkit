@@ -225,7 +225,10 @@ final class OpenApiAssemblerTest extends TestCase
     {
         $this->config()->set('api-toolkit.openapi.docs_path', sys_get_temp_dir() . '/api-toolkit-absent-' . uniqid('', true));
 
-        self::assertArrayNotHasKey('description', $this->assemble()['info']);
+        $info = $this->assemble()['info'];
+
+        self::assertIsArray($info);
+        self::assertArrayNotHasKey('description', $info);
     }
 
     /**
@@ -413,7 +416,10 @@ final class OpenApiAssemblerTest extends TestCase
     {
         $this->registerUserRoutes();
 
-        self::assertArrayNotHasKey('securitySchemes', $this->assemble()['components']);
+        $components = $this->assemble()['components'];
+
+        self::assertIsArray($components);
+        self::assertArrayNotHasKey('securitySchemes', $components);
     }
 
     /**

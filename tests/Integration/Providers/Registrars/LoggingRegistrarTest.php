@@ -102,7 +102,7 @@ final class LoggingRegistrarTest extends TestCase
 
         // Simulate illuminate/notifications being absent so the class_exists
         // guard short-circuits before any listener is wired.
-        FunctionOverrides::set('class_exists', static fn (string $class): bool => $class !== NotificationSending::class && \class_exists($class));
+        FunctionOverrides::set('class_exists', static fn (mixed ...$arguments): bool => is_string($arguments[0]) && $arguments[0] !== NotificationSending::class && \class_exists($arguments[0]));
 
         (new LoggingRegistrar)->register();
 

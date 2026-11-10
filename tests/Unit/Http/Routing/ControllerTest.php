@@ -58,7 +58,11 @@ final class ControllerTest extends TestCase
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(200, $response->getStatusCode());
 
-        $content = json_decode($response->getContent(), true);
+        $raw = $response->getContent();
+
+        self::assertIsString($raw);
+
+        $content = json_decode($raw, true);
 
         self::assertIsArray($content);
         self::assertArrayHasKey('data', $content);

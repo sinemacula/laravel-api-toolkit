@@ -46,6 +46,7 @@ final class AverageTest extends TestCase
         $avg = Average::of('posts', 'id');
         $key = array_key_first($avg->toArray());
 
+        self::assertIsString($key);
         self::assertStringStartsWith('__avg__:', $key);
     }
 

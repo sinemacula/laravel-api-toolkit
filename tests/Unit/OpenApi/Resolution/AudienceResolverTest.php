@@ -300,7 +300,7 @@ final class AudienceResolverTest extends TestCase
     private function routeWithDirectives(array $directives): Route
     {
         $route  = $this->bareRoute();
-        $action = $route->getAction();
+        $action = $route->action;
 
         $action[AudienceResolver::ROUTE_ACTION_KEY] = $directives;
 

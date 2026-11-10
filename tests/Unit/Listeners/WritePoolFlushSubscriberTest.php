@@ -66,6 +66,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
      */
     public function testSubscribeRegistersListenerForRequestHandled(): void
     {
+        self::assertNotNull($this->app);
+
         $events     = new Dispatcher;
         $subscriber = new WritePoolFlushSubscriber($this->app);
 
@@ -81,6 +83,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
      */
     public function testSubscribeRegistersListenerForCommandFinished(): void
     {
+        self::assertNotNull($this->app);
+
         $events     = new Dispatcher;
         $subscriber = new WritePoolFlushSubscriber($this->app);
 
@@ -96,6 +100,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
      */
     public function testSubscribeRegistersListenerForJobProcessed(): void
     {
+        self::assertNotNull($this->app);
+
         $events     = new Dispatcher;
         $subscriber = new WritePoolFlushSubscriber($this->app);
 
@@ -111,6 +117,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
      */
     public function testSubscribeRegistersListenerForJobFailed(): void
     {
+        self::assertNotNull($this->app);
+
         $events     = new Dispatcher;
         $subscriber = new WritePoolFlushSubscriber($this->app);
 

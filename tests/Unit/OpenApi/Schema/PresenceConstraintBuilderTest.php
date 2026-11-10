@@ -479,7 +479,7 @@ final class PresenceConstraintBuilderTest extends TestCase
      * Build an object whose every field has an empty schema from the given
      * tokens, then add its presence constraints.
      *
-     * @param  array<string, list<string>>  $tokens
+     * @param  array<array-key, list<string>>  $tokens
      * @param  list<string>  $required
      * @param  string  $path
      * @return array<string, mixed>

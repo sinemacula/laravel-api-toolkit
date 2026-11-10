@@ -220,7 +220,10 @@ final class DocumentableRouteFilterTest extends TestCase
      */
     private function route(\Closure|string|null $handler = null): Route
     {
-        return new Route(['GET'], '/test', $handler ?? static fn (): null => null);
+        $route = new Route(['GET'], '/test', $handler instanceof \Closure ? $handler : static fn (): null => null);
+
+        // The router stores a callable string as the action's handler verbatim.
+        return is_string($handler) ? $route->setAction(['uses' => $handler]) : $route;
     }
 
     /**

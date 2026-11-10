@@ -53,6 +53,7 @@ final class ReportCollectionTest extends TestCase
 
         $result = $collection->toArray(Request::create('/', HttpMethod::GET->getVerb()));
 
+        self::assertIsArray($result);
         self::assertCount(2, $result);
         self::assertSame('sales-summary', $result[0]['_type']);
         self::assertSame('2026-01', $result[0]['month']);

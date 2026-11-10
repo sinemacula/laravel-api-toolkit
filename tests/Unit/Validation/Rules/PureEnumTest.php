@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Validation\Rules;
 
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Facades\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -117,7 +118,7 @@ final class PureEnumTest extends TestCase
     public function testOnlyAcceptsASingleCaseAndAnArrayable(): void
     {
         $single    = (new PureEnum(Platform::class))->only(Platform::WEB);
-        $arrayable = (new PureEnum(Platform::class))->only(collect([Platform::DESKTOP]));
+        $arrayable = (new PureEnum(Platform::class))->only(self::arrayable(Platform::DESKTOP));
 
         self::assertSame([], $this->errors('web', $single));
         self::assertArrayHasKey('platform', $this->errors('desktop', $single));
@@ -146,7 +147,7 @@ final class PureEnumTest extends TestCase
      */
     public function testExceptAcceptsAnArrayable(): void
     {
-        $rule = (new PureEnum(Platform::class))->except(collect([Platform::WEB, Platform::DESKTOP]));
+        $rule = (new PureEnum(Platform::class))->except(self::arrayable(Platform::WEB, Platform::DESKTOP));
 
         self::assertArrayHasKey('platform', $this->errors('web', $rule));
         self::assertArrayHasKey('platform', $this->errors('desktop', $rule));
@@ -227,5 +228,44 @@ final class PureEnumTest extends TestCase
     private function errors(mixed $value, PureEnum $rule): array
     {
         return Validator::make(['platform' => $value], ['platform' => [$rule]])->errors()->toArray();
+    }
+
+    /**
+     * Wrap the given cases in an arrayable, the form a caller holding a
+     * collection of cases passes.
+     *
+     * @param  \UnitEnum  ...$cases
+     * @return \Illuminate\Contracts\Support\Arrayable<array-key, \UnitEnum>
+     */
+    private static function arrayable(\UnitEnum ...$cases): Arrayable
+    {
+        /**
+         * Arrayable holding the given enum cases.
+         *
+         * @implements \Illuminate\Contracts\Support\Arrayable<array-key, \UnitEnum>
+         */
+        return new class ($cases) implements Arrayable {
+            /**
+             * Constructor.
+             *
+             * @param  array<array-key, \UnitEnum>  $cases
+             */
+            public function __construct(
+
+                /** The cases the arrayable holds */
+                private readonly array $cases,
+            ) {}
+
+            /**
+             * Get the cases as an array.
+             *
+             * @return array<array-key, \UnitEnum>
+             */
+            #[\Override]
+            public function toArray(): array
+            {
+                return $this->cases;
+            }
+        };
     }
 }

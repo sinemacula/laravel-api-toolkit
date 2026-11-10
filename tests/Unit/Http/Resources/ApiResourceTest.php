@@ -468,7 +468,7 @@ final class ApiResourceTest extends TestCase
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Field::scalar('name')->transform(fn ($resource, $value) => strtoupper($value)),
+                    Field::scalar('name')->transform(fn ($resource, $value) => is_string($value) ? strtoupper($value) : $value),
                 );
             }
         };
@@ -1240,7 +1240,7 @@ final class ApiResourceTest extends TestCase
                 return Field::set(
                     Field::scalar('id'),
                     Field::scalar('name')
-                        ->transform(fn ($resource, $value) => strtoupper($value))
+                        ->transform(fn ($resource, $value) => is_string($value) ? strtoupper($value) : $value)
                         ->transform(fn ($resource, $value) => 'PREFIX_' . (string) $value), // @phpstan-ignore cast.string
                 );
             }

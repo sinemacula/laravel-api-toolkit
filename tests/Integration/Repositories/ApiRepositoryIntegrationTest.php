@@ -9,6 +9,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
+use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
@@ -83,6 +84,9 @@ final class ApiRepositoryIntegrationTest extends TestCase
 
         $reflection      = new \ReflectionClass(ApiRepository::class);
         $attributeSetter = $reflection->getProperty('attributeSetter')->getValue($this->repository);
+
+        self::assertInstanceOf(AttributeSetter::class, $attributeSetter);
+
         (new \ReflectionProperty($attributeSetter, 'casts'))->setValue($attributeSetter, ['name' => 'string']);
 
         $result = $this->repository->persist($user, ['name' => 'Alice Updated']);

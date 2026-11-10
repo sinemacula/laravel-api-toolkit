@@ -137,7 +137,7 @@ final class LifecycleRegistrarTest extends TestCase
 
         // Simulate laravel/octane being absent so the interface_exists guard
         // short-circuits before the listener binds.
-        FunctionOverrides::set('interface_exists', static fn (string $interface): bool => $interface !== OperationTerminated::class && \interface_exists($interface));
+        FunctionOverrides::set('interface_exists', static fn (mixed ...$arguments): bool => is_string($arguments[0]) && $arguments[0] !== OperationTerminated::class && \interface_exists($arguments[0]));
 
         // Reset the dispatcher so Octane's own OperationTerminated listeners do
         // not mask the registrar short-circuiting.

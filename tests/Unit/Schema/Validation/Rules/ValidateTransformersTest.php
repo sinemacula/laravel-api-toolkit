@@ -42,7 +42,7 @@ final class ValidateTransformersTest extends TestCase
             extras: [],
             needs: [],
             guards: [],
-            transformers: [fn ($value, $model) => strtoupper($value)],
+            transformers: [fn ($value, $model) => is_string($value) ? strtoupper($value) : $value],
         );
 
         $schema = new CompiledSchema(

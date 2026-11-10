@@ -103,6 +103,9 @@ final class WithoutCacheBypassTest extends TestCase
         $fresh->assertOk();
         $fresh->assertJsonCount(3, 'data');
         self::assertNotCount(0, DB::getQueryLog());
-        self::assertContains('carol@example.com', $fresh->json('data.*.email'));
+        $emails = $fresh->json('data.*.email');
+
+        self::assertIsArray($emails);
+        self::assertContains('carol@example.com', $emails);
     }
 }

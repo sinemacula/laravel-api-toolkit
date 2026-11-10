@@ -242,7 +242,7 @@ final class SecuritySchemeResolverTest extends TestCase
      */
     public function testUnresolvableControllerMiddlewareYieldsPublicRoute(): void
     {
-        $route = new Route(['GET'], 'test', UnresolvableMiddlewareController::class . '@show');
+        $route = new Route(['GET'], 'test', ['uses' => UnresolvableMiddlewareController::class . '@show']);
 
         $route->middleware(['auth:api']);
 

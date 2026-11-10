@@ -944,10 +944,13 @@ final class FilterApplierTest extends TestCase
      */
     public function testStructuralOperatorsMatchTheDispatchMaps(): void
     {
-        $dispatched = array_merge(
-            array_keys($this->getProperty($this->applier, 'logicalOperatorMap')),
-            array_keys($this->getProperty($this->applier, 'relationalMethodMap')),
-        );
+        $logical    = $this->getProperty($this->applier, 'logicalOperatorMap');
+        $relational = $this->getProperty($this->applier, 'relationalMethodMap');
+
+        self::assertIsArray($logical);
+        self::assertIsArray($relational);
+
+        $dispatched = array_merge(array_keys($logical), array_keys($relational));
 
         sort($dispatched);
         $declared = FilterApplier::STRUCTURAL_OPERATORS;

@@ -133,7 +133,7 @@ final class RouteMiddlewareResolverTest extends TestCase
     public function testAuthorizationChecksAreRecognised(): void
     {
         $gate      = $this->route('can:view,post');
-        $attribute = new Route(['GET'], 'report', PathRouteFactsController::class . '@report');
+        $attribute = new Route(['GET'], 'report', ['uses' => PathRouteFactsController::class . '@report']);
 
         self::assertTrue($this->resolver()->authorizes($gate));
         self::assertFalse($this->resolver()->authenticates($gate));
@@ -148,7 +148,7 @@ final class RouteMiddlewareResolverTest extends TestCase
      */
     public function testAuthorizedControllerGateIsRecognised(): void
     {
-        $route = new Route(['GET'], 'users', PathFixtureController::class . '@index');
+        $route = new Route(['GET'], 'users', ['uses' => PathFixtureController::class . '@index']);
 
         self::assertTrue($this->resolver()->authorizes($this->bind($route)));
     }
@@ -217,7 +217,7 @@ final class RouteMiddlewareResolverTest extends TestCase
      */
     public function testClosureMiddlewareIsSkipped(): void
     {
-        $route = new Route(['GET'], 'test', ClosureMiddlewareController::class . '@show');
+        $route = new Route(['GET'], 'test', ['uses' => ClosureMiddlewareController::class . '@show']);
 
         self::assertSame(['api'], $this->resolver()->guards($this->bind($route)));
     }
@@ -230,7 +230,7 @@ final class RouteMiddlewareResolverTest extends TestCase
      */
     public function testUnresolvableControllerMiddlewareDegradesToNone(): void
     {
-        $route = (new Route(['GET'], 'test', UnresolvableMiddlewareController::class . '@show'))->middleware('auth:api');
+        $route = (new Route(['GET'], 'test', ['uses' => UnresolvableMiddlewareController::class . '@show']))->middleware('auth:api');
 
         self::assertSame([], $this->resolver()->guards($this->bind($route)));
         self::assertFalse($this->resolver()->authenticates($route));
