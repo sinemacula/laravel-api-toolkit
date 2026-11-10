@@ -446,6 +446,46 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
+     * Test that a computed field receives the request the resource is resolved
+     * with, and no request when resolved with anything other than a request.
+     *
+     * @return void
+     */
+    public function testResolvePassesOnlyARequestToComputedFields(): void
+    {
+        $resourceClass = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'request_aware_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['path'];
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::compute('path', static fn (ApiResource $resource, ?Request $request): ?string => $request?->path()),
+                );
+            }
+        };
+
+        $user = User::create([
+            'name'  => 'Requested',
+            'email' => 'requested@example.com',
+        ]);
+
+        $resource = new $resourceClass($user);
+
+        self::assertSame('users/requested', $resource->resolve(Request::create('/users/requested'))['path']);
+        self::assertNull($resource->resolve('users/requested')['path']);
+    }
+
+    /**
      * Test that transformers modify resolved values.
      *
      * @return void
