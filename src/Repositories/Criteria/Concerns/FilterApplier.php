@@ -162,6 +162,44 @@ final class FilterApplier
     }
 
     /**
+     * Assert that a filter position carries a document of conditions rather
+     * than a bare value.
+     *
+     * @param  mixed  $value
+     * @param  string  $position
+     * @return array<array-key, mixed>
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    private function assertDocument(mixed $value, string $position): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        throw ValidationException::withMessages([$position => sprintf('The %s filter must be a document of conditions.', $position)]);
+    }
+
+    /**
+     * Assert that an entry listed by a relation existence filter names a
+     * relation.
+     *
+     * @param  mixed  $relation
+     * @param  string  $operator
+     * @return string
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    private function assertRelationName(mixed $relation, string $operator): string
+    {
+        if (is_string($relation)) {
+            return $relation;
+        }
+
+        throw ValidationException::withMessages([$operator => sprintf('The %s filter must list relation names.', $operator)]);
+    }
+
+    /**
      * Dispatch a single filter entry to the appropriate handler.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
@@ -186,7 +224,7 @@ final class FilterApplier
         }
 
         if (array_key_exists($key, $this->logicalOperatorMap)) {
-            $this->applyLogicalOperator($query, $key, $value, $context);
+            $this->applyLogicalOperator($query, $key, $this->assertDocument($value, $key), $context);
             return;
         }
 
@@ -218,7 +256,7 @@ final class FilterApplier
         $model = $query->getModel();
 
         if ($this->querySurface->isDeclaredRelation($key, $model)) {
-            $this->applyRelationFilter($query, $key, $value, $context);
+            $this->applyRelationFilter($query, $key, $this->assertDocument($value, $key), $context);
             return;
         }
 
@@ -285,7 +323,7 @@ final class FilterApplier
     {
         if (in_array($operator, ['$has', self::OPERATOR_HASNT], true)) {
 
-            $this->applyHasFilter($query, $value, $operator, $context);
+            $this->applyHasFilter($query, is_string($value) ? $value : $this->assertDocument($value, $operator), $operator, $context);
             return;
         }
 
@@ -333,7 +371,7 @@ final class FilterApplier
      *
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $operator
-     * @param  array<string, mixed>  $value
+     * @param  array<array-key, mixed>  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      *
@@ -355,7 +393,7 @@ final class FilterApplier
                 if ($this->isConditionOperator($subKey)) {
                     $this->applyConditionOperator($query, $subKey, $subValue, null, $nested);
                 } elseif (array_key_exists($subKey, $this->logicalOperatorMap)) {
-                    $this->applyLogicalOperator($query, $subKey, $subValue, $nested);
+                    $this->applyLogicalOperator($query, $subKey, $this->assertDocument($subValue, $subKey), $nested);
                 } else {
                     $this->applyFilters($query, $subValue, $subKey, $nested);
                 }
@@ -381,7 +419,7 @@ final class FilterApplier
      *
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $relation
-     * @param  array<string, mixed>  $filters
+     * @param  array<array-key, mixed>  $filters
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      *
@@ -403,7 +441,7 @@ final class FilterApplier
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
-     * @param  array<string, mixed>  $filters
+     * @param  array<array-key, mixed>  $filters
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      *
@@ -420,6 +458,8 @@ final class FilterApplier
         // every parent row. The group keeps that clause an `and`.
         $query->where(function (Builder $group) use ($filters, $context): void {
             foreach ($filters as $key => $value) {
+
+                $key = $this->assertNamedKey($key, 'relation');
 
                 if ($key === '$or') {
                     $this->applyRelationOrGroup($group, $value, $context);
@@ -469,7 +509,7 @@ final class FilterApplier
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
-     * @param  array<int|string, mixed>|string  $relations
+     * @param  array<array-key, mixed>|string  $relations
      * @param  string  $operator
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
@@ -489,15 +529,18 @@ final class FilterApplier
 
             if (is_int($relation)) {
 
-                $this->querySurface->guardRelation($filters, $query->getModel());
+                $relation = $this->assertRelationName($filters, $operator);
 
-                $this->applyRelationalMethod($query, $method, $filters);
+                $this->querySurface->guardRelation($relation, $query->getModel());
+
+                $this->applyRelationalMethod($query, $method, $relation);
 
             } else {
 
                 $this->querySurface->guardRelation($relation, $query->getModel());
 
-                $nested = $scope->descend($relation, null);
+                $nested  = $scope->descend($relation, null);
+                $filters = $this->assertDocument($filters, $relation);
 
                 $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters, $nested): void {
                     $this->processRelationFilters($query, $filters, $nested);

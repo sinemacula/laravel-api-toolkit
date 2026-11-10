@@ -29,7 +29,7 @@ final class OrderApplier
     /** @var string The column name to be used when ordering items randomly */
     public const string ORDER_BY_RANDOM = 'random';
 
-    /** @var array<int, string> */
+    /** @var list<'asc'|'desc'> */
     private array $directions = ['asc', 'desc'];
 
     /**

@@ -751,6 +751,39 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
+     * Test that an associate cast given neither a model nor a key refuses the
+     * value before the relation is asked to associate it.
+     *
+     * @return void
+     */
+    public function testSetAssociateAttributeThrowsWhenValueIsNeitherAModelNorAKey(): void
+    {
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage(sprintf('Attribute "organization" on %s must be given a model or its key', User::class));
+
+        $this->invokeMethod($this->attributeSetter, 'setAttribute', $user, 'organization', [1], 'associate');
+    }
+
+    /**
+     * Test that a sync cast given neither models nor keys refuses the value
+     * before the relation is asked to sync it.
+     *
+     * @return void
+     */
+    public function testSetSyncAttributeThrowsWhenValueIsNeitherModelsNorKeys(): void
+    {
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage(sprintf('Attribute "tags" on %s must be given models or their keys', Post::class));
+
+        $this->invokeMethod($this->attributeSetter, 'setAttribute', $post, 'tags', 1.5, 'sync');
+    }
+
+    /**
      * Test that persist stores the cast map in the shared store under the
      * REPOSITORY_MODEL_CASTS key.
      *

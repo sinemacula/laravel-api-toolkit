@@ -45,10 +45,9 @@ final class EagerLoadApplier
             return $query;
         }
 
-        $with = $trashedGate->decorate(
-            $metadataProvider->eagerLoadMapFor($resourceClass, $fields),
-            $query->getModel(),
-            ApiQuery::getTrashed(),
+        $with = array_filter(
+            $trashedGate->decorate($metadataProvider->eagerLoadMapFor($resourceClass, $fields), $query->getModel(), ApiQuery::getTrashed()),
+            static fn (mixed $load): bool => is_string($load) || is_array($load) || $load instanceof \Closure,
         );
 
         if (!empty($with)) {
@@ -83,7 +82,9 @@ final class EagerLoadApplier
 
         if (!empty($sumEntries)) {
             foreach ($sumEntries as $entry) {
-                $query->withSum($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
+                if (is_string($entry['relation'] ?? null) && is_string($entry['column'] ?? null)) {
+                    $query->withSum($entry['relation'], $entry['column']);
+                }
             }
         }
 
@@ -91,7 +92,9 @@ final class EagerLoadApplier
         $avgEntries        = $metadataProvider->eagerLoadAveragesFor($resourceClass, $requestedAverages);
 
         foreach ($avgEntries as $entry) {
-            $query->withAvg($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
+            if (is_string($entry['relation'] ?? null) && is_string($entry['column'] ?? null)) {
+                $query->withAvg($entry['relation'], $entry['column']);
+            }
         }
     }
 }
