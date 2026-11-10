@@ -44,8 +44,8 @@ final class WritePoolFlushResultTest extends TestCase
             failures: [
                 'orders' => [
                     [
-                        'records'   => [['name' => 'foo']],
-                        'exception' => 'Insert failed',
+                        'records'         => [['name' => 'foo']],
+                        'exception'       => 'Insert failed',
                         'exception_class' => \RuntimeException::class,
                     ],
                 ],
@@ -113,15 +113,15 @@ final class WritePoolFlushResultTest extends TestCase
         $failures = [
             'orders' => [
                 [
-                    'records'   => [['name' => 'order-1'], ['name' => 'order-2']],
-                    'exception' => 'Duplicate entry',
+                    'records'         => [['name' => 'order-1'], ['name' => 'order-2']],
+                    'exception'       => 'Duplicate entry',
                     'exception_class' => \RuntimeException::class,
                 ],
             ],
             'payments' => [
                 [
-                    'records'   => [['amount' => 100]],
-                    'exception' => 'Connection lost',
+                    'records'         => [['amount' => 100]],
+                    'exception'       => 'Connection lost',
                     'exception_class' => \RuntimeException::class,
                 ],
             ],

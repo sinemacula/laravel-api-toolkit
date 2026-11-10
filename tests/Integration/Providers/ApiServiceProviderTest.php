@@ -137,8 +137,8 @@ final class ApiServiceProviderTest extends TestCase
      */
     public function testApiQueryParserIsRegisteredAsSingleton(): void
     {
-        $app    = $this->getApplication();
-        $alias  = $this->getConfig()->get('api-toolkit.parser.alias');
+        $app   = $this->getApplication();
+        $alias = $this->getConfig()->get('api-toolkit.parser.alias');
 
         self::assertIsString($alias);
 

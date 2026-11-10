@@ -68,9 +68,11 @@ abstract class TestCase extends OrchestraTestCase
 
         if ($events instanceof EventFake) {
             $events->dispatched(KeyWritten::class)->each(function (mixed $arguments): void {
-                if (is_array($arguments) && $arguments[0] instanceof KeyWritten) {
-                    $this->recordUnreadableCacheWrite($arguments[0]);
+                if (!is_array($arguments) || !$arguments[0] instanceof KeyWritten) {
+                    return;
                 }
+
+                $this->recordUnreadableCacheWrite($arguments[0]);
             });
         }
 

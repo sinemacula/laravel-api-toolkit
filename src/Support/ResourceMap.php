@@ -7,8 +7,8 @@ namespace SineMacula\ApiToolkit\Support;
 use Illuminate\Support\Facades\Config;
 
 /**
- * Reads the configured resource map for the consumers that act on every
- * binding in it.
+ * Reads the configured resource map for the consumers that act on every binding
+ * in it.
  *
  * The map is application configuration, so nothing guarantees its shape. A
  * binding that does not name an existing class on both sides cannot be acted

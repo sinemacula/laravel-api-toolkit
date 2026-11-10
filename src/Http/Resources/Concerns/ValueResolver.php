@@ -314,8 +314,8 @@ final class ValueResolver
     {
         return match (true) {
             is_string($compute) && is_object($resource) && method_exists($resource, $compute) => $resource->{$compute}($request), // @phpstan-ignore method.dynamicName
-            is_callable($compute)                                     => $compute($resource, $request),
-            default                                                   => new MissingValue,
+            is_callable($compute)                                                             => $compute($resource, $request),
+            default                                                                           => new MissingValue,
         };
     }
 

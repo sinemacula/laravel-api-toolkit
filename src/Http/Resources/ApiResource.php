@@ -95,8 +95,8 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     {
         $request = $request instanceof Request ? $request : null;
         $schema  = SchemaCompiler::compile(static::class);
-        $data   = ['_type' => static::getResourceType()];
-        $fields = $this->fieldResolver->getFields(
+        $data    = ['_type' => static::getResourceType()];
+        $fields  = $this->fieldResolver->getFields(
             $schema,
             static::getResourceType(),
             static::getDefaultFields(),

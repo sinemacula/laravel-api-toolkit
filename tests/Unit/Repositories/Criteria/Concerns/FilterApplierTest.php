@@ -1487,6 +1487,27 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Provide filters whose shape the grammar refuses, with the position and
+     * message each is refused with.
+     *
+     * @return iterable<string, array{array<string, mixed>, string, string}>
+     */
+    public static function malformedDocumentProvider(): iterable
+    {
+        yield 'bare value under $or' => [['$or' => 'Alice'], '$or', 'The $or filter must be a document of conditions.'];
+        yield 'bare value under nested $or' => [['$and' => ['$or' => 'Alice']], '$or', 'The $or filter must be a document of conditions.'];
+        yield 'bare value under a relation' => [['posts' => 'first'], 'posts', 'The posts filter must be a document of conditions.'];
+        yield 'list under a relation' => [
+            ['posts' => ['first']],
+            'relation',
+            'The relation filter must name a field or a condition. To match any of several values, give the field a condition such as $in.',
+        ];
+        yield 'number under $has' => [['$has' => 1], '$has', 'The $has filter must be a document of conditions.'];
+        yield 'list entry under $hasnt' => [['$hasnt' => [['posts']]], '$hasnt', 'The $hasnt filter must list relation names.'];
+        yield 'bare value under a $has relation' => [['$has' => ['posts' => 'first']], 'posts', 'The posts filter must be a document of conditions.'];
+    }
+
+    /**
      * Test that a position the grammar reads as a document of conditions, or a
      * relation existence filter's list of relation names, refuses a value of
      * any other shape at that position rather than failing with a type error.
@@ -1510,23 +1531,6 @@ final class FilterApplierTest extends TestCase
         } catch (ValidationException $exception) {
             self::assertSame([$position => [$message]], $exception->errors());
         }
-    }
-
-    /**
-     * Provide filters whose shape the grammar refuses, with the position and
-     * message each is refused with.
-     *
-     * @return iterable<string, array{array<string, mixed>, string, string}>
-     */
-    public static function malformedDocumentProvider(): iterable
-    {
-        yield 'bare value under $or' => [['$or' => 'Alice'], '$or', 'The $or filter must be a document of conditions.'];
-        yield 'bare value under nested $or' => [['$and' => ['$or' => 'Alice']], '$or', 'The $or filter must be a document of conditions.'];
-        yield 'bare value under a relation' => [['posts' => 'first'], 'posts', 'The posts filter must be a document of conditions.'];
-        yield 'list under a relation' => [['posts' => ['first']], 'relation', 'The relation filter must name a field or a condition. To match any of several values, give the field a condition such as $in.'];
-        yield 'number under $has' => [['$has' => 1], '$has', 'The $has filter must be a document of conditions.'];
-        yield 'list entry under $hasnt' => [['$hasnt' => [['posts']]], '$hasnt', 'The $hasnt filter must list relation names.'];
-        yield 'bare value under a $has relation' => [['$has' => ['posts' => 'first']], 'posts', 'The posts filter must be a document of conditions.'];
     }
 
     /**
