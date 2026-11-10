@@ -250,7 +250,7 @@ final class EagerLoadPlanner
      * @param  array<int, string>  $plain
      * @param  array<string, mixed>  $scoped
      * @param  array<string, bool>  $visited
-     * @param  array<int, class-string>  $ancestors
+     * @param  array<int, string>  $ancestors
      * @return void
      */
     private static function walkRelations(string $resourceClass, array $fields, string $prefix, array &$plain, array &$scoped, array &$visited, array $ancestors = []): void
@@ -371,7 +371,7 @@ final class EagerLoadPlanner
      * @param  array<int, string>  $plain
      * @param  array<string, mixed>  $scoped
      * @param  array<string, bool>  $visited
-     * @param  array<int, class-string>  $ancestors
+     * @param  array<int, string>  $ancestors
      * @return void
      */
     private static function recurseIntoChild(CompiledFieldDefinition $definition, string $fullPath, array &$plain, array &$scoped, array &$visited, array $ancestors = []): void
