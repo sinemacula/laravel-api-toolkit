@@ -1172,6 +1172,32 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
+     * Test that keyed guard and transformer lists compile into lists, in their
+     * declared order.
+     *
+     * @return void
+     */
+    public function testCompileReindexesKeyedGuardsAndTransformers(): void
+    {
+        $guard       = static fn (): bool => true;
+        $transformer = static fn (mixed $value): mixed => $value;
+
+        $resourceClass = $this->createStubResourceClass([
+            'name' => [
+                'accessor'     => 'name',
+                'guards'       => ['visible' => $guard],
+                'transformers' => [3 => $transformer, 'trimmed' => 'trim'],
+            ],
+        ]);
+
+        $field = SchemaCompiler::compile($resourceClass)->getField('name');
+
+        self::assertNotNull($field);
+        self::assertSame([$guard], $field->guards);
+        self::assertSame([$transformer, 'trim'], $field->transformers);
+    }
+
+    /**
      * Test that schema entries declared after a sum entry are still compiled
      * into the field definitions.
      *

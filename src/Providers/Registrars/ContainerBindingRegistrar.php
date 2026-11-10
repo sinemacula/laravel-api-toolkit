@@ -42,7 +42,6 @@ use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibilityInspector;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateAccessors;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateComputedFields;
-use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateGuards;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateIndexBacking;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateQueryableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
@@ -51,7 +50,6 @@ use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchIndexes;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSensitiveColumns;
-use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateTransformers;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
 use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
@@ -204,8 +202,6 @@ final readonly class ContainerBindingRegistrar
     private function registerSchemaValidator(): void
     {
         $this->container->singleton(SchemaValidator::class, fn (Container $app): SchemaValidator => new SchemaValidator(
-            new ValidateGuards,
-            new ValidateTransformers,
             new ValidateRelationClasses,
             new ValidateRelationInterfaces,
             new ValidateRelationMethods,

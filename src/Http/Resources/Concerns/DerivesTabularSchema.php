@@ -202,14 +202,14 @@ trait DerivesTabularSchema
      * load-bearing and is reported as per-item. Failing closed, an
      * unclassifiable guard is treated as per-item.
      *
-     * @param  array<int, mixed>  $guards
+     * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  \Illuminate\Http\Request  $request
      * @return bool
      */
     private function hasPerItemGuard(array $guards, Request $request): bool
     {
         foreach ($guards as $guard) {
-            if (is_callable($guard) && $this->probeGuard($guard, $request)[0]) {
+            if ($this->probeGuard($guard, $request)[0]) {
                 return true;
             }
         }
@@ -224,17 +224,13 @@ trait DerivesTabularSchema
      * it returns exactly false. A guard that touches the row, or errors, hides
      * the column rather than risk exposing it.
      *
-     * @param  array<int, mixed>  $guards
+     * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  \Illuminate\Http\Request  $request
      * @return bool
      */
     private function passesRequestGuards(array $guards, Request $request): bool
     {
         foreach ($guards as $guard) {
-
-            if (!is_callable($guard)) {
-                continue;
-            }
 
             [$touchedOrThrew, $result] = $this->probeGuard($guard, $request);
 

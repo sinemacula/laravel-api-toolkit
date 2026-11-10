@@ -6,8 +6,7 @@ namespace SineMacula\ApiToolkit\Schema;
 
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
-use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
-use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\RawSchemaValidator;
 
 /**
  * Compiles raw resource schema arrays into typed CompiledSchema objects.
@@ -41,7 +40,7 @@ final class SchemaCompiler
 
         $rawSchema = $resourceClass::schema();
 
-        self::assertValidConstraints($rawSchema, $resourceClass);
+        RawSchemaValidator::assertValid($rawSchema, $resourceClass);
 
         return self::$cache[$resourceClass] = self::buildCompiledSchema($rawSchema);
     }
@@ -54,39 +53,6 @@ final class SchemaCompiler
     public static function clearCache(): void
     {
         self::$cache = [];
-    }
-
-    /**
-     * Assert that every constraint in the raw schema is a Closure or absent.
-     *
-     * @param  array<string, array<string, mixed>>  $rawSchema
-     * @param  string  $resourceClass
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
-     */
-    private static function assertValidConstraints(array $rawSchema, string $resourceClass): void
-    {
-        $errors = [];
-
-        foreach ($rawSchema as $key => $definition) {
-
-            $constraint = $definition['constraint'] ?? null;
-
-            if ($constraint === null || $constraint instanceof \Closure) {
-                continue;
-            }
-
-            $errors[] = new SchemaValidationError(
-                resourceClass: $resourceClass,
-                fieldKey: $key,
-                defect: 'Constraint must be a Closure',
-            );
-        }
-
-        if ($errors !== []) {
-            throw new InvalidSchemaException($errors);
-        }
     }
 
     /**
@@ -181,8 +147,8 @@ final class SchemaCompiler
             relation    : is_string($definition['relation'] ?? null) ? $definition['relation'] : $presentKey,
             constraint  : $constraint instanceof \Closure ? $constraint : null,
             isDefault   : (bool) ($definition['default'] ?? false),
-            guards      : $definition['guards']       ?? [],
-            transformers: $definition['transformers'] ?? [],
+            guards      : self::callableList($definition, 'guards'),
+            transformers: self::callableList($definition, 'transformers'),
         );
     }
 
@@ -235,8 +201,8 @@ final class SchemaCompiler
             metric      : $metric,
             constraint  : $constraint instanceof \Closure ? $constraint : null,
             isDefault   : (bool) ($definition['default'] ?? false),
-            guards      : $definition['guards']       ?? [],
-            transformers: $definition['transformers'] ?? [],
+            guards      : self::callableList($definition, 'guards'),
+            transformers: self::callableList($definition, 'transformers'),
         );
     }
 
@@ -338,6 +304,21 @@ final class SchemaCompiler
     }
 
     /**
+     * Return the callable entries of a definition's guard or transformer list,
+     * reindexed.
+     *
+     * @param  array<string, mixed>  $definition
+     * @param  'guards'|'transformers'  $list
+     * @return ($list is 'guards' ? list<callable(mixed, mixed): bool> : list<callable(mixed, mixed): mixed>)
+     */
+    private static function callableList(array $definition, string $list): array
+    {
+        $callables = $definition[$list] ?? null;
+
+        return is_array($callables) ? array_values(array_filter($callables, is_callable(...))) : [];
+    }
+
+    /**
      * Build a CompiledFieldDefinition from a raw definition array.
      *
      * @param  array<string, mixed>  $definition
@@ -354,8 +335,8 @@ final class SchemaCompiler
             constraint      : self::resolveFieldConstraint($definition),
             extras          : self::stringList((array) ($definition['extras'] ?? [])),
             needs           : self::stringList((array) ($definition['needs'] ?? [])),
-            guards          : $definition['guards']       ?? [],
-            transformers    : $definition['transformers'] ?? [],
+            guards          : self::callableList($definition, 'guards'),
+            transformers    : self::callableList($definition, 'transformers'),
             openApi         : self::resolveFieldOpenApi($definition),
             filterable      : self::declaredColumn($definition, 'filterable'),
             filterCapability: self::resolveCapability($definition),
