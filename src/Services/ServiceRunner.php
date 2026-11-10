@@ -54,7 +54,7 @@ final class ServiceRunner
      * @template TInput of \SineMacula\ApiToolkit\Services\Contracts\ServiceInput
      * @template TOutput
      *
-     * @param  \SineMacula\ApiToolkit\Services\Service<TInput, TOutput>  $service
+     * @param  \SineMacula\ApiToolkit\Services\Service<covariant TInput, covariant TOutput>  $service
      * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
      * @return \SineMacula\ApiToolkit\Services\ServiceResult<TOutput>
      *
@@ -77,7 +77,7 @@ final class ServiceRunner
      * @template TInput of \SineMacula\ApiToolkit\Services\Contracts\ServiceInput
      * @template TOutput
      *
-     * @param  \SineMacula\ApiToolkit\Services\Service<TInput, TOutput>  $service
+     * @param  \SineMacula\ApiToolkit\Services\Service<covariant TInput, covariant TOutput>  $service
      * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
      * @return \SineMacula\ApiToolkit\Services\ServiceResult<TOutput>
      *

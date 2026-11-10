@@ -41,7 +41,7 @@ final class ServiceJob implements ShouldQueue
     /**
      * Constructor.
      *
-     * @param  class-string<\SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Contracts\ServiceInput, mixed>>  $service
+     * @param  class-string<\SineMacula\ApiToolkit\Services\Service<covariant \SineMacula\ApiToolkit\Services\Contracts\ServiceInput, covariant mixed>>  $service
      * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $input
      * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
      */
