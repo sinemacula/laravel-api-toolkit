@@ -77,24 +77,33 @@ final class EagerLoadApplier
      */
     private function applyAggregates(Builder $query, ResourceMetadataProvider $metadataProvider, string $resourceClass, ?string $resourceType): void
     {
-        $requestedSums = ApiQuery::getSums($resourceType) ?? [];
-        $sumEntries    = $metadataProvider->eagerLoadSumsFor($resourceClass, $requestedSums);
-
-        if (!empty($sumEntries)) {
-            foreach ($sumEntries as $entry) {
-                if (is_string($entry['relation'] ?? null) && is_string($entry['column'] ?? null)) {
-                    $query->withSum($entry['relation'], $entry['column']);
-                }
-            }
+        foreach ($metadataProvider->eagerLoadSumsFor($resourceClass, ApiQuery::getSums($resourceType) ?? []) as $entry) {
+            $this->applyAggregate($query, $entry, 'sum');
         }
 
-        $requestedAverages = ApiQuery::getAverages($resourceType) ?? [];
-        $avgEntries        = $metadataProvider->eagerLoadAveragesFor($resourceClass, $requestedAverages);
-
-        foreach ($avgEntries as $entry) {
-            if (is_string($entry['relation'] ?? null) && is_string($entry['column'] ?? null)) {
-                $query->withAvg($entry['relation'], $entry['column']);
-            }
+        foreach ($metadataProvider->eagerLoadAveragesFor($resourceClass, ApiQuery::getAverages($resourceType) ?? []) as $entry) {
+            $this->applyAggregate($query, $entry, 'avg');
         }
+    }
+
+    /**
+     * Apply one aggregate eager load to the query, skipping an entry that does
+     * not name both its relation and its column.
+     *
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  array<string, mixed>  $entry
+     * @param  string  $function
+     * @return void
+     */
+    private function applyAggregate(Builder $query, array $entry, string $function): void
+    {
+        $relation = $entry['relation'] ?? null;
+        $column   = $entry['column']   ?? null;
+
+        if (!is_string($relation) || !is_string($column)) {
+            return;
+        }
+
+        $query->withAggregate($relation, $column, $function);
     }
 }

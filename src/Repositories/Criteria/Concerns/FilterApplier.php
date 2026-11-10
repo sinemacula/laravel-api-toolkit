@@ -385,18 +385,7 @@ final class FilterApplier
 
         $callback = function (Builder $query) use ($value, $nested, $operator): void {
             foreach ($value as $subKey => $subValue) {
-
-                $subKey = $this->assertNamedKey($subKey, $operator);
-
-                $nested->admit($subKey);
-
-                if ($this->isConditionOperator($subKey)) {
-                    $this->applyConditionOperator($query, $subKey, $subValue, null, $nested);
-                } elseif (array_key_exists($subKey, $this->logicalOperatorMap)) {
-                    $this->applyLogicalOperator($query, $subKey, $this->assertDocument($subValue, $subKey), $nested);
-                } else {
-                    $this->applyFilters($query, $subValue, $subKey, $nested);
-                }
+                $this->applyLogicalEntry($query, $this->assertNamedKey($subKey, $operator), $subValue, $nested);
             }
         };
 
@@ -404,6 +393,33 @@ final class FilterApplier
             $query->orWhere($callback);
         } else {
             $query->where($callback);
+        }
+    }
+
+    /**
+     * Apply one entry of a logical operator group to the query.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  string  $key
+     * @param  mixed  $value
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function applyLogicalEntry(Builder $query, string $key, mixed $value, FilterContext $context): void
+    {
+        $context->admit($key);
+
+        if ($this->isConditionOperator($key)) {
+            $this->applyConditionOperator($query, $key, $value, null, $context);
+        } elseif (array_key_exists($key, $this->logicalOperatorMap)) {
+            $this->applyLogicalOperator($query, $key, $this->assertDocument($value, $key), $context);
+        } else {
+            $this->applyFilters($query, $value, $key, $context);
         }
     }
 

@@ -297,6 +297,8 @@ final class AttributeSetter
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
      * @return mixed
+     *
+     * @throws \LogicException
      */
     private function resolveRelationInstance(Model $model, string $attribute): mixed
     {
