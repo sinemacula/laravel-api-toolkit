@@ -58,13 +58,7 @@ abstract class AuthorizedController extends Controller implements HasMiddleware
             throw new \LogicException('The #[AuthorizesResource] attribute must be declared on the authorized controller');
         }
 
-        $model = $attribute->model;
-
-        if (!is_subclass_of($model, Model::class)) {
-            throw new \LogicException('The #[AuthorizesResource] model must be an Eloquent model');
-        }
-
-        return $model;
+        return self::resolveModel($attribute);
     }
 
     /**
@@ -88,7 +82,7 @@ abstract class AuthorizedController extends Controller implements HasMiddleware
         }
 
         return self::buildMiddleware(
-            $attribute->model,
+            self::resolveModel($attribute),
             self::resolveParameter($attribute),
             self::resolveExclusions($attribute),
         );
@@ -104,6 +98,25 @@ abstract class AuthorizedController extends Controller implements HasMiddleware
         $attributes = (new \ReflectionClass(static::class))->getAttributes(AuthorizesResource::class);
 
         return $attributes === [] ? null : $attributes[0]->newInstance();
+    }
+
+    /**
+     * Resolve the Eloquent model the authorization attribute declares.
+     *
+     * @param  \SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource  $attribute
+     * @return class-string<\Illuminate\Database\Eloquent\Model>
+     *
+     * @throws \LogicException
+     */
+    private static function resolveModel(AuthorizesResource $attribute): string
+    {
+        $model = $attribute->model;
+
+        if (!is_subclass_of($model, Model::class)) {
+            throw new \LogicException('The #[AuthorizesResource] model must be an Eloquent model');
+        }
+
+        return $model;
     }
 
     /**

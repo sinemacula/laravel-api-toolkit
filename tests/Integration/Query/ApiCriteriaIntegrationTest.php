@@ -60,7 +60,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
      */
     public function testFilteringBySimpleFieldValue(): void
     {
-        $this->parseQuery(['filters' => json_encode(['name' => 'Alice'])]);
+        $this->parseQuery(['filters' => json_encode(['name' => 'Alice'], JSON_THROW_ON_ERROR)]);
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
@@ -81,7 +81,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
      */
     public function testFilteringWithEqOperator(): void
     {
-        $this->parseQuery(['filters' => json_encode(['name' => ['$eq' => 'Bob']])]);
+        $this->parseQuery(['filters' => json_encode(['name' => ['$eq' => 'Bob']], JSON_THROW_ON_ERROR)]);
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
@@ -102,7 +102,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
      */
     public function testFilteringWithNeqOperator(): void
     {
-        $this->parseQuery(['filters' => json_encode(['status' => ['$neq' => 'inactive']])]);
+        $this->parseQuery(['filters' => json_encode(['status' => ['$neq' => 'inactive']], JSON_THROW_ON_ERROR)]);
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
@@ -119,7 +119,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
      */
     public function testFilteringWithInOperator(): void
     {
-        $this->parseQuery(['filters' => json_encode(['name' => ['$in' => ['Alice', 'Charlie']]])]);
+        $this->parseQuery(['filters' => json_encode(['name' => ['$in' => ['Alice', 'Charlie']]], JSON_THROW_ON_ERROR)]);
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
@@ -139,7 +139,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
     {
         User::where('name', 'Alice')->update(['organization_id' => 1]);
 
-        $this->parseQuery(['filters' => json_encode(['organization_id' => ['$null' => true]])]);
+        $this->parseQuery(['filters' => json_encode(['organization_id' => ['$null' => true]], JSON_THROW_ON_ERROR)]);
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
@@ -157,7 +157,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
     {
         User::where('name', 'Alice')->update(['organization_id' => 1]);
 
-        $this->parseQuery(['filters' => json_encode(['organization_id' => ['$notNull' => true]])]);
+        $this->parseQuery(['filters' => json_encode(['organization_id' => ['$notNull' => true]], JSON_THROW_ON_ERROR)]);
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
@@ -173,7 +173,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
      */
     public function testFilteringWithHasRelation(): void
     {
-        $this->parseQuery(['filters' => json_encode(['$has' => 'posts'])]);
+        $this->parseQuery(['filters' => json_encode(['$has' => 'posts'], JSON_THROW_ON_ERROR)]);
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
@@ -190,7 +190,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
      */
     public function testFilteringWithHasntRelation(): void
     {
-        $this->parseQuery(['filters' => json_encode(['$hasnt' => 'posts'])]);
+        $this->parseQuery(['filters' => json_encode(['$hasnt' => 'posts'], JSON_THROW_ON_ERROR)]);
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
@@ -219,7 +219,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
                     'name'  => 'Alice',
                     'email' => 'charlie@example.com',
                 ],
-            ]),
+            ], JSON_THROW_ON_ERROR),
         ]);
 
         $results = $this->makeCriteria()->apply(User::query()->where('status', 'active'))->get();
@@ -318,7 +318,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
     public function testCombinedFiltersOrderAndLimit(): void
     {
         $this->parseQuery([
-            'filters' => json_encode(['$has' => 'posts']),
+            'filters' => json_encode(['$has' => 'posts'], JSON_THROW_ON_ERROR),
             'order'   => 'name:desc',
             'limit'   => '1',
         ]);
@@ -352,7 +352,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
                     'nested' => ['posts' => ['title' => 'Alice Post']],
                     'name'   => 'Charlie',
                 ],
-            ]),
+            ], JSON_THROW_ON_ERROR),
         ]);
 
         $results = $this->makeCriteria()->apply(new User)->get();

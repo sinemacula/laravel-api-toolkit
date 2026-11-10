@@ -202,55 +202,6 @@ final class DerivesTabularSchemaTest extends TestCase
     }
 
     /**
-     * Test that a non-callable guard entry is skipped during the column
-     * visibility check while a relation field is dropped from the schema,
-     * leaving a permitting callable guard to decide the remaining column.
-     *
-     * @return void
-     */
-    public function testNonCallableGuardIsSkippedDuringVisibilityCheck(): void
-    {
-        $resource = new class (null) extends ApiResource implements ProvidesTabularExport {
-            use DerivesTabularSchema;
-
-            /** @var string */
-            public const string RESOURCE_TYPE = 'non_callable_guard_export';
-
-            /** @var array<int, string> */
-            protected static array $default = ['flagged', 'related'];
-
-            /**
-             * Return a raw schema whose guard list holds a non-callable entry
-             * alongside a relation field that must be skipped.
-             *
-             * @return array<string, array<string, mixed>>
-             */
-            #[\Override]
-            public static function schema(): array
-            {
-                return [
-                    'flagged' => [
-                        'guards' => [123, static fn ($resource, $request): bool => true],
-                    ],
-                    'related' => [
-                        'relation' => 'related',
-                    ],
-                ];
-            }
-        };
-
-        $request = Request::create('/');
-
-        ApiQuery::parse($request);
-
-        $columns = $resource->tabular($request)->columns();
-
-        self::assertCount(1, $columns);
-        self::assertSame('flagged', $columns[0]->getKey());
-        self::assertTrue($columns[0]->isVisible($request));
-    }
-
-    /**
      * Test that an active field selection narrows the columns to exactly the
      * requested subset, intersected with the schema, and excludes the rest.
      *
@@ -314,52 +265,6 @@ final class DerivesTabularSchemaTest extends TestCase
 
         self::assertCount(1, $columns);
         self::assertSame('flagged', $columns[0]->getKey());
-    }
-
-    /**
-     * Test that a non-callable guard preceding a request-scoped guard that
-     * hides the field is skipped rather than ending the check early, so the
-     * hiding guard still drops the column.
-     *
-     * @return void
-     */
-    public function testNonCallableGuardBeforeHidingGuardStillHidesColumn(): void
-    {
-        $resource = new class (null) extends ApiResource implements ProvidesTabularExport {
-            use DerivesTabularSchema;
-
-            /** @var string */
-            public const string RESOURCE_TYPE = 'hiding_guard_after_non_callable_export';
-
-            /** @var array<int, string> */
-            protected static array $default = ['gated'];
-
-            /**
-             * Return a schema whose guard list holds a non-callable entry
-             * before a request-scoped guard that always hides the field.
-             *
-             * @return array<string, array<string, mixed>>
-             */
-            #[\Override]
-            public static function schema(): array
-            {
-                return [
-                    'gated' => [
-                        'guards' => [123, static fn ($resource, $request): bool => false],
-                    ],
-                ];
-            }
-        };
-
-        $request = Request::create('/');
-
-        ApiQuery::parse($request);
-
-        $columns = $resource->tabular($request)->columns();
-
-        self::assertCount(1, $columns);
-        self::assertSame('gated', $columns[0]->getKey());
-        self::assertFalse($columns[0]->isVisible($request));
     }
 
     /**

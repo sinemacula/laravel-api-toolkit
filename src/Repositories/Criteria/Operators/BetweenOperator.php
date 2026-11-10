@@ -19,7 +19,9 @@ final class BetweenOperator implements FilterOperator
     /**
      * Apply the between constraint to the query builder.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $column
      * @param  mixed  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context

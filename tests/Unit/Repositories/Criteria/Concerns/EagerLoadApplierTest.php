@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
@@ -351,6 +352,51 @@ final class EagerLoadApplierTest extends TestCase
 
         // withSum adds a select sub-query, so columns should be non-empty
         self::assertNotNull($result->getQuery()->columns);
+    }
+
+    /**
+     * Test that a sum or average declaring a constraint is loaded through its
+     * constrained relation rather than skipped.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testApplyLoadsConstrainedSumsAndAverages(): void
+    {
+        $this->parseRequest(new Request([
+            'fields' => ['users' => self::STUB_USER_FIELDS],
+        ]));
+
+        $constraint = static function (Builder $query): void {
+            $query->where('published', true);
+        };
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+
+        $provider->method('resolveFields')
+            ->willReturn(['id', 'name']);
+
+        $provider->method('eagerLoadMapFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadCountsFor')
+            ->willReturn([]);
+
+        $provider->method('eagerLoadSumsFor')
+            ->willReturn([['relation' => ['posts as posts_sum_id' => $constraint], 'column' => 'id']]);
+
+        $provider->method('eagerLoadAveragesFor')
+            ->willReturn([['relation' => ['posts as posts_avg_id' => $constraint], 'column' => 'id']]);
+
+        $query = (new User)->newQuery();
+        $sql   = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate())->toSql();
+
+        self::assertStringContainsString('sum("posts"."id")', $sql);
+        self::assertStringContainsString('avg("posts"."id")', $sql);
+        self::assertStringContainsString('"posts_sum_id"', $sql);
+        self::assertStringContainsString('"posts_avg_id"', $sql);
+        self::assertSame(2, substr_count($sql, '"published" = ?'));
     }
 
     /**

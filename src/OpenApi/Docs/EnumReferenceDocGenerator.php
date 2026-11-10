@@ -99,9 +99,15 @@ final readonly class EnumReferenceDocGenerator
      * @param  class-string  $enum
      * @param  string  $level
      * @return list<string>
+     *
+     * @throws \LogicException
      */
     private function enumSection(string $enum, string $level): array
     {
+        if (!enum_exists($enum)) {
+            throw new \LogicException(sprintf('The referenced class [%s] is not an enum', $enum));
+        }
+
         $lines = [
             '',
             $level . ' ' . SchemaComponentName::fromEnum($enum),

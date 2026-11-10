@@ -298,7 +298,9 @@ final class ApiCriteria implements CriteriaInterface
             $schema?->getSortableColumns()      ?? [],
             $schema?->getTraversableRelations() ?? [],
             $model,
-            is_array($resourceMap) ? $resourceMap : [],
+            is_array($resourceMap)
+                ? array_filter($resourceMap, static fn (mixed $resource, mixed $model): bool => is_string($model) && is_string($resource), ARRAY_FILTER_USE_BOTH)
+                : [],
         );
     }
 }

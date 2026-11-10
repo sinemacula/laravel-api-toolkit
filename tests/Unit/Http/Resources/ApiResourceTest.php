@@ -4,7 +4,9 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Resources;
 
+use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Attributes\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -444,6 +446,46 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
+     * Test that a computed field receives the request the resource is resolved
+     * with, and no request when resolved with anything other than a request.
+     *
+     * @return void
+     */
+    public function testResolvePassesOnlyARequestToComputedFields(): void
+    {
+        $resourceClass = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'request_aware_test';
+
+            /** @var array<int, string> */
+            protected static array $default = ['path'];
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::compute('path', static fn (ApiResource $resource, ?Request $request): ?string => $request?->path()),
+                );
+            }
+        };
+
+        $user = User::create([
+            'name'  => 'Requested',
+            'email' => 'requested@example.com',
+        ]);
+
+        $resource = new $resourceClass($user);
+
+        self::assertSame('users/requested', $resource->resolve(Request::create('/users/requested'))['path']);
+        self::assertNull($resource->resolve('users/requested')['path']);
+    }
+
+    /**
      * Test that transformers modify resolved values.
      *
      * @return void
@@ -467,7 +509,7 @@ final class ApiResourceTest extends TestCase
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Field::scalar('name')->transform(fn ($resource, $value) => strtoupper($value)),
+                    Field::scalar('name')->transform(fn ($resource, $value) => is_string($value) ? strtoupper($value) : $value),
                 );
             }
         };
@@ -801,6 +843,7 @@ final class ApiResourceTest extends TestCase
         $result   = $resource->resolve();
 
         self::assertArrayHasKey('counts', $result);
+        self::assertIsArray($result['counts']);
         self::assertArrayHasKey('posts', $result['counts']);
         self::assertSame(2, $result['counts']['posts']);
     }
@@ -835,6 +878,7 @@ final class ApiResourceTest extends TestCase
         $result   = $resource->resolve();
 
         self::assertArrayHasKey('counts', $result);
+        self::assertIsArray($result['counts']);
         self::assertArrayHasKey('posts', $result['counts']);
     }
 
@@ -890,7 +934,9 @@ final class ApiResourceTest extends TestCase
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Relation::to('items', TagResource::class)->constrain(fn ($query) => $query->where('active', true)),
+                    Relation::to('items', TagResource::class)->constrain(static function (BuilderContract $query): void {
+                        $query->where('active', true);
+                    }),
                 );
             }
         };
@@ -1235,7 +1281,7 @@ final class ApiResourceTest extends TestCase
                 return Field::set(
                     Field::scalar('id'),
                     Field::scalar('name')
-                        ->transform(fn ($resource, $value) => strtoupper($value))
+                        ->transform(fn ($resource, $value) => is_string($value) ? strtoupper($value) : $value)
                         ->transform(fn ($resource, $value) => 'PREFIX_' . (string) $value), // @phpstan-ignore cast.string
                 );
             }
@@ -1405,7 +1451,9 @@ final class ApiResourceTest extends TestCase
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Count::of('items')->constrain(fn ($query) => $query->where('active', true))->default(),
+                    Count::of('items')->constrain(static function (Builder $query): void {
+                        $query->where('active', true);
+                    })->default(),
                 );
             }
         };
@@ -2104,7 +2152,9 @@ final class ApiResourceTest extends TestCase
                 return Field::set(
                     Field::scalar('id'),
                     Relation::to('organization', OrganizationResource::class)
-                        ->constrain(fn ($query) => $query->where('name', 'Active')),
+                        ->constrain(static function (BuilderContract $query): void {
+                            $query->where('name', 'Active');
+                        }),
                 );
             }
         };
@@ -2249,7 +2299,7 @@ final class ApiResourceTest extends TestCase
                 return Field::set(
                     Field::scalar('id'),
                     Relation::to('organization', OrganizationResource::class)
-                        ->constrain(fn ($query) => $query),
+                        ->constrain(static function (BuilderContract $query): void {}),
                 );
             }
         };

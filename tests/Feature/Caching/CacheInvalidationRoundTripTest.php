@@ -122,6 +122,9 @@ final class CacheInvalidationRoundTripTest extends TestCase
         $fresh->assertOk();
         $fresh->assertJsonPath('meta.total', 3);
         $fresh->assertJsonCount(3, 'data');
-        self::assertContains('carol@example.com', $fresh->json('data.*.email'));
+        $emails = $fresh->json('data.*.email');
+
+        self::assertIsArray($emails);
+        self::assertContains('carol@example.com', $emails);
     }
 }

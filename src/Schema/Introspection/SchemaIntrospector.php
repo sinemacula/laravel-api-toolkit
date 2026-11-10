@@ -213,7 +213,11 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
      * Get the parent-side key columns for the given relation, including morph
      * type/id columns.
      *
-     * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
+     * @template TRelated of \Illuminate\Database\Eloquent\Model
+     * @template TDeclaring of \Illuminate\Database\Eloquent\Model
+     * @template TResult
+     *
+     * @param  \Illuminate\Database\Eloquent\Relations\Relation<TRelated, TDeclaring, TResult>  $relation
      * @return array<int, string>
      */
     #[\Override]

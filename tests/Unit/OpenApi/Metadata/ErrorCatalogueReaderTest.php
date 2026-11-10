@@ -242,7 +242,10 @@ final class ErrorCatalogueReaderTest extends TestCase
         self::assertIsString($later);
 
         FunctionOverrides::set('glob', static fn (): array => [$codeless, $later]);
-        FunctionOverrides::set('defined', static fn (string $constant): bool => !str_starts_with($constant, BadRequestException::class . '::') && \defined($constant));
+        FunctionOverrides::set(
+            'defined',
+            static fn (mixed ...$arguments): bool => is_string($arguments[0]) && !str_starts_with($arguments[0], BadRequestException::class . '::') && \defined($arguments[0]),
+        );
 
         $descriptor = $this->findDescriptor($this->reader()->read(), ErrorCode::NOT_FOUND->getCode());
 
@@ -282,7 +285,10 @@ final class ErrorCatalogueReaderTest extends TestCase
         // The NotFoundException file is discovered, but its CODE constant is
         // reported absent, so the scan skips it and NOT_FOUND stays unmapped.
         FunctionOverrides::set('glob', static fn (): array => [$file]);
-        FunctionOverrides::set('defined', static fn (string $constant): bool => !str_ends_with($constant, '::CODE') && \defined($constant));
+        FunctionOverrides::set(
+            'defined',
+            static fn (mixed ...$arguments): bool => is_string($arguments[0]) && !str_ends_with($arguments[0], '::CODE') && \defined($arguments[0]),
+        );
 
         $descriptor = $this->findDescriptor($this->reader()->read(), ErrorCode::NOT_FOUND->getCode());
 

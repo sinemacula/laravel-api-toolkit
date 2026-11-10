@@ -174,8 +174,11 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $document = $this->export()->document;
 
+        self::assertIsString($document['info']['description']);
         self::assertStringContainsString('# Advanced Querying', $document['info']['description']);
+        self::assertIsString($document['info']['description']);
         self::assertStringContainsString('# Pagination', $document['info']['description']);
+        self::assertIsString($document['info']['description']);
         self::assertLessThan(
             strpos($document['info']['description'], '# Pagination'),
             strpos($document['info']['description'], '# Advanced Querying'),
@@ -241,6 +244,7 @@ final class OpenApiExporterValidityTest extends TestCase
             $document = $this->export($audience)->document;
             $result   = $this->validateAgainstMetaSchema($document);
 
+            self::assertIsArray($document['servers']);
             self::assertCount($count, $document['servers']);
             self::assertTrue($result->isValid(), 'A document carrying servers must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
         }
@@ -256,6 +260,7 @@ final class OpenApiExporterValidityTest extends TestCase
     {
         $document = $this->export()->document;
 
+        self::assertIsString($document['openapi']);
         self::assertStringStartsWith('3.1', $document['openapi']);
 
         $components = $document['components'];
@@ -308,6 +313,8 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $schemas = $result->document['components']['schemas'];
 
+        self::assertIsArray($schemas);
+
         foreach (['User', 'Organization', 'Post', 'Tag'] as $name) {
             self::assertArrayHasKey($name, $schemas);
         }
@@ -331,6 +338,7 @@ final class OpenApiExporterValidityTest extends TestCase
         ];
 
         foreach ($expected as $operator) {
+            self::assertIsIterable($operators);
             self::assertContains($operator, $operators);
         }
 
@@ -459,7 +467,9 @@ final class OpenApiExporterValidityTest extends TestCase
         $document   = $this->export()->document;
         $properties = $document['components']['schemas']['User']['properties'];
 
+        self::assertIsArray($document['components']['schemas']);
         self::assertArrayNotHasKey('Organization', $document['components']['schemas']);
+        self::assertIsArray($properties['organization']);
         self::assertArrayNotHasKey('$ref', $properties['organization']);
         self::assertTrue($properties['organization']['x-undocumented']);
 
@@ -482,7 +492,10 @@ final class OpenApiExporterValidityTest extends TestCase
 
         // The toolkit's own codes plus the discovered application exception
         // fixture, which lives in a non-vendor PSR-4 root.
+        self::assertIsArray($responses);
         self::assertCount(count($errorCodes) + 1, $responses);
+
+        self::assertIsArray($responses);
 
         foreach ($errorCodes as $code) {
             self::assertArrayHasKey('ErrorResponse' . $code->getCode(), $responses);
@@ -524,6 +537,7 @@ final class OpenApiExporterValidityTest extends TestCase
         $fullLabel = $document['components']['schemas']['User']['properties']['full_label'];
 
         self::assertTrue($fullLabel['x-undocumented']);
+        self::assertIsArray($fullLabel);
         self::assertArrayNotHasKey('type', $fullLabel);
     }
 
@@ -538,10 +552,13 @@ final class OpenApiExporterValidityTest extends TestCase
         $document   = $this->export()->document;
         $components = $document['components'];
 
+        self::assertIsArray($components['schemas']);
+
         foreach (['PaginationMeta', 'PaginationLinks', 'CursorPaginationMeta', 'CursorPaginationLinks'] as $name) {
             self::assertArrayHasKey($name, $components['schemas']);
         }
 
+        self::assertIsArray($components['headers']);
         self::assertArrayHasKey('Total-Count', $components['headers']);
 
         self::assertTrue(
@@ -563,6 +580,7 @@ final class OpenApiExporterValidityTest extends TestCase
         $user = $this->export()->document['components']['schemas']['User'];
 
         self::assertSame(['type' => 'string', 'const' => 'users'], $user['properties']['_type']);
+        self::assertIsIterable($user['required']);
         self::assertContains('_type', $user['required']);
     }
 
@@ -604,6 +622,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $after = $this->export()->document;
 
+        self::assertIsArray($after['components']['schemas']);
         self::assertArrayNotHasKey('Organization', $after['components']['schemas']);
         self::assertNotEmpty($before);
 
@@ -718,10 +737,13 @@ final class OpenApiExporterValidityTest extends TestCase
         $document = $this->export()->document;
         $paths    = $document['paths'];
 
+        self::assertIsArray($paths['/users']);
         self::assertSame(['get', 'post'], array_keys($paths['/users']));
+        self::assertIsArray($paths['/users/{user}']);
         self::assertSame(['get', 'put', 'patch', 'delete'], array_keys($paths['/users/{user}']));
 
         self::assertSame(['User'], $paths['/users']['get']['tags']);
+        self::assertIsArray($paths['/users']['get']['responses']);
         self::assertArrayHasKey('200', $paths['/users']['get']['responses']);
         self::assertArrayHasKey(
             'Total-Count',
@@ -741,7 +763,9 @@ final class OpenApiExporterValidityTest extends TestCase
             '#/components/schemas/CursorPaginationMeta',
             $indexSchema['anyOf'][1]['properties']['meta']['$ref'],
         );
+        self::assertIsArray($paths['/users']['post']['responses']);
         self::assertArrayHasKey('201', $paths['/users']['post']['responses']);
+        self::assertIsArray($paths['/users/{user}']['delete']['responses']);
         self::assertArrayHasKey('204', $paths['/users/{user}']['delete']['responses']);
 
         self::assertTrue(
@@ -852,6 +876,7 @@ final class OpenApiExporterValidityTest extends TestCase
         $schema   = $document['paths']['/single']['get']['responses']['200']['content']['application/json']['schema'];
 
         self::assertSame('#/components/schemas/User', $schema['properties']['data']['$ref']);
+        self::assertIsArray($document['components']['schemas']);
         self::assertArrayHasKey('User', $document['components']['schemas']);
 
         self::assertTrue(
@@ -879,6 +904,7 @@ final class OpenApiExporterValidityTest extends TestCase
             [['$ref' => '#/components/schemas/User'], SignedInShape::schema()],
             $schema['properties']['data']['oneOf'],
         );
+        self::assertIsArray($document['components']['schemas']);
         self::assertArrayHasKey('User', $document['components']['schemas']);
 
         self::assertTrue(
@@ -904,6 +930,7 @@ final class OpenApiExporterValidityTest extends TestCase
         $properties = $body['content']['application/json']['schema']['properties'];
 
         self::assertTrue($body['required']);
+        self::assertIsArray($properties);
         self::assertArrayHasKey('title', $properties);
         self::assertSame(['type' => 'string', 'enum' => ['draft', 'published']], $properties['visibility']);
         self::assertSame(['type' => 'integer', 'enum' => [1, 2, 3]], $properties['level']);
@@ -1130,11 +1157,13 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $public = $this->export('public')->document['paths'];
 
+        self::assertIsArray($public);
         self::assertArrayHasKey('/organizations', $public);
         self::assertArrayNotHasKey('/tags', $public);
 
         $internal = $this->export('internal')->document['paths'];
 
+        self::assertIsArray($internal);
         self::assertArrayHasKey('/organizations', $internal);
         self::assertArrayHasKey('/tags', $internal);
     }
@@ -1154,12 +1183,14 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $public = $this->export('public')->document['components']['schemas'];
 
+        self::assertIsArray($public);
         self::assertArrayHasKey('Organization', $public);
         self::assertArrayNotHasKey('Tag', $public);
         self::assertArrayNotHasKey('User', $public);
 
         $internal = $this->export('internal')->document['components']['schemas'];
 
+        self::assertIsArray($internal);
         self::assertArrayHasKey('Tag', $internal);
         self::assertArrayHasKey('Organization', $internal);
     }
@@ -1176,6 +1207,8 @@ final class OpenApiExporterValidityTest extends TestCase
         $this->registerOrganizationRoute();
 
         $schemas = $this->export('public')->document['components']['schemas'];
+
+        self::assertIsArray($schemas);
 
         foreach (['PaginationMeta', 'PaginationLinks', 'CursorPaginationMeta', 'CursorPaginationLinks', 'ErrorEnvelope'] as $name) {
             self::assertArrayHasKey($name, $schemas);
@@ -1377,14 +1410,20 @@ final class OpenApiExporterValidityTest extends TestCase
         $document = $this->export()->document;
         $paths    = $document['paths'];
 
+        self::assertIsArray($paths['/sign-in']['post']['responses']['200']['headers']);
         self::assertSame(['Set-Cookie', 'X-Session-Id'], array_keys($paths['/sign-in']['post']['responses']['200']['headers']));
+        self::assertIsArray($paths['/sign-in']['post']['responses']['429']['headers']);
         self::assertSame(['Retry-After'], array_keys($paths['/sign-in']['post']['responses']['429']['headers']));
+        self::assertIsArray($paths['/quota']['post']['responses']['429']['headers']);
         self::assertSame(
             ['retry-after', 'X-Quota-Reset', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
             array_keys($paths['/quota']['post']['responses']['429']['headers']),
         );
+        self::assertIsArray($paths['/headered-users']['get']['responses']['200']['headers']);
         self::assertSame(['Total-Count', 'Link'], array_keys($paths['/headered-users']['get']['responses']['200']['headers']));
+        self::assertIsArray($paths['/headered-users/{user}']['delete']['responses']['204']['headers']);
         self::assertSame(['X-Deleted-At'], array_keys($paths['/headered-users/{user}']['delete']['responses']['204']['headers']));
+        self::assertIsArray($paths['/sign-in']['post']['responses']['409']);
         self::assertArrayNotHasKey('headers', $paths['/sign-in']['post']['responses']['409']);
 
         $result = $this->validateAgainstMetaSchema($document);
@@ -1412,16 +1451,23 @@ final class OpenApiExporterValidityTest extends TestCase
         $document = $this->export()->document;
         $paths    = $document['paths'];
 
+        self::assertIsArray($paths['/status-users/{user}']['put']['responses']['204']);
         self::assertSame(['description', 'headers'], array_keys($paths['/status-users/{user}']['put']['responses']['204']));
+        self::assertIsArray($paths['/status-users/{user}']['put']['responses']);
         self::assertArrayNotHasKey('200', $paths['/status-users/{user}']['put']['responses']);
+        self::assertIsArray($paths['/sessions']['delete']['responses']['204']);
         self::assertSame(['description', 'headers'], array_keys($paths['/sessions']['delete']['responses']['204']));
+        self::assertIsArray($paths['/sessions']['delete']['responses']);
         self::assertArrayNotHasKey('200', $paths['/sessions']['delete']['responses']);
+        self::assertIsArray($paths['/reset']['post']['responses']['205']);
         self::assertSame(['description', 'headers'], array_keys($paths['/reset']['post']['responses']['205']));
         self::assertSame(
             WidgetShape::schema(),
             $paths['/jobs']['post']['responses']['202']['content']['application/json']['schema']['properties']['data'],
         );
+        self::assertIsArray($paths['/status-users']['get']['responses']['206']['headers']);
         self::assertSame(['Total-Count', 'X-Request-Id'], array_keys($paths['/status-users']['get']['responses']['206']['headers']));
+        self::assertIsArray($paths['/status-users/{user}']['delete']['responses']['200']);
         self::assertArrayHasKey('content', $paths['/status-users/{user}']['delete']['responses']['200']);
 
         $result = $this->validateAgainstMetaSchema($document);
@@ -1464,10 +1510,15 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $paths = $this->export()->document['paths'];
 
+        self::assertIsArray($paths['/users']['get']['responses']);
         self::assertSame([200, 401, 403, 500], array_keys($paths['/users']['get']['responses']));
+        self::assertIsArray($paths['/users']['post']['responses']);
         self::assertSame([201, 401, 403, 409, 422, 500], array_keys($paths['/users']['post']['responses']));
+        self::assertIsArray($paths['/users/{user}']['get']['responses']);
         self::assertSame([200, 401, 403, 404, 500], array_keys($paths['/users/{user}']['get']['responses']));
+        self::assertIsArray($paths['/users/{user}']['put']['responses']);
         self::assertSame([200, 401, 403, 404, 422, 500], array_keys($paths['/users/{user}']['put']['responses']));
+        self::assertIsArray($paths['/users/{user}']['delete']['responses']);
         self::assertSame([204, 401, 403, 404, 500], array_keys($paths['/users/{user}']['delete']['responses']));
     }
 
@@ -1490,6 +1541,7 @@ final class OpenApiExporterValidityTest extends TestCase
             $posts,
         );
 
+        self::assertIsArray($document['components']['schemas']);
         self::assertArrayHasKey('Post', $document['components']['schemas']);
     }
 
@@ -1656,7 +1708,11 @@ final class OpenApiExporterValidityTest extends TestCase
 
         assert($resolver instanceof SchemaResolver);
 
-        $resolver->registerRaw(Helper::toJSON($document), self::EXPORTED_DOCUMENT_ID);
+        $exported = Helper::toJSON($document);
+
+        self::assertIsObject($exported);
+
+        $resolver->registerRaw($exported, self::EXPORTED_DOCUMENT_ID);
 
         return $validator->validate(Helper::toJSON((object) $payload), self::EXPORTED_DOCUMENT_ID . '#' . $pointer);
     }
@@ -1677,7 +1733,11 @@ final class OpenApiExporterValidityTest extends TestCase
 
         assert($resolver instanceof SchemaResolver);
 
-        $resolver->registerRaw(Helper::toJSON($document), self::EXPORTED_DOCUMENT_ID);
+        $exported = Helper::toJSON($document);
+
+        self::assertIsObject($exported);
+
+        $resolver->registerRaw($exported, self::EXPORTED_DOCUMENT_ID);
 
         return $validator->validate(
             json_decode($payload, false, 512, JSON_THROW_ON_ERROR),
@@ -1749,7 +1809,7 @@ final class OpenApiExporterValidityTest extends TestCase
      * annotation/reference gaps without weakening any validity-bearing
      * constraint; see the fixtures README.
      *
-     * @param  array<string, mixed>  $node
+     * @param  array<array-key, mixed>  $node
      * @return void
      */
     private function adaptForOpis(array &$node): void
@@ -1885,7 +1945,7 @@ final class OpenApiExporterValidityTest extends TestCase
      * List the shared query-parameter component names the operation references,
      * in the order it carries them.
      *
-     * @param  array<string, mixed>  $operation
+     * @param  array<array-key, mixed>  $operation
      * @return array<int, string>
      */
     private function referencedParameterNames(array $operation): array

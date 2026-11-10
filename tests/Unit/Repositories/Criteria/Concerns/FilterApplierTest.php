@@ -944,10 +944,13 @@ final class FilterApplierTest extends TestCase
      */
     public function testStructuralOperatorsMatchTheDispatchMaps(): void
     {
-        $dispatched = array_merge(
-            array_keys($this->getProperty($this->applier, 'logicalOperatorMap')),
-            array_keys($this->getProperty($this->applier, 'relationalMethodMap')),
-        );
+        $logical    = $this->getProperty($this->applier, 'logicalOperatorMap');
+        $relational = $this->getProperty($this->applier, 'relationalMethodMap');
+
+        self::assertIsArray($logical);
+        self::assertIsArray($relational);
+
+        $dispatched = array_merge(array_keys($logical), array_keys($relational));
 
         sort($dispatched);
         $declared = FilterApplier::STRUCTURAL_OPERATORS;
@@ -1480,6 +1483,53 @@ final class FilterApplierTest extends TestCase
                 ['The name filter must name a field or a condition. To match any of several values, give the field a condition such as $in.'],
                 $exception->errors()['name'],
             );
+        }
+    }
+
+    /**
+     * Provide filters whose shape the grammar refuses, with the position and
+     * message each is refused with.
+     *
+     * @return iterable<string, array{array<string, mixed>, string, string}>
+     */
+    public static function malformedDocumentProvider(): iterable
+    {
+        yield 'bare value under $or' => [['$or' => 'Alice'], '$or', 'The $or filter must be a document of conditions.'];
+        yield 'bare value under nested $or' => [['$and' => ['$or' => 'Alice']], '$or', 'The $or filter must be a document of conditions.'];
+        yield 'bare value under a relation' => [['posts' => 'first'], 'posts', 'The posts filter must be a document of conditions.'];
+        yield 'list under a relation' => [
+            ['posts' => ['first']],
+            'relation',
+            'The relation filter must name a field or a condition. To match any of several values, give the field a condition such as $in.',
+        ];
+        yield 'number under $has' => [['$has' => 1], '$has', 'The $has filter must be a document of conditions.'];
+        yield 'list entry under $hasnt' => [['$hasnt' => [['posts']]], '$hasnt', 'The $hasnt filter must list relation names.'];
+        yield 'bare value under a $has relation' => [['$has' => ['posts' => 'first']], 'posts', 'The posts filter must be a document of conditions.'];
+    }
+
+    /**
+     * Test that a position the grammar reads as a document of conditions, or a
+     * relation existence filter's list of relation names, refuses a value of
+     * any other shape at that position rather than failing with a type error.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $position
+     * @param  string  $message
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('malformedDocumentProvider')]
+    public function testMalformedDocumentIsRefusedAtItsPosition(array $filters, string $position, string $message): void
+    {
+        $surface = $this->declaredSurface(filterable: ['name' => Capability::EXACT], relations: ['posts']);
+
+        try {
+            $this->applier->apply((new User)->newQuery(), $filters, $this->operatorRegistry, $surface);
+
+            self::fail('A malformed filter document must be refused.');
+        } catch (ValidationException $exception) {
+            self::assertSame([$position => [$message]], $exception->errors());
         }
     }
 

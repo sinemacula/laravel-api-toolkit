@@ -38,6 +38,7 @@ final class RequestBodyResolverTest extends TestCase
 
         self::assertNotNull($body);
         self::assertTrue($body['required']);
+        self::assertIsArray($body['content']);
         self::assertArrayHasKey('application/json', $body['content']);
         self::assertArrayHasKey('title', $body['content']['application/json']['schema']['properties']);
     }
@@ -84,6 +85,7 @@ final class RequestBodyResolverTest extends TestCase
 
         $properties = $body['content']['application/json']['schema']['properties'];
 
+        self::assertIsArray($properties);
         self::assertArrayHasKey('summary', $properties);
         self::assertArrayNotHasKey('quantity', $properties);
     }
@@ -110,6 +112,7 @@ final class RequestBodyResolverTest extends TestCase
         $body = $this->resolver()->resolve(PathRequestBodyController::class, 'upload');
 
         self::assertNotNull($body);
+        self::assertIsArray($body['content']);
         self::assertArrayHasKey('multipart/form-data', $body['content']);
     }
 

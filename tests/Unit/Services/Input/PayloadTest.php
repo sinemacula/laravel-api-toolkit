@@ -1447,7 +1447,7 @@ final class PayloadTest extends TestCase
             }
         };
 
-        $input = $definition::from(['0' => 'first', 'client_name' => 'Acme']);
+        $input = $definition::from(Request::create('/', 'POST', ['0' => 'first', 'client_name' => 'Acme']));
 
         self::assertSame('Acme', $input->clientName);
         self::assertSame(['client_name' => 'Acme'], $input->toArray());

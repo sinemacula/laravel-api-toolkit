@@ -22,6 +22,8 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * compiled schema, handling plain relations, scoped constraints, extra paths,
  * child resource recursion, and cycle prevention.
  *
+ * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -35,7 +37,7 @@ final class EagerLoadPlanner
     /** @var array<string, array<int|string, mixed>> Memo of count maps, keyed by resource class + alias signature. */
     private static array $countCache = [];
 
-    /** @var array<string, list<array<string, mixed>>> Memo of aggregate entry lists, keyed by metric:resource class + requested signature. */
+    /** @var array<string, list<AggregateLoad>> Memo of aggregate entry lists, keyed by metric:resource class + requested signature. */
     private static array $aggregateCache = [];
 
     /**
@@ -139,7 +141,7 @@ final class EagerLoadPlanner
      *
      * @param  string  $resourceClass
      * @param  array<string, mixed>|null  $requested
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     public static function buildSumMap(string $resourceClass, ?array $requested = null): array
     {
@@ -155,7 +157,7 @@ final class EagerLoadPlanner
      *
      * @param  string  $resourceClass
      * @param  array<string, mixed>|null  $requested
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     public static function buildAvgMap(string $resourceClass, ?array $requested = null): array
     {
@@ -202,7 +204,7 @@ final class EagerLoadPlanner
      * @param  string  $resourceClass
      * @param  string  $metric
      * @param  array<string, mixed>|null  $requested
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     private static function buildAggregateMap(string $resourceClass, string $metric, ?array $requested): array
     {
@@ -250,7 +252,7 @@ final class EagerLoadPlanner
      * @param  array<int, string>  $plain
      * @param  array<string, mixed>  $scoped
      * @param  array<string, bool>  $visited
-     * @param  array<int, class-string>  $ancestors
+     * @param  array<int, string>  $ancestors
      * @return void
      */
     private static function walkRelations(string $resourceClass, array $fields, string $prefix, array &$plain, array &$scoped, array &$visited, array $ancestors = []): void
@@ -340,8 +342,8 @@ final class EagerLoadPlanner
      * Wrap a constraint closure to safely handle MorphTo, EloquentRelation, and
      * Builder instances.
      *
-     * @param  \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void  $constraint
-     * @return \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void
+     * @param  \Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void  $constraint
+     * @return \Closure(mixed): void
      */
     private static function wrapConstraint(\Closure $constraint): \Closure
     {
@@ -371,7 +373,7 @@ final class EagerLoadPlanner
      * @param  array<int, string>  $plain
      * @param  array<string, mixed>  $scoped
      * @param  array<string, bool>  $visited
-     * @param  array<int, class-string>  $ancestors
+     * @param  array<int, string>  $ancestors
      * @return void
      */
     private static function recurseIntoChild(CompiledFieldDefinition $definition, string $fullPath, array &$plain, array &$scoped, array &$visited, array $ancestors = []): void

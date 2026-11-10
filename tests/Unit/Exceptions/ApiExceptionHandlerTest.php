@@ -7,6 +7,7 @@ namespace Tests\Unit\Exceptions;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\RecordsNotFoundException;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -342,6 +343,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $data = $response->getData(true);
 
+        self::assertIsArray($data);
         self::assertArrayHasKey('error', $data);
         self::assertArrayHasKey('status', $data['error']);
         self::assertArrayHasKey('code', $data['error']);
@@ -370,6 +372,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $data = $response->getData(true);
 
+        self::assertIsArray($data['error']);
         self::assertArrayHasKey('meta', $data['error']);
         self::assertArrayHasKey('exception', $data['error']['meta']);
         self::assertArrayHasKey('trace', $data['error']['meta']);
@@ -434,7 +437,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         config()->set('app.debug', false);
 
-        $validator = new Validator(app('translator'), [], []);
+        $validator = new Validator(app(Translator::class), [], []);
         $exception = new ValidationException($validator);
 
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
@@ -598,6 +601,7 @@ final class ApiExceptionHandlerTest extends TestCase
         $data = $response->getData(true);
 
         self::assertIsArray($data);
+        self::assertIsArray($data['error']);
         self::assertArrayNotHasKey('meta', $data['error']);
     }
 
@@ -623,6 +627,7 @@ final class ApiExceptionHandlerTest extends TestCase
         $data = $response->getData(true);
 
         self::assertIsArray($data);
+        self::assertIsArray($data['error']);
         self::assertArrayHasKey('meta', $data['error']);
         self::assertSame(self::GENERIC_ERROR_MESSAGE, $data['error']['meta']['message']);
         self::assertArrayHasKey('trace', $data['error']['meta']);
@@ -650,6 +655,7 @@ final class ApiExceptionHandlerTest extends TestCase
         $data = $response->getData(true);
 
         self::assertIsArray($data);
+        self::assertIsArray($data['error']);
         self::assertArrayNotHasKey('meta', $data['error']);
     }
 
@@ -711,6 +717,7 @@ final class ApiExceptionHandlerTest extends TestCase
         self::assertSame(\RuntimeException::class, $meta['exception']);
         self::assertSame($previous->getFile(), $meta['file']);
         self::assertSame($previous->getLine(), $meta['line']);
+        self::assertIsArray($meta);
         self::assertArrayHasKey('trace', $meta);
     }
 
@@ -763,7 +770,7 @@ final class ApiExceptionHandlerTest extends TestCase
             // rendered frame retains call arguments regardless of depth.
             $renderedFramesWithArgs = array_filter(
                 $data['error']['meta']['trace'],
-                static fn (array $frame): bool => array_key_exists('args', $frame),
+                static fn (mixed $frame): bool => is_array($frame) && array_key_exists('args', $frame),
             );
 
             self::assertSame([], $renderedFramesWithArgs);

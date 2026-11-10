@@ -119,6 +119,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
         ));
 
         self::assertNotSame([], $accepted);
+        self::assertIsArray($schema);
         self::assertArrayNotHasKey('$ref', $schema);
         self::assertSame($accepted, $schema['enum']);
     }
@@ -1415,7 +1416,10 @@ final class RulesToSchemaTranslatorTest extends TestCase
     private function isPayloadAcceptedBySchema(array $schema, string $payload): bool
     {
         $document = (new SchemaObjectNormaliser)->normalise(['schema' => ['$schema' => 'https://json-schema.org/draft/2020-12/schema', ...$schema]]);
+        $compiled = Helper::toJSON($document['schema']);
 
-        return (new SchemaValidator)->validate(json_decode($payload, false, 512, JSON_THROW_ON_ERROR), Helper::toJSON($document['schema']))->isValid();
+        self::assertIsObject($compiled);
+
+        return (new SchemaValidator)->validate(json_decode($payload, false, 512, JSON_THROW_ON_ERROR), $compiled)->isValid();
     }
 }

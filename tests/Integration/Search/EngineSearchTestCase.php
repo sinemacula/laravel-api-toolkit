@@ -639,7 +639,7 @@ abstract class EngineSearchTestCase extends TestCase
     /**
      * Assert that validating the resource reports the given defect.
      *
-     * @param  string  $resourceClass
+     * @param  class-string  $resourceClass
      * @param  string  $defect
      * @return void
      */

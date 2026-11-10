@@ -64,7 +64,10 @@ final class RequestLifecycleTest extends TestCase
         $response->assertJsonPath('data.0.name', 'Alice');
         $response->assertJsonPath('data.0._type', 'users');
 
-        self::assertArrayHasKey('email', $response->json('data.0'));
+        $first = $response->json('data.0');
+
+        self::assertIsArray($first);
+        self::assertArrayHasKey('email', $first);
     }
 
     /**

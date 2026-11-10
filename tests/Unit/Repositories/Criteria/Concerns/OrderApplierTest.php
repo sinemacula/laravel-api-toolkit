@@ -243,7 +243,7 @@ final class OrderApplierTest extends TestCase
      * Assert that applying the order rejects the given column with a named
      * validation error.
      *
-     * @param  callable(): void  $apply
+     * @param  callable(): mixed  $apply
      * @param  string  $column
      * @return void
      */

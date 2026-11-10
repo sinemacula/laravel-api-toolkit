@@ -103,7 +103,9 @@ abstract class EngineSearchDriver implements SearchDriver
     /**
      * Apply the search predicate for the given columns to the query.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
@@ -126,7 +128,9 @@ abstract class EngineSearchDriver implements SearchDriver
     /**
      * Apply the prefix match for the declared columns.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
      * @return void
@@ -136,7 +140,9 @@ abstract class EngineSearchDriver implements SearchDriver
     /**
      * Apply the anywhere-match for the declared columns.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
      * @return void
@@ -168,7 +174,9 @@ abstract class EngineSearchDriver implements SearchDriver
     /**
      * Apply the equality match for the declared columns.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
      * @return void
@@ -184,7 +192,9 @@ abstract class EngineSearchDriver implements SearchDriver
      * Return the column qualified with its table and wrapped for this
      * connection's grammar, ready to be written into a raw fragment.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $column
      * @return string
      */

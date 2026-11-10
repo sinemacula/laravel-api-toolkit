@@ -45,10 +45,9 @@ final class EagerLoadApplier
             return $query;
         }
 
-        $with = $trashedGate->decorate(
-            $metadataProvider->eagerLoadMapFor($resourceClass, $fields),
-            $query->getModel(),
-            ApiQuery::getTrashed(),
+        $with = array_filter(
+            $trashedGate->decorate($metadataProvider->eagerLoadMapFor($resourceClass, $fields), $query->getModel(), ApiQuery::getTrashed()),
+            static fn (mixed $load): bool => is_string($load) || is_array($load) || $load instanceof \Closure,
         );
 
         if (!empty($with)) {
@@ -78,20 +77,12 @@ final class EagerLoadApplier
      */
     private function applyAggregates(Builder $query, ResourceMetadataProvider $metadataProvider, string $resourceClass, ?string $resourceType): void
     {
-        $requestedSums = ApiQuery::getSums($resourceType) ?? [];
-        $sumEntries    = $metadataProvider->eagerLoadSumsFor($resourceClass, $requestedSums);
-
-        if (!empty($sumEntries)) {
-            foreach ($sumEntries as $entry) {
-                $query->withSum($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
-            }
+        foreach ($metadataProvider->eagerLoadSumsFor($resourceClass, ApiQuery::getSums($resourceType) ?? []) as $entry) {
+            $query->withSum($entry['relation'], $entry['column']);
         }
 
-        $requestedAverages = ApiQuery::getAverages($resourceType) ?? [];
-        $avgEntries        = $metadataProvider->eagerLoadAveragesFor($resourceClass, $requestedAverages);
-
-        foreach ($avgEntries as $entry) {
-            $query->withAvg($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
+        foreach ($metadataProvider->eagerLoadAveragesFor($resourceClass, ApiQuery::getAverages($resourceType) ?? []) as $entry) {
+            $query->withAvg($entry['relation'], $entry['column']);
         }
     }
 }

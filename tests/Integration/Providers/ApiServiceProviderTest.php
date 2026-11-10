@@ -137,8 +137,11 @@ final class ApiServiceProviderTest extends TestCase
      */
     public function testApiQueryParserIsRegisteredAsSingleton(): void
     {
-        $app    = $this->getApplication();
-        $alias  = $this->getConfig()->get('api-toolkit.parser.alias');
+        $app   = $this->getApplication();
+        $alias = $this->getConfig()->get('api-toolkit.parser.alias');
+
+        self::assertIsString($alias);
+
         $parser = $app->make($alias);
 
         self::assertInstanceOf(ApiQueryParser::class, $parser);
@@ -812,6 +815,7 @@ final class ApiServiceProviderTest extends TestCase
     {
         $config = $this->getConfig()->get('api-toolkit.resources');
 
+        self::assertIsArray($config);
         self::assertArrayHasKey('validate_schemas', $config);
         self::assertFalse($config['validate_schemas']);
     }
@@ -1217,8 +1221,8 @@ final class ApiServiceProviderTest extends TestCase
     {
         $raw = $this->getEventDispatcher()->getRawListeners();
 
-        self::assertContains([NotificationListener::class, 'sending'], $raw[NotificationSending::class] ?? []);
-        self::assertContains([NotificationListener::class, 'sent'], $raw[NotificationSent::class] ?? []);
+        self::assertContains([NotificationListener::class, 'sending'], self::listenersFor($raw, NotificationSending::class));
+        self::assertContains([NotificationListener::class, 'sent'], self::listenersFor($raw, NotificationSent::class));
     }
 
     /**
@@ -1502,5 +1506,21 @@ final class ApiServiceProviderTest extends TestCase
         }
 
         return false;
+    }
+
+    /**
+     * Read the raw listeners registered for the given event.
+     *
+     * @param  array<array-key, mixed>  $raw
+     * @param  string  $event
+     * @return array<array-key, mixed>
+     */
+    private static function listenersFor(array $raw, string $event): array
+    {
+        $listeners = $raw[$event] ?? [];
+
+        self::assertIsArray($listeners);
+
+        return $listeners;
     }
 }

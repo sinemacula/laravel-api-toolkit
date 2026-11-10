@@ -66,7 +66,7 @@ trait ResolvesResource
 
             $resource = Config::get('api-toolkit.resources.resource_map.' . $class);
 
-            if ($resource && class_exists($resource) && in_array(ApiResourceInterface::class, class_implements($resource) ?: [], true)) {
+            if (is_string($resource) && class_exists($resource) && in_array(ApiResourceInterface::class, class_implements($resource) ?: [], true)) {
                 return $resource;
             }
 

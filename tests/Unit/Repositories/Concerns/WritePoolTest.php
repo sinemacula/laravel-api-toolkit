@@ -198,6 +198,23 @@ final class WritePoolTest extends TestCase
     }
 
     /**
+     * Test that a chunk size below one flushes one record per insert rather
+     * than refusing to chunk the buffer.
+     *
+     * @return void
+     */
+    public function testFlushChunksOneRecordPerInsertWhenTheChunkSizeIsBelowOne(): void
+    {
+        $pool = new WritePool(chunkSize: 0, poolLimit: 10000);
+
+        $pool->add('test_records', ['name' => 'name_0', 'value' => 'value_0']);
+        $pool->add('test_records', ['name' => 'name_1', 'value' => 'value_1']);
+
+        self::assertSame(2, $pool->flush()->successCount());
+        self::assertSame(2, DB::table('test_records')->count());
+    }
+
+    /**
      * Test that the default strategy continues past a chunk failure without
      * logging and persists the healthy chunk.
      *

@@ -2271,7 +2271,7 @@ final class ValueResolverTest extends TestCase
      * @param  string|null  $relation
      * @param  string|null  $resource
      * @param  array<int, string>|null  $fields
-     * @param  \Closure(mixed): mixed|null  $constraint
+     * @param  (\Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null  $constraint
      * @param  array<int, string>  $extras
      * @param  array<int, string>  $needs
      * @param  array<int, callable(mixed, mixed): bool>  $guards

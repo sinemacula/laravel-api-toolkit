@@ -852,6 +852,30 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
+     * Test that the extras, needs and fields of a field keep only their string
+     * entries, reindexed as a list.
+     *
+     * @return void
+     */
+    public function testCompileKeepsOnlyTheStringEntriesOfAFieldsLists(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'avatar' => [
+                'extras' => [1, 'media', null],
+                'needs'  => ['first' => 'id', 'second' => 2],
+                'fields' => [true, 'name'],
+            ],
+        ]);
+
+        $field = SchemaCompiler::compile($resourceClass)->getField('avatar');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $field);
+        self::assertSame(['media'], $field->extras);
+        self::assertSame(['id'], $field->needs);
+        self::assertSame(['name'], $field->fields);
+    }
+
+    /**
      * Test that an openapi schema is threaded into the compiled field
      * definition's openApi property.
      *
@@ -1145,6 +1169,32 @@ final class SchemaCompilerTest extends TestCase
         $this->expectException(InvalidSchemaException::class);
 
         SchemaCompiler::compile($resourceClass);
+    }
+
+    /**
+     * Test that keyed guard and transformer lists compile into lists, in their
+     * declared order.
+     *
+     * @return void
+     */
+    public function testCompileReindexesKeyedGuardsAndTransformers(): void
+    {
+        $guard       = static fn (): bool => true;
+        $transformer = static fn (mixed $value): mixed => $value;
+
+        $resourceClass = $this->createStubResourceClass([
+            'name' => [
+                'accessor'     => 'name',
+                'guards'       => ['visible' => $guard],
+                'transformers' => [3 => $transformer, 'trimmed' => 'trim'],
+            ],
+        ]);
+
+        $field = SchemaCompiler::compile($resourceClass)->getField('name');
+
+        self::assertNotNull($field);
+        self::assertSame([$guard], $field->guards);
+        self::assertSame([$transformer, 'trim'], $field->transformers);
     }
 
     /**

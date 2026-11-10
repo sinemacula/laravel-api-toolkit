@@ -237,6 +237,7 @@ final class AttributeSetter
      * @param  mixed  $value
      * @return void
      *
+     * @throws \InvalidArgumentException
      * @throws \LogicException
      */
     private function setAssociateAttribute(Model $model, string $attribute, mixed $value): void
@@ -245,6 +246,10 @@ final class AttributeSetter
 
         if (!($relation instanceof BelongsTo)) {
             throw new \LogicException(sprintf('Attribute "%s" on %s does not resolve to a BelongsTo relation', $attribute, $model::class));
+        }
+
+        if ($value !== null && !$value instanceof Model && !is_int($value) && !is_string($value)) {
+            throw new \InvalidArgumentException(sprintf('Attribute "%s" on %s must be given a model or its key', $attribute, $model::class));
         }
 
         $relation->associate($value);
@@ -259,6 +264,7 @@ final class AttributeSetter
      * @param  mixed  $value
      * @return void
      *
+     * @throws \InvalidArgumentException
      * @throws \LogicException
      */
     private function setSyncAttribute(Model $model, string $attribute, mixed $value): void
@@ -277,6 +283,10 @@ final class AttributeSetter
             $value = $value->pluck($relation->getRelated()->getKeyName());
         }
 
+        if (!is_array($value) && !$value instanceof Collection && !is_int($value) && !is_string($value)) {
+            throw new \InvalidArgumentException(sprintf('Attribute "%s" on %s must be given models or their keys', $attribute, $model::class));
+        }
+
         $relation->sync($value);
     }
 
@@ -287,10 +297,18 @@ final class AttributeSetter
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
      * @return mixed
+     *
+     * @throws \LogicException
      */
     private function resolveRelationInstance(Model $model, string $attribute): mixed
     {
-        return \Closure::fromCallable([$model, Str::camel($attribute)])();
+        $method = [$model, Str::camel($attribute)];
+
+        if (!is_callable($method)) {
+            throw new \LogicException(sprintf('Attribute "%s" on %s does not resolve to a relation method', $attribute, $model::class));
+        }
+
+        return $method();
     }
 
     /**

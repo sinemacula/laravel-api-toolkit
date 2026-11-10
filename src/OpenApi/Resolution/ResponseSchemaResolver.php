@@ -189,6 +189,8 @@ final readonly class ResponseSchemaResolver
      *
      * @param  string  $class
      * @return bool
+     *
+     * @phpstan-assert-if-true class-string<\Illuminate\Http\Resources\Json\JsonResource> $class
      */
     private function isRegisteredResource(string $class): bool
     {

@@ -25,7 +25,7 @@ final class Relation extends BaseDefinition
     /** @var array<int, string>|null Child field projection for eager-load planning */
     private ?array $fields = null;
 
-    /** @var (callable(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null Eager-load constraint callback */
+    /** @var (callable(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null Eager-load constraint callback */
     private mixed $constraint = null;
 
     /** @var bool Whether this relation is declared externally traversable */
@@ -102,9 +102,11 @@ final class Relation extends BaseDefinition
     /**
      * Apply an eager-load constraint callback to this relation.
      *
-     * The callback receives the relation's query builder.
+     * The callback receives the relation's query builder, except for a MorphTo
+     * relation, which is passed itself because it replays the calls on the
+     * query of each type it loads.
      *
-     * @param  callable(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void  $constraint
+     * @param  callable(\Illuminate\Contracts\Database\Eloquent\Builder): void  $constraint
      * @return self
      */
     public function constrain(callable $constraint): self

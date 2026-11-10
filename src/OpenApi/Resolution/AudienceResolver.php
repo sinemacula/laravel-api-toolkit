@@ -91,8 +91,8 @@ final readonly class AudienceResolver
 
         return [
             'undocumented'    => (bool) ($stored['undocumented'] ?? false),
-            'documentedIn'    => array_values(array_map('strval', (array) ($stored['documentedIn'] ?? []))),
-            'notDocumentedIn' => array_values(array_map('strval', (array) ($stored['notDocumentedIn'] ?? []))),
+            'documentedIn'    => array_values(array_filter((array) ($stored['documentedIn'] ?? []), is_string(...))),
+            'notDocumentedIn' => array_values(array_filter((array) ($stored['notDocumentedIn'] ?? []), is_string(...))),
         ];
     }
 

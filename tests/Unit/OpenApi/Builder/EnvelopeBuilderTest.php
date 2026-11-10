@@ -115,6 +115,7 @@ final class EnvelopeBuilderTest extends TestCase
 
         self::assertSame(['type' => 'string', 'format' => 'uri'], $prev['oneOf'][0]);
         self::assertSame(['type' => 'null'], $prev['oneOf'][1]);
+        self::assertIsArray($prev);
         self::assertArrayNotHasKey('nullable', $prev);
     }
 

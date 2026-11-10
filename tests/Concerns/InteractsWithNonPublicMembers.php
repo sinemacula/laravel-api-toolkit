@@ -76,31 +76,25 @@ trait InteractsWithNonPublicMembers
     /**
      * Set a non-public static property value on the given class.
      *
-     * @param  string  $class
+     * @param  class-string  $class
      * @param  string  $property
      * @param  mixed  $value
      * @return void
      */
     protected function setStaticProperty(string $class, string $property, mixed $value): void
     {
-        $reflection = new \ReflectionClass($class);
-        $prop       = $reflection->getProperty($property);
-
-        $prop->setValue(null, $value);
+        (new \ReflectionProperty($class, $property))->setValue(null, $value);
     }
 
     /**
      * Get a non-public static property value from the given class.
      *
-     * @param  string  $class
+     * @param  class-string  $class
      * @param  string  $property
      * @return mixed
      */
     protected function getStaticProperty(string $class, string $property): mixed
     {
-        $reflection = new \ReflectionClass($class);
-        $prop       = $reflection->getProperty($property);
-
-        return $prop->getValue(null);
+        return (new \ReflectionProperty($class, $property))->getValue(null);
     }
 }

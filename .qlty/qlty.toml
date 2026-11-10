@@ -1,9 +1,9 @@
 # Reference: https://qlty.sh/d/qlty-toml
 #
 # Code-quality configuration for both the Qlty CLI and Qlty Cloud. Lint and
-# format rules come from the shared sinemacula/coding-standards source; this
-# file wires that source in and selects the plugins relevant to a PHP
-# repository.
+# format rules, plugin selection and plugin versions come from the shared
+# sinemacula/coding-standards source; this file wires that source in and sets
+# where the PHP plugins install their packages from.
 config_version = "0"
 
 exclude_patterns = [
@@ -33,12 +33,6 @@ test_patterns = [
     "**/spec_*.*",
 ]
 
-[runtimes.enabled]
-php = "8.5"
-
-[smells]
-mode = "comment"
-
 [[source]]
 name = "default"
 default = true
@@ -49,66 +43,17 @@ repository = "https://github.com/sinemacula/coding-standards"
 tag = "v1.30.0"
 
 [[plugin]]
-name = "actionlint"
-
-[[plugin]]
-name = "editorconfig-checker"
-
-[[plugin]]
-name = "markdownlint"
-mode = "comment"
-
-[[plugin]]
-name = "osv-scanner"
-
-[[plugin]]
 name = "php-codesniffer"
-version = "4.0.4"
-mode = "comment"
 package_file = "composer.json"
 package_filters = ["slevomat", "dealerdirect", "sinemacula"]
 
-# phpcs 4.x returns exit code 3 when it finds issues; qlty's default
-# success_codes ([0, 1]) would treat that as a plugin failure and discard the
-# findings. This override accepts the 4.x codes. It lives here, not in the
-# shared source.toml, because a drivers table there breaks the source's
-# exported_config_paths. Only required while on phpcs 4.x.
-[plugins.definitions.php-codesniffer.drivers.lint]
-success_codes = [0, 1, 2, 3]
-
-# Held at the version the shared standard requires. The fixer config builds
-# its rules from the standards package, which this plugin declares through
-# extra_packages rather than reading composer.json: extra_packages is silently
-# ignored whenever package_file is set.
+# The fixer config builds its rules from the standards package, which this
+# plugin declares through extra_packages rather than reading composer.json:
+# extra_packages is silently ignored whenever package_file is set.
 [[plugin]]
 name = "php-cs-fixer"
-version = "3.95.27"
 extra_packages = ["sinemacula/coding-standards@1.30.0"]
 
 [[plugin]]
 name = "phpstan"
-version = "2.1.46"
 package_file = "composer.json"
-
-[[plugin]]
-name = "radarlint-php"
-mode = "comment"
-
-[[plugin]]
-name = "trivy"
-drivers = [
-    "config",
-    "fs-vuln",
-]
-
-[[plugin]]
-name = "trufflehog"
-
-[[plugin]]
-name = "yamllint"
-
-# Skip radarlint smell analysis on the test tree - reused fixture literals and
-# multi-branch data providers trip duplication/return-count rules without value.
-[[exclude]]
-plugins = ["radarlint-php"]
-file_patterns = ["tests/**"]

@@ -135,7 +135,7 @@ final readonly class DocumentableRouteFilter
         }
 
         return array_values(array_filter(
-            array_map('strval', $configured),
+            array_map(static fn (mixed $prefix): string => is_string($prefix) || $prefix instanceof \Stringable ? (string) $prefix : '', $configured),
             static fn (string $prefix): bool => $prefix !== '',
         ));
     }

@@ -95,6 +95,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     {
         $result = $this->export();
 
+        self::assertIsString($result->document['openapi']);
         self::assertStringStartsWith('3.1', $result->document['openapi']);
         self::assertArrayHasKey('components', $result->document);
     }
@@ -112,6 +113,7 @@ final class ExportOpenApiComponentsTest extends TestCase
 
         $result = $this->export();
 
+        self::assertIsArray($result->document['components']['schemas']);
         self::assertArrayHasKey('User', $result->document['components']['schemas']);
         self::assertArrayHasKey('Organization', $result->document['components']['schemas']);
         self::assertSame(2, $result->resourceCount);
@@ -152,9 +154,11 @@ final class ExportOpenApiComponentsTest extends TestCase
         $public   = $this->export('public', $resourceMap);
         $internal = $this->export('internal', $resourceMap);
 
+        self::assertIsArray($public->document['components']['schemas']);
         self::assertArrayNotHasKey('QueryableTag', $public->document['components']['schemas']);
         self::assertSame(1, $public->resourceCount);
 
+        self::assertIsArray($internal->document['components']['schemas']);
         self::assertArrayHasKey('QueryableTag', $internal->document['components']['schemas']);
         self::assertSame(2, $internal->resourceCount);
     }
@@ -169,10 +173,12 @@ final class ExportOpenApiComponentsTest extends TestCase
     {
         $result = $this->export();
 
+        self::assertIsArray($result->document['components']['parameters']);
         self::assertSame(
             count($result->document['components']['parameters']),
             $result->parameterCount,
         );
+        self::assertIsArray($result->document['components']['responses']);
         self::assertSame(
             count($result->document['components']['responses']),
             $result->responseCount,

@@ -93,6 +93,6 @@ final class JsonPrettyPrint
             return;
         }
 
-        $response->setContent(json_encode($decoded, JSON_PRETTY_PRINT));
+        $response->setContent(json_encode($decoded, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
     }
 }

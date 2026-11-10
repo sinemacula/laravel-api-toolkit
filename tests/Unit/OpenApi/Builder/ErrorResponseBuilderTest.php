@@ -134,6 +134,7 @@ final class ErrorResponseBuilderTest extends TestCase
 
         $example = $responses['ErrorResponse10113']['content']['application/json']['example'];
 
+        self::assertIsArray($example['error']);
         self::assertArrayNotHasKey('title', $example['error']);
     }
 
@@ -148,6 +149,7 @@ final class ErrorResponseBuilderTest extends TestCase
         $envelope = $this->makeBuilder([])->buildEnvelopeSchema();
 
         self::assertSame('object', $envelope['type']);
+        self::assertIsIterable($envelope['required']);
         self::assertContains('error', $envelope['required']);
 
         $error = $envelope['properties']['error'];

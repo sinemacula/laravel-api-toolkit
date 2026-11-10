@@ -101,7 +101,7 @@ final readonly class ThrowsErrorResolver
 
         return array_map(
             fn (string $name): string => $this->classNames->resolve($name, $method),
-            preg_split('/\|/', implode('|', $matches[1]), flags: PREG_SPLIT_NO_EMPTY),
+            preg_split('/\|/', implode('|', $matches[1]), flags: PREG_SPLIT_NO_EMPTY) ?: [],
         );
     }
 

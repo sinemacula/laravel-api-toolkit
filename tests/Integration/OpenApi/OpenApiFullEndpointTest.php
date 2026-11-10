@@ -113,6 +113,7 @@ final class OpenApiFullEndpointTest extends TestCase
             ['$ref' => '#/components/schemas/ErrorEnvelope'],
             $operation['responses'][409]['content']['application/json']['schema'],
         );
+        self::assertIsArray($operation['responses']);
         self::assertSame(
             [201, 401, 403, 409, 422, 500],
             array_keys($operation['responses']),
@@ -141,6 +142,7 @@ final class OpenApiFullEndpointTest extends TestCase
 
         self::assertSame([['bearerAuth' => []]], $operation['security']);
         self::assertTrue($operation['requestBody']['required']);
+        self::assertIsArray($operation['requestBody']['content']['application/json']['schema']['properties']);
         self::assertArrayHasKey('title', $operation['requestBody']['content']['application/json']['schema']['properties']);
     }
 
@@ -272,7 +274,7 @@ final class OpenApiFullEndpointTest extends TestCase
      * to `true`. Both work around opis annotation/reference gaps without
      * weakening any validity-bearing constraint; see the fixtures README.
      *
-     * @param  array<string, mixed>  $node
+     * @param  array<array-key, mixed>  $node
      * @return void
      */
     private function adaptForOpis(array &$node): void

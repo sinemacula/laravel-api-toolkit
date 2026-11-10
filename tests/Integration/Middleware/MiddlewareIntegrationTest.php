@@ -74,6 +74,7 @@ final class MiddlewareIntegrationTest extends TestCase
 
         $content = $response->getContent();
 
+        self::assertIsString($content);
         self::assertStringContainsString("\n", $content);
         self::assertSame(json_encode(['key' => 'value'], JSON_PRETTY_PRINT), $content);
     }
@@ -106,11 +107,15 @@ final class MiddlewareIntegrationTest extends TestCase
             });
         });
 
-        $content = json_decode($response->getContent(), true);
+        $raw = $response->getContent();
 
+        self::assertIsString($raw);
+
+        $content = json_decode($raw, true);
+
+        self::assertIsArray($content);
         self::assertSame(2, $content['page']);
         self::assertSame(10, $content['limit']);
-
-        self::assertStringContainsString("\n", $response->getContent());
+        self::assertStringContainsString("\n", $raw);
     }
 }

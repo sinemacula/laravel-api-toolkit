@@ -13,6 +13,8 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
  * resource class, maintaining behavioural equivalence with direct static calls
  * while enabling substitution via the container.
  *
+ * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -87,7 +89,7 @@ final class ResourceMetadataService implements ResourceMetadataProvider
      *
      * @param  string  $resourceClass
      * @param  array<string, mixed>|null  $requestedSums
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     #[\Override]
     public function eagerLoadSumsFor(string $resourceClass, ?array $requestedSums = null): array
@@ -101,7 +103,7 @@ final class ResourceMetadataService implements ResourceMetadataProvider
      *
      * @param  string  $resourceClass
      * @param  array<string, mixed>|null  $requestedAverages
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     #[\Override]
     public function eagerLoadAveragesFor(string $resourceClass, ?array $requestedAverages = null): array

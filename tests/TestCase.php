@@ -67,7 +67,13 @@ abstract class TestCase extends OrchestraTestCase
         $events = Event::getFacadeRoot();
 
         if ($events instanceof EventFake) {
-            $events->dispatched(KeyWritten::class)->each(fn (array $arguments) => $this->recordUnreadableCacheWrite($arguments[0]));
+            $events->dispatched(KeyWritten::class)->each(function (mixed $arguments): void {
+                if (!is_array($arguments) || !$arguments[0] instanceof KeyWritten) {
+                    return;
+                }
+
+                $this->recordUnreadableCacheWrite($arguments[0]);
+            });
         }
 
         if ($this->unreadableCacheWrites === []) {

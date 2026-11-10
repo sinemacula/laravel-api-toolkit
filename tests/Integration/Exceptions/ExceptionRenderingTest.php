@@ -6,6 +6,7 @@ namespace Tests\Integration\Exceptions;
 
 use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Foundation\Exceptions\Handler;
 use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
@@ -48,6 +49,8 @@ final class ExceptionRenderingTest extends TestCase
         assert($this->app !== null);
 
         $handler = $this->app->make(ExceptionHandlerContract::class);
+
+        self::assertInstanceOf(Handler::class, $handler);
 
         // Mirror the bootstrap/app.php wiring used by consuming applications:
         // ->withExceptions(fn (Exceptions $e) =>
@@ -287,11 +290,14 @@ final class ExceptionRenderingTest extends TestCase
 
         self::assertEqualsCanonicalizing(array_keys($properties), array_keys($full));
 
-        $minimal = (array) $this->getJson('/unhandled')->json('error');
+        $minimal  = (array) $this->getJson('/unhandled')->json('error');
+        $envelope = Helper::toJSON($schema);
+
+        self::assertIsObject($envelope);
 
         foreach ([$full, $minimal] as $payload) {
 
-            $result = (new Validator)->validate(Helper::toJSON(['error' => $payload]), Helper::toJSON($schema));
+            $result = (new Validator)->validate(Helper::toJSON(['error' => $payload]), $envelope);
 
             self::assertTrue(
                 $result->isValid(),

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
@@ -308,6 +309,33 @@ final class CacheManagerTest extends TestCase
         $manager->flush();
 
         // Assert
+        self::assertNull($parser->getFields());
+    }
+
+    /**
+     * Test that flush resets the parser bound under the default alias when the
+     * configured alias is not a string.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testFlushResetsTheDefaultParserWhenTheAliasIsNotAString(): void
+    {
+        Event::fake();
+
+        self::assertNotNull($this->app);
+
+        $parser = $this->app->make('api.query');
+
+        self::assertInstanceOf(ApiQueryParser::class, $parser);
+
+        $parser->parse(Request::create('/test', 'GET', ['fields' => 'name,email']));
+
+        config()->set('api-toolkit.parser.alias', null);
+
+        $this->app->make(CacheManager::class)->flush();
+
         self::assertNull($parser->getFields());
     }
 

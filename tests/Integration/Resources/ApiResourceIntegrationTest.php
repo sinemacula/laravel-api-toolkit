@@ -170,6 +170,7 @@ final class ApiResourceIntegrationTest extends TestCase
         $data     = $resource->resolve();
 
         self::assertArrayHasKey('counts', $data);
+        self::assertIsArray($data['counts']);
         self::assertArrayHasKey('posts', $data['counts']);
     }
 
@@ -204,10 +205,12 @@ final class ApiResourceIntegrationTest extends TestCase
         $data     = $resource->resolve();
 
         self::assertArrayHasKey('sums', $data);
+        self::assertIsArray($data['sums']);
         self::assertArrayHasKey('posts_id', $data['sums']);
         self::assertSame($expectedSum, $data['sums']['posts_id']);
 
         self::assertArrayHasKey('averages', $data);
+        self::assertIsArray($data['averages']);
         self::assertArrayHasKey('posts_id', $data['averages']);
         self::assertSame($expectedAvg, $data['averages']['posts_id']);
     }

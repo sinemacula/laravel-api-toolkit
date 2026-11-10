@@ -71,14 +71,14 @@ final class QuerySurfaceIntegrationTest extends TestCase
      */
     public function testAllowlistIsTheDefaultPosture(): void
     {
-        $this->parseQuery(['filters' => json_encode(['name' => 'Alice'])]);
+        $this->parseQuery(['filters' => json_encode(['name' => 'Alice'], JSON_THROW_ON_ERROR)]);
 
         $results = $this->declaredCriteria()->apply(new User)->get();
 
         self::assertCount(1, $results);
 
         $this->assertRejects(
-            ['filters' => json_encode(['status' => 'active'])],
+            ['filters' => json_encode(['status' => 'active'], JSON_THROW_ON_ERROR)],
             'filters.status',
         );
     }
@@ -92,7 +92,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
      */
     public function testDeclaredFilterableColumnIsApplied(): void
     {
-        $this->parseQuery(['filters' => json_encode(['email' => ['$eq' => 'bob@example.com']])]);
+        $this->parseQuery(['filters' => json_encode(['email' => ['$eq' => 'bob@example.com']], JSON_THROW_ON_ERROR)]);
 
         $results = $this->declaredCriteria()->apply(new User)->get();
 
@@ -114,7 +114,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
     public function testUndeclaredFilterColumnIsRejectedFailClosed(): void
     {
         $this->assertRejects(
-            ['filters' => json_encode(['status' => 'active'])],
+            ['filters' => json_encode(['status' => 'active'], JSON_THROW_ON_ERROR)],
             'filters.status',
         );
     }
@@ -167,7 +167,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
      */
     public function testDeclaredTraversableRelationIsApplied(): void
     {
-        $this->parseQuery(['filters' => json_encode(['$has' => 'posts'])]);
+        $this->parseQuery(['filters' => json_encode(['$has' => 'posts'], JSON_THROW_ON_ERROR)]);
 
         $results = $this->declaredCriteria()->apply(new User)->get();
 
@@ -185,7 +185,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
     public function testUndeclaredRelationIsRejected(): void
     {
         $this->assertRejects(
-            ['filters' => json_encode(['$has' => 'organization'])],
+            ['filters' => json_encode(['$has' => 'organization'], JSON_THROW_ON_ERROR)],
             'filters.organization',
         );
     }
@@ -207,7 +207,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
             'posts' => [
                 'title' => ['$eq' => 'Alice Post'],
             ],
-        ])]);
+        ], JSON_THROW_ON_ERROR)]);
 
         $results = $this->declaredCriteria()->apply(new User)->get();
 
@@ -236,7 +236,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
             'posts' => [
                 'body' => 'Content',
             ],
-        ])]);
+        ], JSON_THROW_ON_ERROR)]);
 
         try {
             $this->declaredCriteria()->apply(new User);
@@ -267,7 +267,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
             'posts' => [
                 'nested' => ['user' => ['name' => 'Alice']],
             ],
-        ])]);
+        ], JSON_THROW_ON_ERROR)]);
 
         try {
             $this->declaredCriteria()->apply(new User);
@@ -301,7 +301,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
             'posts' => [
                 'nested' => ['user' => ['name' => 'Alice']],
             ],
-        ])]);
+        ], JSON_THROW_ON_ERROR)]);
 
         $results = $this->declaredCriteria()->apply(new User)->get();
 
@@ -323,7 +323,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
      */
     public function testModelWithoutMappedResourceRejectsEveryKey(): void
     {
-        $this->parseQuery(['filters' => json_encode(['name' => 'Alice'])]);
+        $this->parseQuery(['filters' => json_encode(['name' => 'Alice'], JSON_THROW_ON_ERROR)]);
 
         $this->expectException(ValidationException::class);
 

@@ -150,7 +150,7 @@ final class RuleNormaliserTest extends TestCase
         $normaliser = new RuleNormaliser;
 
         self::assertSame(['string', 'enum-values:[]'], $normaliser->normalise(Rule::enum(UserStatus::class)->except(UserStatus::cases())));
-        self::assertSame(['integer', 'enum-values:[]'], $normaliser->normalise(Rule::enum(UserLevel::class)->only('3')));
+        self::assertSame(['integer', 'enum-values:[]'], $normaliser->normalise(Rule::enum(UserLevel::class)->only(UserStatus::ACTIVE)));
         self::assertSame(['string', 'enum-values:[]'], $normaliser->normalise((new PureEnum(Platform::class))->except(Platform::cases())));
     }
 

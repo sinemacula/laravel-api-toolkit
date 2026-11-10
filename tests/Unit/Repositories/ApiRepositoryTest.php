@@ -6,6 +6,7 @@ namespace Tests\Unit\Repositories;
 
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -222,6 +223,7 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->paginate();
 
+        self::assertInstanceOf(LengthAwarePaginator::class, $result);
         self::assertCount(2, $result);
     }
 
@@ -475,6 +477,7 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $this->repository->usingResource(UserResource::class)->withApiCriteria()->paginate();
 
+        self::assertInstanceOf(LengthAwarePaginator::class, $result);
         self::assertCount(1, $result);
         self::assertInstanceOf(User::class, $result[0]);
         self::assertSame('Alice', $result[0]->name);
@@ -500,6 +503,7 @@ final class ApiRepositoryTest extends TestCase
             ->scopeById($alice->id)
             ->paginate();
 
+        self::assertInstanceOf(LengthAwarePaginator::class, $result);
         self::assertCount(1, $result);
         self::assertInstanceOf(User::class, $result[0]);
         self::assertSame($alice->id, $result[0]->id);
@@ -809,7 +813,9 @@ final class ApiRepositoryTest extends TestCase
     /**
      * Get the AttributeSetter collaborator from the given repository.
      *
-     * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<\Illuminate\Database\Eloquent\Model>  $repository
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<TModel>  $repository
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter
      *
      * @SuppressWarnings("php:S3011")

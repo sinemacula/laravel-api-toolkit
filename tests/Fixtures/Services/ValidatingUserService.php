@@ -20,7 +20,7 @@ use Tests\Fixtures\Input\SampleInput;
  * runs and the users row is never written. On valid input, handle() inserts a
  * row and returns the validated city, proving the core executed.
  *
- * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Input\ArrayInput, string>
+ * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Contracts\ServiceInput, string>
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

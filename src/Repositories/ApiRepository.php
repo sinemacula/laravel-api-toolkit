@@ -188,7 +188,7 @@ abstract class ApiRepository extends Repository
         $schemaIntrospector = $this->app->make(SchemaIntrospectionProvider::class);
 
         $this->attributeSetter = new AttributeSetter($schemaIntrospector, $this->app->make(MetadataCacheWriter::class));
-        $this->attributeSetter->resolveAttributeCasts($this->model, $this->model());
+        $this->attributeSetter->resolveAttributeCasts($this->getModel(), $this->model());
     }
 
     /**

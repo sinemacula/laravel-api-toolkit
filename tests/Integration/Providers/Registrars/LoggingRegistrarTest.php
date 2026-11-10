@@ -55,8 +55,8 @@ final class LoggingRegistrarTest extends TestCase
 
         $raw = $events->getRawListeners();
 
-        self::assertContains([NotificationListener::class, 'sending'], $raw[NotificationSending::class] ?? []);
-        self::assertContains([NotificationListener::class, 'sent'], $raw[NotificationSent::class] ?? []);
+        self::assertContains([NotificationListener::class, 'sending'], self::listenersFor($raw, NotificationSending::class));
+        self::assertContains([NotificationListener::class, 'sent'], self::listenersFor($raw, NotificationSent::class));
     }
 
     /**
@@ -81,8 +81,8 @@ final class LoggingRegistrarTest extends TestCase
 
         $raw = $events->getRawListeners();
 
-        self::assertNotContains([NotificationListener::class, 'sending'], $raw[NotificationSending::class] ?? []);
-        self::assertNotContains([NotificationListener::class, 'sent'], $raw[NotificationSent::class] ?? []);
+        self::assertNotContains([NotificationListener::class, 'sending'], self::listenersFor($raw, NotificationSending::class));
+        self::assertNotContains([NotificationListener::class, 'sent'], self::listenersFor($raw, NotificationSent::class));
     }
 
     /**
@@ -102,7 +102,10 @@ final class LoggingRegistrarTest extends TestCase
 
         // Simulate illuminate/notifications being absent so the class_exists
         // guard short-circuits before any listener is wired.
-        FunctionOverrides::set('class_exists', static fn (string $class): bool => $class !== NotificationSending::class && \class_exists($class));
+        FunctionOverrides::set(
+            'class_exists',
+            static fn (mixed ...$arguments): bool => is_string($arguments[0]) && $arguments[0] !== NotificationSending::class && \class_exists($arguments[0]),
+        );
 
         (new LoggingRegistrar)->register();
 
@@ -111,8 +114,8 @@ final class LoggingRegistrarTest extends TestCase
 
         $raw = $events->getRawListeners();
 
-        self::assertNotContains([NotificationListener::class, 'sending'], $raw[NotificationSending::class] ?? []);
-        self::assertNotContains([NotificationListener::class, 'sent'], $raw[NotificationSent::class] ?? []);
+        self::assertNotContains([NotificationListener::class, 'sending'], self::listenersFor($raw, NotificationSending::class));
+        self::assertNotContains([NotificationListener::class, 'sent'], self::listenersFor($raw, NotificationSent::class));
     }
 
     /**
@@ -125,5 +128,21 @@ final class LoggingRegistrarTest extends TestCase
         assert($this->app !== null);
 
         return $this->app;
+    }
+
+    /**
+     * Read the raw listeners registered for the given event.
+     *
+     * @param  array<array-key, mixed>  $raw
+     * @param  string  $event
+     * @return array<array-key, mixed>
+     */
+    private static function listenersFor(array $raw, string $event): array
+    {
+        $listeners = $raw[$event] ?? [];
+
+        self::assertIsArray($listeners);
+
+        return $listeners;
     }
 }

@@ -187,7 +187,7 @@ final class WritePool
 
         foreach ($tables as $tableIndex => $table) {
 
-            $chunks  = array_chunk($this->buffer[$table], $this->chunkSize);
+            $chunks  = array_chunk($this->buffer[$table], max(1, $this->chunkSize));
             $context = new WritePoolFlushContext($strategy, $table, $chunks, $tables, $tableIndex);
 
             $this->flushTable($context, $accumulator);

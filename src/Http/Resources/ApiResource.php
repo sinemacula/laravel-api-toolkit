@@ -24,6 +24,8 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * evaluation, schema compilation, and eager-load planning to dedicated
  * collaborator classes.
  *
+ * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -93,9 +95,10 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     #[\Override]
     public function resolve(#[\SensitiveParameter] mixed $request = null): array
     {
-        $schema = SchemaCompiler::compile(static::class);
-        $data   = ['_type' => static::getResourceType()];
-        $fields = $this->fieldResolver->getFields(
+        $request = $request instanceof Request ? $request : null;
+        $schema  = SchemaCompiler::compile(static::class);
+        $data    = ['_type' => static::getResourceType()];
+        $fields  = $this->fieldResolver->getFields(
             $schema,
             static::getResourceType(),
             static::getDefaultFields(),
@@ -153,7 +156,7 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      * Build a withSum-ready entry list for this resource.
      *
      * @param  array<string, mixed>|null  $requestedSums
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     #[\Override]
     public static function eagerLoadSumsFor(?array $requestedSums = null): array
@@ -165,7 +168,7 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      * Build a withAvg-ready entry list for this resource.
      *
      * @param  array<string, mixed>|null  $requestedAverages
-     * @return list<array<string, mixed>>
+     * @return list<AggregateLoad>
      */
     #[\Override]
     public static function eagerLoadAveragesFor(?array $requestedAverages = null): array
@@ -340,10 +343,10 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      *
      * @param  array<string, mixed>  $data
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @param  mixed  $request
+     * @param  \Illuminate\Http\Request|null  $request
      * @return void
      */
-    private function appendMetricPayloads(array &$data, CompiledSchema $schema, mixed $request): void
+    private function appendMetricPayloads(array &$data, CompiledSchema $schema, ?Request $request): void
     {
         if ($this->fieldResolver->shouldIncludeCountsField(static::getResourceType(), static::getDefaultFields())) {
             $counts = $this->valueResolver->resolveCountsPayload($this, $schema, static::getResourceType(), $request);

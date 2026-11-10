@@ -59,10 +59,12 @@ final readonly class SearchApplier
     /**
      * Apply the search term to the query.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm|null  $term
      * @param  string|null  $resourceClass
-     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     * @return \Illuminate\Database\Eloquent\Builder<TModel>
      *
      * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\MissingSearchDriverException

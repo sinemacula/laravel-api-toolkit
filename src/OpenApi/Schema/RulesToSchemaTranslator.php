@@ -235,7 +235,7 @@ final readonly class RulesToSchemaTranslator
             return $schema;
         }
 
-        $types = array_values(array_diff($schema['type'], ['null']));
+        $types = array_values(array_filter($schema['type'], static fn (mixed $type): bool => $type !== 'null'));
 
         $schema['type'] = count($types) === 1 ? $types[0] : $types;
 
