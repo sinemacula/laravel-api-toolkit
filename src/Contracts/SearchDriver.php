@@ -105,7 +105,9 @@ interface SearchDriver
     /**
      * Apply the search predicate for the given columns to the query.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  array<int, string>  $columns
      * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy

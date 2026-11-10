@@ -28,7 +28,9 @@ final class ContainsOperator implements ExpandsValueList, FilterOperator
     /**
      * Apply the JSON containment constraint to the query builder.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $column
      * @param  mixed  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
@@ -96,7 +98,9 @@ final class ContainsOperator implements ExpandsValueList, FilterOperator
     /**
      * Apply the split items as a grouped JSON containment constraint.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $column
      * @param  array<int, string>  $items
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
@@ -123,7 +127,9 @@ final class ContainsOperator implements ExpandsValueList, FilterOperator
      * Apply each item as an OR-combined JSON containment constraint within the
      * given query group.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $column
      * @param  array<int, string>  $items
      * @return void

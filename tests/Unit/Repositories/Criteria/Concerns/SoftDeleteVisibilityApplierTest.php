@@ -189,7 +189,9 @@ final class SoftDeleteVisibilityApplierTest extends TestCase
     /**
      * Compile the query to its SQL string for assertion.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @return string
      */
     private function sqlOf(Builder $query): string

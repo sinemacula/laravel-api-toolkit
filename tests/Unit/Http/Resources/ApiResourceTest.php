@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Http\Resources;
 
 use Illuminate\Database\Eloquent\Attributes\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -890,7 +891,9 @@ final class ApiResourceTest extends TestCase
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Relation::to('items', TagResource::class)->constrain(fn ($query) => $query->where('active', true)),
+                    Relation::to('items', TagResource::class)->constrain(static function (Builder $query): void {
+                        $query->where('active', true);
+                    }),
                 );
             }
         };
@@ -1405,7 +1408,9 @@ final class ApiResourceTest extends TestCase
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Count::of('items')->constrain(fn ($query) => $query->where('active', true))->default(),
+                    Count::of('items')->constrain(static function (Builder $query): void {
+                        $query->where('active', true);
+                    })->default(),
                 );
             }
         };
@@ -2104,7 +2109,9 @@ final class ApiResourceTest extends TestCase
                 return Field::set(
                     Field::scalar('id'),
                     Relation::to('organization', OrganizationResource::class)
-                        ->constrain(fn ($query) => $query->where('name', 'Active')),
+                        ->constrain(static function (Builder $query): void {
+                            $query->where('name', 'Active');
+                        }),
                 );
             }
         };
@@ -2249,7 +2256,7 @@ final class ApiResourceTest extends TestCase
                 return Field::set(
                     Field::scalar('id'),
                     Relation::to('organization', OrganizationResource::class)
-                        ->constrain(fn ($query) => $query),
+                        ->constrain(static function (Builder|MorphTo $query): void {}),
                 );
             }
         };
