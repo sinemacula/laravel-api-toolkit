@@ -16,10 +16,12 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
 use Tests\Fixtures\OpenApi\PathHeaderCollisionController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
+use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathResponseStatusController;
 use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\WidgetShape;
+use Tests\Fixtures\Resources\UserResource;
 
 /**
  * Tests for the success response builder.
@@ -69,15 +71,19 @@ final class SuccessResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that an action declares its own body exactly when it carries a
-     * response schema.
+     * Test that an action's response schema replaces the resource exactly when
+     * it names anything but that resource in the given shape.
      *
      * @return void
      */
-    public function testDeclaresBodyFollowsTheResponseSchema(): void
+    public function testReplacesResourceFollowsTheResponseSchema(): void
     {
-        self::assertTrue($this->builder()->declaresBody(PathResponseStatusController::class, 'queue'));
-        self::assertFalse($this->builder()->declaresBody(PathResponseStatusController::class, 'bare'));
+        $builder = $this->builder();
+
+        self::assertTrue($builder->replacesResource(PathResponseSchemaController::class, 'widget', UserResource::class, false));
+        self::assertTrue($builder->replacesResource(PathResponseSchemaController::class, 'list', UserResource::class, false));
+        self::assertFalse($builder->replacesResource(PathResponseSchemaController::class, 'list', UserResource::class, true));
+        self::assertFalse($builder->replacesResource(PathResponseSchemaController::class, 'bare', UserResource::class, false));
     }
 
     /**

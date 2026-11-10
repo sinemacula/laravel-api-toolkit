@@ -13,6 +13,7 @@ use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PendingSignInShape;
 use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\OpenApi\WidgetShape;
+use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -274,6 +275,40 @@ final class ResponseSchemaResolverTest extends TestCase
     {
         self::assertFalse($this->resolver()->declares(PathResponseSchemaController::class, 'bare'));
         self::assertFalse($this->resolver()->declares(null, 'widget'));
+    }
+
+    /**
+     * Test that a directive declares a resource when it names that resource
+     * alone, once or repeated, in the given shape.
+     *
+     * @return void
+     */
+    public function testDirectiveNamingTheResourceAloneInTheShapeDeclaresIt(): void
+    {
+        $resolver = $this->resolver();
+
+        self::assertTrue($resolver->declaresResource(PathResponseSchemaController::class, 'single', UserResource::class, false));
+        self::assertTrue($resolver->declaresResource(PathResponseSchemaController::class, 'list', UserResource::class, true));
+        self::assertTrue($resolver->declaresResource(PathResponseSchemaController::class, 'duplicated', UserResource::class, false));
+    }
+
+    /**
+     * Test that a directive does not declare a resource it names in another
+     * shape, beside another class, or not at all, nor does an action carrying
+     * no directive or a closure route.
+     *
+     * @return void
+     */
+    public function testDirectiveNamingAnythingElseDoesNotDeclareTheResource(): void
+    {
+        $resolver = $this->resolver();
+
+        self::assertFalse($resolver->declaresResource(PathResponseSchemaController::class, 'single', UserResource::class, true));
+        self::assertFalse($resolver->declaresResource(PathResponseSchemaController::class, 'list', UserResource::class, false));
+        self::assertFalse($resolver->declaresResource(PathResponseSchemaController::class, 'mixed', UserResource::class, false));
+        self::assertFalse($resolver->declaresResource(PathResponseSchemaController::class, 'single', ArticleResource::class, false));
+        self::assertFalse($resolver->declaresResource(PathResponseSchemaController::class, 'bare', UserResource::class, false));
+        self::assertFalse($resolver->declaresResource(null, 'single', UserResource::class, false));
     }
 
     /**
