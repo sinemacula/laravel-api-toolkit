@@ -1,11 +1,5 @@
-# ==============================================================================
-# QUALITY GATES
-# ==============================================================================
 name: Quality Gates
 
-# ==============================================================================
-# TRIGGERS
-# ==============================================================================
 on:
     push:
         branches: [ master ]
@@ -15,33 +9,19 @@ on:
         -   cron: 0 7 * * 1
     workflow_dispatch:
 
-# ==============================================================================
-# CONCURRENCY
-# ==============================================================================
-# The event name keeps scheduled and manual runs out of the push group, so a
-# merge to master cannot cancel one part way through.
+# Keyed by event so a merge to master cannot cancel a scheduled or manual run
 concurrency:
     group: quality-gates-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
     cancel-in-progress: true
 
-# ==============================================================================
-# PERMISSIONS
-# ==============================================================================
 permissions:
     contents: read
 
-# ==============================================================================
-# DEFAULTS
-# ==============================================================================
 defaults:
     run:
         shell: bash
 
 jobs:
-
-    # ==========================================================================
-    # JOB: SCOPED MUTATION GATE (PR + PUSH)
-    # ==========================================================================
     mutation:
         if: ${{ github.event_name != 'schedule' }}
         name: Mutation / PHP 8.3
@@ -63,9 +43,7 @@ jobs:
                     php-version: 8.3
                     coverage: pcov
 
-            # On a push, origin/master is the pushed commit itself, so the gate
-            # diffs against the commit master moved from. A push that rewrote
-            # master instead of moving it forward leaves no such base.
+            # On push, origin/master is the pushed commit, so diff against the commit master moved from
             -   name: Scoped mutation gate
                 env:
                     BEFORE: ${{ github.event.before }}
@@ -80,9 +58,6 @@ jobs:
                     fi
                     composer test:mutation -- --git-diff-base="$base"
 
-    # ==========================================================================
-    # JOB: FULL MUTATION SUITE (SCHEDULED + MANUAL)
-    # ==========================================================================
     mutation-full:
         if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
         name: Mutation Full / PHP 8.3
