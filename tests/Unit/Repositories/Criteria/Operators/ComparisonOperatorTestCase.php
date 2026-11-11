@@ -69,11 +69,11 @@ abstract class ComparisonOperatorTestCase extends TestCase
 
         $wheres = $query->getQuery()->wheres;
 
-        self::assertCount(1, $wheres);
-        self::assertSame('Basic', $wheres[0]['type']);
-        self::assertSame('name', $wheres[0]['column']);
-        self::assertSame($this->sqlOperator(), $wheres[0]['operator']);
-        self::assertSame('Alice', $wheres[0]['value']);
-        self::assertSame($boolean, $wheres[0]['boolean']);
+        static::assertCount(1, $wheres);
+        static::assertSame('Basic', $wheres[0]['type']);
+        static::assertSame('name', $wheres[0]['column']);
+        static::assertSame($this->sqlOperator(), $wheres[0]['operator']);
+        static::assertSame('Alice', $wheres[0]['value']);
+        static::assertSame($boolean, $wheres[0]['boolean']);
     }
 }

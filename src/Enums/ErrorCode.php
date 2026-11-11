@@ -17,10 +17,10 @@ enum ErrorCode: int implements ErrorCodeInterface
 {
     use ProvidesCode;
 
-    /* Server errors */
+    // Server errors
     case UNHANDLED_ERROR = 10001;
 
-    /* HTTP errors */
+    // HTTP errors
     case BAD_REQUEST         = 10100;
     case UNAUTHENTICATED     = 10101;
     case FORBIDDEN           = 10102;
@@ -36,7 +36,7 @@ enum ErrorCode: int implements ErrorCodeInterface
     case SERVICE_UNAVAILABLE = 10112;
     case HTTP_ERROR          = 10113;
 
-    /* API errors */
+    // API errors
     case MAINTENANCE_MODE    = 10200;
     case QUERY_TOO_EXPENSIVE = 10201;
 }

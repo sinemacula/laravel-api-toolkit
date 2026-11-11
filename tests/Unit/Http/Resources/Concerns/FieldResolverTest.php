@@ -367,6 +367,29 @@ final class FieldResolverTest extends TestCase
     }
 
     /**
+     * Provide each virtual field with the requests that include or omit it.
+     *
+     * @return iterable<string, array{string, string, array<int, string>|null, array<int, string>, bool, bool, bool}>
+     */
+    public static function virtualFieldProvider(): iterable
+    {
+        $methods = [
+            'counts'   => 'shouldIncludeCountsField',
+            'sums'     => 'shouldIncludeSumsField',
+            'averages' => 'shouldIncludeAveragesField',
+        ];
+
+        foreach ($methods as $field => $method) {
+            yield "{$field} requested" => [$method, $field, ['name', $field], [], false, false, true];
+            yield "{$field} requested but excluded" => [$method, $field, ['name', $field], [], true, false, false];
+            yield "{$field} in defaults" => [$method, $field, null, ['name', $field], false, false, true];
+            yield "{$field} in all-fields mode" => [$method, $field, null, [], false, true, true];
+            yield "{$field} not requested" => [$method, $field, ['name'], [], false, false, false];
+            yield "{$field} not in defaults" => [$method, $field, null, ['name'], false, false, false];
+        }
+    }
+
+    /**
      * Test which requests include the counts, sums and averages fields.
      *
      * @param  string  $method
@@ -394,29 +417,6 @@ final class FieldResolverTest extends TestCase
             ->andReturn($requested);
 
         self::assertSame($expected, $this->resolver->{$method}('users', $defaults));
-    }
-
-    /**
-     * Provide each virtual field with the requests that include or omit it.
-     *
-     * @return iterable<string, array{string, string, array<int, string>|null, array<int, string>, bool, bool, bool}>
-     */
-    public static function virtualFieldProvider(): iterable
-    {
-        $methods = [
-            'counts'   => 'shouldIncludeCountsField',
-            'sums'     => 'shouldIncludeSumsField',
-            'averages' => 'shouldIncludeAveragesField',
-        ];
-
-        foreach ($methods as $field => $method) {
-            yield "{$field} requested"            => [$method, $field, ['name', $field], [], false, false, true];
-            yield "{$field} requested but excluded" => [$method, $field, ['name', $field], [], true, false, false];
-            yield "{$field} in defaults"          => [$method, $field, null, ['name', $field], false, false, true];
-            yield "{$field} in all-fields mode"   => [$method, $field, null, [], false, true, true];
-            yield "{$field} not requested"        => [$method, $field, ['name'], [], false, false, false];
-            yield "{$field} not in defaults"      => [$method, $field, null, ['name'], false, false, false];
-        }
     }
 
     /**

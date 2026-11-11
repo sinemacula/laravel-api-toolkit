@@ -60,6 +60,19 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
+     * Provide the lifecycle end events the subscriber listens for.
+     *
+     * @return iterable<string, array{class-string}>
+     */
+    public static function lifecycleEventProvider(): iterable
+    {
+        yield 'request handled' => [RequestHandled::class];
+        yield 'command finished' => [CommandFinished::class];
+        yield 'job processed' => [JobProcessed::class];
+        yield 'job failed' => [JobFailed::class];
+    }
+
+    /**
      * Test that subscribe registers a listener for each lifecycle end event.
      *
      * @param  class-string  $event
@@ -78,16 +91,16 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Provide the lifecycle end events the subscriber listens for.
+     * Provide a factory for each lifecycle end event.
      *
-     * @return iterable<string, array{class-string}>
+     * @return iterable<string, array{\Closure(): object}>
      */
-    public static function lifecycleEventProvider(): iterable
+    public static function lifecycleEventInstanceProvider(): iterable
     {
-        yield 'request handled' => [RequestHandled::class];
-        yield 'command finished' => [CommandFinished::class];
-        yield 'job processed' => [JobProcessed::class];
-        yield 'job failed' => [JobFailed::class];
+        yield 'request handled' => [static fn (): object => new RequestHandled(Request::create('/test', 'GET'), new Response)];
+        yield 'command finished' => [static fn (): object => new CommandFinished('test:command', new ArrayInput([]), new NullOutput, 0)];
+        yield 'job processed' => [static fn (): object => new JobProcessed('sync', self::createStub(Job::class))];
+        yield 'job failed' => [static fn (): object => new JobFailed('sync', self::createStub(Job::class), new \RuntimeException('Job failure'))];
     }
 
     /**
@@ -104,19 +117,6 @@ final class WritePoolFlushSubscriberTest extends TestCase
         $events->dispatch($event());
 
         self::assertTrue($pool->isEmpty());
-    }
-
-    /**
-     * Provide a factory for each lifecycle end event.
-     *
-     * @return iterable<string, array{\Closure(): object}>
-     */
-    public static function lifecycleEventInstanceProvider(): iterable
-    {
-        yield 'request handled' => [static fn (): object => new RequestHandled(Request::create('/test', 'GET'), new Response)];
-        yield 'command finished' => [static fn (): object => new CommandFinished('test:command', new ArrayInput([]), new NullOutput, 0)];
-        yield 'job processed' => [static fn (): object => new JobProcessed('sync', self::createStub(Job::class))];
-        yield 'job failed' => [static fn (): object => new JobFailed('sync', self::createStub(Job::class), new \RuntimeException('Job failure'))];
     }
 
     /**

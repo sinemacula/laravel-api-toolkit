@@ -92,7 +92,7 @@ final class SharedSchemaMetadataTest extends TestCase
     }
 
     /**
-     * Cross a lifecycle boundary, dropping in-process state and scoped bindings
+     * Cross a lifecycle boundary, dropping in-process state and scoped bindings.
      *
      * @return void
      */
