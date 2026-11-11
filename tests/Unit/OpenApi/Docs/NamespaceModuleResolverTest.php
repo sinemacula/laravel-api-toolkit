@@ -58,11 +58,11 @@ final class NamespaceModuleResolverTest extends TestCase
      */
     public function testHonoursRenamedRoot(): void
     {
-        $module = $this->resolver(['Verifast\\' => ['/verifast/src']])
-            ->resolve('Verifast\Billing\Models\Invoice');
+        $module = $this->resolver(['Acme\\' => ['/acme/src']])
+            ->resolve('Acme\Billing\Models\Invoice');
 
         self::assertInstanceOf(Module::class, $module);
-        self::assertSame('Verifast\Billing', $module->key);
+        self::assertSame('Acme\Billing', $module->key);
         self::assertSame('Billing', $module->name);
     }
 
