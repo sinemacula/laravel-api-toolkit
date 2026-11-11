@@ -17,11 +17,7 @@ use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchPlan;
 
 /**
- * Centralized orchestrator for resetting and invalidating toolkit caches.
- *
- * Registered as a singleton in the container. A flush resets every in-process
- * cache site and dispatches the CacheFlushed event; an invalidation retires the
- * shared metadata as well.
+ * Resets in-process toolkit caches and invalidates the shared metadata.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -36,17 +32,13 @@ final readonly class CacheManager
      */
     public function __construct(
 
-        /** The service container for resolving cache site instances. */
+        /** The service container for resolving cache site instances */
         private Container $container,
     ) {}
 
     /**
-     * Retire every toolkit metadata entry in every process sharing the store,
-     * then flush this process's caches.
-     *
-     * A flush leaves the shared store untouched, so metadata written before a
-     * schema change survives it. Replacing the generation leaves those entries
-     * unreachable instead, which is what a schema change needs.
+     * Retire the shared metadata by advancing its generation, then flush this
+     * process's caches.
      *
      * @return void
      *
@@ -62,12 +54,8 @@ final readonly class CacheManager
     /**
      * Reset this process's toolkit state and dispatch the flushed event.
      *
-     * Only in-process state is reset. The metadata in the shared store is left
-     * alone, so every worker keeps serving what any worker has already read,
-     * and the framework already discards the memoised store repository at each
-     * request and job boundary. The generation is re-read after a flush rather
-     * than replaced, so a long-lived worker picks up an invalidation made
-     * elsewhere without invalidating anything itself.
+     * The shared store is left alone; forgetting the generation lets a
+     * long-lived worker pick up an invalidation made elsewhere.
      *
      * @return void
      */

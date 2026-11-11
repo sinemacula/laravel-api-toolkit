@@ -14,14 +14,9 @@ use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
 use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 
 /**
- * Abstract action skeleton.
+ * Base class for a service action with a typed input and an explicit actor.
  *
- * Holds a typed input and an explicit actor. Subclasses implement the six
- * lifecycle hooks; the runner sequences them in a fixed, transaction-aware
- * order. run() returns a total ServiceResult for a caller that branches on it,
- * and runOrFail() returns the output or throws the failure. While a run is in
- * progress, context() returns the ServiceContext it runs with. One instance
- * must not run concurrently.
+ * One instance must not run concurrently.
  *
  * @template TInput of \SineMacula\ApiToolkit\Services\Contracts\ServiceInput
  * @template TOutput
@@ -93,12 +88,9 @@ abstract class Service implements LockKeyProvider
     }
 
     /**
-     * Attach a prebuilt execution context (actor, correlation id, source, and
-     * metadata) to a synchronous run, taking the actor from it. This is the
-     * entry point for a caller that needs to tag a run with its own source or
-     * metadata; run() otherwise builds an INTERNAL context of its own. A later
-     * by() changes actor() outside a run but not the attached context, so the
-     * run still uses the context's actor.
+     * Attach a prebuilt execution context, taking the actor from it.
+     *
+     * A later by() does not change the attached context's actor.
      *
      * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
      * @return static
@@ -114,10 +106,8 @@ abstract class Service implements LockKeyProvider
     /**
      * Return the actor for this invocation.
      *
-     * While a run is in progress this is the actor of the run's context, so it
-     * matches the actor the lifecycle events report. Outside a run it is the
-     * actor given to by() or withContext(), or an AnonymousActor when none has
-     * been supplied. Never reads Auth or any ambient state.
+     * During a run this is the run context's actor; otherwise the explicit one,
+     * or an AnonymousActor. Never reads ambient auth state.
      *
      * @return \SineMacula\ApiToolkit\Services\Contracts\Actor
      */
@@ -129,11 +119,7 @@ abstract class Service implements LockKeyProvider
     /**
      * Execute the service synchronously and return a total result.
      *
-     * Reuses the context given through withContext(), or builds an INTERNAL
-     * one, then delegates lifecycle sequencing to ServiceRunner, which makes
-     * that context available through context() for the duration of the run.
-     * Never throws for business failures, so it suits a caller that branches on
-     * the result; runOrFail() suits one that only wants the output.
+     * Never throws for business failures; the failure is on the result.
      *
      * @return \SineMacula\ApiToolkit\Services\ServiceResult<TOutput>
      */
@@ -150,9 +136,8 @@ abstract class Service implements LockKeyProvider
     /**
      * Execute the service synchronously and return its output, or throw.
      *
-     * Runs exactly as run() does, then throws the failure instead of returning
-     * it: the captured exception, or a ServiceFailedException when the failed
-     * result captured none.
+     * Throws the captured exception, or a ServiceFailedException when there is
+     * none.
      *
      * @return TOutput
      *
@@ -189,10 +174,6 @@ abstract class Service implements LockKeyProvider
     /**
      * Bind the context of the run in progress, returning the one it replaces.
      *
-     * Package-internal seam: called exclusively by ServiceRunner, which binds
-     * the run's context before resolving the hooks and restores the previous
-     * one when the run ends.
-     *
      * @internal
      *
      * @param  \SineMacula\ApiToolkit\Services\ServiceContext|null  $context
@@ -209,8 +190,7 @@ abstract class Service implements LockKeyProvider
     /**
      * Return the lifecycle hooks and configuration for this service.
      *
-     * Package-internal seam: creates closures in Service scope so that
-     * protected method access is valid. Called exclusively by ServiceRunner.
+     * The closures are created here so they can call the protected hooks.
      *
      * @internal
      *
@@ -240,7 +220,7 @@ abstract class Service implements LockKeyProvider
             'transactional'       => $this->transactional,
             'transactionAttempts' => $this->transactionAttempts,
             'lockable'            => $this->lockable,
-            // Flows verbatim to lifecycle-event listeners; see ServiceInput::toArray()
+            // Reaches event listeners verbatim; see ServiceInput::toArray()
             'inputSummary' => $this->input->toArray(),
         ];
     }
@@ -248,10 +228,8 @@ abstract class Service implements LockKeyProvider
     /**
      * Return the execution context of the run in progress.
      *
-     * Available in every lifecycle hook, concerns() and lockId(): the context
-     * given through withContext(), the INTERNAL one run() built, or the QUEUE
-     * one a queued run rebuilt. Work deferred beyond the run must capture it
-     * first.
+     * Available in every lifecycle hook, concerns() and lockId(); work deferred
+     * beyond the run must capture it first.
      *
      * @return \SineMacula\ApiToolkit\Services\ServiceContext
      *
@@ -285,8 +263,7 @@ abstract class Service implements LockKeyProvider
     /**
      * Perform pre-handle setup inside the transaction.
      *
-     * Load or lock rows, pre-compute values, or perform any setup that must
-     * happen within the transaction but before handle(). Default: no-op.
+     * Default: no-op.
      *
      * @return void
      */
@@ -305,9 +282,8 @@ abstract class Service implements LockKeyProvider
     /**
      * React to a successful outcome after the transaction has committed.
      *
-     * Runs outside the lock and transaction. Exceptions thrown here are
-     * captured as side-effect errors on the result and reported through the
-     * exception handler, leaving the committed outcome intact. Default: no-op.
+     * Exceptions are reported and recorded as side-effect errors without
+     * failing the committed outcome. Default: no-op.
      *
      * @param  TOutput  $output
      * @return void
@@ -317,8 +293,8 @@ abstract class Service implements LockKeyProvider
     /**
      * React to a failed outcome after the transaction has rolled back.
      *
-     * Runs after rollback and lock release. Exceptions thrown here are caught
-     * and reported through the exception handler. Default: no-op.
+     * Runs after lock release; exceptions are caught and reported. Default:
+     * no-op.
      *
      * @param  \Throwable  $exception
      * @return void
@@ -328,8 +304,7 @@ abstract class Service implements LockKeyProvider
     /**
      * Return the ordered list of custom concern classes.
      *
-     * Concerns run inside the transaction, in declaration order, wrapping the
-     * core (prepare + handle). Default: none.
+     * Concerns wrap prepare() and handle() inside the transaction, in order.
      *
      * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>
      */
@@ -341,8 +316,7 @@ abstract class Service implements LockKeyProvider
     /**
      * Return the unique lock identity for this invocation.
      *
-     * Required when $lockable is true; must be non-empty. The final lock key is
-     * sha1(class | lockId()). Default: empty string (disabled).
+     * Must be non-empty when $lockable is true.
      *
      * @return string
      */

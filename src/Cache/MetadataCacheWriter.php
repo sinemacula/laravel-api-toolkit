@@ -10,42 +10,15 @@ use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Exceptions\MetadataCacheUnavailableException;
 
 /**
- * The single sanctioned path for reading and writing toolkit metadata.
+ * The single path for reading and writing toolkit metadata.
  *
- * Every key is stored under the current metadata generation, so replacing the
- * generation retires every entry at once in every process sharing the store. A
- * read or write that bypassed this writer would miss the generation and serve
- * an entry that an invalidation was meant to retire.
+ * Keys are namespaced by the metadata generation, which is the only thing that
+ * retires a stored entry besides its expiry. Store only arrays and scalars:
+ * Laravel's serializable_classes setting can stop objects reading back.
  *
- * Entries live in the shared store and outlast any one request, job, or worker,
- * so every process reading the same schema shares them. A lifecycle boundary
- * resets in-process state only, so a stored entry is retired by replacing the
- * generation or by the expiry it was written with, and by nothing else. A
- * caller must therefore not store an answer that can go stale without a schema
- * change unless it bounds that answer with an expiry, and never one such as the
- * empty column listing of a table that has not been created yet.
- *
- * Entries hold arrays and scalars only. An application may refuse to
- * unserialize any class from its cache, as Laravel's serializable_classes
- * setting does by default, and an object stored here would then read back in
- * every other process as an incomplete class. A caller with a value object
- * stores its array form and rebuilds the object through a decoder on read, and
- * a stored value the decoder rejects is a miss, so an entry written in a shape
- * this version cannot read is recomputed and replaced rather than served.
- *
- * The store is optional. When a store operation throws, the failure is reported
- * and the store is bypassed for the configured retry window: reads miss and
- * values are computed without being stored, so an outage costs performance
- * rather than the request. A write the store rejects is reported at most once a
- * window but bypasses nothing, since a store that rejects writes may still
- * serve its warm entries. Only store operations are guarded; an exception from
- * a caller's callback is the caller's own and propagates.
- *
- * The windows are held for the process, not the application instance, so they
- * outlast the per-request application Octane serves each request from as well
- * as the lifecycle flushes; a long-lived worker therefore retries the store and
- * reports once a window rather than on every request. Under PHP-FPM no state
- * outlives a request, so there the windows last one request.
+ * A throwing store is bypassed for the retry window, so an outage costs
+ * performance, not the request. The window is process-static so it outlives
+ * Octane's per-request application.
  *
  * @managed-static
  *
@@ -54,16 +27,16 @@ use SineMacula\ApiToolkit\Exceptions\MetadataCacheUnavailableException;
  */
 final class MetadataCacheWriter
 {
-    /** @var string The config key holding the seconds the store is bypassed for after it fails. */
+    /** @var string Config key for the seconds the store is bypassed after a failure */
     public const string RETRY_AFTER_KEY = 'api-toolkit.cache.retry_after';
 
-    /** @var int The seconds the store is bypassed for when none are configured. */
+    /** @var int */
     public const int DEFAULT_RETRY_AFTER = 30;
 
-    /** @var int|null The Unix time the store may next be tried, while it is bypassed after a failure. */
+    /** @var int|null Unix time the store may next be tried after a failure */
     private static ?int $bypassedUntil = null;
 
-    /** @var int|null The Unix time a rejected write may next be reported. */
+    /** @var int|null Unix time a rejected write may next be reported */
     private static ?int $rejectionReportedUntil = null;
 
     /**
@@ -74,7 +47,7 @@ final class MetadataCacheWriter
      */
     public function __construct(
 
-        /** The generation every metadata key is namespaced by. */
+        /** The generation every metadata key is namespaced by */
         private readonly MetadataGeneration $generation,
     ) {}
 
@@ -104,8 +77,7 @@ final class MetadataCacheWriter
     }
 
     /**
-     * Store a metadata value forever under the current generation, replacing
-     * whatever the store held under the key.
+     * Store a metadata value forever under the current generation.
      *
      * @param  string  $key
      * @param  mixed  $value
@@ -119,11 +91,7 @@ final class MetadataCacheWriter
     /**
      * Read a metadata value stored under the current generation.
      *
-     * A decoder rebuilds the stored value, and a stored value it rejects by
-     * returning null is a miss. The missing value and the decoder are resolved
-     * outside the store guard, so a closure given for the missing value runs on
-     * every miss, a failed read included, and an exception either throws is the
-     * caller's own.
+     * A stored value the decoder rejects by returning null is a miss.
      *
      * @template TMissing
      *
@@ -147,10 +115,7 @@ final class MetadataCacheWriter
     /**
      * Store a metadata value under the current generation with a time-to-live.
      *
-     * Mirrors {@see rememberMetadataForever()} but bounds the entry with an
-     * expiry, so a value keyed by unbounded client input cannot accumulate
-     * permanently. A time-to-live of zero or less stores nothing, since a store
-     * forgets rather than keeps a value written with no lifetime.
+     * A time-to-live of zero or less stores nothing.
      *
      * @template TValue
      *
@@ -169,11 +134,9 @@ final class MetadataCacheWriter
     }
 
     /**
-     * End both windows, so the next operation tries the store and a rejected
-     * write is reported again.
+     * End the bypass and rejection-report windows.
      *
-     * A lifecycle flush deliberately leaves the windows alone; this is for a
-     * boundary that must forget them, such as the start of a test.
+     * A lifecycle flush leaves the windows alone; this is for test isolation.
      *
      * @return void
      */
@@ -186,10 +149,7 @@ final class MetadataCacheWriter
     /**
      * Serve the stored value under the key, or compute and store it.
      *
-     * The read and the write are guarded separately and the callback runs
-     * outside both, so a store failure never runs the callback twice and a
-     * callback failure is never mistaken for a store failure. A null value is a
-     * miss, as it is for the framework's remember().
+     * The callback runs outside the store guards, so its exceptions propagate.
      *
      * @template TValue
      *
@@ -215,8 +175,7 @@ final class MetadataCacheWriter
     }
 
     /**
-     * Write the value under the storage key, reporting a write the store
-     * rejects, or write nothing when the generation could not be resolved.
+     * Write the value under the storage key, reporting a rejected write.
      *
      * @param  string  $key
      * @param  string|null  $storageKey
@@ -234,8 +193,7 @@ final class MetadataCacheWriter
     }
 
     /**
-     * Run a store operation, returning null when the store is bypassed or the
-     * operation throws.
+     * Run a store operation, or return null when bypassed or it throws.
      *
      * @template TResult
      *
@@ -266,8 +224,7 @@ final class MetadataCacheWriter
     /**
      * Bypass the store for the retry window and report why.
      *
-     * The generation is forgotten, so once the window ends it is read from the
-     * store again rather than reused from before the failure.
+     * The generation is forgotten so it is re-read once the window ends.
      *
      * @param  \SineMacula\ApiToolkit\Exceptions\MetadataCacheUnavailableException  $exception
      * @return void
@@ -284,8 +241,7 @@ final class MetadataCacheWriter
     /**
      * Report a write the store rejected, at most once a retry window.
      *
-     * The null store rejects every write by design, so its rejections are not
-     * reported.
+     * The null store rejects every write by design, so it is never reported.
      *
      * @param  string  $key
      * @return void
@@ -319,8 +275,7 @@ final class MetadataCacheWriter
     }
 
     /**
-     * Return the name of the default cache store, which the memoised repository
-     * wraps.
+     * Return the name of the default cache store.
      *
      * @return string|null
      */
@@ -356,8 +311,7 @@ final class MetadataCacheWriter
     }
 
     /**
-     * Write the value under the storage key, forever when no time-to-live is
-     * given.
+     * Write the value, forever when no time-to-live is given.
      *
      * @param  string  $storageKey
      * @param  mixed  $value

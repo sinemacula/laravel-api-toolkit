@@ -5,9 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Enums\Concerns;
 
 /**
- * Provides code trait.
- *
- * This is a helper trait to return codes from integer backed enums.
+ * Exposes an int-backed enum's value as its code.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -15,7 +13,7 @@ namespace SineMacula\ApiToolkit\Enums\Concerns;
 trait ProvidesCode
 {
     /**
-     * Return the current enum case.
+     * Return the code of the current enum case.
      *
      * @return int
      */

@@ -8,13 +8,7 @@ use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\Http\Enums\HttpStatus;
 
 /**
- * Query too expensive exception.
- *
- * Raised when a request is well formed but exceeds one of the structural caps
- * that bound query cost. The meta names the offending parameter, points at the
- * position within it, and reports both the cap that rejected the request and
- * the value supplied, so the query can be corrected from the client without
- * server-side diagnosis.
+ * Raised when a well-formed request exceeds a query cost cap.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

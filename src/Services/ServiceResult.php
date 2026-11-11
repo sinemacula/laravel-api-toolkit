@@ -8,14 +8,7 @@ use SineMacula\ApiToolkit\Exceptions\ServiceFailedException;
 use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
 
 /**
- * Immutable value object representing the total outcome of a service execution.
- *
- * Every execution produces exactly one result - either SUCCEEDED or FAILED. A
- * successful result carries the typed output and any side-effect errors
- * collected during afterCommit processing. A failed result carries the
- * exception that caused the failure, or null when failure was signalled without
- * throwing. Failed results never carry side-effect errors, and throw() raises
- * every failed result, so a failure never reaches the caller as output.
+ * Immutable outcome of a service execution.
  *
  * @template TOutput
  *
@@ -62,11 +55,8 @@ final readonly class ServiceResult
     /**
      * Create a failed service result.
      *
-     * The optional $output lets a caller attach partial or diagnostic output to
-     * a failed result. The package never populates it on its own failures; it
-     * exists purely for callers that construct a failure directly. Note that
-     * outputOr() still returns its default for a failed result, so any output
-     * attached here is reachable only via the output property or output().
+     * Attached output is reachable only through output(); outputOr() still
+     * returns its default.
      *
      * @param  \Throwable|null  $exception
      * @param  mixed  $output
@@ -110,10 +100,6 @@ final readonly class ServiceResult
     /**
      * Return the output when succeeded, or the given default otherwise.
      *
-     * A failed result intentionally returns the default, even when output was
-     * attached to the failure via failure(). This lets the caller distinguish
-     * "no output" from "failed" without checking the status.
-     *
      * @param  mixed  $default
      * @return mixed
      */
@@ -123,11 +109,10 @@ final readonly class ServiceResult
     }
 
     /**
-     * Throw when failed; otherwise return $this to allow fluent chaining.
+     * Throw when failed; otherwise return $this.
      *
-     * A failed result always throws: the captured exception when there is one,
-     * or a ServiceFailedException carrying this result when failure was
-     * signalled without one, so a failure never comes back as output.
+     * Throws the captured exception, or a ServiceFailedException when there is
+     * none.
      *
      * @return $this
      *

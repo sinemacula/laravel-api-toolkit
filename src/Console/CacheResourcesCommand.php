@@ -11,20 +11,17 @@ use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 /**
  * Artisan command to compile the attribute-discovered resource map.
  *
- * Scans the configured resource paths and writes the model to resource map to a
- * PHP file under bootstrap/cache, which discovery then serves on every boot
- * instead of scanning. Run by php artisan optimize; rebuild it after adding,
- * moving, or re-binding a resource.
+ * Discovery serves the compiled map instead of scanning; run by optimize.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class CacheResourcesCommand extends Command
 {
-    /** @var string The console command signature. */
+    /** @var string The console command signature */
     protected $signature = 'api-toolkit:resources:cache';
 
-    /** @var string The console command description. */
+    /** @var string The console command description */
     protected $description = 'Discover the attribute-bound API resources and compile the model to resource map';
 
     /**

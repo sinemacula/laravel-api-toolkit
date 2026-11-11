@@ -5,12 +5,10 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Services\Contracts;
 
 /**
- * Minimal typed-input contract.
+ * Minimal service input contract.
  *
- * Defines the smallest interface a service input must satisfy. Keeping the
- * contract to a single method allows spatie/laravel-data Data objects (which
- * already expose toArray()) to satisfy it without introducing a hard dependency
- * on that package.
+ * Kept to toArray() so spatie/laravel-data objects satisfy it without a
+ * dependency on that package.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -20,11 +18,7 @@ interface ServiceInput
     /**
      * Return the input as an associative array.
      *
-     * This snapshot is carried on the service lifecycle events as inputSummary
-     * and reaches event listeners verbatim, so it must leave out secrets. A
-     * Payload omits fields marked #[\SensitiveParameter] and keys the rest in
-     * the body's form, as its rules() declare them; an ArrayInput returns its
-     * array as given.
+     * Reaches lifecycle-event listeners verbatim, so it must leave out secrets.
      *
      * @return array<string, mixed>
      */

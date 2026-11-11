@@ -7,9 +7,7 @@ namespace SineMacula\ApiToolkit\Events;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 
 /**
- * Dispatched by the WritePoolFlushSubscriber when a flush operation detects
- * failures, enabling consuming applications to implement custom escalation such
- * as alerting, dead-letter queues, or metrics collection.
+ * Dispatched when a boundary write pool flush has failures.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -24,7 +22,7 @@ final readonly class WritePoolFlushFailed
      */
     public function __construct(
 
-        /** The flush result containing failure details. */
+        /** The flush result containing failure details */
         public WritePoolFlushResult $flushResult,
     ) {}
 }

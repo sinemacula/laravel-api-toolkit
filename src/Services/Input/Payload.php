@@ -13,23 +13,10 @@ use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
 use SineMacula\ApiToolkit\Support\PureEnumName;
 
 /**
- * Self-validating input base for typed service inputs.
+ * Self-validating base for typed service inputs.
  *
- * Concrete subclasses declare constructor-promoted readonly properties and
- * override rules() to supply standard Laravel validation rules. Call from() to
- * validate a request or raw array and produce a typed, immutable instance.
- * Direct named-argument construction is also supported for tests and queue
- * deserialisers that already hold validated data.
- *
- * Each property maps to the body key whose first segment camelCases to its
- * name, so a client_name rule hydrates $clientName and toArray() returns it as
- * client_name. A property named exactly after a rule key takes precedence, and
- * among keys that camelCase to the same name the first declared wins.
- *
- * The toArray() property list and the key map are each resolved once per class
- * and cached for the process. They derive only from the class definition and
- * its static rules() keys, so they never go stale; toArray() calls rules() once
- * per class, which the DefinesInputSchema contract already requires to be safe.
+ * Each promoted property maps to the rule key whose first segment camelCases to
+ * its name, so a client_name rule hydrates $clientName; an exact-name key wins.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -45,16 +32,9 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     private static array $bodyKeys = [];
 
     /**
-     * Validate the source and return a hydrated instance.
+     * Validate the source against rules() and return a hydrated instance.
      *
-     * Normalises the source to an array, validates it with Laravel's validator
-     * using the rules returned by rules() (throwing ValidationException on
-     * failure), then constructs the concrete class with named arguments drawn
-     * from the validated data subset. Each promoted parameter reads the body
-     * key mapped to its name, so client_name hydrates $clientName; only the
-     * first segment of a dotted rule maps, leaving its nested data untouched.
-     * Enum parameters are cast from their string representation automatically:
-     * a backed enum from its value, a pure enum from its lowercase case name.
+     * Enum parameters are cast from a backed value or a lowercase case name.
      *
      * @param  array<string, mixed>|\Illuminate\Http\Request  $source
      * @return static
@@ -93,17 +73,10 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     }
 
     /**
-     * Return the input as an associative array.
+     * Return the public promoted properties keyed by their body keys.
      *
-     * Reflects over the instance's public promoted properties and returns a map
-     * keyed in the body's form, so $clientName is returned as client_name; a
-     * property no rule key maps keeps its own name. Concrete subclasses need
-     * not implement toArray() unless they require custom serialisation.
-     *
-     * The returned map is carried on the service lifecycle events as
-     * inputSummary and reaches event listeners verbatim. Mark a promoted
-     * constructor parameter with #[\SensitiveParameter] to leave it out of the
-     * map; the value stays readable on the instance.
+     * The map reaches lifecycle-event listeners verbatim; mark a parameter
+     * #[\SensitiveParameter] to leave it out.
      *
      * @return array<string, mixed>
      */
@@ -128,10 +101,6 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     /**
      * Return the Laravel validation rules for this input.
      *
-     * Concrete subclasses override this method to declare per-field rules using
-     * standard Laravel rule syntax. Cross-field constraints such as confirmed
-     * or after:other_field are also expressed here.
-     *
      * @return array<array-key, mixed>
      */
     #[\Override]
@@ -142,10 +111,6 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
 
     /**
      * Return the body key each property of a class maps to.
-     *
-     * Resolved once per class from the first segments of its rules() keys: each
-     * segment maps from its own name and from its camelCase form, the exact
-     * name winning and otherwise the first declared key.
      *
      * @param  class-string<static>  $class
      * @return array<string, string>
@@ -179,9 +144,6 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
 
     /**
      * Return the names of the properties that toArray() exposes for a class.
-     *
-     * Resolved once per class: the public promoted properties, minus any whose
-     * constructor parameter carries #[\SensitiveParameter].
      *
      * @param  class-string<static>  $class
      * @return list<string>
@@ -219,9 +181,8 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     /**
      * Determine whether a promoted property's parameter is marked sensitive.
      *
-     * The attribute only targets parameters, so it is read from the
-     * constructors that can promote the property: the declaring class's own and
-     * those of its traits, which still promote when aliased or shadowed.
+     * The attribute only targets parameters, so it is read from the declaring
+     * class's constructor and those of its traits.
      *
      * @param  \ReflectionProperty  $property
      * @return bool
@@ -257,17 +218,10 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     }
 
     /**
-     * Cast a validated value to the parameter's declared PHP type.
+     * Cast a validated value to the parameter's enum type, if it has one.
      *
-     * Only enum parameters require casting: a backed enum from its value and a
-     * pure enum from its lowercase case name, while a value that is already a
-     * case passes through. All other types are returned as-is because Laravel's
-     * validator already yields the correct scalar representation. A value that
-     * names no case in canonical form reaches this cast when a subclass omits
-     * the enum rule, or when Laravel's looser enum rule passed it, as it does
-     * "01" or "1.0" for an int-backed enum; it degrades to a validation failure
-     * so the caller sees a 422 rather than an unhandled error or a silently
-     * coerced case, keyed by the body key the value was read from.
+     * Laravel's enum rule passes non-canonical values such as "01" for an
+     * int-backed enum, so an unmatched value fails validation here.
      *
      * @param  \ReflectionParameter  $parameter
      * @param  mixed  $value
@@ -294,8 +248,7 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     }
 
     /**
-     * Resolve the enum case a validated value names, or null when it names none
-     * or is not in the enum's canonical form.
+     * Resolve the enum case a value names in canonical form, if any.
      *
      * @param  class-string<\UnitEnum>  $enum
      * @param  mixed  $value
@@ -313,10 +266,9 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     }
 
     /**
-     * Read a value as a backed enum's backing value, accepting only canonical
-     * forms: a string for a string-backed enum, and an integer or the decimal
-     * string of one, such as "-3" but not "03", "+3" or "3.0", for an
-     * int-backed enum.
+     * Read a value as a backed enum's backing value, in canonical form only.
+     *
+     * An int-backed enum accepts "-3" but not "03", "+3" or "3.0".
      *
      * @param  class-string<\BackedEnum>  $enum
      * @param  mixed  $value
@@ -336,11 +288,7 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     }
 
     /**
-     * Fail an unmatched enum value as a validation error.
-     *
-     * Mirrors Laravel's enum-rule message, naming the body key in the
-     * validator's display form, so a missing enum rule degrades to the same 422
-     * contract instead of a fatal error.
+     * Fail an unmatched enum value with Laravel's enum-rule message.
      *
      * @param  string  $key
      * @return never

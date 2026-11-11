@@ -9,14 +9,8 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
 /**
  * Thrown when the registered search driver cannot serve a declared strategy.
  *
- * Either the driver does not implement the match shape the resource declared,
- * it cannot resolve the declared shapes from an index once they sit beside one
- * another, it cannot prove an index on this connection serves a shape and the
- * connection is not one where the proof has been waived, or the connection's
- * own catalogue says no index is behind one. All are deployment defects rather
- * than client mistakes, and all fail loudly: the alternative is a predicate
- * that reads the whole table on every request, which is the outcome declaring
- * the shape exists to prevent.
+ * A deployment defect that fails loudly instead of scanning the whole table on
+ * every request.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -77,9 +71,7 @@ final class UnservableSearchException extends \RuntimeException
     /**
      * Create the exception for a connection that reports no name of its own.
      *
-     * The waiver is a list of connection names, so a connection without one
-     * cannot appear on it. Saying "list that connection" here would send the
-     * reader after a remedy that cannot be written down.
+     * An unnamed connection cannot be waived, so no waiver is suggested.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @return self
@@ -96,9 +88,8 @@ final class UnservableSearchException extends \RuntimeException
     /**
      * Create the exception for a strategy no index is known to serve.
      *
-     * This one names the connection rather than the engine its driver is
-     * registered against, because the waiver it points the reader at is keyed
-     * by connection name and the two are only the same string by convention.
+     * Names the connection, not the engine, since the waiver is keyed by
+     * connection name.
      *
      * @param  string  $connection
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy

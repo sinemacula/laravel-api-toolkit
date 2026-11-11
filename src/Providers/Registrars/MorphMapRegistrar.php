@@ -11,11 +11,8 @@ use Illuminate\Support\Facades\Log;
 /**
  * Registers the resource-derived morph aliases.
  *
- * Merges each mapped resource's type into the morph map as the alias of its
- * model. The application's own aliases always win: an alias it has registered,
- * or a model it has already mapped, is left alone. An alias claimed by more
- * than one model is registered for none of them. A morph map is never required,
- * so models without a resource keep morphing to their class name.
+ * The application's own aliases always win, and an alias claimed by more than
+ * one model is registered for none of them.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -100,8 +97,7 @@ final class MorphMapRegistrar
 
     /**
      * Report a resource type shared by distinct resources, fatally when schema
-     * validation is enabled. A type claimed by a single resource, whether for
-     * one model or several, is not reported.
+     * validation is enabled.
      *
      * @param  int|string  $alias
      * @param  array<class-string<\Illuminate\Database\Eloquent\Model>, class-string>  $claimants

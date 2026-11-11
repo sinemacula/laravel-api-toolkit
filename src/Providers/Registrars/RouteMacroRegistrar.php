@@ -8,13 +8,7 @@ use Illuminate\Routing\Route;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 
 /**
- * Registers the OpenAPI audience route macros.
- *
- * Adds the undocumented, documentedIn, and notDocumentedIn macros to the router
- * so the same audience directives available as controller attributes can also
- * be declared fluently in route files. Each macro merges its directive into a
- * reserved key on the route action, where the audience resolver reads it as the
- * most-specific directive level.
+ * Registers route macros mirroring the OpenAPI audience attributes.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -12,41 +12,19 @@ use SineMacula\ApiToolkit\Exceptions\MetadataInvalidationException;
 /**
  * The generation every toolkit metadata key is namespaced by.
  *
- * The generation lives in the shared cache store, so replacing it makes every
- * metadata entry written under the old one unreachable in every process at
- * once. It is the only way a shared entry is retired, since a lifecycle
- * boundary resets in-process state and leaves the store alone.
- *
- * A generation is a random token rather than a counter. A counter that is lost
- * from the store restarts at a value it has held before and serves the entries
- * written under it back, however stale; a token is never minted twice, so a
- * lost generation costs a cold cache and nothing more. Replacing a token is one
- * plain write, which every store performs atomically.
- *
- * The generation is read once and memoised for the life of the process, or
- * until {@see forget()} is called at a lifecycle boundary.
- *
- * A store that throws while the generation is resolved propagates the failure
- * to {@see MetadataCacheWriter}, which bypasses the store for its retry window
- * and forgets the generation, so it is read from the store again afterwards. A
- * store that fails without throwing leaves the freshly minted token in place
- * for the process, retired at the next lifecycle boundary like any memoised
- * generation.
+ * A random token, not a counter: a lost counter would restart at an old value
+ * and serve stale entries back, while a lost token only costs a cold cache.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class MetadataGeneration
 {
-    /** @var string|null The generation this process resolved, if any. */
+    /** @var string|null The generation this process resolved, if any */
     private ?string $current = null;
 
     /**
      * Return the current generation, minting one when the store holds none.
-     *
-     * A racing process may mint a different token first; whichever write lands
-     * is the one read back, and a process left holding the losing token only
-     * writes entries nothing else will read.
      *
      * @return string
      */
@@ -74,11 +52,7 @@ final class MetadataGeneration
     }
 
     /**
-     * Replace the generation in the store, orphaning every metadata entry
-     * written under the previous one.
-     *
-     * A rejected write leaves the previous generation, and every entry written
-     * under it, in place, so it is surfaced rather than reported as success.
+     * Replace the generation, orphaning every entry written under the old one.
      *
      * @return string
      *

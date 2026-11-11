@@ -7,11 +7,7 @@ namespace SineMacula\ApiToolkit\Services\Pipeline;
 use SineMacula\ApiToolkit\Services\Service;
 
 /**
- * Cache-based atomic locking stage.
- *
- * Acquires a cache lock before executing the pipeline and releases it in a
- * finally block, ensuring the lock is always released even on exception. The
- * runner only invokes this stage for lockable services.
+ * Pipeline stage holding the service's cache lock around the rest of the run.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -19,7 +15,7 @@ use SineMacula\ApiToolkit\Services\Service;
 final class LockStage
 {
     /**
-     * Acquire the service's cache lock, run $next, release in finally.
+     * Run $next while holding the service's cache lock.
      *
      * @param  \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Contracts\ServiceInput, mixed>  $service
      * @param  \Closure(): mixed  $next

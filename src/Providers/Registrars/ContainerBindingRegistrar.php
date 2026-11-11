@@ -61,11 +61,6 @@ use SineMacula\ApiToolkit\Services\ServiceRunner;
 /**
  * Registers the toolkit container bindings.
  *
- * Binds the query parser, resource metadata provider, schema introspector,
- * operator registry, search driver registry, schema validator, write pool,
- * cache manager, lifecycle runtime, OpenAPI exporter, and service runner to the
- * service container.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -79,7 +74,7 @@ final readonly class ContainerBindingRegistrar
      */
     public function __construct(
 
-        /** The service container to register the bindings on. */
+        /** The service container to register the bindings on */
         private Container $container,
     ) {}
 
@@ -172,10 +167,8 @@ final readonly class ContainerBindingRegistrar
     /**
      * Bind the SearchDriverRegistry to the service container.
      *
-     * A driver ships for each engine the package writes a search for, keyed by
-     * the name that engine's connection reports. Any other connection is left
-     * unregistered and throws when a search reaches it, rather than being
-     * served by a driver written for a grammar it does not speak.
+     * Drivers are keyed by connection name; an unregistered connection throws
+     * when searched.
      *
      * @return void
      */
@@ -251,9 +244,7 @@ final readonly class ContainerBindingRegistrar
     /**
      * Bind the lifecycle runtime collaborators to the service container.
      *
-     * RuntimeContext, MetadataGeneration, and MetadataCacheWriter are each
-     * bound as singletons so write-time and flush-time share one live instance
-     * within a worker process.
+     * Singletons, so write-time and flush-time share one instance per worker.
      *
      * @return void
      */
@@ -267,14 +258,8 @@ final readonly class ContainerBindingRegistrar
     /**
      * Bind the OpenAPI exporter ports to their default adapters.
      *
-     * The metadata catalogue and document-writer ports bind to their
-     * filesystem/config adapters; the use case, builders, and assembler are
-     * auto-resolved through constructor injection from these bindings. The enum
-     * schema registry is a singleton so the request-side and response-side
-     * resolvers and the assembler share one collected set per document. The
-     * module resolver binds to the namespace-key detector by default; an
-     * application may bind its own ModuleResolver to override how the generated
-     * documentation is grouped by module.
+     * The enum schema registry is a singleton so every resolver shares one
+     * collected set per document.
      *
      * @return void
      */
@@ -300,13 +285,8 @@ final readonly class ContainerBindingRegistrar
     /**
      * Enable container resolution of concrete Payload subclasses.
      *
-     * Registers a global before-resolving hook so a controller action can
-     * type-hint a concrete Payload subclass and receive a validated, hydrated
-     * instance built from the current request via from(). Invalid input throws
-     * during resolution, which the framework renders as a 422, matching the
-     * FormRequest experience. The hook binds the class only when it is asked
-     * for by name with no explicit parameters and is not already bound, so
-     * direct from() and named-argument construction stay untouched.
+     * A type-hinted Payload is hydrated from the current request, like a
+     * FormRequest. Explicit parameters or an existing binding bypass the hook.
      *
      * @return void
      */

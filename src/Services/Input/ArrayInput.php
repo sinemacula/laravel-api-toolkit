@@ -7,12 +7,7 @@ namespace SineMacula\ApiToolkit\Services\Input;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
 
 /**
- * Typed accessor layer over a pre-validated attribute array.
- *
- * Provides the no-class escape hatch for callers who already hold a validated
- * array but do not want to define a dedicated typed input class. Validation is
- * the caller's responsibility; ArrayInput stores and exposes the snapshot as
- * given.
+ * Typed accessors over an attribute array the caller has already validated.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -47,8 +42,7 @@ final readonly class ArrayInput implements ServiceInput
     /**
      * Return the value for the given key coerced to a string.
      *
-     * Returns an empty string when the key is absent. Non-scalar, non-null
-     * values (arrays, objects) coerce to an empty string.
+     * An absent or non-scalar value gives an empty string.
      *
      * @param  string  $key
      * @return string
@@ -63,8 +57,7 @@ final readonly class ArrayInput implements ServiceInput
     /**
      * Return the value for the given key coerced to an integer.
      *
-     * Returns zero when the key is absent. Non-scalar, non-null values (arrays,
-     * objects) coerce to zero.
+     * An absent or non-scalar value gives zero.
      *
      * @param  string  $key
      * @return int
@@ -79,8 +72,6 @@ final readonly class ArrayInput implements ServiceInput
     /**
      * Return the value for the given key coerced to a boolean.
      *
-     * Returns false when the key is absent.
-     *
      * @param  string  $key
      * @return bool
      */
@@ -91,8 +82,6 @@ final readonly class ArrayInput implements ServiceInput
 
     /**
      * Return the value for the given key coerced to an array.
-     *
-     * Returns an empty array when the key is absent.
      *
      * @param  string  $key
      * @return array<array-key, mixed>

@@ -81,10 +81,8 @@ abstract class ApiException extends \Exception
     /**
      * Get the HTTP status code for this exception instance.
      *
-     * Defaults to the static resolution (HTTP_STATUS constant or a static
-     * override for non-standard codes). Subclasses carrying a runtime status
-     * (e.g. the generic HttpException) may override this; the exception handler
-     * renders responses from this instance-level code.
+     * Overridden by subclasses carrying a runtime status, such as
+     * HttpException.
      *
      * @return int
      */
@@ -96,10 +94,7 @@ abstract class ApiException extends \Exception
     /**
      * Get the HTTP status for this exception instance.
      *
-     * Defaults to the HTTP_STATUS constant, or null for exceptions whose status
-     * has no corresponding case in the shared HTTP status enum (e.g. the
-     * non-standard 419). Used to derive the default title when no translation
-     * exists for the error code.
+     * Null for a status with no enum case, such as the non-standard 419.
      *
      * @return \SineMacula\Http\Enums\HttpStatus|null
      */
@@ -174,10 +169,7 @@ abstract class ApiException extends \Exception
     }
 
     /**
-     * Get HTTP status.
-     *
-     * Returns null for exceptions that declare no HTTP_STATUS constant, such as
-     * those whose status has no case in the shared HTTP status enum.
+     * Get HTTP status, or null when no HTTP_STATUS constant is declared.
      *
      * @return \SineMacula\Http\Enums\HttpStatus|null
      */
@@ -194,11 +186,8 @@ abstract class ApiException extends \Exception
     /**
      * Derive a human-readable title from the HTTP status.
      *
-     * A per-status translation (`exceptions.http.{status}`, or
-     * `exceptions.http.unknown` when the status has no enum case) is consulted
-     * first so the generic path can be localised; otherwise the title is
-     * derived from the status enum case name, with a generic literal fallback
-     * ensuring rendering never fails for a missing title.
+     * Prefers the exceptions.http.{status} translation, then the enum case
+     * name, then a generic literal.
      *
      * @return string
      */

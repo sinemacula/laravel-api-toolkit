@@ -10,10 +10,6 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 /**
  * Schema introspection provider interface.
  *
- * Defines the public API for all schema introspection operations, including
- * column listing, column definition resolution, relation detection, and
- * relation type reporting.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -22,8 +18,7 @@ interface SchemaIntrospectionProvider
     /**
      * Get the database columns for the given model.
      *
-     * The listing is read from the connection the model itself resolves, and
-     * results are cached for the duration of the request.
+     * Read from the model's own connection and cached in the metadata store.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return array<int, string>
@@ -31,10 +26,7 @@ interface SchemaIntrospectionProvider
     public function getColumns(Model $model): array;
 
     /**
-     * Get the per-column type and nullability definitions for the given model,
-     * keyed by column name.
-     *
-     * Results are cached forever per model, mirroring getColumns().
+     * Get the column type and nullability definitions for the model, by name.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>
@@ -42,19 +34,10 @@ interface SchemaIntrospectionProvider
     public function getColumnDefinitions(Model $model): array;
 
     /**
-     * Get the indexes declared on the given model's table, or null when the
-     * catalogue could not be read.
+     * Get the model's table indexes, or null when the catalogue is unreadable.
      *
-     * The two answers are distinct and callers must keep them apart. Null says
-     * the catalogue is unverifiable - the connection could not be reached, or
-     * the table is not there to describe - so nothing has been proved either
-     * way; an empty array says the catalogue was read and the table genuinely
-     * carries no index, which is a real answer a declaration can fail against.
-     * Reading the first as the second turns every boot without a database, or
-     * before the migrations have run, into a hard failure.
-     *
-     * Results are cached forever per model, mirroring getColumns(). The read
-     * belongs to boot-time validation and never to the request path.
+     * Null proves nothing, while an empty array means the table has no index;
+     * treating null as empty would fail every boot without a database.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null
@@ -64,8 +47,6 @@ interface SchemaIntrospectionProvider
     /**
      * Determine whether the given key is an Eloquent relation on the model.
      *
-     * Results are cached for the duration of the request.
-     *
      * @param  string  $key
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return bool
@@ -73,8 +54,7 @@ interface SchemaIntrospectionProvider
     public function isRelation(string $key, Model $model): bool;
 
     /**
-     * Resolve the relation instance for the given key on the model, or return
-     * null if the key is not a relation.
+     * Resolve the relation instance for the key, or null if it is not one.
      *
      * @param  string  $key
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -83,8 +63,7 @@ interface SchemaIntrospectionProvider
     public function resolveRelation(string $key, Model $model): ?Relation;
 
     /**
-     * Get the soft-delete column for the model, or null when it does not use
-     * SoftDeletes.
+     * Get the model's soft-delete column, or null when it has none.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return string|null

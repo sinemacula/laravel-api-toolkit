@@ -10,10 +10,6 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 /**
  * Filter operator handler contract.
  *
- * Defines the single-method contract that all filter operator handlers must
- * implement. Each operator receives the query builder, validated column name,
- * raw filter value, and the current filter dispatch context.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

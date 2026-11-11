@@ -7,13 +7,7 @@ namespace SineMacula\ApiToolkit\Support;
 use Illuminate\Support\Facades\Config;
 
 /**
- * Reads the configured resource map for the consumers that act on every binding
- * in it.
- *
- * The map is application configuration, so nothing guarantees its shape. A
- * binding that does not name an existing class on both sides cannot be acted
- * on, so it fails loud here, naming the binding, rather than deep inside the
- * consumer that first reaches for the class.
+ * Reads the configured resource map, failing on a binding to a missing class.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -5,13 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Exceptions;
 
 /**
- * Thrown when a field whose guard depends on the row is derived into a tabular
- * export schema.
+ * Thrown when a row-dependent guarded field is derived into a tabular export.
  *
- * A tabular export includes or omits whole columns, never individual cells, so
- * a guard that inspects the row cannot be honoured: every row would share the
- * same column, and a value the guard meant to hide for some rows would leak.
- * The trait refuses such a field at schema-build time rather than expose it.
+ * A tabular export omits whole columns, not cells, so the guard would leak.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

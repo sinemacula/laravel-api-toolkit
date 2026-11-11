@@ -11,16 +11,7 @@ use SineMacula\ApiToolkit\Cache\CacheManager;
 /**
  * Invalidates the toolkit's cached schema metadata once migrations finish.
  *
- * A migration run is exactly when cached column listings, definitions, and
- * index catalogues go stale. The framework only fires the event after at least
- * one migration ran or rolled back, so a deploy with nothing to migrate keeps
- * its warm metadata. A pretended run changes nothing and is ignored.
- *
- * The migrations have already run when the event fires, so a failure to
- * invalidate is logged rather than thrown, and the migrate command still
- * succeeds. A rollback can drop the cache store's own table, taking the
- * metadata it held with it; any other failure leaves the warning naming the
- * command to run by hand.
+ * The migrations have already run, so a failure is logged, not thrown.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -35,7 +26,7 @@ final readonly class MigrationInvalidationListener
      */
     public function __construct(
 
-        /** The cache manager for invalidating toolkit metadata. */
+        /** The cache manager for invalidating toolkit metadata */
         private CacheManager $cacheManager,
     ) {}
 

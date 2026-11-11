@@ -9,20 +9,17 @@ use Illuminate\Filesystem\Filesystem;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 
 /**
- * Artisan command to remove the compiled resource map.
- *
- * Once the compiled map is gone, discovery scans the configured resource paths
- * on every boot again. Run by php artisan optimize:clear.
+ * Artisan command to remove the compiled resource map; run by optimize:clear.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class ClearResourcesCommand extends Command
 {
-    /** @var string The console command signature. */
+    /** @var string The console command signature */
     protected $signature = 'api-toolkit:resources:clear';
 
-    /** @var string The console command description. */
+    /** @var string The console command description */
     protected $description = 'Remove the compiled API resource map';
 
     /**

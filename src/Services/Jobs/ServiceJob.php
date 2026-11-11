@@ -17,19 +17,8 @@ use SineMacula\ApiToolkit\Services\ServiceRunner;
 /**
  * Queue bridge for service actions.
  *
- * Serialises the service class-string, the typed input, and the execution
- * context (including the actor reference) onto the queue. On the worker,
- * re-hydrates and runs the service identically via ServiceRunner with the
- * source forced to QUEUE - no Auth or Request is consulted. A failed run fails
- * the job, so the queue retries, backs off and records it as it would any other
- * failed job.
- *
- * Naming deviation: jobs are normally named with a leading verb; this generic
- * bridge runs an arbitrary service so the Job suffix is used instead.
- *
- * Limitation: subject-bearing services that require a Model constructor
- * argument beyond the input are out of scope for this bridge; the subject
- * identifier should ride in the input.
+ * Services needing constructor arguments beyond the input are not supported;
+ * carry the subject identifier in the input instead.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -58,15 +47,9 @@ final class ServiceJob implements ShouldQueue
     ) {}
 
     /**
-     * Re-hydrate and run the service on the worker.
+     * Re-hydrate and run the service on the worker with a QUEUE source.
      *
-     * Builds the service from the serialised class-string and input, attaches
-     * the dispatched actor, then runs it through ServiceRunner with a fresh
-     * context whose source is forced to QUEUE. That context, carrying the
-     * dispatched correlation id and metadata, is what the service reads through
-     * context(). A failed run throws its captured exception, or a
-     * ServiceFailedException when it captured none, so the worker fails the
-     * job.
+     * A failed run throws so the worker fails the job.
      *
      * @param  \SineMacula\ApiToolkit\Services\ServiceRunner  $runner
      * @return void

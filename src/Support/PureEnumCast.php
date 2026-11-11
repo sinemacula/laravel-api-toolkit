@@ -9,11 +9,7 @@ use Illuminate\Contracts\Database\Eloquent\Castable;
 /**
  * Recognises a model cast that stores a pure (unbacked) enum.
  *
- * Eloquent stores such a cast as the case name exactly as declared, while the
- * API reads and writes it by its wire name, so every path that carries a value
- * between the two asks here whether an attribute's cast needs the translation.
- * The test mirrors Eloquent's own: an enum that is also castable is cast by its
- * caster, not as an enum.
+ * Mirrors Eloquent: an enum that is also castable is cast by its caster.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

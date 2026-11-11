@@ -10,13 +10,9 @@ use Illuminate\Support\Arr;
 use SineMacula\ApiToolkit\Support\PureEnumName;
 
 /**
- * Validates a value against the cases of a pure (unbacked) enum.
+ * Validates a value against the lowercase case names of a pure enum.
  *
- * Laravel's enum rule resolves a value through tryFrom(), which only a backed
- * enum has, so it refuses every value for a pure enum. This rule accepts a
- * string matching the lowercase name of one of the enum's cases exactly and
- * refuses anything else, narrowed by only() and except() as Laravel's rule is.
- * A failure reports the same translation key as Laravel's enum rule.
+ * Laravel's enum rule needs tryFrom(), which only backed enums have.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -38,7 +34,7 @@ final class PureEnum implements ValidationRule
      */
     public function __construct(
 
-        /** The pure enum whose cases the value must name. */
+        /** The pure enum whose cases the value must name */
         public readonly string $enum,
     ) {
         if (!enum_exists($enum)) {
@@ -77,8 +73,7 @@ final class PureEnum implements ValidationRule
     }
 
     /**
-     * Return the wire names of the cases the rule accepts, in declaration
-     * order.
+     * Return the wire names of the cases the rule accepts.
      *
      * @return list<string>
      */

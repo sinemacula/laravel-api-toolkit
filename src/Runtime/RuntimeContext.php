@@ -7,9 +7,8 @@ namespace SineMacula\ApiToolkit\Runtime;
 use Illuminate\Support\Facades\Config;
 
 /**
- * Detects whether the current process is actually serving under a long-lived
- * worker runtime (Octane or a real queue worker), as opposed to one where the
- * runtime is merely installed.
+ * Detects whether the process is actually serving under Octane or a queue
+ * worker, not merely having the runtime installed.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -19,9 +18,7 @@ final class RuntimeContext
     /**
      * Determine whether the current process is being served under Octane.
      *
-     * Returns true only when `$_SERVER['LARAVEL_OCTANE']` is set. A booted
-     * Octane worker sets this key; merely having laravel/octane installed under
-     * php-fpm does not.
+     * Only a booted Octane worker sets $_SERVER['LARAVEL_OCTANE'].
      *
      * @return bool
      */
@@ -33,14 +30,8 @@ final class RuntimeContext
     /**
      * Determine whether the current process is serving as a real queue worker.
      *
-     * With no `$connection` this is the boot-time check: the process is a
-     * worker only when it is running the `queue:work`/`queue:listen` command,
-     * mirroring how the Octane check keys on a real serving marker rather than
-     * mere installation - a web request whose default queue merely happens to
-     * be non-`sync` is not a worker. With a `$connection` (a fired job event's
-     * connection name) it returns true only when that driver is a non-`sync`
-     * string; the `sync` driver runs jobs inside the dispatching request and is
-     * not a real worker boundary.
+     * Without a connection this checks for a queue:work or queue:listen
+     * command; with a job's connection it checks for a non-sync driver.
      *
      * @param  string|null  $connection
      * @return bool
@@ -61,8 +52,7 @@ final class RuntimeContext
     }
 
     /**
-     * Determine whether the current process is executing a queue worker
-     * command, the boot-time signal that this process is an actual worker.
+     * Determine whether the current process is running a queue worker command.
      *
      * @return bool
      */

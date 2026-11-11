@@ -25,11 +25,6 @@ use SineMacula\ApiToolkit\Support\ResourceMap;
 /**
  * API service provider.
  *
- * Thin coordinator that merges the package configuration, handles publishing
- * and schema validation, and delegates registration of the morph aliases,
- * middleware, logging, lifecycle listeners, route macros, and container
- * bindings to single-responsibility registrars.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -138,17 +133,8 @@ final class ApiServiceProvider extends ServiceProvider
     /**
      * Merge the attribute-discovered resources beneath the configured map.
      *
-     * Discovery scans the configured resource paths for classes carrying the
-     * ForModel attribute; an explicit resource_map entry wins over a discovered
-     * binding, so the static map remains the canonical-resource tiebreak and
-     * the seam for resources outside the scanned paths.
-     *
-     * The merge is skipped by a direct config:cache or optimize, so the config
-     * cache they build holds no discovered bindings; a merge baked in by
-     * another route is recomputed by the next merge. It is also skipped while
-     * the compiled map is rebuilt or cleared, directly or by optimize:clear, so
-     * a stale compiled map naming a resource that no longer resolves cannot
-     * block them.
+     * Skipped for config caching and resource-map rebuilds, so the config cache
+     * holds no discovered bindings and a stale compiled map cannot block them.
      *
      * @return void
      */
@@ -162,12 +148,10 @@ final class ApiServiceProvider extends ServiceProvider
     }
 
     /**
-     * The name of the console command being run, or null when there is none or
-     * the application is not running in the console.
+     * Return the name of the console command being run, if any.
      *
-     * The name is the first argument that is not an option, so global options
-     * placed before it are skipped, along with the value of a space-separated
-     * --env option. An argument value after the name is never matched.
+     * The name is the first non-option argument, skipping a space-separated
+     * --env value.
      *
      * @return string|null
      */

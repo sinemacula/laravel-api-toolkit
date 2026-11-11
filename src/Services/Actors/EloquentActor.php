@@ -10,38 +10,29 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use SineMacula\ApiToolkit\Services\Contracts\Actor;
 
 /**
- * Queue-serialisable actor adapting an Eloquent user/model.
+ * Queue-serialisable actor adapting an authenticatable Eloquent model.
  *
- * Wraps any Eloquent model that also implements Authenticatable (the standard
- * Laravel user) and exposes the Actor contract. Serialises as a morph-type +
- * identifier pair plus a snapshot of the label taken at construction time. On a
- * queue worker the model is re-resolved from its morph type via a fresh DB
- * query; the label and identifier scalars survive even when the underlying
- * record is later changed or deleted.
- *
- * Label resolution order (first non-empty string wins):
- *   1. The `name` attribute on the model.
- *   2. The `email` attribute on the model.
- *   3. The unqualified class name (class_basename).
+ * Serialises as morph type, identifier and a label snapshot (name, then email,
+ * then class basename), so attribution survives the record changing.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class EloquentActor implements Actor
 {
-    /** @var string Morph alias captured at construction time. */
+    /** @var string */
     private string $morphType;
 
-    /** @var int|string Primary key captured at construction time. */
+    /** @var int|string */
     private int|string $identifier;
 
-    /** @var string Human-readable label snapshotted at construction time. */
+    /** @var string */
     private string $label;
 
-    /** @var (\Illuminate\Contracts\Auth\Authenticatable&\Illuminate\Database\Eloquent\Model)|null The live model, or null when unresolved or gone. */
+    /** @var (\Illuminate\Contracts\Auth\Authenticatable&\Illuminate\Database\Eloquent\Model)|null The live model, or null when unresolved or gone */
     private (Authenticatable&Model)|null $model = null;
 
-    /** @var bool Whether resolution has run since unserialisation. */
+    /** @var bool Whether resolution has run since unserialisation */
     private bool $resolved = false;
 
     /**
@@ -61,10 +52,7 @@ final class EloquentActor implements Actor
     }
 
     /**
-     * Serialise as morph type + identifier + label snapshot only.
-     *
-     * The live model is intentionally excluded so the serialised payload
-     * contains only re-resolvable scalars.
+     * Serialise as morph type, identifier and label, excluding the live model.
      *
      * @return array<string, int|string>
      */
@@ -78,10 +66,7 @@ final class EloquentActor implements Actor
     }
 
     /**
-     * Restore scalar state from the serialised payload.
-     *
-     * The model is left null and will be re-resolved from its morph type on the
-     * first toAuthenticatable() call.
+     * Restore scalar state, leaving the model to resolve lazily.
      *
      * @param  array<string, int|string>  $data
      * @return void
@@ -135,9 +120,6 @@ final class EloquentActor implements Actor
     /**
      * Return the label snapshotted at construction time.
      *
-     * The snapshot is retained verbatim so attribution survives subsequent
-     * changes to or deletion of the underlying record.
-     *
      * @return string
      */
     #[\Override]
@@ -147,11 +129,7 @@ final class EloquentActor implements Actor
     }
 
     /**
-     * Return the live Authenticatable model.
-     *
-     * After unserialisation the model is re-resolved lazily on the first call,
-     * from the morph map or, for an unmapped model, its class name. Returns
-     * null when the record cannot be found (e.g. after deletion).
+     * Return the live model, re-resolving it after unserialisation.
      *
      * @return \Illuminate\Contracts\Auth\Authenticatable|null
      */

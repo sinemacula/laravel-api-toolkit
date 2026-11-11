@@ -8,12 +8,10 @@ use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\Http\Enums\HttpStatus;
 
 /**
- * Generic HTTP exception.
+ * Generic HTTP exception carrying a runtime status, such as abort(409).
  *
- * Carries a runtime HTTP status, allowing the exception handler to preserve the
- * status code of any HTTP-layer exception (e.g. abort(409)) that has no
- * dedicated ApiException subclass. The HTTP_STATUS constant exists only to
- * satisfy the base contract; rendering always uses the runtime status.
+ * HTTP_STATUS only satisfies the base contract; rendering uses the runtime
+ * status.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
