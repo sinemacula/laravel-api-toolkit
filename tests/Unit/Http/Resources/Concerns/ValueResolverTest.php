@@ -165,7 +165,7 @@ final class ValueResolverTest extends TestCase
             }
         };
 
-        // label() returns string, so only the seeded memo yields the __get value
+        // label() returns a string, so only the seeded memo yields __get
         $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', [$model::class => ['label' => true]]);
 
         $result = $this->resolver->resolveFieldValue('label', $this->makeFieldDefinition(), new JsonResource($model), null);

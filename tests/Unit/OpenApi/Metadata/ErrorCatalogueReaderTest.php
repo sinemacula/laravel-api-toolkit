@@ -189,7 +189,7 @@ final class ErrorCatalogueReaderTest extends TestCase
         $reader = $this->reader();
         $first  = $reader->read();
 
-        // A re-scan would now fail, so a successful second read proves memoisation
+        // A re-scan would fail, so a successful second read proves memoisation
         FunctionOverrides::set('glob', static fn (): false => false);
 
         self::assertEquals($first, $reader->read());

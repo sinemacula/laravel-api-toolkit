@@ -53,7 +53,7 @@ final class ApiExceptionDiscovererTest extends TestCase
         mkdir($plain, 0777, true);
         mkdir($vendor, 0777, true);
 
-        // Both stubs derive the same autoloadable FQCN; only vendor exclusion differs
+        // Both stubs derive the same FQCN; only vendor exclusion differs
         file_put_contents($plain . '/WidgetFailureException.php', "<?php\n");
         file_put_contents($vendor . '/WidgetFailureException.php', "<?php\n");
 
@@ -159,7 +159,7 @@ final class ApiExceptionDiscovererTest extends TestCase
 
         mkdir($vendor, 0777, true);
 
-        // The stub derives a real autoloadable FQCN; only vendor exclusion decides
+        // The stub derives a real FQCN; only vendor exclusion decides
         file_put_contents($vendor . '/WidgetFailureException.php', "<?php\n");
 
         $prefixes = ['Tests\Fixtures\Exceptions\\' => [$vendor]];

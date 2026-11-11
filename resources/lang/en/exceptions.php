@@ -7,14 +7,12 @@ use SineMacula\ApiToolkit\Enums\ErrorCode;
 return [
 
     // General errors
-
     ErrorCode::UNHANDLED_ERROR->getCode() => [
         'title'  => 'Unknown Error',
         'detail' => 'Oh no! Something has gone wrong!',
     ],
 
     // HTTP errors
-
     ErrorCode::BAD_REQUEST->getCode() => [
         'title'  => 'Bad Request',
         'detail' => 'There was an issue with the request, please try again',
@@ -86,7 +84,6 @@ return [
     ],
 
     // Application errors
-
     ErrorCode::MAINTENANCE_MODE->getCode() => [
         'title'  => 'Maintenance Mode',
         'detail' => (is_string($name = config('app.name')) ? $name : 'The application') . ' is currently in maintenance mode, please try again a little later',
@@ -100,7 +97,6 @@ return [
     // Generic HTTP error titles, keyed by status code (e.g. 404 => 'Not Found')
     // to override the status-derived default; 'unknown' covers a status with no
     // enum case
-
     'http' => [
         'unknown' => 'Unknown Error',
     ],

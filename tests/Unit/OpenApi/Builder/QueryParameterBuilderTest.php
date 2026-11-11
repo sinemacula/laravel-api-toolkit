@@ -582,7 +582,8 @@ final class QueryParameterBuilderTest extends TestCase
     /**
      * Test that a longest term of zero is published as a refusal.
      *
-     * Unlike the page size, zero does not lift the bound; every term is refused.
+     * Unlike the page size, zero does not lift the bound: every term is
+     * refused.
      *
      * @return void
      */

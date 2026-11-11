@@ -85,7 +85,7 @@ abstract class ApiRepository extends Repository
             $criteria->usingResource($this->customResourceClass); // @phpstan-ignore possiblyImpure.methodCall
         }
 
-        return $this->withCriteria($criteria);
+        return $this->withCriteria($criteria); // @phpstan-ignore argument.type
     }
 
     /**

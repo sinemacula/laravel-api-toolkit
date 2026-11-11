@@ -369,30 +369,23 @@ final class FieldResolverTest extends TestCase
     /**
      * Provide each virtual field with the requests that include or omit it.
      *
-     * @return iterable<string, array{string, string, array<int, string>|null, array<int, string>, bool, bool, bool}>
+     * @return iterable<string, array{string, array<int, string>|null, array<int, string>, bool, bool, bool}>
      */
     public static function virtualFieldProvider(): iterable
     {
-        $methods = [
-            'counts'   => 'shouldIncludeCountsField',
-            'sums'     => 'shouldIncludeSumsField',
-            'averages' => 'shouldIncludeAveragesField',
-        ];
-
-        foreach ($methods as $field => $method) {
-            yield "{$field} requested" => [$method, $field, ['name', $field], [], false, false, true];
-            yield "{$field} requested but excluded" => [$method, $field, ['name', $field], [], true, false, false];
-            yield "{$field} in defaults" => [$method, $field, null, ['name', $field], false, false, true];
-            yield "{$field} in all-fields mode" => [$method, $field, null, [], false, true, true];
-            yield "{$field} not requested" => [$method, $field, ['name'], [], false, false, false];
-            yield "{$field} not in defaults" => [$method, $field, null, ['name'], false, false, false];
+        foreach (['counts', 'sums', 'averages'] as $field) {
+            yield "{$field} requested" => [$field, ['name', $field], [], false, false, true];
+            yield "{$field} requested but excluded" => [$field, ['name', $field], [], true, false, false];
+            yield "{$field} in defaults" => [$field, null, ['name', $field], false, false, true];
+            yield "{$field} in all-fields mode" => [$field, null, [], false, true, true];
+            yield "{$field} not requested" => [$field, ['name'], [], false, false, false];
+            yield "{$field} not in defaults" => [$field, null, ['name'], false, false, false];
         }
     }
 
     /**
      * Test which requests include the counts, sums and averages fields.
      *
-     * @param  string  $method
      * @param  string  $field
      * @param  array<int, string>|null  $requested
      * @param  array<int, string>  $defaults
@@ -402,7 +395,7 @@ final class FieldResolverTest extends TestCase
      * @return void
      */
     #[DataProvider('virtualFieldProvider')]
-    public function testShouldIncludeVirtualField(string $method, string $field, ?array $requested, array $defaults, bool $excluded, bool $all, bool $expected): void
+    public function testShouldIncludeVirtualField(string $field, ?array $requested, array $defaults, bool $excluded, bool $all, bool $expected): void
     {
         if ($excluded) {
             $this->resolver->withoutFields([$field]);
@@ -416,7 +409,13 @@ final class FieldResolverTest extends TestCase
             ->with('users')
             ->andReturn($requested);
 
-        self::assertSame($expected, $this->resolver->{$method}('users', $defaults));
+        $included = match ($field) {
+            'counts' => $this->resolver->shouldIncludeCountsField('users', $defaults),
+            'sums'   => $this->resolver->shouldIncludeSumsField('users', $defaults),
+            default  => $this->resolver->shouldIncludeAveragesField('users', $defaults),
+        };
+
+        self::assertSame($expected, $included);
     }
 
     /**
