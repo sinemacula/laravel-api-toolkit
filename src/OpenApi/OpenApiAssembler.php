@@ -21,18 +21,8 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 /**
  * Assembles a per-audience OpenAPI 3.1 document.
  *
- * Composes the builders into one document for a target audience: the path
- * builder walks the route table for the audience and posture, and its
- * operations drive which resource schemas survive. The components block carries
- * the shared query-parameter vocabulary, error responses, and total-count
- * header globally, but its schemas are filtered to only those reachable from
- * the audience's paths (via the transitive reference closure) plus the
- * always-shared pagination and error-envelope schemas, so an internal-only
- * resource never leaks into another audience's document. When no route is
- * documented the paths object is emitted empty, and an empty schema anywhere is
- * emitted as an empty object, keeping the document schema-valid. The servers
- * configured for the audience are emitted in order, and omitted when there are
- * none.
+ * Schemas are pruned to those the audience's paths reach, so an internal
+ * resource never leaks into another audience.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -99,8 +89,7 @@ final readonly class OpenApiAssembler
     }
 
     /**
-     * Assemble the OpenAPI 3.1 document for the given audience, defaulting to
-     * the configured default audience when none is named.
+     * Assemble the OpenAPI 3.1 document for the given audience.
      *
      * @param  string|null  $audience
      * @return array<string, mixed>
@@ -131,8 +120,7 @@ final readonly class OpenApiAssembler
     }
 
     /**
-     * Build the info block for the audience, injecting the Markdown manual
-     * assembled for that same audience into its description.
+     * Build the info block for the audience, injecting its Markdown manual.
      *
      * @param  string  $audience
      * @return array<string, mixed>
@@ -159,11 +147,7 @@ final readonly class OpenApiAssembler
 
     /**
      * Compose the info description from the configured description and the
-     * assembled manual, in that reading order, separated by a blank line.
-     *
-     * The configured description leads because it is the audience-specific
-     * preface an operator sets, with the shared manual following beneath it;
-     * either being empty is dropped, so an empty result signals no description.
+     * assembled manual.
      *
      * @param  string|null  $configured
      * @param  string  $manual
@@ -180,8 +164,7 @@ final readonly class OpenApiAssembler
     }
 
     /**
-     * Build the components block, filtering the schemas to those the audience's
-     * paths reach while keeping the parameters, responses, and headers global.
+     * Build the components block, pruning only the schemas by reachability.
      *
      * @param  array<string, array<string, mixed>>  $paths
      * @return array<string, mixed>
@@ -205,9 +188,8 @@ final readonly class OpenApiAssembler
     }
 
     /**
-     * Build the securitySchemes block from the scheme names the assembled paths
-     * reference, so the block carries exactly the referenced schemes with no
-     * orphans and no omissions.
+     * Build the securitySchemes block from the scheme names the paths
+     * reference.
      *
      * @param  array<string, array<string, mixed>>  $paths
      * @return array<string, array<string, mixed>>
@@ -294,15 +276,9 @@ final readonly class OpenApiAssembler
     }
 
     /**
-     * Build the schemas block and reduce it to the schemas reachable from the
-     * audience's paths plus the always-shared pagination and error-envelope
-     * schemas.
+     * Build the schemas block, reduced to those reachable from the paths.
      *
-     * The resource schemas are built first so response-side enum references are
-     * registered. The envelope schemas then claim their names against the
-     * resource names, and the enum components are built against both, so a
-     * cross-source collision fails loud rather than silently overwriting a
-     * schema.
+     * Resource schemas are built first so their enum references are registered.
      *
      * @param  array<string, array<string, mixed>>  $paths
      * @return array<string, array<string, mixed>>
@@ -332,9 +308,7 @@ final readonly class OpenApiAssembler
     }
 
     /**
-     * List the schema names always retained regardless of path reachability:
-     * the pagination meta/links (and cursor) schemas and the error envelope the
-     * shared responses reference.
+     * List the schema names the shared responses reference, always retained.
      *
      * @return list<string>
      */

@@ -9,14 +9,6 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
 /**
  * Validates a configured list of OpenAPI Server Objects.
  *
- * Each entry is passed through as configured once it is shown to be a valid
- * Server Object: an array with a non-empty string url, an optional string
- * description, optional variables mapping each name to a Server Variable Object
- * with a string default from its enum, if any, and no other key besides
- * specification extensions. Anything else fails the export with a message
- * naming the entry and the list it belongs to, rather than exporting an invalid
- * document.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -36,9 +28,6 @@ final readonly class ServerListValidator
 
     /**
      * Validate the configured servers, returning the list to export.
-     *
-     * A null value configures no servers. The audience names the list in a
-     * failure message; null names the global list.
      *
      * @param  mixed  $servers
      * @param  string|null  $audience
@@ -76,8 +65,7 @@ final readonly class ServerListValidator
     }
 
     /**
-     * Describe the first way the entry fails to be a Server Object, or null
-     * when it is valid.
+     * Describe the first way the entry fails to be a Server Object.
      *
      * @param  mixed  $server
      * @return string|null
@@ -98,8 +86,7 @@ final readonly class ServerListValidator
     }
 
     /**
-     * Describe the first invalid optional field of a Server Object, or null
-     * when its description and variables are valid or absent.
+     * Describe the first invalid optional field of a Server Object.
      *
      * @param  array<mixed, mixed>  $server
      * @return string|null
@@ -118,8 +105,7 @@ final readonly class ServerListValidator
     }
 
     /**
-     * Describe the first key outside the allowed set that is not a
-     * specification extension, or null when there is none.
+     * Describe the first key outside the allowed set and not an extension.
      *
      * @param  array<mixed, mixed>  $object
      * @param  list<string>  $allowed
@@ -162,10 +148,7 @@ final readonly class ServerListValidator
     }
 
     /**
-     * Determine whether the value is a Server Variable Object: a string
-     * default, an optional non-empty list of string enum values including the
-     * default, an optional string description, and no other key besides
-     * specification extensions.
+     * Determine whether the value is a Server Variable Object.
      *
      * @param  mixed  $variable
      * @return bool
@@ -225,8 +208,7 @@ final readonly class ServerListValidator
     }
 
     /**
-     * Normalise a valid Server Object for export, emitting empty variables as
-     * an object so the document stays valid.
+     * Normalise a valid Server Object, emitting empty variables as an object.
      *
      * @param  array<string, mixed>  $server
      * @return array<string, mixed>

@@ -13,18 +13,10 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
 
 /**
- * Reads the authentication, authorization, and throttling facts of a route.
+ * Reads the authentication, authorization and throttling facts of a route.
  *
- * The route's middleware is resolved the way the router dispatches it: groups
- * and aliases expand to classes and withoutMiddleware() exclusions apply, so a
- * guard or limit applied through a group is seen and a removed one is not. Each
- * resolved entry is classified by class: Laravel's Authenticate (an auth guard)
- * or AuthenticateWithBasicAuth (HTTP basic authentication, which names no
- * guard), Authorize (a `can:` check or an #[Authorize] attribute), and
- * ThrottleRequests (a rate limit), subclasses included. Anything else - an
- * unknown alias, a closure, an unrelated class - is ignored, and a controller
- * whose middleware cannot be resolved degrades to none rather than aborting the
- * export.
+ * Middleware is resolved as the router dispatches it, so groups, aliases and
+ * exclusions apply.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -48,9 +40,6 @@ final readonly class RouteMiddlewareResolver
     /**
      * List the auth guards the route authenticates against, in order.
      *
-     * An Authenticate entry naming no guard resolves the application's default
-     * guard, as the middleware itself does.
-     *
      * @param  \Illuminate\Routing\Route  $route
      * @return list<string>
      */
@@ -66,8 +55,7 @@ final readonly class RouteMiddlewareResolver
     }
 
     /**
-     * Determine whether the route requires an authenticated caller, through an
-     * Authenticate guard or HTTP basic authentication.
+     * Determine whether the route requires an authenticated caller.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @return bool
@@ -101,8 +89,7 @@ final readonly class RouteMiddlewareResolver
     }
 
     /**
-     * List the parameters of every resolved middleware entry of the given
-     * class, one list per entry.
+     * List the parameters of each resolved middleware entry of the given class.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @param  class-string  $class
@@ -130,9 +117,9 @@ final readonly class RouteMiddlewareResolver
     }
 
     /**
-     * Resolve the route's middleware as the router would dispatch it, keeping
-     * only string entries and degrading to none when a misconfigured controller
-     * makes the middleware unresolvable.
+     * Resolve the route's string middleware as the router would dispatch it.
+     *
+     * A misconfigured controller degrades to none so the export is not aborted.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @return array<int, string>

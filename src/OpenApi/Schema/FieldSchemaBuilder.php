@@ -9,18 +9,8 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 /**
  * Builds a single field's JSON-Schema fragment from its normalised tokens.
  *
- * Given the flat token list for one field, the builder resolves the scalar
- * type, then layers on the enum, format, pattern, binary, size, and nullability
- * constraints that token list expresses. An `enum-class:` token short-circuits
- * to a reference to the enum's named component - widened to an anyOf with null
- * when nullable - registering the enum so its component is emitted, while an
- * `enum-values:` list or a bare `in:` value list stays an inline enum. Size
- * tokens are mapped to the keyword pair matching the resolved type - lengths
- * for strings, bounds for numbers, item counts for arrays - and any token it
- * does not recognise is skipped so the field survives even when a constraint
- * cannot be expressed. A required or filled field refuses an empty value, so it
- * never admits null and a sent array holds an element. A prohibited or missing
- * field becomes the false schema: it may never be sent.
+ * Unrecognised tokens are skipped, so the field survives a constraint it cannot
+ * express.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -77,8 +67,7 @@ final readonly class FieldSchemaBuilder
     /**
      * Build the field schema and presence flag from the field's tokens.
      *
-     * A field that may never be sent is documented as the false schema, which
-     * no value satisfies, and is never required whatever its other rules say.
+     * A prohibited or missing field is the false schema and never required.
      *
      * @param  list<string>  $tokens
      * @return array{schema: array<string, mixed>|false, required: bool}
@@ -109,9 +98,9 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Build a reference to the enum's named component, registering the enum so
-     * its component is emitted, and widening to an anyOf with a null member
-     * when the field is nullable, since a bare $ref cannot carry the null type.
+     * Build a reference to the enum's named component, registering the enum.
+     *
+     * A nullable field widens to anyOf, since a bare $ref cannot carry null.
      *
      * @param  string  $enumClass
      * @param  list<string>  $tokens
@@ -133,8 +122,7 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Resolve the scalar JSON-Schema type from the first matching type token,
-     * or null when the field declares no scalar type.
+     * Resolve the scalar JSON-Schema type from the first matching type token.
      *
      * @param  list<string>  $tokens
      * @return string|null
@@ -151,8 +139,7 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Determine whether the field carries a format token, which implies a
-     * string type even when the field declares no explicit scalar type token.
+     * Determine whether the field carries a format token, implying a string.
      *
      * @param  list<string>  $tokens
      * @return bool
@@ -173,10 +160,9 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Apply an `enum-values:` token's exact values as the field's enum, even an
-     * empty list, and as strings on a string field, or else an `in:` token's
-     * values as the field's enum, or as its items' enum on an array field,
-     * since the validator checks every element against them.
+     * Apply an `enum-values:` or `in:` token's values as the field's enum.
+     *
+     * On an array field `in:` constrains the items, since each one is checked.
      *
      * @param  array<string, mixed>  $schema
      * @param  list<string>  $tokens
@@ -252,8 +238,7 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Mark a file or image field as a binary-format string, signalling the
-     * caller to serve the body as multipart form data.
+     * Mark a file or image field as a binary-format string.
      *
      * @param  array<string, mixed>  $schema
      * @param  list<string>  $tokens
@@ -307,9 +292,7 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Widen a nullable field so null is permitted: the resolved type becomes a
-     * union with null, and null joins the enum's value set, so a nullable field
-     * is never documented as rejecting the null its rule allows.
+     * Widen a nullable field's type and enum to admit null.
      *
      * @param  array<string, mixed>  $schema
      * @param  list<string>  $tokens
@@ -333,8 +316,7 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Map a resolved type to its minimum/maximum keyword pair, or null when the
-     * type carries no size vocabulary.
+     * Map a resolved type to its minimum/maximum keyword pair.
      *
      * @param  string  $type
      * @return array{0: string, 1: string}|null
@@ -350,8 +332,7 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Resolve the minimum and maximum bounds from the size tokens, with size
-     * pinning both and between supplying the pair.
+     * Resolve the minimum and maximum bounds from the size tokens.
      *
      * @param  list<string>  $tokens
      * @return array{0: string|null, 1: string|null}
@@ -429,8 +410,7 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Read the argument of the named rule token, or null when the token is
-     * absent or carries no argument.
+     * Read the argument of the named rule token.
      *
      * @param  list<string>  $tokens
      * @param  string  $rule

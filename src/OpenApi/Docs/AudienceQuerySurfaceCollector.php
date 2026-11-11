@@ -13,14 +13,8 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 /**
  * Collects the query surfaces each audience is allowed to be told about.
  *
- * A resource's surface names its filterable columns, the operators each
- * answers, the reasons recorded for orders no index holds, and the relations a
- * filter may descend through. That is the same disclosure the resource's own
- * schema is, so it belongs only in the documents that already carry the schema.
- * Reachability is not recomputed here: each audience's document is assembled
- * and the surfaces are reduced to the resources whose component schema survived
- * into it, so the reference and the schema block are pruned by one decision
- * rather than by two that can disagree.
+ * A surface is kept only where the resource's schema survived into the
+ * audience's document, so both are pruned by one decision.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -47,8 +41,7 @@ final readonly class AudienceQuerySurfaceCollector
     ) {}
 
     /**
-     * Collect the surfaces each configured audience reaches, keyed by audience
-     * name and in declaration order.
+     * Collect the surfaces each configured audience reaches, keyed by audience.
      *
      * @return array<string, array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>>
      */
@@ -68,8 +61,7 @@ final readonly class AudienceQuerySurfaceCollector
     }
 
     /**
-     * Reduce the given surfaces to those whose resource keeps a component
-     * schema in the named audience's document.
+     * Reduce the surfaces to those whose schema the audience's document keeps.
      *
      * @param  string  $audience
      * @param  array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>  $surfaces

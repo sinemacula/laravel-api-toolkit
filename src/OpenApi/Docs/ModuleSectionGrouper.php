@@ -7,20 +7,10 @@ namespace SineMacula\ApiToolkit\OpenApi\Docs;
 use SineMacula\ApiToolkit\OpenApi\Contracts\ModuleResolver;
 
 /**
- * Groups a generated document's items into the sections it renders.
+ * Groups a generated document's items into per-module sections.
  *
- * Every auto-generated reference is grouped the same way: an item whose owning
- * class belongs to a module gathers under that module's section, the modules
- * ordered by name, beneath an optional shared "Common" section holding the
- * items that belong to none. A flat application resolves every class to no
- * module, so the whole document collapses to that shared section, which a
- * generator renders without module headings as the degenerate case of the same
- * grouping rather than as a separate mode.
- *
- * The items within a section are ordered by the comparator the caller supplies,
- * or left in the order they arrived where it supplies none, so a document that
- * reads in component-name order and one that orders its own rows share the
- * grouping without sharing the ordering.
+ * Items in no module go under a shared "Common" section; a flat application
+ * collapses to that section alone.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -43,8 +33,8 @@ final readonly class ModuleSectionGrouper
     ) {}
 
     /**
-     * Group the given items into an ordered list of sections, the shared
-     * section first followed by one section per module sorted by name.
+     * Group the items into sections, the shared section first, then modules by
+     * name.
      *
      * @template TItem
      *
@@ -76,8 +66,7 @@ final readonly class ModuleSectionGrouper
     }
 
     /**
-     * Determine whether the sections collapse to the flat output carrying no
-     * module headings, which holds when nothing is grouped under a module.
+     * Determine whether nothing is grouped under a module.
      *
      * @template TItem
      *
@@ -91,8 +80,7 @@ final readonly class ModuleSectionGrouper
     }
 
     /**
-     * Assemble the ordered section list, sorting the modules by name and the
-     * items of each section by the comparator where one was supplied.
+     * Assemble the ordered section list.
      *
      * @template TItem
      *
@@ -119,8 +107,7 @@ final readonly class ModuleSectionGrouper
     }
 
     /**
-     * Order one section's items by the given comparator, leaving them as they
-     * arrived where none was supplied.
+     * Order one section's items by the comparator, if one was supplied.
      *
      * @template TItem
      *

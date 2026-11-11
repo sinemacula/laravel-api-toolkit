@@ -7,15 +7,10 @@ namespace SineMacula\ApiToolkit\OpenApi\Attributes;
 use SineMacula\Http\Enums\HttpStatus;
 
 /**
- * Declare the success status of an action.
+ * Declare the success status of an action, overriding the derived one.
  *
- * Placed on an action method, this directive documents the status its success
- * response answers with in place of the one the exporter derives from the
- * action's name, so an update answering 204, a non-REST action answering 204,
- * or a queued action answering 202 is documented as it behaves. Only a success
- * status is accepted. A no-content status - 204 or 205 - documents a response
- * with no body, so it cannot be declared beside a #[ResponseSchema]; any other
- * status keeps the body the action would otherwise document.
+ * A no-content status (204 or 205) has no body, so it cannot sit beside a
+ * #[ResponseSchema].
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

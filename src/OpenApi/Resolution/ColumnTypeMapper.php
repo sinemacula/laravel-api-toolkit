@@ -8,14 +8,10 @@ use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 
 /**
- * Maps a database column definition (and optional model cast) to a resolved
- * OpenAPI field schema.
+ * Maps a column definition and optional model cast to an OpenAPI field schema.
  *
- * Applies the inference type-map: a model cast is a stronger signal than the
- * storage type and takes precedence, otherwise the column's driver-normalised
- * type drives the mapping. Any type that cannot be resolved falls through to a
- * permissive schema explicitly flagged undocumented -- the mapper never guesses
- * a confident-but-wrong concrete type.
+ * A cast wins over the column type; an unresolved type is flagged undocumented,
+ * never guessed.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -40,10 +36,8 @@ final class ColumnTypeMapper
     /**
      * Map a column definition (with an optional cast) to a resolved schema.
      *
-     * The column is optional: with no live database connection there is no
-     * column to introspect, so the mapping degrades to the declared cast alone
-     * and the schema is treated as non-nullable in the absence of column
-     * nullability.
+     * The column is null without a live database, leaving the cast alone and a
+     * non-nullable schema.
      *
      * @param  \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition|null  $column
      * @param  string|null  $cast
@@ -66,8 +60,7 @@ final class ColumnTypeMapper
     }
 
     /**
-     * Resolve a schema shape from a model cast, or null when the cast carries
-     * no JSON-Schema-relevant mapping.
+     * Resolve a schema shape from a model cast.
      *
      * @param  string|null  $cast
      * @return array{type: string, format?: string}|null
@@ -93,8 +86,7 @@ final class ColumnTypeMapper
     }
 
     /**
-     * Resolve a schema shape from a driver-normalised column type name, or null
-     * when the type is unknown.
+     * Resolve a schema shape from a driver-normalised column type name.
      *
      * @param  string  $typeName
      * @return array{type: string, format?: string}|null
@@ -109,8 +101,7 @@ final class ColumnTypeMapper
     }
 
     /**
-     * Resolve string, integer, number and boolean column types, or null when
-     * the type is not a scalar.
+     * Resolve string, integer, number and boolean column types.
      *
      * @param  string  $typeName
      * @return array{type: string, format?: string}|null
@@ -131,8 +122,7 @@ final class ColumnTypeMapper
     }
 
     /**
-     * Resolve date, date-time and time column types, or null when the type is
-     * not temporal.
+     * Resolve date, date-time and time column types.
      *
      * @param  string  $typeName
      * @return array{type: string, format?: string}|null
@@ -149,12 +139,10 @@ final class ColumnTypeMapper
     }
 
     /**
-     * Resolve binary column types, or null when the type is not a binary value.
+     * Resolve binary column types.
      *
-     * An uncast json/jsonb column is deliberately left unresolved: it can hold
-     * an object, scalar or string, and absent a cast Eloquent returns the raw
-     * JSON string, so any concrete type here would be a confident-but-wrong
-     * guess. It falls through to an undocumented schema instead.
+     * An uncast json column is left unresolved, since Eloquent returns it as a
+     * raw string.
      *
      * @param  string  $typeName
      * @return array{type: string, format?: string}|null

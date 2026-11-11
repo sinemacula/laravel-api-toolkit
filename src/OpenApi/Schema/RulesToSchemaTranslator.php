@@ -7,23 +7,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
 /**
  * Translates a Laravel validation rules array into a JSON-Schema object.
  *
- * The rules array is the single source the request-body documentation is built
- * from. Each field's rules are normalised to tokens and turned into a property
- * schema, while dotted keys weave the properties into nested objects and a
- * `field.*` sibling supplies the items schema of an array field. An array field
- * with named children is an object that may also be sent as a list unless a
- * child demands it be an object, its `array:` keys restricting the names it
- * admits, while a list ignores its named children. A field holding a child the
- * validator refuses to find missing, such as a required one, is itself required
- * and refuses null, though never through a wildcard, as a missing list has no
- * elements to validate, and a field beneath one an exclude rule may drop
- * demands nothing, as the validator skips it too. Each object then gains the
- * confirmation siblings and presence constraints its fields' confirmed and
- * conditional presence rules express, while a field that may never be sent is
- * the false schema, with no children and no constraint. The result is a `{type:
- * object, properties, required}` fragment inlined by the caller, never a
- * registered component; nothing here throws, so an unrecognised rule degrades
- * to a skipped constraint rather than a failure.
+ * A field holding a child the validator refuses to find missing is itself
+ * required.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -73,8 +58,7 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Build the schema node for a path subtree, folding in nested object
-     * properties or array items when the subtree carries children.
+     * Build the schema node for a path subtree, folding in any children.
      *
      * @param  array<array-key, list<string>>  $map
      * @param  string  $path
@@ -98,9 +82,7 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Shape a node's own schema by its children: array items for a wildcard
-     * child, the object and list forms of an array field with named children,
-     * or a nested object for any other field with children.
+     * Shape a node's own schema by its children.
      *
      * @param  array<string, mixed>  $schema
      * @param  array<array-key, array<array-key, list<string>>>  $grouped
@@ -129,11 +111,10 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Collect the children of a node any of whose fields refuses every body
-     * missing the node, so the node must be sent, each flagged when that field
-     * also refuses the node holding no named key, so the node must be an object
-     * holding it. A field beneath a wildcard is never one, as a missing list
-     * has no elements to validate.
+     * Collect the children whose fields demand the node be sent, flagged when
+     * it must also be an object.
+     *
+     * Fields beneath a wildcard are skipped, as a missing list has no elements.
      *
      * @param  array<array-key, list<string>>  $map
      * @param  string  $path
@@ -159,9 +140,9 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Mark every field beneath one an exclude rule may drop as droppable too,
-     * since the validator skips the fields beneath an excluded one, including
-     * the elements a wildcard expands to at or beneath an excluded element.
+     * Mark every field beneath an excludable one as excludable too.
+     *
+     * The validator skips fields beneath an excluded one, wildcards included.
      *
      * @param  array<array-key, list<string>>  $map
      * @return array<array-key, list<string>>
@@ -200,8 +181,7 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Determine whether a path lies at or beneath an ancestor path, segment by
-     * segment, a wildcard segment of the path matching any key.
+     * Determine whether a path lies at or beneath an ancestor path.
      *
      * @param  list<string>  $path
      * @param  list<string>  $ancestor
@@ -223,8 +203,7 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Remove null from a schema's types, since a node whose fields demand it be
-     * sent refuses null as it refuses a missing node.
+     * Remove null from a schema's types.
      *
      * @param  array<string, mixed>  $schema
      * @return array<string, mixed>
@@ -243,8 +222,7 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Group a path map's children by their leading segment, dropping the node's
-     * own entry.
+     * Group a path map's children by their leading segment.
      *
      * @param  array<array-key, list<string>>  $map
      * @return array<array-key, array<array-key, list<string>>>
@@ -267,9 +245,10 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Drop the children an array field keys by a list index, which constrain a
-     * single element rather than name a property, so a list the rules accept is
-     * never documented as an object.
+     * Drop the children an array field keys by a list index.
+     *
+     * They constrain one element, so keeping them would document a list as an
+     * object.
      *
      * @param  array<array-key, array<array-key, list<string>>>  $grouped
      * @return array<array-key, array<array-key, list<string>>>
@@ -309,10 +288,7 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Fold the grouped children into an object schema's properties, then add
-     * the confirmation siblings and presence constraints their rules express.
-     * The object admits null when its own rules do, and holds a property when
-     * they refuse an empty value and no child demands one already.
+     * Fold the grouped children into an object schema's properties.
      *
      * @param  array<string, mixed>  $schema
      * @param  array<array-key, array<array-key, list<string>>>  $grouped
@@ -354,10 +330,8 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Build an array field whose children, if any, name its keys: it is also an
-     * object holding them, whose keys its `array:` rule restricts to the keys
-     * it names, and may still be sent as a list, a list being an array carrying
-     * no named key, unless a child demands the object hold one.
+     * Build an array field whose children name its keys, as an object or a
+     * list.
      *
      * @param  array<string, mixed>  $schema
      * @param  array<array-key, array<array-key, list<string>>>  $grouped
@@ -395,9 +369,9 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Bound an array field's object form by the element counts its size rules
-     * set, since the validator counts an object's keys as it counts a list's
-     * elements.
+     * Bound an array field's object form by its size rules.
+     *
+     * The validator counts an object's keys as it counts a list's elements.
      *
      * @param  array<string, mixed>  $object
      * @return array<string, mixed>
@@ -416,8 +390,7 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Read the keys an `array:` rule restricts the field to, as the validator
-     * parses them, or null when no rule restricts its keys.
+     * Read the keys an `array:` rule restricts the field to.
      *
      * @param  list<string>  $tokens
      * @return list<string>|null
@@ -434,8 +407,7 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Restrict an object to the allowed keys, forbidding any declared property
-     * the keys leave out and any undeclared one.
+     * Restrict an object to the allowed keys.
      *
      * @param  array<string, mixed>  $object
      * @param  list<string>  $keys
@@ -461,8 +433,7 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Count the leading list indices the allowed keys name, the longest list
-     * the key restriction admits.
+     * Count the leading list indices the allowed keys name.
      *
      * @param  list<string>  $keys
      * @return int
@@ -479,8 +450,7 @@ final readonly class RulesToSchemaTranslator
     }
 
     /**
-     * Fold the `field.*` subtree into an array schema's items node, requiring
-     * both it and any item constraint the array's own rules already set.
+     * Fold the `field.*` subtree into an array schema's items node.
      *
      * @param  array<string, mixed>  $schema
      * @param  array<array-key, list<string>>  $starMap

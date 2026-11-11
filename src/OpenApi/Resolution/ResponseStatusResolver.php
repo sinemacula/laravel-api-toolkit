@@ -11,11 +11,6 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
 /**
  * Resolves the success status a #[ResponseStatus] directive declares.
  *
- * The directive is read from the action method alone, there being no single
- * status every action of a controller answers with. An action declaring a
- * no-content status beside a #[ResponseSchema] contradicts itself, so it fails
- * the build rather than silently dropping the body or the status.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -25,8 +20,7 @@ final readonly class ResponseStatusResolver
     private const string CONFLICT_MESSAGE = 'The %d status declared for %s::%s answers with no content and cannot carry a #[ResponseSchema] body';
 
     /**
-     * Resolve the status directive declared on the action, or null when the
-     * route is not backed by a controller method carrying one.
+     * Resolve the status directive declared on the action, if any.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action

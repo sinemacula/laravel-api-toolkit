@@ -16,21 +16,8 @@ use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
 /**
  * Flattens a Laravel rule definition into a list of string tokens.
  *
- * A field's rules may be a pipe-delimited string, an array of tokens, or a
- * mixture of tokens and rule objects. This normaliser reduces every form to a
- * single flat list of string tokens so the field-schema builder has one shape
- * to interpret. Only a whole-string definition is split on pipes: an array
- * element is one rule, as the validator reads it, so a pattern or value
- * carrying a pipe survives intact. Rule objects are expanded best-effort: an
- * Enum or PureEnum contributes an `enum-class:` token naming the enum class so
- * the builder can reference its named component, either narrowed by only() or
- * except() contributes an `enum-values:` token listing exactly what it accepts,
- * an In contributes the same `in:` token its string form renders, a Password
- * contributes `string` plus its minimum length, and an exclude rule object
- * contributes the bare name of its rule, its condition unread, so the field
- * stays one the validator may drop; any other object, NotIn included, is
- * dropped, keeping the field while discarding the constraint it could not
- * translate.
+ * Rule objects are expanded best-effort; an untranslatable one is dropped,
+ * keeping the field.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -62,8 +49,10 @@ final readonly class RuleNormaliser
     }
 
     /**
-     * Normalise an array rule definition, keeping each non-empty string element
-     * whole as one rule and expanding each rule object in turn.
+     * Normalise an array rule definition, expanding each rule object.
+     *
+     * String elements are kept whole, as the validator reads them, so a pipe in
+     * a pattern survives.
      *
      * @param  array<array-key, mixed>  $definition
      * @return list<string>
@@ -95,8 +84,7 @@ final readonly class RuleNormaliser
     }
 
     /**
-     * Expand a rule object into the tokens it contributes, or nothing when the
-     * object cannot be translated.
+     * Expand a rule object into the tokens it contributes.
      *
      * @param  object  $rule
      * @return list<string>
@@ -113,9 +101,7 @@ final readonly class RuleNormaliser
     }
 
     /**
-     * Expand an exclude rule object into the bare name of the rule it
-     * expresses, so the field stays one the validator may drop, or nothing for
-     * any other object.
+     * Expand an exclude rule object into the bare name of its rule.
      *
      * @param  object  $rule
      * @return list<string>
@@ -126,9 +112,8 @@ final readonly class RuleNormaliser
     }
 
     /**
-     * Expand an Enum rule into an `enum-class:` token naming the enum class, or
-     * into the values it accepts when only() or except() narrows it, or nothing
-     * when the class cannot be read or is not an enum.
+     * Expand an Enum rule into an `enum-class:` token, or its accepted values
+     * when narrowed.
      *
      * @param  \Illuminate\Validation\Rules\Enum  $rule
      * @return list<string>
@@ -145,8 +130,7 @@ final readonly class RuleNormaliser
     }
 
     /**
-     * Resolve the enum class an Enum rule validates against, or null when the
-     * class cannot be read or is not an enum.
+     * Resolve the enum class an Enum rule validates against.
      *
      * @param  \Illuminate\Validation\Rules\Enum  $rule
      * @return class-string<\UnitEnum>|null
@@ -165,10 +149,10 @@ final readonly class RuleNormaliser
     }
 
     /**
-     * Expand a backed Enum rule narrowed by only() or except() into its backing
-     * type token and an exact list of the values it accepts, since the enum's
-     * component lists every case, or null when the rule admits every case, its
-     * enum is not backed, or its narrowing cannot be read.
+     * Expand a backed Enum rule narrowed by only() or except() into its type
+     * and accepted values.
+     *
+     * The enum's component lists every case, so a narrowed rule lists its own.
      *
      * @param  \Illuminate\Validation\Rules\Enum  $rule
      * @param  class-string<\UnitEnum>  $type
@@ -188,8 +172,7 @@ final readonly class RuleNormaliser
     }
 
     /**
-     * Resolve the cases an Enum rule accepts, applying only() in preference to
-     * except() as the rule does, or null when neither list can be read.
+     * Resolve the cases an Enum rule accepts, only() winning over except().
      *
      * @param  \Illuminate\Validation\Rules\Enum  $rule
      * @param  class-string<\BackedEnum>  $type
@@ -217,8 +200,7 @@ final readonly class RuleNormaliser
     }
 
     /**
-     * Resolve the type token for a backed enum's values: integer for an
-     * int-backed enum, string otherwise.
+     * Resolve the type token for a backed enum's values.
      *
      * @param  class-string<\BackedEnum>  $type
      * @return string
@@ -229,9 +211,8 @@ final readonly class RuleNormaliser
     }
 
     /**
-     * Expand a PureEnum rule into an `enum-class:` token naming the enum, or,
-     * when only() or except() narrows it, into a string token and an exact list
-     * of the names it accepts, since the enum's component lists every case.
+     * Expand a PureEnum rule into an `enum-class:` token, or its accepted names
+     * when narrowed.
      *
      * @param  \SineMacula\ApiToolkit\Validation\Rules\PureEnum  $rule
      * @return list<string>
@@ -246,8 +227,7 @@ final readonly class RuleNormaliser
     }
 
     /**
-     * Expand a Password rule into a string token plus its minimum length when
-     * that length is cheaply derivable, otherwise a plain string token.
+     * Expand a Password rule into a string token plus any minimum length.
      *
      * @param  \Illuminate\Validation\Rules\Password  $rule
      * @return list<string>

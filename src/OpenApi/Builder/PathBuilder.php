@@ -20,54 +20,8 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 /**
  * Builds the OpenAPI paths object for a single audience.
  *
- * Walks the application's route table and emits one operation per documentable
- * route, grouping every verb of the same URI under a shared path template. A
- * route handled by an AuthorizedController whose model maps to a registered
- * resource keeps the full resource contract unless the action declares a
- * #[ResponseSchema] naming a body other than its resource as the action returns
- * it: the REST action drives the response shape through the shared envelope
- * builder - index emits an anyOf of the length-aware and cursor collection
- * envelopes with the total-count header, show and update a single envelope,
- * store a single envelope under 201, and destroy an empty 204. Every other
- * route - a plain or invokable controller, a non-REST action, an unmapped
- * model, a closure, or a resource action declaring another body - still emits
- * an operation carrying the path template, verbs, path parameters, and a
- * resolved tag, with a single success response whose body is the shape a
- * #[ResponseSchema] directive on the action declares - a reference to a
- * registered resource's component or an inlined self-describing fragment, or a
- * oneOf of several such shapes where it names more than one class, single or
- * wrapped in the collection envelope - and the shared data envelope wrapping an
- * x-undocumented marker otherwise; that success is 201 for a store action, 204
- * for a destroy, and 200 otherwise. An action carrying a #[ResponseStatus]
- * directive, on a resource route or not, answers under the status it declares
- * instead: a no-content status with no body and no header the exporter would
- * emit beside one, and any other status with the body the action would
- * otherwise carry, or its declared or undocumented body where it would carry
- * none; declaring the action's default status changes nothing. Every operation,
- * resource or not, carries the error statuses its route facts imply - 401
- * behind auth middleware, 403 behind an authorization check, 404 with path
- * parameters, 422 with a request body (or a resource store or update), 429
- * behind a rate limit, and 500 always - merged with any ApiException its
- * action's @throws tags name, each such error response carrying the headers its
- * exceptions declare. The success response carries the headers a
- * #[ResponseHeader] directive on the action or its controller declares, after
- * any header the exporter emits itself; declaring a header the exporter already
- * emits fails the build. A route whose verbs include a body-bearing method -
- * POST, PUT, or PATCH - also carries a requestBody translated from the rules a
- * #[RequestSchema] directive or a type-hinted rules-source parameter reaches; a
- * read-only route carries none. A resource operation also references the query
- * parameters its action honours: an index the whole grammar, a show what shapes
- * and scopes a single record, a store and an update what shapes the resource
- * they return, and a destroy none. Any other operation references none, there
- * being no knowing whether such an action consults the query parser. A resource
- * action declaring another body keeps the resource's tag and the 422 a resource
- * store or update carries. Audience membership is checked for every route
- * regardless of its handler, so a closure scoped out by a route macro is
- * omitted exactly as an attribute-scoped controller is. A route whose handler
- * is defined under a blocklisted namespace, the framework and common tooling by
- * default, is dropped before any operation is built, so framework noise never
- * reaches the document while the organisation's own packages stay documented.
- * HEAD and OPTIONS are always excluded.
+ * A resource action keeps the full resource contract; any other route still
+ * documents an operation with an undocumented body.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -188,8 +142,7 @@ final readonly class PathBuilder
     }
 
     /**
-     * Build the path template and verb-keyed operations for a single route, or
-     * null when the route is not documentable for the given audience.
+     * Build the path template and verb-keyed operations for a single route.
      *
      * @param  string  $audience
      * @param  string  $posture
@@ -213,10 +166,7 @@ final readonly class PathBuilder
     }
 
     /**
-     * Resolve the operation object for the route: the full resource contract
-     * for a resource action, or the success the action declares - its
-     * #[ResponseSchema] body or the shared undocumented envelope - for any
-     * other route and for a resource action declaring another body.
+     * Resolve the operation object for the route.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -247,9 +197,7 @@ final readonly class PathBuilder
 
     /**
      * Resolve the model and component schema name of the resource the action
-     * serves, or null when the route is not a resource route: a non-authorized
-     * handler, an unmapped model, or an action outside the supported REST
-     * verbs.
+     * serves.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -270,9 +218,8 @@ final readonly class PathBuilder
     }
 
     /**
-     * Build the success response an action documented outside the resource
-     * contract answers with by default: 201 for a store, an empty 204 for a
-     * destroy, and 200 otherwise, each body the one the action declares.
+     * Build the default success response of an action outside the resource
+     * contract.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -288,9 +235,7 @@ final readonly class PathBuilder
     }
 
     /**
-     * Group the operation under each documentable verb of the route, returning
-     * the path template and verb-keyed operations, or null when no verb
-     * remains.
+     * Group the operation under each documentable verb of the route.
      *
      * @param  array<string, mixed>  $operation
      * @param  \Illuminate\Routing\Route  $route
@@ -308,8 +253,7 @@ final readonly class PathBuilder
     }
 
     /**
-     * Resolve the normalised controller class handling the route, or null when
-     * the route is served by a closure rather than a controller.
+     * Resolve the normalised controller class handling the route, if any.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @return class-string|null
@@ -328,8 +272,7 @@ final readonly class PathBuilder
     }
 
     /**
-     * Resolve the model class the controller authorizes, or null when it
-     * declares none.
+     * Resolve the model class the controller authorizes.
      *
      * @param  class-string<\SineMacula\ApiToolkit\Http\Routing\AuthorizedController>  $controllerClass
      * @return class-string<\Illuminate\Database\Eloquent\Model>|null
@@ -391,15 +334,9 @@ final readonly class PathBuilder
     }
 
     /**
-     * Build the collection response, offering both pagination shapes as an
-     * anyOf of the length-aware and cursor collection envelopes.
+     * Build the collection response, offering both pagination shapes.
      *
-     * The toolkit's paginate() serves a length-aware page by default and
-     * switches to cursor pagination when the client sends ?cursor or
-     * ?pagination=cursor, so an index response can take either shape. A
-     * length-aware page also satisfies the open cursor envelope, so a oneOf
-     * would reject it. The shared total-count header applies to the
-     * length-aware shape only.
+     * A length-aware page also satisfies the open cursor envelope, hence anyOf.
      *
      * @param  string  $ref
      * @return array<int|string, array<string, mixed>>
@@ -429,8 +366,7 @@ final readonly class PathBuilder
     }
 
     /**
-     * Build a single-resource response wrapping the reference in the single
-     * envelope under the given status code.
+     * Build a single-resource response under the given status code.
      *
      * @param  string  $status
      * @param  string  $ref
@@ -462,12 +398,10 @@ final readonly class PathBuilder
     }
 
     /**
-     * Build the error responses for the action, merging the honest baseline set
-     * with any ApiException reflected from the action's documented throws.
+     * Build the error responses for the action, keyed by HTTP status.
      *
-     * The result is keyed by numeric HTTP status. When a reflected exception's
-     * status coincides with a baseline status, the two collapse into a single
-     * response carrying the shared envelope schema plus a per-code example.
+     * Merges the baseline set with the ApiExceptions the action's @throws tags
+     * name.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -497,10 +431,6 @@ final readonly class PathBuilder
     /**
      * List the baseline error statuses the route's facts imply.
      *
-     * A route behind auth middleware carries 401, one behind an authorization
-     * check 403, one with path parameters 404, one accepting a request body
-     * 422, and one behind a rate limit 429; every route carries 500.
-     *
      * @param  \Illuminate\Routing\Route  $route
      * @param  bool  $acceptsBody
      * @return array<int, int>
@@ -520,9 +450,7 @@ final readonly class PathBuilder
     }
 
     /**
-     * Build a single error response referencing the shared error-envelope
-     * schema, attaching the headers its exceptions declare and a per-code
-     * examples map when either exists.
+     * Build a single error response referencing the shared error envelope.
      *
      * @param  string  $description
      * @param  array<string, array<string, mixed>>  $examples
@@ -570,10 +498,6 @@ final readonly class PathBuilder
     /**
      * Convert the route URI to an OpenAPI path template.
      *
-     * The template is anchored with a leading slash and an optional parameter's
-     * trailing marker is dropped, so both `{param}` and `{param?}` render as
-     * `{param}`.
-     *
      * @param  \Illuminate\Routing\Route  $route
      * @return string
      */
@@ -583,8 +507,7 @@ final readonly class PathBuilder
     }
 
     /**
-     * List the documentable, lowercased HTTP verbs of the route, excluding the
-     * automatically added HEAD and OPTIONS verbs.
+     * List the documentable, lowercased HTTP verbs of the route.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @return array<int, string>

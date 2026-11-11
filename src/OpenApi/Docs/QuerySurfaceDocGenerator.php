@@ -15,27 +15,8 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 /**
  * Renders the query surface as an auto-generated Markdown section.
  *
- * Opens with the bounds every request is held to, whatever it asks of whatever
- * resource: the cost and page-size bounds, the free-text term bounds, and the
- * shape of the rejection an over-budget request is answered with. The rest is
- * one table per resource naming the columns that answer a filter, an order, or
- * a search, so a client can read what a resource accepts without reading the
- * resource. It is rendered per audience, since what a resource may be asked is
- * the same disclosure its schema is and belongs only where that schema does.
- *
- * Resources are grouped by the module they belong to, so a modular application
- * reads one section per module beneath an optional shared "Common" section. A
- * flat application resolves every resource to no module, collapsing to one
- * subsection per resource as the degenerate case of the same grouping.
- * Resources are ordered by component name, their columns keep schema
- * declaration order, and the section opens with a machine-generated banner, so
- * the rendered output is stable and byte-identical between runs.
- *
- * The limits table is driven by the bounds the request-time guards actually
- * resolve rather than by a fixed row list, so a bound gained later is reported
- * with its value even before it is described here, and the worked rejection
- * beneath it reads its numbers from the same resolved bounds so the example
- * cannot contradict the table above it.
+ * The limits table is driven by the resolved bounds, so a new bound is reported
+ * before it is described.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -104,8 +85,7 @@ final readonly class QuerySurfaceDocGenerator
     ) {}
 
     /**
-     * Render the query surface section as Markdown for the given resource
-     * surfaces, request bounds, and search term bounds.
+     * Render the query surface section as Markdown.
      *
      * @param  array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>  $surfaces
      * @param  array<string, int>  $limits
@@ -183,9 +163,7 @@ final readonly class QuerySurfaceDocGenerator
     }
 
     /**
-     * Render the shape an over-budget request is answered with, reading the
-     * status and code from the exception that raises it and the worked numbers
-     * from the same resolved bounds the table above reports.
+     * Render the shape an over-budget request is answered with.
      *
      * @param  array<string, int>  $limits
      * @return list<string>
@@ -224,8 +202,7 @@ final readonly class QuerySurfaceDocGenerator
     }
 
     /**
-     * Render one section per resource, grouped by module where the application
-     * is modular and flat where it is not.
+     * Render one section per resource, grouped by module.
      *
      * @param  array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>  $surfaces
      * @return list<string>
@@ -290,8 +267,7 @@ final readonly class QuerySurfaceDocGenerator
     }
 
     /**
-     * Render a resource's columns as a table, or the line saying it answers no
-     * query at all.
+     * Render a resource's columns as a table.
      *
      * @param  array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor>  $columns
      * @return list<string>
@@ -349,9 +325,7 @@ final readonly class QuerySurfaceDocGenerator
     }
 
     /**
-     * Render whether the column may be ordered by and whether the resource
-     * recorded an exemption from index backing, carrying the reason where it
-     * did.
+     * Render whether the column may be ordered by, and any index exemption.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor  $column
      * @return string
@@ -368,8 +342,7 @@ final readonly class QuerySurfaceDocGenerator
     }
 
     /**
-     * Render the relations a filter may descend through, saying so plainly
-     * where the resource declares none.
+     * Render the relations a filter may descend through.
      *
      * @param  array<int, string>  $relations
      * @return string

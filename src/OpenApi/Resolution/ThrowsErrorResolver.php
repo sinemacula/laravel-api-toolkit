@@ -11,20 +11,8 @@ use SineMacula\Http\Enums\HttpStatus;
 /**
  * Reflects an action's documented throws into its error descriptors.
  *
- * Each class an @throws tag on the action names, alone or in a union, is
- * resolved as PHP resolves a class name in the file declaring the action:
- * through its imports, then its namespace, unless written fully qualified. The
- * class is kept only when it names an ApiException subclass reporting an HTTP
- * status, whether through its HTTP_STATUS constant or a status override, and is
- * grouped by that status. A name resolving to no class, any other throwable,
- * and an ApiException reporting no status, are ignored. Each kept exception
- * contributes an example named by its short class name and carrying its status
- * and error code, and the headers its #[ResponseHeader] directives declare it
- * may set, read from the exception class and its parents. Exceptions sharing a
- * status merge their headers by name, compared case-insensitively, keeping the
- * first declaration in @throws order. A status's phrase comes from the status
- * enum case name, or from the exception's name for a status the enum lacks. An
- * action that cannot be reflected or carries no doc comment yields none.
+ * Only ApiException subclasses reporting an HTTP status are kept, grouped by
+ * that status.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -106,9 +94,8 @@ final readonly class ThrowsErrorResolver
     }
 
     /**
-     * Describe an exception class as its status, phrase, example name, example,
-     * and declared headers, or null when it is not an ApiException reporting a
-     * status.
+     * Describe an exception class, or null when it is not an ApiException
+     * reporting a status.
      *
      * @param  string  $exceptionClass
      * @return array{0: int, 1: string, 2: string, 3: array<string, mixed>, 4: array<string, array<string, mixed>>}|null
@@ -138,8 +125,8 @@ final readonly class ThrowsErrorResolver
     }
 
     /**
-     * Derive the sentence-case phrase for a status from its enum case name, or
-     * from the exception's name when the enum has no case for the status.
+     * Derive the sentence-case phrase for a status, else from the exception's
+     * name.
      *
      * @param  int  $status
      * @param  string  $exceptionName

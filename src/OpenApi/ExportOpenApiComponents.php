@@ -8,16 +8,10 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 
 /**
- * Application use case that exports the toolkit's OpenAPI 3.1 document.
+ * Exports the toolkit's OpenAPI 3.1 document and summarises its contents.
  *
- * Composes the metadata catalogue and the document assembler (which in turn
- * drives the path, resource-schema, query-parameter, and error-response
- * builders and the field-type resolver) into a single emission: it assembles
- * the document for the requested audience and records a summary of what the
- * document contains. Every count is read from the assembled document, so a
- * resource schema pruned from the audience is not counted. The use case is pure
- * orchestration over read-only metadata and schema introspection; persistence
- * is the command's concern, through the DocumentWriter port.
+ * Counts are read from the assembled document, so pruned schemas are not
+ * counted.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -59,8 +53,7 @@ final readonly class ExportOpenApiComponents
     }
 
     /**
-     * Count the operations across every path item of the assembled document,
-     * tolerating a non-array paths object or path item.
+     * Count the operations across every path item of the assembled document.
      *
      * @param  array<string, mixed>  $document
      * @return int
@@ -83,8 +76,7 @@ final readonly class ExportOpenApiComponents
     }
 
     /**
-     * Count the resource component schemas the assembled document contains,
-     * leaving out the envelope and enum schemas sharing its schemas section.
+     * Count the resource component schemas, excluding envelopes and enums.
      *
      * @param  array<string, mixed>  $document
      * @return int
@@ -97,8 +89,7 @@ final readonly class ExportOpenApiComponents
     }
 
     /**
-     * Count the entries in a named components section of the assembled
-     * document, tolerating a missing or non-array section.
+     * Count the entries in a named components section of the document.
      *
      * @param  array<string, mixed>  $document
      * @param  string  $section
@@ -110,8 +101,7 @@ final readonly class ExportOpenApiComponents
     }
 
     /**
-     * Resolve a named components section of the assembled document, treating a
-     * missing or non-array section as empty.
+     * Resolve a named components section of the document, empty when missing.
      *
      * @param  array<string, mixed>  $document
      * @param  string  $section

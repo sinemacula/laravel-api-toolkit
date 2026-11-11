@@ -7,14 +7,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Attributes;
 /**
  * Declare a header a response carries.
  *
- * Placed on an action method, this directive documents a header of the action's
- * success response, such as the Set-Cookie a sign-in answers with. Placed on a
- * controller class, it documents the header on the success response of every
- * action the controller handles. Placed on an ApiException subclass, it
- * documents a header the exception may set on its error response, such as the
- * Retry-After a rate-limited exception carries; a subclass inherits the headers
- * its parent classes declare. The directive is repeatable, one per header, and
- * the schema is the JSON-Schema fragment describing the header's value.
+ * On an action or controller it documents the success response; on an
+ * ApiException subclass, the error response, inherited by its subclasses.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

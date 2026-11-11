@@ -11,13 +11,8 @@ use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 /**
  * Collects every enum class the API references across all audiences.
  *
- * The enum registry is populated only as a side effect of assembling a
- * document, and its set is reset per audience, so no single assembly names
- * every enum. To enumerate the full set this exports each configured audience
- * in turn, reading the registry back after each and unioning the results keyed
- * by class. The outcome is exactly the enums the API actually references,
- * deduplicated across audiences, which is the correct scope for the reference
- * documentation.
+ * The registry fills only while a document is assembled and resets per
+ * audience, so each audience is exported in turn.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

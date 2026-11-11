@@ -14,23 +14,8 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 /**
  * Resolves the declared success body of an action.
  *
- * An action names its response body with a #[ResponseSchema] directive, which
- * on a resource route replaces the resource body unless it names that resource
- * in the shape the route already documents. Each named class is resolved to an
- * inner `data` schema node wrapped by the shared envelope: a registered
- * resource emits a reference to its component schema, and a self-describing
- * class inlines its own JSON-Schema fragment. A reference is emitted only when
- * the resource is a value of the catalogue's resource map, so the referenced
- * component is always built by the resource pipeline and never dangles. A
- * directive naming several classes documents a `oneOf` of their nodes, in
- * declared order, with nodes that resolve identically collapsed into one; when
- * a single distinct node remains it is emitted bare, exactly as a directive
- * naming one class. Any other class - a plain class that is neither a
- * registered resource nor self-describing - resolves to null, and resolution is
- * all or nothing: a single such class in a union, or an action carrying no
- * directive, resolves the whole body to null, so the caller falls through to
- * the undocumented marker rather than publishing a partial union or asserting a
- * body it cannot describe.
+ * All or nothing: one indescribable class in a union resolves the whole body to
+ * null.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -56,8 +41,7 @@ final readonly class ResponseSchemaResolver
     ) {}
 
     /**
-     * Determine whether the action carries a #[ResponseSchema] directive,
-     * whether or not every class it names can be described.
+     * Determine whether the action carries a #[ResponseSchema] directive.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -88,8 +72,7 @@ final readonly class ResponseSchemaResolver
     }
 
     /**
-     * Resolve the success-body schema declared by the action, or null when the
-     * action carries no directive or names a class that cannot be described.
+     * Resolve the success-body schema declared by the action.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -115,8 +98,7 @@ final readonly class ResponseSchemaResolver
     }
 
     /**
-     * Read the #[ResponseSchema] directive declared on the action, or null when
-     * the route is not backed by a controller method carrying one.
+     * Read the #[ResponseSchema] directive declared on the action, if any.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -134,9 +116,8 @@ final readonly class ResponseSchemaResolver
     }
 
     /**
-     * Resolve the data schema node for the declared classes: the bare node when
-     * they describe one distinct shape, a `oneOf` of each distinct node in
-     * declared order otherwise, or null when any class cannot be described.
+     * Resolve the data schema node for the declared classes, a `oneOf` for
+     * several shapes.
      *
      * @param  non-empty-list<class-string>  $classes
      * @return array<string, mixed>|null
@@ -163,9 +144,7 @@ final readonly class ResponseSchemaResolver
     }
 
     /**
-     * Resolve the inner data schema node for the named class: a reference to a
-     * registered resource component, an inlined self-describing fragment, or
-     * null for any other class.
+     * Resolve the inner data schema node for the named class.
      *
      * @param  string  $class
      * @return array<string, mixed>|null
@@ -184,8 +163,8 @@ final readonly class ResponseSchemaResolver
     }
 
     /**
-     * Determine whether the class is a resource whose component schema the
-     * resource pipeline builds, guaranteeing a reference to it never dangles.
+     * Determine whether the class is a resource whose component schema is
+     * built, so a reference never dangles.
      *
      * @param  string  $class
      * @return bool

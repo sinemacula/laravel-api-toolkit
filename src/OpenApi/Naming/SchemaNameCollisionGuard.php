@@ -9,14 +9,8 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 /**
  * Guards a component schema name map against two sources claiming one name.
  *
- * Resource, envelope, and enum schemas share a single components.schemas map,
- * so a name derived by two different sources - two resources, two enums, or a
- * resource and an envelope or enum - would silently overwrite one schema with
- * another. The guard records each claim by name and fails loud when a name is
- * re-claimed by a different source, naming both so the collision can be
- * disambiguated with the #[SchemaName] attribute. Re-claiming a name with the
- * same source is a no-op, so a resource shared across models stays a single
- * schema.
+ * Resource, envelope and enum schemas share one map, so a collision would
+ * silently overwrite a schema.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -27,8 +21,7 @@ final readonly class SchemaNameCollisionGuard
     private const string COLLISION_MESSAGE = 'The OpenAPI component schema name "%s" is derived by both [%s] and [%s]. Disambiguate one with the #[SchemaName] attribute.';
 
     /**
-     * Record a claim on the name, throwing when a different source already
-     * holds it.
+     * Record a claim on the name, throwing when another source holds it.
      *
      * @param  array<string, string>  $claimed
      * @param  string  $name

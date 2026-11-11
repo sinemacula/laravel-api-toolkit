@@ -7,15 +7,6 @@ namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 /**
  * Reduces a component-schema map to the schemas an audience actually reaches.
  *
- * A per-audience document must not leak the schema of a resource that is not
- * documented in that audience. The resolver seeds the reachable set from every
- * schema reference found in the audience's paths, unions the always-shared
- * schema names the responses depend on, then walks the transitive `$ref`
- * closure through the schema map until it reaches a fixed point. The returned
- * map keeps the input order and contains only the reachable schemas, so an
- * unreachable resource is dropped while every reference in the surviving
- * document still resolves.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -25,8 +16,7 @@ final readonly class ReachableSchemaResolver
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
 
     /**
-     * Reduce the schema map to those reachable from the seed structure via the
-     * transitive reference closure, always retaining the named shared schemas.
+     * Reduce the schema map to those transitively reachable from the seed.
      *
      * @param  array<string, array<string, mixed>>  $schemas
      * @param  array<array-key, mixed>  $seed
@@ -67,8 +57,7 @@ final readonly class ReachableSchemaResolver
     }
 
     /**
-     * Collect the component schema names referenced anywhere within the node,
-     * as a set keyed by schema name.
+     * Collect the component schema names referenced anywhere within the node.
      *
      * @param  mixed  $node
      * @return array<string, true>

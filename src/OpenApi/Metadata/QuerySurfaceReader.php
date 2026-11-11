@@ -11,22 +11,8 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 /**
  * Reads the query surface each registered resource declares.
  *
- * Compiles every resource in the map and reports, per column, what the resource
- * offers a client: the capability a filter is held to together with the
- * operators that capability still answers, whether an order is accepted and
- * whether the resource exempted it from index backing, and the strategy a
- * free-text search matches by. Each part is taken from the compiled schema's
- * own column maps, which are the maps the request-time gates read, so a
- * declaration the gates do not hold is never reported and the surface cannot
- * claim a column the request would reject. A column answering none of the three
- * is left out entirely rather than reported as an empty offer.
- *
- * The three declarations a field makes are read independently rather than
- * collapsed into one column. A field built through the schema DSL names one
- * column in all three, but a hand-written schema may name a different column in
- * each, and reading them as one would attribute a capability or a strategy to a
- * column that never declared it. A field naming more than one column is
- * reported once per column, each carrying only what that column answers.
+ * Read from the compiled column maps the request-time gates use, so the surface
+ * never claims a column a request would reject.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -34,8 +20,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 final readonly class QuerySurfaceReader
 {
     /**
-     * Read one query surface descriptor per resource in the given map, in
-     * registry order.
+     * Read one query surface descriptor per resource in the given map.
      *
      * @param  array<class-string, class-string>  $resourceMap
      * @param  array<int, string>  $vocabulary
@@ -83,12 +68,10 @@ final readonly class QuerySurfaceReader
     }
 
     /**
-     * Read what one field offers a query, as one descriptor per column it names
-     * and none where it names no column the compiled maps carry.
+     * Read what one field offers a query, one descriptor per column it names.
      *
-     * What a column answers is read from the compiled maps rather than from the
-     * declaration, so a declaration the maps do not carry reports nothing and
-     * the surface cannot offer a column the request would reject.
+     * A hand-written schema may name a different column for filter, order and
+     * search.
      *
      * @param  string  $property
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
@@ -115,8 +98,7 @@ final readonly class QuerySurfaceReader
     }
 
     /**
-     * List the distinct columns the field declares, in the order a filter, an
-     * order, and a search are read.
+     * List the distinct columns the field declares.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return list<string>
@@ -138,8 +120,7 @@ final readonly class QuerySurfaceReader
     }
 
     /**
-     * Read what one column of one field offers a query, or null when the
-     * compiled maps hold nothing for it.
+     * Read what one column of one field offers a query, if anything.
      *
      * @param  string  $property
      * @param  string  $column

@@ -7,11 +7,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Attributes;
 /**
  * Include a route in the named OpenAPI audience(s).
  *
- * Placed on a controller class or action method, this directive adds the route
- * to each audience it names. It is additive: it opts the route into an
- * allowlist audience without removing it from any other, and it overrides a
- * blanket Undocumented for the audiences it names. When the same level both
- * includes and excludes an audience, the exclusion wins.
+ * Overrides a blanket Undocumented for the named audiences; an exclusion at the
+ * same level wins.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

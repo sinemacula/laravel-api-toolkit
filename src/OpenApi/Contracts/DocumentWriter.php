@@ -5,11 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Contracts;
 
 /**
- * Outbound output port for persisting the assembled OpenAPI document.
- *
- * The single io seam in the entire exporter feature: every other unit is a pure
- * transformer or a read-only metadata/schema query. Adapters persist the
- * serialized document to their backing store.
+ * Persists the assembled OpenAPI document.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

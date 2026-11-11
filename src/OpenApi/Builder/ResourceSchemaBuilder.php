@@ -25,36 +25,8 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 /**
  * Builds one components.schemas entry per registered resource.
  *
- * Walks the catalogue's resource map, compiles each resource schema, and emits
- * a named object schema whose properties are resolved field-by-field through
- * the correctness gate. Scalar fields take their resolved schema verbatim;
- * relations emit a single reference or an array of references according to
- * their resolved Eloquent cardinality, falling back to a conservative
- * object-or-array reference only when the relation cannot be resolved; count
- * keys are non-negative integers. Every schema leads with a required `_type`
- * discriminator fixed to the resource's registered type, mirroring the value
- * stamped on each runtime item. Guarded fields are emitted as optional (omitted
- * from the schema's required list), and undocumented fields keep their
- * permissive marker while remaining schema-valid.
- *
- * Each property also carries the query surface its field declares, read from
- * the same compiled schema the request-time gates read: the key a filter or an
- * order names the column by, the capability it was declared filterable with and
- * the operator tokens that capability answers, whether the resource recorded an
- * exemption from index-backed ordering, and the strategy a free-text search
- * matches it by. A declaration the gates do not hold is never documented, so
- * the document cannot claim a column the request would reject, and the operator
- * set is narrowed to the tokens the registry still binds a handler for, so it
- * cannot offer a predicate the filter engine no longer dispatches.
- *
- * The surface is emitted per property rather than as a schema-level list or a
- * shared parameter component. A parameter component is global to the document,
- * so a per-resource surface placed there would carry one audience's columns
- * into every other audience's document; a property travels with the schema its
- * audience reaches and is dropped along with it. The relations a filter may
- * descend through are named on the schema itself rather than on a property,
- * since the grammar accepts the relation name while an aliased relation is
- * exposed under a key it does not accept.
+ * The query surface sits on each property, not a global parameter, so it is
+ * pruned with its schema per audience.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -119,9 +91,9 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Build the map of component name to deriving resource class, failing loud
-     * when two distinct resources derive one name, so a caller can reserve the
-     * resource names before merging other schemas into the same map.
+     * Build the map of component name to deriving resource class.
+     *
+     * Lets a caller reserve the resource names before merging other schemas in.
      *
      * @return array<string, string>
      */
@@ -172,18 +144,10 @@ final readonly class ResourceSchemaBuilder
         }
 
         foreach (array_keys($compiled->getCountDefinitions()) as $presentKey) {
-
-            // A count never overwrites an existing property: when a count's
-            // present key collides with a relation/field of the same name, the
-            // richer field shape already emitted is preserved.
             $properties[$presentKey] ??= $this->buildCountProperty();
         }
 
         if (is_a($resourceClass, ApiResourceInterface::class, true)) {
-
-            // Every resource stamps its type discriminator on each item at
-            // runtime, so the schema leads with a constant meta key mirroring
-            // that value and always requires it.
             $properties = ['_type' => $this->buildTypeProperty($resourceClass)] + $properties;
             $required   = ['_type', ...$required];
         }
@@ -193,9 +157,6 @@ final readonly class ResourceSchemaBuilder
 
     /**
      * Build the JSON Schema property for a single compiled field.
-     *
-     * Relations emit a reference shape derived from their cardinality; all
-     * other fields are resolved through the correctness gate.
      *
      * @param  string  $fieldKey
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
@@ -219,20 +180,8 @@ final readonly class ResourceSchemaBuilder
     /**
      * Build the relation property from its resolved Eloquent cardinality.
      *
-     * A to-one relation emits a single reference to the related component; a
-     * to-many relation emits an array of references. When the relation cannot
-     * be resolved (an unbound polymorphic relation, or one that throws), it
-     * falls back to a conservative object-or-array-or-null reference flagged
-     * with an unknown cardinality.
-     *
-     * A relation may name a resource no registered model maps to, which is how
-     * a summary presentation of an already-mapped model is written. No
-     * component is built for such a resource, so the property carries the
-     * resolved cardinality over a bare object rather than a reference that
-     * would resolve to nothing, and is marked undocumented to say the shape
-     * behind it is undescribed rather than empty. Which resources are built is
-     * passed down from the one walk of the resource map, the map being resolved
-     * afresh on every read.
+     * An unmapped resource has no component, so it becomes an undocumented
+     * object, never a dangling $ref.
      *
      * @param  string  $relation
      * @param  string  $childResource
@@ -257,9 +206,7 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Resolve the relation instance for the given method on the model, or null
-     * when the model class is not instantiable as an Eloquent model or the
-     * relation cannot be resolved.
+     * Resolve the relation instance for the given method on the model.
      *
      * @param  string  $relation
      * @param  class-string  $modelClass
@@ -277,9 +224,7 @@ final readonly class ResourceSchemaBuilder
     /**
      * Determine whether the resolved relation is a to-one relation.
      *
-     * The to-one leaf classes are listed explicitly to avoid the inheritance
-     * trap where HasOneThrough extends HasManyThrough: a broader instanceof
-     * check would misclassify to-many relations as to-one.
+     * Leaf classes are listed since HasOneThrough extends HasManyThrough.
      *
      * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
      * @return bool
@@ -296,12 +241,7 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Build the conservative relation property: the related shape valid for a
-     * single object, an array, or null, flagged as unknown cardinality.
-     *
-     * Nullability is expressed with a JSON Schema 2020-12 `{"type": "null"}`
-     * member rather than the OpenAPI 3.0 `nullable` keyword, which is an inert
-     * unknown keyword under 3.1 / JSON Schema 2020-12.
+     * Build the relation property for an unknown cardinality.
      *
      * @param  array<string, mixed>  $target
      * @return array<string, mixed>
@@ -329,8 +269,7 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Build the type-discriminator property: a string fixed to the resource's
-     * registered type, mirroring the value stamped on every runtime item.
+     * Build the type-discriminator property fixed to the resource's type.
      *
      * @param  class-string<\SineMacula\ApiToolkit\Contracts\ApiResourceInterface>  $resourceClass
      * @return array<string, mixed>
@@ -341,12 +280,8 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Wrap a property map, its required keys, and the relations a filter may
-     * descend through into an object schema.
-     *
-     * The required list is omitted entirely when no field qualifies, keeping
-     * the emitted schema minimal and valid, and the traversable relations the
-     * same way: a resource declaring none says so by carrying no such key.
+     * Wrap a property map, its required keys and traversable relations into an
+     * object schema.
      *
      * @param  array<string, array<string, mixed>>  $properties
      * @param  array<int, string>  $required
@@ -372,8 +307,7 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Attach the query surface a field declares to its emitted property,
-     * leaving a property whose field declares none untouched.
+     * Attach the query surface a field declares to its emitted property.
      *
      * @param  array<string, mixed>  $property
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
@@ -392,11 +326,7 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Build the query surface for a single field: what it may be filtered,
-     * ordered, and searched by.
-     *
-     * Each part is omitted where the field declares nothing, so a surface that
-     * comes back empty means the field answers no query parameter at all.
+     * Build what a single field may be filtered, ordered and searched by.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
@@ -414,19 +344,10 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Describe what a filter may ask of the field's column: the key it is named
-     * by, the capability it was declared with, and the operator tokens that
-     * capability answers.
+     * Describe what a filter may ask of the field's column.
      *
-     * The capability is read from the compiled column map the request-time gate
-     * reads rather than from the field, so the operators the document lists are
-     * the operators the gate accepts. A column the map does not carry is not
-     * filterable however the field is declared, and is documented as such.
-     *
-     * The operators are then narrowed to the tokens the registry still binds,
-     * since an unbound token is refused as an undeclared key rather than
-     * dispatched. A column left with none is not filterable in practice and is
-     * documented the same way an undeclared one is.
+     * Read from the compiled column map the request-time gate reads, so the two
+     * agree.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
@@ -455,18 +376,10 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Describe what an order may ask of the field's column: the key it is named
-     * by and whether the resource left the order index-backed.
+     * Describe what an order may ask of the field's column.
      *
-     * The reported `indexed` is the resource's own claim, not a reading of the
-     * database: it says the resource recorded no exemption for the order.
-     * Whether an ordered index really leads with the column is settled by
-     * schema validation, which an application runs against a live connection
-     * outside production and which stays silent where no catalogue can be read.
-     * An exemption is the one thing that clears the claim, and its recorded
-     * reason travels with it. The index behind a backed order is not named:
-     * which index serves a column is a property of the database rather than of
-     * the API.
+     * `indexed` is the resource's claim (no exemption recorded), not a database
+     * reading.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
@@ -491,8 +404,7 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Describe how a free-text search matches the field's column: the key it is
-     * matched on and the strategy it is matched by.
+     * Describe how a free-text search matches the field's column.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
@@ -512,9 +424,7 @@ final readonly class ResourceSchemaBuilder
     /**
      * Determine whether a field is a required property of the schema.
      *
-     * Relations and counts are never required, and guarded fields are
-     * conditionally present so are always optional. Only a plain, non-guarded
-     * scalar contributes to the required list.
+     * Guarded fields are conditionally present, so never required.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return bool

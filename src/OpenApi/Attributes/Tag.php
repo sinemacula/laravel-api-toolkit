@@ -7,10 +7,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Attributes;
 /**
  * Name the OpenAPI tag an operation is grouped under.
  *
- * Placed on a controller class or action method, this directive fixes the tag
- * for the routes it covers, overriding the tag the builder would otherwise
- * derive. A method-level tag wins over a class-level one, so a single
- * controller can spread its actions across more than one tag.
+ * A method-level tag wins over a class-level one.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

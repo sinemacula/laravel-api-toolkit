@@ -9,13 +9,6 @@ use SineMacula\ApiToolkit\OpenApi\Attributes\SchemaName;
 /**
  * Derives the OpenAPI component schema name for a resource or enum class.
  *
- * A #[SchemaName] override on the class wins outright; otherwise a resource's
- * class basename has its trailing "Resource" suffix removed, so UserResource
- * becomes the component name User, while an enum keeps its class basename
- * verbatim. Every builder that references a resource's or enum's component
- * resolves the name through here, so the convention lives in one place rather
- * than being restated per builder.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -35,10 +28,6 @@ final readonly class SchemaComponentName
     /**
      * Derive the PascalCase component schema name from an enum class.
      *
-     * A #[SchemaName] override wins outright; otherwise the enum keeps its
-     * class basename verbatim, since an enum carries no "Resource" suffix to
-     * strip.
-     *
      * @param  class-string  $enumClass
      * @return string
      */
@@ -48,9 +37,7 @@ final readonly class SchemaComponentName
     }
 
     /**
-     * Read a non-empty #[SchemaName] override from the class, or null when the
-     * class carries no override, declares an empty name, or cannot be
-     * reflected.
+     * Read a non-empty #[SchemaName] override from the class, if any.
      *
      * @param  class-string  $resourceClass
      * @return string|null
@@ -73,8 +60,7 @@ final readonly class SchemaComponentName
     }
 
     /**
-     * Derive the component name from the class basename with its trailing
-     * "Resource" suffix removed.
+     * Derive the component name from the basename without a "Resource" suffix.
      *
      * @param  class-string  $resourceClass
      * @return string

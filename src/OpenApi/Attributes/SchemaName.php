@@ -7,11 +7,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Attributes;
 /**
  * Override the OpenAPI component schema name derived for a resource.
  *
- * The toolkit derives a component name from the class basename with its
- * trailing "Resource" suffix removed, so two distinct resources sharing a
- * basename across namespaces would otherwise derive the same name and collide.
- * Placed on a resource class, this directive fixes a distinct name so both
- * schemas survive in the document.
+ * Resolves collisions between resources sharing a basename across namespaces.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

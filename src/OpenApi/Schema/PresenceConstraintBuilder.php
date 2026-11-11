@@ -8,19 +8,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
  * Builds the presence constraints an object schema carries for the confirmed
  * and conditional presence rules of its fields.
  *
- * A confirmed field gains its confirmation sibling, `<field>_confirmation` or
- * the field the rule names, which is required alongside a required field and
- * required by the field's presence otherwise. A `required_with` field is
- * required by the presence of any field it names and a `required_with_all`
- * field by the presence of all of them, while a `required_without` field must
- * be sent unless every field it names is, and a `required_without_all` field
- * unless any of them is. Only a reference to a sibling property of the same
- * object is expressed: an unplaceable reference is dropped from a rule needing
- * any one of its fields, and drops a rule needing all of them, since keeping
- * part of that rule would demand fields the validator does not. A field an
- * exclude rule may drop from validation requires nothing, as the validator may
- * never run its rules. A condition stated more than once is emitted once, and
- * several combine under allOf.
+ * Only sibling references are expressed; a partial `_all` rule is dropped so it
+ * never demands more than the validator.
  *
  * @phpstan-type Constraints array{
  *     properties: array<string, mixed>,
@@ -52,7 +41,7 @@ final readonly class PresenceConstraintBuilder
 
     /**
      * Add the confirmation siblings and presence constraints to an object
-     * schema whose properties and required list are already folded in.
+     * schema.
      *
      * @param  array<string, mixed>  $object
      * @param  string  $path
@@ -96,9 +85,9 @@ final readonly class PresenceConstraintBuilder
     }
 
     /**
-     * Add the confirmation sibling each confirmed rule of a field names, left
-     * unconstrained when fields of different types share it, and require it
-     * alongside the field.
+     * Add and require the confirmation sibling each confirmed rule names.
+     *
+     * A sibling shared by fields of different types is left unconstrained.
      *
      * @param  Constraints  $constraints
      * @param  array<array-key, mixed>  $declared
@@ -129,8 +118,7 @@ final readonly class PresenceConstraintBuilder
     }
 
     /**
-     * Resolve the confirmation field each confirmed rule of a field names,
-     * leaving out any that lies outside the object.
+     * Resolve the confirmation field each confirmed rule of a field names.
      *
      * @param  string  $prefix
      * @param  string  $name
@@ -180,8 +168,7 @@ final readonly class PresenceConstraintBuilder
     }
 
     /**
-     * Add the constraint one conditional presence rule expresses over the
-     * sibling fields it references.
+     * Add the constraint one conditional presence rule expresses.
      *
      * @param  Constraints  $constraints
      * @param  string  $rule
@@ -253,8 +240,7 @@ final readonly class PresenceConstraintBuilder
     }
 
     /**
-     * Add a condition, either a list of alternatives one of which must be sent
-     * whole or an if/then pair, keeping it once however its names are ordered.
+     * Add an anyOf or if/then condition, keyed so each is kept once.
      *
      * @param  Constraints  $constraints
      * @param  array<array-key, list<string>>  $condition
@@ -280,9 +266,9 @@ final readonly class PresenceConstraintBuilder
     }
 
     /**
-     * Fold the collected constraints into the object schema, inlining a lone
-     * condition its keywords do not clash with and combining any others under
-     * allOf.
+     * Fold the collected constraints into the object schema.
+     *
+     * A lone non-clashing condition is inlined; any others combine under allOf.
      *
      * @param  array<string, mixed>  $object
      * @param  Constraints  $constraints
@@ -314,8 +300,7 @@ final readonly class PresenceConstraintBuilder
     }
 
     /**
-     * Resolve the field references of a rule that name a sibling property of
-     * the object, in order and without repeats.
+     * Resolve the distinct field references of a rule that name a sibling.
      *
      * @param  array<string, mixed>  $properties
      * @param  string  $prefix
@@ -340,8 +325,7 @@ final readonly class PresenceConstraintBuilder
     }
 
     /**
-     * Resolve a field path to the name of the sibling property it denotes, or
-     * null when it lies outside the object.
+     * Resolve a field path to the name of the sibling property it denotes.
      *
      * @param  string  $prefix
      * @param  string  $path
@@ -359,8 +343,7 @@ final readonly class PresenceConstraintBuilder
     }
 
     /**
-     * Read the comma-separated arguments of every token carrying the given
-     * rule, one list per token.
+     * Read the arguments of every token carrying the given rule.
      *
      * @param  list<string>  $tokens
      * @param  string  $rule
@@ -384,8 +367,8 @@ final readonly class PresenceConstraintBuilder
     }
 
     /**
-     * Split a rule token into its rule name and arguments, read as the
-     * validator reads them: comma-separated values that may be quoted.
+     * Split a rule token into its rule name and arguments as the validator
+     * does.
      *
      * @param  string  $token
      * @return array{0: string, 1: non-empty-list<string>}
@@ -399,8 +382,8 @@ final readonly class PresenceConstraintBuilder
     }
 
     /**
-     * Build the schema for a confirmation sibling, mirroring the types of the
-     * confirmed field other than null, or a string when it declares none.
+     * Build the schema for a confirmation sibling from the confirmed field's
+     * types.
      *
      * @param  mixed  $schema
      * @return array{type: non-empty-list<string>|string}

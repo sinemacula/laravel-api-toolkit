@@ -10,14 +10,8 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\Psr4RootMap;
 /**
  * Detects a class's module from its namespace, keyed by the PSR-4 roots.
  *
- * A class's module is its longest matching non-vendor PSR-4 root prefix plus
- * the namespace segments between that root and the first framework-vocabulary
- * segment, e.g. "Verifast\User\Http\Controllers\ProfileController" resolves to
- * "Verifast\User". A class whose first segment beneath the root is already
- * framework vocabulary, or that matches no non-vendor root, belongs to no
- * module and renders in the shared section. A flat application therefore
- * resolves every class to no module, which is the single combined section as
- * the degenerate case of the same algorithm rather than a separate mode.
+ * The module is the root plus the segments before the first framework segment,
+ * so "App\User\Http\..." resolves to "App\User".
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -45,8 +39,7 @@ final readonly class NamespaceModuleResolver implements ModuleResolver
     ) {}
 
     /**
-     * Resolve the module the given class belongs to, or null when it belongs to
-     * none.
+     * Resolve the module the given class belongs to, if any.
      *
      * @param  string  $class
      * @return \SineMacula\ApiToolkit\OpenApi\Docs\Module|null
@@ -64,8 +57,7 @@ final readonly class NamespaceModuleResolver implements ModuleResolver
     }
 
     /**
-     * Match the class to its longest non-vendor root prefix, or null when none
-     * matches.
+     * Match the class to its longest non-vendor root prefix.
      *
      * @param  string  $class
      * @return string|null
@@ -83,8 +75,7 @@ final readonly class NamespaceModuleResolver implements ModuleResolver
 
     /**
      * Build the module from the matched root and the class's remaining
-     * namespace, or null when no module segment precedes the first framework
-     * segment.
+     * namespace.
      *
      * @param  string  $root
      * @param  string  $remainder
@@ -105,8 +96,7 @@ final readonly class NamespaceModuleResolver implements ModuleResolver
     }
 
     /**
-     * Find the index of the first framework-vocabulary segment, or -1 when the
-     * segments carry none.
+     * Find the index of the first framework-vocabulary segment, or -1.
      *
      * @param  array<int, string>  $segments
      * @return int
