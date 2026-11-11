@@ -11,13 +11,7 @@ use SineMacula\ApiToolkit\Support\PureEnumName;
 /**
  * Translates a filter value for a pure-enum column from wire form to storage.
  *
- * A client filters a pure enum by the lowercase name the document lists, while
- * the column holds the case name as declared, so each value is swapped for the
- * name it is stored under before it reaches the operator. A value that names no
- * case, its declared name included, is swapped for one no case can be stored
- * as, so it matches nothing on every database, just as a value of the wrong
- * shape for any other column does. A null keeps its nullity meaning, and every
- * column without a pure-enum cast is left alone.
+ * An unknown name maps to a value nothing is stored as, so it matches nothing.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -51,7 +45,7 @@ final readonly class PureEnumFilterValue
     }
 
     /**
-     * Return the name the case the value names is stored under.
+     * Return the stored case name the value names, or the unmatched sentinel.
      *
      * @param  class-string<\UnitEnum>  $enum
      * @param  mixed  $value

@@ -12,13 +12,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 /**
  * Filter operator handler for the $contains (JSON containment) token.
  *
- * A containment clause the active grammar cannot express propagates the
- * grammar's exception rather than being discarded: dropping the predicate would
- * widen the result set, so the request fails instead.
- *
- * The comma-separated spelling fans one value out into a containment clause per
- * item, so the operator reports that item count to the dispatcher and is capped
- * on the same footing as the list spelling.
+ * An inexpressible clause throws, as dropping it would widen the result set.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -64,8 +58,7 @@ final class ContainsOperator implements ExpandsValueList, FilterOperator
     }
 
     /**
-     * Split a comma-separated value into its trimmed, non-empty items, or
-     * return null when the value is applied as a single containment clause.
+     * Split a comma-separated value into items, or null for a single clause.
      *
      * @param  mixed  $value
      * @return array<int, string>|null
@@ -80,8 +73,7 @@ final class ContainsOperator implements ExpandsValueList, FilterOperator
     }
 
     /**
-     * Determine whether the value can be passed directly to a JSON containment
-     * constraint.
+     * Determine whether the value can be passed straight to whereJsonContains.
      *
      * @param  mixed  $value
      * @return bool
@@ -124,8 +116,7 @@ final class ContainsOperator implements ExpandsValueList, FilterOperator
     }
 
     /**
-     * Apply each item as an OR-combined JSON containment constraint within the
-     * given query group.
+     * Apply each item as an OR-combined JSON containment within the group.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *

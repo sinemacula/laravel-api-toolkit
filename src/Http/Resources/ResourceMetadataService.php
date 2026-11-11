@@ -9,9 +9,7 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 /**
  * Default resource metadata provider.
  *
- * Delegates each metadata query to the corresponding static method on the given
- * resource class, maintaining behavioural equivalence with direct static calls
- * while enabling substitution via the container.
+ * Delegates to the resource's static methods so the container can swap it out.
  *
  * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
  *
@@ -70,8 +68,7 @@ final class ResourceMetadataService implements ResourceMetadataProvider
     }
 
     /**
-     * Build the eager-load counts map for the given resource class and
-     * requested aliases.
+     * Build the eager-load counts map for the given resource class.
      *
      * @param  string  $resourceClass
      * @param  array<int, string>|null  $requestedAliases
@@ -84,8 +81,7 @@ final class ResourceMetadataService implements ResourceMetadataProvider
     }
 
     /**
-     * Build the eager-load sums entry list for the given resource class and
-     * requested relation-column map.
+     * Build the eager-load sums list for the given resource class.
      *
      * @param  string  $resourceClass
      * @param  array<string, mixed>|null  $requestedSums
@@ -98,8 +94,7 @@ final class ResourceMetadataService implements ResourceMetadataProvider
     }
 
     /**
-     * Build the eager-load averages entry list for the given resource class and
-     * requested relation-column map.
+     * Build the eager-load averages list for the given resource class.
      *
      * @param  string  $resourceClass
      * @param  array<string, mixed>|null  $requestedAverages

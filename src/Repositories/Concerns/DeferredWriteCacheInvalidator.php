@@ -8,16 +8,9 @@ use Illuminate\Support\Facades\Config;
 use SineMacula\Repositories\Concerns\CacheStore;
 
 /**
- * Invalidates the per-query repository cache for tables persisted by a deferred
- * write-pool flush.
+ * Invalidates the per-query repository cache for tables a write flush touched.
  *
- * A deferred insert is persisted at the lifecycle boundary, outside the
- * Cacheable read path, so the per-query cache for that table would otherwise
- * serve a stale collection until its TTL expired. This best-effort invalidator
- * bumps each flushed table's generational cache version (or flushes its tag)
- * using the default repository-cache configuration, mirroring what an immediate
- * write does. Repositories on a custom cache store or key prefix are not
- * covered and must invalidate manually.
+ * Repositories on a custom cache store or key prefix must invalidate manually.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -41,8 +34,7 @@ final class DeferredWriteCacheInvalidator
     }
 
     /**
-     * Resolve the cache store name shared by default-config Cacheable
-     * repositories.
+     * Resolve the cache store name shared by default-config repositories.
      *
      * @return string
      */

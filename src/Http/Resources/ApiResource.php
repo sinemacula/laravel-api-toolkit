@@ -20,10 +20,6 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 /**
  * The base API resource.
  *
- * Thin orchestrator that delegates field resolution, value resolution, guard
- * evaluation, schema compilation, and eager-load planning to dedicated
- * collaborator classes.
- *
  * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -128,8 +124,7 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     }
 
     /**
-     * Build a with()-ready eager-load map for the provided fields, including
-     * constrained relations.
+     * Build a with()-ready eager-load map for the given fields.
      *
      * @param  array<int, string>  $fields
      * @return array<int|string, mixed>
@@ -392,7 +387,6 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
             $sums = $this->rejectLoadedAggregates($resource, EagerLoadPlanner::buildSumMap(static::class, ApiQuery::getSums($resourceType) ?? []));
 
             foreach ($sums as $entry) {
-                // @var array<string, mixed> $entry
                 $resource->loadSum($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
             }
         }
@@ -404,7 +398,6 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
         $averages = $this->rejectLoadedAggregates($resource, EagerLoadPlanner::buildAvgMap(static::class, ApiQuery::getAverages($resourceType) ?? []));
 
         foreach ($averages as $entry) {
-            // @var array<string, mixed> $entry
             $resource->loadAvg($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
         }
     }
@@ -412,11 +405,7 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     /**
      * Reject aggregate specifications already loaded on the resource.
      *
-     * The criteria pre-loads counts and aggregates on the base query, so a
-     * per-row load would re-run them; unlike loadMissing() for relations, the
-     * load{Count,Sum,Avg} helpers are not idempotent, so filter them here. The
-     * spec is read from a count entry (string, or aliased key with a closure)
-     * or from an aggregate entry's relation.
+     * The load{Count,Sum,Avg} helpers are not idempotent, unlike loadMissing().
      *
      * @param  object  $resource
      * @param  array<int|string, mixed>  $specifications

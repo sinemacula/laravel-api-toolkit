@@ -15,12 +15,7 @@ use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
- * Builds eager-load maps and count maps by traversing compiled schema relation
- * definitions.
- *
- * Produces with()-ready eager-load maps and withCount()-ready count maps from a
- * compiled schema, handling plain relations, scoped constraints, extra paths,
- * child resource recursion, and cycle prevention.
+ * Builds eager-load, count and aggregate maps from compiled schema relations.
  *
  * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
  *
@@ -31,25 +26,19 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  */
 final class EagerLoadPlanner
 {
-    /** @var array<string, array<int|string, mixed>> Memo of eager-load maps, keyed by resource class + field signature. */
+    /** @var array<string, array<int|string, mixed>> Eager-load maps, keyed by resource class + field signature */
     private static array $eagerLoadCache = [];
 
-    /** @var array<string, array<int|string, mixed>> Memo of count maps, keyed by resource class + alias signature. */
+    /** @var array<string, array<int|string, mixed>> Count maps, keyed by resource class + alias signature */
     private static array $countCache = [];
 
-    /** @var array<string, list<AggregateLoad>> Memo of aggregate entry lists, keyed by metric:resource class + requested signature. */
+    /** @var array<string, list<AggregateLoad>> Aggregate entry lists, keyed by metric:resource class + requested signature */
     private static array $aggregateCache = [];
 
     /**
      * Build a with()-ready eager-load map for the given fields.
      *
-     * Returns a mixed array where numeric keys are plain eager-load paths and
-     * string keys are scoped paths with constraint closures.
-     *
-     * The result is memoised per (resource class, field signature); the memo is
-     * request-scoped because CacheManager::flush() clears it at request and
-     * worker boundaries, so it never serves a map built against a different
-     * request's child field selection.
+     * Numeric keys hold plain paths; string keys map scoped paths to closures.
      *
      * @param  string  $resourceClass
      * @param  array<int, string>  $fields
@@ -77,8 +66,6 @@ final class EagerLoadPlanner
     /**
      * Clear the static eager-load, count, and aggregate map memos.
      *
-     * Invoked by CacheManager::flush() at request and worker boundaries.
-     *
      * @return void
      */
     public static function clearCache(): void
@@ -90,9 +77,6 @@ final class EagerLoadPlanner
 
     /**
      * Build a withCount-ready array for the given resource class.
-     *
-     * Returns a mixed array where numeric keys are plain count relations and
-     * string keys are constrained count relations with closures.
      *
      * @param  string  $resourceClass
      * @param  array<int, string>|null  $requestedAliases
@@ -115,9 +99,7 @@ final class EagerLoadPlanner
                 continue;
             }
 
-            // Alias each count by its presentation key so two counts on the
-            // same relation (e.g. all + constrained) resolve to distinct
-            // `{presentKey}_count` attributes instead of colliding on one.
+            // Alias by present key so two counts on one relation do not collide
             $aliased = $definition->relation . ' as ' . $definition->presentKey . '_count';
 
             $constraint = $definition->constraint;
@@ -135,10 +117,6 @@ final class EagerLoadPlanner
     /**
      * Build a withSum-ready entry list for the given resource class.
      *
-     * Returns a list of entries, each carrying an aliased relation (string or
-     * constrained array) and a column, so the applier can call
-     * withSum($entry['relation'], $entry['column']) per entry.
-     *
      * @param  string  $resourceClass
      * @param  array<string, mixed>|null  $requested
      * @return list<AggregateLoad>
@@ -151,10 +129,6 @@ final class EagerLoadPlanner
     /**
      * Build a withAvg-ready entry list for the given resource class.
      *
-     * Returns a list of entries, each carrying an aliased relation (string or
-     * constrained array) and a column, so the applier can call
-     * withAvg($entry['relation'], $entry['column']) per entry.
-     *
      * @param  string  $resourceClass
      * @param  array<string, mixed>|null  $requested
      * @return list<AggregateLoad>
@@ -165,12 +139,9 @@ final class EagerLoadPlanner
     }
 
     /**
-     * Determine whether the aggregate for the given relation specification is
-     * already an attribute on the resource.
+     * Determine whether the aggregate for the relation is already loaded.
      *
-     * The specification is a relation string, a `relation as alias` string, or
-     * a `[aliased => constraint]` map; the alias after ` as ` (or the plain
-     * relation) is matched against the model's loaded attributes.
+     * Accepts `relation`, `relation as alias` or `[aliased => constraint]`.
      *
      * @param  object  $resource
      * @param  mixed  $relation
@@ -195,11 +166,7 @@ final class EagerLoadPlanner
     }
 
     /**
-     * Build a withSum/withAvg-ready entry list for the given resource class and
-     * metric ('sum' or 'avg').
-     *
-     * Results are memoised in $aggregateCache, keyed by metric:class|requested
-     * signature, so both metrics share one cache cleared by clearCache().
+     * Build a withSum/withAvg-ready entry list for the given metric.
      *
      * @param  string  $resourceClass
      * @param  string  $metric
@@ -227,9 +194,7 @@ final class EagerLoadPlanner
                 continue;
             }
 
-            // Alias the aggregate to the full attribute name the resolver reads
-            // back ({presentKey}_{metric}_{column}); Laravel uses the "as"
-            // alias verbatim as the result column, so it must match.
+            // The alias must match the attribute name the resolver reads back
             $aliased    = $definition->relation . ' as ' . $definition->presentKey . '_' . $metric . '_' . $definition->column;
             $constraint = $definition->constraint;
 
@@ -243,8 +208,7 @@ final class EagerLoadPlanner
     }
 
     /**
-     * Recursively walk relation definitions, accumulating plain and scoped
-     * eager-load paths.
+     * Recursively walk relation definitions, accumulating eager-load paths.
      *
      * @param  string  $resourceClass
      * @param  array<int, string>  $fields
@@ -257,10 +221,7 @@ final class EagerLoadPlanner
      */
     private static function walkRelations(string $resourceClass, array $fields, string $prefix, array &$plain, array &$scoped, array &$visited, array $ancestors = []): void
     {
-        // The visited set is keyed by the accumulated path, which lengthens at
-        // every hop, so a pair of resources that name each other never repeats
-        // a key and would descend without bound. The ancestry is held by value
-        // so it bounds the branch it belongs to and no sibling.
+        // Visited keys grow with the path, so cycles are cut by ancestry
         if (in_array($resourceClass, $ancestors, true)) {
             return;
         }
@@ -339,8 +300,7 @@ final class EagerLoadPlanner
     }
 
     /**
-     * Wrap a constraint closure to safely handle MorphTo, EloquentRelation, and
-     * Builder instances.
+     * Wrap a constraint to handle MorphTo, relation and builder queries.
      *
      * @param  \Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void  $constraint
      * @return \Closure(mixed): void
@@ -366,7 +326,7 @@ final class EagerLoadPlanner
     }
 
     /**
-     * If the definition points to a child resource, recurse into it.
+     * Recurse into the definition's child resource, if any.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  string  $fullPath
@@ -432,8 +392,7 @@ final class EagerLoadPlanner
     }
 
     /**
-     * Determine whether the definition points to a child ApiResource that
-     * should be recursed into.
+     * Determine whether the definition points to a child ApiResource.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @return bool
@@ -448,8 +407,7 @@ final class EagerLoadPlanner
     /**
      * Resolve the child fields to traverse for a nested resource.
      *
-     * Reads from: (1) explicit fields on the definition, (2) API query for the
-     * child resource type, (3) child default fields or all-fields.
+     * Definition fields, else query fields, else defaults, else all fields.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  string  $resource
@@ -499,8 +457,7 @@ final class EagerLoadPlanner
     }
 
     /**
-     * Determine whether a count definition should be included based on the
-     * requested aliases or the default flag.
+     * Determine whether a count is requested, or included by default.
      *
      * @param  string  $presentKey
      * @param  array<int, string>|null  $requested
@@ -517,11 +474,7 @@ final class EagerLoadPlanner
     }
 
     /**
-     * Determine whether an aggregate definition should be included based on the
-     * requested relation-column map or the default flag.
-     *
-     * An aggregate is "requested" when its relation is a key in the requested
-     * map and its column appears in that relation's column list.
+     * Determine whether an aggregate is requested, or included by default.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $definition
      * @param  array<string, mixed>|null  $requested

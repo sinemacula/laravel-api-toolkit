@@ -7,15 +7,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 /**
  * Immutable value object for filter dispatch state.
  *
- * Captures the logical operator in effect at each level of the recursive filter
- * dispatch, along with how far that level sits from the root and where it sits
- * within the filter document. Each named constructor returns a new immutable
- * instance.
- *
- * A context derived with descend() carries the cost budget of the level it came
- * from, so depth and node totals accumulate across the whole walk while the
- * context itself stays immutable. A context built directly by root() or
- * nested() carries no budget and is therefore uncapped.
+ * Every context derived from a budgeted root shares its mutable cost budget.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -89,9 +81,7 @@ final readonly class FilterContext
     /**
      * Create the context for the given segment of the current level.
      *
-     * A key that positions the walk without opening a query scope of its own
-     * moves the pointer but not the depth, so the position it reports resolves
-     * against the client's document without spending a level of the budget.
+     * Moves the pointer without the depth, so no level of the budget is spent.
      *
      * @param  string  $segment
      * @return self

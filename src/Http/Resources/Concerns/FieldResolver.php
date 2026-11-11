@@ -9,11 +9,7 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 
 /**
- * Consolidates field state and resolution logic for API resources.
- *
- * Holds the mutable field state (explicit fields, excluded fields, all-fields
- * flag) and resolves which fields should appear in a response based on the
- * compiled schema, API query parameters, and configuration.
+ * Holds a resource's field selection and resolves its response fields.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -22,7 +18,7 @@ use SineMacula\ApiToolkit\Schema\CompiledSchema;
  */
 final class FieldResolver
 {
-    /** @var array<string, array<int, string>> Memo of assembled field lists, keyed by a fingerprint of the assembly inputs. */
+    /** @var array<string, array<int, string>> Assembled field lists, keyed by a fingerprint of their inputs */
     private static array $resolvedCache = [];
 
     /** @var array<int, string>|null Explicit list of fields to be returned */
@@ -69,9 +65,7 @@ final class FieldResolver
     /**
      * Resolve the list of fields that should appear in the response.
      *
-     * Merges explicit overrides, API query parameters, default fields, and
-     * fixed fields into a deduplicated list. Excluded fields are removed before
-     * fixed fields are appended.
+     * Excluded fields are removed before fixed fields are appended.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @param  string  $resourceType
@@ -90,11 +84,7 @@ final class FieldResolver
         /** @var array<int, string> $configFixed */
         $configFixed = Config::get('api-toolkit.resources.fixed_fields', []);
 
-        // Memoise the assembled list keyed by a fingerprint of the exact inputs
-        // to the assembly, so a homogeneous collection page assembles it once
-        // instead of per row. The key fully determines the output, so a hit can
-        // only occur for identical inputs; the memo is request-scoped, cleared
-        // by CacheManager::flush() at request and worker boundaries.
+        // Request-scoped memo so a homogeneous page assembles the list once
         $key = self::cacheKey($this->fields, $excluded, $configFixed, $fixedFields);
 
         return self::$resolvedCache[$key] ??= array_values(array_unique(
@@ -104,8 +94,6 @@ final class FieldResolver
 
     /**
      * Clear the static assembled-field memo.
-     *
-     * Invoked by CacheManager::flush() at request and worker boundaries.
      *
      * @return void
      */
@@ -117,9 +105,6 @@ final class FieldResolver
     /**
      * Determine whether all fields should be included.
      *
-     * Returns true when the all-fields flag has been set explicitly or the API
-     * query contains the `:all` token for the given resource type.
-     *
      * @param  string  $resourceType
      * @return bool
      */
@@ -130,10 +115,6 @@ final class FieldResolver
 
     /**
      * Determine if the counts field should be included.
-     *
-     * Checks whether the `counts` pseudo-field was explicitly requested,
-     * included via all-fields mode, or present in the default fields, while
-     * also respecting any exclusion set via `withoutFields()`.
      *
      * @param  string  $resourceType
      * @param  array<int, string>  $defaultFields
@@ -147,10 +128,6 @@ final class FieldResolver
     /**
      * Determine if the sums field should be included.
      *
-     * Checks whether the `sums` pseudo-field was explicitly requested, included
-     * via all-fields mode, or present in the default fields, while also
-     * respecting any exclusion set via `withoutFields()`.
-     *
      * @param  string  $resourceType
      * @param  array<int, string>  $defaultFields
      * @return bool
@@ -162,10 +139,6 @@ final class FieldResolver
 
     /**
      * Determine if the averages field should be included.
-     *
-     * Checks whether the `averages` pseudo-field was explicitly requested,
-     * included via all-fields mode, or present in the default fields, while
-     * also respecting any exclusion set via `withoutFields()`.
      *
      * @param  string  $resourceType
      * @param  array<int, string>  $defaultFields
@@ -197,10 +170,6 @@ final class FieldResolver
 
     /**
      * Determine if a virtual metric field should be included.
-     *
-     * Shared logic for counts, sums, and averages pseudo-field gating. Checks
-     * whether the field was explicitly requested, included via all-fields mode,
-     * or present in the default fields, while respecting exclusions.
      *
      * @param  string  $fieldName
      * @param  string  $resourceType

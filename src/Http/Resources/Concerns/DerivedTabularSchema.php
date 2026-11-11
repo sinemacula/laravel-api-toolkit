@@ -10,11 +10,6 @@ use SineMacula\Exporter\Schema\TabularSchema;
 /**
  * Concrete TabularSchema implementation backing the DerivesTabularSchema trait.
  *
- * Holds the ordered list of Column instances produced from the resource's
- * compiled field definitions and returns them to the export engine. This class
- * is an implementation detail of the trait and is not intended to be
- * instantiated or extended outside it.
- *
  * @internal
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>

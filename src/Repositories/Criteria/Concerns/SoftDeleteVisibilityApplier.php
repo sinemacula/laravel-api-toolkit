@@ -14,11 +14,7 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 /**
  * Applies soft-delete visibility to an Eloquent query builder.
  *
- * Widens the default soft-delete scope to include or isolate trashed records
- * when the request asks for them, but only for models that use SoftDeletes and
- * only when the resolved resource opts in. The gate is closed by default, so an
- * unmapped model or a resource that has not opted in never exposes trashed
- * rows.
+ * Only SoftDeletes models whose resource opts in ever expose trashed rows.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -51,8 +47,7 @@ final class SoftDeleteVisibilityApplier
     }
 
     /**
-     * Determine whether the resolved resource opts in to trashed visibility for
-     * the current request.
+     * Determine whether the resource opts in to trashed visibility.
      *
      * @param  string|null  $resourceClass
      * @param  \Illuminate\Http\Request  $request

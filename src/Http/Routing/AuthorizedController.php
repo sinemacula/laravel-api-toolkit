@@ -13,14 +13,7 @@ use SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource;
 use SineMacula\ApiToolkit\Http\Routing\Attributes\SkipAuthorization;
 
 /**
- * Authorized API controller.
- *
- * Resource authorization is declared with the #[AuthorizesResource] attribute
- * and applied through the framework's controller middleware contract:
- * middleware() emits one gate check per REST action, mapping each action to its
- * ability and binding it to either the model class or the route parameter,
- * while honouring both the attribute's except list and any action marked
- * #[SkipAuthorization].
+ * API controller that gates its REST actions through #[AuthorizesResource].
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -63,10 +56,6 @@ abstract class AuthorizedController extends Controller implements HasMiddleware
 
     /**
      * Get the middleware that should be assigned to the controller.
-     *
-     * A missing attribute fails closed: an authorized controller with no
-     * #[AuthorizesResource] declaration is a misconfiguration, so it errors
-     * rather than silently registering an ungated resource.
      *
      * @return array<int, \Illuminate\Routing\Controllers\Middleware>
      *
@@ -133,8 +122,7 @@ abstract class AuthorizedController extends Controller implements HasMiddleware
     }
 
     /**
-     * Resolve the actions left outside the authorization guard, combining the
-     * attribute's except list with every action marked #[SkipAuthorization].
+     * Resolve the except list plus every action marked #[SkipAuthorization].
      *
      * @param  \SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource  $attribute
      * @return array<int, string>
@@ -165,8 +153,7 @@ abstract class AuthorizedController extends Controller implements HasMiddleware
     }
 
     /**
-     * Build the gate middleware, grouping actions that share the same check
-     * into a single entry keyed by ability and authorization target.
+     * Build the gate middleware, grouping actions that share a check.
      *
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
      * @param  string  $parameter

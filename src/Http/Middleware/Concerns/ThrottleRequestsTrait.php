@@ -28,8 +28,7 @@ trait ThrottleRequestsTrait
     protected function resolveRequestSignature(#[\SensitiveParameter] $request): string
     {
         // phpcs:enable
-        // Invoke the route resolver directly, as route() is documented as never
-        // returning null when called without arguments
+        // route() is documented as never null, so call the resolver directly
         $route = ($request->getRouteResolver())();
 
         if ($route === null) {
@@ -40,9 +39,7 @@ trait ThrottleRequestsTrait
         $user       = $request->user();
         $identifier = $user instanceof Authenticatable ? $user->getAuthIdentifier() : null;
 
-        // Key by the authenticated user when present, otherwise by the client
-        // IP, so anonymous callers do not all share a single throttle bucket
-        // (which would let one caller rate-limit every other anonymous caller).
+        // Key anonymous callers by IP so they do not share one bucket
         return sha1(
             $request->method()
             . '|' . (is_string($serverName) ? $serverName : '')

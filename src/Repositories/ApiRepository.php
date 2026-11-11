@@ -36,10 +36,7 @@ abstract class ApiRepository extends Repository
     /**
      * Set a custom resource class to be used.
      *
-     * This is configuration rather than composition, so it mutates the handle
-     * it is called on. It reaches the criteria that handle already carries,
-     * which is why it belongs before the call that composes them rather than
-     * after one that has already returned a copy.
+     * Mutates this handle, so call it before withApiCriteria() copies it.
      *
      * @param  string|null  $resourceClass
      * @return $this
@@ -74,11 +71,7 @@ abstract class ApiRepository extends Repository
     /**
      * Compose the API criteria into the next query.
      *
-     * The composition is carried by the returned copy, and the handle this was
-     * called on is left untouched, so the result has to be kept and queried
-     * through rather than discarded. The criterion is built and named here
-     * before anything else can reach it, which is why constructing it does not
-     * make the composition observable on the handle it was called on.
+     * Returns a copy and leaves this handle untouched, so keep the result.
      *
      * @return static
      *
@@ -123,10 +116,7 @@ abstract class ApiRepository extends Repository
     /**
      * Persist the given attributes to the model.
      *
-     * This method handles both create and update operations transparently.
-     * Attributes are cast-resolved, BelongsTo and MorphTo relations are
-     * associated, and BelongsToMany and MorphToMany relations are synced after
-     * the model is saved.
+     * Handles create and update; many-to-many relations sync after the save.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>|\Illuminate\Support\Collection<string, mixed>  $attributes
@@ -143,7 +133,7 @@ abstract class ApiRepository extends Repository
     }
 
     /**
-     * Scopes the model by the given id.
+     * Scope the model by the given id.
      *
      * @param  int|string|null  $id
      * @param  string  $column
@@ -157,7 +147,7 @@ abstract class ApiRepository extends Repository
     }
 
     /**
-     * Scopes the model by the given ids.
+     * Scope the model by the given ids.
      *
      * @param  array<int, int|string|null>  $ids
      * @param  string  $column
@@ -174,9 +164,6 @@ abstract class ApiRepository extends Repository
 
     /**
      * Boot the repository instance.
-     *
-     * This is a useful method for setting immediate properties when extending
-     * the base repository class.
      *
      * @return void
      *

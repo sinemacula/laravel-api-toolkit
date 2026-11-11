@@ -5,8 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 /**
- * Immutable value object encapsulating the outcome of a WritePool flush
- * operation.
+ * Immutable outcome of a WritePool flush operation.
  *
  * @phpstan-type SerializedFlushResult array{
  *     successCount: int,
@@ -73,8 +72,7 @@ final readonly class WritePoolFlushResult
     ) {}
 
     /**
-     * Serialize the result without the underlying exception, whose trace may
-     * hold values that cannot be serialized.
+     * Serialize the result without its possibly unserializable exception.
      *
      * @return SerializedFlushResult
      *
@@ -116,8 +114,7 @@ final readonly class WritePoolFlushResult
     }
 
     /**
-     * Get the distinct tables whose buffered records this flush attempted to
-     * persist. Used to invalidate each table's downstream per-query cache.
+     * Get the distinct tables this flush attempted to persist.
      *
      * @return array<int, string>
      */

@@ -12,10 +12,6 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 /**
  * Applies eager loading to an Eloquent query builder.
  *
- * Resolves and applies eager loads and eager load counts based on the resource
- * schema and requested fields, using the metadata provider and the parsed API
- * query state.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

@@ -9,20 +9,13 @@ use Illuminate\Http\Request;
 /**
  * Stateless evaluator for guard callables on schema definitions.
  *
- * Each guard receives the resource instance and the current request. If any
- * guard returns exactly false, the definition is suppressed.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class GuardEvaluator
 {
     /**
-     * Evaluate whether all guards pass.
-     *
-     * Each guard is a callable that receives the resource instance and the
-     * current request. If any guard returns exactly `false`, the definition is
-     * suppressed.
+     * Determine whether all guards pass, i.e. none returns exactly false.
      *
      * @param  array<int, mixed>  $guards
      * @param  mixed  $resource

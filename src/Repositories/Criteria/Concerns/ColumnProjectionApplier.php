@@ -17,13 +17,7 @@ use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 /**
  * Applies base-table column narrowing to an Eloquent query builder.
  *
- * Composes the resolved field set, the field-column map, and the per-model
- * safety set, asks the narrower for a decision, and applies a single `select()`
- * only when every resolved field is provably column-mapped. On every other path
- * the builder's columns are left untouched so the downstream default `'*'`
- * selection flows through unchanged. When an unmapped field forces that
- * fall-back, the offending field key is recorded at debug level so the silent
- * widening is diagnosable.
+ * Narrows only when every resolved field is provably column-mapped.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -73,8 +67,6 @@ final readonly class ColumnProjectionApplier
         if ($decision->shouldNarrow()) {
             $query->getQuery()->select($decision->columns());
         } elseif ($decision->reason() !== null) {
-            // Surface the silent fall-back so a developer can see which field
-            // forced a full select; debug level keeps it quiet in production.
             Log::debug('Column narrowing fell back to a full select', [
                 'model'    => $query->getModel()::class,
                 'resource' => $resourceClass,
@@ -104,12 +96,7 @@ final readonly class ColumnProjectionApplier
     /**
      * Extract the base-model relation names from an eager-load map.
      *
-     * The map mixes plain and extra relations - stored as list entries whose
-     * relation path is the value - with scoped relations stored under a string
-     * key carrying a constraint closure. The relation name is therefore taken
-     * from the value for integer keys and from the key for string keys. Each
-     * path is reduced to its first segment: the relation declared on the base
-     * model, whose parent-side key the narrowed query must retain.
+     * Scoped relations are keyed by path; plain ones are list values.
      *
      * @param  array<int|string, mixed>  $map
      * @return array<int, string>
@@ -133,8 +120,7 @@ final readonly class ColumnProjectionApplier
     }
 
     /**
-     * Derive the per-model safety set of columns the narrowed query must
-     * retain.
+     * Derive the columns the narrowed query must retain.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
      * @param  array<int, string>  $relationKeys
