@@ -24,13 +24,6 @@ use Tests\TestCase;
 /**
  * Integration tests for the allowlist query-surface posture end-to-end.
  *
- * Exercises the secure-by-default posture against a real database: declared
- * filterable/sortable columns and traversable relations are applied, while
- * undeclared keys on the root resource are rejected. Nested columns on a
- * traversed relation are gated against the related resource's declared
- * filterable set, and when no mapped resource exists for a related model the
- * gate fails closed. A model with no mapped resource rejects every key.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -43,8 +36,7 @@ use Tests\TestCase;
 final class QuerySurfaceIntegrationTest extends TestCase
 {
     /**
-     * Seed users and posts for integration tests, and configure the resource
-     * map so related-model column gating can resolve Post to PostResource.
+     * Seed users and posts, and map Post to PostResource for nested gating.
      *
      * @return void
      */
@@ -61,9 +53,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
     }
 
     /**
-     * The allowlist posture is the default: a declared column is applied while
-     * an undeclared column on the same resource is rejected, with no posture
-     * configuration set.
+     * Test that the allowlist is the default posture.
      *
      * @return void
      *
@@ -143,8 +133,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
     }
 
     /**
-     * A column that is declared filterable but not sortable is rejected when
-     * used for ordering: the filterable and sortable sets are independent.
+     * Test that a filterable column is not implicitly sortable.
      *
      * @return void
      *
@@ -171,7 +160,6 @@ final class QuerySurfaceIntegrationTest extends TestCase
 
         $results = $this->declaredCriteria()->apply(new User)->get();
 
-        // Only Alice and Bob have posts.
         self::assertCount(2, $results);
     }
 
@@ -191,11 +179,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
     }
 
     /**
-     * Under the allowlist posture a column declared filterable in the related
-     * resource's schema is permitted and the SQL constraint is applied.
-     *
-     * PostResource declares 'title' as filterable; filtering posts.title must
-     * return only the user whose post title matches.
+     * Test that a declared nested relation column is permitted.
      *
      * @return void
      *
@@ -220,11 +204,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
     }
 
     /**
-     * Under the allowlist posture a column that is NOT declared filterable in
-     * the related resource's schema is rejected with a ValidationException.
-     *
-     * PostResource does not declare 'body' as filterable, so filtering on
-     * posts.body must throw.
+     * Test that an undeclared nested relation column is rejected.
      *
      * @return void
      *
@@ -242,20 +222,15 @@ final class QuerySurfaceIntegrationTest extends TestCase
             $this->declaredCriteria()->apply(new User);
             self::fail('Expected a ValidationException for undeclared nested column "body".');
         } catch (ValidationException $e) { // @phpstan-ignore catch.neverThrown
-            // apply() rejects through the applier chain, which phpstan cannot
-            // trace back to a ValidationException.
+            // apply() throws through the applier chain, out of static view
             self::assertArrayHasKey('filters.body', $e->errors());
         }
     }
 
     /**
-     * Under the allowlist posture a relation traversed at a nested hop is gated
-     * against the related resource's declared traversable set, not merely
-     * whether the relation exists.
+     * Test that an undeclared nested relation traversal is rejected.
      *
-     * PostResource declares no traversable relations, so pivoting from a
-     * traversed post into its 'user' relation must be rejected fail-closed even
-     * though the relation is real.
+     * The relation is real, but PostResource declares nothing traversable.
      *
      * @return void
      *
@@ -273,19 +248,13 @@ final class QuerySurfaceIntegrationTest extends TestCase
             $this->declaredCriteria()->apply(new User);
             self::fail('Expected a ValidationException for undeclared nested relation "user".');
         } catch (ValidationException $e) { // @phpstan-ignore catch.neverThrown
-            // apply() rejects through the applier chain, which phpstan cannot
-            // trace back to a ValidationException.
+            // apply() throws through the applier chain, out of static view
             self::assertArrayHasKey('filters.user', $e->errors());
         }
     }
 
     /**
-     * Under the allowlist posture a nested relation that the related resource
-     * declares traversable is applied end-to-end.
-     *
-     * DeepTraversalPostResource declares 'user' traversable, so the chain
-     * users -> posts -> user is permitted at every hop and the whereHas nesting
-     * is built: only Alice owns a post whose user is named Alice.
+     * Test that a declared nested relation traversal is applied end-to-end.
      *
      * @return void
      *
@@ -314,8 +283,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
     }
 
     /**
-     * A model with no mapped resource yields an empty surface, so the allowlist
-     * posture rejects every key - secure by default.
+     * Test that a model with no mapped resource rejects every key.
      *
      * @return void
      *
@@ -327,13 +295,11 @@ final class QuerySurfaceIntegrationTest extends TestCase
 
         $this->expectException(ValidationException::class);
 
-        // No usingResource() and no resource_map entry for User: surface empty.
         $this->makeCriteria()->apply(new User);
     }
 
     /**
-     * Assert that applying the given query parameters rejects with a named
-     * validation error under the allowlist posture.
+     * Assert that applying the parameters rejects with the named error.
      *
      * @param  array<string, string>  $params
      * @param  string  $expectedKey
@@ -349,8 +315,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
             $this->declaredCriteria()->apply(new User);
             self::fail('Expected a ValidationException for "' . $expectedKey . '".');
         } catch (ValidationException $e) { // @phpstan-ignore catch.neverThrown
-            // apply() rejects through the applier chain, which phpstan cannot
-            // trace back to a ValidationException.
+            // apply() throws through the applier chain, out of static view
             self::assertArrayHasKey($expectedKey, $e->errors());
         }
     }

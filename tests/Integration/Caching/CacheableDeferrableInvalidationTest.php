@@ -18,15 +18,7 @@ use Tests\Fixtures\Repositories\CacheableDeferrableTagRepository;
 use Tests\TestCase;
 
 /**
- * Integration tests for a repository that is both Cacheable and Deferrable
- * invalidating its own per-query cache at the request boundary.
- *
- * This exercises the full consumer path end to end: a read warms the combined
- * repository's per-query cache, a deferred create is buffered through the same
- * repository inside a route handler, and completing the request fires the real
- * RequestHandled event so the subscribed listener flushes the write pool and
- * invalidates the tags-table cache. Existing suites cover the cache-only repo,
- * the direct pool flush, and the request boundary separately; this joins them.
+ * Integration tests for a Cacheable, Deferrable repository's own invalidation.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -78,9 +70,7 @@ final class CacheableDeferrableInvalidationTest extends TestCase
     }
 
     /**
-     * Test that a deferred write flushed at the request boundary invalidates
-     * the combined repository's own per-query cache, so the next read
-     * re-queries and reflects the freshly persisted row.
+     * Test that a boundary flush invalidates the repository's own query cache.
      *
      * @return void
      */
@@ -88,31 +78,22 @@ final class CacheableDeferrableInvalidationTest extends TestCase
     {
         Config::set('api-toolkit.deferred_writes.invalidate_query_cache', true);
 
-        // Warm the combined repository's per-query cache: an identical repeated
-        // read would now be served from cache without a database round trip.
         $this->warmCache();
 
-        // Defer a create through the same combined repository inside a route,
-        // then complete the request so RequestHandled flushes the pool.
         $this->postJson('/deferred-tags', ['name' => 'vue'])->assertStatus(202);
 
-        // The boundary flush persisted the deferred row.
         self::assertSame(3, DB::table('tags')->count());
 
         DB::enableQueryLog();
 
         $result = $this->freshRepository()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        // The stale cached collection is gone: the read re-queried the database
-        // and now reflects the row the boundary flush persisted.
         self::assertCount(1, DB::getQueryLog());
         self::assertCount(3, $result);
     }
 
     /**
-     * Test that, with invalidation disabled, the boundary flush still persists
-     * the deferred row but leaves the combined repository's cached collection
-     * stale until its TTL expires.
+     * Test that with invalidation off the write persists but the read is stale.
      *
      * @return void
      */
@@ -128,14 +109,10 @@ final class CacheableDeferrableInvalidationTest extends TestCase
 
         $result = $this->freshRepository()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        // Invalidation was disabled, so the warmed collection is served
-        // straight from cache without a database round trip and stays stale
-        // until its TTL expires.
         self::assertCount(0, DB::getQueryLog());
         self::assertCount(2, $result);
 
-        // The deferred write itself still reached the database; only the
-        // downstream cache invalidation was skipped.
+        // The write still persisted; only the cache invalidation was skipped
         self::assertSame(3, DB::table('tags')->count());
     }
 
@@ -150,8 +127,7 @@ final class CacheableDeferrableInvalidationTest extends TestCase
     }
 
     /**
-     * Resolve a fresh Cacheable and Deferrable tag repository from the
-     * container.
+     * Resolve a fresh Cacheable and Deferrable tag repository.
      *
      * @return \Tests\Fixtures\Repositories\CacheableDeferrableTagRepository
      */

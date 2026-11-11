@@ -30,11 +30,6 @@ use Tests\TestCase;
 /**
  * Queue integration tests for ServiceJob and the actor serialisation path.
  *
- * Proves that a queued run re-hydrates identically, the actor survives
- * serialisation without consulting Auth or Request, the worker run carries
- * source = QUEUE, and a worker retries a failed service per its tries before
- * recording the job as failed.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -45,10 +40,7 @@ use Tests\TestCase;
 final class ServiceQueueIntegrationTest extends TestCase
 {
     /**
-     * Set up the test environment.
-     *
-     * Registers the ActorUser morph alias so EloquentActor can re-resolve the
-     * model after deserialisation, and resets the static concern capture.
+     * Register the actor morph alias and reset the static concern capture.
      *
      * @return void
      */
@@ -65,11 +57,6 @@ final class ServiceQueueIntegrationTest extends TestCase
     /**
      * Test that a queued run carries the actor without Auth in scope.
      *
-     * No Auth::login() is called anywhere in this test. The actor travels
-     * exclusively via PHP serialisation through the ServiceJob payload. After
-     * the worker executes, the re-hydrated actor retains its identifier and
-     * label snapshot from construction time.
-     *
      * @return void
      */
     public function testQueuedRunCarriesActorWithoutAuth(): void
@@ -80,7 +67,6 @@ final class ServiceQueueIntegrationTest extends TestCase
         $context = ServiceContext::for($actor);
         $job     = new ServiceJob(ConcernCapturingService::class, new ArrayInput([]), $context);
 
-        // Serialise and deserialise to simulate the full queue worker path
         $serialized   = serialize($job);
         $deserialized = unserialize($serialized);
         assert($deserialized instanceof ServiceJob);
@@ -102,10 +88,6 @@ final class ServiceQueueIntegrationTest extends TestCase
 
     /**
      * Test that the worker run reports the QUEUE source.
-     *
-     * ServiceJob::handle() forces source = QUEUE on the context it hands to
-     * ServiceRunner, so the pipeline and any downstream consumers always know
-     * the invocation came from a queue worker.
      *
      * @return void
      */
@@ -133,8 +115,7 @@ final class ServiceQueueIntegrationTest extends TestCase
     }
 
     /**
-     * Test that a worker retries a failing service up to its tries, then
-     * records the job in the failed jobs table with the real cause.
+     * Test that a worker retries a failing service, then records the failure.
      *
      * @return void
      */
@@ -162,8 +143,7 @@ final class ServiceQueueIntegrationTest extends TestCase
     }
 
     /**
-     * Test that a worker completes a succeeding service on its first attempt
-     * and records no failure.
+     * Test that a worker completes a succeeding service and records no failure.
      *
      * @return void
      */
@@ -181,8 +161,7 @@ final class ServiceQueueIntegrationTest extends TestCase
     }
 
     /**
-     * Give the database queue and its failed jobs table a private connection,
-     * so the worker never touches the suite's database.
+     * Give the database queue a private connection, apart from the suite's.
      *
      * @return void
      */

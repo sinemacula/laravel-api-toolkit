@@ -13,12 +13,9 @@ use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
 /**
  * Sort eligibility integration suite for the PostgreSQL engine.
  *
- * A B-tree leading with the column is only as good for sorting as the order its
- * leading key is kept in. A key kept by a pattern operator class, or under a
- * collation other than the column's, cannot answer an ordered read of it, while
- * an alias of the default operator class, or a collation the column itself
- * declares, orders exactly as a plain index does. A key collated apart cannot
- * answer an equality over the column either, while a pattern-class key can.
+ * A key kept by a pattern operator class, or under a collation other than the
+ * column's, cannot answer an ordered read; a key collated apart cannot answer
+ * an equality either.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -33,8 +30,7 @@ final class PostgresSortIndexEligibilityTest extends EngineSortIndexEligibilityT
         . 'which needs an index leading with that column on table "sort_eligibility_rows"';
 
     /**
-     * Test that an index keyed through the text pattern operator class is
-     * refused for sorting.
+     * Test that an index keyed through text_pattern_ops is refused.
      *
      * @return void
      */
@@ -46,8 +42,7 @@ final class PostgresSortIndexEligibilityTest extends EngineSortIndexEligibilityT
     }
 
     /**
-     * Test that an index keyed through the varchar pattern operator class is
-     * refused for sorting.
+     * Test that an index keyed through varchar_pattern_ops is refused.
      *
      * @return void
      */
@@ -59,8 +54,7 @@ final class PostgresSortIndexEligibilityTest extends EngineSortIndexEligibilityT
     }
 
     /**
-     * Test that an index keyed through an alias sharing the default operator
-     * class's family is accepted.
+     * Test that an index keyed through a default-class alias is accepted.
      *
      * @return void
      */
@@ -84,8 +78,9 @@ final class PostgresSortIndexEligibilityTest extends EngineSortIndexEligibilityT
     }
 
     /**
-     * Test that a plain index over a column declaring its own collation is
-     * accepted, since the index inherits that collation.
+     * Test that a plain index over a self-collated column is accepted.
+     *
+     * The index inherits the column's collation.
      *
      * @return void
      */
@@ -99,8 +94,7 @@ final class PostgresSortIndexEligibilityTest extends EngineSortIndexEligibilityT
     }
 
     /**
-     * Test that a pattern operator class on a later key leaves the leading
-     * column's order intact.
+     * Test that a pattern class on a later key keeps the leading order.
      *
      * @return void
      */
@@ -112,8 +106,7 @@ final class PostgresSortIndexEligibilityTest extends EngineSortIndexEligibilityT
     }
 
     /**
-     * Test that an expression keyed through a pattern operator class is left to
-     * the fact reporting the expression.
+     * Test that a pattern-class expression key is left to the expression fact.
      *
      * @return void
      */
@@ -129,8 +122,7 @@ final class PostgresSortIndexEligibilityTest extends EngineSortIndexEligibilityT
     }
 
     /**
-     * Test that a plain index over the column is accepted, so each refusal
-     * above answers to the key rather than to the table.
+     * Test that a plain index over the column is accepted.
      *
      * @return void
      */
@@ -142,8 +134,7 @@ final class PostgresSortIndexEligibilityTest extends EngineSortIndexEligibilityT
     }
 
     /**
-     * Test that an index keyed through a pattern operator class still backs an
-     * equality search over the column.
+     * Test that a pattern-keyed index still backs an equality search.
      *
      * @return void
      */
@@ -158,8 +149,7 @@ final class PostgresSortIndexEligibilityTest extends EngineSortIndexEligibilityT
     }
 
     /**
-     * Test that an index collated apart from its column backs no equality
-     * search over the column.
+     * Test that an index collated apart from its column backs no equality.
      *
      * @return void
      */
@@ -174,8 +164,7 @@ final class PostgresSortIndexEligibilityTest extends EngineSortIndexEligibilityT
     }
 
     /**
-     * Test that a plain index over a column declaring its own collation backs
-     * an equality search, since the index inherits that collation.
+     * Test that a plain index over a self-collated column backs equality.
      *
      * @return void
      */
@@ -192,9 +181,7 @@ final class PostgresSortIndexEligibilityTest extends EngineSortIndexEligibilityT
     }
 
     /**
-     * Test that the planner answers an equality over the column from a plain
-     * index and never from one collated apart, which is what the refusal of the
-     * latter rests on.
+     * Test that the planner answers equality only from a key sharing collation.
      *
      * @return void
      */
@@ -222,8 +209,7 @@ final class PostgresSortIndexEligibilityTest extends EngineSortIndexEligibilityT
     }
 
     /**
-     * Return the plan the engine chooses for an equality over the column, with
-     * a sequential scan priced out so any index able to answer it is taken.
+     * Return the plan chosen for an equality, with sequential scans priced out.
      *
      * @return string
      */

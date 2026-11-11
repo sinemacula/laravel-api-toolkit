@@ -16,12 +16,7 @@ use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\TestCase;
 
 /**
- * End-to-end proof that a type-hinted Payload is resolved over the wire.
- *
- * A controller action type-hints a concrete Payload subclass; a valid request
- * yields a hydrated instance injected into the action, while an invalid request
- * surfaces as a 422 through the exception handler rather than a 500. Direct
- * from() and named-argument construction remain unaffected by the hook.
+ * End-to-end tests that a type-hinted Payload is resolved over the wire.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -71,8 +66,7 @@ final class PayloadContainerResolutionTest extends TestCase
     }
 
     /**
-     * Test that an invalid request yields a 422 with the expected error keys
-     * rather than a 500 from an unhandled resolution failure.
+     * Test that an invalid request yields a 422, not a 500.
      *
      * @return void
      */

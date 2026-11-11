@@ -18,11 +18,10 @@ use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
- * End-to-end test of the metadata cache under a store that unserializes no
- * class, as Laravel's serializable_classes setting refuses them by default.
+ * End-to-end test of the metadata cache under a class-refusing store.
  *
- * One process warms the cache and the next reads it back, so every entry the
- * first writes must survive being read without its classes.
+ * Laravel's serializable_classes setting refuses classes by default, so every
+ * entry one process writes must read back without them in the next.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -80,8 +79,7 @@ final class ClassRefusingMetadataCacheTest extends TestCase
     }
 
     /**
-     * Test that the OpenAPI export succeeds against a cache the docs command
-     * warmed in an earlier process, and exports what a cold cache would.
+     * Test that the export succeeds against a cache the docs command warmed.
      *
      * @return void
      */
@@ -106,8 +104,7 @@ final class ClassRefusingMetadataCacheTest extends TestCase
     }
 
     /**
-     * Drop every piece of state this process holds, so the next command reads
-     * the metadata from the shared store as another process would.
+     * Drop this process's state so the next command reads the shared store.
      *
      * @return void
      */

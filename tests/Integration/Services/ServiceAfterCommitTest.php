@@ -15,10 +15,6 @@ use Tests\TestCase;
 /**
  * Integration test for a throwing afterCommit hook over a real transaction.
  *
- * Proves that when the core write commits and the afterCommit hook then throws,
- * the committed row survives and the failure is captured as a side-effect error
- * on a still-successful result rather than rolling back or escaping the runner.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -67,8 +63,6 @@ final class ServiceAfterCommitTest extends TestCase
             /**
              * Throw after the transaction has already committed.
              *
-             * The output is required by the hook signature but not used here.
-             *
              * @SuppressWarnings("php:S1172")
              *
              * @param  mixed  $output
@@ -85,8 +79,7 @@ final class ServiceAfterCommitTest extends TestCase
 
         $result = $service->run();
 
-        // The run still succeeds: the committed write is intact and the
-        // afterCommit failure is captured rather than rethrown or rolled back.
+        // The committed write survives and the hook failure is captured
         self::assertTrue($result->succeeded());
         self::assertSame('written', $result->output());
 

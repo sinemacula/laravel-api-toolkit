@@ -24,16 +24,7 @@ use Tests\Fixtures\Services\StubActor;
 use Tests\TestCase;
 
 /**
- * Integration tests for the service lifecycle driven over the wire.
- *
- * Proves the two edge invocations of a service: an HTTP route action runs a
- * service inside the real request lifecycle and returns the created subject
- * through the toolkit resource response, and Service::dispatch() pushes a
- * ServiceJob carrying the service class and the explicit actor context onto a
- * faked queue. An HTTP route also builds the context from the request, and the
- * service reads the captured metadata through context(). The queue re-hydration
- * path itself is covered elsewhere; this suite proves only the HTTP and
- * dispatch entry points.
+ * Integration tests for running a service from an HTTP route and dispatch().
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -114,10 +105,6 @@ final class ServiceHttpAndDispatchTest extends TestCase
     /**
      * Test that an HTTP action runs a service and returns its output.
      *
-     * The route action runs the full service lifecycle in-process, so the
-     * created user is reflected in the toolkit resource body (including the
-     * service-derived email) and as a committed row in the database.
-     *
      * @return void
      */
     public function testHttpActionRunsServiceAndReturnsOutput(): void
@@ -135,10 +122,6 @@ final class ServiceHttpAndDispatchTest extends TestCase
     /**
      * Test that Service::dispatch() pushes a ServiceJob to the queue.
      *
-     * The real dispatch path is exercised under a faked queue: the pushed job
-     * carries the concrete service class-string and the explicit actor context,
-     * with the source defaulting to INTERNAL for a synchronous dispatch.
-     *
      * @return void
      */
     public function testDispatchPushesServiceJobWithActorContext(): void
@@ -154,9 +137,7 @@ final class ServiceHttpAndDispatchTest extends TestCase
     }
 
     /**
-     * Test that a service run with the context built from the request reads the
-     * client IP address through context(), and that the request's X-Request-Id
-     * header reaches the completion event as the correlation id.
+     * Test that a service reads the request-built context and correlation id.
      *
      * @return void
      */

@@ -20,14 +20,10 @@ use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use Tests\TestCase;
 
 /**
- * Integration harness: metadata across Octane and queue lifecycle boundaries.
+ * Integration tests for metadata across Octane and queue lifecycle boundaries.
  *
- * Proves that shared metadata survives a lifecycle boundary and is rebuilt only
- * once it is invalidated, that php-fpm does not engage, that opt-out is
- * honoured, and that nothing on the shared store is cleared by a boundary.
- *
- * Every test sets the relevant config and $_SERVER state explicitly, so the
- * mechanism is validated independently of the shipped defaults.
+ * Each test sets config and $_SERVER explicitly, independent of the shipped
+ * defaults.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -71,15 +67,12 @@ final class LifecycleFlushDefaultsTest extends TestCase
     }
 
     /**
-     * Test that shared metadata survives an Octane boundary, so request 2 is
-     * served what request 1 stored, and that only an explicit invalidation
-     * makes it rebuild.
+     * Test that shared metadata survives an Octane boundary until invalidated.
      *
      * @return void
      */
     public function testOctaneBoundaryKeepsSharedMetadataUntilInvalidated(): void
     {
-        // Arrange
         $_SERVER['LARAVEL_OCTANE'] = 1;
         Config::set('api-toolkit.lifecycle.octane', true);
 
@@ -87,32 +80,24 @@ final class LifecycleFlushDefaultsTest extends TestCase
 
         $key = 'integration:octane-staleness-test';
 
-        // Request 1: the old shape is stored.
         $this->remember($key, 'old-shape');
 
-        // Boundary: simulate end-of-request Octane flush.
         $this->octaneListener()->handle(new \stdClass);
 
-        // Request 2: the stored shape is served rather than rebuilt.
         self::assertSame('old-shape', $this->remember($key, 'new-shape'));
 
-        // Deploy: an explicit invalidation retires it, and the next read
-        // rebuilds.
         $this->cacheManager()->invalidateMetadata();
 
         self::assertSame('new-shape', $this->remember($key, 'new-shape'));
     }
 
     /**
-     * Test that shared metadata survives a queue job boundary, so job 2 is
-     * served what job 1 stored, and that only an explicit invalidation makes it
-     * rebuild.
+     * Test that shared metadata survives a queue boundary until invalidated.
      *
      * @return void
      */
     public function testQueueBoundaryKeepsSharedMetadataUntilInvalidated(): void
     {
-        // Arrange
         Config::set('queue.connections.database.driver', 'database');
         Config::set('api-toolkit.lifecycle.queue', true);
 
@@ -120,35 +105,26 @@ final class LifecycleFlushDefaultsTest extends TestCase
 
         $key = 'integration:queue-staleness-test';
 
-        // Job 1: the old shape is stored.
         $this->remember($key, 'old-shape');
 
-        // Boundary: simulate end-of-job queue flush.
         $event = new JobProcessed('database', self::createStub(Job::class));
         $this->queueSubscriber()->handleFlush($event);
 
-        // Job 2: the stored shape is served rather than rebuilt.
         self::assertSame('old-shape', $this->remember($key, 'new-shape'));
 
-        // Deploy: an explicit invalidation retires it, and the next read
-        // rebuilds.
         $this->cacheManager()->invalidateMetadata();
 
         self::assertSame('new-shape', $this->remember($key, 'new-shape'));
     }
 
     /**
-     * Test that under php-fpm (no LARAVEL_OCTANE signal), the Octane listener
-     * does not perform a flush even when the config flag is on.
-     *
-     * The runtime gate, not the config flag, prevents flush engagement outside
-     * a long-lived Octane worker.
+     * Test that the Octane listener does not flush under php-fpm.
      *
      * @return void
      */
     public function testPhpFpmRequestPerformsNoFlush(): void
     {
-        // Arrange - no LARAVEL_OCTANE signal (php-fpm).
+        // No LARAVEL_OCTANE signal, as under php-fpm
         unset($_SERVER['LARAVEL_OCTANE']);
         Config::set('api-toolkit.lifecycle.octane', true);
 
@@ -160,34 +136,24 @@ final class LifecycleFlushDefaultsTest extends TestCase
         $writer->rememberMetadataForever($key, static fn () => 'value');
         self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
 
-        // Act: invoke the boundary under php-fpm conditions.
         $this->octaneListener()->handle(new \stdClass);
 
-        // Assert: the key must survive because no flush ran.
         self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
     }
 
     /**
-     * Test that the opt-out flag prevents the lifecycle flush from being wired
-     * to its boundary at all.
+     * Test that the opt-out flag stops the lifecycle flush being subscribed.
      *
-     * With the lifecycle flag off, LifecycleRegistrar does not subscribe the
-     * flush, so no boundary can fire it. The queue path is the representative
-     * opt-out oracle - the Octane path additionally gates on
-     * interface_exists(OperationTerminated), so the queue gate is the one that
-     * can be isolated cleanly. The enabled control proves the assertion tracks
-     * the flag rather than passing vacuously.
+     * The queue gate is the oracle because the Octane path also gates on
+     * interface_exists().
      *
      * @return void
      */
     public function testOptOutDisablesLifecycleFlushSubscription(): void
     {
-        // Reset the dispatcher so the boot-time wiring (now default-on) does
-        // not pollute the baseline being tested.
+        // Reset the dispatcher so boot-time wiring does not skew the baseline
         Event::swap(new Dispatcher($this->app));
 
-        // Opt-out: the flag is off, so the registrar must not wire the
-        // subscriber.
         Config::set('api-toolkit.lifecycle.queue', false);
 
         (new LifecycleRegistrar)->register();
@@ -197,8 +163,7 @@ final class LifecycleFlushDefaultsTest extends TestCase
             'QueueFlushSubscriber must not be wired when lifecycle.queue is false',
         );
 
-        // Control: with the flag on, the registrar wires it - proving the gate,
-        // not an always-false assertion, drives the opt-out behaviour.
+        // Control: the flag on wires it, so the opt-out is not vacuous
         Config::set('api-toolkit.lifecycle.queue', true);
 
         (new LifecycleRegistrar)->register();
@@ -210,14 +175,12 @@ final class LifecycleFlushDefaultsTest extends TestCase
     }
 
     /**
-     * Test that a boundary leaves the shared store untouched: the toolkit's own
-     * metadata and a non-toolkit key written beside it both survive.
+     * Test that a boundary leaves toolkit and non-toolkit store keys untouched.
      *
      * @return void
      */
     public function testSharedStoreKeysSurviveBoundary(): void
     {
-        // Arrange
         $_SERVER['LARAVEL_OCTANE'] = 1;
         Config::set('api-toolkit.lifecycle.octane', true);
 
@@ -230,17 +193,14 @@ final class LifecycleFlushDefaultsTest extends TestCase
 
         Cache::memo()->rememberForever($nonToolkitKey, static fn () => 'keep-me'); // @phpstan-ignore method.notFound
 
-        // Act: invoke the Octane boundary.
         $this->octaneListener()->handle(new \stdClass);
 
-        // Assert: both keys survive in the underlying store.
         self::assertSame('toolkit-value', Cache::store()->get($this->metadataStorageKey($toolkitKey)));
         self::assertSame('keep-me', Cache::store()->get($nonToolkitKey));
     }
 
     /**
-     * Determine whether the given event has a listener belonging to the given
-     * subscriber class.
+     * Determine whether the event has a listener from the given subscriber.
      *
      * @param  class-string  $event
      * @param  class-string  $subscriber
@@ -282,8 +242,7 @@ final class LifecycleFlushDefaultsTest extends TestCase
     }
 
     /**
-     * Remember the given value under the key through the wired writer,
-     * returning whatever the store serves.
+     * Remember the value through the wired writer, returning what is served.
      *
      * @param  string  $key
      * @param  string  $value

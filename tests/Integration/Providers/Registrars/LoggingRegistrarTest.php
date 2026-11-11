@@ -16,10 +16,6 @@ use Tests\TestCase;
 /**
  * Integration tests for the LoggingRegistrar.
  *
- * The logging configuration permutations are pinned by the ApiServiceProvider
- * integration suite; this test proves the registrar registers its surface when
- * invoked directly.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -29,9 +25,7 @@ use Tests\TestCase;
 final class LoggingRegistrarTest extends TestCase
 {
     /**
-     * Test that the notification logging listeners are registered when the
-     * registrar is invoked with logging enabled and illuminate/notifications is
-     * installed (class_exists guard traversed successfully).
+     * Test that notification logging listeners are registered when enabled.
      *
      * @return void
      */
@@ -44,8 +38,6 @@ final class LoggingRegistrarTest extends TestCase
 
         $config->set('api-toolkit.notifications.enable_logging', true);
 
-        // illuminate/notifications is present via testbench, so class_exists
-        // returns true and the listeners must be wired.
         self::assertTrue(class_exists(NotificationSending::class), 'Prerequisite: illuminate/notifications must be present for this assertion to hold');
 
         (new LoggingRegistrar)->register();
@@ -60,8 +52,7 @@ final class LoggingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that no notification logging listeners are registered when logging
-     * is explicitly disabled in configuration.
+     * Test that no notification logging listeners are registered when disabled.
      *
      * @return void
      */
@@ -86,8 +77,7 @@ final class LoggingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that no notification logging listeners are registered when logging
-     * is enabled but illuminate/notifications is not installed.
+     * Test that no notification listeners are registered without the package.
      *
      * @return void
      */
@@ -100,8 +90,7 @@ final class LoggingRegistrarTest extends TestCase
 
         $config->set('api-toolkit.notifications.enable_logging', true);
 
-        // Simulate illuminate/notifications being absent so the class_exists
-        // guard short-circuits before any listener is wired.
+        // Simulate illuminate/notifications being absent
         FunctionOverrides::set(
             'class_exists',
             static fn (mixed ...$arguments): bool => is_string($arguments[0]) && $arguments[0] !== NotificationSending::class && \class_exists($arguments[0]),

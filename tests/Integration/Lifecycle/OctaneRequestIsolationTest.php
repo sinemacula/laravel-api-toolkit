@@ -26,14 +26,6 @@ use Tests\TestCase;
 /**
  * Cross-request state isolation for the long-running Octane runtime.
  *
- * Proves that request-scoped toolkit state does not leak between simulated
- * Octane requests: the scoped ApiQueryParser and WritePool bindings each yield
- * a fresh instance once the per-operation container reset runs, while
- * schema-level singletons (the operator registry and the morph map) survive the
- * boundary that only flushes per-request metadata. A binding regressing to
- * singleton would leak request A's state into request B; an over-aggressive
- * flush would drop the schema-level singletons.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -84,13 +76,7 @@ final class OctaneRequestIsolationTest extends TestCase
     }
 
     /**
-     * Test that the scoped ApiQueryParser does not leak parsed state across the
-     * Octane per-operation boundary.
-     *
-     * Request A parses a query carrying filters, fields, order, and limit;
-     * after the container's scoped-instance reset, request B resolves a fresh
-     * parser whose getters all return their empty defaults, proving no residue
-     * from request A survives.
+     * Test that the scoped ApiQueryParser does not leak state across requests.
      *
      * @return void
      *
@@ -108,7 +94,6 @@ final class OctaneRequestIsolationTest extends TestCase
 
         self::assertIsString($alias);
 
-        // Request A: parse a fully-populated query string.
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parserA */
         $parserA = $app->make($alias);
         $parserA->parse($this->request(
@@ -121,10 +106,9 @@ final class OctaneRequestIsolationTest extends TestCase
         self::assertSame(['name' => 'desc'], $parserA->getOrder());
         self::assertSame(5, $parserA->getLimit());
 
-        // Boundary: Octane resets scoped instances between operations.
+        // Octane resets scoped instances between operations
         $app->forgetScopedInstances();
 
-        // Request B: a fresh instance with no query params.
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parserB */
         $parserB = $app->make($alias);
         $parserB->parse($this->request('/users'));
@@ -139,12 +123,6 @@ final class OctaneRequestIsolationTest extends TestCase
     /**
      * Test that buffered deferred writes do not leak over the Octane boundary.
      *
-     * Request A defers a row so the scoped WritePool holds a non-empty buffer.
-     * After the boundary flush persists it and the container resets scoped
-     * instances, request B resolves a fresh, empty pool that carries none of
-     * request A's records, and a request-B deferral flushes only request B's
-     * row.
-     *
      * @return void
      *
      * @throws \SineMacula\Repositories\Exceptions\RepositoryException
@@ -157,7 +135,6 @@ final class OctaneRequestIsolationTest extends TestCase
 
         assert($app !== null);
 
-        // Request A: defer a row through the Deferrable repository.
         /** @var \Tests\Fixtures\Repositories\DeferrableUserRepository $repositoryA */
         $repositoryA = $app->make(DeferrableUserRepository::class);
         $repositoryA->defer(['name' => 'Alice', 'email' => 'alice@example.com']);
@@ -168,14 +145,12 @@ final class OctaneRequestIsolationTest extends TestCase
         self::assertFalse($poolA->isEmpty());
         self::assertSame(1, $poolA->count());
 
-        // Boundary: flush the buffer (RequestHandled) then reset scoped
-        // instances the way Octane does per operation.
+        // Flush as RequestHandled would, then reset as Octane does
         $poolA->flush();
         $app->forgetScopedInstances();
 
         self::assertSame(1, DB::table('users')->count());
 
-        // Request B: a fresh, empty pool with none of request A's records.
         /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePool $poolB */
         $poolB = $app->make(WritePool::class);
 
@@ -183,7 +158,6 @@ final class OctaneRequestIsolationTest extends TestCase
         self::assertTrue($poolB->isEmpty());
         self::assertSame(0, $poolB->count());
 
-        // A request-B deferral flushes only request B's row.
         /** @var \Tests\Fixtures\Repositories\DeferrableUserRepository $repositoryB */
         $repositoryB = $app->make(DeferrableUserRepository::class);
         $repositoryB->defer(['name' => 'Bob', 'email' => 'bob@example.com']);
@@ -198,13 +172,7 @@ final class OctaneRequestIsolationTest extends TestCase
     }
 
     /**
-     * Test that schema-level singletons and shared metadata both survive the
-     * Octane request boundary, and that only an explicit invalidation retires
-     * the metadata.
-     *
-     * A custom operator registered on the singleton registry and a morph-map
-     * binding are schema-level state that must outlive the boundary, and so is
-     * metadata in the shared store: the boundary resets in-process state only.
+     * Test that schema-level singletons and shared metadata survive a boundary.
      *
      * @return void
      */
@@ -218,7 +186,6 @@ final class OctaneRequestIsolationTest extends TestCase
 
         Event::fake();
 
-        // Schema-level state established at boot.
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry $registry */
         $registry = $app->make(OperatorRegistry::class);
         $equal    = $registry->resolve('$eq');
@@ -229,22 +196,17 @@ final class OctaneRequestIsolationTest extends TestCase
 
         Relation::morphMap(['users' => User::class]);
 
-        // Shared metadata stored through the writer.
         $key = 'integration:octane-schema-survival';
         $this->writer()->rememberMetadataForever($key, static fn () => 'value');
 
-        // Boundary: the Octane flush resets in-process state only.
         $this->octaneListener()->handle(new \stdClass);
 
         self::assertSame('value', $this->writer()->readMetadata($key));
 
-        // Schema-level singletons survive: the custom operator and the morph
-        // map still resolve on the same singleton instances.
         self::assertSame($registry, $app->make(OperatorRegistry::class));
         self::assertTrue($registry->has('$starts'));
         self::assertSame(User::class, Relation::getMorphedModel('users'));
 
-        // An explicit invalidation retires the metadata and forces a rebuild.
         $app->make(CacheManager::class)->invalidateMetadata();
 
         self::assertNull($this->writer()->readMetadata($key));

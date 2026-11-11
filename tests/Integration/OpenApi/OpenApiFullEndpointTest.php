@@ -32,16 +32,8 @@ use Tests\TestCase;
 /**
  * Full-facet interaction test for a single assembled endpoint.
  *
- * Registers one realistic write endpoint - an authorized controller carrying a
- * class-level #[Tag], a store action naming a rules source through
- * #[RequestSchema] and documenting a ConflictException throw, mapped to a
- * registered resource, and routed under an auth guard - then exports the
- * document and proves the assembled POST operation carries every facet at once:
- * a required requestBody translated from the rules source, the 201 created
- * response, the per-operation security requirement, the 409 error alongside the
- * baseline 401/403/422/500 set, the custom tag, and whole-document validity
- * against the OpenAPI 3.1 meta-schema. A facet dropped or mis-merged during
- * assembly must fail one of these assertions.
+ * A facet dropped or mis-merged during assembly must fail one of these
+ * assertions.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -77,10 +69,7 @@ final class OpenApiFullEndpointTest extends TestCase
     }
 
     /**
-     * Test that the assembled POST operation carries every facet at once - a
-     * required translated requestBody, the 201 created response, per-operation
-     * security, the 409 plus baseline error set, and the custom tag - while the
-     * whole document validates against the OpenAPI 3.1 meta-schema.
+     * Test that the assembled POST operation carries every facet at once.
      *
      * @return void
      */
@@ -89,9 +78,6 @@ final class OpenApiFullEndpointTest extends TestCase
         $document  = $this->export()->document;
         $operation = $document['paths']['/billing']['post'];
 
-        // Facet 1: a required requestBody translated from the rules source,
-        // with the concrete title fragment and required list the translator
-        // emits.
         $body   = $operation['requestBody'];
         $schema = $body['content']['application/json']['schema'];
 
@@ -99,16 +85,13 @@ final class OpenApiFullEndpointTest extends TestCase
         self::assertSame(['type' => 'string', 'maxLength' => 255], $schema['properties']['title']);
         self::assertSame(['title', 'email', 'password', 'password_confirmation'], $schema['required']);
 
-        // Facet 2: the 201 created response wrapping the mapped resource.
         self::assertSame(
             ['$ref' => '#/components/schemas/User'],
             $operation['responses']['201']['content']['application/json']['schema']['properties']['data'],
         );
 
-        // Facet 3: the per-operation security requirement for the auth guard.
         self::assertSame([['bearerAuth' => []]], $operation['security']);
 
-        // Facet 4: the documented 409 error alongside the baseline error set.
         self::assertSame(
             ['$ref' => '#/components/schemas/ErrorEnvelope'],
             $operation['responses'][409]['content']['application/json']['schema'],
@@ -119,10 +102,8 @@ final class OpenApiFullEndpointTest extends TestCase
             array_keys($operation['responses']),
         );
 
-        // Facet 5: the custom class-level tag survives to the operation.
         self::assertSame(['Billing'], $operation['tags']);
 
-        // Facet 6: the whole assembled document is valid OpenAPI 3.1.
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
             'The full-facet document is not valid OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
@@ -130,9 +111,7 @@ final class OpenApiFullEndpointTest extends TestCase
     }
 
     /**
-     * Test that the same write operation is simultaneously authenticated and
-     * body-bearing, proving the security and requestBody facets coexist on one
-     * operation rather than one displacing the other.
+     * Test that the write operation is both authenticated and body-bearing.
      *
      * @return void
      */
@@ -147,8 +126,7 @@ final class OpenApiFullEndpointTest extends TestCase
     }
 
     /**
-     * Test that the referenced security scheme is emitted as a component
-     * definition, so the operation's requirement is not a dangling reference.
+     * Test that the referenced security scheme is emitted as a component.
      *
      * @return void
      */
@@ -163,8 +141,7 @@ final class OpenApiFullEndpointTest extends TestCase
     }
 
     /**
-     * Test that the custom class-level #[Tag] overrides the resource-derived
-     * tag and survives all the way to the exported operation.
+     * Test that the class-level #[Tag] overrides the resource-derived tag.
      *
      * @return void
      */
@@ -212,8 +189,7 @@ final class OpenApiFullEndpointTest extends TestCase
     }
 
     /**
-     * Validate a document array against the bundled (opis-adapted) OpenAPI 3.1
-     * meta-schema.
+     * Validate a document against the opis-adapted OpenAPI 3.1 meta-schema.
      *
      * @param  array<string, mixed>  $document
      * @return \Opis\JsonSchema\ValidationResult
@@ -242,8 +218,7 @@ final class OpenApiFullEndpointTest extends TestCase
     }
 
     /**
-     * Load the OpenAPI 3.1 meta-schema, applying the documented opis
-     * compatibility transform.
+     * Load the OpenAPI 3.1 meta-schema with the opis compatibility transform.
      *
      * @return string
      */
@@ -268,11 +243,11 @@ final class OpenApiFullEndpointTest extends TestCase
     }
 
     /**
-     * Apply the two opis/json-schema compatibility transforms in place: rewrite
-     * the Schema Object's `$dynamicRef: "#meta"` to the equivalent static
-     * `$ref: "#/$defs/schema"`, and relax every `unevaluatedProperties: false`
-     * to `true`. Both work around opis annotation/reference gaps without
-     * weakening any validity-bearing constraint; see the fixtures README.
+     * Apply the two opis/json-schema compatibility transforms in place.
+     *
+     * Rewrites `$dynamicRef: "#meta"` to `$ref: "#/$defs/schema"` and relaxes
+     * `unevaluatedProperties: false` to `true`, working around opis gaps
+     * without weakening any validity constraint; see the fixtures README.
      *
      * @param  array<array-key, mixed>  $node
      * @return void

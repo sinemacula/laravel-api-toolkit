@@ -45,9 +45,6 @@ use Tests\TestCase;
 /**
  * Integration tests for the ContainerBindingRegistrar.
  *
- * The binding behaviour is pinned by the ApiServiceProvider integration suite;
- * this test proves the registrar binds its surface when invoked directly.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -57,8 +54,7 @@ use Tests\TestCase;
 final class ContainerBindingRegistrarTest extends TestCase
 {
     /**
-     * Test that all toolkit container bindings resolve after the registrar is
-     * invoked.
+     * Test that all toolkit container bindings resolve after registration.
      *
      * @return void
      */
@@ -85,8 +81,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the OpenAPI exporter ports bind to their default adapters and
-     * the lifecycle collaborators bind as shared singletons.
+     * Test that exporter ports and lifecycle singletons bind as expected.
      *
      * @return void
      */
@@ -106,8 +101,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the bound schema validator carries the shipped rule set rather
-     * than resolving as an empty validator that accepts every schema.
+     * Test that the bound schema validator carries the shipped rule set.
      *
      * @return void
      */
@@ -127,9 +121,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the shipped rule set refuses a filterable declaration naming a
-     * column the table does not carry, so the rule is wired to a live column
-     * listing rather than deciding from the schema alone.
+     * Test that the shipped rules refuse a filter on a column the table lacks.
      *
      * @return void
      */
@@ -153,8 +145,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the shipped rule set refuses a resource declaring a sensitive
-     * column filterable, so the defence-in-depth denylist is enforced at boot.
+     * Test that the shipped rules refuse a filterable sensitive column.
      *
      * @return void
      */
@@ -174,9 +165,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the shipped rule set refuses a sortable declaration on a column
-     * an index covers without leading, so a sort the connection can only serve
-     * by reading the table fails at boot.
+     * Test that the shipped rules refuse a sort no index leads with.
      *
      * @return void
      */
@@ -201,9 +190,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the shipped rule set refuses a resource declaring a computed
-     * field searchable, so a search surface with no column behind it fails at
-     * boot rather than at request time.
+     * Test that the shipped rules refuse a searchable computed field.
      *
      * @return void
      */
@@ -223,9 +210,10 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the search driver registry binds as a shared singleton carrying
-     * a driver for each engine the package writes a search for, and nothing for
-     * a connection it does not.
+     * Test that the search driver registry binds as a shared singleton.
+     *
+     * It carries a driver for each engine the package writes a search for, and
+     * none for any other connection.
      *
      * @return void
      */
@@ -245,8 +233,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the write pool is built with the configured values cast to int
-     * and the transactional flag defaulting to false when unconfigured.
+     * Test that the write pool is built with cast config and non-transactional.
      *
      * @return void
      */
@@ -273,8 +260,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that resolving a Payload subclass by name yields a validated,
-     * hydrated instance built from the current request.
+     * Test that resolving a Payload builds a validated instance from requests.
      *
      * @return void
      */
@@ -299,8 +285,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that resolving a Payload subclass throws a validation exception when
-     * the current request fails the payload's rules.
+     * Test that resolving a Payload throws when the request fails validation.
      *
      * @return void
      */
@@ -318,8 +303,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that a non-Payload resolution is left untouched by the hook, so the
-     * hook binds nothing for classes outside the Payload hierarchy.
+     * Test that a non-Payload resolution is left untouched by the hook.
      *
      * @return void
      */
@@ -335,8 +319,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that explicit make() parameters bypass the hook, so the class builds
-     * directly from the given values without request validation.
+     * Test that explicit make() parameters bypass the hook.
      *
      * @return void
      */
@@ -353,8 +336,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that an already-bound Payload subclass is not hijacked, so a
-     * pre-registered binding wins over the request-building hook.
+     * Test that an already-bound Payload subclass keeps its binding.
      *
      * @return void
      */
@@ -372,9 +354,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the hook skips a non-namespaced abstract before any class
-     * lookup, so resolving a plain service key costs no more autoloader calls
-     * than it does on a container without the hook.
+     * Test that the hook skips a non-namespaced abstract before class lookup.
      *
      * @return void
      */

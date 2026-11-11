@@ -30,20 +30,8 @@ use Tests\TestCase;
 /**
  * End-to-end tests for the structural query-cost caps.
  *
- * Drives real HTTP requests through the parse and criteria tiers against a real
- * database, asserting both halves of the contract: an over-cost request is
- * answered with the typed rejection envelope, and the query log is empty
- * afterwards, so the request was refused before a single statement was issued.
- *
- * The envelope is pinned key by key, the JSON pointer among them, so a client
- * refused inside a nested group is told where within its own document the cap
- * was exhausted rather than only that one was.
- *
- * The flat caps are pinned against the resource type the criteria resolve for
- * the route rather than one a test hands the guard: the sort-key cap is
- * measured before the sortable allowlist walks the keys, and the aggregate cap
- * counts the same relation-keyed maps the eager loader later reads, so a map
- * the cap does not count is one the query does not issue either.
+ * An over-cost request must get the typed rejection envelope before any
+ * statement is issued.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -66,9 +54,8 @@ final class QueryCostRejectionTest extends TestCase
     /**
      * Set up the repository-backed users routes and seed the fixtures.
      *
-     * The two routes resolve a different resource, and so a different resource
-     * type, for the same model, so a test can tell a cap keyed on the type the
-     * criteria resolve from one keyed on whatever type the client sent.
+     * The two routes resolve different resource types for the same model,
+     * telling a cap keyed on the resolved type from one keyed on the client's.
      *
      * @return void
      */
@@ -102,8 +89,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that a filter document nested beyond the depth cap is refused before
-     * any statement reaches the database.
+     * Test that a filter nested beyond the depth cap issues no SQL.
      *
      * @return void
      */
@@ -117,12 +103,10 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that a filter document nested beyond the parse-depth cap is refused
-     * by the parse tier before any statement reaches the database.
+     * Test that a filter nested beyond the parse-depth cap issues no SQL.
      *
-     * The document nests beyond the dispatch depth cap as well, so the reason
-     * the envelope carries names which of the two tiers refused it, and proves
-     * the parse tier measures nesting before the document is dispatched.
+     * It also exceeds the dispatch cap, so the reason proves the parse tier
+     * refused first.
      *
      * @return void
      */
@@ -140,13 +124,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that a filter document visiting more keys than the node cap is
-     * refused before any statement reaches the database, reported at the key
-     * that exhausted the budget.
-     *
-     * Every entry names a relation the surface declares, and each one adds a
-     * correlated subquery of its own, so the document is refused on the total
-     * it asks for rather than on any single key being unacceptable.
+     * Test that a filter visiting more keys than the node cap issues no SQL.
      *
      * @return void
      */
@@ -160,9 +138,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that a filter document visiting exactly the node cap is answered
-     * from the database, so the rejection above is the budget running out
-     * rather than the shape of the document being refused outright.
+     * Test that a filter visiting exactly the node cap is answered.
      *
      * @return void
      */
@@ -184,9 +160,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that an operator value list longer than the item cap is refused
-     * before any statement reaches the database, reported at the operator that
-     * carried it.
+     * Test that a value list longer than the item cap issues no SQL.
      *
      * @return void
      */
@@ -200,9 +174,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that an operator value list of exactly the item cap is answered from
-     * the database, so the rejection above turns on the item count rather than
-     * on the list itself.
+     * Test that a value list of exactly the item cap is answered.
      *
      * @return void
      */
@@ -219,8 +191,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that a filter document larger than the byte cap is refused by the
-     * parse tier before any statement reaches the database.
+     * Test that a filter larger than the byte cap issues no SQL.
      *
      * @return void
      */
@@ -234,9 +205,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that a page beyond the offset cap is refused before any statement
-     * reaches the database, rather than being clamped to the last page within
-     * the cap.
+     * Test that a page beyond the offset cap is refused, not clamped.
      *
      * @return void
      */
@@ -246,15 +215,12 @@ final class QueryCostRejectionTest extends TestCase
 
         $response = $this->recordQueries('/users?page=27&limit=10');
 
-        // The cap counts rows skipped; the refusal names pages, because that is
-        // the unit the caller asked in.
+        // The cap counts skipped rows but the refusal names pages
         $this->assertRejectionEnvelope($response, 'page', '', 'max_offset', 26, 27);
     }
 
     /**
-     * Test that a page size beyond the parser ceiling is refused before any
-     * statement reaches the database, rather than being reduced to the ceiling
-     * and answered with a page the client cannot tell from the last one.
+     * Test that a page size beyond the parser ceiling is refused, not reduced.
      *
      * @return void
      */
@@ -268,9 +234,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that a request sorting by more columns than the cap allows is
-     * refused before any statement reaches the database, even though every
-     * column it names is declared sortable.
+     * Test that sorting by more columns than the cap allows issues no SQL.
      *
      * @return void
      */
@@ -284,14 +248,10 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that the sort-key cap is measured before the sortable allowlist, so
-     * an over-cap request is refused on its cost rather than on the first key
-     * the allowlist happens to object to.
+     * Test that the sort-key cap is measured before the sortable allowlist.
      *
-     * The undeclared key is sent alone first, to establish that the allowlist
-     * is what answers a request the cap lets through, and so that the cost
-     * envelope below cannot be mistaken for the allowlist rejecting the same
-     * key by another name.
+     * The undeclared key is sent alone first to show the allowlist answers what
+     * the cap lets through.
      *
      * @return void
      */
@@ -310,9 +270,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that relation aggregates beyond the shipped cap, keyed on the
-     * resource type the criteria resolve for the route, are refused before any
-     * statement reaches the database.
+     * Test that aggregates beyond the shipped cap issue no SQL.
      *
      * @return void
      */
@@ -328,8 +286,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that an aggregate keyed on the resource type the criteria resolve is
-     * loaded, so the key the cap counts is the key the query is built from.
+     * Test that an aggregate keyed on the resolved resource type is loaded.
      *
      * @return void
      */
@@ -351,13 +308,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that aggregates keyed on another resource type are neither counted
-     * against the cap nor loaded, so the type mismatch that leaves the cap
-     * nothing to measure leaves the query nothing to add either.
-     *
-     * The request carries more aggregates than the cap allows, and is answered
-     * rather than refused, because the route resolves a resource type the
-     * client did not key them under.
+     * Test that aggregates keyed on another type are not counted or loaded.
      *
      * @return void
      */
@@ -381,9 +332,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that a request within every cap is answered from the database, so
-     * the empty query log asserted above reflects the rejection rather than an
-     * inert query log.
+     * Test that a request within every cap is answered.
      *
      * @return void
      */
@@ -400,8 +349,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Seed an author carrying two posts, and return the average of their
-     * primary keys, the value the requested aggregate should report.
+     * Seed an author with two posts, returning the average of their keys.
      *
      * @return float
      */
@@ -416,8 +364,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Return the recorded statements that carry the correlated subquery for the
-     * requested posts average, the aggregate no default declares.
+     * Return the recorded statements carrying the posts-average subquery.
      *
      * @return array<int, string>
      */
@@ -440,8 +387,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Dispatch the given request with the query log running, retaining every
-     * statement it issued.
+     * Dispatch the request, recording every statement it issued.
      *
      * @param  string  $uri
      * @return \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>
@@ -461,8 +407,7 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Assert the typed rejection envelope, and that the recorded request issued
-     * no statement at all.
+     * Assert the typed rejection envelope and that no statement was issued.
      *
      * @param  \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>  $response
      * @param  string  $parameter

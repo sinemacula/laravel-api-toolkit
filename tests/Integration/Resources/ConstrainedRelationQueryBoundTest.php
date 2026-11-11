@@ -23,11 +23,6 @@ use Tests\TestCase;
 /**
  * Query-bound guard for a constrained eager-loaded relation.
  *
- * The user resource declares a posts relation constrained to published posts.
- * Serialising a collection under a query log must load that relation through a
- * single constrained sub-query for the whole set - constant, not one per row -
- * and the constraint must actually apply so only published posts surface.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -57,9 +52,7 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
     {
         parent::setUp();
 
-        // These assertions measure query shape and call counts; pin column
-        // narrowing off so the on-by-default narrowing metadata pass cannot
-        // skew them (narrowing behaviour has its own dedicated coverage).
+        // Narrowing adds a metadata pass that would skew the query counts
         Config::set('api-toolkit.resources.narrow_columns', false);
 
         $organization = Organization::create(['name' => 'Acme Corp', 'slug' => 'acme-corp']);
@@ -68,8 +61,7 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
     }
 
     /**
-     * The constrained relation loads in one extra query for the whole
-     * collection regardless of row count, and only published posts surface.
+     * Test that the constrained relation loads once and applies its constraint.
      *
      * @return void
      *
@@ -84,8 +76,7 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
         /** @var \Tests\Fixtures\Models\Organization $organization */
         $organization = Organization::query()->firstOrFail();
 
-        // Grow the result set an order of magnitude; a per-row constrained load
-        // would scale the query count with these extra rows.
+        // A per-row constrained load would scale the count with these rows
         $this->seedUsers(45, $organization->id, 5);
 
         $large = $this->fetchAndSerialise();
@@ -93,9 +84,7 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
         self::assertSame($small['queries'], $large['queries']);
         self::assertSame(self::EXPECTED_QUERIES, $large['queries']);
 
-        // Prove the constraint applied: only the published posts hydrated, so
-        // the constant count reflects a single constrained sub-query rather
-        // than an unconstrained or empty load.
+        // Only published posts hydrated, so the constraint applied
         /** @var list<array<string, mixed>> $posts */
         $posts = $large['first']['posts'];
 
@@ -109,8 +98,7 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
     }
 
     /**
-     * Fetch the seeded users through the criteria chain and serialise them
-     * under a query log, returning the query count and the decoded record.
+     * Fetch and serialise the users under a query log.
      *
      * @return array{queries: int, first: array<string, mixed>}
      *
@@ -138,8 +126,7 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
     }
 
     /**
-     * Parse a request selecting the constrained posts relation and enough post
-     * fields to observe the applied constraint.
+     * Parse a request selecting the constrained posts relation.
      *
      * @return void
      */
@@ -156,8 +143,7 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
     }
 
     /**
-     * Apply the criteria chain to a user query bound to the constrained
-     * resource.
+     * Apply the criteria chain to a user query on the constrained resource.
      *
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
      *

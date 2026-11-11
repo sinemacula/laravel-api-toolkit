@@ -17,11 +17,6 @@ use Tests\TestCase;
 /**
  * Integration test for synchronous concern composition over a real transaction.
  *
- * Proves that multiple synchronous concerns wrap the core in declaration order
- * (the first-declared concern being the outermost) and that every concern and
- * the core execute inside the one shared database transaction rather than each
- * opening its own.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -84,15 +79,12 @@ final class ServiceConcernOrderTest extends TestCase
         self::assertTrue($result->succeeded());
         self::assertSame('done', $result->output());
 
-        // The first-declared concern is outermost and the core runs innermost.
         self::assertSame(
             ['outer:before', 'inner:before', 'core', 'inner:after', 'outer:after'],
             RecordingConcern::$trace,
         );
 
-        // The runner opens exactly one transaction for the whole pipeline, so
-        // every concern and the core observe the same single level one deeper
-        // than the ambient level.
+        // One transaction wraps the pipeline, one level above the ambient level
         $expected = $baseLevel + 1;
 
         self::assertSame($expected, RecordingConcern::$levels['outer']);

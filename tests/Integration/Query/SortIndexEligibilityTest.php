@@ -20,22 +20,8 @@ use Tests\TestCase;
 /**
  * Integration tests for index eligibility against a live catalogue.
  *
- * The premise the sort proof rests on is that a connection aggregates an
- * index's columns over the key parts that name one, so a part naming none is
- * dropped and whatever follows it reads as the column the index leads with. An
- * index over an expression and a column is therefore reported as an ordinary
- * index over that column alone, and nothing in the catalogue says otherwise.
- *
- * That premise is asserted here against a real engine rather than a supplied
- * catalogue, because a fixture array proves only that the reader does what the
- * fixture says. The engine used is the one every developer validates against
- * locally, which is also the engine the sort proof runs on unwaived, so a
- * declaration accepted here and refused on deployment is the outcome worth
- * ruling out.
- *
- * The table is created and dropped by the suite rather than migrated, since an
- * index over an expression and one over part of a table are written in a
- * dialect the shared migrations do not speak.
+ * A connection drops a key part naming no column, so an index over an
+ * expression and a column reads as an ordinary index over the column alone.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -87,8 +73,7 @@ final class SortIndexEligibilityTest extends TestCase
     }
 
     /**
-     * Leave the table the suite builds outside a transaction, as the sibling
-     * catalogue suite does, so the indexes it creates survive to be read.
+     * Leave the table outside a transaction so its indexes survive to be read.
      *
      * @return void
      */
@@ -96,13 +81,7 @@ final class SortIndexEligibilityTest extends TestCase
     public function beginDatabaseTransaction(): void {}
 
     /**
-     * Test that the connection reports an index led by an expression as an
-     * ordinary index over the column behind it.
-     *
-     * This is the premise the refusal below rests on, and it is asserted on its
-     * own terms first: were the connection to report the expression, the sort
-     * proof would never have accepted the declaration to begin with and the
-     * refusal would be proving something else entirely.
+     * Test that an expression-led index is reported as one over the column.
      *
      * @return void
      */
@@ -127,8 +106,7 @@ final class SortIndexEligibilityTest extends TestCase
     }
 
     /**
-     * Test that the engine reports the two facts it holds, and reports them
-     * against the index each belongs to.
+     * Test that the engine reports its two facts against the right indexes.
      *
      * @return void
      */
@@ -152,12 +130,10 @@ final class SortIndexEligibilityTest extends TestCase
     }
 
     /**
-     * Test that a key collated apart from its column is not reported as lacking
-     * the column's order.
+     * Test that a key collated apart from its column is not reported.
      *
-     * The engine reports the collation an index key carries but never the one a
-     * column was declared with, so the two cannot be compared and the fact is
-     * deliberately left unasked.
+     * The engine reports a key's collation but never the column's, so they
+     * cannot be compared.
      *
      * @return void
      */
@@ -172,8 +148,7 @@ final class SortIndexEligibilityTest extends TestCase
     }
 
     /**
-     * Test that a sortable column is refused where the only index appearing to
-     * lead with it is led by an expression the catalogue cannot report.
+     * Test that a column whose only index is led by an expression is refused.
      *
      * @return void
      */
@@ -189,8 +164,7 @@ final class SortIndexEligibilityTest extends TestCase
     }
 
     /**
-     * Test that a sortable column is refused where the only index leading with
-     * it holds part of the table alone.
+     * Test that a column led only by a partial index is refused.
      *
      * @return void
      */
@@ -206,9 +180,7 @@ final class SortIndexEligibilityTest extends TestCase
     }
 
     /**
-     * Test that the same declaration is accepted over ordinary indexes, so the
-     * refusals above answer to the facts the engine reported rather than to
-     * something else about the table.
+     * Test that the same declaration is accepted over ordinary indexes.
      *
      * @return void
      */

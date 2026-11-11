@@ -31,14 +31,7 @@ use Tests\TestCase;
 /**
  * End-to-end security test for the OpenAPI exporter.
  *
- * Exports real routes carrying auth middleware and proves the derived security
- * surfaces correctly in the assembled, meta-schema-valid document: every guard
- * driver maps to its scheme, per-operation `security` names the referenced
- * schemes, `components.securitySchemes` carries exactly those definitions, an
- * OR of distinct schemes stays separate, same-scheme guards dedupe to one, a
- * config override flows to both the operation and the component, and a public
- * operation emits an explicit empty requirement. Each produced document is
- * validated against the official OpenAPI 3.1 meta-schema.
+ * Each produced document is also validated against the OpenAPI 3.1 meta-schema.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -71,8 +64,7 @@ final class OpenApiSecurityExportTest extends TestCase
     }
 
     /**
-     * Test that a plain bearer-token guard has its operation reference the
-     * bearerAuth scheme, which is then defined once in components.
+     * Test that a bearer-token guard references the bearerAuth scheme.
      *
      * @return void
      */
@@ -99,8 +91,9 @@ final class OpenApiSecurityExportTest extends TestCase
     }
 
     /**
-     * Test that a JWT guard references the shared plain bearer scheme, defined
-     * once in components without an unverifiable bearer format.
+     * Test that a JWT guard references the shared plain bearer scheme.
+     *
+     * No bearer format is emitted, since it cannot be verified.
      *
      * @return void
      */
@@ -124,9 +117,7 @@ final class OpenApiSecurityExportTest extends TestCase
     }
 
     /**
-     * Test that a session guard emits the cookieAuth apiKey scheme keyed to the
-     * configured session cookie name, referenced by the operation and defined
-     * in components.
+     * Test that a session guard emits a cookieAuth scheme for its cookie.
      *
      * @return void
      */
@@ -151,8 +142,7 @@ final class OpenApiSecurityExportTest extends TestCase
     }
 
     /**
-     * Test that a config-overridden custom driver flows to both the operation's
-     * referenced scheme name and the matching components definition.
+     * Test that a config-overridden driver reaches the operation and component.
      *
      * @return void
      */
@@ -182,8 +172,7 @@ final class OpenApiSecurityExportTest extends TestCase
     }
 
     /**
-     * Test that two guards mapping to different schemes stay separate as an OR
-     * and both schemes are defined in components.
+     * Test that guards mapping to different schemes stay separate as an OR.
      *
      * @return void
      */
@@ -208,8 +197,7 @@ final class OpenApiSecurityExportTest extends TestCase
     }
 
     /**
-     * Test that two guards mapping to the same scheme dedupe to one requirement
-     * and one components entry, never revealing the second guard.
+     * Test that guards mapping to the same scheme dedupe to one requirement.
      *
      * @return void
      */
@@ -232,8 +220,7 @@ final class OpenApiSecurityExportTest extends TestCase
     }
 
     /**
-     * Test that a public operation carrying no auth middleware emits an
-     * explicit empty security requirement and no securitySchemes component.
+     * Test that a public operation emits an explicit empty security list.
      *
      * @return void
      */
@@ -250,8 +237,7 @@ final class OpenApiSecurityExportTest extends TestCase
     }
 
     /**
-     * Register a GET /users route with the given middleware and export the
-     * default-audience document.
+     * Register a GET /users route with the middleware and export the document.
      *
      * @param  string  ...$middleware
      * @return array<string, mixed>
@@ -321,8 +307,7 @@ final class OpenApiSecurityExportTest extends TestCase
     }
 
     /**
-     * Validate a document array against the bundled (opis-adapted) OpenAPI 3.1
-     * meta-schema.
+     * Validate a document against the opis-adapted OpenAPI 3.1 meta-schema.
      *
      * @param  array<string, mixed>  $document
      * @return \Opis\JsonSchema\ValidationResult
@@ -351,8 +336,7 @@ final class OpenApiSecurityExportTest extends TestCase
     }
 
     /**
-     * Load the OpenAPI 3.1 meta-schema, applying the documented opis
-     * compatibility transform.
+     * Load the OpenAPI 3.1 meta-schema with the opis compatibility transform.
      *
      * @return string
      */
@@ -377,11 +361,11 @@ final class OpenApiSecurityExportTest extends TestCase
     }
 
     /**
-     * Apply the two opis/json-schema compatibility transforms in place: rewrite
-     * the Schema Object's `$dynamicRef: "#meta"` to the equivalent static
-     * `$ref: "#/$defs/schema"`, and relax every `unevaluatedProperties: false`
-     * to `true`. Both work around opis annotation/reference gaps without
-     * weakening any validity-bearing constraint; see the fixtures README.
+     * Apply the two opis/json-schema compatibility transforms in place.
+     *
+     * Rewrites `$dynamicRef: "#meta"` to `$ref: "#/$defs/schema"` and relaxes
+     * `unevaluatedProperties: false` to `true`, working around opis gaps
+     * without weakening any validity constraint; see the fixtures README.
      *
      * @param  array<array-key, mixed>  $node
      * @return void

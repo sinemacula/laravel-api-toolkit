@@ -13,10 +13,6 @@ use Tests\TestCase;
 /**
  * Integration tests for the RouteMacroRegistrar.
  *
- * The service provider registers the audience macros at boot; these tests prove
- * the macros are present, store their directives on the route action, merge
- * when chained, and are read back by the audience resolver.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -123,12 +119,10 @@ final class RouteMacroRegistrarTest extends TestCase
     }
 
     /**
-     * Test that registering against a router carrying none of the macros
-     * installs all three, each declaring the directive it is named for.
+     * Test that registering on a router without the macros installs all three.
      *
-     * The service provider registers them at boot, so the router is stripped of
-     * every macro first and handed back its own afterwards, leaving the process
-     * as it was found.
+     * The provider registers them at boot, so the router is stripped first and
+     * handed back its own macros afterwards.
      *
      * @return void
      */

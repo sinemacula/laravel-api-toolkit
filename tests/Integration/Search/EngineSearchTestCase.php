@@ -27,20 +27,8 @@ use Tests\TestCase;
 /**
  * Shared search integration suite for an engine that indexes what it declares.
  *
- * Runs only against the engine the concrete case names, and proves the three
- * things that cannot be proven anywhere else: that the engine answers the
- * emitted predicate with the rows the declaration promises - a term inside a
- * longer word among them - that it answers it from an index rather than by
- * reading the table, and that the index proof reads the live catalogue,
- * accepting the index the fixture creates and refusing its absence. Every match
- * shape a resource may declare is carried through the rows and the catalogue
- * alike, so an equality or a leading match is answered by an engine rather than
- * by a hand-written index definition.
- *
- * The rows are committed rather than rolled back at the end of the test. One of
- * the supported engines updates its full-text index when a transaction commits,
- * so a row written inside an open one is invisible to the match that is the
- * point of the suite.
+ * Rows are committed, not rolled back: one engine updates its full-text index
+ * only when a transaction commits.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -55,8 +43,7 @@ abstract class EngineSearchTestCase extends TestCase
         . 'which needs an index leading with that column on table "users"';
 
     /**
-     * Seed the rows every test searches, having skipped the suite on any engine
-     * but the one under test.
+     * Seed the rows every test searches, skipping other engines.
      *
      * @return void
      */
@@ -104,8 +91,7 @@ abstract class EngineSearchTestCase extends TestCase
     public function beginDatabaseTransaction(): void {}
 
     /**
-     * Test that a term matches inside a value rather than only at its start,
-     * which is the whole reason the anywhere-match exists.
+     * Test that a term matches inside a value, not only at its start.
      *
      * @return void
      */
@@ -118,8 +104,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that a column declared under the prefix strategy matches from the
-     * start of its own value, so every declared strategy reaches the engine.
+     * Test that a prefix-strategy column matches from the start of its value.
      *
      * @return void
      */
@@ -129,10 +114,10 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that a prefix match does not find the term inside a value, which is
-     * the whole difference between the two pattern strategies. Every seeded
-     * address carries the term, so an anywhere-match here would return all of
-     * them.
+     * Test that a prefix match does not find the term inside a value.
+     *
+     * Every seeded address carries the term, so an anywhere-match would return
+     * them all.
      *
      * @return void
      */
@@ -144,11 +129,8 @@ abstract class EngineSearchTestCase extends TestCase
     /**
      * Test that a prefix match finds a value whose case differs from the term.
      *
-     * The two engines fold that case in different places - one in the operator
-     * the driver emits, the other in the column's collation - and the same
-     * declaration is meant to answer the same rows on both. Every other term in
-     * this suite matches a value in its own case, so nothing else would move if
-     * one engine narrowed to the case-sensitive set.
+     * One engine folds case in the emitted operator, the other in the column's
+     * collation; both must answer the same rows.
      *
      * @return void
      */
@@ -160,15 +142,10 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that a column declared under the equality strategy matches its whole
-     * value only.
+     * Test that an equality-strategy column matches its whole value only.
      *
-     * The row beside it carries the whole term at the start of a longer value
-     * and in the same case, so a comparison that widened into a pattern of
-     * either shape would return it too. Matching at all also proves the
-     * connection's catalogue reports the ordinary index the declaration needs,
-     * since a search no index can be shown to serve is refused before it
-     * reaches the engine.
+     * Matching at all also proves the catalogue reports the ordinary index the
+     * declaration needs.
      *
      * @return void
      */
@@ -180,8 +157,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that a term matching nothing narrows the result to nothing, rather
-     * than falling back to the unnarrowed table.
+     * Test that a term matching nothing returns nothing, not the whole table.
      *
      * @return void
      */
@@ -191,10 +167,10 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that a wildcard carried by the term matches itself rather than every
-     * row. Whether the engine reads the emitted ESCAPE clause the way the
-     * escaping assumes is the one part of the pattern a compiled-SQL assertion
-     * cannot settle.
+     * Test that a wildcard carried by the term matches itself, not every row.
+     *
+     * Whether the engine honours the ESCAPE clause is what compiled SQL cannot
+     * settle.
      *
      * @return void
      */
@@ -207,10 +183,10 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that the escape character itself matches literally when the term
-     * carries one. It is doubled before it reaches the pattern, so the engine
-     * has to read the pair as the character rather than as an escape of the
-     * character beside it.
+     * Test that the escape character in the term matches literally.
+     *
+     * It is doubled before it reaches the pattern, so the engine must read the
+     * pair as the character.
      *
      * @return void
      */
@@ -223,10 +199,9 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that the anywhere-match is answered from an index rather than by
-     * reading the table, which the returned rows alone cannot show: a scan
-     * answers them just as correctly, and far more slowly, which is the outcome
-     * the declaration exists to make impossible.
+     * Test that the anywhere-match is answered from an index.
+     *
+     * A table scan returns the same rows, so the rows alone cannot show it.
      *
      * @return void
      */
@@ -236,8 +211,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that the anywhere-match keeps its index once a filter is ANDed
-     * alongside it, which is the shape a real request produces.
+     * Test that the anywhere-match keeps its index beside an ANDed filter.
      *
      * @return void
      */
@@ -247,8 +221,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that the declared search surface passes validation against the live
-     * catalogue, which is the gate a deployment runs before its first search.
+     * Test that the declared search surface passes live-catalogue validation.
      *
      * @return void
      */
@@ -258,8 +231,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that validation refuses the declaration once the index behind it is
-     * gone, so the missing index fails a build rather than a request.
+     * Test that validation refuses the declaration once its index is gone.
      *
      * @return void
      */
@@ -275,9 +247,10 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that a leading-match declaration passes validation against the live
-     * catalogue, which is the read the two engines answer from different index
-     * kinds: an ordinary one here, a trigram one there.
+     * Test that a leading-match declaration passes live-catalogue validation.
+     *
+     * The engines answer it from different index kinds: ordinary on one,
+     * trigram on the other.
      *
      * @return void
      */
@@ -287,9 +260,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that validation refuses the leading-match declaration once the index
-     * behind it is gone, so the acceptance above is the catalogue answering
-     * rather than the rule admitting whatever it is shown.
+     * Test that validation refuses a leading-match declaration once unindexed.
      *
      * @return void
      */
@@ -305,9 +276,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that an equality declaration passes validation against the live
-     * catalogue, which admits it only where that catalogue names an ordinary
-     * index leading with the column.
+     * Test that an equality declaration passes live-catalogue validation.
      *
      * @return void
      */
@@ -317,9 +286,9 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that validation refuses the equality declaration once that ordinary
-     * index is gone, and refuses it in the same words on either engine, which
-     * is the arrangement the strategy documents.
+     * Test that validation refuses the equality declaration without its index.
+     *
+     * The refusal reads the same on either engine.
      *
      * @return void
      */
@@ -335,12 +304,9 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that validation refuses the equality declaration when the index
-     * behind it is one the engine reports but will not plan against.
+     * Test that validation refuses an equality index the planner will not use.
      *
-     * The catalogue names such an index exactly as it names a usable one, so a
-     * proof that read the catalogue alone would admit the declaration and the
-     * search would still read the table.
+     * The catalogue names such an index exactly as it names a usable one.
      *
      * @return void
      */
@@ -356,9 +322,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that a request-time refusal is retired by invalidating the metadata,
-     * so an index a migration creates is proved by the very next search rather
-     * than once the shared answer expires.
+     * Test that invalidating the metadata retires a request-time refusal.
      *
      * @return void
      */
@@ -382,9 +346,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that a search in a later operation is proved without reading the
-     * catalogue, since the first operation's answer is shared across the
-     * boundary between them.
+     * Test that a search in a later operation reads no catalogue.
      *
      * @return void
      */
@@ -405,8 +367,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Test that an index dropped outside a migration is still accepted until
-     * the shared answer expires, and refused once it has.
+     * Test that an index dropped outside a migration is refused on expiry.
      *
      * @return void
      */
@@ -438,8 +399,7 @@ abstract class EngineSearchTestCase extends TestCase
     abstract protected function engine(): string;
 
     /**
-     * Assert that the engine answers the query from an index rather than by
-     * reading the table.
+     * Assert that the engine answers the query from an index.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>  $query
      * @return void
@@ -489,32 +449,28 @@ abstract class EngineSearchTestCase extends TestCase
     abstract protected function prefixMatchDefect(): string;
 
     /**
-     * Drop the ordinary index serving the equality match on the searched
-     * column.
+     * Drop the ordinary index serving the equality match.
      *
      * @return void
      */
     abstract protected function dropEqualityMatchIndex(): void;
 
     /**
-     * Recreate the ordinary index serving the equality match on the searched
-     * column.
+     * Recreate the ordinary index serving the equality match.
      *
      * @return void
      */
     abstract protected function createEqualityMatchIndex(): void;
 
     /**
-     * Replace the index serving the equality match with one the engine reports
-     * but will not plan against.
+     * Replace the equality index with one the engine reports but will not plan.
      *
      * @return void
      */
     abstract protected function makeEqualityMatchIndexUnusable(): void;
 
     /**
-     * Restore the index serving the equality match to one the engine will plan
-     * against.
+     * Restore the equality index to one the engine will plan against.
      *
      * @return void
      */
@@ -543,8 +499,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Build the query the applier emits for the term against the given
-     * resource.
+     * Build the query the applier emits for the term against the resource.
      *
      * @param  string  $term
      * @param  string|null  $resourceClass
@@ -565,8 +520,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Determine whether the applier serves the anywhere-match declaration
-     * rather than refusing it for the index behind it.
+     * Determine whether the applier serves the anywhere-match declaration.
      *
      * @return bool
      */
@@ -607,8 +561,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Apply the term through the connection's registered driver and return the
-     * names it matched.
+     * Apply the term through the connection's driver, returning matched names.
      *
      * @param  string  $term
      * @param  string|null  $resourceClass
@@ -621,8 +574,7 @@ abstract class EngineSearchTestCase extends TestCase
     }
 
     /**
-     * Assert that the resource's declared search surface passes validation
-     * against the live catalogue.
+     * Assert that the resource's search surface passes catalogue validation.
      *
      * @param  string  $resourceClass
      * @return void

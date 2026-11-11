@@ -19,10 +19,6 @@ use Tests\TestCase;
 /**
  * Integration tests for the ApiServiceProvider with all middleware disabled.
  *
- * This test class configures the environment to disable all three middleware
- * registrations before the service provider boots, ensuring the disabled code
- * paths are exercised.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -71,8 +67,7 @@ final class MiddlewareConfigDisabledTest extends TestCase
         $router     = $this->getApplication()->make(Router::class);
         $middleware = $router->getMiddleware();
 
-        // The throttle alias may exist from Laravel's defaults, but it should
-        // not point to any of the toolkit's middleware classes
+        // Laravel may define its own throttle alias, but not as a toolkit class
         if (isset($middleware['throttle'])) {
             self::assertNotSame(ThrottleRequests::class, $middleware['throttle']);
             self::assertNotSame(ThrottleRequestsWithRedis::class, $middleware['throttle']);

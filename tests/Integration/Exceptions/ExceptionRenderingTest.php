@@ -23,11 +23,6 @@ use Tests\TestCase;
 /**
  * End-to-end integration tests for exception rendering.
  *
- * Registers the toolkit exception handler against the application's real
- * exception handler (mirroring the bootstrap/app.php withExceptions() wiring)
- * and asserts the toolkit JSON error format through real HTTP routes dispatched
- * via the HTTP kernel.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -52,9 +47,7 @@ final class ExceptionRenderingTest extends TestCase
 
         self::assertInstanceOf(Handler::class, $handler);
 
-        // Mirror the bootstrap/app.php wiring used by consuming applications:
-        // ->withExceptions(fn (Exceptions $e) =>
-        // ApiExceptionHandler::handles($e))
+        // Mirror the bootstrap/app.php withExceptions() wiring consumers use
         ApiExceptionHandler::handles(new Exceptions($handler));
 
         config()->set('app.debug', false);
@@ -77,18 +70,14 @@ final class ExceptionRenderingTest extends TestCase
             throw new TokenMismatchException('CSRF token mismatch.');
         });
 
-        // Mirrors an exception like the dedicated 419 mismatch: a non-standard
-        // status with no HTTP status enum case (so getStatus() is null) and a
-        // namespace that registers no title translation, exercising the
-        // generic-title fallback during rendering.
+        // Like the 419 mismatch: no status enum case and no title translation
         Route::get('/missing-title', static function (): never {
             throw new class extends ApiException {
                 /** The internal error code for the test exception. */
                 public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::TOKEN_MISMATCH;
 
                 /**
-                 * Return a non-standard status code with no HTTP status enum
-                 * case.
+                 * Return a status code with no HTTP status enum case.
                  *
                  * @return int
                  */
@@ -117,8 +106,7 @@ final class ExceptionRenderingTest extends TestCase
     }
 
     /**
-     * Test that abort() inside a route is rendered in the toolkit JSON error
-     * format with the original status code preserved.
+     * Test that abort() renders in the toolkit error format with its status.
      *
      * @return void
      */
@@ -138,8 +126,7 @@ final class ExceptionRenderingTest extends TestCase
     }
 
     /**
-     * Test that a toolkit ApiException thrown inside a route is rendered with
-     * its own status, code, and custom meta.
+     * Test that a toolkit ApiException renders with its status, code and meta.
      *
      * @return void
      */
@@ -159,8 +146,7 @@ final class ExceptionRenderingTest extends TestCase
     }
 
     /**
-     * Test that a ValidationException raised by request validation is rendered
-     * as a 422 with the validation errors as meta.
+     * Test that a ValidationException renders as a 422 with the errors as meta.
      *
      * @return void
      */
@@ -183,12 +169,10 @@ final class ExceptionRenderingTest extends TestCase
     }
 
     /**
-     * Test that a session token mismatch renders as 419 through the real
-     * kernel.
+     * Test that a session token mismatch renders as 419 through the kernel.
      *
-     * Laravel's handler converts TokenMismatchException to a generic 419
-     * HttpException before render callbacks run; the mapper restores the
-     * dedicated toolkit exception.
+     * Laravel converts TokenMismatchException to a generic 419 HttpException
+     * before render callbacks run.
      *
      * @return void
      */
@@ -202,9 +186,7 @@ final class ExceptionRenderingTest extends TestCase
     }
 
     /**
-     * Test that an exception whose title translation is absent still renders,
-     * carrying its status code and a generic fallback title rather than
-     * throwing while deriving the title.
+     * Test that an exception with no title translation gets a fallback title.
      *
      * @return void
      */
@@ -218,8 +200,7 @@ final class ExceptionRenderingTest extends TestCase
     }
 
     /**
-     * Test that an unexpected exception is rendered as an unhandled error
-     * without leaking internal details when debug is disabled.
+     * Test that an unhandled exception leaks no internal details without debug.
      *
      * @return void
      */
@@ -244,8 +225,7 @@ final class ExceptionRenderingTest extends TestCase
     }
 
     /**
-     * Test that the json_when_expected strategy defers to Laravel's default
-     * rendering for requests that do not expect JSON.
+     * Test that json_when_expected defers to default rendering for HTML.
      *
      * @return void
      */
@@ -265,15 +245,10 @@ final class ExceptionRenderingTest extends TestCase
     }
 
     /**
-     * Test that the rendered error payload matches the envelope schema the
-     * OpenAPI exporter documents, so the hand-mirrored ErrorEnvelope schema
-     * cannot drift from the runtime payload without this test failing.
+     * Test that the rendered error payload matches the documented envelope.
      *
-     * The toolkit-exception fixture populates every optional key (title and
-     * meta), so its rendered key set is the full set the runtime emits; the
-     * unhandled fixture omits meta. Both payloads must validate against the
-     * documented schema, catching a renamed key, a missing required key, or a
-     * type change on either side.
+     * The ErrorEnvelope schema is hand-mirrored, so this stops it drifting from
+     * the runtime payload.
      *
      * @return void
      */

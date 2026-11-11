@@ -16,11 +16,6 @@ use Tests\TestCase;
 /**
  * Integration tests for typed input validation on the real service path.
  *
- * Proves the headline contract: a typed Payload is validated inside the
- * lifecycle, and a validation failure is captured in the total result without
- * ever throwing out of run(). The failed run opens no transaction and writes no
- * row, while a valid run reaches handle() and commits.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -33,11 +28,6 @@ final class ServiceInputValidationTest extends TestCase
 {
     /**
      * Test that a failed typed-input validation is captured without throwing.
-     *
-     * The service declares SampleInput as its input and receives a raw snapshot
-     * missing the required city. run() must not throw; the result reports
-     * failure carrying the ValidationException, and no users row is written
-     * because handle() never ran.
      *
      * @return void
      */
@@ -58,9 +48,6 @@ final class ServiceInputValidationTest extends TestCase
 
     /**
      * Test that a valid typed input reaches handle() and commits its write.
-     *
-     * Proves the same path succeeds when the input satisfies the rules: the
-     * validated city threads through to the output and the row is committed.
      *
      * @return void
      */

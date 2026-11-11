@@ -21,15 +21,7 @@ use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
 
 /**
- * End-to-end proof that the wired OperationTerminated event resets the
- * toolkit's in-process state and leaves the shared store alone.
- *
- * Every other Octane-flush test invokes the listener via a hand-built handle()
- * call. This file dispatches the real OperationTerminated event through the
- * container's dispatcher under the shipped default config, proving that the
- * boot-time listener wiring - not just the listener in isolation - resets the
- * in-process memos while the toolkit metadata and a non-toolkit key on the
- * shared store both survive.
+ * End-to-end tests that the wired OperationTerminated event flushes correctly.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -79,21 +71,12 @@ final class OctaneBoundaryFlushTest extends TestCase
     }
 
     /**
-     * Test that dispatching the real OperationTerminated event through the
-     * wired dispatcher resets in-process state while the shared store keeps
-     * both the toolkit metadata and a non-toolkit key.
-     *
-     * The boot-time wiring subscribes the OctaneFlushListener under the shipped
-     * default config. Dispatching the genuine event - rather than calling
-     * handle() directly - proves the registration binds the correct event to
-     * the correct listener.
+     * Test that dispatching OperationTerminated resets in-process state only.
      *
      * @return void
      */
     public function testDispatchingOperationTerminatedResetsInProcessStateOnly(): void
     {
-        // The shipped default engages the Octane lifecycle flush, so the
-        // listener must already be wired at boot.
         self::assertTrue((bool) config('api-toolkit.lifecycle.octane'));
         self::assertTrue($this->events()->hasListeners(OperationTerminated::class));
 
@@ -108,19 +91,18 @@ final class OctaneBoundaryFlushTest extends TestCase
 
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
 
-        // Act: dispatch the real event through the wired dispatcher.
         $this->events()->dispatch($this->operationTerminated());
 
-        // Assert: in-process state is reset; both stored keys survive.
         self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
         self::assertSame('toolkit-value', Cache::store()->get($this->metadataStorageKey($toolkitKey)));
         self::assertSame('keep-me', Cache::store()->get($nonToolkitKey));
     }
 
     /**
-     * Test that the framework itself discards the memoised store repository
-     * when scoped instances are forgotten, as Octane and the queue worker do at
-     * every boundary, so the toolkit has no memo of its own to clear.
+     * Test that forgetting scoped instances discards the memoised store.
+     *
+     * Octane and the queue worker do this at every boundary, so the toolkit
+     * keeps no memo of its own.
      *
      * @return void
      */

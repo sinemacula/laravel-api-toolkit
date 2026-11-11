@@ -42,16 +42,7 @@ use Tests\TestCase;
 /**
  * End-to-end audience-selection test for the OpenAPI exporter.
  *
- * Proves that the audience directives - the DocumentedIn / NotDocumentedIn /
- * Undocumented attributes and the equivalent route macros - drive which routes
- * and which reachable resource schemas survive into each per-audience document,
- * against real routes and the container-resolved builder graph. Covers
- * allowlist opt-in, the blanket-Undocumented drop from every audience, the
- * canonical internal-only pattern, the route-macro exclusion, the
- * reachable-schema isolation guaranteeing an internal-only resource never leaks
- * into the public document, and the same isolation for the per-property query
- * surface that schema carries. Every produced document is asserted valid
- * OpenAPI 3.1.
+ * Every produced document is also asserted valid OpenAPI 3.1.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -108,9 +99,7 @@ final class OpenApiAudienceExportTest extends TestCase
     }
 
     /**
-     * Test that a route opted into an allowlist partner audience surfaces with
-     * its resource schema in that audience while an allowlist default audience
-     * that names it nowhere leaves both out.
+     * Test that an allowlist opt-in documents the route for that audience only.
      *
      * @return void
      */
@@ -132,8 +121,7 @@ final class OpenApiAudienceExportTest extends TestCase
             $partner['components']['schemas']['Organization']['properties']['_type'],
         );
 
-        // The default audience (public) is an allowlist naming nothing, so the
-        // partner-only route and its schema are excluded from it.
+        // The default (public) audience is an allowlist naming nothing
         $default = $this->export()->document;
 
         self::assertSame('{}', json_encode($default['paths']));
@@ -145,9 +133,7 @@ final class OpenApiAudienceExportTest extends TestCase
     }
 
     /**
-     * Test that a blanket-Undocumented controller is dropped from every
-     * audience's paths and its resource schema from every audience's
-     * components, while an unrelated documented route survives.
+     * Test that an Undocumented controller is dropped from every audience.
      *
      * @return void
      */
@@ -176,9 +162,7 @@ final class OpenApiAudienceExportTest extends TestCase
     }
 
     /**
-     * Test that the canonical internal-only pattern documents the route and its
-     * schema in the internal audience alone, absent from both the public and
-     * the default audience.
+     * Test that the internal-only pattern documents in the internal audience.
      *
      * @return void
      */
@@ -202,13 +186,11 @@ final class OpenApiAudienceExportTest extends TestCase
 
         $public = $this->export('public')->document;
 
-        // The public audience documents no route here, so its paths object is
-        // emitted empty; cast it before asserting the tag route is absent.
+        // The paths object is emitted empty here, so cast it before asserting
         self::assertArrayNotHasKey('/tags', (array) $public['paths']);
         self::assertIsArray($public['components']['schemas']);
         self::assertArrayNotHasKey('Tag', $public['components']['schemas']);
 
-        // The default audience resolves to public and must agree with it.
         self::assertArrayNotHasKey('/tags', (array) $this->export()->document['paths']);
 
         $this->assertValid($internal);
@@ -216,8 +198,7 @@ final class OpenApiAudienceExportTest extends TestCase
     }
 
     /**
-     * Test that the notDocumentedIn route macro excludes a route from the named
-     * audience while a blocklist audience it does not name still documents it.
+     * Test that notDocumentedIn excludes a route from the named audience only.
      *
      * @return void
      */
@@ -234,7 +215,6 @@ final class OpenApiAudienceExportTest extends TestCase
 
         $public = $this->export('public')->document;
 
-        // The only route is excluded from public, leaving its paths empty.
         self::assertArrayNotHasKey('/organizations', (array) $public['paths']);
 
         $internal = $this->export('internal')->document;
@@ -247,9 +227,7 @@ final class OpenApiAudienceExportTest extends TestCase
     }
 
     /**
-     * Test that a resource reachable only through an internal-only route never
-     * leaks into the public document's component schemas while the resource of
-     * a genuinely public route is retained.
+     * Test that an internal-only resource never leaks into public schemas.
      *
      * @return void
      */
@@ -272,9 +250,7 @@ final class OpenApiAudienceExportTest extends TestCase
         self::assertArrayHasKey('Organization', $public['components']['schemas']);
         self::assertArrayNotHasKey('Tag', $public['components']['schemas']);
 
-        // The internal audience documents the tag route and pulls in its
-        // schema, proving the resource is genuinely reachable and not merely
-        // unbuilt.
+        // The internal audience shows the resource is reachable, not unbuilt
         $internal = $this->export('internal')->document;
 
         self::assertIsArray($internal['components']['schemas']);
@@ -285,15 +261,9 @@ final class OpenApiAudienceExportTest extends TestCase
     }
 
     /**
-     * Test that the query surface a resource declares travels with its schema:
-     * the audience reaching the resource learns which of its properties accept
-     * a filter, an order, and a search, while the audience that never reaches
-     * it carries no query surface anywhere in its document.
+     * Test that an internal-only query surface stays out of public documents.
      *
-     * The generated manual is assembled first, so the human-readable half of
-     * the surface is under test alongside the machine-readable one: an
-     * internal-only resource must appear nowhere in the public document, its
-     * info.description included.
+     * The manual is assembled first, so info.description is checked too.
      *
      * @return void
      */
@@ -318,14 +288,10 @@ final class OpenApiAudienceExportTest extends TestCase
         self::assertIsArray($public['components']['schemas']);
         self::assertArrayNotHasKey('QueryableTag', $public['components']['schemas']);
 
-        // The surface rides the property rather than the parameter components,
-        // which are emitted globally, so an audience that never reaches the
-        // resource carries no trace of what that resource may be asked.
+        // The surface rides the property, not the global parameter components
         self::assertStringNotContainsString('x-query-surface', json_encode($public, JSON_THROW_ON_ERROR));
 
-        // The generated reference is the second channel the same surface can
-        // travel by, so the whole public document - description included - is
-        // scanned for the internal-only component name.
+        // The generated reference could carry it too, so scan the whole thing
         self::assertStringNotContainsString('QueryableTag', json_encode($public, JSON_THROW_ON_ERROR));
 
         $this->assertValid($internal);
@@ -333,9 +299,7 @@ final class OpenApiAudienceExportTest extends TestCase
     }
 
     /**
-     * Test that the same generated reference does reach the audience the
-     * resource is documented in, so its absence from the public document is
-     * selection rather than the reference never being assembled at all.
+     * Test that the query surface reference reaches the documenting audience.
      *
      * @return void
      */
@@ -358,8 +322,7 @@ final class OpenApiAudienceExportTest extends TestCase
     }
 
     /**
-     * Declare a public and an internal audience with one resource reachable
-     * only from the internal one.
+     * Declare public and internal audiences with an internal-only resource.
      *
      * @return void
      */
@@ -380,8 +343,7 @@ final class OpenApiAudienceExportTest extends TestCase
     }
 
     /**
-     * Generate the reference sections into a temporary docs directory so the
-     * assembled manual is part of every document under test.
+     * Generate the reference sections into a temporary docs directory.
      *
      * @return void
      */
@@ -452,8 +414,7 @@ final class OpenApiAudienceExportTest extends TestCase
     }
 
     /**
-     * Validate a document array against the bundled (opis-adapted) OpenAPI 3.1
-     * meta-schema.
+     * Validate a document against the opis-adapted OpenAPI 3.1 meta-schema.
      *
      * @param  array<string, mixed>  $document
      * @return \Opis\JsonSchema\ValidationResult
@@ -482,8 +443,7 @@ final class OpenApiAudienceExportTest extends TestCase
     }
 
     /**
-     * Load the OpenAPI 3.1 meta-schema, applying the documented opis
-     * compatibility transform.
+     * Load the OpenAPI 3.1 meta-schema with the opis compatibility transform.
      *
      * @return string
      */
@@ -508,11 +468,11 @@ final class OpenApiAudienceExportTest extends TestCase
     }
 
     /**
-     * Apply the two opis/json-schema compatibility transforms in place: rewrite
-     * the Schema Object's `$dynamicRef: "#meta"` to the equivalent static
-     * `$ref: "#/$defs/schema"`, and relax every `unevaluatedProperties: false`
-     * to `true`. Both work around opis annotation/reference gaps without
-     * weakening any validity-bearing constraint; see the fixtures README.
+     * Apply the two opis/json-schema compatibility transforms in place.
+     *
+     * Rewrites `$dynamicRef: "#meta"` to `$ref: "#/$defs/schema"` and relaxes
+     * `unevaluatedProperties: false` to `true`, working around opis gaps
+     * without weakening any validity constraint; see the fixtures README.
      *
      * @param  array<array-key, mixed>  $node
      * @return void

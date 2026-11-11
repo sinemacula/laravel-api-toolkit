@@ -22,10 +22,8 @@ use Tests\TestCase;
 /**
  * End-to-end tests for invalidating metadata when a real migration run ends.
  *
- * Each test writes metadata as an earlier process would, runs the framework's
- * own migrate command, then reads as a fresh process that shares nothing but
- * the store. Migrations run against a private in-memory connection so the
- * suite's database is never altered.
+ * Migrations run on a private in-memory connection so the suite's database is
+ * untouched.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -102,8 +100,7 @@ final class MigrationInvalidationTest extends TestCase
     }
 
     /**
-     * Test that metadata written before a migration is not served by any
-     * process after it.
+     * Test that metadata written before a migration is not served after it.
      *
      * @return void
      */
@@ -117,8 +114,7 @@ final class MigrationInvalidationTest extends TestCase
     }
 
     /**
-     * Test that a rollback retires metadata too, since it changes the schema as
-     * surely as a migration does.
+     * Test that a rollback retires metadata too.
      *
      * @return void
      */
@@ -148,8 +144,7 @@ final class MigrationInvalidationTest extends TestCase
     }
 
     /**
-     * Test that a pretended migration, which changes no schema, keeps the
-     * metadata warm.
+     * Test that a pretended migration keeps the metadata warm.
      *
      * @return void
      */
@@ -163,8 +158,7 @@ final class MigrationInvalidationTest extends TestCase
     }
 
     /**
-     * Test that switching the migrations lifecycle gate off leaves metadata to
-     * the invalidate command alone.
+     * Test that with the migrations gate off, migrate leaves metadata warm.
      *
      * @return void
      */
@@ -179,8 +173,7 @@ final class MigrationInvalidationTest extends TestCase
     }
 
     /**
-     * Test that migrating another connection advances the generation in the
-     * store serving processes read, not in that connection's cache table.
+     * Test that migrating another connection advances the default's generation.
      *
      * The migrator makes the migrated connection the default while it runs, so
      * a database store left to follow the default would bind to it.
@@ -205,8 +198,7 @@ final class MigrationInvalidationTest extends TestCase
     }
 
     /**
-     * Point the default cache store at a database store that names no
-     * connection, as the stock configuration does.
+     * Point the default cache store at a database store naming no connection.
      *
      * @param  \Illuminate\Foundation\Application  $app
      * @return void

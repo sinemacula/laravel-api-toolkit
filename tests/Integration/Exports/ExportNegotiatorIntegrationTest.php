@@ -19,13 +19,7 @@ use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
- * Integration tests for export content negotiation through the real
- * ExportNegotiator.
- *
- * Exercises ToolkitResource and ToolkitCollection delegation to the
- * ExportNegotiator when the exporter package is bound, verifying JSON envelope
- * fallback, tabular streaming (CSV/TSV), hierarchical streaming (XML/NDJSON),
- * and 406 rejection for resources without a tabular schema.
+ * Integration tests for export content negotiation via the ExportNegotiator.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -67,13 +61,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         parent::tearDown();
     }
 
-    // -------------------------------------------------------------------------
-    // Collection - JSON envelope (default)
-    // -------------------------------------------------------------------------
-
     /**
-     * Test that a collection returns the JSON envelope when no Accept header is
-     * sent and adds the Vary: Accept header.
+     * Test that a collection returns the JSON envelope and Vary header.
      *
      * @return void
      */
@@ -89,8 +78,7 @@ final class ExportNegotiatorIntegrationTest extends TestCase
     }
 
     /**
-     * Test that an explicit application/json Accept header still returns the
-     * JSON envelope with the Vary: Accept header intact.
+     * Test that an application/json Accept header returns the JSON envelope.
      *
      * @return void
      */
@@ -104,13 +92,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         $response->assertJsonStructure(['data', 'links', 'meta']);
     }
 
-    // -------------------------------------------------------------------------
-    // Collection - CSV (tabular)
-    // -------------------------------------------------------------------------
-
     /**
-     * Test that a collection streams CSV when the client sends Accept: text/csv
-     * for a resource that implements ProvidesTabularExport.
+     * Test that a collection streams CSV for an Accept: text/csv header.
      *
      * @return void
      */
@@ -128,13 +111,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         self::assertStringContainsString('Alice', $content);
     }
 
-    // -------------------------------------------------------------------------
-    // Collection - TSV via ?format= query parameter
-    // -------------------------------------------------------------------------
-
     /**
-     * Test that a collection streams TSV when an explicit ?format=tsv query
-     * parameter is used, proving the query-parameter format-override path.
+     * Test that a collection streams TSV for a ?format=tsv query parameter.
      *
      * @return void
      */
@@ -152,13 +130,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         self::assertStringContainsString('Alice', $content);
     }
 
-    // -------------------------------------------------------------------------
-    // Collection - XML (hierarchical)
-    // -------------------------------------------------------------------------
-
     /**
-     * Test that a collection streams XML when the client sends Accept:
-     * application/xml (no tabular schema required).
+     * Test that a collection streams XML for an Accept: application/xml header.
      *
      * @return void
      */
@@ -176,13 +149,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         self::assertStringContainsString('Alice', $content);
     }
 
-    // -------------------------------------------------------------------------
-    // Collection - NDJSON (hierarchical)
-    // -------------------------------------------------------------------------
-
     /**
-     * Test that a collection streams NDJSON when the client sends Accept:
-     * application/x-ndjson (no tabular schema required).
+     * Test that a collection streams NDJSON for an x-ndjson Accept header.
      *
      * @return void
      */
@@ -200,13 +168,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         self::assertStringContainsString('Alice', $content);
     }
 
-    // -------------------------------------------------------------------------
-    // Collection - 406 for missing tabular schema
-    // -------------------------------------------------------------------------
-
     /**
-     * Test that a collection returns 406 when a tabular format is requested for
-     * a resource that does not implement ProvidesTabularExport.
+     * Test that a collection returns 406 for a tabular format with no schema.
      *
      * @return void
      */
@@ -217,13 +180,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         $response->assertStatus(406);
     }
 
-    // -------------------------------------------------------------------------
-    // Item - JSON envelope (default)
-    // -------------------------------------------------------------------------
-
     /**
-     * Test that a single item returns the JSON envelope by default and adds the
-     * Vary: Accept header.
+     * Test that an item returns the JSON envelope and Vary header by default.
      *
      * @return void
      */
@@ -238,13 +196,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         $response->assertJsonStructure(['data']);
     }
 
-    // -------------------------------------------------------------------------
-    // Item - CSV (tabular)
-    // -------------------------------------------------------------------------
-
     /**
-     * Test that a single item streams CSV when the client sends Accept:
-     * text/csv for a resource that implements ProvidesTabularExport.
+     * Test that a single item streams CSV for an Accept: text/csv header.
      *
      * @return void
      */
@@ -263,13 +216,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         self::assertStringContainsString('Alice', $content);
     }
 
-    // -------------------------------------------------------------------------
-    // Item - 406 for missing tabular schema
-    // -------------------------------------------------------------------------
-
     /**
-     * Test that a single item returns 406 when a tabular format is requested
-     * for a resource that does not implement ProvidesTabularExport.
+     * Test that a single item returns 406 for a tabular format with no schema.
      *
      * @return void
      */
@@ -281,13 +229,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         $response->assertStatus(406);
     }
 
-    // -------------------------------------------------------------------------
-    // DerivesTabularSchema column resolution
-    // -------------------------------------------------------------------------
-
     /**
-     * Test that the derived tabular schema includes the computed label column
-     * with the expected resolved value.
+     * Test that the derived tabular schema resolves the computed label column.
      *
      * @return void
      */
@@ -296,13 +239,11 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         $response = $this->get('/export/users', ['Accept' => 'text/csv']);
         $content  = $response->streamedContent();
 
-        // The 'label' column is a compute field - derived value via resource
         self::assertStringContainsString('Alice <alice@example.com>', $content);
     }
 
     /**
-     * Test that the derived tabular schema resolves the timestamp accessor as
-     * an ISO 8601 string in the export.
+     * Test that the derived tabular schema exports timestamps as ISO 8601.
      *
      * @return void
      */
@@ -311,7 +252,6 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         $response = $this->get('/export/users', ['Accept' => 'text/csv']);
         $content  = $response->streamedContent();
 
-        // created_at uses Field::timestamp() - callable accessor to ISO string
         self::assertMatchesRegularExpression('/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $content);
     }
 
@@ -325,7 +265,6 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         $response = $this->get('/export/users', ['Accept' => 'text/csv']);
         $content  = $response->streamedContent();
 
-        // 'organization' is a Relation::to() field - must not be a column
         self::assertStringNotContainsString('organization', strtolower($content));
     }
 

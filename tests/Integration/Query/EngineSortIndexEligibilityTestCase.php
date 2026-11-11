@@ -17,14 +17,10 @@ use Tests\Fixtures\Resources\SortCatalogueBackedResource;
 use Tests\TestCase;
 
 /**
- * Shared sort eligibility suite for an engine whose leading key can be too weak
- * to deliver its column's own order.
+ * Shared sort eligibility suite for engines whose leading key may lose order.
  *
- * Runs only against the engine the concrete case names. Every declaration is
- * proved against a live catalogue, since whether the engine reports a key as
- * truncated, or ordered apart from its column, is exactly what a supplied
- * catalogue cannot settle. The ordered column the resource also declares is
- * indexed plainly up front, so every refusal answers to the column under test.
+ * Every declaration is proved against a live catalogue, since only the engine
+ * can report a key as truncated or ordered apart from its column.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -41,8 +37,7 @@ abstract class EngineSortIndexEligibilityTestCase extends TestCase
     protected const string DEFECT = 'Field is declared sortable against "label", and no ordered index on table "sort_eligibility_rows" leads with that column';
 
     /**
-     * Build the table whose catalogue every test reads, having skipped the
-     * suite on any engine but the one under test.
+     * Build the table every test reads, skipping other engines.
      *
      * @return void
      */
@@ -74,8 +69,7 @@ abstract class EngineSortIndexEligibilityTestCase extends TestCase
     }
 
     /**
-     * Leave the table the suite builds outside a transaction, so the indexes it
-     * creates survive to be read.
+     * Leave the table outside a transaction so its indexes survive to be read.
      *
      * @return void
      */
@@ -90,8 +84,7 @@ abstract class EngineSortIndexEligibilityTestCase extends TestCase
     abstract protected function engine(): string;
 
     /**
-     * Rebuild the table, with the column under test carrying the given
-     * collation where one is named, and index the other ordered column.
+     * Rebuild the table with the given collation, indexing the other column.
      *
      * @param  string|null  $collation
      * @return void
@@ -126,8 +119,7 @@ abstract class EngineSortIndexEligibilityTestCase extends TestCase
     }
 
     /**
-     * Validate the declaration and return the defects it is refused with, or
-     * nothing where it is accepted.
+     * Validate the declaration and return its defects, if any.
      *
      * @return array<int, string>
      */
@@ -151,8 +143,7 @@ abstract class EngineSortIndexEligibilityTestCase extends TestCase
     }
 
     /**
-     * Assert that the index over the column under test lacks the column's own
-     * order, and that the sort proof refuses the column for it.
+     * Assert the index lacks the column's order and the sort proof refuses it.
      *
      * @return void
      */
@@ -163,8 +154,7 @@ abstract class EngineSortIndexEligibilityTestCase extends TestCase
     }
 
     /**
-     * Assert that the index over the column under test holds the column's own
-     * order, and that the sort proof accepts the column over it.
+     * Assert the index holds the column's order and the sort proof accepts it.
      *
      * @return void
      */

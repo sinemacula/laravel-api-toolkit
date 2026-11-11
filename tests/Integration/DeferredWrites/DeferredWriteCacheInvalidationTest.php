@@ -15,13 +15,7 @@ use Tests\Fixtures\Repositories\CacheableTagRepository;
 use Tests\TestCase;
 
 /**
- * Integration tests for per-query cache invalidation triggered by a deferred
- * write-pool flush at the lifecycle boundary.
- *
- * Warms a Cacheable repository's per-query cache, defers a write to the same
- * table, completes the boundary flush through the subscriber, then asserts the
- * next read observes the freshly persisted row rather than a stale cached
- * collection.
+ * Integration tests for query cache invalidation by a boundary pool flush.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -62,9 +56,7 @@ final class DeferredWriteCacheInvalidationTest extends TestCase
     }
 
     /**
-     * Test that the boundary flush invalidates the per-query cache for the
-     * deferred table, so the next read re-queries and reflects the row the
-     * flush persisted.
+     * Test that the boundary flush invalidates the deferred table's cache.
      *
      * @return void
      */
@@ -85,9 +77,7 @@ final class DeferredWriteCacheInvalidationTest extends TestCase
     }
 
     /**
-     * Test that, with invalidation disabled, the boundary flush still persists
-     * the deferred row but leaves the stale cached collection in place until
-     * its TTL expires.
+     * Test that with invalidation off the write persists but the read is stale.
      *
      * @return void
      */
@@ -103,13 +93,10 @@ final class DeferredWriteCacheInvalidationTest extends TestCase
 
         $result = $this->freshTagRepository()->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        // The cache was not invalidated: the stale two-row collection is served
-        // straight from cache without touching the database.
         self::assertCount(0, DB::getQueryLog());
         self::assertCount(2, $result);
 
-        // The deferred write itself still reached the database; only the
-        // downstream invalidation was skipped.
+        // The write still persisted; only the cache invalidation was skipped
         self::assertSame(3, DB::table('tags')->count());
     }
 
@@ -124,8 +111,7 @@ final class DeferredWriteCacheInvalidationTest extends TestCase
     }
 
     /**
-     * Defer a tag insert through the scoped write pool and run the
-     * lifecycle-boundary flush via the subscriber.
+     * Defer a tag insert and run the boundary flush via the subscriber.
      *
      * @param  string  $name
      * @return void

@@ -18,12 +18,9 @@ use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
 /**
- * End-to-end proof that schema metadata is shared across workers and lifecycle
- * boundaries, and is retired only by a generation advance.
+ * End-to-end tests that schema metadata is shared across workers.
  *
- * Each worker is simulated with its own introspector, writer, and generation,
- * sharing nothing with the others but the cache store, after the framework has
- * discarded the memoised store repository the way it does at every boundary.
+ * Each simulated worker shares nothing with the others but the cache store.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -36,8 +33,7 @@ use Tests\TestCase;
 final class SharedSchemaMetadataTest extends TestCase
 {
     /**
-     * Test that a second worker serves the schema the first worker read after a
-     * boundary, without asking the connection a single question.
+     * Test that a second worker serves the first worker's schema unqueried.
      *
      * @return void
      */
@@ -63,9 +59,7 @@ final class SharedSchemaMetadataTest extends TestCase
     }
 
     /**
-     * Test that a table created after an empty read is served with its real
-     * columns at the next boundary, with no migration event or invalidation to
-     * retire the empty answer.
+     * Test that a table created after an empty read is served once it exists.
      *
      * @return void
      */
@@ -98,9 +92,7 @@ final class SharedSchemaMetadataTest extends TestCase
     }
 
     /**
-     * Cross a lifecycle boundary: the toolkit resets its in-process state and
-     * the framework discards its scoped instances, the memoised store among
-     * them.
+     * Cross a lifecycle boundary, dropping in-process state and scoped bindings
      *
      * @return void
      */

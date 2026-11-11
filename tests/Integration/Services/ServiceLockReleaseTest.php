@@ -15,10 +15,6 @@ use Tests\TestCase;
 /**
  * Integration test for lock release when the core throws.
  *
- * Proves that a lockable service whose handle() throws still releases its cache
- * lock: after the failed run the same lock is free for a second acquisition and
- * the result reports failure carrying the thrown exception.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -69,8 +65,7 @@ final class ServiceLockReleaseTest extends TestCase
         self::assertTrue($result->failed());
         self::assertInstanceOf(\RuntimeException::class, $result->exception);
 
-        // The lock must be free after the failed run, so a fresh acquisition of
-        // the same key succeeds.
+        // A fresh acquisition of the same key proves the lock was released
         $lock = Cache::lock($service->getLockKey(), 60);
 
         self::assertTrue($lock->get());

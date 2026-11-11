@@ -89,8 +89,7 @@ final class MorphMapRegistrarTest extends TestCase
     }
 
     /**
-     * Test that registering the derived aliases never requires a morph map, so
-     * a model without a resource keeps morphing to its class name.
+     * Test that registering the derived aliases never requires a morph map.
      *
      * @return void
      */
@@ -151,8 +150,7 @@ final class MorphMapRegistrarTest extends TestCase
     }
 
     /**
-     * Test that a morph map the application registers later merges with the
-     * derived aliases and wins on a shared alias.
+     * Test that a later application morph map merges and wins a shared alias.
      *
      * @return void
      */
@@ -173,8 +171,7 @@ final class MorphMapRegistrarTest extends TestCase
     }
 
     /**
-     * Test that a resource bound to several models is aliased for none of them,
-     * silently.
+     * Test that a resource bound to several models is silently left unaliased.
      *
      * @return void
      */
@@ -192,8 +189,7 @@ final class MorphMapRegistrarTest extends TestCase
     }
 
     /**
-     * Test that a type shared by distinct resources is aliased for none of
-     * their models, with a warning.
+     * Test that a type shared by distinct resources is withheld with a warning.
      *
      * @return void
      */
@@ -211,8 +207,7 @@ final class MorphMapRegistrarTest extends TestCase
     }
 
     /**
-     * Test that a type shared by distinct resources is fatal when schema
-     * validation is enabled.
+     * Test that a shared type is fatal when schema validation is enabled.
      *
      * @return void
      */
@@ -230,8 +225,7 @@ final class MorphMapRegistrarTest extends TestCase
     }
 
     /**
-     * Test that a type shared by distinct resources is not reported once the
-     * application has registered the alias itself.
+     * Test that a shared type is not reported once the application aliased it.
      *
      * @return void
      */
@@ -304,8 +298,7 @@ final class MorphMapRegistrarTest extends TestCase
     }
 
     /**
-     * The warning reported for the users type shared by the root and v1 user
-     * resources.
+     * The warning for the users type shared by the root and v1 user resources.
      *
      * @return string
      */
