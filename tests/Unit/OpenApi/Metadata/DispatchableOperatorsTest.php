@@ -21,14 +21,13 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\DispatchableOperators;
 #[CoversClass(DispatchableOperators::class)]
 final class DispatchableOperatorsTest extends TestCase
 {
-    /** @var array<int, string> The tokens the package ships, which a registry holding everything still holds */
+    /** @var array<int, string> The tokens the package ships */
     private const array FULL_VOCABULARY = [
         '$eq', '$neq', '$in', '$gt', '$ge', '$lt', '$le', '$between', '$contains', '$null', '$notNull',
     ];
 
     /**
-     * Provide every case with the operators it documents against the full
-     * vocabulary.
+     * Provide every case with the operators it documents.
      *
      * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\Capability, array<int, string>}>
      */
@@ -42,8 +41,7 @@ final class DispatchableOperatorsTest extends TestCase
     }
 
     /**
-     * Test that a registry holding every shipped token documents the whole of
-     * the capability's declaration.
+     * Test that a full registry documents the whole capability declaration.
      *
      * @param  \SineMacula\ApiToolkit\Enums\Capability  $capability
      * @param  array<int, string>  $expected
@@ -56,8 +54,7 @@ final class DispatchableOperatorsTest extends TestCase
     }
 
     /**
-     * Test that a token the registry no longer holds is dropped, while the
-     * tokens it still holds keep the capability's own order.
+     * Test that an unregistered token is dropped and the order kept.
      *
      * @return void
      */
@@ -72,19 +69,15 @@ final class DispatchableOperatorsTest extends TestCase
     }
 
     /**
-     * Test that the surviving tokens are returned as a list rather than
-     * carrying the gaps the dropped tokens left behind.
+     * Test that the surviving tokens are returned as a list.
      *
-     * A caller encodes this straight into a document, where a gapped array
-     * renders as an object keyed by position rather than as the array of
-     * operators the schema declares.
+     * A gapped array would encode as an object keyed by position, not an array.
      *
      * @return void
      */
     public function testTheSurvivingTokensAreReturnedAsAList(): void
     {
-        // The dropped token sits between two survivors, so the gap it leaves is
-        // in the middle rather than at the end.
+        // The dropped token sits between two survivors, leaving a mid-list gap
         $operators = DispatchableOperators::forCapability(Capability::EXACT, ['$eq', '$null', '$notNull']);
 
         self::assertSame([0, 1, 2], array_keys($operators));
@@ -104,8 +97,7 @@ final class DispatchableOperatorsTest extends TestCase
     }
 
     /**
-     * Test that a capability whose every token has been unbound documents no
-     * filter at all.
+     * Test that a capability with every token unbound documents no filter.
      *
      * @param  \SineMacula\ApiToolkit\Enums\Capability  $capability
      * @return void
@@ -117,8 +109,7 @@ final class DispatchableOperatorsTest extends TestCase
     }
 
     /**
-     * Test that a token the vocabulary holds but the capability does not permit
-     * is not documented, so the narrowing never widens the surface.
+     * Test that a token the capability does not permit is not documented.
      *
      * @return void
      */

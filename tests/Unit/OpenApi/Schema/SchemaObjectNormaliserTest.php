@@ -21,8 +21,7 @@ use Tests\TestCase;
 final class SchemaObjectNormaliserTest extends TestCase
 {
     /**
-     * Provide the subschema keywords and the encoding of an empty value under
-     * each.
+     * Provide the subschema keywords and their empty-value encoding.
      *
      * @return iterable<string, array{0: string, 1: array<string, mixed>|list<mixed>, 2: string}>
      */
@@ -47,8 +46,7 @@ final class SchemaObjectNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an empty subschema under each subschema keyword, at any depth,
-     * encodes as an empty object.
+     * Test that an empty subschema at any depth encodes as an object.
      *
      * @param  string  $keyword
      * @param  array<string, mixed>|list<mixed>  $value
@@ -79,8 +77,7 @@ final class SchemaObjectNormaliserTest extends TestCase
     }
 
     /**
-     * Test that a map keyed by names that are all consecutive integers from
-     * zero encodes as an object rather than a JSON array.
+     * Test that a map keyed by consecutive integers encodes as an object.
      *
      * @return void
      */
@@ -99,8 +96,7 @@ final class SchemaObjectNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an empty schema anywhere a `schema` key holds one encodes as an
-     * empty object, in the paths and in the components alike.
+     * Test that an empty `schema` value encodes as an object everywhere.
      *
      * @return void
      */
@@ -130,8 +126,7 @@ final class SchemaObjectNormaliserTest extends TestCase
     }
 
     /**
-     * Test that the component schemas map and every empty schema it holds
-     * encode as objects.
+     * Test that component schemas and their empty schemas encode as objects.
      *
      * @return void
      */
@@ -145,9 +140,7 @@ final class SchemaObjectNormaliserTest extends TestCase
     }
 
     /**
-     * Test that values that are not schemas keep their empty arrays: keywords
-     * carrying data, examples, and maps named like schema keywords outside a
-     * schema.
+     * Test that non-schema values keep their empty arrays.
      *
      * @return void
      */
@@ -178,8 +171,7 @@ final class SchemaObjectNormaliserTest extends TestCase
     }
 
     /**
-     * Test that a value that is not an array is passed over without ending the
-     * walk, at the document root and in the components block alike.
+     * Test that a non-array value is passed over without ending the walk.
      *
      * @return void
      */
@@ -201,9 +193,7 @@ final class SchemaObjectNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an entry of a named map is read by its structure, so a header,
-     * media type, response, component, or webhook named like a keyword still
-     * has its schema normalised.
+     * Test that a named map entry is read by its structure, not its name.
      *
      * @return void
      */

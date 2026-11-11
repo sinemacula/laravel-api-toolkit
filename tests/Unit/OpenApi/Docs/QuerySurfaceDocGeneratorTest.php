@@ -45,9 +45,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that the note above the tables names only the parameters a column
-     * key is actually sent under, a free-text search naming no column of its
-     * own.
+     * Test that the note names only parameters a column key is sent under.
      *
      * @return void
      */
@@ -63,9 +61,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that the note above the tables says an index-backed order is the
-     * resource's own claim rather than a reading of the database, so the
-     * reference never states more than the declaration supports.
+     * Test that the note calls an index-backed order the resource's claim.
      *
      * @return void
      */
@@ -80,8 +76,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that the page-size ceiling is tabled alongside the structural caps,
-     * being refused the same way and reported under the same reason.
+     * Test that the page-size ceiling is tabled with the structural caps.
      *
      * @return void
      */
@@ -96,8 +91,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a column left with no dispatchable operator is tabled as
-     * answering no filter, rather than as a capability with an empty set.
+     * Test that a column without dispatchable operators answers no filter.
      *
      * @return void
      */
@@ -111,8 +105,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that each structural cap is tabled with its resolved value and what
-     * it bounds.
+     * Test that each structural cap is tabled with its value and meaning.
      *
      * @return void
      */
@@ -127,8 +120,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a cap configured off is reported as disabled rather than as a
-     * limit of zero, which would read as a limit nothing can satisfy.
+     * Test that a cap configured off is reported as disabled, not zero.
      *
      * @return void
      */
@@ -140,8 +132,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a cap the generator carries no description for is still tabled
-     * with its value, so a cap gained later cannot go unreported.
+     * Test that a cap without a description is still tabled with its value.
      *
      * @return void
      */
@@ -172,8 +163,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a bound the generator carries no reading name for falls back to
-     * its own name rather than being dropped.
+     * Test that a bound without a reading name falls back to its own name.
      *
      * @return void
      */
@@ -185,9 +175,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that the rejection section carries the status and code of the
-     * exception an over-budget request is answered with, together with the meta
-     * keys that name the cap and the value supplied.
+     * Test that the rejection section carries the status, code and meta keys.
      *
      * @return void
      */
@@ -204,8 +192,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a bound the caller reports nothing for reads as no bound in the
-     * worked rejection, rather than as a value the generator invented for it.
+     * Test that an unreported bound reads as no bound in the rejection.
      *
      * @return void
      */
@@ -218,9 +205,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that the worked rejection reads the bound the limits table above it
-     * reports, so a tuned application never reads an example contradicting its
-     * own configured ceiling.
+     * Test that the worked rejection reads the bound from the limits table.
      *
      * @return void
      */
@@ -235,8 +220,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that the rejection section says in full what the envelope reports,
-     * so a client reads the meaning of each meta key beside the example.
+     * Test that the rejection section explains every envelope meta key.
      *
      * @return void
      */
@@ -259,8 +243,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a filterable column is tabled with the capability it answers
-     * and the operator tokens that capability permits.
+     * Test that a filterable column is tabled with capability and operators.
      *
      * @return void
      */
@@ -286,8 +269,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that an aliased column is tabled under both the property carried in
-     * the response and the column the query grammar names.
+     * Test that an aliased column is tabled under property and column.
      *
      * @return void
      */
@@ -301,8 +283,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that an order an index holds is tabled as index-backed, no exemption
-     * having been recorded against it.
+     * Test that an indexed order is tabled as index-backed.
      *
      * @return void
      */
@@ -316,8 +297,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that an exempted order is tabled as unindexed and carries the reason
-     * the resource recorded, escaped so it cannot break the table.
+     * Test that an exempted order is tabled as unindexed with escaped reason.
      *
      * @return void
      */
@@ -336,8 +316,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that the reason recorded against a column carrying no order is never
-     * rendered, an order being the only thing an exemption speaks about.
+     * Test that a reason recorded against an unordered column is not shown.
      *
      * @return void
      */
@@ -357,8 +336,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a resource answering no query at all says so plainly rather
-     * than rendering an empty table.
+     * Test that a resource answering no query says so plainly.
      *
      * @return void
      */
@@ -372,9 +350,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that the relations a filter may descend through are named beneath
-     * the resource, and that a resource declaring none says so rather than
-     * leaving the reader to guess.
+     * Test that traversable relations are named, or their absence stated.
      *
      * @return void
      */
@@ -393,8 +369,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a flat reference, where every resource resolves to no module,
-     * renders one H2 subsection per resource with no module headings.
+     * Test that a flat reference renders one H2 per resource and no modules.
      *
      * @return void
      */
@@ -407,8 +382,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that resources are ordered by component name regardless of the order
-     * they were registered in.
+     * Test that resources are ordered by component name.
      *
      * @return void
      */
@@ -425,9 +399,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a modular reference renders the shared section first, then one
-     * module H2 per module sorted by name, each carrying its resources as H3
-     * subsections.
+     * Test that a modular reference renders shared first, then sorted modules.
      *
      * @return void
      */
@@ -449,9 +421,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that the resources of one module are ordered among themselves by
-     * component name, and that a module gathers every resource that belongs to
-     * it rather than only the last one registered.
+     * Test that a module gathers and orders all of its resources by name.
      *
      * @return void
      */
@@ -468,8 +438,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a grouped reference with no shared resources omits the Common
-     * section and still renders the module sections.
+     * Test that a reference without shared resources omits Common.
      *
      * @return void
      */
@@ -483,8 +452,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a reference with no resources still renders the bounds every
-     * request is held to, with no resource section beneath them.
+     * Test that a reference without resources still renders the bounds.
      *
      * @return void
      */
@@ -509,8 +477,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Build a generator whose grouper resolves no module, yielding combined
-     * output.
+     * Build a generator whose grouper resolves no module.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Docs\QuerySurfaceDocGenerator
      */
@@ -520,8 +487,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Build a generator whose grouper maps the fixture resources into modules,
-     * yielding grouped output.
+     * Build a generator whose grouper maps the fixture resources to modules.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Docs\QuerySurfaceDocGenerator
      */
@@ -535,8 +501,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Render the grouped reference, registering the resources in an order that
-     * matches neither the module order nor the order within a module.
+     * Render the grouped reference from a deliberately unordered registration.
      *
      * @return string
      */

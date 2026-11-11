@@ -115,8 +115,7 @@ final class TagResolverTest extends TestCase
     }
 
     /**
-     * Test that the controller basename is used, stripping a trailing
-     * "Controller" suffix, when no attribute or schema name applies.
+     * Test that the controller basename, minus "Controller", is the default.
      *
      * @return void
      */
@@ -131,8 +130,7 @@ final class TagResolverTest extends TestCase
     }
 
     /**
-     * Test that a closure route derives its tag from the first non-parameter
-     * URI segment.
+     * Test that a closure route takes its tag from the first literal segment.
      *
      * @return void
      */
@@ -147,8 +145,7 @@ final class TagResolverTest extends TestCase
     }
 
     /**
-     * Test that a closure route whose URI carries no literal segment falls back
-     * to the shared default tag.
+     * Test that a closure route without a literal segment uses the default.
      *
      * @return void
      */

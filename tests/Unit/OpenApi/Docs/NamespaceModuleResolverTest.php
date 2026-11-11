@@ -13,9 +13,7 @@ use Tests\TestCase;
 /**
  * Tests for the namespace-key module resolver.
  *
- * The PSR-4 roots are supplied synthetically so detection is exercised without
- * relying on any on-disk module layout; the directories need not exist because
- * a synthetic, non-vendor path is honoured as a root.
+ * PSR-4 roots are synthetic; a non-vendor root need not exist on disk.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -26,8 +24,7 @@ use Tests\TestCase;
 final class NamespaceModuleResolverTest extends TestCase
 {
     /**
-     * Test that a class beneath a module namespace resolves to that module,
-     * keyed by the namespace prefix and named by its last segment.
+     * Test that a class beneath a module namespace resolves to that module.
      *
      * @return void
      */
@@ -42,8 +39,7 @@ final class NamespaceModuleResolverTest extends TestCase
     }
 
     /**
-     * Test that a class whose first segment beneath the root is already
-     * framework vocabulary belongs to no module.
+     * Test that a class whose first segment is framework vocabulary has none.
      *
      * @return void
      */
@@ -56,8 +52,7 @@ final class NamespaceModuleResolverTest extends TestCase
     }
 
     /**
-     * Test that a renamed root is honoured, so the module is taken relative to
-     * whatever non-vendor prefix the class sits under.
+     * Test that a renamed non-vendor root is honoured.
      *
      * @return void
      */
@@ -72,8 +67,7 @@ final class NamespaceModuleResolverTest extends TestCase
     }
 
     /**
-     * Test that a class under a vendored root belongs to no module, because the
-     * vendor tree is excluded from the matchable roots.
+     * Test that a class under a vendored root belongs to no module.
      *
      * @return void
      */
@@ -99,10 +93,9 @@ final class NamespaceModuleResolverTest extends TestCase
     }
 
     /**
-     * Test that a class is matched against its longest matching root. With the
-     * more specific root selected, the module namespace begins at framework
-     * vocabulary, so the class belongs to no module; a shorter-root match would
-     * instead have produced a module, proving the longest root is chosen.
+     * Test that a class is matched against its longest matching root.
+     *
+     * A shorter-root match would produce a module; the longest one yields none.
      *
      * @return void
      */
@@ -117,8 +110,7 @@ final class NamespaceModuleResolverTest extends TestCase
     }
 
     /**
-     * Test that a class carrying no framework-vocabulary segment beneath its
-     * root belongs to no module, as there is no boundary to cut the module at.
+     * Test that a class without a framework-vocabulary segment has no module.
      *
      * @return void
      */

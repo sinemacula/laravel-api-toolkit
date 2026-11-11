@@ -13,9 +13,7 @@ use Tests\TestCase;
 /**
  * Tests for the module section grouper.
  *
- * The items are plain strings standing in for whatever a generated document
- * lists, since the grouping reads nothing of an item beyond the class the
- * caller names for it.
+ * Items are plain strings, as grouping reads only the class named for each.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -26,8 +24,7 @@ use Tests\TestCase;
 final class ModuleSectionGrouperTest extends TestCase
 {
     /**
-     * Test that items belonging to no module gather under the one shared
-     * section.
+     * Test that items in no module gather under the shared section.
      *
      * @return void
      */
@@ -40,8 +37,7 @@ final class ModuleSectionGrouperTest extends TestCase
     }
 
     /**
-     * Test that the module sections follow the shared section and are ordered
-     * by module name rather than by the order the items arrived in.
+     * Test that module sections follow the shared one, sorted by name.
      *
      * @return void
      */
@@ -59,8 +55,7 @@ final class ModuleSectionGrouperTest extends TestCase
     }
 
     /**
-     * Test that the shared section is omitted where every item belongs to a
-     * module.
+     * Test that the shared section is omitted when every item has a module.
      *
      * @return void
      */
@@ -74,8 +69,7 @@ final class ModuleSectionGrouperTest extends TestCase
     }
 
     /**
-     * Test that a module gathers every item resolving to it rather than only
-     * the first.
+     * Test that a module gathers every item resolving to it.
      *
      * @return void
      */
@@ -91,8 +85,7 @@ final class ModuleSectionGrouperTest extends TestCase
     }
 
     /**
-     * Test that the supplied comparator orders the items of the shared section
-     * and of every module section alike.
+     * Test that the comparator orders items in every section alike.
      *
      * @return void
      */
@@ -112,8 +105,7 @@ final class ModuleSectionGrouperTest extends TestCase
     }
 
     /**
-     * Test that the items keep the order they arrived in where the caller
-     * supplies no comparator, leaving a document free to order its own rows.
+     * Test that items keep arrival order when no comparator is supplied.
      *
      * @return void
      */
@@ -129,8 +121,7 @@ final class ModuleSectionGrouperTest extends TestCase
     }
 
     /**
-     * Test that an item the caller names no owning class for gathers under the
-     * shared section without the resolver being consulted.
+     * Test that an item with no owning class skips the resolver.
      *
      * @return void
      */
@@ -156,8 +147,7 @@ final class ModuleSectionGrouperTest extends TestCase
     }
 
     /**
-     * Test that no sections read as combined, so an empty document renders
-     * without module headings.
+     * Test that no sections read as combined.
      *
      * @return void
      */
@@ -177,8 +167,7 @@ final class ModuleSectionGrouperTest extends TestCase
     }
 
     /**
-     * Test that a lone module section does not read as combined, so its heading
-     * is rendered.
+     * Test that a lone module section does not read as combined.
      *
      * @return void
      */
@@ -188,8 +177,7 @@ final class ModuleSectionGrouperTest extends TestCase
     }
 
     /**
-     * Test that a shared section beside a module section does not read as
-     * combined.
+     * Test that a shared section beside a module does not read as combined.
      *
      * @return void
      */

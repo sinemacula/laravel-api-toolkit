@@ -23,8 +23,7 @@ use Tests\TestCase;
 final class ApiExceptionDiscovererTest extends TestCase
 {
     /**
-     * Test that an application ApiException is discovered from a non-vendor
-     * root while a sibling that is not an ApiException is ignored.
+     * Test that an application ApiException is discovered, siblings ignored.
      *
      * @return void
      */
@@ -41,8 +40,7 @@ final class ApiExceptionDiscovererTest extends TestCase
     }
 
     /**
-     * Test that a root whose real path sits inside a vendor directory is
-     * excluded, so an installed package is never scanned.
+     * Test that a root whose real path is inside vendor is excluded.
      *
      * @return void
      */
@@ -55,8 +53,7 @@ final class ApiExceptionDiscovererTest extends TestCase
         mkdir($plain, 0777, true);
         mkdir($vendor, 0777, true);
 
-        // Both stub files derive the same already-autoloadable FQCN, so only
-        // the vendor exclusion distinguishes them.
+        // Both stubs derive the same autoloadable FQCN; only vendor exclusion differs
         file_put_contents($plain . '/WidgetFailureException.php', "<?php\n");
         file_put_contents($vendor . '/WidgetFailureException.php', "<?php\n");
 
@@ -105,8 +102,7 @@ final class ApiExceptionDiscovererTest extends TestCase
     }
 
     /**
-     * Test that an error raised while autoloading a candidate leaves it
-     * unqualified rather than aborting the scan.
+     * Test that an autoload error leaves a candidate unqualified.
      *
      * @return void
      */
@@ -139,9 +135,7 @@ final class ApiExceptionDiscovererTest extends TestCase
     }
 
     /**
-     * Test that a discoverer built from the registered Composer autoloader
-     * scans the package's own non-vendor roots, finding both the toolkit's
-     * exceptions and the application fixture.
+     * Test that a discoverer built from Composer scans the non-vendor roots.
      *
      * @return void
      */
@@ -154,8 +148,7 @@ final class ApiExceptionDiscovererTest extends TestCase
     }
 
     /**
-     * Test that a namespace listed as extra is scanned even when it resolves
-     * under vendor, so an installed package's exceptions can be catalogued.
+     * Test that an extra namespace is scanned even when under vendor.
      *
      * @return void
      */
@@ -166,8 +159,7 @@ final class ApiExceptionDiscovererTest extends TestCase
 
         mkdir($vendor, 0777, true);
 
-        // The stub derives the real, already-autoloadable exception FQCN, so
-        // only the vendor exclusion decides whether it is discovered.
+        // The stub derives a real autoloadable FQCN; only vendor exclusion decides
         file_put_contents($vendor . '/WidgetFailureException.php', "<?php\n");
 
         $prefixes = ['Tests\Fixtures\Exceptions\\' => [$vendor]];
@@ -193,8 +185,7 @@ final class ApiExceptionDiscovererTest extends TestCase
     }
 
     /**
-     * Test that a class reached by both a non-vendor root and a matching extra
-     * namespace is reported once, not duplicated.
+     * Test that a class reached by two roots is reported once.
      *
      * @return void
      */
@@ -208,27 +199,23 @@ final class ApiExceptionDiscovererTest extends TestCase
     }
 
     /**
-     * Test that fromComposer reads the configured extra namespaces, filters out
-     * non-string entries, and tolerates a non-array configuration value.
+     * Test that fromComposer reads and sanitises the extra namespaces.
      *
      * @return void
      */
     public function testFromComposerReadsConfiguredExtraNamespaces(): void
     {
-        // A mixed list: the non-string entry is filtered out rather than fatal.
         config()->set('api-toolkit.openapi.exception_namespaces', ['SineMacula\ApiToolkit\\', 123]);
 
         self::assertContains(NotFoundException::class, ApiExceptionDiscoverer::fromComposer()->discover());
 
-        // A non-array configuration is tolerated as no extra namespaces.
         config()->set('api-toolkit.openapi.exception_namespaces', 'not-an-array');
 
         self::assertContains(NotFoundException::class, ApiExceptionDiscoverer::fromComposer()->discover());
     }
 
     /**
-     * Test that an extra namespace that matches no registered PSR-4 root scans
-     * nothing extra, leaving the baseline discovery unaffected.
+     * Test that an extra namespace matching no PSR-4 root scans nothing.
      *
      * @return void
      */
@@ -242,9 +229,7 @@ final class ApiExceptionDiscovererTest extends TestCase
     }
 
     /**
-     * Test that an extra namespace whose registered directory does not exist is
-     * stepped over, leaving the remaining roots scanned rather than aborting
-     * the discovery.
+     * Test that an extra namespace with a missing directory is skipped.
      *
      * @return void
      */

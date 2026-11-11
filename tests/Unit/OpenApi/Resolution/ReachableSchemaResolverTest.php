@@ -20,8 +20,7 @@ use Tests\TestCase;
 final class ReachableSchemaResolverTest extends TestCase
 {
     /**
-     * Test that a schema referenced from the seed is retained while an
-     * unreferenced schema is dropped.
+     * Test that a referenced schema is kept and an unreferenced one dropped.
      *
      * @return void
      */
@@ -62,8 +61,7 @@ final class ReachableSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that always-kept schema names are retained even when nothing
-     * references them.
+     * Test that always-kept schema names survive without references.
      *
      * @return void
      */
@@ -81,8 +79,7 @@ final class ReachableSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that a reference to a schema absent from the map is ignored rather
-     * than surfacing a phantom entry.
+     * Test that a reference to a missing schema is ignored.
      *
      * @return void
      */
@@ -128,8 +125,7 @@ final class ReachableSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that only references under the component-schema prefix are followed,
-     * leaving other reference kinds untouched.
+     * Test that only component-schema references are followed.
      *
      * @return void
      */

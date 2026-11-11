@@ -25,8 +25,7 @@ use Tests\Fixtures\OpenApi\PathStatusConflictController;
 final class ResponseStatusResolverTest extends TestCase
 {
     /**
-     * Test that the status an action declares is resolved, whether or not it
-     * declares a body beside a status that carries one.
+     * Test that the declared status is resolved, with or without a body.
      *
      * @return void
      */
@@ -39,8 +38,7 @@ final class ResponseStatusResolverTest extends TestCase
     }
 
     /**
-     * Test that an action declaring nothing, a routed action absent from its
-     * controller, and a closure resolve no status.
+     * Test that undeclared, missing and closure actions resolve no status.
      *
      * @return void
      */
@@ -65,8 +63,7 @@ final class ResponseStatusResolverTest extends TestCase
     }
 
     /**
-     * Test that a body declared beside a no-content status fails, naming the
-     * status and the action.
+     * Test that a body beside a no-content status fails, naming both.
      *
      * @param  string  $action
      * @param  int  $status

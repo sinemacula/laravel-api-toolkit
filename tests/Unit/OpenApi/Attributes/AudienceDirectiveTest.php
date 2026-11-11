@@ -32,8 +32,7 @@ final class AudienceDirectiveTest extends TestCase
     }
 
     /**
-     * Test that named audiences are reindexed to a zero-indexed list, so the
-     * stored value always satisfies the list<string> contract.
+     * Test that named audiences are reindexed to a zero-indexed list.
      *
      * @return void
      */

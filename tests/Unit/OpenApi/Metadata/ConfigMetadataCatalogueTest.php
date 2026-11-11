@@ -59,8 +59,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that getResourceMap returns an empty array when neither the config
-     * map nor discovery yields any binding.
+     * Test that getResourceMap is empty when nothing yields a binding.
      *
      * @return void
      */
@@ -75,8 +74,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that discovered resources absent from the config map appear in the
-     * returned map, even when the config map is empty.
+     * Test that discovered resources appear even with an empty config map.
      *
      * @return void
      */
@@ -94,9 +92,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that discovered resources are unioned with the configured map:
-     * configured entries keep their order and win on a model collision, while
-     * discovered bindings for models absent from the config are appended.
+     * Test that configured entries win over and precede discovered ones.
      *
      * @return void
      */
@@ -116,8 +112,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that getOperatorTokens returns the tokens registered in the bound
-     * OperatorRegistry.
+     * Test that getOperatorTokens returns the registry's tokens.
      *
      * @return void
      */
@@ -133,8 +128,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that getOperatorTokens covers all eleven default registered tokens,
-     * and that the deleted partial-match token is not among them.
+     * Test that getOperatorTokens covers the eleven defaults, without $like.
      *
      * @return void
      */
@@ -164,8 +158,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that getStructuralOperators returns the four fixed structural
-     * tokens.
+     * Test that getStructuralOperators returns the four structural tokens.
      *
      * @return void
      */
@@ -209,8 +202,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that getQuerySurfaces returns one surface per registered resource,
-     * carrying the columns that resource declares queryable.
+     * Test that getQuerySurfaces returns one surface per resource.
      *
      * @return void
      */
@@ -227,8 +219,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that getQueryLimits returns every structural cap the query cost
-     * limits declare, resolved to its configured value.
+     * Test that getQueryLimits returns every configured structural cap.
      *
      * @return void
      */
@@ -246,9 +237,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that the page-size ceiling is reported alongside the structural
-     * caps, under the same name the refusal reports as its reason, so a client
-     * reads one list of the bounds it can be turned away for.
+     * Test that the page-size ceiling is reported with the structural caps.
      *
      * @return void
      */
@@ -260,9 +249,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that a page-size ceiling configured as a numeric string is reported
-     * as the whole number it truncates to, the way the guard that enforces it
-     * reads one.
+     * Test that a numeric-string page-size ceiling is truncated to an int.
      *
      * @return void
      */
@@ -274,9 +261,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that a page-size ceiling configured off is reported as zero, the way
-     * the guard that enforces it reads one, rather than falling back to a
-     * default the guard would not apply.
+     * Test that a page-size ceiling configured off is reported as zero.
      *
      * @return void
      */
@@ -288,8 +273,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that a cap configured off is reported as zero, matching the way the
-     * limits themselves treat a disabled dimension.
+     * Test that a cap configured off is reported as zero.
      *
      * @return void
      */
@@ -301,8 +285,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that getSearchBounds returns the three bounds a search term is held
-     * to, read from the term itself.
+     * Test that getSearchBounds returns the three search term bounds.
      *
      * @return void
      */
@@ -319,8 +302,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that the shortest word is reported at the floor it is held to rather
-     * than at a configured value beneath it, which the term itself refuses.
+     * Test that the shortest word is reported at its enforced floor.
      *
      * @return void
      */

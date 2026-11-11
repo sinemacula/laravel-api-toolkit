@@ -38,9 +38,7 @@ use Tests\TestCase;
 final class RulesToSchemaTranslatorTest extends TestCase
 {
     /**
-     * Test that the representative rules source translates to the full object
-     * schema spanning presence, size, array items, enum, format, and the
-     * confirmation sibling.
+     * Test that the representative rules source translates in full.
      *
      * @return void
      */
@@ -70,8 +68,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a narrowed pure enum field documents only the names it accepts
-     * inline, rather than referencing a component that lists every case.
+     * Test that a narrowed pure enum field inlines its accepted names.
      *
      * @return void
      */
@@ -83,8 +80,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Provide narrowed Enum rules over string- and int-backed enums, values
-     * carrying commas and quotes included.
+     * Provide narrowed Enum rules over string- and int-backed enums.
      *
      * @return iterable<string, array{0: \Illuminate\Validation\Rules\Enum, 1: class-string<\BackedEnum>}>
      */
@@ -101,8 +97,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a narrowed Enum field's exported enum lists exactly the case
-     * values the validator accepts under that rule.
+     * Test that a narrowed Enum lists exactly the values it accepts.
      *
      * @param  \Illuminate\Validation\Rules\Enum  $rule
      * @param  class-string<\BackedEnum>  $enum
@@ -125,8 +120,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a narrowed int-backed Enum on a field the rules also declare a
-     * string lists its values as the strings the validator accepts there.
+     * Test that a narrowed int Enum on a string field lists strings.
      *
      * @return void
      */
@@ -141,9 +135,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a field whose enum rule is narrowed to no case documents an
-     * empty enum, which no value satisfies, as the rule accepts none, keeping
-     * only null on a nullable field.
+     * Test that an Enum narrowed to no case documents an empty enum.
      *
      * @return void
      */
@@ -181,8 +173,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a regex array element carrying an alternation exports its whole
-     * pattern rather than being split on the pipe.
+     * Test that a regex alternation exports its whole pattern.
      *
      * @return void
      */
@@ -198,8 +189,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that an In rule object exports the same enum as the equivalent
-     * value-list string.
+     * Test that an In object matches the equivalent value-list string.
      *
      * @return void
      */
@@ -213,8 +203,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that values carrying commas and quotes round-trip exactly through
-     * both the In object and its quoted string form.
+     * Test that awkward values round-trip through both In forms.
      *
      * @return void
      */
@@ -229,8 +218,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that an In object built from a string-backed enum's cases exports
-     * the backing values as strings.
+     * Test that an In of string-backed cases exports strings.
      *
      * @return void
      */
@@ -242,8 +230,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that an In object built from an int-backed enum's cases on an
-     * integer field exports the backing values as integers.
+     * Test that an In of int-backed cases on an integer field exports ints.
      *
      * @return void
      */
@@ -255,9 +242,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that an In object on an array field constrains its items, and that a
-     * `field.*` sibling is required alongside that constraint rather than
-     * replacing it.
+     * Test that an In on an array constrains items beside a required child.
      *
      * @return void
      */
@@ -275,8 +260,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that numeric values on an array field stay satisfiable when its
-     * items are typed as integers, as the validator accepts either form.
+     * Test that numeric array values stay satisfiable for integer items.
      *
      * @return void
      */
@@ -291,8 +275,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a NotIn rule object, which has no schema translation,
-     * contributes nothing while the field's other rules survive.
+     * Test that a NotIn rule contributes nothing beside other rules.
      *
      * @return void
      */
@@ -304,8 +287,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that dotted keys weave into a nested object property carrying its
-     * own required list, the object required for holding a required field.
+     * Test that dotted keys weave into a nested object property.
      *
      * @return void
      */
@@ -344,8 +326,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a field.*.child grid weaves an array of objects, nesting each
-     * child property and its required list under the items node.
+     * Test that a field.*.child grid weaves an array of objects.
      *
      * @return void
      */
@@ -376,8 +357,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a required confirmed field gains a confirmation sibling of the
-     * same base type, required alongside it.
+     * Test that a required confirmed field gains a required confirmation.
      *
      * @return void
      */
@@ -396,8 +376,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that an optional confirmed field requires its confirmation sibling
-     * only when the field itself is sent.
+     * Test that an optional confirmed field requires confirmation when sent.
      *
      * @return void
      */
@@ -416,8 +395,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a confirmed rule naming its confirmation field documents and
-     * requires that field rather than the default sibling.
+     * Test that a named confirmation field replaces the default sibling.
      *
      * @return void
      */
@@ -439,8 +417,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a confirmed field carrying no scalar type gains a string
-     * confirmation sibling.
+     * Test that an untyped confirmed field gains a string confirmation.
      *
      * @return void
      */
@@ -459,8 +436,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a confirmed field's confirmation sibling mirrors a non-string
-     * base type verbatim.
+     * Test that a confirmation mirrors a non-string base type.
      *
      * @return void
      */
@@ -519,9 +495,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a prohibited field is the false schema, left out of the
-     * required list whatever its other rules say, and loses its children and
-     * its confirmation sibling.
+     * Test that a prohibited field is the false schema and loses its extras.
      *
      * @return void
      */
@@ -553,8 +527,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a body whose root rules prohibit it translates to an empty
-     * schema, documenting no body.
+     * Test that a prohibited root body translates to an empty schema.
      *
      * @return void
      */
@@ -564,8 +537,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that an array's own item constraint stands alone when its `field.*`
-     * sibling adds none, rather than being combined with an empty schema.
+     * Test that an item constraint stands alone beside an empty child.
      *
      * @return void
      */
@@ -577,8 +549,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a field validated only by untranslatable rules is kept with an
-     * empty schema, as is an unconstrained `field.*` sibling.
+     * Test that untranslatable fields are kept with an empty schema.
      *
      * @return void
      */
@@ -596,8 +567,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that the conditional presence rules of the request example document
-     * which field one field requires and that one of two fields must be sent.
+     * Test the conditional presence rules of the request example.
      *
      * @return void
      */
@@ -615,8 +585,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Provide rules carrying confirmed and conditional presence rules, each
-     * with request bodies the validator accepts and refuses on presence alone.
+     * Provide presence-rule sets with bodies the validator accepts or refuses.
      *
      * @return iterable<string, array{0: array<string, mixed>, 1: list<array<string, mixed>>}>
      */
@@ -660,8 +629,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that the request schema accepts exactly the bodies the validator
-     * accepts under confirmed and conditional presence rules.
+     * Test that the schema accepts exactly what the validator accepts.
      *
      * @param  array<string, mixed>  $rules
      * @param  list<array<string, mixed>>  $bodies
@@ -682,8 +650,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that the confirmed and conditional presence rules of a nested object
-     * or an array item reference that object's own fields.
+     * Test that nested presence rules reference their own object's fields.
      *
      * @return void
      */
@@ -708,8 +675,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a presence rule referencing a field outside its object, or one
-     * the rules never declare, is skipped rather than invented.
+     * Test that a presence rule with an unplaceable reference is skipped.
      *
      * @return void
      */
@@ -738,8 +704,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a top-level rules key PHP casts to an integer documents an
-     * object property named by the index, required by its string name.
+     * Test that an integer top-level rules key documents a named property.
      *
      * @return void
      */
@@ -783,9 +748,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a child keying an array field by a list index is left out of
-     * the array's schema, so a list the rules accept is never documented as an
-     * object.
+     * Test that an index-keyed child is left out of an array's schema.
      *
      * @param  array<string, mixed>  $rules
      * @param  array<string, mixed>  $expected
@@ -798,8 +761,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that an index child of a field declaring no array type documents an
-     * object property named by the index, required by its string name.
+     * Test that an index child of a non-array documents a named property.
      *
      * @return void
      */
@@ -821,8 +783,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Provide array fields addressed by named children or restricted to named
-     * keys, each with the schema it documents.
+     * Provide arrays with named children or keys, with their schemas.
      *
      * @return iterable<string, array{0: array<string, mixed>, 1: array<string, mixed>}>
      */
@@ -914,8 +875,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that an array field addressed by named children or restricted to
-     * named keys documents the object it may be and the list it may be sent as.
+     * Test that a named-key array documents both object and list forms.
      *
      * @param  array<string, mixed>  $rules
      * @param  array<string, mixed>  $expected
@@ -928,8 +888,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Provide array fields addressed by named children or restricted to named
-     * keys, each with JSON request bodies the validator accepts and refuses.
+     * Provide arrays with named children or keys, with bodies to check.
      *
      * @return iterable<string, array{0: array<string, mixed>, 1: list<string>}>
      */
@@ -982,9 +941,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that the request schema accepts exactly the JSON bodies the
-     * validator accepts for an array field addressed by named children or
-     * restricted to named keys, whether each is sent as an object or a list.
+     * Test that the schema accepts exactly what the validator accepts.
      *
      * @param  array<string, mixed>  $rules
      * @param  list<string>  $bodies
@@ -1005,8 +962,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Provide rules whose fields refuse an empty value or require a field held
-     * by their parent, each with the schema of the field they shape.
+     * Provide fields refusing empties or requiring parent fields, with schemas.
      *
      * @return iterable<string, array{0: array<string, mixed>, 1: string, 2: array<string, mixed>}>
      */
@@ -1110,9 +1066,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a field refusing an empty value documents a non-empty array or
-     * object and no null, and a parent whose fields demand it be sent refuses
-     * null and any list holding none of them.
+     * Test that refused empties and demanded parents shape the schema.
      *
      * @param  array<string, mixed>  $rules
      * @param  string  $field
@@ -1126,8 +1080,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Provide rules whose fields require a field held by their parent, each
-     * with the fields the top-level object requires.
+     * Provide fields requiring parent fields, with the required top fields.
      *
      * @return iterable<string, array{0: array<string, mixed>, 1: list<string>}>
      */
@@ -1162,8 +1115,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a parent is required exactly when one of its fields refuses
-     * every body missing the parent.
+     * Test that a parent is required when a field refuses its absence.
      *
      * @param  array<string, mixed>  $rules
      * @param  list<string>  $required
@@ -1176,9 +1128,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Provide rules whose fields refuse an empty value or require a field held
-     * by their parent, each with JSON request bodies the validator accepts and
-     * refuses.
+     * Provide fields refusing empties or requiring parent fields, with bodies.
      *
      * @return iterable<string, array{0: array<string, mixed>, 1: list<string>}>
      */
@@ -1361,9 +1311,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that the request schema accepts exactly the JSON bodies the
-     * validator accepts when fields refuse an empty value or require a field
-     * held by their parent.
+     * Test that the schema accepts exactly what the validator accepts.
      *
      * @param  array<string, mixed>  $rules
      * @param  list<string>  $bodies
@@ -1406,8 +1354,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Determine whether a translated schema accepts a JSON request body, read
-     * as sent, so an empty object and an empty list stay distinct.
+     * Determine whether a schema accepts a JSON body as sent.
      *
      * @param  array<string, mixed>  $schema
      * @param  string  $payload

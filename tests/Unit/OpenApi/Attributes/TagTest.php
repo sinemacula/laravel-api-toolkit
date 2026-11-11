@@ -30,8 +30,7 @@ final class TagTest extends TestCase
     }
 
     /**
-     * Test that the tag is read back off a declaration, which is the only way
-     * the exporter ever obtains one.
+     * Test that the tag is read back off a declaration.
      *
      * @return void
      */

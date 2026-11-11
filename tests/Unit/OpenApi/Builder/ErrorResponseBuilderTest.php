@@ -39,8 +39,7 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that each response carries the code's HTTP status, so the documented
-     * status agrees with the error catalogue.
+     * Test that each response carries the code's HTTP status.
      *
      * @return void
      */
@@ -55,8 +54,7 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that each response references the shared error-envelope schema
-     * rather than inlining the envelope shape.
+     * Test that each response references the shared error-envelope schema.
      *
      * @return void
      */
@@ -72,8 +70,7 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that the response description is sourced from the descriptor title,
-     * falling back to the detail when no title is defined.
+     * Test that the description falls back to the detail without a title.
      *
      * @return void
      */
@@ -87,8 +84,7 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that the response description uses the descriptor title when one is
-     * defined, in preference to the detail.
+     * Test that the description prefers the descriptor title.
      *
      * @return void
      */
@@ -102,8 +98,7 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that the response carries an example payload mirroring the runtime
-     * error envelope shape.
+     * Test that the response example mirrors the runtime error envelope.
      *
      * @return void
      */
@@ -139,8 +134,7 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that the shared envelope schema describes the toolkit's error
-     * payload, with the error object's required keys.
+     * Test that the envelope schema describes the error payload shape.
      *
      * @return void
      */
@@ -164,8 +158,7 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that the envelope schema component name is the conventional name
-     * referenced by every response.
+     * Test that the envelope schema component name is the conventional one.
      *
      * @return void
      */
@@ -175,8 +168,7 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Build an ErrorResponseBuilder backed by a stub returning the given
-     * descriptors.
+     * Build an ErrorResponseBuilder backed by the given descriptors.
      *
      * @param  array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>  $descriptors
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder

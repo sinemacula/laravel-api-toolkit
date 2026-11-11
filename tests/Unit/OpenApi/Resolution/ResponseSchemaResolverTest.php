@@ -29,8 +29,7 @@ use Tests\TestCase;
 final class ResponseSchemaResolverTest extends TestCase
 {
     /**
-     * Test that an action declaring a registered resource resolves to a single
-     * envelope referencing that resource's component schema.
+     * Test that a declared registered resource resolves to its envelope.
      *
      * @return void
      */
@@ -45,8 +44,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that an action declaring a registered resource as a collection
-     * resolves to the length-aware collection envelope for that resource.
+     * Test that a declared resource collection resolves to its envelope.
      *
      * @return void
      */
@@ -61,8 +59,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that an action declaring a self-describing DTO inlines its schema
-     * fragment under the single envelope's data property.
+     * Test that a declared DTO inlines its schema under data.
      *
      * @return void
      */
@@ -75,8 +72,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that an action declaring a plain class that is neither a resource
-     * nor self-describing resolves to null.
+     * Test that a declared plain class resolves to null.
      *
      * @return void
      */
@@ -86,8 +82,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that an action declaring a resource absent from the resource map
-     * resolves to null rather than emitting a reference that would dangle.
+     * Test that a declared unmapped resource resolves to null.
      *
      * @return void
      */
@@ -97,9 +92,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that an action naming two self-describing classes inlines both
-     * fragments as a oneOf under the single envelope's data property, in the
-     * order they were declared.
+     * Test that two declared DTOs inline as a oneOf in declared order.
      *
      * @return void
      */
@@ -114,8 +107,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that a union of a registered resource and a self-describing class
-     * references the resource's component beside the inlined fragment.
+     * Test that a resource and DTO union references the resource component.
      *
      * @return void
      */
@@ -130,8 +122,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that a union declared as a collection describes each item of the
-     * list as one of the shapes, rather than the list as a whole.
+     * Test that a union collection describes each item as one of the shapes.
      *
      * @return void
      */
@@ -146,8 +137,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that a union naming one class twice collapses to the bare node, so
-     * it documents exactly what naming the class once does.
+     * Test that a union naming one class twice collapses to the bare node.
      *
      * @return void
      */
@@ -162,8 +152,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that a member repeated later in a union is dropped, keeping each
-     * distinct shape once at the position it was first declared.
+     * Test that a repeated union member is dropped after its first position.
      *
      * @return void
      */
@@ -178,8 +167,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that a repeated member does not end the union, so the shapes named
-     * after it are still documented.
+     * Test that a repeated member does not end the union.
      *
      * @return void
      */
@@ -194,8 +182,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that distinct classes resolving to the same fragment collapse to the
-     * bare node, so no response can match more than one branch of the union.
+     * Test that classes resolving to one fragment collapse to the bare node.
      *
      * @return void
      */
@@ -210,8 +197,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that a union holding a plain class resolves to null as a whole,
-     * rather than documenting only the members it can describe.
+     * Test that a union holding a plain class resolves to null as a whole.
      *
      * @return void
      */
@@ -221,9 +207,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that a union holding a resource absent from the resource map
-     * resolves to null as a whole, rather than documenting only the members it
-     * can describe.
+     * Test that a union holding an unmapped resource resolves to null.
      *
      * @return void
      */
@@ -243,8 +227,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that a closure route, which has no controller class, resolves to
-     * null.
+     * Test that a closure route resolves to null.
      *
      * @return void
      */
@@ -254,8 +237,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that an action carrying a directive declares a body even when a
-     * class it names cannot be described.
+     * Test that a directive declares a body even for an undescribable class.
      *
      * @return void
      */
@@ -266,8 +248,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that an action carrying no directive, or a closure route, declares
-     * no body.
+     * Test that no directive, or a closure route, declares no body.
      *
      * @return void
      */
@@ -278,8 +259,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that a directive declares a resource when it names that resource
-     * alone, once or repeated, in the given shape.
+     * Test that a directive naming only the resource declares it.
      *
      * @return void
      */
@@ -293,9 +273,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that a directive does not declare a resource it names in another
-     * shape, beside another class, or not at all, nor does an action carrying
-     * no directive or a closure route.
+     * Test that a directive declares no resource it names otherwise.
      *
      * @return void
      */
@@ -312,8 +290,7 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Build a resolver backed by a catalogue mapping the user model to its
-     * resource.
+     * Build a resolver whose catalogue maps the user model to its resource.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver
      */

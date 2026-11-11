@@ -22,8 +22,7 @@ use Tests\Fixtures\OpenApi\PathHeaderBaseController;
 final class ResponseHeaderTest extends TestCase
 {
     /**
-     * Test that a directive naming only its header documents an undescribed
-     * string.
+     * Test that a directive naming only its header documents a plain string.
      *
      * @return void
      */
@@ -50,8 +49,7 @@ final class ResponseHeaderTest extends TestCase
     }
 
     /**
-     * Test that a name built from every character an HTTP field name may hold
-     * is accepted.
+     * Test that a name using every HTTP field-name character is accepted.
      *
      * @return void
      */
@@ -63,8 +61,7 @@ final class ResponseHeaderTest extends TestCase
     }
 
     /**
-     * Test that a name opening with a digit or a symbol is accepted, since any
-     * token character may open an HTTP field name.
+     * Test that a name opening with a digit or a symbol is accepted.
      *
      * @return void
      */
@@ -108,8 +105,7 @@ final class ResponseHeaderTest extends TestCase
     }
 
     /**
-     * Test that the content type is rejected in any case, since the response
-     * media type already describes it and a document would ignore it.
+     * Test that the content type is rejected in any case.
      *
      * @return void
      */
@@ -148,8 +144,7 @@ final class ResponseHeaderTest extends TestCase
     }
 
     /**
-     * Test that repeated directives are read back off a method declaration in
-     * declared order.
+     * Test that repeated directives are read back in declared order.
      *
      * @return void
      */

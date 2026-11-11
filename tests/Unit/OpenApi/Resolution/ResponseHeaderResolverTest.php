@@ -27,8 +27,7 @@ use Tests\Fixtures\OpenApi\QuotaExceededException;
 final class ResponseHeaderResolverTest extends TestCase
 {
     /**
-     * Test that an action's headers become header objects in declared order,
-     * carrying the description only where one is given.
+     * Test that action headers become header objects in declared order.
      *
      * @return void
      */
@@ -44,8 +43,7 @@ final class ResponseHeaderResolverTest extends TestCase
     }
 
     /**
-     * Test that an action declaring nothing on a controller declaring nothing
-     * resolves no header.
+     * Test that nothing declared anywhere resolves no header.
      *
      * @return void
      */
@@ -65,9 +63,7 @@ final class ResponseHeaderResolverTest extends TestCase
     }
 
     /**
-     * Test that an action inherits the headers its controller and the
-     * controller's parent declare, nearest first, the controller's own
-     * declaration winning over its parent's.
+     * Test that an action inherits controller headers, nearest first.
      *
      * @return void
      */
@@ -80,8 +76,7 @@ final class ResponseHeaderResolverTest extends TestCase
     }
 
     /**
-     * Test that the action's own declaration wins over its controller's under a
-     * different case, keeping the action's spelling of the name.
+     * Test that the action's declaration wins over its controller's.
      *
      * @return void
      */
@@ -95,8 +90,7 @@ final class ResponseHeaderResolverTest extends TestCase
     }
 
     /**
-     * Test that an action the controller does not declare still carries the
-     * headers the controller declares for every action.
+     * Test that an undeclared action still carries controller headers.
      *
      * @return void
      */
@@ -122,8 +116,7 @@ final class ResponseHeaderResolverTest extends TestCase
     }
 
     /**
-     * Test that an exception's own declaration wins over its parent's under a
-     * different case.
+     * Test that an exception's declaration wins over its parent's.
      *
      * @return void
      */
@@ -136,8 +129,7 @@ final class ResponseHeaderResolverTest extends TestCase
     }
 
     /**
-     * Test that an exception declaring nothing, with no parent declaring
-     * anything, resolves no header.
+     * Test that an exception without declarations resolves no header.
      *
      * @return void
      */
@@ -147,8 +139,7 @@ final class ResponseHeaderResolverTest extends TestCase
     }
 
     /**
-     * Test that the toolkit's rate-limit exception documents the headers the
-     * rate limiter sets.
+     * Test that the rate-limit exception documents the rate limiter headers.
      *
      * @return void
      */
@@ -185,8 +176,7 @@ final class ResponseHeaderResolverTest extends TestCase
     }
 
     /**
-     * Test that merging keeps every header of the first map and only the
-     * headers of the second whose name, compared case-insensitively, is new.
+     * Test that merging adds only the second map's new header names.
      *
      * @return void
      */

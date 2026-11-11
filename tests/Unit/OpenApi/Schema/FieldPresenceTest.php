@@ -21,8 +21,7 @@ use Tests\TestCase;
 final class FieldPresenceTest extends TestCase
 {
     /**
-     * Provide token lists, each with whether the field is required, refuses an
-     * empty value, and accepts null.
+     * Provide token lists with the presence each one implies.
      *
      * @return iterable<string, array{0: list<string>, 1: bool, 2: bool, 3: bool}>
      */
@@ -47,8 +46,7 @@ final class FieldPresenceTest extends TestCase
     }
 
     /**
-     * Test that a field's rules decide whether it must be sent, whether a sent
-     * value may be empty, and whether it may be null.
+     * Test that a field's rules decide its presence, emptiness and nullability.
      *
      * @param  list<string>  $tokens
      * @param  bool  $required
@@ -67,9 +65,7 @@ final class FieldPresenceTest extends TestCase
     }
 
     /**
-     * Provide the token lists of fields beneath the `address` ancestor, each
-     * with whether it refuses every body missing that ancestor and every body
-     * in which the ancestor holds no named key.
+     * Provide fields beneath `address` with whether each refuses its absence.
      *
      * @return iterable<string, array{0: list<string>, 1: bool, 2: bool}>
      */
@@ -106,10 +102,7 @@ final class FieldPresenceTest extends TestCase
     }
 
     /**
-     * Test that a field refuses every body missing an ancestor when its rules
-     * require it unconditionally or by the absence of a field the ancestor
-     * holds, the field being missing too, and refuses the ancestor holding no
-     * named key when the fields that absence leaves missing are named ones.
+     * Test that a field refuses bodies missing or emptying its ancestor.
      *
      * @param  list<string>  $tokens
      * @param  bool  $ancestor

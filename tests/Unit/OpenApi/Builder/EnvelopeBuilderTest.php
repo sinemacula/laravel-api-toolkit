@@ -20,8 +20,7 @@ use Tests\TestCase;
 final class EnvelopeBuilderTest extends TestCase
 {
     /**
-     * Test that the length-aware pagination meta schema carries the exact
-     * total/count/continue shape with all keys required.
+     * Test the length-aware pagination meta schema shape.
      *
      * @return void
      */
@@ -41,8 +40,7 @@ final class EnvelopeBuilderTest extends TestCase
     }
 
     /**
-     * Test that the length-aware pagination links schema carries uri-formatted
-     * self/first/last and nullable prev/next links, all required.
+     * Test the length-aware pagination links schema shape.
      *
      * @return void
      */
@@ -64,8 +62,7 @@ final class EnvelopeBuilderTest extends TestCase
     }
 
     /**
-     * Test that the cursor pagination meta schema carries only the required
-     * continue flag.
+     * Test that the cursor pagination meta carries only the continue flag.
      *
      * @return void
      */
@@ -83,8 +80,7 @@ final class EnvelopeBuilderTest extends TestCase
     }
 
     /**
-     * Test that the cursor pagination links schema carries a uri-formatted self
-     * link and nullable prev/next links, all required.
+     * Test the cursor pagination links schema shape.
      *
      * @return void
      */
@@ -104,8 +100,7 @@ final class EnvelopeBuilderTest extends TestCase
     }
 
     /**
-     * Test that nullable links use the 2020-12 `{"type": "null"}` union member
-     * rather than the OpenAPI 3.0 `nullable` keyword.
+     * Test that nullable links use a 2020-12 null type union member.
      *
      * @return void
      */
@@ -120,8 +115,7 @@ final class EnvelopeBuilderTest extends TestCase
     }
 
     /**
-     * Test that the reusable total-count header carries a non-negative integer
-     * schema and a description.
+     * Test that the total-count header carries a non-negative integer schema.
      *
      * @return void
      */
@@ -134,8 +128,7 @@ final class EnvelopeBuilderTest extends TestCase
     }
 
     /**
-     * Test that the single envelope wraps the given reference in a required
-     * data property.
+     * Test that the single envelope wraps the reference in a data property.
      *
      * @return void
      */
@@ -153,8 +146,7 @@ final class EnvelopeBuilderTest extends TestCase
     }
 
     /**
-     * Test that the undocumented envelope shares the data wrapper shape but
-     * marks the inner body with the x-undocumented extension.
+     * Test that the undocumented envelope marks its body as x-undocumented.
      *
      * @return void
      */
@@ -172,8 +164,7 @@ final class EnvelopeBuilderTest extends TestCase
     }
 
     /**
-     * Test that the collection envelope wraps an array of the given reference
-     * alongside the length-aware pagination meta and links references.
+     * Test that the collection envelope carries length-aware meta and links.
      *
      * @return void
      */
@@ -193,8 +184,7 @@ final class EnvelopeBuilderTest extends TestCase
     }
 
     /**
-     * Test that the cursor collection envelope wraps an array of the given
-     * reference alongside the cursor pagination meta and links references.
+     * Test that the cursor collection envelope carries cursor meta and links.
      *
      * @return void
      */

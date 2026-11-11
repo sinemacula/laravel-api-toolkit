@@ -75,8 +75,7 @@ use Tests\TestCase;
 final class PathBuilderTest extends TestCase
 {
     /**
-     * Test that every REST route yields its OpenAPI path template while
-     * non-documentable routes contribute nothing.
+     * Test that REST routes yield path templates and others contribute nothing.
      *
      * @return void
      */
@@ -92,8 +91,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that the collection and item URIs group their verbs under a single
-     * shared path item.
+     * Test that verbs of the same URI share one path item.
      *
      * @return void
      */
@@ -108,9 +106,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that the index action offers both pagination shapes as an anyOf of
-     * the length-aware and cursor collection envelopes and still references the
-     * shared total-count header.
+     * Test that the index offers both pagination shapes and the count header.
      *
      * @return void
      */
@@ -181,8 +177,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that the update action maps both the PUT and PATCH verbs to the same
-     * single-resource operation under 200.
+     * Test that PUT and PATCH map to the same update operation.
      *
      * @return void
      */
@@ -220,8 +215,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that the bodyless collection index carries only the baseline error
-     * statuses that apply to it, omitting the resource and validation statuses.
+     * Test that the index carries only the baseline error statuses that apply.
      *
      * @return void
      */
@@ -242,8 +236,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a single-resource show carries the not-found status while a
-     * bodyless read omits the validation status.
+     * Test that a show carries not-found but omits the validation status.
      *
      * @return void
      */
@@ -263,8 +256,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a create carries the validation status yet omits not-found, as
-     * it addresses the collection rather than an existing resource.
+     * Test that a create carries the validation status but omits not-found.
      *
      * @return void
      */
@@ -284,8 +276,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a destroy carries its no-content success alongside the resource
-     * baseline error statuses and omits the validation status.
+     * Test that a destroy carries no-content and omits the validation status.
      *
      * @return void
      */
@@ -305,8 +296,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a baseline-only status references the shared error-envelope
-     * schema under its standard phrase and carries no examples.
+     * Test that a baseline-only status references the shared error envelope.
      *
      * @return void
      */
@@ -326,9 +316,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a thrown ApiException whose status coincides with a baseline
-     * status collapses into one response keeping the baseline phrase and
-     * carrying the specific code as a named example.
+     * Test that a thrown exception on a baseline status merges into it.
      *
      * @return void
      */
@@ -352,8 +340,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a thrown ApiException whose status is not part of the baseline
-     * surfaces under its own status with a named example carrying its code.
+     * Test that a non-baseline thrown status surfaces with a code example.
      *
      * @return void
      */
@@ -373,8 +360,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that the merged responses carry exactly one entry per status, with
-     * the success and error statuses coexisting without collision.
+     * Test that merged responses carry exactly one entry per status.
      *
      * @return void
      */
@@ -405,8 +391,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that path parameters are derived from the route segments and lead
-     * the parameter list, ahead of the shared query references.
+     * Test that path parameters lead the parameter list.
      *
      * @return void
      */
@@ -439,8 +424,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an index references the whole shared query grammar so a
-     * generated client sees the parameters the document defines.
+     * Test that an index references the whole shared query grammar.
      *
      * @return void
      */
@@ -456,9 +440,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a read of a model with no soft deletes is never offered the
-     * visibility parameter, so a generated client is never handed a widening
-     * the server is bound to discard.
+     * Test that a model without soft deletes gets no visibility parameter.
      *
      * @return void
      */
@@ -479,8 +461,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a show references only what shapes and scopes a single record,
-     * so the document never claims a single resource can be paged or filtered.
+     * Test that a show references only single-record query parameters.
      *
      * @return void
      */
@@ -495,8 +476,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a store and an update reference only what shapes the resource
-     * they return.
+     * Test that a store and an update reference only resource shaping.
      *
      * @return void
      */
@@ -512,8 +492,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a destroy references no query parameter, its empty body having
-     * nothing to shape.
+     * Test that a destroy references no query parameter.
      *
      * @return void
      */
@@ -525,8 +504,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-resource operation references no query parameter, the
-     * builder having no way to know whether the action reads the query at all.
+     * Test that a non-resource operation references no query parameter.
      *
      * @return void
      */
@@ -538,8 +516,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an optional route parameter renders as a required path
-     * parameter without its trailing optional marker.
+     * Test that an optional route parameter renders as required.
      *
      * @return void
      */
@@ -554,8 +531,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a route handled by a plain, non-authorized controller emits an
-     * undocumented success operation tagged from the controller basename.
+     * Test that a plain controller route emits an undocumented operation.
      *
      * @return void
      */
@@ -574,9 +550,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an invokable controller emits an undocumented operation
-     * carrying its verb, path parameters, controller-derived tag, and the
-     * x-undocumented success envelope.
+     * Test that an invokable controller emits an undocumented operation.
      *
      * @return void
      */
@@ -597,8 +571,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-REST action on an authorized controller falls through to
-     * an undocumented operation rather than a resource operation.
+     * Test that a non-REST action on an authorized controller is undocumented.
      *
      * @return void
      */
@@ -617,8 +590,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a closure route emits an undocumented operation carrying the
-     * x-undocumented success envelope and a tag derived from the URI.
+     * Test that a closure route emits an undocumented operation.
      *
      * @return void
      */
@@ -636,8 +608,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a closure scoped out with the undocumented route macro is
-     * omitted from the audience just as an attribute-scoped route is.
+     * Test that a closure scoped out with the macro is omitted.
      *
      * @return void
      */
@@ -649,8 +620,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a #[Tag] attribute overrides the derived tag, with a
-     * method-level tag winning over the class-level one.
+     * Test that a method-level #[Tag] beats the class-level one.
      *
      * @return void
      */
@@ -666,8 +636,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a route excluded from the audience is omitted from that
-     * audience while remaining documented in another.
+     * Test that a route excluded from one audience stays in another.
      *
      * @return void
      */
@@ -680,9 +649,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a route whose controller is defined under a blocklisted
-     * namespace contributes no path while a route in the ordinary fixture
-     * namespace still contributes.
+     * Test that a blocklisted controller namespace contributes no path.
      *
      * @return void
      */
@@ -720,8 +687,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an authorized controller whose model has no registered resource
-     * falls through to an undocumented operation rather than being skipped.
+     * Test that a controller without a registered resource is undocumented.
      *
      * @return void
      */
@@ -738,8 +704,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-resource store action emits its success under 201 with
-     * the shared undocumented envelope.
+     * Test that a non-resource store emits 201 with the undocumented envelope.
      *
      * @return void
      */
@@ -778,8 +743,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-resource action declaring a registered resource emits a
-     * single-resource envelope referencing that resource's component schema.
+     * Test that a declared registered resource emits its single envelope.
      *
      * @return void
      */
@@ -796,8 +760,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-resource action declaring a registered resource as a
-     * collection emits the length-aware collection envelope for that resource.
+     * Test that a declared resource collection emits the collection envelope.
      *
      * @return void
      */
@@ -814,8 +777,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-resource action declaring a self-describing DTO inlines
-     * the DTO's schema fragment under the single envelope's data property.
+     * Test that a declared DTO inlines its schema under the data property.
      *
      * @return void
      */
@@ -830,9 +792,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-resource action declaring a self-describing DTO as a
-     * collection wraps the DTO fragment as the length-aware collection
-     * envelope's inline item schema.
+     * Test that a declared DTO collection inlines the DTO as the item schema.
      *
      * @return void
      */
@@ -851,8 +811,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-resource action declaring several shapes embeds their
-     * oneOf under the single envelope's data property.
+     * Test that several declared shapes embed a oneOf under data.
      *
      * @return void
      */
@@ -869,9 +828,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource store declaring a union documents it under 201 with
-     * its declared header, request body, resource tag, and error responses, and
-     * no resource query parameter.
+     * Test that a resource store declaring a union documents it under 201.
      *
      * @return void
      */
@@ -895,9 +852,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource update declaring a single shape documents it under
-     * 200, keeping the validation and not-found statuses of a resource update
-     * and its path parameter alone.
+     * Test that a resource update declaring a shape documents it under 200.
      *
      * @return void
      */
@@ -920,8 +875,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource show declaring a shape documents it under 200 with
-     * no resource query parameter.
+     * Test that a resource show declaring a shape documents it under 200.
      *
      * @return void
      */
@@ -941,9 +895,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource index and destroy declaring a shape and a status
-     * document the shape under that status, the index with no total-count
-     * header and no resource query parameter.
+     * Test that an index and destroy declaring a status use that status.
      *
      * @return void
      */
@@ -972,8 +924,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource action declaring no response schema keeps the
-     * resource body and query parameters beside one that declares its own.
+     * Test that undeclared actions keep the resource body beside declared ones.
      *
      * @return void
      */
@@ -997,9 +948,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource index declaring its own resource as a collection is
-     * documented exactly as one declaring nothing, keeping the query grammar,
-     * both pagination envelopes, and the total-count header.
+     * Test that an index declaring its own collection matches declaring none.
      *
      * @return void
      */
@@ -1037,8 +986,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource show declaring its own resource keeps the resource
-     * body and the query parameters shaping a single record.
+     * Test that a show declaring its own resource keeps the resource body.
      *
      * @return void
      */
@@ -1064,9 +1012,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource action declaring its own resource in another shape,
-     * or another resource, documents the declared body with no resource query
-     * parameter.
+     * Test that declaring another shape or resource drops query parameters.
      *
      * @return void
      */
@@ -1099,10 +1045,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that the documented envelope required-key sets exactly match the
-     * keys the runtime response path emits for a single resource, a
-     * length-aware collection, and a cursor collection, so the documentation
-     * never drifts from the shape the toolkit actually returns.
+     * Test that envelope required keys match the runtime response keys.
      *
      * @return void
      */
@@ -1165,8 +1108,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-resource action carrying no directive still emits the
-     * shared x-undocumented success envelope.
+     * Test that an action without a directive emits the undocumented envelope.
      *
      * @return void
      */
@@ -1180,8 +1122,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a POST write operation carries a requestBody translated from
-     * the action's directive-named rules source.
+     * Test that a POST carries a requestBody from the directive rules source.
      *
      * @return void
      */
@@ -1206,8 +1147,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a PUT/PATCH write operation carries a requestBody discovered
-     * from a type-hinted rules-source parameter.
+     * Test that a PUT/PATCH discovers its requestBody from a type hint.
      *
      * @return void
      */
@@ -1250,8 +1190,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that attaching a requestBody leaves the operation's response body
-     * unchanged.
+     * Test that attaching a requestBody leaves the response body unchanged.
      *
      * @return void
      */
@@ -1270,8 +1209,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a route with no auth middleware is documented as public,
-     * carrying an explicit empty security list.
+     * Test that a route without auth middleware carries empty security.
      *
      * @return void
      */
@@ -1283,8 +1221,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a single-guard auth route carries the guard driver's scheme as
-     * a single requirement.
+     * Test that a single-guard route carries the guard's scheme.
      *
      * @return void
      */
@@ -1297,8 +1234,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that guards mapping to different schemes emit separate single-scheme
-     * requirements, expressing the OR of the two.
+     * Test that guards with different schemes emit separate requirements.
      *
      * @return void
      */
@@ -1314,8 +1250,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that guards mapping to the same scheme collapse to one requirement,
-     * never revealing the second guard.
+     * Test that guards sharing a scheme collapse to one requirement.
      *
      * @return void
      */
@@ -1328,8 +1263,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a bare auth middleware resolves the application's default
-     * guard.
+     * Test that a bare auth middleware resolves the default guard.
      *
      * @return void
      */
@@ -1348,14 +1282,12 @@ final class PathBuilderTest extends TestCase
      */
     public function testNoDocumentedRoutesYieldsEmptyPaths(): void
     {
-        // Under the allowlist posture no route opts in, so even the framework's
-        // default routes are excluded and the paths object stays empty.
+        // No route opts in, so even the framework's default routes are excluded
         self::assertSame([], $this->build('partner', AudienceResolver::POSTURE_ALLOWLIST));
     }
 
     /**
-     * Test that a non-resource read verb never carries a request body even when
-     * its action declares one.
+     * Test that a non-resource read verb never carries a request body.
      *
      * @return void
      */
@@ -1367,8 +1299,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource read verb never carries a request body even when its
-     * action declares one, while the collection response is still emitted.
+     * Test that a resource read verb never carries a request body.
      *
      * @return void
      */
@@ -1387,8 +1318,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource write verb carries the request body resolved from
-     * the action's declared rules source.
+     * Test that a resource write verb carries its resolved request body.
      *
      * @return void
      */
@@ -1407,8 +1337,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that the merged responses are ordered by ascending status, with the
-     * success entry first and the error statuses following in numeric order.
+     * Test that merged responses are ordered by ascending status.
      *
      * @return void
      */
@@ -1423,8 +1352,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that two thrown exceptions sharing a status merge their examples
-     * under one response carrying the derived multi-word phrase.
+     * Test that thrown exceptions sharing a status merge their examples.
      *
      * @return void
      */
@@ -1444,8 +1372,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a thrown status coinciding with a known baseline phrase keeps
-     * that phrase even when the action's baseline set omits the status.
+     * Test that a thrown baseline status keeps its known phrase.
      *
      * @return void
      */
@@ -1461,8 +1388,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a throws tag resolving to a class outside the API exception
-     * base is ignored even when it declares an HTTP status constant.
+     * Test that a throws tag outside the API exception base is ignored.
      *
      * @return void
      */
@@ -1476,9 +1402,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a route listing an excluded verb before a documentable one
-     * still emits the documentable verb rather than stopping at the excluded
-     * one.
+     * Test that an excluded verb does not stop a later documentable one.
      *
      * @return void
      */
@@ -1493,8 +1417,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a route with several path segments emits one parameter per
-     * segment rather than only the first.
+     * Test that each path segment emits its own parameter.
      *
      * @return void
      */
@@ -1509,8 +1432,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a controller class carrying a leading namespace separator is
-     * still matched against the blocklist and excluded.
+     * Test that a leading namespace separator still matches the blocklist.
      *
      * @return void
      */
@@ -1532,9 +1454,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an authorized controller declaring no resource attribute, whose
-     * model resolution fails, still emits an operation carrying the
-     * undocumented success envelope and only the unconditional 500.
+     * Test that a failed model resolution still emits an operation.
      *
      * @return void
      */
@@ -1556,8 +1476,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a route naming an action the controller never declares still
-     * emits its resource operation, carrying the baseline error statuses alone.
+     * Test that an undeclared action carries only the baseline statuses.
      *
      * @return void
      */
@@ -1573,8 +1492,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an action carrying no doc comment, and so no documented throws,
-     * emits the baseline error statuses alone.
+     * Test that an action without a doc comment carries only the baseline.
      *
      * @return void
      */
@@ -1593,8 +1511,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource route without auth middleware omits the
-     * unauthenticated status while its authorization check keeps forbidden.
+     * Test that a resource route without auth omits unauthenticated.
      *
      * @return void
      */
@@ -1606,8 +1523,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-resource route documents the unauthenticated status only
-     * behind auth middleware.
+     * Test that unauthenticated is documented only behind auth middleware.
      *
      * @return void
      */
@@ -1626,8 +1542,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a throttled route documents the too-many-requests status under
-     * its baseline phrase.
+     * Test that a throttled route documents the too-many-requests status.
      *
      * @return void
      */
@@ -1647,8 +1562,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an authorization attribute on a non-resource action documents
-     * the forbidden status.
+     * Test that an authorization attribute documents the forbidden status.
      *
      * @return void
      */
@@ -1660,8 +1574,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-resource POST declaring a request schema documents the
-     * validation status, while one declaring no rules omits it.
+     * Test that a non-resource POST documents validation only with rules.
      *
      * @return void
      */
@@ -1679,9 +1592,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-resource validation status follows the resolved request
-     * body rather than the action name: a body-bearing action of another name
-     * documents it, and a store declaring no rules does not.
+     * Test that the validation status follows the resolved request body.
      *
      * @return void
      */
@@ -1699,10 +1610,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-resource action documents the ApiException subclasses its
-     * throws tags name under their statuses with code examples, including a
-     * status the enum lacks, while ignoring the Throwable and LogicException
-     * tags beside them and an ApiException that reports no status.
+     * Test that a non-resource action documents its thrown ApiExceptions.
      *
      * @return void
      */
@@ -1737,8 +1645,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that facts applied through a middleware group are resolved, and that
-     * a group member removed with withoutMiddleware() is not documented.
+     * Test that middleware group facts are resolved minus excluded members.
      *
      * @return void
      */
@@ -1757,8 +1664,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a closure route documents the route-fact statuses without any
-     * throws-derived ones.
+     * Test that a closure route documents only the route-fact statuses.
      *
      * @return void
      */
@@ -1770,8 +1676,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that the headers an action declares are documented under its success
-     * response, between its description and its content.
+     * Test that declared headers are documented on the success response.
      *
      * @return void
      */
@@ -1795,8 +1700,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that the headers a resource action declares follow the total-count
-     * header the exporter emits on a collection.
+     * Test that declared headers follow the exporter's total-count header.
      *
      * @return void
      */
@@ -1818,8 +1722,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource action answering with no content still documents the
-     * headers it declares.
+     * Test that a no-content resource action still documents its headers.
      *
      * @return void
      */
@@ -1836,8 +1739,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that declaring a header the exporter emits itself, under any case,
-     * fails the build rather than silently replacing it.
+     * Test that declaring an exporter-owned header fails the build.
      *
      * @return void
      */
@@ -1855,9 +1757,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an exception's declared headers, including those inherited from
-     * its parent, are documented on its status's error response, while a status
-     * whose exceptions declare none carries no headers.
+     * Test that exception headers, inherited ones too, document on errors.
      *
      * @return void
      */
@@ -1882,8 +1782,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that exceptions sharing a baseline status merge their declared
-     * headers onto that status's response.
+     * Test that exceptions sharing a status merge their declared headers.
      *
      * @return void
      */
@@ -1902,8 +1801,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an operation declaring nothing, whose exceptions declare
-     * nothing, documents no header anywhere.
+     * Test that an operation declaring nothing documents no header.
      *
      * @return void
      */
@@ -1920,8 +1818,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource update declaring 204 documents a 204 with no body in
-     * place of its 200, carrying the header its controller declares.
+     * Test that a resource update declaring 204 documents a bodyless 204.
      *
      * @return void
      */
@@ -1940,8 +1837,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-REST action declaring 204 documents a 204 with no body in
-     * place of its 200, carrying its own header before its controller's.
+     * Test that a non-REST action declaring 204 documents a bodyless 204.
      *
      * @return void
      */
@@ -1981,8 +1877,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an action declaring 202 beside a response schema documents that
-     * body under 202.
+     * Test that an action declaring 202 documents its schema under 202.
      *
      * @return void
      */
@@ -2002,8 +1897,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-resource store declaring 200 documents the undocumented
-     * body under 200 in place of 201.
+     * Test that a non-resource store declaring 200 documents it under 200.
      *
      * @return void
      */
@@ -2020,8 +1914,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a destroy declaring 200 gains the body its response schema
-     * declares, or the undocumented envelope on a resource route.
+     * Test that a destroy declaring 200 gains its declared body.
      *
      * @return void
      */
@@ -2050,8 +1943,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource index declaring 206 keeps its collection body and
-     * the total-count header the exporter emits, before its declared header.
+     * Test that an index declaring 206 keeps its collection body and header.
      *
      * @return void
      */
@@ -2079,8 +1971,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that declaring the status an action answers with by default, or no
-     * status at all, documents the action exactly as before.
+     * Test that declaring the default status, or none, changes nothing.
      *
      * @return void
      */
@@ -2112,8 +2003,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a body declared beside a no-content status fails the build on a
-     * resource route.
+     * Test that a body declared beside a no-content status fails the build.
      *
      * @return void
      */
@@ -2145,8 +2035,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Register the full REST route set on the application router, applying the
-     * given middleware to every route.
+     * Register the full REST route set with the given middleware.
      *
      * @param  string  ...$middleware
      * @return void
@@ -2163,8 +2052,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Register the read routes of a controller reading a model that soft
-     * deletes.
+     * Register the read routes of a controller over a soft-deleting model.
      *
      * @return void
      */
@@ -2189,8 +2077,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * List the shared query-parameter component names the operation references,
-     * in the order it carries them.
+     * List the shared query-parameter names the operation references, in order.
      *
      * @param  mixed  $operation
      * @return array<int, string>
@@ -2237,8 +2124,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Build the paths object and read one operation from it, failing the test
-     * when the operation is absent.
+     * Build the paths object and read one operation from it.
      *
      * @param  string  $path
      * @param  string  $method
@@ -2254,8 +2140,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Build the paths object and read the responses one operation documents,
-     * failing the test when they are absent.
+     * Build the paths object and read one operation's responses.
      *
      * @param  string  $path
      * @param  string  $method
@@ -2271,8 +2156,7 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Build a path builder backed by a catalogue mapping the user model to its
-     * resource.
+     * Build a path builder whose catalogue maps the user model to its resource.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder
      */

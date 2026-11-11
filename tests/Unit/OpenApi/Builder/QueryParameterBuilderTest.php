@@ -34,8 +34,7 @@ final class QueryParameterBuilderTest extends TestCase
     private const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', '$hasnt'];
 
     /**
-     * Test that the full shared query-parameter set is emitted under its
-     * canonical component names.
+     * Test that the full shared query-parameter set is emitted.
      *
      * @return void
      */
@@ -51,8 +50,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that every parameter is a query parameter carrying its conventional
-     * request name.
+     * Test that every parameter is a query parameter with its request name.
      *
      * @return void
      */
@@ -108,8 +106,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the filter parameter enumerates exactly the 11 registered plus
-     * 4 structural operators -- the full 11+4 vocabulary.
+     * Test that the filter enumerates the 11 registered and 4 structural ops.
      *
      * @return void
      */
@@ -122,8 +119,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the filter description names the operators so consumers learn
-     * the grammar at the pattern level.
+     * Test that the filter description names the operators.
      *
      * @return void
      */
@@ -138,8 +134,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the filter parameter does not declare a closed per-resource
-     * field allow-list, so it never over-claims precision.
+     * Test that the filter declares no closed per-resource field allow-list.
      *
      * @return void
      */
@@ -154,8 +149,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the filter parameter is the JSON-carrying string the parser
-     * accepts rather than a bracketed deep object, which the parser rejects.
+     * Test that the filter is a JSON string, not a bracketed deep object.
      *
      * @return void
      */
@@ -170,8 +164,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the filter description states the grammar up front and defers
-     * the accepted fields to the resource, keeping both clauses in order.
+     * Test that the filter description states the grammar, then the fields.
      *
      * @return void
      */
@@ -186,8 +179,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the operator vocabulary reflects registry overrides rather than
-     * a hard-coded list.
+     * Test that the operator vocabulary reflects registry overrides.
      *
      * @return void
      */
@@ -220,8 +212,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that a page-size ceiling configured off leaves the schema unbounded
-     * rather than publishing a maximum no request is held to.
+     * Test that a disabled page-size ceiling leaves the schema unbounded.
      *
      * @return void
      */
@@ -235,9 +226,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that a catalogue reporting no page-size bound at all is read as no
-     * ceiling rather than as one, so a bound the catalogue has yet to learn
-     * about is never invented for it.
+     * Test that a catalogue reporting no page-size bound means no ceiling.
      *
      * @return void
      */
@@ -251,8 +240,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the pagination-mode parameter documents cursor as its only
-     * behaviour-changing value and describes the default length-aware mode.
+     * Test that the pagination-mode parameter documents cursor as its value.
      *
      * @return void
      */
@@ -268,8 +256,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the sparse-fieldset parameter carries an object schema of
-     * string members, is optional, and uses the deepObject exploded style.
+     * Test the sparse-fieldset parameter schema, optionality and style.
      *
      * @return void
      */
@@ -284,8 +271,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that every deep-object parameter carries the deepObject exploded
-     * style so bracketed keys serialise per the toolkit's query grammar.
+     * Test that every deep-object parameter uses the exploded deepObject style.
      *
      * @return void
      */
@@ -300,8 +286,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that each parameter description carries the canonical query-grammar
-     * example token a developer copies verbatim.
+     * Test that each description carries the canonical grammar example.
      *
      * @return void
      */
@@ -328,8 +313,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the pagination-family descriptions state the behaviour each
-     * parameter controls so consumers pick the correct paging knob.
+     * Test that the pagination descriptions state what each one controls.
      *
      * @return void
      */
@@ -346,8 +330,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that a parameter without an explicit style omits both the style and
-     * explode keys.
+     * Test that a parameter without a style omits style and explode.
      *
      * @return void
      */
@@ -370,9 +353,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the search parameter is a plain string schema whose description
-     * states the two limits a consumer cannot infer: that it reaches the
-     * requested resource only, and that a term has a floor.
+     * Test that the search description states its resource scope and floor.
      *
      * @return void
      */
@@ -382,8 +363,7 @@ final class QueryParameterBuilderTest extends TestCase
 
         self::assertSame(['type' => 'string', 'maxLength' => 128], $search['schema']);
 
-        // The minimum bounds each word rather than the term, so a long term
-        // built from short words is refused; the description must say which.
+        // The minimum bounds each word, not the whole term
         self::assertSame(
             'Free-text search across the fields a resource declares searchable, e.g. search=John Smith. '
             . 'It matches the requested resource only and never traverses a relation; a term carrying a word shorter than the configured minimum is rejected, '
@@ -394,8 +374,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the relation-aggregate parameters describe their nested
-     * string-keyed object maps.
+     * Test that relation-aggregate parameters describe nested object maps.
      *
      * @return void
      */
@@ -418,8 +397,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the soft-delete visibility parameter offers only the two values
-     * that widen the default live-records-only scope.
+     * Test that the visibility parameter offers only the two widening values.
      *
      * @return void
      */
@@ -432,9 +410,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the soft-delete visibility description states the default and
-     * that a resource has to opt in, neither of which a client can infer from
-     * an unchanged result set.
+     * Test that the visibility description states the default and the opt-in.
      *
      * @return void
      */
@@ -451,8 +427,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that an index accepts the whole grammar, in the order an operation
-     * carries it.
+     * Test that an index accepts the whole grammar, in operation order.
      *
      * @return void
      */
@@ -465,8 +440,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that a show accepts what shapes and scopes a single record, and none
-     * of the collection selection grammar.
+     * Test that a show accepts single-record shaping and no selection grammar.
      *
      * @return void
      */
@@ -479,9 +453,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that a read of a model that does not soft delete is never offered
-     * the visibility parameter, the server having nothing to widen: a parameter
-     * it is bound to discard would be the quiet no-op the package refuses.
+     * Test that a model without soft deletes gets no visibility parameter.
      *
      * @return void
      */
@@ -499,9 +471,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that an operation whose model cannot be resolved is treated the same
-     * way, so an unresolvable controller never advertises a widening the server
-     * may not honour.
+     * Test that an unresolvable model gets no visibility parameter either.
      *
      * @return void
      */
@@ -512,8 +482,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that a write of a soft-deleting model is still offered nothing but
-     * the shaping grammar, the widening belonging to a read alone.
+     * Test that a write of a soft-deleting model gets only shaping grammar.
      *
      * @return void
      */
@@ -524,9 +493,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that a store and an update accept only what shapes the resource they
-     * return, so neither claims to page or filter a collection nor to widen the
-     * soft-delete scope.
+     * Test that a store and an update accept only resource shaping.
      *
      * @return void
      */
@@ -539,8 +506,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that a destroy and an action outside the REST set accept nothing, so
-     * an empty response body is never documented as shapeable.
+     * Test that a destroy and a non-REST action accept nothing.
      *
      * @return void
      */
@@ -551,8 +517,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that every referenced name resolves to an emitted component, so no
-     * operation can point at a parameter the document does not define.
+     * Test that every referenced name resolves to an emitted component.
      *
      * @return void
      */
@@ -573,8 +538,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that a reference is emitted as a component pointer rather than an
-     * inlined copy of the definition.
+     * Test that a reference is emitted as a component pointer.
      *
      * @return void
      */
@@ -586,8 +550,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the documented longest term is the one the server enforces, so
-     * the published contract and the rejection cannot drift apart.
+     * Test that the documented longest term is the one the server enforces.
      *
      * @return void
      */
@@ -599,12 +562,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that a catalogue naming no longest term at all leaves the search
-     * schema unbounded.
-     *
-     * A catalogue that reports the bound as absent is saying it does not know
-     * it, which is not the same as knowing it to be small, so nothing may be
-     * invented in its place.
+     * Test that an absent longest term leaves the search schema unbounded.
      *
      * @return void
      */
@@ -622,11 +580,9 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that a longest term of zero is published as the refusal it is.
+     * Test that a longest term of zero is published as a refusal.
      *
-     * Zero does not lift the bound the way it does for the page size: the
-     * server refuses every term under it, so publishing no bound at all would
-     * tell a client the opposite of what it will meet.
+     * Unlike the page size, zero does not lift the bound; every term is refused.
      *
      * @return void
      */
@@ -640,9 +596,6 @@ final class QueryParameterBuilderTest extends TestCase
     /**
      * Test that a negative longest term is left off the schema.
      *
-     * A negative figure is not a length, and the document has to stay valid
-     * whatever a misconfiguration puts in front of it.
-     *
      * @return void
      */
     public function testANegativeLongestTermIsLeftOffTheSchema(): void
@@ -653,8 +606,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * List the component names the given action references, stripped of the
-     * component path prefix.
+     * List the component names the given action references, unprefixed.
      *
      * @param  string  $action
      * @param  class-string|null  $modelClass
@@ -669,8 +621,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Build a QueryParameterBuilder backed by a stub returning the default 11+4
-     * operator vocabulary and the given page-size ceiling.
+     * Build a QueryParameterBuilder with the default operators and ceiling.
      *
      * @param  int  $ceiling
      * @param  int  $longest
@@ -682,8 +633,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Build a QueryParameterBuilder over a catalogue reporting exactly the
-     * given request bounds.
+     * Build a QueryParameterBuilder over a catalogue with the given bounds.
      *
      * @param  array<string, int>  $limits
      * @param  int  $longest

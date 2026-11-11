@@ -81,8 +81,7 @@ final class FilesystemDocumentWriterTest extends TestCase
     }
 
     /**
-     * Test that the parent directory is created with the expected mode and the
-     * recursive and force flags both enabled.
+     * Test that the parent directory is created recursively with the mode.
      *
      * @return void
      */

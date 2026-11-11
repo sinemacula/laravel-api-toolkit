@@ -46,8 +46,7 @@ final class QueryColumnDescriptorTest extends TestCase
     }
 
     /**
-     * Test that every part beyond the two names is optional, so a column
-     * answering one thing says nothing about the other two.
+     * Test that every part beyond the two names is optional.
      *
      * @return void
      */

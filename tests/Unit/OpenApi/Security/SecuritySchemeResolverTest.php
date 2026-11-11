@@ -49,8 +49,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that a route carrying only authorization middleware is public, as
-     * authorization is not authentication.
+     * Test that a route with only authorization middleware is public.
      *
      * @return void
      */
@@ -60,8 +59,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that a single-guard route yields the guard driver's scheme as one
-     * requirement.
+     * Test that a single-guard route yields the guard's scheme.
      *
      * @return void
      */
@@ -71,8 +69,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that guards mapping to different schemes yield separate
-     * requirements, expressing the OR of the two schemes.
+     * Test that guards with different schemes yield separate requirements.
      *
      * @return void
      */
@@ -85,8 +82,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that guards mapping to the same scheme collapse to one requirement,
-     * never revealing the second guard.
+     * Test that guards sharing a scheme collapse to one requirement.
      *
      * @return void
      */
@@ -96,8 +92,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that a bare auth middleware resolves the application's default
-     * guard.
+     * Test that a bare auth middleware resolves the default guard.
      *
      * @return void
      */
@@ -117,8 +112,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that an unconfigured guard is dropped while its configured siblings
-     * still resolve.
+     * Test that an unconfigured guard is dropped, its siblings kept.
      *
      * @return void
      */
@@ -140,8 +134,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that a skipped guard does not halt the loop: guards after both a
-     * deduped scheme and an unconfigured guard still resolve.
+     * Test that a skipped guard does not halt the loop.
      *
      * @return void
      */
@@ -156,8 +149,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that guards accumulate across multiple separate auth middleware
-     * entries rather than only the last one surviving.
+     * Test that guards accumulate across separate auth middleware entries.
      *
      * @return void
      */
@@ -170,8 +162,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that whitespace around a guard name is trimmed so a spaced sibling
-     * still resolves to its scheme.
+     * Test that whitespace around a guard name is trimmed.
      *
      * @return void
      */
@@ -184,8 +175,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that a non-auth middleware is ignored even when its tail after the
-     * prefix spells a configured guard name.
+     * Test that a non-auth middleware spelling a guard name is ignored.
      *
      * @return void
      */
@@ -195,8 +185,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that a guard whose configured driver is not a string is skipped
-     * rather than resolved.
+     * Test that a guard with a non-string driver is skipped.
      *
      * @return void
      */
@@ -208,8 +197,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that a configured default guard other than the fallback drives the
-     * bare auth middleware's scheme.
+     * Test that a configured default guard drives the bare auth scheme.
      *
      * @return void
      */
@@ -221,8 +209,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that a non-string configured default guard falls back to the web
-     * guard for the bare auth middleware.
+     * Test that a non-string default guard falls back to web.
      *
      * @return void
      */
@@ -234,9 +221,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that a controller which throws while declaring its middleware leaves
-     * the route documented as public rather than aborting the build, even
-     * though the route itself carries an auth guard.
+     * Test that a throwing controller middleware leaves the route public.
      *
      * @return void
      */
@@ -264,8 +249,7 @@ final class SecuritySchemeResolverTest extends TestCase
     }
 
     /**
-     * Test that a guard removed with withoutMiddleware() leaves the route
-     * public.
+     * Test that a guard removed with withoutMiddleware() leaves it public.
      *
      * @return void
      */
