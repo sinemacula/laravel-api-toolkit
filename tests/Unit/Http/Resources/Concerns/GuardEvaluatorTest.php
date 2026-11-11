@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 
 /**
- * Tests for the GuardEvaluator stateless guard evaluation class.
+ * Tests for the GuardEvaluator.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

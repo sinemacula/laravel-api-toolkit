@@ -23,7 +23,7 @@ final class FieldColumnMapperTest extends TestCase
 {
     /**
      * Test that build skips unmapped fields but still processes later mapped
-     * fields rather than stopping at the first unmapped one.
+     * fields.
      *
      * @return void
      */

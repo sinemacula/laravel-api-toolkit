@@ -1617,8 +1617,6 @@ final class ApiResourceTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb());
         $parser->parse($request);
 
-        // 'counts' in included ensures shouldIncludeCountsField() returns true
-        // inside the constructor, exercising the loadCount branch.
         $resource = new UserResource($user, true, ['id', 'counts']);
         $result   = $resource->resolve();
 
@@ -1626,12 +1624,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that resolveCountsPayload returns an empty array for non-object
-     * resources, including unwrapping nested JsonResource layers.
-     *
-     * Passes a UserResource wrapping null so that unwrapResource loops through
-     * the JsonResource layer (covering line 863) and then finds a non-object,
-     * exercising the early-return branch (line 255).
+     * Test that resolveCountsPayload returns an empty array for a non-object
+     * resource nested inside a JsonResource.
      *
      * @return void
      *
@@ -1646,9 +1640,6 @@ final class ApiResourceTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => self::COUNTS_FIELDS]]);
         $parser->parse($request);
 
-        // Inner resource wraps null; outer resource wraps the inner resource.
-        // unwrapResource() loops through the JsonResource (line 863) and
-        // reaches null, triggering the is_object guard (line 255).
         $inner    = new UserResource(null);
         $resource = new UserResource($inner);
 
@@ -1771,7 +1762,7 @@ final class ApiResourceTest extends TestCase
 
     /**
      * Test that eagerLoadMapFor includes child fields from explicit relation
-     * field projections, covering resolveChildFields explicit-fields branch.
+     * field projections.
      *
      * @return void
      */
@@ -1864,7 +1855,7 @@ final class ApiResourceTest extends TestCase
 
     /**
      * Test that unwrapResource loops through nested JsonResource layers to
-     * reach the underlying model (line 863).
+     * reach the underlying model.
      *
      * @return void
      *
@@ -1886,9 +1877,6 @@ final class ApiResourceTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => self::COUNTS_FIELDS]]);
         $parser->parse($request);
 
-        // Wrap the user in an inner UserResource, then wrap THAT in an outer
-        // UserResource. unwrapResource() loops through the JsonResource layer
-        // (line 863) to reach the User model, then resolves counts normally.
         $inner    = new UserResource($user);
         $resource = new UserResource($inner);
 
@@ -1920,7 +1908,7 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that eagerLoadMapFor skips fields not in the schema (line 604).
+     * Test that eagerLoadMapFor skips fields not in the schema.
      *
      * @return void
      */
@@ -1932,23 +1920,19 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that eagerLoadMapFor skips metric fields in walkRelationsWith (line
-     * 608).
+     * Test that eagerLoadMapFor skips metric fields when walking relations.
      *
      * @return void
      */
     public function testEagerLoadMapForSkipsMetricFields(): void
     {
-        // __count__:posts is a metric in the UserResource schema and must be
-        // skipped when encountered during relation traversal.
         $map = UserResource::eagerLoadMapFor([self::COUNT_KEY_POSTS]);
 
         self::assertSame([], $map);
     }
 
     /**
-     * Test that eagerLoadMapFor includes extras paths defined on a relation
-     * (line 616).
+     * Test that eagerLoadMapFor includes extras paths defined on a relation.
      *
      * @return void
      */
@@ -1985,14 +1969,12 @@ final class ApiResourceTest extends TestCase
 
     /**
      * Test that eagerLoadMapFor does not add duplicate paths when the same
-     * relation appears more than once in the fields list (line 624).
+     * relation is requested twice.
      *
      * @return void
      */
     public function testEagerLoadMapForDoesNotAddDuplicatePaths(): void
     {
-        // Passing 'organization' twice triggers the wasVisited guard on the
-        // second occurrence, exercising the continue on line 624.
         $map = UserResource::eagerLoadMapFor(['organization', 'organization']);
 
         $plainValues = array_values($map);
@@ -2003,7 +1985,7 @@ final class ApiResourceTest extends TestCase
 
     /**
      * Test that resolveChildFields falls back to getAllFields when the child
-     * resource has empty defaults and no requested fields (line 837).
+     * resource has empty defaults and no requested fields.
      *
      * @return void
      */
@@ -2061,18 +2043,14 @@ final class ApiResourceTest extends TestCase
 
         $outerClass::$childClassName = $childClassName;
 
-        // No fields set for 'no_defaults_child' in the query - defaults are
-        // empty - so resolveChildFields falls through to getAllFields (line
-        // 837).
         $map = $outerClass::eagerLoadMapFor(['rel']);
 
         self::assertContains('rel', $map);
     }
 
     /**
-     * Test that resolveSimpleProperty reflects on a model method when the field
-     * name matches a method that does NOT return an Attribute, covering the
-     * reflection path (lines 385-386) and the non-Attribute check (388).
+     * Test that resolveSimpleProperty reflects on a model method that does not
+     * return an Attribute.
      *
      * @return void
      */
@@ -2080,10 +2058,7 @@ final class ApiResourceTest extends TestCase
     {
         $this->clearSchemaCache();
 
-        // Request 'posts' on a resource whose schema does NOT include it as a
-        // relation. resolveSimpleProperty() is then called for 'posts'.
-        // User.posts() exists (method_exists = true) → reflection runs → the
-        // return type is HasMany, not Attribute → line 388 condition is false.
+        // 'posts' is a scalar, so the HasMany method User::posts() is reflected
         $resourceClass = new class (null) extends ApiResource {
             /** @var string */
             public const string RESOURCE_TYPE = 'method_reflect_test';
@@ -2116,17 +2091,12 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        // 'posts' resolves via Eloquent's __isset/__get (relation lazy-loaded),
-        // so the key is present in the result. The main goal is to exercise the
-        // ReflectionMethod path (lines 385-386, 388) before falling through to
-        // the __isset check.
         self::assertArrayHasKey('_type', $result);
     }
 
     /**
-     * Test that the scoped-constraint closure returned by eagerLoadMapFor is
-     * properly invoked for a non-MorphTo builder, covering the Builder-path
-     * inside the wrapper closure (lines 637-640).
+     * Test that the scoped-constraint closure returned by eagerLoadMapFor
+     * accepts a non-MorphTo builder.
      *
      * @return void
      */
@@ -2164,8 +2134,6 @@ final class ApiResourceTest extends TestCase
         self::assertArrayHasKey('organization', $map);
         self::assertIsCallable($map['organization']);
 
-        // Invoke the wrapper closure with a real Builder so the non-MorphTo
-        // path (lines 637-640) executes.
         $builder = Organization::query();
         ($map['organization'])($builder);
 
@@ -2174,7 +2142,7 @@ final class ApiResourceTest extends TestCase
 
     /**
      * Test that resolveSimpleProperty returns the accessor value when the model
-     * method's return type is Attribute (line 389).
+     * method's return type is Attribute.
      *
      * @return void
      */
@@ -2226,8 +2194,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that getAttributeIfLoaded returns via __isset when the owner has no
-     * getAttributes method (line 555).
+     * Test that getAttributeIfLoaded falls back to __isset when the owner has
+     * no getAttributes method.
      *
      * @return void
      *
@@ -2242,8 +2210,7 @@ final class ApiResourceTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => 'id,counts']]);
         $parser->parse($request);
 
-        // A plain object with __isset/__get but no getAttributes(), so
-        // getAttributeIfLoaded falls through to the __isset branch (line 554).
+        // Exposes __isset/__get but no getAttributes()
         $fakeOwner = new class {
             /**
              * @param  string  $name
@@ -2272,8 +2239,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that the scoped-constraint closure passes the query directly to the
-     * user constraint when the query is a MorphTo instance (lines 633-634).
+     * Test that the scoped-constraint closure passes a MorphTo query directly
+     * to the user constraint.
      *
      * @return void
      */
@@ -2309,9 +2276,6 @@ final class ApiResourceTest extends TestCase
         self::assertArrayHasKey('organization', $map);
         self::assertIsCallable($map['organization']);
 
-        // Invoke the wrapper closure with a MorphTo mock to exercise the
-        // MorphTo branch (lines 633-634) where the constraint is called
-        // directly.
         $morphTo = \Mockery::mock(MorphTo::class);
         ($map['organization'])($morphTo);
     }
@@ -2378,8 +2342,6 @@ final class ApiResourceTest extends TestCase
             'email' => 'missingvalueskip@example.com',
         ]);
 
-        // The unloaded relation resolves to MissingValue and must be skipped
-        // without aborting resolution of the later 'name' field.
         self::assertFalse($user->relationLoaded('organization'));
 
         $resource = new UserResource($user);
@@ -2458,8 +2420,7 @@ final class ApiResourceTest extends TestCase
 
         $parser->parse($request);
 
-        // The default fields contain no relations, so the eager-load map is
-        // only non-empty when all-fields mode resolves the full schema.
+        // The defaults hold no relations, so only all-fields mode loads any
         new UserResource($user, true, ':all');
 
         self::assertTrue($user->relationLoaded('organization'));
@@ -2581,13 +2542,11 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that sums payload is included in the resolved output when the sums
-     * virtual field is requested and loadMissing loads the aggregate
-     * attributes.
+     * Test that the sums payload is included when the sums field is requested
+     * and loadMissing loads the aggregate.
      *
-     * Uses AggregateCapturingModel that intercepts loadSum to set the name that
-     * ValueResolver expects, since Eloquent's 'relation as alias' form produces
-     * only the bare alias key rather than the full presentKey_sum_column key.
+     * AggregateCapturingModel stores the full presentKey_sum_column key, which
+     * Eloquent's 'relation as alias' form does not produce.
      *
      * @return void
      *
@@ -2647,12 +2606,11 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that averages payload is included when the averages field is
-     * requested and loadMissing loads the aggregate attribute.
+     * Test that the averages payload is included when the averages field is
+     * requested and loadMissing loads the aggregate.
      *
-     * Uses AggregateCapturingModel that intercepts loadAvg to set the name that
-     * ValueResolver expects, since Eloquent's 'relation as alias' form produces
-     * only the bare alias key rather than the full presentKey_avg_column key.
+     * AggregateCapturingModel stores the full presentKey_avg_column key, which
+     * Eloquent's 'relation as alias' form does not produce.
      *
      * @return void
      *
@@ -2681,9 +2639,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that the averages key is absent from the resolved output when the
-     * averages virtual field is not included in the requested fields, even when
-     * getAverages returns a non-null value and an attribute is preloaded.
+     * Test that the averages key is absent when the averages field is not
+     * requested, even with an average attribute preloaded.
      *
      * @return void
      *
@@ -2696,7 +2653,6 @@ final class ApiResourceTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', HttpMethod::GET->getVerb(), [
-            // No 'averages' in fields - shouldInclude returns false
             'averages' => ['users' => ['posts' => 'id']],
         ]);
 
@@ -2707,8 +2663,7 @@ final class ApiResourceTest extends TestCase
             'email' => 'avgfalse@example.com',
         ]);
 
-        // Manually set the avg attribute so resolveAggregatesPayload would
-        // return a non-empty array if the shouldInclude guard is bypassed
+        // Preloaded so only the shouldInclude guard can omit the payload
         $user->setAttribute('posts_id_avg_id', 3.0);
 
         $resource = new UserResource($user);
@@ -2751,12 +2706,11 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that loadMissing loads a non-default sum when it is explicitly
-     * requested via the sums query parameter.
+     * Test that loadMissing loads a non-default sum explicitly requested via
+     * the sums query parameter.
      *
-     * Uses AggregateCapturingModel that intercepts loadSum to set the name that
-     * ValueResolver expects, since Eloquent's 'relation as alias' form produces
-     * only the bare alias key rather than the full presentKey_sum_column key.
+     * AggregateCapturingModel stores the full presentKey_sum_column key, which
+     * Eloquent's 'relation as alias' form does not produce.
      *
      * @return void
      *
@@ -2815,9 +2769,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that load_missing does not load sum or average aggregates when the
-     * corresponding virtual fields are neither requested nor default, even
-     * though the aggregate definitions are themselves default.
+     * Test that load_missing skips sum and average aggregates whose fields are
+     * neither requested nor default, even when the definitions are default.
      *
      * @return void
      */

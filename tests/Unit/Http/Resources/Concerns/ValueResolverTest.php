@@ -29,7 +29,7 @@ use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
- * Tests for the ValueResolver field and count resolution class.
+ * Tests for the ValueResolver.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -165,9 +165,7 @@ final class ValueResolverTest extends TestCase
             }
         };
 
-        // Seed a decision reflection would never produce: label() returns
-        // string, not Attribute, so an honoured memo yields the __get value
-        // while a recomputation would yield MissingValue.
+        // label() returns string, so only the seeded memo yields the __get value
         $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', [$model::class => ['label' => true]]);
 
         $result = $this->resolver->resolveFieldValue('label', $this->makeFieldDefinition(), new JsonResource($model), null);
@@ -176,9 +174,8 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that a method whose return type is a named type other than Attribute
-     * is not treated as a cast accessor, so the field resolves to MissingValue
-     * and the memo records the rejection.
+     * Test that a method returning a type other than Attribute is not a cast
+     * accessor and the memo records the rejection.
      *
      * @return void
      */
@@ -224,8 +221,7 @@ final class ValueResolverTest extends TestCase
      */
     public function testRelationFieldsAreMemoisedPerDefinition(): void
     {
-        // A leading empty entry makes the array_values re-index observable: a
-        // plain array_filter would leave the kept entries on keys 1 and 2.
+        // A leading empty entry makes the array_values re-index observable
         $definition = $this->makeFieldDefinition(fields: ['', 'id', 'name']);
 
         $first  = $this->invokeMethod($this->resolver, 'getRelationFields', $definition);
@@ -606,9 +602,8 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that two counts on the same relation but with different presentation
-     * keys resolve to their own `{presentKey}_count` attributes rather than
-     * colliding on a single `{relation}_count` value.
+     * Test that two counts on one relation with different presentation keys
+     * each resolve their own `{presentKey}_count` attribute.
      *
      * @return void
      */
@@ -834,9 +829,8 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that wrapping a single related model in a child resource that does
-     * not expose withFields does not attempt to call it, even when an explicit
-     * child field set is declared.
+     * Test that a child resource without withFields is not asked to apply an
+     * explicit child field set.
      *
      * @return void
      */
@@ -1404,8 +1398,7 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that an avg entry with a metric='sum' is skipped by the averages
-     * resolver (metric discriminator is enforced).
+     * Test that an entry with metric='sum' is skipped by the averages resolver.
      *
      * @return void
      */
@@ -1453,12 +1446,11 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that aggregate definitions for relations not present in the
-     * requested map are excluded without a type error on null column list.
+     * Test that aggregate definitions for relations absent from the requested
+     * map are excluded without a TypeError.
      *
-     * When getSums returns a non-empty map, relations absent from that map
-     * resolve to a null column list. The isIncluded closure must short-circuit
-     * on is_array(null) before reaching in_array, otherwise a TypeError occurs.
+     * Absent relations resolve to a null column list, which must short-circuit
+     * before in_array.
      *
      * @return void
      */
@@ -1898,8 +1890,8 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that a field with no property, attribute, appended entry, cast
-     * accessor method, or magic isset resolves to a MissingValue.
+     * Test that a field with no property, attribute, append, cast accessor or
+     * magic isset resolves to a MissingValue.
      *
      * @return void
      */

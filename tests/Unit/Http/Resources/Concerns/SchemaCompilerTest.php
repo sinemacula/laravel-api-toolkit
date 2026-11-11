@@ -18,7 +18,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Resources\UserResource;
 
 /**
- * Tests for the SchemaCompiler static compilation and caching class.
+ * Tests for the SchemaCompiler.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -45,13 +45,11 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that relation and resource entries are only extracted when they are
-     * strings, and malformed values are normalized to null.
+     * Test that non-string relation and resource entries are normalized to
+     * null.
      *
-     * NOTE: This test is intentionally declared first in the class. Mutations
-     * to the isset/is_string narrowing in buildFieldDefinition emit PHP
-     * warnings, which stop the mutation test run at the first defect; the first
-     * executed test must therefore be the one that fails.
+     * Declared first because mutations to the isset/is_string narrowing emit
+     * PHP warnings that halt the mutation run at the first defect.
      *
      * @return void
      */
@@ -82,10 +80,9 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that compile aggregates the declared filterable, sortable, and
-     * traversable markers into the CompiledSchema query-surface sets,
-     * de-duplicated and column-named, with each filterable column keyed to the
-     * capability it was declared with.
+     * Test that compile collects the filterable, sortable and traversable
+     * markers into de-duplicated, column-named sets, keying each filterable
+     * column to its capability.
      *
      * @return void
      */
@@ -112,10 +109,8 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that a filterable column declared without a real capability is left
-     * out of the filter surface, so the operators it answers are never guessed
-     * on the resource's behalf, while the declaration stays on the field for
-     * validation to report.
+     * Test that a filterable column without a real capability is left out of
+     * the filter surface but stays on the field for validation to report.
      *
      * @return void
      */
@@ -177,13 +172,10 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that duplicate markers are de-duplicated and the resulting sets are
-     * reindexed to clean zero-based lists, while a column declared filterable
-     * twice keeps the capability declared last.
+     * Test that duplicate markers are de-duplicated into zero-based lists and a
+     * column declared filterable twice keeps the last capability.
      *
-     * The same column is declared on two fields before a distinct one, so
-     * array_unique removes a non-trailing duplicate (leaving a key gap) and
-     * array_values reindexes the result.
+     * A non-trailing duplicate leaves a key gap, so the reindex is observable.
      *
      * @return void
      */
@@ -231,9 +223,8 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that an index override the schema carries as something other than a
-     * name is left off the compiled field, so a malformed marker never reads as
-     * a declaration.
+     * Test that an index override that is not a name is left off the compiled
+     * field.
      *
      * @return void
      */
@@ -274,10 +265,8 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that a searchable column declared without a strategy is left out of
-     * the search surface, so no match shape is guessed on the resource's
-     * behalf, while the declaration stays on the field for validation to
-     * report.
+     * Test that a searchable column without a strategy is left out of the
+     * search surface but stays on the field for validation to report.
      *
      * @return void
      */
@@ -938,16 +927,8 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that a real fixture resource carries no author-declared openapi on
-     * its plain scalar/compute/relation fields, while the toolkit's own
-     * timestamp() factory auto-declares a date-time format.
-     *
-     * This is the resource-level backward-compatibility oracle (AC-11): a field
-     * the author did not annotate compiles with a null openApi, so the new
-     * declaration is absent from every author-required call path. The
-     * timestamp() factory's built-in date-time format (AC-07) is the only
-     * auto-declaration and it never affects runtime serialization (the runtime
-     * path ignores openapi).
+     * Test that a fixture resource's plain fields compile with a null openApi
+     * while timestamp() auto-declares a date-time format.
      *
      * @return void
      */

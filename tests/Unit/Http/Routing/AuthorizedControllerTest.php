@@ -72,11 +72,6 @@ final class AuthorizedControllerTest extends TestCase
     /**
      * Test that middleware emits the exact gate check set for the full fixture.
      *
-     * The explicit route parameter is used verbatim; the index and show actions
-     * are excluded; the model-less create and store actions target the model
-     * class while the model-bound update and destroy target the route
-     * parameter, and edit and update collapse into a single update check.
-     *
      * @return void
      */
     public function testMiddlewareEmitsExpectedGateChecks(): void
@@ -151,8 +146,7 @@ final class AuthorizedControllerTest extends TestCase
 
     /**
      * Test that an explicit parameter distinct from the model basename is used
-     * verbatim, preserving its case rather than being lowercased or derived
-     * from the model.
+     * verbatim, preserving its case.
      *
      * @return void
      */

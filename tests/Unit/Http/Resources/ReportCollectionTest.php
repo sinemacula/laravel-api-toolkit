@@ -20,9 +20,6 @@ use Tests\TestCase;
 /**
  * Tests for the report resource collection and the shared response envelope.
  *
- * Mirrors the entity collection's pagination tests against data-transfer-object
- * items, proving a report emits an envelope identical to entity collections.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *

@@ -13,7 +13,7 @@ use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
 
 /**
- * Tests for the FieldResolver field state and resolution class.
+ * Tests for the FieldResolver.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -59,8 +59,7 @@ final class FieldResolverTest extends TestCase
 
         $first = (new FieldResolver)->getFields($schema, 'users', ['name', 'email'], []);
 
-        // Tamper the single cached entry so a second resolver with identical
-        // inputs can only return the assembled list if it reads the memo.
+        // Tamper the cached entry so only a memo read can return the sentinel
         /** @var array<string, array<int, string>> $cache */
         $cache = $this->getStaticProperty(FieldResolver::class, 'resolvedCache');
         $key   = array_key_first($cache);
@@ -145,9 +144,7 @@ final class FieldResolverTest extends TestCase
     }
 
     /**
-     * Test that the per-resource fixed fields form part of the memo key, so a
-     * resource contributing its own fixed field is not handed a cached list
-     * assembled without it.
+     * Test that the per-resource fixed fields form part of the memo key.
      *
      * @return void
      */

@@ -167,8 +167,7 @@ final class ControllerTest extends TestCase
 
     /**
      * Test that respondWithItem carries custom headers alongside the enveloped
-     * resource body and status, proving the header, status, and payload survive
-     * together on a single response.
+     * resource body and status.
      *
      * @return void
      */
@@ -271,9 +270,6 @@ final class ControllerTest extends TestCase
 
     /**
      * Create a controller subclass exposing the protected response helpers.
-     *
-     * Calling the helpers from a subclass scope asserts they remain part of the
-     * protected extension surface available to consuming controllers.
      *
      * @return object
      */

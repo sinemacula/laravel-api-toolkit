@@ -174,10 +174,7 @@ final class ThrottleRequestsTraitTest extends TestCase
     }
 
     /**
-     * Test that the signature handles unauthenticated users.
-     *
-     * An unauthenticated request is keyed by its client IP, so anonymous
-     * callers each get their own throttle bucket instead of sharing one.
+     * Test that an unauthenticated request is keyed by its client IP.
      *
      * @return void
      */
@@ -193,9 +190,9 @@ final class ThrottleRequestsTraitTest extends TestCase
     }
 
     /**
-     * Test that two unauthenticated requests to the same endpoint from
-     * different client IPs produce different signatures, so one anonymous
-     * caller cannot exhaust the shared throttle bucket for everyone.
+     * Test that unauthenticated requests from different client IPs produce
+     * different signatures, so one anonymous caller cannot exhaust a shared
+     * bucket.
      *
      * @return void
      */
@@ -249,9 +246,8 @@ final class ThrottleRequestsTraitTest extends TestCase
     }
 
     /**
-     * Test that resolveRequestSignature is callable from a middleware subclass,
-     * asserting the trait override remains compatible with the protected hook
-     * declared by Laravel's base ThrottleRequests middleware.
+     * Test that resolveRequestSignature stays compatible with the protected
+     * hook on Laravel's base ThrottleRequests middleware.
      *
      * @return void
      */

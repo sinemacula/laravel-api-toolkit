@@ -12,7 +12,7 @@ use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use Tests\TestCase;
 
 /**
- * Tests for the SafetySetDeriver safety-set composition class.
+ * Tests for the SafetySetDeriver.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

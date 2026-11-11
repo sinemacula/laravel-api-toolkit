@@ -10,10 +10,7 @@ use SineMacula\ApiToolkit\Schema\AggregateDefinition;
 use SineMacula\ApiToolkit\Schema\Sum;
 
 /**
- * Tests for the AggregateDefinition abstract class.
- *
- * Uses Sum as the concrete implementation since AggregateDefinition is
- * abstract.
+ * Tests for the AggregateDefinition abstract class, through Sum.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

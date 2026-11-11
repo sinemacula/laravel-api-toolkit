@@ -217,8 +217,7 @@ final class PolymorphicResourceTest extends TestCase
     }
 
     /**
-     * Test that withAll sets the all flag locally and returns the instance for
-     * fluent chaining.
+     * Test that withAll sets the all flag locally and returns the instance.
      *
      * @return void
      */
@@ -232,8 +231,7 @@ final class PolymorphicResourceTest extends TestCase
     }
 
     /**
-     * Test that withFields sets the fields locally and returns the instance for
-     * fluent chaining.
+     * Test that withFields sets the fields locally and returns the instance.
      *
      * @return void
      */
@@ -248,7 +246,7 @@ final class PolymorphicResourceTest extends TestCase
 
     /**
      * Test that withoutFields sets the excluded fields locally and returns the
-     * instance for fluent chaining.
+     * instance.
      *
      * @return void
      */
