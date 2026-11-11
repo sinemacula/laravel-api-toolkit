@@ -80,7 +80,7 @@ final readonly class ResourceSchemaBuilder
 
         foreach ($resourceMap as $modelClass => $resourceClass) {
 
-            $name = $this->schemaName($resourceClass);
+            $name = SchemaComponentName::fromResource($resourceClass);
 
             $guard->claim($claimed, $name, $resourceClass);
 
@@ -103,7 +103,7 @@ final readonly class ResourceSchemaBuilder
         $guard   = new SchemaNameCollisionGuard;
 
         foreach ($this->catalogue->getResourceMap() as $resourceClass) {
-            $guard->claim($claimed, $this->schemaName($resourceClass), $resourceClass);
+            $guard->claim($claimed, SchemaComponentName::fromResource($resourceClass), $resourceClass);
         }
 
         return $claimed;
@@ -192,7 +192,7 @@ final readonly class ResourceSchemaBuilder
     private function buildRelationProperty(string $relation, string $childResource, string $modelClass, array $built): array
     {
         $target = isset($built[$childResource]) && class_exists($childResource)
-            ? ['$ref' => self::SCHEMA_REF_PREFIX . $this->schemaName($childResource)]
+            ? ['$ref' => self::SCHEMA_REF_PREFIX . SchemaComponentName::fromResource($childResource)]
             : ['type' => 'object', self::UNDOCUMENTED_KEY => true];
         $instance = $this->resolveRelation($relation, $modelClass);
 
@@ -432,16 +432,5 @@ final readonly class ResourceSchemaBuilder
     private function isRequired(CompiledFieldDefinition $field): bool
     {
         return $field->relation === null && $field->guards === [];
-    }
-
-    /**
-     * Derive the PascalCase component schema name from a resource class.
-     *
-     * @param  class-string  $resourceClass
-     * @return string
-     */
-    private function schemaName(string $resourceClass): string
-    {
-        return SchemaComponentName::fromResource($resourceClass);
     }
 }

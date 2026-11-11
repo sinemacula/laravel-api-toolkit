@@ -305,17 +305,7 @@ final class AttributeSetter
      */
     private function storeCastsInCache(string $modelClass): void
     {
-        $this->metadataCacheWriter()->rememberMetadataForever(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), fn () => $this->casts);
-    }
-
-    /**
-     * Get the injected metadata cache writer.
-     *
-     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
-     */
-    private function metadataCacheWriter(): MetadataCacheWriter
-    {
-        return $this->metadataCacheWriter;
+        $this->metadataCacheWriter->rememberMetadataForever(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), fn () => $this->casts);
     }
 
     /**
@@ -327,6 +317,6 @@ final class AttributeSetter
     private function resolveCastsFromCache(string $modelClass): array
     {
         /** @var array<string, string|null> */
-        return $this->metadataCacheWriter()->readMetadata(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), []);
+        return $this->metadataCacheWriter->readMetadata(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), []);
     }
 }

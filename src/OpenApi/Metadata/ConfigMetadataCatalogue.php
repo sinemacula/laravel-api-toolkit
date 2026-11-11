@@ -123,7 +123,7 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
             $caps[$cap] = $limits->limit($cap);
         }
 
-        $caps[QueryParameterValidator::MAX_LIMIT] = $this->pageSizeCeiling();
+        $caps[QueryParameterValidator::MAX_LIMIT] = QueryParameterValidator::pageSizeCeiling();
 
         return $caps;
     }
@@ -141,15 +141,5 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
             SearchTerm::MAX_LENGTH_KEY      => SearchTerm::maximumLength(),
             SearchTerm::MAX_WORDS_KEY       => SearchTerm::maximumWords(),
         ];
-    }
-
-    /**
-     * Resolve the page-size ceiling.
-     *
-     * @return int
-     */
-    private function pageSizeCeiling(): int
-    {
-        return QueryParameterValidator::pageSizeCeiling();
     }
 }

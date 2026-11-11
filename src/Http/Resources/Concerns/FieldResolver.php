@@ -185,7 +185,7 @@ final class FieldResolver
             return !in_array($fieldName, $excludedFields, true);
         }
 
-        if ($this->shouldRespondWithAll($resourceType) || (is_array($requestedFields) && in_array(':all', $requestedFields, true))) {
+        if ($this->shouldRespondWithAll($resourceType)) {
             return !in_array($fieldName, $excludedFields, true);
         }
 

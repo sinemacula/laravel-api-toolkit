@@ -57,7 +57,6 @@ final readonly class ServerListValidator
                 throw new ServerConfigurationException(sprintf(self::ENTRY_MESSAGE, $scope, $index, $problem));
             }
 
-            // @var array<string, mixed> $server
             $validated[] = $this->normalise($server);
         }
 
