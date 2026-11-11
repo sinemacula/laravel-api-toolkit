@@ -1,7 +1,7 @@
 {
     "name": "sinemacula/laravel-api-toolkit",
     "type": "library",
-    "description": "A comprehensive Laravel toolkit for streamlined development of RESTful APIs",
+    "description": "Query parsing, schema-driven resources, repositories, services and OpenAPI export for Laravel APIs",
     "keywords": [
         "sine macula",
         "laravel",
