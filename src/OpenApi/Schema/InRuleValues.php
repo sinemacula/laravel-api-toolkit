@@ -7,12 +7,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
 /**
  * Reads the values of an `in:` rule argument as the validator compares them.
  *
- * The argument is parsed with the same CSV rules the validator applies, so a
- * quoted value keeps its commas and doubled quotes. The validator compares an
- * input's string form against these strings, so a value is offered as a number
- * only when that number's string form is exactly the value: on a numeric field
- * it replaces the string, and on an array's items, where each element is
- * compared the same way, both forms are listed.
+ * The validator compares string forms, so a value is a number only when its
+ * string form matches exactly.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -20,8 +16,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
 final readonly class InRuleValues
 {
     /**
-     * Resolve the enum for a field of the given type, emitting exact numbers in
-     * place of their strings on an integer or number field.
+     * Resolve the enum for a field, using exact numbers on a numeric field.
      *
      * @param  string  $argument
      * @param  string|null  $type
@@ -39,8 +34,7 @@ final readonly class InRuleValues
     }
 
     /**
-     * Resolve the enum for an array's items, listing each value as a string
-     * and, when it has one, as its exact number too.
+     * Resolve the enum for an array's items, listing any exact number too.
      *
      * @param  string  $argument
      * @return list<float|int|string>
@@ -64,8 +58,7 @@ final readonly class InRuleValues
     }
 
     /**
-     * Split the argument into its values as the validator does, an empty
-     * argument yielding none.
+     * Split the argument into its values as the validator does.
      *
      * @param  string  $argument
      * @return array<int, string>
@@ -76,8 +69,7 @@ final readonly class InRuleValues
     }
 
     /**
-     * Resolve the number whose string form is exactly the given value, or null
-     * when none is.
+     * Resolve the number whose string form is exactly the given value.
      *
      * @param  string  $value
      * @return float|int|null

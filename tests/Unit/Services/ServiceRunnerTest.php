@@ -31,10 +31,6 @@ use Tests\TestCase;
 /**
  * Tests for the ServiceRunner lifecycle orchestrator.
  *
- * Covers execution order, failure totality, afterCommit/onFailure edge cases,
- * SystemActor authorization short-circuit, empty-lockId guard, event dispatch,
- * and binding the run context to the service.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -46,8 +42,7 @@ final class ServiceRunnerTest extends TestCase
     use SwapsExceptionHandler;
 
     /**
-     * Test that the lifecycle hooks execute in the fixed order: authorize ->
-     * validate -> prepare -> handle -> afterCommit.
+     * Test that the lifecycle hooks execute in their fixed order.
      *
      * @return void
      */
@@ -122,8 +117,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that a domain failure thrown from handle() is captured in the result
-     * and never propagated to the caller.
+     * Test that a domain failure from handle() is captured, never thrown.
      *
      * @return void
      */
@@ -152,9 +146,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that afterCommit receives the output from handle() and that a throw
-     * from afterCommit is captured as a side-effect error while leaving the
-     * committed result as succeeded.
+     * Test that an afterCommit throw leaves the committed result succeeded.
      *
      * @return void
      */
@@ -201,8 +193,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that onFailure runs after a domain failure and that a throw from
-     * onFailure is caught without masking the original failure.
+     * Test that an onFailure throw does not mask the original failure.
      *
      * @return void
      */
@@ -328,8 +319,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that a lockable service with an empty lockId() yields a
-     * LockOperationException captured in the failure result.
+     * Test that an empty lockId() is captured as a LockOperationException.
      *
      * @return void
      */
@@ -419,9 +409,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that the ServiceCompleted event carries the input's scrubbed summary
-     * and never the raw secret, proving toArray() redaction reaches listeners
-     * on the success path.
+     * Test that ServiceCompleted carries the scrubbed input summary.
      *
      * @return void
      */
@@ -451,9 +439,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that the ServiceFailed event carries the input's scrubbed summary
-     * and never the raw secret, proving toArray() redaction reaches listeners
-     * on the failure path.
+     * Test that ServiceFailed carries the scrubbed input summary.
      *
      * @return void
      */
@@ -485,9 +471,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that a listener auditing a denied service reads the scrubbed input
-     * summary from the ServiceFailed event, so an authorization failure never
-     * leaks the raw secret to downstream audit consumers.
+     * Test that a denied service gives listeners only the scrubbed summary.
      *
      * @return void
      */
@@ -508,8 +492,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that the ServiceCompleted event's inputSummary leaves out a field
-     * marked #[\SensitiveParameter] on the success path.
+     * Test that the ServiceCompleted summary omits a sensitive parameter.
      *
      * @return void
      */
@@ -539,8 +522,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that the ServiceFailed event's inputSummary leaves out a field
-     * marked #[\SensitiveParameter] on the failure path.
+     * Test that the ServiceFailed summary omits a sensitive parameter.
      *
      * @return void
      */
@@ -572,8 +554,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that concerns execute in declaration order with the first concern
-     * acting as the outermost wrapper.
+     * Test that concerns run in declaration order, the first outermost.
      *
      * @return void
      *
@@ -697,8 +678,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that an afterCommit throw is reported through the exception handler
-     * as the same instance captured on the result.
+     * Test that an afterCommit throw is reported as the captured instance.
      *
      * @return void
      */
@@ -745,9 +725,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that a committed outcome survives an afterCommit throw whose
-     * reporting also fails: the result still succeeds with its output, the
-     * completed event is dispatched, and onFailure never runs.
+     * Test that a committed outcome survives a failed afterCommit report.
      *
      * @return void
      */
@@ -817,8 +795,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that an onFailure throw is reported through the exception handler
-     * without masking the original failure on the result.
+     * Test that a reported onFailure throw does not mask the original failure.
      *
      * @return void
      */
@@ -865,8 +842,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that the dispatched event carries the elapsed execution duration
-     * rather than a corrupted time value.
+     * Test that the dispatched event carries the elapsed duration.
      *
      * @return void
      */
@@ -885,9 +861,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that when reporting an onFailure throw itself fails, the run still
-     * returns the original failure and dispatches the failed event, and the
-     * onFailure exception falls back to the error log.
+     * Test that a failed onFailure report falls back to the error log.
      *
      * @return void
      */
@@ -942,8 +916,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that the run context is bound before the hooks are resolved, so
-     * concerns() and lockId() can read it.
+     * Test that the run context is bound before the hooks are resolved.
      *
      * @return void
      */
@@ -960,8 +933,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that the run context is bound on the failure path, so onFailure()
-     * reads it.
+     * Test that the run context is bound on the failure path.
      *
      * @return void
      */
@@ -993,8 +965,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that the run context is unbound even when an event listener throws
-     * out of the run.
+     * Test that the run context is unbound even when a listener throws.
      *
      * @return void
      */
@@ -1032,8 +1003,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that the completed event reports the run context's actor rather than
-     * the actor given to the service.
+     * Test that the completed event reports the run context's actor.
      *
      * @return void
      */
@@ -1053,8 +1023,7 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that the failed event reports the run context's actor rather than
-     * the actor given to the service.
+     * Test that the failed event reports the run context's actor.
      *
      * @return void
      */

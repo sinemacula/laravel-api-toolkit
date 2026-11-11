@@ -7,8 +7,6 @@ namespace SineMacula\ApiToolkit\Schema;
 /**
  * Typed value object holding compiled field, count, and aggregate definitions.
  *
- * Provides typed access to the compiled schema data stored in the schema cache.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -33,7 +31,7 @@ final readonly class CompiledSchema
         /** The compiled count definitions keyed by present key */
         private array $counts,
 
-        /** The compiled aggregate definitions keyed by present key */
+        /** The compiled aggregate definitions keyed by metric and present key */
         private array $aggregates = [],
 
         /** Declared filterable column names mapped to their capability */
@@ -50,8 +48,7 @@ final readonly class CompiledSchema
     ) {}
 
     /**
-     * Return the compiled field definition for the given key, or null if not
-     * present.
+     * Return the compiled field definition for the given key, or null.
      *
      * @param  string  $key
      * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition|null
@@ -72,8 +69,7 @@ final readonly class CompiledSchema
     }
 
     /**
-     * Return the full associative array of count definitions keyed by present
-     * key.
+     * Return the count definitions keyed by present key.
      *
      * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledCountDefinition>
      */
@@ -83,8 +79,7 @@ final readonly class CompiledSchema
     }
 
     /**
-     * Return the full associative array of aggregate (sum / average)
-     * definitions keyed by dict key.
+     * Return the sum and average definitions keyed by metric and present key.
      *
      * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition>
      */

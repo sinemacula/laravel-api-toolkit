@@ -25,11 +25,8 @@ use Tests\TestCase;
 /**
  * End-to-end tests for the per-operator capability gate.
  *
- * Drives real HTTP requests through the parse and criteria tiers against a real
- * database, asserting both halves of the contract: an operator the declaring
- * column's capability does not answer is rejected with a message naming the
- * operator, the column, and what the column does accept, and the query log is
- * empty afterwards, so the refusal landed before a single statement was issued.
+ * A refused operator must be rejected before any statement reaches the
+ * database.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -70,8 +67,7 @@ final class CapabilityRefusalTest extends TestCase
     }
 
     /**
-     * Test that a negation on a column declared for equality alone is refused
-     * before any statement reaches the database.
+     * Test that a negation on an equality-only column issues no SQL.
      *
      * @return void
      */
@@ -83,8 +79,7 @@ final class CapabilityRefusalTest extends TestCase
     }
 
     /**
-     * Test that a comparison on a column declared for equality alone is refused
-     * before any statement reaches the database.
+     * Test that a comparison on an equality-only column issues no SQL.
      *
      * @return void
      */
@@ -96,8 +91,7 @@ final class CapabilityRefusalTest extends TestCase
     }
 
     /**
-     * Test that containment on a column declared as an ordered range is refused
-     * before any statement reaches the database.
+     * Test that containment on an ordered-range column issues no SQL.
      *
      * @return void
      */
@@ -109,9 +103,7 @@ final class CapabilityRefusalTest extends TestCase
     }
 
     /**
-     * Test that an operator the declaring column's capability answers is
-     * applied against the database, so the empty query log asserted above
-     * reflects the refusal rather than an inert query log.
+     * Test that a permitted operator is applied against the database.
      *
      * @return void
      */
@@ -127,9 +119,7 @@ final class CapabilityRefusalTest extends TestCase
     }
 
     /**
-     * Test that a token the capability matrix does not govern is applied rather
-     * than refused, so an operator the application bound to a handler of its
-     * own reaches that handler on a declared column.
+     * Test that a token the capability matrix does not govern is applied.
      *
      * @return void
      */
@@ -147,8 +137,7 @@ final class CapabilityRefusalTest extends TestCase
     }
 
     /**
-     * Dispatch a filtered request with the query log running, retaining every
-     * statement it issued.
+     * Dispatch a filtered request, recording every statement it issued.
      *
      * @param  array<string, mixed>  $filters
      * @return \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>
@@ -168,9 +157,7 @@ final class CapabilityRefusalTest extends TestCase
     }
 
     /**
-     * Assert the refusal envelope names the operator, the column, and the
-     * operators the column does accept, and that the recorded request issued no
-     * statement at all.
+     * Assert the refusal envelope and that the request issued no statement.
      *
      * @param  \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>  $response
      * @param  string  $column

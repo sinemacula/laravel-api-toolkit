@@ -20,14 +20,10 @@ use Tests\Fixtures\Resources\LogResource;
 use Tests\TestCase;
 
 /**
- * Feature tests exercising JSON containment filtering over real HTTP requests.
+ * Feature tests for JSON containment filtering over real HTTP requests.
  *
- * Drives the containment operator against a filterable JSON column: an array
- * payload resolves via a JSON-contains constraint, while a comma-separated
- * string resolves to an OR-combined containment group returning the union of
- * matches rather than their intersection. SQLite's grammar rejects the
- * underlying JSON-containment clause, so each scenario is skipped on that
- * driver and only runs under MySQL or PostgreSQL.
+ * SQLite's grammar rejects the JSON-containment clause, so these run only on
+ * MySQL and PostgreSQL.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -42,10 +38,8 @@ final class ContainsFilterHttpTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up a repository-backed logs route and seed rows with JSON contexts.
-     *
-     * Each row carries a top-level JSON array in its context column so a
-     * containment constraint can match against the array members directly.
+     * Set up a logs route and seed rows whose context is a top-level JSON
+     * array.
      *
      * @return void
      */
@@ -86,7 +80,7 @@ final class ContainsFilterHttpTest extends TestCase
 
     /**
      * Test that a comma-separated string resolves to the union of containment
-     * matches rather than their intersection.
+     * matches.
      *
      * @return void
      */
@@ -133,8 +127,8 @@ final class ContainsFilterHttpTest extends TestCase
     }
 
     /**
-     * Skip the current test on the SQLite driver, whose grammar rejects the
-     * JSON-containment clause the containment operator emits.
+     * Skip the current test on SQLite, whose grammar rejects the
+     * JSON-containment clause.
      *
      * @return void
      */

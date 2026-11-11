@@ -10,15 +10,7 @@ use SineMacula\ApiToolkit\Exceptions\MissingSearchDriverException;
 /**
  * Registry for connection-driver-to-search-driver mappings.
  *
- * Stores and resolves search drivers keyed by the name the database connection
- * reports, so a resource declares what a search means and the connection in
- * front of it decides how that is served. Registration, override, and
- * resolution mirror the operator registry.
- *
- * Resolution of an unregistered name throws. Returning null would leave the
- * caller to decide what an absent driver means, and the tempting decision -
- * skip the search - drops the narrowing predicate and widens the result set,
- * which is the failure this layer exists to remove.
+ * An unregistered name throws: skipping the search would widen the result set.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -30,9 +22,6 @@ final class SearchDriverRegistry
 
     /**
      * Register a search driver for the given connection driver name.
-     *
-     * Throws if the name is already registered. Use override() to replace an
-     * existing driver.
      *
      * @param  string  $connection
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
@@ -50,11 +39,7 @@ final class SearchDriverRegistry
     }
 
     /**
-     * Replace the search driver for the given connection driver name
-     * unconditionally.
-     *
-     * If the name is not currently registered, this behaves identically to
-     * register().
+     * Replace the search driver for the given connection driver name.
      *
      * @param  string  $connection
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
@@ -80,8 +65,7 @@ final class SearchDriverRegistry
     }
 
     /**
-     * Determine whether a search driver is registered for the given connection
-     * driver name.
+     * Determine whether a driver is registered for the given driver name.
      *
      * @param  string  $connection
      * @return bool

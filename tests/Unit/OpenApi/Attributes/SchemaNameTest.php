@@ -30,8 +30,7 @@ final class SchemaNameTest extends TestCase
     }
 
     /**
-     * Test that the override is read back off a declaration, which is the only
-     * way the naming layer ever obtains one.
+     * Test that the override is read back off a declaration.
      *
      * @return void
      */

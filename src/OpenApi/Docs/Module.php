@@ -7,11 +7,6 @@ namespace SineMacula\ApiToolkit\OpenApi\Docs;
 /**
  * Immutable descriptor for a documentation module.
  *
- * Carries a stable key, the namespace prefix a class belongs to, e.g.
- * "App\User", and a display name, the last segment of that key, e.g. "User". A
- * class that belongs to no module resolves to null rather than an instance, so
- * a flat application groups everything under one shared section.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

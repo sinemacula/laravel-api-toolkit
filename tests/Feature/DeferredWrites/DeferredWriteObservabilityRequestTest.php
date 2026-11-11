@@ -18,13 +18,6 @@ use Tests\TestCase;
  * Feature test proving lastAutoFlushResult surfaces a non-throwing mid-request
  * auto-flush failure.
  *
- * Under the collect strategy an auto-flush that fails when the pool limit is
- * reached returns without raising, so the retained result is the only
- * in-process signal that it failed. A route reads the scoped pool's
- * lastAutoFlushResult failure count into the response body, proving the
- * accessor reports the failure and that the resolved singleton is the same
- * instance the request wrote to.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -52,8 +45,7 @@ final class DeferredWriteObservabilityRequestTest extends TestCase
 
             $pool = app(WritePool::class);
 
-            // Reaching the pool limit of one triggers a non-throwing auto-flush
-            // that fails because the table does not exist.
+            // The missing table fails the auto-flush without throwing
             $pool->add('nonexistent_table', ['col' => 'val']);
 
             return response()->json([
@@ -64,7 +56,7 @@ final class DeferredWriteObservabilityRequestTest extends TestCase
 
     /**
      * Test that the scoped pool's lastAutoFlushResult reports the failed
-     * auto-flush count observed during the request.
+     * auto-flush count.
      *
      * @return void
      */

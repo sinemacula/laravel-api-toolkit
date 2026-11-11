@@ -7,11 +7,9 @@ namespace SineMacula\ApiToolkit\Services\Actors;
 use SineMacula\ApiToolkit\Services\Contracts\Actor;
 
 /**
- * Null-object actor for system and scheduled contexts.
+ * Actor for system processes and scheduled jobs.
  *
- * Represents a system process or background job with no authenticated identity.
- * Returns null from toAuthenticatable(), which allows the service runner to
- * short-circuit authorisation.
+ * The service runner skips authorisation for this actor.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -25,7 +23,7 @@ final readonly class SystemActor implements Actor
      */
     public function __construct(
 
-        /** Human-readable label for this system context. */
+        /** Human-readable label for this system context */
         private string $label = 'System',
     ) {}
 

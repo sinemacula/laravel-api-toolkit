@@ -7,10 +7,7 @@ namespace SineMacula\ApiToolkit\Services\Contracts;
 use Illuminate\Contracts\Auth\Authenticatable;
 
 /**
- * Explicit-causer contract.
- *
- * Represents the identity that initiated a service action. Implementers may be
- * authenticated users, system processes, or anonymous callers.
+ * The identity that initiated a service action.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -18,10 +15,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 interface Actor
 {
     /**
-     * Return the unique identifier for this actor.
-     *
-     * Returns null for system or anonymous actors that have no persistent
-     * identity.
+     * Return the unique identifier for this actor, if it has one.
      *
      * @return int|string|null
      */
@@ -39,18 +33,14 @@ interface Actor
     /**
      * Return the human-readable label for this actor.
      *
-     * The label is snapshotted at capture time and must not change after the
-     * actor is constructed.
+     * Must not change after the actor is constructed.
      *
      * @return string
      */
     public function actorLabel(): string;
 
     /**
-     * Return the Authenticatable instance for this actor.
-     *
-     * Used by Gate::forUser() to perform authorisation checks on behalf of the
-     * actor. Returns null for system or anonymous actors.
+     * Return the Authenticatable instance for this actor, if it has one.
      *
      * @return \Illuminate\Contracts\Auth\Authenticatable|null
      */

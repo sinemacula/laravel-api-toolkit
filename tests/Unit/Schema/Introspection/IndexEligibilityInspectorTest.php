@@ -28,11 +28,7 @@ final class IndexEligibilityInspectorTest extends TestCase
     private array $bindings = [];
 
     /**
-     * Test that an engine the inspector cannot question is asked nothing and
-     * reports nothing.
-     *
-     * A reader over such an engine has to be left exactly as strict as it was,
-     * rather than refusing every index it cannot get an answer about.
+     * Test that an unsupported engine is asked nothing and reports nothing.
      *
      * @return void
      */
@@ -58,13 +54,7 @@ final class IndexEligibilityInspectorTest extends TestCase
     }
 
     /**
-     * Test that an engine answering through pragmas is read for the two facts
-     * it holds.
-     *
-     * It holds no index back from a query, so nothing it reports is ever
-     * disregarded, and the read says so rather than leaving the fact unasked.
-     * The table is asked for under the name it was created with, which carries
-     * the connection's prefix.
+     * Test that a pragma-based engine is read for the two facts it holds.
      *
      * @return void
      */
@@ -97,8 +87,7 @@ final class IndexEligibilityInspectorTest extends TestCase
     }
 
     /**
-     * Test that an engine keeping index statistics is read for the three facts
-     * it can answer.
+     * Test that an engine keeping index statistics is read for three facts.
      *
      * @return void
      */
@@ -135,8 +124,7 @@ final class IndexEligibilityInspectorTest extends TestCase
     }
 
     /**
-     * Test that an engine keeping an index catalogue is read for all five
-     * facts.
+     * Test that an engine with an index catalogue is read for all five facts.
      *
      * @return void
      */
@@ -185,13 +173,9 @@ final class IndexEligibilityInspectorTest extends TestCase
     }
 
     /**
-     * Test that an engine answering through pragmas is asked about the schema
-     * the reference names.
+     * Test that a pragma-based engine is asked about the referenced schema.
      *
-     * Neither pragma defaults to the schema a qualified reference names, so a
-     * table on an attached database would otherwise be answered for by whatever
-     * carries its name on the main one, and the facts would belong to a
-     * different table entirely.
+     * Neither pragma defaults to the schema a qualified reference names.
      *
      * @return void
      */
@@ -203,11 +187,7 @@ final class IndexEligibilityInspectorTest extends TestCase
     }
 
     /**
-     * Test that the read is scoped to the prefixed table and the schema the
-     * reference names.
-     *
-     * The catalogue holds the table under the name it was created with, which
-     * carries the connection's prefix the model's own name does not.
+     * Test that the read is scoped to the prefixed table and referenced schema.
      *
      * @return void
      */
@@ -219,12 +199,9 @@ final class IndexEligibilityInspectorTest extends TestCase
     }
 
     /**
-     * Test that a read the engine refuses reports nothing rather than refusing
-     * every index.
+     * Test that a read the engine refuses reports nothing.
      *
-     * The column naming these facts is not offered by every server the
-     * inspector is reachable on, and a read that fails there must not take a
-     * proof down with it.
+     * The column holding these facts is missing on some supported servers.
      *
      * @return void
      */
@@ -245,8 +222,7 @@ final class IndexEligibilityInspectorTest extends TestCase
     }
 
     /**
-     * Test that a row the engine returns without a readable name is passed over
-     * rather than stopping the read.
+     * Test that a row without a readable name is passed over.
      *
      * @return void
      */
@@ -263,11 +239,9 @@ final class IndexEligibilityInspectorTest extends TestCase
     }
 
     /**
-     * Test that a flag is read as the number it spells rather than as a
-     * non-empty string.
+     * Test that a flag spelled as text is read as the number it spells.
      *
-     * A driver may hand back a number as text, and any label would be truthy
-     * read as one, so the negative answer has to survive the journey.
+     * A driver may return numbers as text, and any non-empty string is truthy.
      *
      * @return void
      */
@@ -288,8 +262,7 @@ final class IndexEligibilityInspectorTest extends TestCase
     }
 
     /**
-     * Test that a key collated apart is read from a flag spelled as text as
-     * well as from a number.
+     * Test that a collated-apart key is read from a text flag as from a number.
      *
      * @return void
      */

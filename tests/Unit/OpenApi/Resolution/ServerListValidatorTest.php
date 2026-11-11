@@ -42,8 +42,7 @@ final class ServerListValidatorTest extends TestCase
     }
 
     /**
-     * Test that valid servers pass through in order with their descriptions,
-     * variables, and specification extensions intact.
+     * Test that valid servers pass through in order, intact.
      *
      * @return void
      */
@@ -70,8 +69,7 @@ final class ServerListValidatorTest extends TestCase
     }
 
     /**
-     * Test that an empty variables map is exported as an object so the document
-     * stays valid, while the rest of the entry is untouched.
+     * Test that an empty variables map is exported as an object.
      *
      * @return void
      */
@@ -163,8 +161,7 @@ final class ServerListValidatorTest extends TestCase
     }
 
     /**
-     * Test that an invalid entry fails the export with a message naming the
-     * entry, the list it belongs to, and what is wrong with it.
+     * Test that an invalid entry fails, naming the entry, list and problem.
      *
      * @param  mixed  $server
      * @param  string  $problem

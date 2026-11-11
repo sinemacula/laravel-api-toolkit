@@ -40,8 +40,7 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test identifier, type, label, and toAuthenticatable() reflect the wrapped
-     * model.
+     * Test that the actor accessors reflect the wrapped model.
      *
      * @return void
      */
@@ -72,8 +71,7 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that the label snapshot is taken at construction time and does not
-     * change when the underlying record is updated afterwards.
+     * Test that the label is snapshotted at construction.
      *
      * @return void
      */
@@ -89,8 +87,7 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that serialize() persists morph type, id, and label snapshot but not
-     * the full model instance.
+     * Test that serialize() keeps the morph type, id and label, not the model.
      *
      * @return void
      */
@@ -109,9 +106,7 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that a serialize()/unserialize() round trip preserves the morph
-     * type, identifier, and label, and the deserialised actor re-resolves the
-     * model via the morph map.
+     * Test that a serialization round trip re-resolves the model via morph map.
      *
      * @return void
      */
@@ -135,8 +130,7 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that a serialize()/unserialize() round trip re-resolves a model that
-     * has no morph alias from the class name it morphs to.
+     * Test that a round trip re-resolves a model with no morph alias by class.
      *
      * @return void
      */
@@ -170,8 +164,7 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that a morph type naming neither a mapped alias nor a model resolves
-     * to no model.
+     * Test that a morph type naming no alias or model resolves to no model.
      *
      * @param  string  $morphType
      * @return void
@@ -190,8 +183,7 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that label and identifier are retained when the underlying record is
-     * changed or removed after the actor was captured.
+     * Test that label and identifier survive the record changing or going away.
      *
      * @return void
      */
@@ -203,15 +195,12 @@ final class EloquentActorTest extends TestCase
         $capturedId    = $user->id;
         $capturedLabel = 'Frank';
 
-        // Change the underlying record.
         $user->name = 'Renamed Frank';
         $user->save();
 
         self::assertSame($capturedLabel, $actor->actorLabel());
         self::assertSame($capturedId, $actor->actorIdentifier());
 
-        // Delete the underlying record; the deserialised actor returns null
-        // from toAuthenticatable() but retains the attribution scalars.
         $user->delete();
 
         /** @var \SineMacula\ApiToolkit\Services\Actors\EloquentActor $restored */
@@ -223,8 +212,7 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that the email attribute is used as the label fallback when there is
-     * no name attribute on the model.
+     * Test that the label falls back to the email attribute without a name.
      *
      * @return void
      */
@@ -237,8 +225,7 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that a second call to toAuthenticatable() after unserialisation does
-     * not re-query the database (resolved flag prevents repeated lookups).
+     * Test that toAuthenticatable() after unserialisation queries only once.
      *
      * @return void
      */
@@ -257,8 +244,7 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that a string primary key is captured verbatim as the actor
-     * identifier.
+     * Test that a string primary key is captured verbatim as the identifier.
      *
      * @return void
      */
@@ -272,8 +258,7 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that a model with an unset (null) primary key falls back to an empty
-     * string identifier.
+     * Test that a null primary key falls back to an empty string identifier.
      *
      * @return void
      */
@@ -287,8 +272,7 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Test that the label falls back to the model's class basename when neither
-     * a name nor an email attribute is present.
+     * Test that the label falls back to the class basename.
      *
      * @return void
      */
@@ -306,8 +290,7 @@ final class EloquentActorTest extends TestCase
     }
 
     /**
-     * Build an Authenticatable model whose primary key is a non-incrementing
-     * string column, carrying the given attributes.
+     * Build an authenticatable model keyed by a non-incrementing string.
      *
      * @param  array<string, mixed>  $attributes
      * @return \Illuminate\Contracts\Auth\Authenticatable&\Illuminate\Database\Eloquent\Model

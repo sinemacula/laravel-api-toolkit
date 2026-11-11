@@ -11,15 +11,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 /**
  * Applies ordering to an Eloquent query builder.
  *
- * Supports single and multiple column ordering, random ordering via the
- * `ORDER_BY_RANDOM` keyword, direction validation, and sortable-column
- * enforcement via the declared query surface.
- *
- * Random ordering is an opt-in capability: it sorts the whole table to return a
- * single page, so it applies only when it is enabled in configuration. While it
- * is disabled the keyword carries no special meaning and is gated by the
- * sortable-column enforcement like any other key, so it is rejected unless the
- * resource declares a column of that name sortable.
+ * Random ordering sorts the whole table, so it is opt-in via configuration.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -70,8 +62,7 @@ final class OrderApplier
     }
 
     /**
-     * Determine whether the column names the random-ordering keyword and the
-     * capability is enabled.
+     * Determine whether the column is the enabled random-ordering keyword.
      *
      * @param  string  $column
      * @return bool

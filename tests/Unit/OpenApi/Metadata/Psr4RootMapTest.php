@@ -33,8 +33,7 @@ final class Psr4RootMapTest extends TestCase
     }
 
     /**
-     * Test that a discoverer built from the registered Composer autoloader
-     * exposes the package's own non-vendor root among its prefixes.
+     * Test that a Composer-built map exposes the package's own root.
      *
      * @return void
      */
@@ -44,8 +43,7 @@ final class Psr4RootMapTest extends TestCase
     }
 
     /**
-     * Test that roots keeps only existing, non-vendor directories, resolved to
-     * their real paths.
+     * Test that roots keeps only existing, non-vendor real paths.
      *
      * @return void
      */
@@ -78,8 +76,7 @@ final class Psr4RootMapTest extends TestCase
     }
 
     /**
-     * Test that prefixes are trimmed, ordered longest first, and exclude a
-     * prefix whose only directory is vendored.
+     * Test that prefixes are trimmed, longest first, without vendor-only ones.
      *
      * @return void
      */
@@ -95,16 +92,13 @@ final class Psr4RootMapTest extends TestCase
     }
 
     /**
-     * Test that an application whose autoloaders include no Composer
-     * ClassLoader reads an empty prefix map, so the scan finds no roots rather
-     * than raising.
+     * Test that no Composer ClassLoader yields an empty prefix map.
      *
      * @return void
      */
     public function testFromComposerYieldsAnEmptyMapWithoutAClassLoader(): void
     {
-        // Warm every class the call touches before the loader is taken away, so
-        // nothing needs autoloading while it is gone.
+        // Warm every class the call touches before the loader is taken away
         Psr4RootMap::fromComposer()->roots();
 
         $loaders = array_filter(

@@ -25,15 +25,11 @@ use Tests\Fixtures\Resources\CommentResource;
 use Tests\TestCase;
 
 /**
- * Feature tests proving trashed visibility cascades to eager-loaded relations
- * over the real HTTP pipeline.
+ * Feature tests for trashed visibility cascading to eager-loaded relations over
+ * HTTP.
  *
- * A single author is loaded with two soft-deleting child relations: articles,
- * whose resource opts in to trashed visibility, and comments, whose resource
- * does not. Driving the query parser plus repository pagination proves the
- * cascade is gated independently per relation: one `?trashed=with` request
- * widens the opted-in relation while the closed sibling stays live-only, the
- * safe-by-default guarantee proven end to end.
+ * Articles opt in to trashed visibility and comments do not, so one request
+ * proves the gate is per relation.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -48,8 +44,8 @@ final class RelationTrashedVisibilityHttpTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up an authors route with a soft-deleting article and comment child
-     * relation, each carrying live and trashed rows.
+     * Set up an authors route with soft-deleting article and comment relations
+     * holding live and trashed rows.
      *
      * @return void
      */
@@ -63,8 +59,6 @@ final class RelationTrashedVisibilityHttpTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        // The article gate opts in; the comment gate stays closed, so a single
-        // request can prove per-relation gating in isolation.
         Config::set('api-toolkit.resources.resource_map', [
             Article::class => ArticleResource::class,
             Comment::class => CommentResource::class,
@@ -118,8 +112,8 @@ final class RelationTrashedVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that trashed=with includes trashed children for the relation whose
-     * resource opts in.
+     * Test that trashed=with includes trashed children for the opted-in
+     * relation.
      *
      * @return void
      */
@@ -132,8 +126,8 @@ final class RelationTrashedVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that the same trashed=with request that widens the opted-in article
-     * relation still excludes trashed comments whose resource has not opted in.
+     * Test that trashed=with still excludes trashed comments whose resource has
+     * not opted in.
      *
      * @return void
      */
@@ -148,7 +142,7 @@ final class RelationTrashedVisibilityHttpTest extends TestCase
 
     /**
      * Test that trashed=only isolates trashed children for the opted-in
-     * relation while the closed sibling stays live-only.
+     * relation only.
      *
      * @return void
      */

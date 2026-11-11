@@ -9,15 +9,6 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 /**
  * Renders the error catalogue as an auto-generated Markdown section.
  *
- * Groups the documented error codes by the module their owning exception
- * belongs to, so a modular application reads one section per module beneath an
- * optional shared "Common" section for codes that belong to no module. A flat
- * application resolves every code to no module, collapsing to the single
- * combined table with no module headings as the degenerate case of the same
- * grouping. Each table is sorted ascending by code and the section opens with a
- * machine-generated banner, so the rendered output is stable and byte-identical
- * between runs.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -95,8 +86,7 @@ final readonly class ErrorCatalogueDocGenerator
     }
 
     /**
-     * Render one descriptor as a table row, falling back to a derived name when
-     * the descriptor carries no title.
+     * Render one descriptor as a table row.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor  $descriptor
      * @return string

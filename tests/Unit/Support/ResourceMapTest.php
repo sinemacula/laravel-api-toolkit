@@ -51,8 +51,8 @@ final class ResourceMapTest extends TestCase
     }
 
     /**
-     * Provide bindings that do not bind an existing model class to an existing
-     * resource class, with the binding each is reported as.
+     * Provide bindings that do not bind an existing model to an existing
+     * resource, with the reported binding.
      *
      * @return iterable<string, array{array<array-key, mixed>, string}>
      */

@@ -32,8 +32,7 @@ final class EnumSchemaRegistryTest extends TestCase
     }
 
     /**
-     * Test that registered enum classes are listed, and that registering one
-     * twice keeps it a single entry.
+     * Test that registered enums are listed once each.
      *
      * @return void
      */
@@ -49,8 +48,7 @@ final class EnumSchemaRegistryTest extends TestCase
     }
 
     /**
-     * Test that resetting clears the collected set so the next document starts
-     * empty.
+     * Test that resetting clears the collected set.
      *
      * @return void
      */

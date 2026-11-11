@@ -15,12 +15,6 @@ use SineMacula\ApiToolkit\Runtime\RuntimeContext;
  * Resets the toolkit's in-process state after each queue job completes or
  * fails.
  *
- * Delegates to the centralized CacheManager so in-process memos do not grow
- * without bound in a long-running worker and the worker re-reads the metadata
- * generation. The metadata in the shared store is left warm for every worker.
- * When the job was dispatched via the sync driver (i.e. within an HTTP
- * request), the flush is skipped entirely.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -35,10 +29,10 @@ final readonly class QueueFlushSubscriber
      */
     public function __construct(
 
-        /** The cache manager for flushing toolkit caches. */
+        /** The cache manager for flushing toolkit caches */
         private CacheManager $cacheManager,
 
-        /** The runtime context for detecting the serving environment. */
+        /** The runtime context for detecting the serving environment */
         private RuntimeContext $runtime,
     ) {}
 
@@ -57,8 +51,7 @@ final readonly class QueueFlushSubscriber
     /**
      * Flush all toolkit caches when running inside a real queue worker.
      *
-     * Jobs dispatched via the sync driver run within the HTTP request and do
-     * not constitute a worker boundary; those are skipped.
+     * Sync-driver jobs run inside the request, so they are not a boundary.
      *
      * @param  \Illuminate\Queue\Events\JobFailed|\Illuminate\Queue\Events\JobProcessed  $event
      * @return void
@@ -72,7 +65,7 @@ final readonly class QueueFlushSubscriber
         try {
             $this->cacheManager->flush();
         } catch (\Throwable $exception) { // @phpstan-ignore catch.neverThrown
-            // Container resolution can throw; never crash the worker.
+            // Never crash the worker
             FailureReporter::report($exception, 'Queue worker cache flush failed');
         }
     }

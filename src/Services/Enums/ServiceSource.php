@@ -5,10 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Services\Enums;
 
 /**
- * Service execution-source enumeration.
- *
- * Identifies the execution context from which a service was invoked, enabling
- * context-aware behaviour such as logging, throttling, and actor resolution.
+ * Where a service was invoked from.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

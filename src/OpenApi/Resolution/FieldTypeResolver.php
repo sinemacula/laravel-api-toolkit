@@ -14,13 +14,6 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 /**
  * Resolves a single compiled field to its emitted OpenAPI schema.
  *
- * Applies the correctness gate's strict precedence -- declared wins, otherwise
- * a plain scalar backed by a real column is inferred from its column type and
- * model cast, and anything else (an opaque accessor/compute/relation/guarded
- * field, or a scalar whose column type cannot be resolved) is flagged
- * undocumented. The resolver never emits a concrete narrow type that was
- * neither declared nor inferred.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -71,12 +64,7 @@ final readonly class FieldTypeResolver
     }
 
     /**
-     * Determine whether a field's value cannot be sourced directly from its
-     * backing column, and so cannot be inferred.
-     *
-     * A field is opaque when it draws its value from an accessor, a computed
-     * callback, or a relation, or when a guard or transformer intervenes
-     * between the column and the emitted value.
+     * Determine whether a field's value cannot be inferred from its column.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return bool
@@ -87,8 +75,8 @@ final readonly class FieldTypeResolver
     }
 
     /**
-     * Determine whether a field draws its value from an accessor, a computed
-     * callback, or a relation rather than its backing column.
+     * Determine whether a field draws its value from somewhere other than its
+     * column.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return bool
@@ -116,13 +104,6 @@ final readonly class FieldTypeResolver
      * Infer a plain scalar field's schema from its backing column and model
      * cast.
      *
-     * When no database connection is available the column definition is absent,
-     * so inference degrades to the declared cast alone; a field with neither a
-     * matching column nor a mappable cast is flagged undocumented rather than
-     * guessed, and the path never fails. An enum cast, backed or pure,
-     * documents as a reference to the enum's named component, which lists the
-     * values the resource emits.
-     *
      * @param  string  $fieldKey
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
      * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
@@ -145,8 +126,7 @@ final readonly class FieldTypeResolver
     }
 
     /**
-     * Build a reference to the enum's component schema, registering the enum so
-     * the component is emitted, and widening to admit null when nullable.
+     * Build a reference to the enum's component schema, registering the enum.
      *
      * @param  class-string  $cast
      * @param  bool  $nullable
@@ -160,8 +140,7 @@ final readonly class FieldTypeResolver
     }
 
     /**
-     * Resolve the model cast declared for the given attribute, or null when no
-     * cast applies.
+     * Resolve the model cast declared for the given attribute.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $fieldKey

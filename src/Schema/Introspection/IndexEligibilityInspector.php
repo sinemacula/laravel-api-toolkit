@@ -8,28 +8,9 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
 
 /**
- * Reads back what a connection knows about its own indexes beyond the shared
- * catalogue.
+ * Reads what a connection knows about its indexes beyond the shared catalogue.
  *
- * The catalogue names an index, the columns it covers and the kind it is, and
- * stops there. Whether the engine would actually plan against it, and whether
- * the columns it reports are the whole story, are answered by the engine's own
- * tables, and every reader that proves something from an index needs the same
- * answers. They are read here so no reader carries engine knowledge of its own
- * and none of them can drift from another.
- *
- * An engine this cannot question reports nothing, which leaves every proof as
- * strict as it was. A question that fails is read the same way: an index proof
- * is not the place to turn a broken auxiliary read into a refusal, and the
- * catalogue itself is still worth reading. Each engine answers only the facts
- * it holds, and a fact an engine has no notion of is simply never reported.
- *
- * Nothing read here is cached. Every answer describes engine state that changes
- * without a migration, so a remembered one would outlive its truth. The search
- * proof built over it on the request path is held only under a short expiry.
- *
- * An application serving an engine this does not question can extend it to
- * answer for that engine, which is the whole of what a new engine needs.
+ * Never cached, since the engine state it reads changes without a migration.
  *
  * @inheritable
  *
@@ -58,12 +39,7 @@ class IndexEligibilityInspector
     /**
      * Report what an engine keeping index statistics says about the table.
      *
-     * An index held back from the planner is disregarded, and one whose first
-     * key part is an expression rather than a column is reported as such. One
-     * whose first key part holds only a prefix of its column is reported as not
-     * holding that column's order. The engine has no notion of an index over
-     * part of a table, so none is ever restricted here, and an index key part
-     * always carries its column's collation, so none is ever collated apart.
+     * A prefix key part is reported as not holding its column's order.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
@@ -86,21 +62,7 @@ class IndexEligibilityInspector
     /**
      * Report what an engine keeping an index catalogue says about the table.
      *
-     * An index left behind by a build that never completed is disregarded, one
-     * carrying a predicate holds only the rows that predicate admits, and one
-     * whose first key entry names no column is keyed on an expression.
-     *
-     * A B-tree whose leading column is keyed through an operator family with no
-     * default member is reported as not holding that column's order. The family
-     * rather than the class is compared so an alias sharing the default's
-     * family still passes. An expression-led key is left to the fact that
-     * already covers it, and the direction a key is stored in is not read,
-     * since a backward scan orders.
-     *
-     * A leading column keyed under a collation other than the column's own is
-     * reported apart, whatever the index's kind, because the planner matches an
-     * index column to a comparison only when their collations are identical,
-     * and that holds for deterministic collations too.
+     * The planner matches an index column only under an identical collation.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
@@ -132,18 +94,7 @@ class IndexEligibilityInspector
     /**
      * Report what an engine answering through pragmas says about the table.
      *
-     * The engine holds an index back from no query, so none is ever
-     * disregarded. It does answer the other two: an index carrying a predicate
-     * holds only the rows that predicate admits, and one whose first key entry
-     * names no column is keyed on an expression, which the aggregated column
-     * list drops exactly as the other engines do.
-     *
-     * Whether a leading key holds its column's order, or is collated apart from
-     * its column, is never reported. The engine has no prefix keys or operator
-     * classes, and while it reports the collation an index key carries, nothing
-     * it answers reports the collation a column was declared with, so a key
-     * collated apart from its column cannot be told without parsing the table's
-     * definition.
+     * Order and recollation go unreported; columns expose no collation here.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
@@ -153,9 +104,7 @@ class IndexEligibilityInspector
     {
         [$schema, $name] = $this->qualify($table, $connection);
 
-        // Both pragmas take the schema, and neither defaults to the one the
-        // reference names, so a table on an attached database would otherwise
-        // be answered for by whatever carries its name on the main one.
+        // Both pragmas need the schema or attached tables resolve against main
         return $this->report(fn (): array => $connection->selectFromWriteConnection(
             'select lower(il.name) as name, '
             . '0 as disregarded, '
@@ -168,8 +117,7 @@ class IndexEligibilityInspector
     }
 
     /**
-     * Read the rows an engine returns into a report, or report nothing where
-     * the read failed.
+     * Read the engine's rows into a report, or an empty one if the read fails.
      *
      * @param  callable(): array<int, mixed>  $read
      * @return \SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility
@@ -215,10 +163,6 @@ class IndexEligibilityInspector
     /**
      * Determine whether the engine answered a flag in the affirmative.
      *
-     * Every flag is cast to a number by the read that asks for it, so a value
-     * arriving as text still compares as the number it spells rather than as a
-     * non-empty string, which any label would.
-     *
      * @param  mixed  $flag
      * @return bool
      */
@@ -228,8 +172,7 @@ class IndexEligibilityInspector
     }
 
     /**
-     * Split a table reference into the schema it names, where it names one, and
-     * the prefixed table itself.
+     * Split a table reference into its schema, if any, and the prefixed table.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection

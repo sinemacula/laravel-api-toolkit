@@ -177,7 +177,6 @@ final class ApiCriteriaIntegrationTest extends TestCase
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        // Only Alice and Bob have posts
         self::assertCount(2, $results);
     }
 
@@ -194,7 +193,6 @@ final class ApiCriteriaIntegrationTest extends TestCase
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        // Charlie has no posts
         self::assertCount(1, $results);
 
         /** @var \Tests\Fixtures\Models\User $first */
@@ -204,8 +202,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
     }
 
     /**
-     * Test that a root-level $or cannot escape a constraint the caller applies
-     * to the query before the criteria run.
+     * Test that a root-level $or cannot escape a caller-applied constraint.
      *
      * @return void
      *
@@ -288,7 +285,6 @@ final class ApiCriteriaIntegrationTest extends TestCase
 
         $results = $this->makeCriteria()->apply(new User)->get();
 
-        // Cannot assert order, but we can assert the count is correct
         self::assertCount(3, $results);
     }
 
@@ -334,9 +330,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
     }
 
     /**
-     * Test that a relation filter reached through an $or group narrows to the
-     * rows that own a matching related record, rather than matching every row
-     * as soon as the relation holds one anywhere in the table.
+     * Test that a relation filter under $or matches only the owning rows.
      *
      * @return void
      *
@@ -377,8 +371,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
     }
 
     /**
-     * Test that a request filtering on a falsy value reads only the rows that
-     * hold it, while an empty filter document reads every row.
+     * Test that a falsy filter value reads only the rows holding it.
      *
      * @param  string  $filters
      * @param  array<int, string>  $expected

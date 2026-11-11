@@ -21,12 +21,8 @@ use Tests\TestCase;
 /**
  * Feature tests for the random-ordering keyword through the kernel.
  *
- * Random ordering sorts the whole table to return a single page, so it is an
- * opt-in capability. While it is disabled the keyword carries no special
- * meaning and the sortable-column guard rejects it like any other undeclared
- * sort key; once enabled it applies a random ordering and the request returns
- * the complete seeded set. Order is non-deterministic, so the assertions are
- * order-agnostic.
+ * Random ordering is opt-in because it sorts the whole table to return one
+ * page.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -67,8 +63,8 @@ final class SortEdgeCaseTest extends TestCase
     }
 
     /**
-     * Test that random ordering is rejected as an undeclared sort key while the
-     * capability is disabled, which is the default.
+     * Test that random ordering is rejected as an undeclared sort key by
+     * default.
      *
      * @return void
      */
@@ -83,8 +79,7 @@ final class SortEdgeCaseTest extends TestCase
     }
 
     /**
-     * Test that random ordering returns the full seeded set once the capability
-     * is enabled, regardless of the resulting order.
+     * Test that random ordering returns the full seeded set once enabled.
      *
      * @return void
      */

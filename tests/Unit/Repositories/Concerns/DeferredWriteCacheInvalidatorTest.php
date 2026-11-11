@@ -41,8 +41,7 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
     }
 
     /**
-     * Test that invalidating a table on a taggable store flushes the table tag,
-     * so a previously cached entry reads back as a miss.
+     * Test that invalidating a table on a taggable store flushes the table tag.
      *
      * @return void
      */
@@ -59,8 +58,7 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
     }
 
     /**
-     * Test that, on a non-taggable store with the registry enabled,
-     * invalidation bumps the generational version so the entry misses.
+     * Test that a non-taggable store invalidates by bumping the version.
      *
      * @return void
      */
@@ -77,13 +75,9 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
     }
 
     /**
-     * Test that, on a non-taggable store with the registry disabled,
-     * invalidation cannot bump the version, so the stale entry survives until
-     * its TTL expires.
+     * Test that a non-taggable store without the registry keeps the entry.
      *
-     * The disabled flag is supplied as a non-bool falsy value to exercise the
-     * boolean coercion that keeps a stringy env value from tripping the typed
-     * invalidation argument.
+     * The flag is a falsy non-bool to cover stringy env values.
      *
      * @return void
      */
@@ -117,8 +111,7 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
     }
 
     /**
-     * Test that an empty table list is a no-op that leaves existing cache
-     * entries untouched.
+     * Test that an empty table list leaves existing cache entries untouched.
      *
      * @return void
      */
@@ -132,8 +125,7 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
     }
 
     /**
-     * Test that invalidation targets the configured repository cache store
-     * rather than only the framework default.
+     * Test that invalidation targets the configured repository cache store.
      *
      * @return void
      */
@@ -152,8 +144,7 @@ final class DeferredWriteCacheInvalidatorTest extends TestCase
     }
 
     /**
-     * Test that a non-string store configuration falls back to the array driver
-     * rather than passing a non-string to the cache manager.
+     * Test that a non-string store config falls back to the array driver.
      *
      * @return void
      */

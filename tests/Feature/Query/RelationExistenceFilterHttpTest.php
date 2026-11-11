@@ -20,13 +20,8 @@ use Tests\Fixtures\Resources\PostResource;
 use Tests\TestCase;
 
 /**
- * Feature tests for the relation-existence filter operators over HTTP.
- *
- * The $has and $hasnt tokens on a declared-traversable relation compile to
- * whereHas / whereDoesntHave existence constraints. A real request proves each
- * token narrows the envelope to the complementary partition - users owning at
- * least one related row versus those owning none - with the meta total tracking
- * each partition.
+ * Feature tests for the $has and $hasnt relation-existence filter operators
+ * over HTTP.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -41,8 +36,8 @@ final class RelationExistenceFilterHttpTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up each test with a users route, the Post resource map, and seeded
-     * users where only two own posts.
+     * Set up a users route, the Post resource map, and users where only two own
+     * posts.
      *
      * @return void
      */

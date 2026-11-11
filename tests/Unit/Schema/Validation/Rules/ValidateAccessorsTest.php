@@ -141,8 +141,7 @@ final class ValidateAccessorsTest extends TestCase
     }
 
     /**
-     * Test that validation continues past fields with null accessors and still
-     * reports later defects.
+     * Test that validation continues past fields with null accessors.
      *
      * @return void
      */
@@ -164,8 +163,7 @@ final class ValidateAccessorsTest extends TestCase
     }
 
     /**
-     * Test that validation continues past fields with callable accessors and
-     * still reports later defects.
+     * Test that validation continues past fields with callable accessors.
      *
      * @return void
      */
@@ -187,8 +185,7 @@ final class ValidateAccessorsTest extends TestCase
     }
 
     /**
-     * Test that a valid non-empty string accessor does not halt iteration, so a
-     * later field's empty accessor is still reported.
+     * Test that validation continues past a valid string accessor.
      *
      * @return void
      */
@@ -312,8 +309,7 @@ final class ValidateAccessorsTest extends TestCase
     }
 
     /**
-     * Create a CompiledSchema with a raw fields array, bypassing the documented
-     * element type via reflection.
+     * Create a CompiledSchema with raw fields set through reflection.
      *
      * @param  array<string, mixed>  $fields
      * @return \SineMacula\ApiToolkit\Schema\CompiledSchema

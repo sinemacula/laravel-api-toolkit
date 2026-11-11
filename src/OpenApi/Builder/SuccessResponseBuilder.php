@@ -12,19 +12,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
 /**
  * Applies what an action declares about its success response.
  *
- * The path builder derives an action's default success response from its name
- * and route; this builder then moves it under the status a #[ResponseStatus]
- * directive declares and attaches the headers #[ResponseHeader] directives
- * declare. A no-content status drops the body and every header the exporter
- * emits beside it, and any other status keeps the response, giving one that
- * carried no body the action's declared or undocumented body. Declaring the
- * action's default status changes nothing. Declared headers follow any header
- * the exporter emits itself, and redeclaring one of those fails the build. It
- * also builds the success body of an action documented outside the resource
- * contract: the shape its #[ResponseSchema] declares, or the undocumented
- * envelope. An action declaring a #[ResponseSchema] is documented outside the
- * resource contract even on a resource route, unless it names that route's
- * resource in the shape the route already documents.
+ * A no-content status drops the body and any exporter-emitted headers.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -83,9 +71,7 @@ final readonly class SuccessResponseBuilder
     }
 
     /**
-     * Determine whether the action declares a success body replacing the given
-     * resource through a #[ResponseSchema] directive: one naming anything but
-     * the resource alone, or the resource in a shape other than the given one.
+     * Determine whether a #[ResponseSchema] replaces the given resource's body.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -100,8 +86,7 @@ final readonly class SuccessResponseBuilder
     }
 
     /**
-     * Build the success body of an action outside the resource contract: the
-     * shape its #[ResponseSchema] declares, or the undocumented envelope.
+     * Build the success body of an action outside the resource contract.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -115,8 +100,7 @@ final readonly class SuccessResponseBuilder
     }
 
     /**
-     * Move the success response under the status the action declares, leaving
-     * it untouched when the action declares none or its default status.
+     * Move the success response under the status the action declares.
      *
      * @param  array<int|string, array<string, mixed>>  $responses
      * @param  class-string|null  $controllerClass
@@ -144,9 +128,7 @@ final readonly class SuccessResponseBuilder
     }
 
     /**
-     * Attach the declared headers to a single success response, after any
-     * header the exporter emits there itself, leaving the response untouched
-     * when none is declared.
+     * Attach the declared headers after any the exporter emits itself.
      *
      * @param  array<string, mixed>  $response
      * @param  array<string, array<string, mixed>>  $declared

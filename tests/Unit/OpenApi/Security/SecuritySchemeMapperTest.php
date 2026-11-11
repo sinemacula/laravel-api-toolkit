@@ -21,8 +21,7 @@ use Tests\TestCase;
 final class SecuritySchemeMapperTest extends TestCase
 {
     /**
-     * Test that the JWT driver maps to the plain bearer scheme, sharing it with
-     * the other bearer drivers rather than asserting an unverifiable format.
+     * Test that the JWT driver maps to the plain bearer scheme.
      *
      * @return void
      */
@@ -48,8 +47,7 @@ final class SecuritySchemeMapperTest extends TestCase
     }
 
     /**
-     * Test that the sanctum and token drivers both map to a plain bearer scheme
-     * sharing the bearer scheme name, without the JWT format annotation.
+     * Test that the sanctum and token drivers map to plain bearer.
      *
      * @return void
      */
@@ -63,8 +61,7 @@ final class SecuritySchemeMapperTest extends TestCase
     }
 
     /**
-     * Test that the session driver maps to a cookie apiKey scheme named after
-     * the configured session cookie.
+     * Test that the session driver maps to a cookie apiKey scheme.
      *
      * @return void
      */
@@ -79,8 +76,7 @@ final class SecuritySchemeMapperTest extends TestCase
     }
 
     /**
-     * Test that the session cookie name falls back to a stable default when the
-     * session cookie is not configured.
+     * Test that the session cookie name falls back to a stable default.
      *
      * @return void
      */
@@ -129,8 +125,7 @@ final class SecuritySchemeMapperTest extends TestCase
     }
 
     /**
-     * Test that a malformed config override entry is ignored, leaving the
-     * driver unmapped.
+     * Test that a malformed override entry leaves the driver unmapped.
      *
      * @return void
      */
@@ -144,8 +139,7 @@ final class SecuritySchemeMapperTest extends TestCase
     }
 
     /**
-     * Test that an unknown driver with no override resolves to null so the
-     * exporter skips it rather than inventing a scheme.
+     * Test that an unknown driver without an override resolves to null.
      *
      * @return void
      */
@@ -155,8 +149,7 @@ final class SecuritySchemeMapperTest extends TestCase
     }
 
     /**
-     * Test that definitionFor returns the canonical definition for a scheme
-     * name, preferring the first declaring driver when a shape is shared.
+     * Test that definitionFor prefers the first declaring driver.
      *
      * @return void
      */
@@ -179,8 +172,7 @@ final class SecuritySchemeMapperTest extends TestCase
     }
 
     /**
-     * Test that a driver override that is not a map is ignored, so a malformed
-     * entry leaves the shipped scheme in place rather than emptying it.
+     * Test that a non-map driver override is ignored.
      *
      * @return void
      */

@@ -23,8 +23,7 @@ use Tests\TestCase;
 final class AudienceConfigurationTest extends TestCase
 {
     /**
-     * Test that the configured audience names are returned in declaration
-     * order.
+     * Test that audience names are returned in declaration order.
      *
      * @return void
      */
@@ -93,8 +92,7 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that an audience with no declared posture, and an unconfigured
-     * audience, both default to the blocklist posture.
+     * Test that a missing or unconfigured posture defaults to blocklist.
      *
      * @return void
      */
@@ -109,8 +107,7 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that a per-audience info block wins over the top-level default and
-     * the hard default, key by key.
+     * Test that a per-audience info block wins key by key.
      *
      * @return void
      */
@@ -137,8 +134,7 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that keys absent from the per-audience block fall back to the
-     * top-level info default.
+     * Test that keys absent per audience fall back to the top-level info.
      *
      * @return void
      */
@@ -159,8 +155,7 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that title and version fall back to the shipped hard defaults, and
-     * that an unset description is omitted entirely.
+     * Test that title and version fall back to hard defaults.
      *
      * @return void
      */
@@ -176,8 +171,7 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that malformed info config (non-array blocks and non-string,
-     * empty-string values) is guarded and falls through to the hard defaults.
+     * Test that malformed info config falls through to the hard defaults.
      *
      * @return void
      */
@@ -201,8 +195,7 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that an audience without its own servers inherits the global list,
-     * in the order configured.
+     * Test that an audience without servers inherits the global list.
      *
      * @return void
      */
@@ -227,8 +220,7 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that an audience's own servers replace the global list for that
-     * audience only.
+     * Test that an audience's own servers replace the global list.
      *
      * @return void
      */
@@ -250,8 +242,7 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that an audience setting an empty servers list exports none, even
-     * when a global list is configured.
+     * Test that an empty audience servers list exports none.
      *
      * @return void
      */
@@ -264,8 +255,7 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that no servers are resolved when none are configured, and that a
-     * malformed audience definition falls back to the global list.
+     * Test that unset servers resolve none and a malformed audience inherits.
      *
      * @return void
      */
@@ -278,8 +268,7 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that an invalid entry in the global list fails, naming the entry and
-     * the global list.
+     * Test that an invalid global server entry fails, naming it.
      *
      * @return void
      */
@@ -295,8 +284,7 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that an invalid entry in an audience's own list fails, naming the
-     * entry and the audience.
+     * Test that an invalid audience server entry fails, naming it.
      *
      * @return void
      */

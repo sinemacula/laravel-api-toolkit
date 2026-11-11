@@ -13,9 +13,6 @@ use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
 /**
  * Field schema helpers for scalar and accessor fields.
  *
- * Provides guard and transformer support, optional aliasing, and Arrayable
- * definitions suitable for direct use in resource schemas.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -157,10 +154,7 @@ final class Field extends BaseDefinition
     /**
      * Declare this field's column as filterable with the given capability.
      *
-     * The capability is explicit because it decides which operators the column
-     * answers. A bare declaration would open every operator on every column,
-     * including the containment and negation shapes that no index behind an
-     * ordinary column can serve.
+     * Explicit, since the capability decides the operators the column answers.
      *
      * @param  \SineMacula\ApiToolkit\Enums\Capability  $capability
      * @return self
@@ -175,10 +169,7 @@ final class Field extends BaseDefinition
     /**
      * Declare this field's column as sortable.
      *
-     * An offer to order the whole table by the column, so schema validation
-     * asks the connection whether an ordered index leads with it. Where none
-     * does, {@see indexed()} names the index the catalogue cannot show and
-     * {@see unindexed()} records why the sort is affordable without one.
+     * Validation requires a leading index, or indexed() or unindexed().
      *
      * @return self
      */
@@ -192,13 +183,8 @@ final class Field extends BaseDefinition
     /**
      * Name the index that backs this field's sortable column.
      *
-     * The connection is the authority on which index leads with a column, so
-     * this exists only for what reading the catalogue cannot show: an index
-     * over an expression, or one whose predicate the catalogue reports apart
-     * from its columns. Validation looks the index up by name, so naming one
-     * the table does not carry is a defect; what it covers is not read back,
-     * since that is the part the catalogue cannot describe, so the override
-     * vouches for the column rather than proving it.
+     * For an index whose coverage the catalogue cannot show, such as one over
+     * an expression.
      *
      * @param  string  $index
      * @return self
@@ -219,9 +205,6 @@ final class Field extends BaseDefinition
     /**
      * Exempt this field's sortable column from needing an index, recording why.
      *
-     * The reason is required so an exemption is never silent: it is the whole
-     * artefact a reviewer has to weigh a sort that reads the table against.
-     *
      * @param  string  $reason
      * @return self
      *
@@ -241,10 +224,7 @@ final class Field extends BaseDefinition
     /**
      * Declare this field's column as searchable with the given match strategy.
      *
-     * The strategy is explicit because it decides which index has to back the
-     * column: an omitted one would either pick the cheapest match, quietly
-     * narrowing what the client asked for, or the broadest, quietly asking the
-     * connection for an index nobody declared.
+     * Explicit, since the strategy decides which index must back the column.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @return self

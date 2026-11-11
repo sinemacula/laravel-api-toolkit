@@ -10,14 +10,7 @@ use SineMacula\ApiToolkit\Services\ServiceResult;
 /**
  * Shared payload for service lifecycle events.
  *
- * Carries the actor, the executed service class, the outcome, and tracing
- * metadata. Concrete subclasses (ServiceCompleted, ServiceFailed) distinguish
- * the success and failure cases so consumers can subscribe to each.
- *
- * The inputSummary is produced by the input's toArray() and flows verbatim to
- * every listener (audit, telemetry); it is not redacted here. A Payload keys it
- * in the body's form, so $clientName appears as client_name, and leaves out
- * fields marked #[\SensitiveParameter]; other inputs must omit secrets.
+ * The inputSummary is the input's toArray() and is not redacted here.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

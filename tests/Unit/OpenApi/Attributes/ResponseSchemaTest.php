@@ -23,8 +23,7 @@ use Tests\Fixtures\Resources\UserResource;
 final class ResponseSchemaTest extends TestCase
 {
     /**
-     * Test that a directive naming only its schema describes a single item, so
-     * a collection is never documented by omission.
+     * Test that a directive naming only its schema describes a single item.
      *
      * @return void
      */
@@ -47,8 +46,7 @@ final class ResponseSchemaTest extends TestCase
     }
 
     /**
-     * Test that a list of classes is kept in the order it was declared, since
-     * that order is the order the union documents its shapes in.
+     * Test that a list of classes keeps its declared order.
      *
      * @return void
      */
@@ -60,8 +58,7 @@ final class ResponseSchemaTest extends TestCase
     }
 
     /**
-     * Test that a keyed array of classes is re-indexed into a list, so the keys
-     * a caller happened to use never leak into the documented union.
+     * Test that a keyed array of classes is re-indexed into a list.
      *
      * @return void
      */
@@ -73,8 +70,7 @@ final class ResponseSchemaTest extends TestCase
     }
 
     /**
-     * Test that an empty list of classes is rejected, since it describes no
-     * response body at all.
+     * Test that an empty list of classes is rejected.
      *
      * @return void
      */
@@ -100,8 +96,7 @@ final class ResponseSchemaTest extends TestCase
     }
 
     /**
-     * Test that the directive is read back off a method declaration, which is
-     * the only target it may be written on.
+     * Test that the directive is read back off a method declaration.
      *
      * @return void
      */

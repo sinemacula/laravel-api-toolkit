@@ -19,11 +19,6 @@ use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 /**
  * Registers the toolkit middleware.
  *
- * Pushes the query parser and JSON pretty print middleware onto the HTTP
- * kernel, swaps the framework's maintenance mode middleware for the toolkit's
- * in place, and aliases the throttle middleware on the router, honouring the
- * configured gates and scopes.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -37,7 +32,7 @@ final readonly class MiddlewareRegistrar
      */
     public function __construct(
 
-        /** The service container for resolving the router and kernel. */
+        /** The service container for resolving the router and kernel */
         private Container $container,
     ) {}
 
@@ -65,16 +60,8 @@ final readonly class MiddlewareRegistrar
     /**
      * Register the maintenance mode middleware swap.
      *
-     * When enabled, the framework's built-in maintenance middleware is replaced
-     * in its existing position in the global stack by the toolkit's. Keeping
-     * that position matters: the framework places it after HandleCors, so the
-     * maintenance 503 still carries the CORS headers a browser needs to read
-     * it. The toolkit middleware extends and fully supersedes the original, so
-     * leaving the original in place would re-throw a raw 503 for the paths the
-     * toolkit bypasses, defeating the configured maintenance exceptions.
-     *
-     * When the framework middleware is not in the global stack, nothing is
-     * added: an application that removed it has opted out of the swap.
+     * The swap keeps the framework middleware's position after HandleCors, so
+     * the 503 still carries CORS headers. Nothing is added if it was removed.
      *
      * @param  \Illuminate\Foundation\Http\Kernel  $kernel
      * @return void
@@ -94,10 +81,7 @@ final readonly class MiddlewareRegistrar
     }
 
     /**
-     * Register a middleware honouring its enabled gate and configured scope.
-     *
-     * When scope is 'global', the middleware is pushed to the global stack.
-     * When scope is 'api', it is appended to the 'api' middleware group.
+     * Register a middleware globally or on the api group, as configured.
      *
      * @param  \Illuminate\Foundation\Http\Kernel  $kernel
      * @param  string  $config
@@ -124,9 +108,7 @@ final readonly class MiddlewareRegistrar
     /**
      * Register the throttle middleware alias.
      *
-     * When a custom class is provided via config, that class is used.
-     * Otherwise, the toolkit auto-detects between standard and Redis variants
-     * based on the configured cache driver.
+     * Uses the Redis variant when the default cache store is redis.
      *
      * @param  \Illuminate\Routing\Router  $router
      * @return void

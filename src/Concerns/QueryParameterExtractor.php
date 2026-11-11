@@ -11,10 +11,6 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 /**
  * Extracts and parses API query parameters from a request.
  *
- * Walks the supported query keys (page, limit, cursor, fields, counts, sums,
- * averages, filters, search, order, trashed) and normalises each raw value into
- * its parsed representation.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -181,11 +177,8 @@ final class QueryParameterExtractor
     /**
      * Extract the filter parameters from the query string.
      *
-     * A document that fails to decode - malformed, or nested beyond the decoder
-     * depth limit - and one that decodes to a scalar or a populated
-     * numeric-keyed list are both rejected. Coercing either to an empty set
-     * would drop the filter and answer with the unfiltered table. An empty
-     * document carries no filter to drop and is accepted.
+     * Anything but a JSON object is rejected, since coercing it to an empty set
+     * would silently return the unfiltered table.
      *
      * @param  string  $query
      * @return array<string, mixed>

@@ -16,10 +16,6 @@ use Tests\TestCase;
 /**
  * End-to-end feature tests covering the full request lifecycle.
  *
- * Exercises the package exactly as a consuming application does: a real HTTP
- * request travels through the ParseApiQuery middleware, the repository applies
- * the parsed criteria, and the resource layer serializes the response payload.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -105,8 +101,7 @@ final class RequestLifecycleTest extends TestCase
     }
 
     /**
-     * Test that a scalar but valid-JSON filter value is rejected rather than
-     * falling back to no filtering and answering with the whole table.
+     * Test that a scalar JSON filter value is rejected, not ignored.
      *
      * @return void
      */

@@ -221,9 +221,8 @@ final class JsonPrettyPrintTest extends TestCase
     }
 
     /**
-     * Test that a non-streamed response whose content is not a string (its body
-     * is served from a file) is left untouched even when it declares a JSON
-     * content type.
+     * Test that a file-backed response is left untouched even when it declares
+     * a JSON content type.
      *
      * @return void
      */
@@ -264,9 +263,8 @@ final class JsonPrettyPrintTest extends TestCase
     }
 
     /**
-     * Test that a plain Response whose body is valid JSON but whose
-     * content-type is not JSON is left untouched, so only responses that
-     * declare themselves as JSON are reformatted.
+     * Test that a plain Response with a valid JSON body but a non-JSON content
+     * type is left untouched.
      *
      * @return void
      */
@@ -303,7 +301,7 @@ final class JsonPrettyPrintTest extends TestCase
 
     /**
      * Test that a JsonResponse stays compact when the pretty parameter is
-     * absent. Pretty printing must require an explicit opt-in.
+     * absent.
      *
      * @return void
      */

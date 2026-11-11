@@ -204,8 +204,8 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that extract skips non-array aggregation relations and continues
-     * parsing subsequent valid entries.
+     * Test that extract skips non-array aggregation relations and parses the
+     * rest.
      *
      * @return void
      */
@@ -266,8 +266,7 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that extract retains every aggregation resource rather than
-     * truncating the parsed set.
+     * Test that extract retains every aggregation resource.
      *
      * @return void
      */
@@ -304,8 +303,7 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that extract rejects an undecodable filters document rather than
-     * dropping the filter and answering with the unfiltered set.
+     * Test that extract rejects an undecodable filters document.
      *
      * @return void
      */
@@ -318,7 +316,7 @@ final class QueryParameterExtractorTest extends TestCase
 
     /**
      * Test that extract rejects a filters document nested beyond the decoder
-     * depth limit, which decodes to nothing at all.
+     * depth limit.
      *
      * @return void
      */
@@ -332,7 +330,7 @@ final class QueryParameterExtractorTest extends TestCase
 
     /**
      * Test that extract accepts a filters document nested to exactly the
-     * decoder depth limit, so the rejection lands on the breach alone.
+     * decoder depth limit.
      *
      * @return void
      */
@@ -364,8 +362,7 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that extract rejects a valid-JSON but non-associative filter value
-     * rather than coercing it to an empty set, which would drop the filter.
+     * Test that extract rejects a valid-JSON but non-associative filter value.
      *
      * @param  string  $filters
      * @return void
@@ -379,8 +376,7 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that an empty JSON object is accepted, so a filter-free document is
-     * not mistaken for a dropped filter.
+     * Test that an empty JSON object is accepted as a filter-free document.
      *
      * @return void
      */
@@ -432,7 +428,7 @@ final class QueryParameterExtractorTest extends TestCase
 
     /**
      * Test that an empty order segment never produces an empty-string column
-     * key, which would emit a column-less clause into the generated SQL.
+     * key.
      *
      * @return void
      */
@@ -447,8 +443,7 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that a search term is normalised into a parsed term rather than left
-     * as the raw string the client sent.
+     * Test that a search term is normalised into a parsed term.
      *
      * @return void
      */
@@ -463,8 +458,8 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that a search term outside its bounds is rejected while it is
-     * parsed, rather than being trimmed into a term the client never sent.
+     * Test that a search term outside its bounds is rejected rather than
+     * trimmed.
      *
      * @return void
      */
@@ -481,8 +476,7 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that a search parameter of the wrong shape is rejected rather than
-     * coerced into a term.
+     * Test that a search parameter of the wrong shape is rejected.
      *
      * @return void
      */
@@ -520,8 +514,7 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Assert that extracting the given request rejects the filters parameter
-     * with a validation error naming it.
+     * Assert that extracting the request rejects the filters parameter.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return void

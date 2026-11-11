@@ -5,19 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 /**
- * Resolves a class name written in a method's doc comment to its fully
- * qualified name.
+ * Resolves a class name in a method's doc comment to its fully qualified name.
  *
- * The name is read as PHP reads a class name in the file the method is written
- * in: a leading backslash marks it fully qualified, a namespace\ prefix stands
- * for the enclosing namespace, a first segment matching an import, compared
- * case-insensitively, is replaced by the imported name, and any other name is
- * relative to the enclosing namespace. The namespace and the imports declared
- * before the method come from the file declaring it, so a method inherited from
- * a parent class or a trait resolves against its own file. Each file is
- * tokenized once. Function and constant imports, trait uses, and closure uses
- * are not imports of a class. A method whose file cannot be read resolves
- * against its class's namespace with no imports.
+ * Resolved against the declaring file's namespace and imports, as PHP would.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -76,13 +66,10 @@ final class ClassNameResolver
     }
 
     /**
-     * Read the scopes of the file in order, each with the line it takes effect
-     * on, its namespace, and its class imports keyed by lowercase alias.
+     * Read the scopes of the file in order, each with the line it takes effect.
      *
-     * Each namespace statement opens a scope with no imports, and each use
-     * statement outside any brace opens one adding its imports, so a name
-     * resolves only against the imports declared before it. Braces opening and
-     * closing a braced namespace are not counted.
+     * Each top-level use opens a new scope, so a name resolves only against the
+     * imports declared before it.
      *
      * @param  string  $file
      * @return array<int, array{line: int, namespace: string, imports: array<string, string>}>
@@ -119,8 +106,7 @@ final class ClassNameResolver
     }
 
     /**
-     * Read the name the namespace keyword at the given index declares, empty
-     * for the global namespace.
+     * Read the name the namespace keyword at the given index declares.
      *
      * @param  array<int, \PhpToken>  $tokens
      * @param  int  $index
@@ -132,8 +118,9 @@ final class ClassNameResolver
     }
 
     /**
-     * Track the brace depth past the token at the given index, leaving the
-     * braces of a braced namespace and literal braces in strings uncounted.
+     * Track the brace depth past the token at the given index.
+     *
+     * Braced-namespace braces are not counted, so its imports stay top-level.
      *
      * @param  array<int, \PhpToken>  $tokens
      * @param  int  $index
@@ -165,9 +152,8 @@ final class ClassNameResolver
     }
 
     /**
-     * Read the class imports of the use statement starting at the given index,
-     * keyed by lowercase alias, or none when the statement imports functions or
-     * constants or is not an import at all.
+     * Read the class imports of the use statement at the given index, keyed by
+     * lowercase alias.
      *
      * @param  array<int, \PhpToken>  $tokens
      * @param  int  $index
@@ -202,9 +188,8 @@ final class ClassNameResolver
     }
 
     /**
-     * Collect the tokens of the use statement starting at the given index,
-     * through its closing semicolon, or null when a token shows it is not an
-     * import of names.
+     * Collect the tokens of the use statement at the given index, or null when
+     * it is not an import.
      *
      * @param  array<int, \PhpToken>  $tokens
      * @param  int  $index
@@ -227,8 +212,7 @@ final class ClassNameResolver
     }
 
     /**
-     * Read the import one clause of a use statement declares, keyed by its
-     * lowercase alias, or none for a function or constant clause.
+     * Read the class import one clause of a use statement declares.
      *
      * @param  array<int, \PhpToken>  $clause
      * @param  string  $prefix

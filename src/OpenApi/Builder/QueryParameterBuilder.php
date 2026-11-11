@@ -13,26 +13,6 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
  * Builds the shared components.parameters set once and names which of them each
  * REST action accepts.
  *
- * Emits the toolkit's query-parameter grammar as reusable components: sparse
- * fieldsets, the generic filter grammar (documenting the full operator
- * vocabulary at the pattern level, leaving the accepted fields to each
- * resource's own declarations), free-text search, ordering, the pagination set
- * (limit, page, cursor, and the pagination-mode switch), the relation
- * aggregates, and soft-delete visibility. Resource components and the assembled
- * document reference these by name; the definitions are never duplicated per
- * resource.
- *
- * The grammar splits in two. One half shapes the representation of a resource
- * that is returned - the sparse fieldset and the relation aggregates - and is
- * honoured wherever a resource is serialised, whatever the verb that produced
- * it. The other half selects, orders, and pages a collection, which only an
- * index answers. Soft-delete visibility widens the scope a read is served from,
- * so it joins the two read actions, but only where the model behind them soft
- * deletes at all: a model with no deleted-at column can never answer it, and
- * advertising a parameter the server is bound to discard would be the quiet
- * no-op the package refuses elsewhere. A destroy answers none of it, having no
- * body to shape and no collection to select.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -88,14 +68,9 @@ final readonly class QueryParameterBuilder
     }
 
     /**
-     * List the parameter references the given REST action accepts, in the order
-     * an operation carries them.
+     * List the parameter references the given REST action accepts, in order.
      *
-     * An index answers the whole grammar; a show answers what shapes and scopes
-     * a single record; a store and an update answer what shapes the resource
-     * they return; a destroy and any action outside the REST set answer none.
-     * The two read actions gain soft-delete visibility only where the model
-     * they read soft deletes.
+     * Soft-delete visibility is offered only where the model soft deletes.
      *
      * @param  string  $action
      * @param  class-string|null  $modelClass
@@ -121,8 +96,7 @@ final readonly class QueryParameterBuilder
     }
 
     /**
-     * Determine whether the model behind an operation soft deletes, which is
-     * what decides whether soft-delete visibility can ever apply to it.
+     * Determine whether the model behind an operation soft deletes.
      *
      * @param  class-string|null  $modelClass
      * @return bool
@@ -152,15 +126,10 @@ final readonly class QueryParameterBuilder
     }
 
     /**
-     * Build the generic filter parameter documenting the full operator
-     * vocabulary at the pattern level.
+     * Build the generic filter parameter documenting the operator vocabulary.
      *
-     * The document arrives as a single URL-encoded JSON object rather than
-     * bracketed query keys, which is the only shape the parser accepts, so the
-     * schema is a JSON-carrying string rather than an object. The operator
-     * tokens enumerate both the registered comparison operators and the
-     * structural operators, so consumers learn the grammar without the exporter
-     * restating each resource's declared field set.
+     * The parser accepts only a URL-encoded JSON object, so the schema is a
+     * JSON-carrying string.
      *
      * @return array<string, mixed>
      */
@@ -185,14 +154,9 @@ final readonly class QueryParameterBuilder
     }
 
     /**
-     * Build the free-text search parameter, carrying the configured longest
-     * term as the schema maximum so a client is told the bound rather than
-     * discovering it as a rejection.
+     * Build the free-text search parameter, publishing the longest term.
      *
-     * Unlike the page size, a bound of zero does not lift the limit here: it
-     * refuses every term, so it is published as the refusal it is rather than
-     * as no bound at all. Only a catalogue naming no bound leaves the schema
-     * unbounded, and a negative figure is not a length to publish.
+     * Unlike the page size, a zero bound refuses every term and is published.
      *
      * @return array<string, mixed>
      */
@@ -230,9 +194,7 @@ final readonly class QueryParameterBuilder
     }
 
     /**
-     * Build the page-size limit parameter, carrying the configured ceiling as
-     * the schema maximum so a client is told the bound rather than discovering
-     * it as a rejection. A ceiling configured off leaves the schema unbounded.
+     * Build the page-size limit parameter, publishing any configured ceiling.
      *
      * @return array<string, mixed>
      */
@@ -283,9 +245,8 @@ final readonly class QueryParameterBuilder
     /**
      * Build the pagination-mode parameter.
      *
-     * The toolkit paginates length-aware by default and switches to cursor
-     * pagination when this parameter is set to `cursor` (or when a `cursor`
-     * token is supplied), so `cursor` is the only value that changes behaviour.
+     * Pagination is length-aware by default, so `cursor` is the only value that
+     * changes it.
      *
      * @return array<string, mixed>
      */
@@ -346,11 +307,6 @@ final readonly class QueryParameterBuilder
     /**
      * Build the soft-delete visibility parameter.
      *
-     * Live records only is the default, so the parameter carries just the two
-     * values that widen it. A resource exposes its soft-deleted records only by
-     * opting in, and the description says so rather than leaving a client to
-     * infer the refusal from an unchanged result set.
-     *
      * @return array<string, mixed>
      */
     private function buildTrashedParameter(): array
@@ -364,8 +320,7 @@ final readonly class QueryParameterBuilder
     }
 
     /**
-     * Assemble the full operator vocabulary (registered tokens followed by the
-     * structural operators).
+     * Assemble the registered and structural operator vocabulary.
      *
      * @return array<int, string>
      */

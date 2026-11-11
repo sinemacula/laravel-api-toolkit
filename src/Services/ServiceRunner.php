@@ -14,18 +14,10 @@ use SineMacula\ApiToolkit\Services\Pipeline\LockStage;
 use SineMacula\ApiToolkit\Services\Pipeline\TransactionStage;
 
 /**
- * Fixed lifecycle orchestrator for service actions.
+ * Runs a service lifecycle in a fixed, transaction-aware order.
  *
- * Sequences the lifecycle in a fixed, transaction-aware order: authorize ->
- * validate -> [lock] -> [tx] -> concerns -> prepare -> handle
- * -> commit -> release -> afterCommit; onFailure after rollback + release;
- * finally emits ServiceCompleted or ServiceFailed.
- *
- * Binds the run's context to the service before resolving its hooks, so
- * Service::context() returns it throughout, and restores the previous binding
- * when the run ends, however it ends. The events report the context's actor.
- *
- * Never throws for business failures; captures them in the result.
+ * authorize -> validate -> [lock] -> [tx] -> concerns -> prepare -> handle ->
+ * commit -> release -> afterCommit, with onFailure after rollback and release.
  *
  * @phpstan-type ServiceHooks array{
  *     authorize: \Closure(): void,
@@ -122,8 +114,7 @@ final class ServiceRunner
     }
 
     /**
-     * Build the execution pipeline in fixed composition order: lock (outermost)
-     * -> transaction -> concerns -> core.
+     * Build the pipeline: lock (outermost) -> transaction -> concerns -> core.
      *
      * @param  \SineMacula\ApiToolkit\Services\Service  $service
      * @param  ServiceHooks  $hooks

@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
@@ -45,9 +46,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     /**
      * Set up the test environment.
      *
-     * The write pool flush now invalidates the per-query cache itself; disable
-     * that here so the subscriber's flush and escalation assertions observe it
-     * in isolation, without a cache side effect.
+     * The flush's own cache invalidation is disabled so the subscriber is
+     * observed in isolation.
      *
      * @return void
      */
@@ -60,136 +60,68 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that subscribe registers a listener for RequestHandled.
+     * Provide the lifecycle end events the subscriber listens for.
      *
-     * @return void
+     * @return iterable<string, array{class-string}>
      */
-    public function testSubscribeRegistersListenerForRequestHandled(): void
+    public static function lifecycleEventProvider(): iterable
     {
-        self::assertNotNull($this->app);
-
-        $events     = new Dispatcher;
-        $subscriber = new WritePoolFlushSubscriber($this->app);
-
-        $subscriber->subscribe($events);
-
-        self::assertTrue($events->hasListeners(RequestHandled::class));
+        yield 'request handled' => [RequestHandled::class];
+        yield 'command finished' => [CommandFinished::class];
+        yield 'job processed' => [JobProcessed::class];
+        yield 'job failed' => [JobFailed::class];
     }
 
     /**
-     * Test that subscribe registers a listener for CommandFinished.
+     * Test that subscribe registers a listener for each lifecycle end event.
      *
+     * @param  class-string  $event
      * @return void
      */
-    public function testSubscribeRegistersListenerForCommandFinished(): void
+    #[DataProvider('lifecycleEventProvider')]
+    public function testSubscribeRegistersListenerForLifecycleEvent(string $event): void
     {
         self::assertNotNull($this->app);
 
-        $events     = new Dispatcher;
-        $subscriber = new WritePoolFlushSubscriber($this->app);
+        $events = new Dispatcher;
 
-        $subscriber->subscribe($events);
+        (new WritePoolFlushSubscriber($this->app))->subscribe($events);
 
-        self::assertTrue($events->hasListeners(CommandFinished::class));
+        self::assertTrue($events->hasListeners($event));
     }
 
     /**
-     * Test that subscribe registers a listener for JobProcessed.
+     * Provide a factory for each lifecycle end event.
      *
-     * @return void
+     * @return iterable<string, array{\Closure(): object}>
      */
-    public function testSubscribeRegistersListenerForJobProcessed(): void
+    public static function lifecycleEventInstanceProvider(): iterable
     {
-        self::assertNotNull($this->app);
-
-        $events     = new Dispatcher;
-        $subscriber = new WritePoolFlushSubscriber($this->app);
-
-        $subscriber->subscribe($events);
-
-        self::assertTrue($events->hasListeners(JobProcessed::class));
+        yield 'request handled' => [static fn (): object => new RequestHandled(Request::create('/test', 'GET'), new Response)];
+        yield 'command finished' => [static fn (): object => new CommandFinished('test:command', new ArrayInput([]), new NullOutput, 0)];
+        yield 'job processed' => [static fn (): object => new JobProcessed('sync', self::createStub(Job::class))];
+        yield 'job failed' => [static fn (): object => new JobFailed('sync', self::createStub(Job::class), new \RuntimeException('Job failure'))];
     }
 
     /**
-     * Test that subscribe registers a listener for JobFailed.
+     * Test that dispatching a lifecycle end event flushes the pool.
      *
+     * @param  \Closure(): object  $event
      * @return void
      */
-    public function testSubscribeRegistersListenerForJobFailed(): void
+    #[DataProvider('lifecycleEventInstanceProvider')]
+    public function testDispatchingLifecycleEventFlushesThePool(\Closure $event): void
     {
-        self::assertNotNull($this->app);
+        [$events, $pool] = $this->subscribeWithPooledRow('lifecycle@example.com');
 
-        $events     = new Dispatcher;
-        $subscriber = new WritePoolFlushSubscriber($this->app);
-
-        $subscriber->subscribe($events);
-
-        self::assertTrue($events->hasListeners(JobFailed::class));
-    }
-
-    /**
-     * Test that dispatching RequestHandled flushes the pool through the
-     * registered listener.
-     *
-     * @return void
-     */
-    public function testDispatchingRequestHandledFlushesThePool(): void
-    {
-        [$events, $pool] = $this->subscribeWithPooledRow('request@example.com');
-
-        $events->dispatch(new RequestHandled(Request::create('/test', 'GET'), new Response));
+        $events->dispatch($event());
 
         self::assertTrue($pool->isEmpty());
     }
 
     /**
-     * Test that dispatching CommandFinished flushes the pool through the
-     * registered listener.
-     *
-     * @return void
-     */
-    public function testDispatchingCommandFinishedFlushesThePool(): void
-    {
-        [$events, $pool] = $this->subscribeWithPooledRow('command@example.com');
-
-        $events->dispatch(new CommandFinished('test:command', new ArrayInput([]), new NullOutput, 0));
-
-        self::assertTrue($pool->isEmpty());
-    }
-
-    /**
-     * Test that dispatching JobProcessed flushes the pool through the
-     * registered listener.
-     *
-     * @return void
-     */
-    public function testDispatchingJobProcessedFlushesThePool(): void
-    {
-        [$events, $pool] = $this->subscribeWithPooledRow('job@example.com');
-
-        $events->dispatch(new JobProcessed('sync', self::createStub(Job::class)));
-
-        self::assertTrue($pool->isEmpty());
-    }
-
-    /**
-     * Test that dispatching JobFailed flushes the pool through the registered
-     * listener.
-     *
-     * @return void
-     */
-    public function testDispatchingJobFailedFlushesThePool(): void
-    {
-        [$events, $pool] = $this->subscribeWithPooledRow('failed-job@example.com');
-
-        $events->dispatch(new JobFailed('sync', self::createStub(Job::class), new \RuntimeException('Job failure')));
-
-        self::assertTrue($pool->isEmpty());
-    }
-
-    /**
-     * Test that handleFlush resolves the WritePool from the container and calls
-     * flush.
+     * Test that handleFlush resolves the WritePool from the container and
+     * flushes it.
      *
      * @return void
      */
@@ -212,9 +144,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a collected flush failure is reported exactly once as a
-     * WritePoolFlushException chained to the underlying database exception and
-     * carrying the failing table in its context.
+     * Test that a collected flush failure is reported once, chained to the
+     * database exception with the table.
      *
      * @return void
      */
@@ -248,10 +179,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a systemic COLLECT failure, where every table fails, is
-     * reported once and dispatches a WritePoolFlushFailed event whose result
-     * carries every failing table so downstream escalation can act on the full
-     * set.
+     * Test that a systemic COLLECT failure is reported once and dispatches an
+     * event carrying every table.
      *
      * @return void
      */
@@ -273,8 +202,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a collected failure is still reported, and not thrown, when the
-     * rethrow_at_boundary flag is enabled, since nothing was raised to rethrow.
+     * Test that a collected failure is reported, not thrown, even with
+     * rethrow_at_boundary enabled.
      *
      * @return void
      */
@@ -293,8 +222,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a log strategy failure dispatches the event without reporting,
-     * since its writes are disposable and each chunk is already logged.
+     * Test that a log strategy failure dispatches the event without reporting.
      *
      * @return void
      */
@@ -331,8 +259,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a failed event dispatch after a collected failure does not
-     * escape and is itself reported alongside the flush failure.
+     * Test that a failed event dispatch after a collected failure is reported,
+     * not thrown.
      *
      * @return void
      */
@@ -352,8 +280,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a failed event dispatch after a raised throw strategy failure
-     * does not escape and is itself reported alongside the flush failure.
+     * Test that a failed event dispatch after a throw strategy failure is
+     * reported, not thrown.
      *
      * @return void
      */
@@ -373,8 +301,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that when reporting the flush failure itself fails, the failure
-     * falls back to the error log and the event is still dispatched.
+     * Test that when reporting the flush failure fails, it falls back to the
+     * error log and still dispatches.
      *
      * @return void
      */
@@ -397,8 +325,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that an unexpected throwable during pool resolution is caught and
-     * reported without crashing the boundary.
+     * Test that an unexpected throwable during pool resolution is reported
+     * without crashing the boundary.
      *
      * @return void
      */
@@ -420,8 +348,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a WritePoolFlushException raised by the throw strategy is
-     * reported once as the raised instance and the event is dispatched.
+     * Test that a throw strategy exception is reported once as the raised
+     * instance and the event dispatched.
      *
      * @return void
      */
@@ -440,8 +368,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that the subscriber reports rather than re-throws a flush exception
-     * when the rethrow_at_boundary flag is disabled.
+     * Test that the subscriber reports rather than rethrows when
+     * rethrow_at_boundary is disabled.
      *
      * @return void
      */
@@ -460,9 +388,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that the subscriber reports rather than re-throws a flush exception
-     * when the rethrow_at_boundary key is absent, so the safe default keeps the
-     * boundary from hard-crashing.
+     * Test that the subscriber reports rather than rethrows when
+     * rethrow_at_boundary is absent.
      *
      * @return void
      */
@@ -483,9 +410,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that the subscriber re-throws the raised flush exception after
-     * dispatching the event, leaving its reporting to the boundary, when the
-     * rethrow_at_boundary flag is enabled.
+     * Test that the subscriber rethrows after dispatching the event when
+     * rethrow_at_boundary is enabled.
      *
      * @return void
      */

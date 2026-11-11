@@ -25,7 +25,7 @@ use Tests\TestCase;
 final class SearchPlanTest extends TestCase
 {
     /**
-     * Reset both static caches before each test to avoid cross-test bleed.
+     * Reset both static caches before each test.
      *
      * @return void
      */
@@ -39,7 +39,7 @@ final class SearchPlanTest extends TestCase
     }
 
     /**
-     * Reset both static caches after each test to avoid cross-test bleed.
+     * Reset both static caches after each test.
      *
      * @return void
      */
@@ -63,8 +63,7 @@ final class SearchPlanTest extends TestCase
     }
 
     /**
-     * Test that the distinct strategies are reported in declaration order,
-     * without repeating one shared by two columns.
+     * Test that distinct strategies are reported once, in declaration order.
      *
      * @return void
      */
@@ -76,8 +75,7 @@ final class SearchPlanTest extends TestCase
     }
 
     /**
-     * Test that the columns are grouped by the strategy they were declared
-     * with, so a driver applies one predicate shape per group.
+     * Test that the columns are grouped by their declared strategy.
      *
      * @return void
      */
@@ -90,8 +88,7 @@ final class SearchPlanTest extends TestCase
     }
 
     /**
-     * Test that a strategy nobody declared yields no columns rather than
-     * falling back to the declared set.
+     * Test that an undeclared strategy yields no columns.
      *
      * @return void
      */
@@ -103,8 +100,7 @@ final class SearchPlanTest extends TestCase
     }
 
     /**
-     * Test that a strategy repeated by a later column is skipped rather than
-     * ending the walk, so a strategy declared after it still reaches a driver.
+     * Test that a repeated strategy does not hide one declared after it.
      *
      * @return void
      */
@@ -120,8 +116,7 @@ final class SearchPlanTest extends TestCase
     }
 
     /**
-     * Test that a schema declaring nothing searchable yields an empty plan
-     * rather than a plan over every column.
+     * Test that a schema declaring nothing searchable yields an empty plan.
      *
      * @return void
      */
@@ -134,8 +129,7 @@ final class SearchPlanTest extends TestCase
     }
 
     /**
-     * Test that a plan built for a resource class reads that resource's own
-     * declarations.
+     * Test that a plan built for a resource class reads its own declarations.
      *
      * @return void
      */
@@ -148,8 +142,7 @@ final class SearchPlanTest extends TestCase
     }
 
     /**
-     * Test that a resource declaring no searchable field yields an empty plan,
-     * so search is served only where a schema asked for it.
+     * Test that a resource declaring no searchable field yields an empty plan.
      *
      * @return void
      */
@@ -159,8 +152,7 @@ final class SearchPlanTest extends TestCase
     }
 
     /**
-     * Test that the plan for a resource class is memoised rather than rebuilt
-     * on every request.
+     * Test that the plan for a resource class is memoised.
      *
      * @return void
      */

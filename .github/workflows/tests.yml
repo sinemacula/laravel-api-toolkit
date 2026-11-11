@@ -1,11 +1,5 @@
-# ==============================================================================
-# TESTS
-# ==============================================================================
 name: Tests
 
-# ==============================================================================
-# TRIGGERS
-# ==============================================================================
 on:
     push:
         branches: [ master ]
@@ -13,32 +7,19 @@ on:
         types: [ opened, synchronize, reopened, ready_for_review ]
     workflow_dispatch:
 
-# ==============================================================================
-# CONCURRENCY
-# ==============================================================================
 concurrency:
     group: tests-${{ github.event.pull_request.number || github.ref }}
     cancel-in-progress: true
 
-# ==============================================================================
-# PERMISSIONS
-# ==============================================================================
 permissions:
     contents: read
     id-token: write
 
-# ==============================================================================
-# DEFAULTS
-# ==============================================================================
 defaults:
     run:
         shell: bash
 
 jobs:
-
-    # ==========================================================================
-    # JOB: PHP TESTS
-    # ==========================================================================
     php:
         name: Test / PHP ${{ matrix.php }}
         runs-on: ubuntu-latest
@@ -69,9 +50,6 @@ jobs:
                     oidc: true
                     files: clover.xml
 
-    # ==========================================================================
-    # JOB: LARAVEL TESTS
-    # ==========================================================================
     laravel:
         name: Test / Laravel ${{ matrix.laravel.label }}
         runs-on: ubuntu-latest
@@ -102,9 +80,6 @@ jobs:
             -   name: PHPUnit
                 run: composer test
 
-    # ==========================================================================
-    # JOB: DATABASE TESTS (MySQL + PostgreSQL)
-    # ==========================================================================
     integration:
         name: Integration / ${{ matrix.database }}
         runs-on: ubuntu-latest
@@ -128,12 +103,8 @@ jobs:
                         db_password: password
                         health_cmd: pg_isready -h 127.0.0.1 -U postgres -d api_toolkit_test
 
-        # One service per leg. Declaring both starts both on every leg, so each
-        # was pulling and booting an engine it never connects to. Each image
-        # ignores the other's variables, so one block configures either. Both
-        # probes go over the loopback address rather than a socket, since an
-        # engine that initialises behind a temporary local server answers a
-        # socket probe before the server the tests will actually reach is up.
+        # Each image ignores the other's variables, so one service block serves both legs. Probes use
+        # loopback because a socket probe can answer from the engine's temporary init server.
         services:
             database:
                 image: ${{ matrix.image }}
@@ -165,10 +136,7 @@ jobs:
                     php-version: 8.3
                     extensions: pdo_mysql, pdo_pgsql
 
-            # Serial on purpose. The unit jobs above run under paratest, but the
-            # suites here create and drop real tables against one shared
-            # database and waive the transaction wrapper to do it, so parallel
-            # workers drop each other's tables out from under them.
+            # Serial: these suites create and drop real tables in one shared database
             -   name: Database Tests
                 env:
                     DB_DRIVER: ${{ matrix.db_driver }}

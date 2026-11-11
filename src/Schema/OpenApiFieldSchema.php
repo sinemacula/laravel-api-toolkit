@@ -7,13 +7,6 @@ namespace SineMacula\ApiToolkit\Schema;
 /**
  * Immutable value object holding one field's resolved OpenAPI contract.
  *
- * Carries the per-field type, format, nullability, enumerated values, example,
- * and description, plus an explicit undocumented flag for fields whose type
- * could not be resolved and an optional reference to a named component for an
- * enum-typed field. Converts to a JSON Schema 2020-12 fragment suitable for
- * embedding in an OpenAPI 3.1 components document. Read only by the emission
- * path; never consulted during runtime serialization.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -59,8 +52,7 @@ final readonly class OpenApiFieldSchema
     ) {}
 
     /**
-     * Create a schema referencing a named component, widening to admit null
-     * when the field is nullable.
+     * Create a schema referencing a named component.
      *
      * @param  string  $ref
      * @param  bool  $nullable
@@ -73,9 +65,6 @@ final readonly class OpenApiFieldSchema
 
     /**
      * Create a permissive schema explicitly flagged as undocumented.
-     *
-     * The fragment admits any value (no `type` key), so it is permissive yet
-     * schema-valid, and carries the `x-undocumented` extension marker.
      *
      * @param  string|null  $description
      * @return self
@@ -113,9 +102,9 @@ final readonly class OpenApiFieldSchema
     }
 
     /**
-     * Convert this schema to a component reference, wrapping the reference in
-     * an anyOf with a null member when the field admits null, since a bare $ref
-     * cannot itself carry the null type.
+     * Convert this schema to a component reference.
+     *
+     * A bare $ref cannot carry the null type, so a nullable one uses anyOf.
      *
      * @return array<string, mixed>
      */
@@ -129,8 +118,7 @@ final readonly class OpenApiFieldSchema
     }
 
     /**
-     * Resolve the JSON Schema `type` keyword, applying the 2020-12 nullable
-     * type-array form when the field admits null.
+     * Resolve the `type` keyword, using the 2020-12 type-array form for null.
      *
      * @return array<int, string>|string|null
      */

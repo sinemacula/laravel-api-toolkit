@@ -194,8 +194,8 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that render maps various Laravel exceptions to the correct HTTP
-     * status and internal error code.
+     * Test that render maps Laravel exceptions to the correct HTTP status and
+     * internal error code.
      *
      * @param  \Throwable  $inputException
      * @param  int  $expectedHttpCode
@@ -273,8 +273,7 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that application-layer database exceptions are not mapped to HTTP
-     * semantics and remain 500.
+     * Test that application-layer database exceptions remain 500.
      *
      * @return void
      */
@@ -425,8 +424,7 @@ final class ApiExceptionHandlerTest extends TestCase
     /**
      * Test that ValidationException maps to 422.
      *
-     * This test is separate because ValidationException requires a Validator
-     * instance that needs the Laravel translator.
+     * Kept separate because a Validator needs the Laravel translator.
      *
      * @return void
      */
@@ -456,9 +454,7 @@ final class ApiExceptionHandlerTest extends TestCase
      * Test that a Laravel session token mismatch maps to the toolkit token
      * mismatch exception with the non-standard 419 status code.
      *
-     * The mapping is asserted directly because rendering the toolkit
-     * TokenMismatchException requires the package translations, which are not
-     * registered in this isolated test application.
+     * Asserted on the mapping because rendering needs the package translations.
      *
      * @return void
      */
@@ -762,12 +758,7 @@ final class ApiExceptionHandlerTest extends TestCase
             self::assertIsArray($data['error']['meta']['trace']);
             self::assertNotEmpty($data['error']['meta']['trace']);
 
-            // Assert on the whole frame set at once rather than per frame: the
-            // number of trace frames is the ambient call-stack depth, which
-            // differs between a serial run and a paratest worker, so a
-            // per-frame loop makes the assertion count runner-dependent (and
-            // the test non-deterministic). A single set assertion proves no
-            // rendered frame retains call arguments regardless of depth.
+            // One set assertion: the frame count varies with stack depth
             $renderedFramesWithArgs = array_filter(
                 $data['error']['meta']['trace'],
                 static fn (mixed $frame): bool => is_array($frame) && array_key_exists('args', $frame),
@@ -795,8 +786,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
     /**
      * Test that a handled API exception is not reported whatever the order in
-     * which another reportable was registered, while any other exception is
-     * still reported as itself.
+     * which another reportable was registered.
      *
      * @param  bool  $reportableFirst
      * @return void
@@ -832,8 +822,7 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that a deliberately thrown 5xx API exception is handled and so not
-     * reported.
+     * Test that a deliberately thrown 5xx API exception is not reported.
      *
      * @return void
      */
@@ -926,8 +915,7 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that the reporting samples cover every entry of the handler's
-     * exception map, so a new mapping cannot skip the reporting check.
+     * Test that the reporting samples cover every entry of the exception map.
      *
      * @return void
      */
@@ -965,8 +953,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
     /**
      * Test that an HTTP exception implementing the Symfony interface without
-     * extending its base class is reported only when it renders as a server
-     * error.
+     * extending its base class is reported only when it renders as a 5xx.
      *
      * @param  int  $status
      * @param  int  $expectedStatus
@@ -1150,9 +1137,8 @@ final class ApiExceptionHandlerTest extends TestCase
     /**
      * Define the test environment.
      *
-     * Loads the package's exception translations so rendered error responses
-     * include a non-empty detail rather than relying on the (now-fixed) raw-key
-     * fallback.
+     * Loads the package's exception translations so rendered errors carry a
+     * detail.
      *
      * @param  mixed  $app
      * @return void

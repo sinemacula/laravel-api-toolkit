@@ -142,8 +142,8 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
-     * Test that a filter document one byte over the cap is rejected, reporting
-     * the cap and the size supplied.
+     * Test that a filter document one byte over the cap is rejected with the
+     * cap and size.
      *
      * @return void
      */
@@ -180,9 +180,8 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
-     * Test that a filter document one level deeper than the parse-depth cap is
-     * rejected, measured across the whole document rather than its first
-     * branch.
+     * Test that a filter document one level past the parse-depth cap is
+     * rejected, measured across the whole document.
      *
      * @return void
      */
@@ -201,7 +200,7 @@ final class QueryParameterValidatorTest extends TestCase
 
     /**
      * Test that a malformed filter document within the byte cap keeps its own
-     * validation failure rather than being reported as a cost.
+     * validation failure.
      *
      * @return void
      *
@@ -218,8 +217,7 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
-     * Test that a non-string filters value is left to the shape rules, so the
-     * cost guards never assume a decodable document.
+     * Test that a non-string filters value is left to the shape rules.
      *
      * @return void
      *
@@ -236,9 +234,8 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
-     * Test that a filter document decoding to a bare JSON scalar carries no
-     * nesting to measure and is passed over, while the same cap still rejects a
-     * document that does nest, so passing it over never disarms the bound.
+     * Test that a bare JSON scalar filter document is passed over while a
+     * nesting one is still capped.
      *
      * @return void
      *
@@ -276,8 +273,8 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
-     * Test that a page size one above the ceiling is rejected rather than
-     * reduced to it, reporting the ceiling and the size asked for.
+     * Test that a page size one above the ceiling is rejected with the ceiling
+     * and size.
      *
      * @return void
      */
@@ -289,9 +286,7 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
-     * Test that a ceiling configured as a numeric string is coerced before the
-     * comparison, so the rejection reports an integer rather than the raw
-     * configured value.
+     * Test that a numeric-string ceiling is reported as an integer.
      *
      * @return void
      */
@@ -315,8 +310,7 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
-     * Test that a disabled ceiling leaves the page size unbounded rather than
-     * rejecting every request.
+     * Test that a disabled ceiling leaves the page size unbounded.
      *
      * @param  mixed  $ceiling
      * @return void
@@ -334,8 +328,7 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
-     * Provide the ceiling values that must fall back to the shipped default
-     * rather than removing the bound.
+     * Provide the ceiling values that fall back to the shipped default.
      *
      * @return iterable<string, array{mixed}>
      */
@@ -347,12 +340,10 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
-     * Test that an unreadable ceiling falls back to the shipped default rather
-     * than leaving the page size unbounded.
+     * Test that an unreadable ceiling falls back to the shipped default.
      *
-     * An empty environment variable reads as an empty string, which is not
-     * numeric. Reading that as "no ceiling" would hand an unbounded page size
-     * to anyone who set the variable without a value.
+     * An empty environment variable reads as an empty string, which must not
+     * mean no ceiling.
      *
      * @param  mixed  $ceiling
      * @return void
@@ -370,11 +361,7 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
-     * Test that a config predating the page-size key keeps the shipped ceiling
-     * rather than silently removing it.
-     *
-     * A consumer whose published config was written before the key existed
-     * would otherwise serve an unbounded page to any caller who asked.
+     * Test that a config predating the page-size key keeps the shipped ceiling.
      *
      * @return void
      *
@@ -412,9 +399,6 @@ final class QueryParameterValidatorTest extends TestCase
      * Test that the ceiling resolves to the documented value for each
      * configured state.
      *
-     * The emitted document reports this ceiling and the guard enforces it, so
-     * both read it through this one resolver and cannot drift apart.
-     *
      * @param  mixed  $configured
      * @param  int  $expected
      * @return void
@@ -429,7 +413,7 @@ final class QueryParameterValidatorTest extends TestCase
 
     /**
      * Test that the ceiling reported to a rejected caller is the shipped
-     * default when the configuration is absent.
+     * default when unconfigured.
      *
      * @return void
      */
@@ -445,8 +429,7 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
-     * Test that a malformed page size keeps its own validation failure rather
-     * than being reported as a cost.
+     * Test that a malformed page size keeps its own validation failure.
      *
      * @return void
      *
@@ -462,9 +445,8 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
-     * Assert that the given parameters are rejected on cost, naming the
-     * parameter at fault and carrying the cap that rejected them alongside both
-     * sides of the comparison.
+     * Assert that the parameters are rejected on cost with the parameter, cap
+     * and both compared values.
      *
      * @param  array<string, mixed>  $parameters
      * @param  string  $parameter

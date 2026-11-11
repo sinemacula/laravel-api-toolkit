@@ -12,12 +12,12 @@ namespace SineMacula\ApiToolkit\Enums;
  */
 enum FlushStrategy: string
 {
-    /** Best-effort: log failures, continue, and drop the whole buffer. */
+    /** Best-effort: log failures, continue, and drop the whole buffer */
     case LOG = 'log';
 
-    /** Throw on first failure; retain failed and unprocessed records. */
+    /** Throw on first failure; retain failed and unprocessed records */
     case THROW = 'throw';
 
-    /** Safe default: accumulate failures and retain records for retry. */
+    /** Safe default: accumulate failures and retain records for retry */
     case COLLECT = 'collect';
 }

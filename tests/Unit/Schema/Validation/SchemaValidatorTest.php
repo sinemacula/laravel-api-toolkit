@@ -54,8 +54,7 @@ final class SchemaValidatorTest extends TestCase
     }
 
     /**
-     * Test that validate passes with no errors when all rules return empty
-     * arrays.
+     * Test that validate passes when every rule returns no errors.
      *
      * @return void
      */
@@ -75,8 +74,7 @@ final class SchemaValidatorTest extends TestCase
     }
 
     /**
-     * Test that validate throws InvalidSchemaException when a rule returns
-     * errors.
+     * Test that validate throws InvalidSchemaException when a rule errors.
      *
      * @return void
      */
@@ -129,8 +127,7 @@ final class SchemaValidatorTest extends TestCase
     }
 
     /**
-     * Test that validate with an empty resource map does not call any rules and
-     * does not throw.
+     * Test that an empty resource map calls no rules and does not throw.
      *
      * @return void
      */
@@ -178,8 +175,7 @@ final class SchemaValidatorTest extends TestCase
     }
 
     /**
-     * Test that validate with no rules passes without errors for a non-empty
-     * resource map.
+     * Test that validate with no rules passes for a non-empty resource map.
      *
      * @return void
      */
@@ -193,8 +189,7 @@ final class SchemaValidatorTest extends TestCase
     }
 
     /**
-     * Test that errors from multiple resources are aggregated into a single
-     * exception.
+     * Test that errors from several resources share a single exception.
      *
      * @return void
      */

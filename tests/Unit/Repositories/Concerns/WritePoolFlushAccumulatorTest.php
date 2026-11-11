@@ -21,8 +21,7 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator;
 final class WritePoolFlushAccumulatorTest extends TestCase
 {
     /**
-     * Test that recordSuccess tallies both the chunk count and the record
-     * count.
+     * Test that recordSuccess tallies both the chunk and record counts.
      *
      * @return void
      */
@@ -41,8 +40,7 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     }
 
     /**
-     * Test that recordFailure tallies the failure count and captures the
-     * failure detail keyed by table name.
+     * Test that recordFailure tallies failures and keys the detail by table.
      *
      * @return void
      */
@@ -65,8 +63,7 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     }
 
     /**
-     * Test that recordFailure accumulates the failed record count across
-     * multiple failed chunks rather than overwriting it with the latest chunk.
+     * Test that recordFailure accumulates failed records across chunks.
      *
      * @return void
      */
@@ -84,8 +81,7 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     }
 
     /**
-     * Test that retain merges retained records per table and that failedRecords
-     * exposes them for retry.
+     * Test that retain merges retained records per table for failedRecords.
      *
      * @return void
      */
@@ -116,8 +112,7 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     }
 
     /**
-     * Test that toResult retains failed records under the collect strategy,
-     * dropping none, and reports the attempted tables.
+     * Test that toResult retains failed records under the collect strategy.
      *
      * @return void
      */
@@ -135,8 +130,7 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     }
 
     /**
-     * Test that toResult drops failed records under the log strategy, retaining
-     * none.
+     * Test that toResult drops failed records under the log strategy.
      *
      * @return void
      */
@@ -154,8 +148,7 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     }
 
     /**
-     * Test that toThrowResult carries the explicit retained record count and
-     * drops nothing.
+     * Test that toThrowResult carries the retained count and drops nothing.
      *
      * @return void
      */
@@ -178,8 +171,7 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     }
 
     /**
-     * Test that the result retains the first recorded failure as its underlying
-     * exception, ignoring later failures.
+     * Test that the result keeps the first recorded failure as its exception.
      *
      * @return void
      */

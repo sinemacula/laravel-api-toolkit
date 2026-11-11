@@ -11,27 +11,17 @@ use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 
 /**
- * Validates incoming API query parameters.
+ * Validates the shape of incoming API query parameters.
  *
- * Builds the validation rule set from the supplied parameters and rejects
- * requests whose query modifiers do not match the expected shapes. The filter
- * document is additionally bounded by size and by nesting, so a document that
- * is too large to be worth interpreting is refused before it is interpreted,
- * and a page size above the configured ceiling is refused rather than reduced
- * to it: a client handed a hundred rows having asked for five hundred cannot
- * tell that from a result set that ran out.
- *
- * Shape is all this settles. A parameter whose value has to be interpreted
- * before it can be judged - the filter document, the search term - carries its
- * own bounds where it is parsed, so one parameter has one set of rules rather
- * than a copy here that can drift from it.
+ * An oversized page size is refused, not clamped, so a short page is never
+ * mistaken for the end of the result set.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class QueryParameterValidator
 {
-    /** @var string The configuration key holding the page-size ceiling, and the reason a request above it is rejected with */
+    /** @var string Config key for the page-size ceiling, also used as the rejection reason */
     public const string MAX_LIMIT = 'max_limit';
 
     /** @var int The ceiling applied when the configured value is absent or unreadable */
@@ -60,11 +50,8 @@ final class QueryParameterValidator
     /**
      * Resolve the hard ceiling on a client-supplied page size.
      *
-     * A key that is absent, or present but unreadable, resolves to the shipped
-     * default rather than to no ceiling at all. A published config predating
-     * the key, or an environment variable set to an empty value, would
-     * otherwise leave the page size unbounded. Only an explicit null or zero
-     * disables the ceiling, which is the documented way to turn it off.
+     * An absent or unreadable key falls back to the default; only an explicit
+     * null or zero disables the ceiling.
      *
      * @return int
      */
@@ -123,8 +110,7 @@ final class QueryParameterValidator
     /**
      * Reject a filter document nested beyond the configured level cap.
      *
-     * Runs once the document is known to be valid JSON, so a malformed value
-     * keeps its own validation failure rather than being reported as a cost.
+     * Runs after shape validation so malformed JSON keeps its own failure.
      *
      * @param  mixed  $filters
      * @param  \SineMacula\ApiToolkit\Query\QueryCostLimits  $limits
@@ -150,9 +136,7 @@ final class QueryParameterValidator
     /**
      * Reject a page size above the configured ceiling.
      *
-     * Runs once the parameter is known to be an integer, so a malformed value
-     * keeps its own validation failure rather than being reported as a cost. A
-     * ceiling of zero or less disables the bound, as a disabled cap does.
+     * Runs after shape validation so a non-integer keeps its own failure.
      *
      * @param  mixed  $limit
      * @return void

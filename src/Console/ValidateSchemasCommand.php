@@ -17,10 +17,10 @@ use SineMacula\ApiToolkit\Support\ResourceMap;
  */
 final class ValidateSchemasCommand extends Command
 {
-    /** @var string The console command signature. */
+    /** @var string The console command signature */
     protected $signature = 'api-toolkit:validate-schemas';
 
-    /** @var string The console command description. */
+    /** @var string The console command description */
     protected $description = 'Validate all registered resource schemas';
 
     /**

@@ -16,12 +16,6 @@ use Tests\TestCase;
 /**
  * Feature tests for field guards and transformers in a real JSON body.
  *
- * A request-scoped guard is security-adjacent: a consumer needs proof the field
- * is absent from the actual response body, not merely from a unit resolve. This
- * drives a resource whose schema carries a guarded field and a transformed
- * field through a real response, asserting the guarded key drops out unless
- * permitted and the transformer's output appears verbatim.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -46,8 +40,7 @@ final class FieldGuardResponseTest extends TestCase
 
         User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);
 
-        // Fetch a fresh instance per request so the model is not flagged as
-        // recently created, which would make the resource response a 201.
+        // A recently created model would make the resource response a 201
         Route::get('/guarded', static fn (): GuardedUserResource => new GuardedUserResource(User::query()->firstOrFail()));
 
         Route::get('/auth-guarded', static fn (): AuthUserGuardedUserResource => new AuthUserGuardedUserResource(User::query()->firstOrFail()));
@@ -55,7 +48,7 @@ final class FieldGuardResponseTest extends TestCase
 
     /**
      * Test that the guard hides the field and the transformer applies when the
-     * guard query parameter is absent.
+     * guard parameter is absent.
      *
      * @return void
      */
@@ -70,8 +63,7 @@ final class FieldGuardResponseTest extends TestCase
     }
 
     /**
-     * Test that the guarded field is present with its value when the guard
-     * permits it.
+     * Test that the guarded field is present when the guard permits it.
      *
      * @return void
      */
@@ -100,8 +92,8 @@ final class FieldGuardResponseTest extends TestCase
     }
 
     /**
-     * Test that a guard keyed on the authenticated user reveals the field under
-     * an acting admin.
+     * Test that a guard keyed on the authenticated user reveals the field to an
+     * admin.
      *
      * @return void
      */

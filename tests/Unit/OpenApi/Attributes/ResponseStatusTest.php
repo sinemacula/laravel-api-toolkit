@@ -40,8 +40,7 @@ final class ResponseStatusTest extends TestCase
     }
 
     /**
-     * Test that a success status is carried, answering with no body only when
-     * it is 204 or 205.
+     * Test that a success status is carried, bodyless only for 204 or 205.
      *
      * @param  \SineMacula\Http\Enums\HttpStatus  $status
      * @param  bool  $noContent

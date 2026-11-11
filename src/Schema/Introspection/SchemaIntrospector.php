@@ -19,18 +19,9 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
 /**
- * Schema introspector.
+ * Schema introspector for Eloquent models.
  *
- * Provides column listing, column definition resolution, index catalogue reads,
- * relation detection, and relation type reporting for Eloquent models.
- *
- * Every catalogue read is taken from the connection the model itself resolves,
- * not the default one, so a model on a secondary connection is described by the
- * database actually behind it. The schema identity of that connection is part
- * of every schema cache key for the same reason: one model class read under two
- * connections, or under one connection repointed at another tenant's database,
- * holds two answers rather than serving the first back for both. Relation
- * lookups are derived from code alone, so they stay keyed by the class.
+ * Reads use the model's own connection; cache keys include its schema identity.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -61,10 +52,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     /**
      * Get the database columns for the given model.
      *
-     * Results are held for the duration of the request. A non-empty listing is
-     * also cached in the shared store, while an empty one is not, since a table
-     * that has not been created yet reads as empty and would otherwise be
-     * served empty long after it exists.
+     * Empty listings are not shared: a table not yet created reads as empty.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return array<int, string>
@@ -82,11 +70,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Get the per-column type and nullability definitions for the given model,
-     * keyed by column name.
-     *
-     * Results are cached per model, mirroring getColumns(), and an empty set is
-     * not cached in the shared store for the same reason.
+     * Get the column type and nullability definitions for the model, by name.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>
@@ -104,21 +88,9 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Get the indexes declared on the given model's table, or null when the
-     * catalogue could not be read.
+     * Get the model's table indexes, or null when the catalogue is unreadable.
      *
-     * A connection that could not be reached reports null, so a boot with no
-     * database behind it proves nothing rather than proving the table has no
-     * index. A table the connection does not carry reports null for the same
-     * reason: an engine answers for a missing table with an empty catalogue
-     * rather than an error, so reading that silence as an answer would turn a
-     * boot before the migrations have run into a refusal. A table that was read
-     * and carries nothing reports an empty list, which is a real answer. Only
-     * that answer is cached, so a later run against a live, migrated connection
-     * resolves the catalogue.
-     *
-     * Results are cached forever per model and connection, mirroring
-     * getColumns().
+     * A missing table reads as an empty catalogue, so it also reports null.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null
@@ -134,7 +106,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
 
         $memoKey = $this->memoKey($connection, $model);
 
-        // Existence, not isset(): a memoised null is the answer, not a miss.
+        // A memoised null is an answer, which isset() would treat as a miss
         return array_key_exists($memoKey, $this->indexes)
             ? $this->indexes[$memoKey]
             : $this->indexes[$memoKey] = $this->resolveIndexes($model, $connection);
@@ -142,8 +114,6 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
 
     /**
      * Determine whether the given key is an Eloquent relation on the model.
-     *
-     * Results are cached for the duration of the request.
      *
      * @param  string  $key
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -165,8 +135,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Resolve the relation instance for the given key on the model, or return
-     * null if the key is not a relation.
+     * Resolve the relation instance for the key, or null if it is not one.
      *
      * @param  string  $key
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -193,8 +162,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Get the soft-delete column for the model, or null when it does not use
-     * SoftDeletes.
+     * Get the soft-delete column, or null when the model does not soft delete.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return string|null
@@ -210,8 +178,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Get the parent-side key columns for the given relation, including morph
-     * type/id columns.
+     * Get the relation's parent-side key columns, including morph type and id.
      *
      * @template TRelated of \Illuminate\Database\Eloquent\Model
      * @template TDeclaring of \Illuminate\Database\Eloquent\Model
@@ -248,9 +215,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Map the raw Schema::getColumns() rows into column definitions keyed by
-     * column name, passing over any row the connection reported in a shape that
-     * cannot be read.
+     * Map raw column rows to definitions by name, skipping unreadable rows.
      *
      * @param  array<int, mixed>  $columns
      * @return array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>
@@ -274,8 +239,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Read the column listing behind the model's table, serving the persistent
-     * cache where it is warm and storing only a non-empty listing.
+     * Read the model's column listing, sharing only a non-empty one.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  \Illuminate\Database\Connection  $connection
@@ -296,7 +260,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
             $columns = $connection->getSchemaBuilder()->getColumnListing($model->getTable());
         } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
 
-            // No live connection: degrade to an empty listing.
+            // No live connection: degrade to an empty listing
             $columns = [];
         }
 
@@ -308,8 +272,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Read the column definitions behind the model's table, serving the
-     * persistent cache where it is warm and storing only a non-empty set.
+     * Read the model's column definitions, sharing only a non-empty set.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  \Illuminate\Database\Connection  $connection
@@ -330,7 +293,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
             $definitions = $this->mapColumnDefinitions($connection->getSchemaBuilder()->getColumns($model->getTable()));
         } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
 
-            // No live connection: degrade to an empty set.
+            // No live connection: degrade to an empty set
             $definitions = [];
         }
 
@@ -342,13 +305,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Read the catalogue behind the model's table, serving the persistent cache
-     * where it is warm and reporting null where the catalogue could not be
-     * read.
-     *
-     * The unreadable answer is not written to the persistent cache, so a later
-     * run against a live, migrated connection resolves the catalogue rather
-     * than serving the silence back.
+     * Read the model's index catalogue, sharing only a readable answer.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  \Illuminate\Database\Connection  $connection
@@ -375,13 +332,9 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Ask the model's own connection for the catalogue behind its table, or
-     * report null where the catalogue could not be read.
+     * Read the model's indexes from its connection, or null when unreadable.
      *
-     * A connection that cannot be reached reports nothing, and so does a table
-     * the connection does not carry: an engine answers for a table that is not
-     * there with an empty catalogue rather than an error, and the column
-     * listing is what tells the two apart, since no table carries no columns.
+     * An empty catalogue with no columns means the table does not exist.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  \Illuminate\Database\Connection  $connection
@@ -399,11 +352,9 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Return the connection the model reads its schema from, or null when it
-     * names a connection the application cannot build.
+     * Return the model's connection, or null when it cannot be built.
      *
-     * Resolving the connection opens no database handle, so a connection that
-     * is configured but unreachable still resolves here and fails at the read.
+     * Resolving opens no handle; an unreachable connection fails at the read.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return \Illuminate\Database\Connection|null
@@ -432,8 +383,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Map the raw index catalogue entries into index definitions, passing over
-     * any entry the connection reported in a shape that cannot be read.
+     * Map raw index entries to definitions, skipping unreadable entries.
      *
      * @param  array<int, mixed>  $indexes
      * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>
@@ -457,13 +407,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Resolve the time-to-live, in seconds, applied to the cached relation
-     * lookup, falling back to roughly a day when the config value is unset or
-     * non-numeric.
-     *
-     * Relation detection is schema-static, so a long expiry still caches
-     * effectively; the expiry exists to bound the relation cache key space, not
-     * to refresh it.
+     * Resolve the relation lookup cache TTL in seconds, defaulting to a day.
      *
      * @return int
      */
@@ -475,8 +419,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Determine whether the given reflection method has a return type that is a
-     * subclass of Relation.
+     * Determine whether the method's return type is a Relation subclass.
      *
      * @param  \ReflectionMethod  $method
      * @return bool

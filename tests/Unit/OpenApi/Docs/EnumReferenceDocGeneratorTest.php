@@ -41,8 +41,7 @@ final class EnumReferenceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a backed enum emits a subsection with its component-name
-     * heading and a well-formed row per case carrying the backing value.
+     * Test that a backed enum emits a subsection with a row per case.
      *
      * @return void
      */
@@ -70,8 +69,7 @@ final class EnumReferenceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a pure enum renders each case's lowercase name in the value
-     * cell, the form the API accepts it in.
+     * Test that a pure enum renders each case's lowercase name.
      *
      * @return void
      */
@@ -120,8 +118,7 @@ final class EnumReferenceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a flat reference, where every enum resolves to no module,
-     * renders one H2 subsection per enum with no module headings.
+     * Test that a flat reference renders one H2 per enum and no modules.
      *
      * @return void
      */
@@ -134,9 +131,7 @@ final class EnumReferenceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a modular reference renders the shared section first, then one
-     * module H2 per module sorted by name, each carrying its enums as H3
-     * subsections.
+     * Test that a modular reference renders shared first, then sorted modules.
      *
      * @return void
      */
@@ -164,8 +159,7 @@ final class EnumReferenceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a grouped reference with no shared enums omits the Common
-     * section and still renders the module sections.
+     * Test that a reference without shared enums omits the Common section.
      *
      * @return void
      */
@@ -179,8 +173,7 @@ final class EnumReferenceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that an empty reference still renders the banner and heading with no
-     * module or enum subsections.
+     * Test that an empty reference still renders the banner and heading.
      *
      * @return void
      */
@@ -193,8 +186,7 @@ final class EnumReferenceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Build a generator whose grouper resolves no module, yielding combined
-     * output.
+     * Build a generator whose grouper resolves no module.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Docs\EnumReferenceDocGenerator
      */
@@ -204,8 +196,7 @@ final class EnumReferenceDocGeneratorTest extends TestCase
     }
 
     /**
-     * Build a generator whose grouper maps the fixture enums to modules,
-     * leaving the pure enum shared so the Common section is exercised.
+     * Build a generator whose grouper maps the fixture enums to modules.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Docs\EnumReferenceDocGenerator
      */

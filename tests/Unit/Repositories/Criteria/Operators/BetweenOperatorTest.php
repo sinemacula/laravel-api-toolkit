@@ -86,8 +86,7 @@ final class BetweenOperatorTest extends TestCase
     }
 
     /**
-     * Test that apply honours the OR boolean of the current filter context so a
-     * $between branch inside an $or group is combined with OR rather than AND.
+     * Test that apply honours the OR boolean of the filter context.
      *
      * @return void
      */

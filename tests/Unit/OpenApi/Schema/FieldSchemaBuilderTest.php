@@ -107,8 +107,7 @@ final class FieldSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that building an enum-class field registers the enum so its
-     * component is later emitted.
+     * Test that building an enum-class field registers the enum.
      *
      * @return void
      */
@@ -122,8 +121,7 @@ final class FieldSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a required token without a relaxing token marks the field
-     * required.
+     * Test that a required token without a relaxing token marks required.
      *
      * @return void
      */
@@ -133,8 +131,7 @@ final class FieldSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a required token marks an enum field required, and an exclude
-     * rule relaxes it.
+     * Test that required marks an enum field and an exclude rule relaxes it.
      *
      * @return void
      */
@@ -157,8 +154,7 @@ final class FieldSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a field with neither a required nor sometimes token is not
-     * required.
+     * Test that a field without required or sometimes is not required.
      *
      * @return void
      */
@@ -168,8 +164,7 @@ final class FieldSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a present token marks the field required, as the validator
-     * refuses a body missing it, unless sometimes relaxes it.
+     * Test that present marks the field required unless sometimes relaxes it.
      *
      * @return void
      */
@@ -180,8 +175,7 @@ final class FieldSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that an exclude rule, which may drop the field from validation,
-     * relaxes an otherwise required field.
+     * Test that an exclude rule relaxes an otherwise required field.
      *
      * @return void
      */
@@ -191,8 +185,7 @@ final class FieldSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Provide the token lists of fields whose rules refuse or allow an empty
-     * value, each with the schema it builds.
+     * Provide token lists refusing or allowing empty values, with schemas.
      *
      * @return iterable<string, array{0: list<string>, 1: array<string, mixed>}>
      */
@@ -218,9 +211,7 @@ final class FieldSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a sent array must hold an element and no sent value may be null
-     * when the field's rules refuse an empty value, unless an exclude rule may
-     * drop the field.
+     * Test that refusing empty values forbids empty arrays and null.
      *
      * @param  list<string>  $tokens
      * @param  array<string, mixed>  $expected
@@ -233,8 +224,7 @@ final class FieldSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a token naming a class that is not an enum contributes no
-     * reference, so a stale rule documents nothing rather than a broken $ref.
+     * Test that a non-enum class token contributes no reference.
      *
      * @return void
      */
@@ -261,8 +251,7 @@ final class FieldSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a field that may never be sent is the false schema and is not
-     * required, even when another of its rules says required.
+     * Test that a never-sendable field is the false schema, not required.
      *
      * @param  list<string>  $tokens
      * @return void
@@ -274,8 +263,7 @@ final class FieldSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a conditional prohibition, which cannot be expressed
-     * statically, leaves the field documented by its other rules.
+     * Test that a conditional prohibition leaves the other rules in charge.
      *
      * @return void
      */
@@ -294,8 +282,7 @@ final class FieldSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a field validated only by rules with no schema translation
-     * builds an empty schema.
+     * Test that a field with only untranslatable rules builds an empty schema.
      *
      * @return void
      */

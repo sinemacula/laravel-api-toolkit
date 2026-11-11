@@ -7,12 +7,6 @@ namespace SineMacula\ApiToolkit\OpenApi;
 /**
  * Immutable result of an OpenAPI components export.
  *
- * Carries the assembled document array together with a summary of what the
- * document contains: the number of operations, resource schemas, query
- * parameters, and error responses it emits. The command reads the summary to
- * report progress, and fails the export when the operation count is zero, since
- * a document with no operations means no route reaches the audience.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

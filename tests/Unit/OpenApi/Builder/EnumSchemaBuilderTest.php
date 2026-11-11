@@ -29,8 +29,7 @@ use Tests\Fixtures\Enums\UserStatus;
 final class EnumSchemaBuilderTest extends TestCase
 {
     /**
-     * Test that a string-backed enum emits a string-typed component keyed by
-     * its basename, listing each case's backing value.
+     * Test that a string-backed enum emits a string component of its values.
      *
      * @return void
      */
@@ -42,8 +41,7 @@ final class EnumSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that an int-backed enum emits an integer-typed component listing
-     * each case's backing value.
+     * Test that an int-backed enum emits an integer component of its values.
      *
      * @return void
      */
@@ -55,8 +53,7 @@ final class EnumSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-backed enum emits a string-typed component listing each
-     * case's lowercase name.
+     * Test that a non-backed enum emits its lowercased case names.
      *
      * @return void
      */
@@ -68,8 +65,7 @@ final class EnumSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a pure enum's component lists each multi-word case name
-     * lowercased with its underscore kept, in declaration order.
+     * Test that multi-word pure enum cases are lowercased in declaration order.
      *
      * @return void
      */
@@ -81,8 +77,7 @@ final class EnumSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a pure enum whose case names collide once lowercased fails loud
-     * rather than documenting an ambiguous value.
+     * Test that pure enum cases colliding once lowercased fail loud.
      *
      * @return void
      */
@@ -95,8 +90,7 @@ final class EnumSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a #[SchemaName] override keys the component under the override
-     * name rather than the enum basename.
+     * Test that a #[SchemaName] override keys the component under that name.
      *
      * @return void
      */
@@ -109,8 +103,7 @@ final class EnumSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that two enums sharing a basename fail loud, naming both enum
-     * classes.
+     * Test that two enums sharing a basename fail loud, naming both classes.
      *
      * @return void
      */
@@ -124,8 +117,7 @@ final class EnumSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a #[SchemaName] override on one of two basename-colliding enums
-     * disambiguates them, so both components survive under distinct keys.
+     * Test that a #[SchemaName] override disambiguates colliding enums.
      *
      * @return void
      */
@@ -138,8 +130,7 @@ final class EnumSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that an enum whose name collides with a name already reserved by a
-     * resource fails loud, naming both the resource and the enum.
+     * Test that an enum colliding with a resource name fails loud, naming both.
      *
      * @return void
      */

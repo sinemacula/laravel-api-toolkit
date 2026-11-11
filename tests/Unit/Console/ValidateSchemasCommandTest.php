@@ -87,9 +87,8 @@ final class ValidateSchemasCommandTest extends TestCase
     }
 
     /**
-     * Test that the container-wired validator, exercised against a genuinely
-     * broken resource with no stub, drives the command's catch, format, and
-     * exit-one path using a real defect string from the shipped rule set.
+     * Test that the container-wired validator reports a genuinely broken
+     * resource and exits one.
      *
      * @return void
      */
@@ -109,8 +108,7 @@ final class ValidateSchemasCommandTest extends TestCase
 
     /**
      * Test that the container-wired rule set catches a query declaration on a
-     * field with no backing column, so the defect is reported before a request
-     * can reach the database with it.
+     * field with no column.
      *
      * @return void
      */
@@ -143,8 +141,8 @@ final class ValidateSchemasCommandTest extends TestCase
     }
 
     /**
-     * Test that the command stops after warning when no resources are
-     * registered and does not run validation.
+     * Test that the command warns and skips validation when no resources are
+     * registered.
      *
      * @return void
      */

@@ -9,14 +9,6 @@ use Illuminate\Support\Facades\Config;
 /**
  * Reads the OpenAPI audience registry from the toolkit config.
  *
- * Audiences are declared as config, each keyed by name and optionally carrying
- * a posture controlling how routes join it. This reader is the single place the
- * exporter resolves the configured audience names, the default audience, a
- * named audience's posture, its OpenAPI info block, and its servers, so the
- * command and the assembler agree on the same registry regardless of
- * config-cache state. An audience with no explicit posture, or one absent from
- * the registry, resolves to the blocklist posture.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -53,8 +45,7 @@ final readonly class AudienceConfiguration
     }
 
     /**
-     * Resolve the default audience, falling back to the shipped public audience
-     * when none is configured.
+     * Resolve the default audience.
      *
      * @return string
      */
@@ -66,8 +57,7 @@ final readonly class AudienceConfiguration
     }
 
     /**
-     * Resolve the posture for the given audience, defaulting to the blocklist
-     * posture when the audience is unconfigured or declares no posture.
+     * Resolve the posture for the given audience, defaulting to blocklist.
      *
      * @param  string  $audience
      * @return string
@@ -82,11 +72,6 @@ final readonly class AudienceConfiguration
 
     /**
      * Resolve the OpenAPI info object for the given audience.
-     *
-     * Each key resolves independently, preferring a per-audience info value
-     * over the top-level info default, which in turn wins over the shipped hard
-     * default. Only non-empty values are emitted; title and version are always
-     * present.
      *
      * @param  string  $audience
      * @return array<string, mixed>
@@ -110,10 +95,7 @@ final readonly class AudienceConfiguration
     /**
      * Resolve the OpenAPI servers for the given audience.
      *
-     * An audience that declares its own servers replaces the global list, even
-     * with an empty list; one that does not, or sets them to null, inherits the
-     * global list. Either list is validated before it is returned, in the order
-     * configured.
+     * An audience's own list, even an empty one, replaces the global list.
      *
      * @param  string  $audience
      * @return list<array<string, mixed>>
@@ -146,8 +128,7 @@ final readonly class AudienceConfiguration
     }
 
     /**
-     * Resolve a single non-empty info string for the audience, falling from the
-     * per-audience block to the top-level block and finally to null.
+     * Resolve a non-empty info string, per-audience before top-level.
      *
      * @param  string  $audience
      * @param  string  $key

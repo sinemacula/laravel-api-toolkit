@@ -27,13 +27,6 @@ use Tests\TestCase;
  * Feature test proving a real Artisan run flushes deferred writes at its
  * command-finished boundary.
  *
- * A fixture command defers user rows through the deferrable repository during
- * its handler. The rows remain buffered in the scoped pool until the framework
- * fires the command-finished lifecycle event, so a genuine Artisan run proves
- * the subscriber flushes the buffer once the command completes rather than
- * during the handler, and that a boundary flush failure re-thrown to the
- * console kernel is reported exactly once.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -58,16 +51,13 @@ final class DeferredWriteConsoleBoundaryTest extends TestCase
 
         assert($kernel instanceof Kernel);
 
-        // The framework suppresses the Symfony command lifecycle events while
-        // running the test suite, so reroute them before Artisan is resolved to
-        // prove the real command-finished boundary flush fires.
+        // The framework mutes Symfony command events under test; reroute them
         $kernel->rerouteSymfonyCommandEvents();
         $kernel->registerCommand(new DeferUsersCommand);
     }
 
     /**
-     * Test that deferred rows persist only after the command-finished boundary
-     * flush completes.
+     * Test that deferred rows persist only after the command-finished flush.
      *
      * @return void
      */
@@ -87,9 +77,8 @@ final class DeferredWriteConsoleBoundaryTest extends TestCase
     }
 
     /**
-     * Test that a boundary flush failure re-thrown under rethrow_at_boundary is
-     * reported exactly once, by the console kernel rather than the subscriber,
-     * and fails the command.
+     * Test that a rethrown boundary flush failure is reported once, by the
+     * console kernel, and fails the command.
      *
      * @return void
      */
@@ -104,8 +93,7 @@ final class DeferredWriteConsoleBoundaryTest extends TestCase
 
         assert($app instanceof Application);
 
-        // The test kernel re-throws instead of reporting, so run the command
-        // through the framework's own console kernel.
+        // The test kernel rethrows instead of reporting
         $kernel = new Kernel($app, $app->make(Dispatcher::class));
 
         $kernel->rerouteSymfonyCommandEvents();

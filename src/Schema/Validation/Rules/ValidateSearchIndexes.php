@@ -18,34 +18,7 @@ use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 /**
  * Validate that an index behind the connection serves every searchable field.
  *
- * A declared match strategy is a claim about the index the column carries, and
- * the claim is only worth what the connection can be made to confirm. This rule
- * asks the driver serving the model's connection to confirm it, so a column
- * declared with a strategy no index answers fails the build rather than the
- * first request that searches it.
- *
- * The columns declared with one strategy are proved together, because an engine
- * may resolve them through a single index, and the strategies are proved
- * against one another as well: two shapes an engine serves apart are not
- * necessarily servable side by side.
- *
- * A driver that cannot inspect its connection has proved nothing. That is
- * reported unless the connection is one where the proof is waived, so the
- * development connection a suite runs against stays quiet while a connection
- * serving traffic does not.
- *
- * A connection that cannot be read at all is a different answer again, and the
- * rule stays silent for it: a catalogue the connection never described leaves
- * the declaration unproved, while a catalogue that was read and carries no
- * index proves it wrong. Conflating the two either boots a deployment whose
- * index is genuinely missing or refuses to boot a machine with no database
- * behind it. What a declaration contradicts on its own is reported either way,
- * needing no catalogue to decide: a connection no driver serves, and a strategy
- * the registered driver does not implement.
- *
- * Staying silent is safe because the same proof is taken again on the first
- * search each worker serves, so a deployment whose index really is missing is
- * refused at request time even where boot-time validation could prove nothing.
+ * An unreadable catalogue passes here; the request path proves it again.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -103,8 +76,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     }
 
     /**
-     * Return the searchable fields the schema declares, keyed by field key and
-     * carrying the column and strategy each was declared with.
+     * Return the declared searchable columns and strategies, by field key.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @return array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>
@@ -128,8 +100,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     }
 
     /**
-     * Turn the defects found for each field key into validation errors, in the
-     * order the fields were declared.
+     * Turn the per-field defects into validation errors, in declaration order.
      *
      * @param  string  $resourceClass
      * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
@@ -177,8 +148,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     }
 
     /**
-     * Report the strategies the driver cannot resolve from an index once they
-     * are declared together, against the first field declaring one.
+     * Report a strategy combination defect against the first declared field.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
@@ -202,8 +172,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     }
 
     /**
-     * Report what each declared strategy is missing, proving the columns behind
-     * a strategy together.
+     * Report what each strategy is missing, proving its columns together.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
@@ -252,8 +221,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     }
 
     /**
-     * Return every reason the columns declared with the strategy are not served
-     * from an index on this connection, keyed by column.
+     * Return, keyed by column, why the strategy's columns are not index-served.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
@@ -288,15 +256,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     }
 
     /**
-     * Ask the driver for the proof, or return nothing where the catalogue
-     * behind it could not be read.
-     *
-     * A catalogue that cannot be read reaches here in two ways. It describes
-     * nothing at all, which the introspector reports as null, covering both a
-     * connection that cannot be reached and a table the migrations have not
-     * created; or the driver's own read of it fails, which arrives as a throw.
-     * Neither proves the declaration wrong, so neither is reported, and a read
-     * that succeeds is left to speak for itself.
+     * Ask the driver for the proof, or nothing if the catalogue is unreadable.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
@@ -307,7 +267,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
      */
     private function proof(SearchDriver $driver, SearchStrategy $strategy, array $columns, Model $model, Connection $connection): array
     {
-        // A null catalogue is the connection saying nothing, not saying empty.
+        // A null catalogue is unknown, so it proves nothing
         if ($this->introspector->getIndexes($model) === null) {
             return [];
         }
@@ -320,8 +280,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     }
 
     /**
-     * Return the distinct strategies the declared fields carry, in declaration
-     * order.
+     * Return the distinct declared strategies, in declaration order.
      *
      * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
      * @return array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>
@@ -343,8 +302,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     }
 
     /**
-     * Return the distinct columns declared with the given strategy, in
-     * declaration order.
+     * Return the distinct columns declared with the strategy, in order.
      *
      * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy

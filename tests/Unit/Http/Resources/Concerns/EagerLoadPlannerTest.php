@@ -20,7 +20,7 @@ use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
- * Tests for the EagerLoadPlanner eager-load map and count map builder.
+ * Tests for the EagerLoadPlanner.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -124,10 +124,8 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
-     * Test that child resource relations are recursed into and prefixed.
-     *
-     * When the API query requests relation fields for the child resource, the
-     * planner recurses into those fields and prefixes the paths.
+     * Test that child resource relations requested via the API query are
+     * recursed into and prefixed.
      *
      * @return void
      */
@@ -191,10 +189,6 @@ final class EagerLoadPlannerTest extends TestCase
 
     /**
      * Test that visited resource/path pairs are not traversed again.
-     *
-     * When a resource class references the same relation path that has already
-     * been visited, the planner skips it to prevent duplicate entries and
-     * unbounded traversal.
      *
      * @return void
      */
@@ -748,9 +742,8 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
-     * Test that buildSumMap continues past aggregate definitions that are
-     * excluded by shouldIncludeAggregate and still includes later entries that
-     * are included.
+     * Test that buildSumMap continues past an excluded aggregate definition and
+     * includes later ones.
      *
      * @return void
      */
@@ -782,9 +775,7 @@ final class EagerLoadPlannerTest extends TestCase
             }
         };
 
-        // No request passed - only defaults are included.
-        // The first sum (posts_id) is not default, so it must be skipped;
-        // the second (comments_id) is default, so it must be included.
+        // Without a request only the default comments_id sum is included
         $result = EagerLoadPlanner::buildSumMap($multiSumResource::class);
 
         self::assertCount(1, $result);
@@ -1087,9 +1078,7 @@ final class EagerLoadPlannerTest extends TestCase
 
         self::assertInstanceOf(\Closure::class, $wrapped);
 
-        // A MorphTo query and a plain builder are each handed to the constraint
-        // verbatim, while a query that is neither a relation nor a builder is
-        // skipped.
+        // MorphTo and builder queries are constrained; others are skipped
         $morphTo = \Mockery::mock(MorphTo::class);
         $builder = User::query();
 
@@ -1151,8 +1140,7 @@ final class EagerLoadPlannerTest extends TestCase
 
     /**
      * Test that explicit child fields are returned as a zero-indexed list with
-     * blank entries stripped, so a leading blank does not leave a gap in the
-     * keys and does not survive as an empty relation field.
+     * blank entries stripped.
      *
      * @return void
      */
@@ -1167,8 +1155,7 @@ final class EagerLoadPlannerTest extends TestCase
 
     /**
      * Test that the requested child fields are returned as a zero-indexed list
-     * with blank entries stripped, so a leading blank does not leave a gap in
-     * the keys.
+     * with blank entries stripped.
      *
      * @return void
      */
@@ -1184,14 +1171,11 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
-     * Test that a pair of resources naming each other stops rather than
+     * Test that a pair of resources naming each other stops instead of
      * descending without bound.
      *
-     * The visited set is keyed by the accumulated path, which lengthens at
-     * every hop, so a cycle never repeats a key and the walk would exhaust
-     * memory before any query was issued. Two field names the client already
-     * knows are enough to reach it, so the bound is a denial-of-service guard
-     * rather than a tidiness measure.
+     * The visited set is keyed by the lengthening path, so without a depth
+     * bound a cycle would exhaust memory.
      *
      * @return void
      */
@@ -1209,8 +1193,7 @@ final class EagerLoadPlannerTest extends TestCase
         self::assertContains('posts', $result);
         self::assertContains('posts.user', $result);
 
-        // The cycle closes here: descending again would yield
-        // 'posts.user.posts' and never terminate.
+        // Descending again would yield 'posts.user.posts' and never terminate
         foreach (array_merge(array_values($result), array_keys($result)) as $path) {
             if (!is_string($path)) {
                 continue;

@@ -20,13 +20,7 @@ use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\TestCase;
 
 /**
- * Feature test for a multi-hop relation chain applied over HTTP.
- *
- * When the related resource declares an onward traversable relation the chain
- * users -> posts -> user is permitted at every hop and compiles to nested
- * whereHas constraints. A real request proves the per-hop gating and the nested
- * existence constraint survive the HTTP layer: only the user owning a post
- * whose onward user matches the nested predicate is returned.
+ * Feature test for a multi-hop relation chain filter over HTTP.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -41,8 +35,8 @@ final class DeepTraversalHttpTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up each test with a users route, the deep-traversal Post resource
-     * map, and seeded users and posts.
+     * Set up a users route, the deep-traversal Post resource map, and seeded
+     * users and posts.
      *
      * @return void
      */
@@ -73,7 +67,7 @@ final class DeepTraversalHttpTest extends TestCase
 
     /**
      * Test that a users -> posts -> user chain narrows the envelope to the
-     * single matching user.
+     * matching user.
      *
      * @return void
      */

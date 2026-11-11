@@ -80,14 +80,9 @@ final class ApiCriteriaTest extends TestCase
 
         assert($this->app !== null);
 
-        // These assertions measure query shape and call counts; pin column
-        // narrowing off so the on-by-default narrowing metadata pass cannot
-        // skew them (narrowing behaviour has its own dedicated coverage).
+        // Column narrowing would skew the query shape these tests measure
         Config::set('api-toolkit.resources.narrow_columns', false);
 
-        // These tests assert applier mechanics (operators, logical groups,
-        // relations, ordering, limits), so they run against resources that
-        // declare the surface they query rather than empty ones.
         Config::set('api-toolkit.resources.resource_map', [Post::class => PostResource::class]);
 
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
@@ -96,8 +91,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that apply with no filters, order, or limit returns an unmodified
-     * query.
+     * Test that apply with no filters, order or limit leaves the query as is.
      *
      * @return void
      *
@@ -116,8 +110,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that an empty filter set adds no group of its own, leaving a
-     * caller-applied constraint as the only clause on the query.
+     * Test that an empty filter set adds no group of its own.
      *
      * @return void
      *
@@ -156,8 +149,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Provide condition operator test cases, each paired with a column the
-     * resource declared with a capability answering that operator.
+     * Provide condition operator cases, each with a column that answers it.
      *
      * @return iterable<string, array{string, string, string, mixed, string}>
      */
@@ -202,8 +194,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that a search term is applied as its own group ahead of the filter
-     * group, so both narrow the query rather than one replacing the other.
+     * Test that a search is applied as its own group ahead of the filter group.
      *
      * @return void
      *
@@ -406,8 +397,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that a root-level $or is grouped so it cannot escape a constraint
-     * the caller applies to the query before the criteria run.
+     * Test that a root-level $or is grouped so it cannot escape a constraint.
      *
      * @return void
      *
@@ -461,8 +451,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that apply with nested relation filters applies whereHas with nested
-     * conditions.
+     * Test that nested relation filters apply whereHas with nested conditions.
      *
      * @return void
      *
@@ -511,8 +500,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that apply with 'random' order applies inRandomOrder once the
-     * capability is enabled.
+     * Test that 'random' order applies inRandomOrder once enabled.
      *
      * @return void
      *
@@ -536,8 +524,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that 'random' order is rejected while the capability is disabled, so
-     * the most expensive sort is not reachable by default.
+     * Test that 'random' order is rejected while the capability is disabled.
      *
      * @return void
      *
@@ -580,7 +567,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that applyEagerLoading adds eager loads from the resource schema.
+     * Test that eager loads are added from the resource schema.
      *
      * @return void
      *
@@ -650,7 +637,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that applyEagerLoading uses getAllFields when ':all' is requested.
+     * Test that eager loading uses getAllFields when ':all' is requested.
      *
      * @return void
      *
@@ -745,8 +732,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that a named $has relation with conditions applies whereHas with
-     * nested constraints.
+     * Test that a named $has relation with conditions applies whereHas.
      *
      * @return void
      *
@@ -772,8 +758,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that $hasnt with a named relation and conditions applies
-     * whereDoesntHave.
+     * Test that a named $hasnt relation with conditions uses whereDoesntHave.
      *
      * @return void
      *
@@ -859,8 +844,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that $contains with a comma-separated string creates multiple
-     * whereJsonContains conditions.
+     * Test that a comma-separated $contains adds several JSON conditions.
      *
      * @return void
      *
@@ -919,8 +903,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that $contains with null exercises the isValidJson null path and the
-     * defensive catch inside applyJsonContains.
+     * Test that $contains with a null value is handled without error.
      *
      * @return void
      *
@@ -938,8 +921,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that applyEagerLoading returns early when fields resolve to an empty
-     * array.
+     * Test that eager loading returns early when the fields resolve to empty.
      *
      * @SuppressWarnings("php:S2014")
      *
@@ -983,8 +965,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that applyEagerLoading calls getResourceType on the metadata
-     * provider.
+     * Test that eager loading reads the resource type from the provider.
      *
      * @return void
      *
@@ -1024,7 +1005,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that applyEagerLoading calls resolveFields on the metadata provider.
+     * Test that eager loading resolves fields through the metadata provider.
      *
      * @return void
      *
@@ -1064,8 +1045,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that applyEagerLoading calls eagerLoadMapFor on the metadata
-     * provider.
+     * Test that eager loading calls eagerLoadMapFor on the provider.
      *
      * @return void
      *
@@ -1105,8 +1085,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that applyEagerLoading calls eagerLoadCountsFor on the metadata
-     * provider.
+     * Test that eager loading calls eagerLoadCountsFor on the provider.
      *
      * @return void
      *
@@ -1146,8 +1125,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that getResourceType returns null when the resolved resource class
-     * is not an ApiResource subclass.
+     * Test that getResourceType returns null for a non-ApiResource class.
      *
      * @return void
      */
@@ -1175,8 +1153,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that a resolved resource that is not an ApiResource subclass yields
-     * an empty query surface rather than being compiled as a schema.
+     * Test that a non-ApiResource class yields an empty query surface.
      *
      * @return void
      */
@@ -1195,8 +1172,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that the flat cost caps are enforced before the query is built, so
-     * an over-cost request never reaches the appliers.
+     * Test that the flat cost caps are enforced before any applier runs.
      *
      * @return void
      *
@@ -1239,8 +1215,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Build a criteria bound to a resource declaring a search surface, with a
-     * driver registered for the connection under test.
+     * Build a criteria bound to a resource declaring a search surface.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
      */
@@ -1261,8 +1236,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Build a criteria bound to a resource that declares no default metrics, so
-     * an asserted SQL string is the query the filters built and nothing more.
+     * Build a criteria bound to a resource with no default metrics.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
      */
@@ -1277,8 +1251,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Build a criteria bound to a resource declaring a document column, the
-     * only capability the containment operator is served from.
+     * Build a criteria bound to a resource declaring a document column.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
      */

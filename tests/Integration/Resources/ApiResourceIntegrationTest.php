@@ -87,7 +87,6 @@ final class ApiResourceIntegrationTest extends TestCase
 
         self::assertArrayHasKey('name', $data);
         self::assertArrayHasKey('status', $data);
-        // The id and _type are fixed fields
         self::assertArrayHasKey('id', $data);
         self::assertArrayHasKey('_type', $data);
     }
@@ -175,12 +174,10 @@ final class ApiResourceIntegrationTest extends TestCase
     }
 
     /**
-     * Test that sums and averages are computed via the real Eloquent aggregate
-     * path and surfaced in the response.
+     * Test that sums and averages resolve through the real aggregate path.
      *
-     * Exercises the full loadSum/loadAvg -> ValueResolver path against the
-     * database, so the alias used by EagerLoadPlanner must match the attribute
-     * the resolver reads back. Compares against a direct relation aggregate.
+     * The alias EagerLoadPlanner uses must match the attribute the resolver
+     * reads back.
      *
      * @return void
      */

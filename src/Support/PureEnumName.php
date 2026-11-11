@@ -7,12 +7,8 @@ namespace SineMacula\ApiToolkit\Support;
 /**
  * Owns the wire form of a pure (unbacked) enum case: its lowercase case name.
  *
- * A pure enum carries no backing value, so the API reads and writes each case
- * by its name lowercased, matched exactly so `PLATFORM` and `Platform` are
- * refused and the wire form stays canonical. Validation, payload hydration,
- * resource output and the exported documentation all resolve the form through
- * here, so they cannot drift apart. An enum whose case names collide once
- * lowercased has no unambiguous wire form and fails loud.
+ * Matched exactly, so PLATFORM and Platform are refused. Case names that
+ * collide once lowercased fail loud.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

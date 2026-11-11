@@ -79,7 +79,7 @@ final class ExportOpenApiCommandTest extends TestCase
 
     /**
      * Test that the command exports a non-empty document and reports the
-     * operation and resource counts, exit 0.
+     * operation and resource counts.
      *
      * @return void
      */
@@ -141,8 +141,8 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Test that an empty resource map does not block the export of documented
-     * non-resource operations.
+     * Test that an empty resource map does not block documented non-resource
+     * operations.
      *
      * @return void
      */
@@ -165,8 +165,8 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Test that --allow-empty writes a document with an empty paths object and
-     * warns, exit 0, when the audience documents no operations.
+     * Test that --allow-empty writes an empty paths object and warns when
+     * nothing is documented.
      *
      * @return void
      */
@@ -206,8 +206,7 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Test that the command falls back to the configured default output path
-     * when no option is supplied.
+     * Test that the command falls back to the configured default output path.
      *
      * @return void
      */
@@ -226,7 +225,7 @@ final class ExportOpenApiCommandTest extends TestCase
 
     /**
      * Test that an empty configured output path falls back to the default
-     * project path rather than being treated as a usable destination.
+     * project path.
      *
      * @return void
      */
@@ -249,10 +248,8 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Test that a document-write failure is surfaced as a non-zero outcome.
-     *
-     * The command has no try/catch around the write, so a failing writer port
-     * propagates its exception uncaught rather than reporting success.
+     * Test that a document-write failure propagates rather than reporting
+     * success.
      *
      * @return void
      */
@@ -288,7 +285,7 @@ final class ExportOpenApiCommandTest extends TestCase
 
     /**
      * Test that the command prints the no-database notice and still exports
-     * successfully when no database connection can be established.
+     * without a connection.
      *
      * @return void
      */
@@ -297,9 +294,7 @@ final class ExportOpenApiCommandTest extends TestCase
         $this->registerResourceMap();
         $this->registerDocumentedRoute();
 
-        // Point the default connection at an unconfigured name so the PDO probe
-        // fails, then restore it before teardown so the transactional refresh
-        // can roll back the real connection.
+        // An unconfigured connection fails the probe; restored before teardown
         $this->getConfig()->set('database.default', 'nonexistent');
 
         $notice = 'No database connection - field types and nullability are inferred from declared casts only; run against a database for the most accurate output.';
@@ -316,8 +311,8 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Test that the command does not print the no-database notice when a live
-     * connection is available.
+     * Test that the command does not print the no-database notice with a live
+     * connection.
      *
      * @return void
      */
@@ -332,8 +327,7 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Test that an unknown audience fails with a clear error and a non-zero
-     * exit code, writing nothing.
+     * Test that an unknown audience fails with a clear error, writing nothing.
      *
      * @return void
      */
@@ -368,8 +362,8 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Test that the --all flag writes one file per configured audience, each
-     * with the audience name injected before the extension.
+     * Test that --all writes one file per audience, with the audience name
+     * before the extension.
      *
      * @return void
      */
@@ -403,7 +397,7 @@ final class ExportOpenApiCommandTest extends TestCase
 
     /**
      * Test that --all reports each audience's counts from its own written
-     * document, so a resource pruned from an audience is not counted for it.
+     * document.
      *
      * @return void
      */
@@ -441,8 +435,8 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Test that an output path carrying no extension takes the audience name as
-     * a trailing suffix, so --all still writes one distinct file per audience.
+     * Test that an output path without an extension takes the audience name as
+     * a suffix.
      *
      * @return void
      */
@@ -475,8 +469,7 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Test that --all fails and writes no document, not even for the audiences
-     * that document operations, when any audience documents none.
+     * Test that --all writes no document when any audience documents nothing.
      *
      * @return void
      */
@@ -530,7 +523,7 @@ final class ExportOpenApiCommandTest extends TestCase
 
     /**
      * Test that --all with --allow-empty writes every audience, warning for the
-     * empty one and reporting the counts for the other.
+     * empty one.
      *
      * @return void
      */
@@ -600,8 +593,8 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Declare a blocklist public audience and an allowlist internal audience
-     * that no route opts into.
+     * Declare a blocklist public audience and an allowlist internal audience no
+     * route opts into.
      *
      * @return void
      */

@@ -66,17 +66,8 @@ use Tests\TestCase;
 /**
  * End-to-end validity test for the OpenAPI exporter.
  *
- * Exports the document for the fixture resource registry against real routes
- * and proves the headline success metric: the emitted document validates
- * against the official OpenAPI 3.1 meta-schema (via opis/json-schema). It then
- * asserts the remaining oracles end to end -- 3.1.x version, populated
- * components, one schema per resource, full operator vocabulary in the filter
- * parameter, every reference resolving to a component that exists, one response
- * per error code, an empty paths object for an audience with no route,
- * created_at as a date-time string, an opaque compute field flagged
- * x-undocumented, and a regenerate-after-change diff -- plus the per-audience
- * paths, route scoping, reachable-only schema filtering, and the command's
- * --audience / --all behaviour.
+ * The emitted document must validate against the official OpenAPI 3.1
+ * meta-schema.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -155,9 +146,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the committed Markdown manual is assembled into
-     * info.description end to end, and the document carrying it still validates
-     * as OpenAPI 3.1.
+     * Test that the docs manual lands in info.description and stays valid.
      *
      * @return void
      */
@@ -191,8 +180,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the emitted document validates against the OpenAPI 3.1
-     * meta-schema -- the 100% document-validity success metric.
+     * Test that the emitted document validates as OpenAPI 3.1.
      *
      * @return void
      */
@@ -211,9 +199,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a document carrying configured servers, including templated
-     * variables, an empty variables map, and an audience's own list, still
-     * validates as OpenAPI 3.1.
+     * Test that a document carrying configured servers stays valid.
      *
      * @return void
      */
@@ -251,8 +237,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the emitted document declares a 3.1.x version and a populated
-     * components block.
+     * Test that the document declares a 3.1.x version and populated components.
      *
      * @return void
      */
@@ -271,15 +256,15 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that an audience with no documented route emits an empty paths
-     * object rather than an array, keeping the document schema-valid.
+     * Test that an audience with no routes emits an empty paths object.
+     *
+     * An empty array would make the document schema-invalid.
      *
      * @return void
      */
     public function testAudienceWithNoDocumentedRoutesEmitsEmptyPathsObject(): void
     {
-        // The partner audience is an allowlist and no route opts into it, so it
-        // documents nothing even though the user routes are registered.
+        // The partner allowlist has no routes opted in, so it documents nothing
         $this->getConfig()->set('api-toolkit.openapi.audiences', [
             'public'  => [],
             'partner' => ['posture' => 'allowlist'],
@@ -297,9 +282,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that exactly one component schema is emitted per registered resource
-     * and, with every resource reached, the summary count matches the registry
-     * size.
+     * Test that one component schema is emitted per registered resource.
      *
      * @return void
      */
@@ -321,8 +304,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that every registered operator and structural operator appears in
-     * the emitted filter parameter.
+     * Test that every operator appears in the filter parameter.
      *
      * @return void
      */
@@ -346,9 +328,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the index operation reaches the query grammar end to end, so a
-     * generated client sees the parameters the components block defines rather
-     * than an operation carrying none.
+     * Test that the index operation references the shared query parameters.
      *
      * @return void
      */
@@ -366,9 +346,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that soft-delete visibility reaches the operations that can honour
-     * it and no others, so a generated client is offered the widening exactly
-     * where the model behind the read can be widened.
+     * Test that soft-delete visibility reaches only soft-deleting model reads.
      *
      * @return void
      */
@@ -387,8 +365,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that every parameter reference across every operation resolves to a
-     * defined component, so no operation dangles.
+     * Test that every parameter reference resolves to a defined component.
      *
      * @return void
      */
@@ -425,8 +402,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that every reference the document carries anywhere resolves to a
-     * component that exists, so nothing a generated client follows dangles.
+     * Test that every reference in the document resolves to a component.
      *
      * @return void
      */
@@ -438,8 +414,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $this->assertReferencesResolve($this->export()->document);
 
-        // The per-audience documents are the ones a reference can dangle in,
-        // the schemas being reduced to what that audience's paths reach.
+        // References can only dangle in the per-audience reduced documents
         $this->registerTwoAudiences();
 
         $this->assertReferencesResolve($this->export('public')->document);
@@ -447,9 +422,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a relation naming a resource no registered model maps to leaves
-     * no dangling reference behind, the walk above having nothing to catch
-     * unless such a relation is actually present.
+     * Test that a relation to an unregistered resource leaves no dangling ref.
      *
      * @return void
      */
@@ -457,9 +430,7 @@ final class OpenApiExporterValidityTest extends TestCase
     {
         $this->registerUserRoutes();
 
-        // The user resource relates to an organization and to posts; dropping
-        // both from the map leaves two relations naming components nothing
-        // builds.
+        // Dropping both related resources leaves two relations unbuilt
         $this->getConfig()->set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
 
         SchemaCompiler::clearCache();
@@ -478,9 +449,9 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the emitted document carries one error response per defined
-     * error code, covering the toolkit's own codes and any application
-     * exception discovered outside the toolkit.
+     * Test that one error response is emitted per defined error code.
+     *
+     * Application exceptions discovered outside the toolkit count too.
      *
      * @return void
      */
@@ -490,8 +461,7 @@ final class OpenApiExporterValidityTest extends TestCase
         $responses  = $document['components']['responses'];
         $errorCodes = ErrorCode::cases();
 
-        // The toolkit's own codes plus the discovered application exception
-        // fixture, which lives in a non-vendor PSR-4 root.
+        // The toolkit's codes plus the discovered application exception
         self::assertIsArray($responses);
         self::assertCount(count($errorCodes) + 1, $responses);
 
@@ -505,8 +475,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that an un-annotated timestamp field is inferred as a date-time
-     * string end to end.
+     * Test that an unannotated timestamp field is inferred as date-time.
      *
      * @return void
      */
@@ -517,15 +486,13 @@ final class OpenApiExporterValidityTest extends TestCase
         $document  = $this->export()->document;
         $createdAt = $document['components']['schemas']['User']['properties']['created_at'];
 
-        // The column is nullable, so the 2020-12 nullable type-array form is
-        // emitted; the date-time format is the signal either way.
+        // The column is nullable, so the type-array form is emitted
         self::assertContains('string', (array) $createdAt['type']);
         self::assertSame('date-time', $createdAt['format']);
     }
 
     /**
-     * Test that an opaque compute field with no declaration carries the
-     * x-undocumented marker and remains permissive.
+     * Test that an opaque compute field is flagged x-undocumented.
      *
      * @return void
      */
@@ -542,8 +509,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the shared response-envelope components (pagination schemas and
-     * the total-count header) are emitted and the document stays 3.1-valid.
+     * Test that the shared envelope components are emitted and stay valid.
      *
      * @return void
      */
@@ -568,8 +534,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that each resource schema carries a `_type` discriminator fixed to
-     * the resource's registered type and lists it as required, end to end.
+     * Test that each resource schema carries a required `_type` discriminator.
      *
      * @return void
      */
@@ -585,8 +550,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a to-one relation property emits a concrete single reference
-     * (cardinality-aware) rather than the conservative object-or-array shape.
+     * Test that a to-one relation emits a single reference.
      *
      * @return void
      */
@@ -601,8 +565,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that regenerating the document after a documented surface changes
-     * produces a different component, and the new document stays 3.1-valid.
+     * Test that regenerating after a surface change produces a diff.
      *
      * @return void
      */
@@ -612,8 +575,6 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $before = $this->export()->document['components']['schemas']['Organization'];
 
-        // Drop a resource from the registry and re-export: the previously
-        // documented surface is no longer present in the regenerated document.
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
             User::class => UserResource::class,
         ]);
@@ -633,8 +594,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the artisan command writes a non-empty 3.1-valid document and
-     * reports its operation and resource counts, exit 0.
+     * Test that the command writes a valid document and exits zero.
      *
      * @return void
      */
@@ -668,9 +628,10 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the opis-adapted meta-schema still rejects invalid documents,
-     * so the in-test compatibility transforms cannot silently hollow out the
-     * headline validity signal if opis or the meta-schema changes.
+     * Test that the opis-adapted meta-schema still rejects invalid documents.
+     *
+     * Guards the in-test transforms from silently hollowing out the validity
+     * check.
      *
      * @return void
      */
@@ -725,8 +686,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that registered routes surface as path operations with the correct
-     * REST responses for the exported audience, end to end.
+     * Test that registered routes surface as path operations for the audience.
      *
      * @return void
      */
@@ -750,8 +710,7 @@ final class OpenApiExporterValidityTest extends TestCase
             $paths['/users']['get']['responses']['200']['headers'],
         );
 
-        // The index 200 offers both pagination shapes as an anyOf; the whole
-        // document (validated below) proves that anyOf is valid OpenAPI 3.1.
+        // The whole document is validated below, proving the anyOf is valid
         $indexSchema = $paths['/users']['get']['responses']['200']['content']['application/json']['schema'];
 
         self::assertCount(2, $indexSchema['anyOf']);
@@ -775,10 +734,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that both a length-aware and a cursor page validate against the
-     * exported index 200 schema with its component references resolved, even
-     * though the length-aware page also satisfies the cursor envelope, while a
-     * page matching neither shape is rejected.
+     * Test that both pagination shapes validate against the index 200 schema.
      *
      * @return void
      */
@@ -839,9 +795,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a non-resource route (here an invokable controller) surfaces as
-     * a documented operation carrying the shared x-undocumented success
-     * envelope, and the emitted document stays valid OpenAPI 3.1.
+     * Test that a non-resource route emits a valid x-undocumented operation.
      *
      * @return void
      */
@@ -861,10 +815,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a non-resource route declaring a resource response body
-     * references that resource's component schema, that the component survives
-     * reachability filtering rather than dangling, and that the document stays
-     * valid OpenAPI 3.1.
+     * Test that a declared resource response keeps its referenced component.
      *
      * @return void
      */
@@ -886,10 +837,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a non-resource route declaring a union of a resource and a
-     * self-describing shape documents both in a oneOf, that the referenced
-     * resource component survives reachability filtering from inside the union,
-     * and that the document stays valid OpenAPI 3.1.
+     * Test that a declared response union keeps its referenced component.
      *
      * @return void
      */
@@ -914,9 +862,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a write route emits a requestBody translated from its rules
-     * source, value-list rule objects included, and the emitted document stays
-     * valid OpenAPI 3.1.
+     * Test that a write route emits a valid requestBody from its rules.
      *
      * @return void
      */
@@ -942,11 +888,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a write route whose rules refuse some fields documents a
-     * prohibited field as the false schema left out of the required list, keeps
-     * a conditionally prohibited field's other rules, encodes an unconstrained
-     * schema as an empty object rather than an array, and the emitted document
-     * stays valid OpenAPI 3.1.
+     * Test that prohibited and unconstrained fields emit valid schemas.
      *
      * @return void
      */
@@ -970,10 +912,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a write route whose rules relate fields by presence documents
-     * the confirmation and conditional requirements those rules express, the
-     * exported body schema enforces them, and the document stays valid OpenAPI
-     * 3.1.
+     * Test that presence rules emit valid requestBody constraints.
      *
      * @return void
      */
@@ -1006,9 +945,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a request field validated by the backed or the pure enum rule
-     * references an enum component listing the values the field accepts, and
-     * the document stays valid OpenAPI 3.1.
+     * Test that enum-validated request fields reference enum components.
      *
      * @return void
      */
@@ -1032,9 +969,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a request field validated by an enum rule narrowed with only()
-     * or except() lists the values it accepts inline, an empty list when it
-     * accepts none, and the document stays valid OpenAPI 3.1.
+     * Test that only()/except()-narrowed enum fields list their values inline.
      *
      * @return void
      */
@@ -1056,10 +991,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a write route whose rules address array fields by named keys
-     * exports each as the object and list forms the validator accepts, agrees
-     * with the validator on bodies sending either form, and the document stays
-     * valid OpenAPI 3.1.
+     * Test that keyed array fields emit valid request bodies.
      *
      * @return void
      */
@@ -1105,10 +1037,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that write routes whose rules key fields by list indices export them
-     * as object properties named by the index, leave an array's index child out
-     * of the array, accept a payload the rules accept and reject one missing a
-     * required index, and the document stays valid OpenAPI 3.1.
+     * Test that numeric rule keys emit valid request bodies.
      *
      * @return void
      */
@@ -1144,8 +1073,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a route excluded from an audience is absent from that
-     * audience's paths while remaining present in an audience documenting it.
+     * Test that a route excluded from an audience is absent from its paths.
      *
      * @return void
      */
@@ -1169,9 +1097,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a resource reachable only through a route excluded from the
-     * audience is dropped from that audience's component schemas while the
-     * reachable resource is retained.
+     * Test that audience schemas are filtered to reachable resources.
      *
      * @return void
      */
@@ -1196,9 +1122,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the shared pagination and error-envelope schemas survive the
-     * per-audience filtering even for an audience documenting a single leaf
-     * resource.
+     * Test that shared pagination and error schemas survive audience filtering.
      *
      * @return void
      */
@@ -1220,8 +1144,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the --all flag writes one valid document per configured
-     * audience, each scoped to its own routes.
+     * Test that --all writes one valid document per configured audience.
      *
      * @return void
      */
@@ -1260,8 +1183,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that --audience exports the named audience to the resolved output
-     * path, scoped to that audience's routes.
+     * Test that --audience exports the named audience to the resolved path.
      *
      * @return void
      */
@@ -1288,8 +1210,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that an unknown audience name fails with a clear error and a
-     * non-zero exit code.
+     * Test that an unknown audience fails with a clear error and non-zero exit.
      *
      * @return void
      */
@@ -1304,9 +1225,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that an authenticated route emits per-operation security and the
-     * matching securitySchemes component, and the document stays valid OpenAPI
-     * 3.1.
+     * Test that an authenticated route emits valid security components.
      *
      * @return void
      */
@@ -1334,9 +1253,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the resource REST responses survive full assembly: show and
-     * store wrap the User reference in the single envelope under 200 and 201,
-     * and destroy emits an empty 204 with no body.
+     * Test that the resource REST responses survive full assembly.
      *
      * @return void
      */
@@ -1363,10 +1280,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that an action's documented @throws surfaces as a per-operation
-     * error response end to end: show carries a 404 referencing the shared
-     * error envelope with the NotFoundException example, and store a 409 with
-     * the ConflictException example.
+     * Test that @throws-derived error responses survive assembly.
      *
      * @return void
      */
@@ -1394,9 +1308,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that declared success headers and the headers thrown exceptions
-     * declare survive assembly, and the document carrying them still validates
-     * as OpenAPI 3.1.
+     * Test that declared response headers survive assembly and stay valid.
      *
      * @return void
      */
@@ -1433,9 +1345,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that declared success statuses survive assembly, a no-content status
-     * with no body, and the document carrying them still validates as OpenAPI
-     * 3.1.
+     * Test that declared response statuses survive assembly and stay valid.
      *
      * @return void
      */
@@ -1495,10 +1405,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the baseline error statuses attach per REST action end to end:
-     * every authenticated, authorized action carries 401/403/500, an item read
-     * or write also 404, and a write also 422, merged with the throws-derived
-     * codes.
+     * Test that the baseline error statuses attach per REST action.
      *
      * @return void
      */
@@ -1523,9 +1430,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a to-many relation emits an array of references to the related
-     * component and that the referenced resource survives reachability
-     * filtering rather than dangling.
+     * Test that a to-many relation emits an array of references.
      *
      * @return void
      */
@@ -1546,9 +1451,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a nullable resource field emits the JSON Schema 2020-12
-     * nullable type union rather than the OpenAPI 3.0 nullable keyword, end to
-     * end.
+     * Test that a nullable field emits the 2020-12 nullable type union.
      *
      * @return void
      */
@@ -1564,9 +1467,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that the export runs without live column introspection: cast-backed
-     * and declared fields stay typed, a purely column-inferred scalar degrades
-     * to undocumented, and the document still validates as OpenAPI 3.1.
+     * Test that the export runs without live column introspection.
      *
      * @return void
      */
@@ -1586,18 +1487,15 @@ final class OpenApiExporterValidityTest extends TestCase
         $document = $this->export()->document;
         $schemas  = $document['components']['schemas'];
 
-        // A boolean cast keeps the field typed even without a backing column.
         self::assertSame(['type' => 'boolean'], $schemas['Post']['properties']['published']);
 
-        // A declared timestamp field keeps its nullable date-time contract.
         self::assertSame([
             'type'            => ['string', 'null'],
             'format'          => 'date-time',
             'x-query-surface' => ['sort' => ['key' => 'created_at', 'indexed' => true]],
         ], $schemas['User']['properties']['created_at']);
 
-        // A backed-enum cast documents as a reference to its named component
-        // even without a backing column, and that component is emitted.
+        // A backed-enum cast still references its emitted named component
         self::assertSame([
             '$ref'            => '#/components/schemas/UserStatus',
             'x-query-surface' => [
@@ -1618,8 +1516,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Create a temporary docs directory seeded with the given files, registered
-     * for teardown, and return its path.
+     * Create a temporary docs directory seeded with the files.
      *
      * @param  array<string, string>  $files
      * @return string
@@ -1668,8 +1565,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Validate a document array against the bundled (opis-adapted) OpenAPI 3.1
-     * meta-schema.
+     * Validate a document against the opis-adapted OpenAPI 3.1 meta-schema.
      *
      * @param  array<string, mixed>  $document
      * @return \Opis\JsonSchema\ValidationResult
@@ -1680,8 +1576,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Validate a response payload against the exported /users index 200 schema,
-     * resolving its component references within the document.
+     * Validate a payload against the exported /users index 200 schema.
      *
      * @param  array<string, mixed>  $document
      * @param  array<string, mixed>  $page
@@ -1693,8 +1588,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Validate a payload against the schema at a JSON pointer of the exported
-     * document, resolving its component references within the document.
+     * Validate a payload against the exported schema at a JSON pointer.
      *
      * @param  array<string, mixed>  $document
      * @param  string  $pointer
@@ -1718,8 +1612,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Validate a JSON request payload against the exported JSON body schema of
-     * the path's POST operation.
+     * Validate a JSON payload against the path's exported POST body schema.
      *
      * @param  array<string, mixed>  $document
      * @param  string  $path
@@ -1748,9 +1641,8 @@ final class OpenApiExporterValidityTest extends TestCase
     /**
      * Validate a raw JSON document string against the bundled meta-schema.
      *
-     * Decoding to objects (rather than associative arrays) preserves the
-     * distinction between an empty JSON object and an empty array, so the
-     * document's empty `paths` object stays an object and remains schema-valid.
+     * Decoding to objects keeps an empty `paths` object distinct from an empty
+     * array.
      *
      * @param  string  $json
      * @return \Opis\JsonSchema\ValidationResult
@@ -1761,10 +1653,10 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Build a validator with every bundled meta-schema registered, each adapted
-     * for opis, checking a uri-reference after substituting any server variable
-     * template in it with a name, or with a digit so a templated port also
-     * holds.
+     * Build a validator with every bundled meta-schema registered and adapted.
+     *
+     * A uri-reference is checked after substituting server variable templates
+     * with a name, or a digit so a templated port holds.
      *
      * @return \Opis\JsonSchema\Validator
      */
@@ -1802,12 +1694,11 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Apply the two opis/json-schema compatibility transforms in place: rewrite
-     * every `$dynamicRef: "#meta"` to a static `$ref` to the schema it resolves
-     * to under the schema-validating meta-schema, and relax every
-     * `unevaluatedProperties: false` to `true`. Both work around opis
-     * annotation/reference gaps without weakening any validity-bearing
-     * constraint; see the fixtures README.
+     * Apply the two opis/json-schema compatibility transforms in place.
+     *
+     * Rewrites `$dynamicRef: "#meta"` to a static `$ref` and relaxes
+     * `unevaluatedProperties: false` to `true`, working around opis gaps
+     * without weakening any validity constraint; see the fixtures README.
      *
      * @param  array<array-key, mixed>  $node
      * @return void
@@ -1865,8 +1756,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Assert every reference the document carries is local and resolves to a
-     * component that exists.
+     * Assert every reference is local and resolves to an existing component.
      *
      * @param  array<string, mixed>  $document
      * @return void
@@ -1916,8 +1806,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Resolve a local reference against the document, returning null when any
-     * segment of the pointer names something the document does not carry.
+     * Resolve a local reference against the document, or null when missing.
      *
      * @param  array<string, mixed>  $document
      * @param  string  $reference
@@ -1942,8 +1831,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * List the shared query-parameter component names the operation references,
-     * in the order it carries them.
+     * List the shared query-parameter component names the operation references.
      *
      * @param  array<array-key, mixed>  $operation
      * @return array<int, string>
@@ -1972,8 +1860,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Register a full REST route set for the user resource so the resource
-     * schemas are reachable from the exported paths.
+     * Register a full REST route set for the user resource.
      *
      * @return void
      */
@@ -1989,8 +1876,7 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Register the read routes of a controller reading a model that soft
-     * deletes.
+     * Register the read routes of a controller reading a soft-deleting model.
      *
      * @return void
      */

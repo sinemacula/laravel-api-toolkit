@@ -28,17 +28,8 @@ use Tests\TestCase;
 /**
  * Feature tests proving an unservable search fails closed over real HTTP.
  *
- * Every deployment defect the search layer refuses - an unregistered
- * connection, a strategy the driver does not implement, a strategy no index is
- * proved to serve on a connection that does not waive the proof, a strategy the
- * catalogue says no index is behind, and strategies the driver cannot serve
- * beside one another - is a plain runtime failure rather than a client mistake,
- * so it reaches the client as the unhandled 500 envelope and, above all,
- * without rows. A refusal that answered 200 with the unnarrowed table is the
- * silent failure the whole layer exists to remove, so each test asserts the
- * response carries no data at all, and the same request against a serviceable
- * deployment is driven alongside them so a route that failed for its own
- * reasons could not be mistaken for one of these refusals.
+ * Each deployment defect must answer the unhandled 500 envelope without rows,
+ * never 200 with the unnarrowed table.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -61,9 +52,8 @@ final class SearchDeploymentFailureHttpTest extends TestCase
     private const array ROWS = ['Highsmith', 'Blacksmith', 'Goldsmith', 'Jones'];
 
     /**
-     * Set up a serviceable deployment behind two repository-backed routes, one
-     * resource declaring a single match strategy and one declaring two, so each
-     * test breaks exactly one part of it.
+     * Set up a serviceable deployment behind single- and dual-strategy routes,
+     * so each test breaks one part of it.
      *
      * @return void
      */
@@ -102,8 +92,7 @@ final class SearchDeploymentFailureHttpTest extends TestCase
 
     /**
      * Test that a serviceable deployment answers the same request with the
-     * narrowed rows, so the refusals below are attributable to the defect each
-     * one introduces rather than to the route.
+     * narrowed rows.
      *
      * @return void
      */
@@ -121,9 +110,8 @@ final class SearchDeploymentFailureHttpTest extends TestCase
     }
 
     /**
-     * Test that a search on a connection carrying no registered driver fails as
-     * a server error rather than dropping the narrowing predicate and answering
-     * with the whole table.
+     * Test that a search on a connection with no registered driver fails as a
+     * server error.
      *
      * @return void
      */
@@ -143,7 +131,7 @@ final class SearchDeploymentFailureHttpTest extends TestCase
 
     /**
      * Test that a strategy the registered driver does not implement fails as a
-     * server error rather than being served by some other match shape.
+     * server error.
      *
      * @return void
      */
@@ -162,9 +150,8 @@ final class SearchDeploymentFailureHttpTest extends TestCase
     }
 
     /**
-     * Test that a driver which can prove nothing about the indexes behind a
-     * strategy fails as a server error on a connection that does not waive the
-     * proof.
+     * Test that a driver proving nothing about its indexes fails on a
+     * connection that does not waive the proof.
      *
      * @return void
      */
@@ -184,9 +171,8 @@ final class SearchDeploymentFailureHttpTest extends TestCase
     }
 
     /**
-     * Test that a catalogue carrying no index behind the declared strategy
-     * fails as a server error naming what is missing, rather than answering
-     * from a full table scan.
+     * Test that a catalogue with no index behind the declared strategy fails
+     * naming what is missing.
      *
      * @return void
      */
@@ -208,8 +194,8 @@ final class SearchDeploymentFailureHttpTest extends TestCase
     }
 
     /**
-     * Test that strategies the driver cannot serve beside one another fail as a
-     * server error carrying the whole reason, before any predicate is emitted.
+     * Test that strategies the driver cannot serve together fail before any
+     * predicate is emitted.
      *
      * @return void
      */
@@ -229,9 +215,8 @@ final class SearchDeploymentFailureHttpTest extends TestCase
     }
 
     /**
-     * Test that the refusal reaches a client of a production deployment as the
-     * unhandled envelope alone, carrying neither the rows the search was asked
-     * for nor the internals of the defect that refused it.
+     * Test that a production client receives only the unhandled envelope, with
+     * no rows or defect internals.
      *
      * @return void
      */
@@ -256,8 +241,8 @@ final class SearchDeploymentFailureHttpTest extends TestCase
     }
 
     /**
-     * Assert the response is the unhandled server-error envelope, that the
-     * named defect is what produced it, and that it carries no rows.
+     * Assert the response is the unhandled server-error envelope for the named
+     * defect, with no rows.
      *
      * @param  \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>  $response
      * @param  class-string<\Throwable>  $exception
@@ -320,8 +305,8 @@ final class SearchDeploymentFailureHttpTest extends TestCase
     }
 
     /**
-     * Return the engine the connection under test speaks, which is the name a
-     * driver is registered against.
+     * Return the engine of the connection under test, which a driver is
+     * registered against.
      *
      * @return string
      */
@@ -331,8 +316,8 @@ final class SearchDeploymentFailureHttpTest extends TestCase
     }
 
     /**
-     * Return the name of the connection under test, which is the name the
-     * waiver is keyed by.
+     * Return the name of the connection under test, which the waiver is keyed
+     * by.
      *
      * @return string
      */

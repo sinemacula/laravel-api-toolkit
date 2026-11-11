@@ -34,9 +34,8 @@ use Tests\TestCase;
 final class ResourceDiscoveryTest extends TestCase
 {
     /**
-     * Test that attributed resources are discovered recursively from the
-     * configured paths, in deterministic sorted-file order, while classes
-     * without the attribute are ignored.
+     * Test that attributed resources are discovered recursively in sorted-file
+     * order, ignoring classes without the attribute.
      *
      * @return void
      */
@@ -51,9 +50,8 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that an invalid binding - a non-resource class, an abstract
-     * resource, or a resource whose model does not exist - is skipped with a
-     * warning and never joins the map.
+     * Test that a non-resource class, an abstract resource or a resource with a
+     * missing model is skipped with a warning.
      *
      * @return void
      */
@@ -124,12 +122,11 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that files are visited in sorted order across the configured paths,
-     * so the first-discovered-wins conflict rule is deterministic regardless of
-     * path order.
+     * Test that files are visited in sorted order across paths, so the
+     * first-discovered binding wins regardless of path order.
      *
-     * The Conflict directory sorts before Primary, so its resource must win the
-     * User binding even though Primary is configured first.
+     * The Conflict directory sorts before Primary, so its resource wins
+     * although Primary is configured first.
      *
      * @return void
      */
@@ -161,11 +158,8 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that a scan root the iterator cannot open yields no bindings rather
-     * than propagating its failure, so a directory whose permissions change
-     * under a running scan cannot break resolution. The root holds a resource
-     * that would otherwise be discovered, so the empty result can only come
-     * from the failure being absorbed.
+     * Test that a scan root the iterator cannot open yields no bindings instead
+     * of propagating the failure.
      *
      * @return void
      */
@@ -218,9 +212,8 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that a compiled map is served as-is without scanning: the configured
-     * paths hold only invalid bindings, each of which a scan would report with
-     * a warning.
+     * Test that a compiled map is served without scanning, so the invalid
+     * bindings on the configured paths raise no warning.
      *
      * @return void
      */
@@ -298,9 +291,8 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that a compiled map removed after its existence check, as an
-     * optimize:clear racing a boot does, falls back to a scan rather than
-     * failing the boot.
+     * Test that a compiled map removed after its existence check, as by a
+     * racing optimize:clear, falls back to a scan.
      *
      * @return void
      */
@@ -369,10 +361,8 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that a model conflict is not diagnosed when the model is declared
-     * explicitly in the resource map: the explicit entry resolves the
-     * ambiguity, so no warning is logged and schema validation does not fail
-     * the scan.
+     * Test that no model conflict is reported, and schema validation passes,
+     * when the model is declared explicitly in the resource map.
      *
      * @return void
      */
@@ -445,9 +435,10 @@ final class ResourceDiscoveryTest extends TestCase
 
     /**
      * Test that a published config predating the paths key falls back to the
-     * default application resource directory rather than silently disabling
-     * discovery. The app path is redirected to an isolated temporary tree so
-     * the assertion is deterministic under parallel runs.
+     * default application resource directory.
+     *
+     * The app path is redirected to an isolated temporary tree so the test is
+     * deterministic under parallel runs.
      *
      * @return void
      */
@@ -490,15 +481,11 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that the null default resolves to the application resource directory
-     * plus each module's, so a modular application - which repoints app_path()
-     * at its module root - has its module resources discovered with no
-     * configuration.
+     * Test that the null default scans the application resource directory and
+     * each module's app_path('{Module}/Http/Resources').
      *
-     * A module's resources sit at app_path('{Module}/Http/Resources'), one
-     * level below the flat app_path('Http/Resources'); the default scan must
-     * reach that nested directory. The app path is redirected to an isolated
-     * temporary tree so the assertion is deterministic under parallel runs.
+     * The app path is redirected to an isolated temporary tree so the test is
+     * deterministic under parallel runs.
      *
      * @return void
      */
@@ -544,8 +531,7 @@ final class ResourceDiscoveryTest extends TestCase
 
     /**
      * Test that a file removed between enumeration and read yields no classes
-     * rather than aborting discovery, so a concurrent scan or a hot deploy
-     * swapping resources mid-scan cannot break resolution.
+     * instead of aborting discovery.
      *
      * @return void
      */
@@ -559,9 +545,8 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that every declared class in a multi-class, multi-namespace file is
-     * considered: both attributed resources bind, and a trailing unloadable
-     * class is skipped without disturbing the bindings already made.
+     * Test that both attributed resources in a multi-class, multi-namespace
+     * file bind and a trailing unloadable class is skipped.
      *
      * @return void
      */
@@ -639,9 +624,8 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that a non-PHP file encountered while walking a resource directory
-     * does not halt enumeration: a resource sitting beside a stray file is
-     * still discovered.
+     * Test that a stray non-PHP file in a resource directory does not halt
+     * enumeration.
      *
      * @return void
      */
@@ -672,9 +656,8 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that a class declared in the global namespace is resolved without a
-     * leading namespace separator, so the compiled name matches the value the
-     * autoloader and reflection expect.
+     * Test that a class in the global namespace resolves without a leading
+     * namespace separator.
      *
      * @return void
      */
@@ -699,9 +682,8 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that the namespace name is read from the token that abuts the
-     * keyword: a non-name token sitting immediately after namespace resolves to
-     * no name rather than skipping ahead to a later identifier.
+     * Test that the namespace name is read only from the token abutting the
+     * keyword.
      *
      * @return void
      */
@@ -710,16 +692,13 @@ final class ResourceDiscoveryTest extends TestCase
         $tokens = \PhpToken::tokenize('<?php namespace(Foo)');
         $method = new \ReflectionMethod(ResourceDiscovery::class, 'namespaceFromTokens');
 
-        // The keyword sits at index 1; the token at index 2 abuts it and is not
-        // a name token, so no namespace resolves. Beginning the scan a token
-        // later would wrongly read the identifier at index 3.
+        // The token at index 2 is not a name, so index 3 must never be read
         self::assertNull($method->invoke($this->discovery(), $tokens, 1));
     }
 
     /**
-     * Test that the declared class name is read from the token that abuts the
-     * keyword: a non-name token sitting immediately after class resolves to no
-     * declaration rather than skipping ahead to a later identifier.
+     * Test that the declared class name is read only from the token abutting
+     * the keyword.
      *
      * @return void
      */
@@ -728,16 +707,13 @@ final class ResourceDiscoveryTest extends TestCase
         $tokens = \PhpToken::tokenize('<?php class(Foo)');
         $method = new \ReflectionMethod(ResourceDiscovery::class, 'declaredNameFromTokens');
 
-        // The keyword sits at index 1; the token at index 2 abuts it and is not
-        // a name token, so no declaration resolves. Beginning the scan a token
-        // later would wrongly read the identifier at index 3.
+        // The token at index 2 is not a name, so index 3 must never be read
         self::assertNull($method->invoke($this->discovery(), $tokens, 1, null));
     }
 
     /**
-     * Test that a class keyword preceded by a double colon is treated as a
-     * class-constant reference and never as a declaration, even when an
-     * identifier token follows it.
+     * Test that a class keyword preceded by a double colon is a class-constant
+     * reference, never a declaration.
      *
      * @return void
      */
@@ -746,9 +722,7 @@ final class ResourceDiscoveryTest extends TestCase
         $tokens = \PhpToken::tokenize('<?php Foo::class Bar');
         $method = new \ReflectionMethod(ResourceDiscovery::class, 'declaredNameFromTokens');
 
-        // The class keyword sits at index 3, preceded by the double colon at
-        // index 2; the guard must short-circuit before the loop reads the
-        // trailing identifier at index 5.
+        // The double colon at index 2 must short-circuit before index 5 is read
         self::assertNull($method->invoke($this->discovery(), $tokens, 3, $tokens[2]));
     }
 

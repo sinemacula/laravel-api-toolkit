@@ -21,9 +21,8 @@ use SineMacula\ApiToolkit\Exceptions\UnservableSearchException;
 final class UnservableSearchExceptionTest extends TestCase
 {
     /**
-     * Test that the exception extends RuntimeException, so a driver that cannot
-     * serve a declared strategy is a deployment failure rather than a client
-     * error rendered as a rejection.
+     * Test that the exception extends RuntimeException, as a driver that cannot
+     * serve a declared strategy is a deployment failure.
      *
      * @return void
      */
@@ -52,9 +51,6 @@ final class UnservableSearchExceptionTest extends TestCase
      * Test that unproven index backing names the connection, the strategy, and
      * the configuration key that waives the proof.
      *
-     * The name carried through is the connection's own rather than the engine
-     * behind it, so the reader can copy it straight into the waiver.
-     *
      * @return void
      */
     public function testUnprovenIndexBackingNamesTheWaiverItNeeds(): void
@@ -70,7 +66,7 @@ final class UnservableSearchExceptionTest extends TestCase
 
     /**
      * Test that an unservable combination names the connection and carries the
-     * driver's whole reason for refusing the declared strategies together.
+     * driver's whole reason.
      *
      * @return void
      */
@@ -87,7 +83,7 @@ final class UnservableSearchExceptionTest extends TestCase
 
     /**
      * Test that a missing index names the connection, the strategy, and every
-     * defect the proof reported, joined so none of them is dropped.
+     * defect the proof reported.
      *
      * @return void
      */

@@ -7,12 +7,7 @@ namespace SineMacula\ApiToolkit\Http\Resources;
 use Illuminate\Http\Request;
 
 /**
- * The base API resource collection.
- *
- * This handles dynamic field filtering based on API query parameters. It
- * leverages a global query parser to determine which fields should be included
- * in the response. The shared response envelope - pagination meta/links and the
- * Total-Count header - is inherited from {@see ToolkitCollection}.
+ * Resource collection that applies the requested field selection to each item.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -57,8 +52,7 @@ final class ApiResourceCollection extends ToolkitCollection
     }
 
     /**
-     * Overrides the default fields and any requested fields with a provided
-     * set.
+     * Override the default and requested fields with the given set.
      *
      * @param  array<int, string>|null  $fields
      * @return self
@@ -71,7 +65,7 @@ final class ApiResourceCollection extends ToolkitCollection
     }
 
     /**
-     * Removes certain fields from the response.
+     * Remove the given fields from the response.
      *
      * @param  array<int, string>|null  $fields
      * @return self

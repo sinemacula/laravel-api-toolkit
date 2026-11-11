@@ -29,11 +29,6 @@ use Tests\TestCase;
 /**
  * Tests for the request-time index proof.
  *
- * The driver counts how often it was asked, so the memo and the shared answer
- * are proven by what reaches the connection rather than by what comes back from
- * it. A lifecycle boundary is crossed the way a worker crosses it: the
- * toolkit's flush, then the framework forgetting its scoped instances.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -46,9 +41,7 @@ final class IndexProofTest extends TestCase
     private const string DEFECT = 'no index over the declared columns';
 
     /**
-     * Test that the defects the driver reports per column are flattened to the
-     * distinct reasons behind them, so a reason the whole set carries is stated
-     * once rather than once per column.
+     * Test that per-column defects are flattened to their distinct reasons.
      *
      * @return void
      */
@@ -76,8 +69,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that the answer is memoised, so the catalogue is read once within an
-     * operation rather than once per search.
+     * Test that the answer is memoised within an operation.
      *
      * @return void
      */
@@ -92,8 +84,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that the answer outlives a lifecycle boundary, so the next request
-     * or job serving the same schema does not read the catalogue again.
+     * Test that the answer outlives a lifecycle boundary.
      *
      * @return void
      */
@@ -109,8 +100,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that a refusal outlives a lifecycle boundary too, so a missing index
-     * keeps refusing without the catalogue being read again.
+     * Test that a refusal outlives a lifecycle boundary.
      *
      * @return void
      */
@@ -146,8 +136,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that the shared answer is read again once its expiry lapses, which
-     * is what bounds an index changed outside a migration.
+     * Test that the shared answer is read again once its expiry lapses.
      *
      * @return void
      */
@@ -175,8 +164,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that the configured expiry is the one applied, whether it arrives as
-     * a number or as the string the environment carries.
+     * Test that the configured expiry applies, as a number or an env string.
      *
      * @param  int|string  $ttl
      * @return void
@@ -203,8 +191,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that reading the shared answer does not extend its expiry, so an
-     * index proof asked for continuously still reads the catalogue again.
+     * Test that reading the shared answer does not extend its expiry.
      *
      * @return void
      */
@@ -224,8 +211,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that invalidating the metadata retires a stored refusal, so an index
-     * a migration creates is proved by the next search.
+     * Test that invalidating the metadata retires a stored refusal.
      *
      * @return void
      */
@@ -245,8 +231,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that invalidating the metadata retires a stored acceptance, so an
-     * index a migration drops is refused by the next search.
+     * Test that invalidating the metadata retires a stored acceptance.
      *
      * @return void
      */
@@ -278,8 +263,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that a declaration differing in any part of its key is proved on its
-     * own, so one declaration's shared answer never stands in for another's.
+     * Test that a declaration differing in any part of its key is proved anew.
      *
      * @param  string  $table
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
@@ -300,8 +284,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that another driver serving the same declaration proves it on its
-     * own, so one driver's answer never stands in for another's.
+     * Test that another driver serving the same declaration proves it anew.
      *
      * @return void
      */
@@ -317,9 +300,9 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that a change to the shortest word a term may carry proves the
-     * declaration again, since one engine's proof compares its token size with
-     * that length.
+     * Test that changing the minimum word length proves the declaration again.
+     *
+     * One engine's proof compares its token size with that length.
      *
      * @return void
      */
@@ -350,8 +333,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that one connection name repointed at another tenant's schema is
-     * proved again, so one tenant's shared answer never answers for another's.
+     * Test that a connection repointed at another tenant is proved again.
      *
      * @param  array<string, string>  $change
      * @return void
@@ -375,9 +357,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that the proof follows the connection it is handed rather than the
-     * one registered under its name, so a resolver handing out another tenant's
-     * connection under the same name is proved again.
+     * Test that the proof follows the connection it is handed, not its name.
      *
      * @return void
      */
@@ -399,8 +379,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that an expiry of zero shares nothing, so the store is never written
-     * and the next operation reads the catalogue again.
+     * Test that an expiry of zero shares nothing.
      *
      * @return void
      */
@@ -423,8 +402,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that an expiry of zero never reaches the shared store at all, so a
-     * deployment that switched sharing off pays no store round trip for it.
+     * Test that an expiry of zero never reaches the shared store.
      *
      * @return void
      */
@@ -444,8 +422,9 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that the same connection on another engine is proved again, since
-     * the schema identity does not name the engine behind the connection.
+     * Test that the same connection on another engine is proved again.
+     *
+     * The schema identity does not name the engine behind the connection.
      *
      * @return void
      */
@@ -463,8 +442,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that a proof is written to the shared store under the proof's own
-     * key, which is what the expiry of zero is measured against.
+     * Test that a proof is written to the shared store under the proof key.
      *
      * @return void
      */
@@ -490,8 +468,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that an unusable configured expiry falls back to the default rather
-     * than sharing nothing or sharing forever.
+     * Test that an unusable configured expiry falls back to the default.
      *
      * @param  mixed  $ttl
      * @return void
@@ -518,8 +495,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that a proof the driver could not take is neither memoised nor
-     * shared, so the failure reaches the caller and the next search asks again.
+     * Test that a failed proof is neither memoised nor shared.
      *
      * @return void
      */
@@ -546,8 +522,7 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Test that clearing the memo reads the connection again when nothing is
-     * shared, which is what a cache flush has to guarantee there.
+     * Test that clearing the memo with sharing off reads the connection again.
      *
      * @return void
      */

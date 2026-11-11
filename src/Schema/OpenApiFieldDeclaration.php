@@ -7,13 +7,6 @@ namespace SineMacula\ApiToolkit\Schema;
 /**
  * Fluent carrier for an author-declared OpenAPI field contract.
  *
- * Returned by BaseDefinition::openapi(), it collects the declared type, format,
- * nullability, enumerated values, example, and description through chainable
- * setters, then freezes into an immutable OpenApiFieldSchema. The carrier is
- * additive: it exists only when openapi() is called and is omitted from the
- * definition's toArray() output otherwise, leaving that output unchanged for
- * definitions that declare no OpenAPI contract.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

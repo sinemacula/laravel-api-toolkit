@@ -12,9 +12,9 @@ namespace SineMacula\ApiToolkit\Enums;
  */
 enum FieldOrderingStrategy
 {
-    /** "_type" first, "id" second, others alphabetised, timestamps last. */
+    /** "_type" first, "id" second, others alphabetised, timestamps last */
     case DEFAULT;
 
-    /** Order resolved fields in the order they were requested. */
+    /** Order resolved fields in the order they were requested */
     case BY_REQUESTED_FIELDS;
 }

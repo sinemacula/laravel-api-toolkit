@@ -26,10 +26,6 @@ use Tests\TestCase;
 /**
  * Tests for the DerivesTabularSchema trait's transformer and guard handling.
  *
- * Proves that a transformed field mirrors the JSON value in the export, that a
- * request-scoped guard drops the whole column when it hides the field, and that
- * a field guarded per-item is refused at schema-build time.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -223,9 +219,8 @@ final class DerivesTabularSchemaTest extends TestCase
     }
 
     /**
-     * Test that a relation field encountered before a scalar field is skipped
-     * without abandoning the remaining fields, so the later scalar column is
-     * still built.
+     * Test that a relation field before a scalar field is skipped without
+     * abandoning the later scalar column.
      *
      * @return void
      */

@@ -11,9 +11,6 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 /**
  * Registry for operator token-to-handler mappings.
  *
- * Stores and resolves filter operator handlers keyed by their token string.
- * Supports registration, override, removal, and transparent closure wrapping.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -24,9 +21,6 @@ final class OperatorRegistry
 
     /**
      * Register a handler for the given operator token.
-     *
-     * Throws if the token is already registered. Use override() to replace an
-     * existing handler.
      *
      * @param  string  $token
      * @param  \Closure|\SineMacula\ApiToolkit\Contracts\FilterOperator  $operator
@@ -46,10 +40,7 @@ final class OperatorRegistry
     }
 
     /**
-     * Replace the handler for the given operator token unconditionally.
-     *
-     * If the token is not currently registered, this behaves identically to
-     * register().
+     * Register or replace the handler for the given operator token.
      *
      * @param  string  $token
      * @param  \Closure|\SineMacula\ApiToolkit\Contracts\FilterOperator  $operator
@@ -64,8 +55,6 @@ final class OperatorRegistry
 
     /**
      * Remove the handler for the given operator token.
-     *
-     * Removing a token that does not exist is a no-op.
      *
      * @param  string  $token
      * @return void

@@ -41,8 +41,7 @@ final class DocManualAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the section files are concatenated in filename (sorted) order,
-     * separated by a blank line, regardless of the order they were written.
+     * Test that section files are joined in sorted filename order.
      *
      * @return void
      */
@@ -59,8 +58,7 @@ final class DocManualAssemblerTest extends TestCase
     }
 
     /**
-     * Test that a missing docs directory yields an empty string rather than
-     * throwing, keeping the manual opt-in.
+     * Test that a missing docs directory yields an empty string.
      *
      * @return void
      */
@@ -86,8 +84,7 @@ final class DocManualAssemblerTest extends TestCase
     }
 
     /**
-     * Test that non-Markdown files are ignored, so only the section files
-     * contribute to the assembled manual.
+     * Test that non-Markdown files are ignored.
      *
      * @return void
      */
@@ -104,9 +101,7 @@ final class DocManualAssemblerTest extends TestCase
     }
 
     /**
-     * Test that an audience reads its own section files alongside the shared
-     * ones, ordered by filename across both, so a generated per-audience
-     * section still lands where its numeric prefix puts it.
+     * Test that an audience's sections interleave with shared ones by name.
      *
      * @return void
      */
@@ -125,8 +120,7 @@ final class DocManualAssemblerTest extends TestCase
     }
 
     /**
-     * Test that one audience never reads another's section files, which is the
-     * whole reason a section can be written per audience.
+     * Test that one audience never reads another's section files.
      *
      * @return void
      */
@@ -146,9 +140,7 @@ final class DocManualAssemblerTest extends TestCase
     }
 
     /**
-     * Test that an audience's file replaces a shared file of the same name, so
-     * a section moved to per-audience generation is never carried twice nor
-     * shadowed by the shared copy left behind.
+     * Test that an audience's file replaces a same-named shared file.
      *
      * @return void
      */
@@ -164,8 +156,7 @@ final class DocManualAssemblerTest extends TestCase
     }
 
     /**
-     * Test that naming no audience reads the shared files alone, so a caller
-     * with no audience in hand is never handed one audience's sections.
+     * Test that naming no audience reads the shared files alone.
      *
      * @return void
      */
@@ -175,8 +166,7 @@ final class DocManualAssemblerTest extends TestCase
 
         $this->writeAudienceFiles($dir, 'public', ['60-surface.md' => 'Public surface.']);
 
-        // A file dropped in the audiences directory itself belongs to no
-        // audience, so nothing reads it - naming no audience least of all.
+        // A file in the audiences directory itself belongs to no audience
         $this->writeFiles($dir . '/' . DocManualAssembler::AUDIENCE_DIRECTORY, ['90-stray.md' => 'Stray.']);
 
         $this->config()->set('api-toolkit.openapi.docs_path', $dir);
@@ -185,8 +175,7 @@ final class DocManualAssemblerTest extends TestCase
     }
 
     /**
-     * Test that an audience with no section directory of its own reads the
-     * shared files rather than nothing.
+     * Test that an audience without its own directory reads the shared files.
      *
      * @return void
      */
@@ -200,9 +189,7 @@ final class DocManualAssemblerTest extends TestCase
     }
 
     /**
-     * Test that a section file holding nothing but whitespace is dropped rather
-     * than joined as a blank section, so the sections either side of it stay
-     * exactly one blank line apart.
+     * Test that a whitespace-only section file is dropped.
      *
      * @return void
      */
@@ -220,9 +207,7 @@ final class DocManualAssemblerTest extends TestCase
     }
 
     /**
-     * Test that an entry the read cannot open - a directory named as a section
-     * file - is dropped rather than aborting the assembly, so the readable
-     * sections are still returned.
+     * Test that an unreadable entry is dropped without aborting the assembly.
      *
      * @return void
      */
@@ -238,8 +223,7 @@ final class DocManualAssemblerTest extends TestCase
     }
 
     /**
-     * Create a temporary docs directory seeded with the given files, registered
-     * for teardown, and return its path.
+     * Create a temporary docs directory seeded with the given files.
      *
      * @param  array<string, string>  $files
      * @return string
@@ -258,8 +242,7 @@ final class DocManualAssemblerTest extends TestCase
     }
 
     /**
-     * Write the given files into an audience's own section directory beneath
-     * the docs directory.
+     * Write the given files into an audience's own section directory.
      *
      * @param  string  $dir
      * @param  string  $audience

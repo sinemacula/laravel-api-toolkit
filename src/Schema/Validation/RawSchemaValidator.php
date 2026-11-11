@@ -7,11 +7,7 @@ namespace SineMacula\ApiToolkit\Schema\Validation;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 
 /**
- * Refuses a raw resource schema whose definitions declare a value the compiled
- * definitions cannot carry.
- *
- * A constraint must be a Closure, and the guard and transformer lists may hold
- * only callables. Every defect across the schema is reported at once.
+ * Refuses raw schema definitions the compiled definitions cannot carry.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -20,7 +16,7 @@ use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
  */
 final class RawSchemaValidator
 {
-    /** @var array<string, string> The callable lists a definition may declare, mapped to the label reported for an entry that is not callable */
+    /** @var array<string, string> Callable list keys mapped to the label reported for a defect */
     private const array CALLABLE_LISTS = ['guards' => 'Guard', 'transformers' => 'Transformer'];
 
     /**

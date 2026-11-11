@@ -69,9 +69,7 @@ final class OpenApiAssemblerTest extends TestCase
     private array $docsDirs = [];
 
     /**
-     * Set up each test with an absent docs directory, so the assembled info
-     * block never picks up a manual from the environment's resources and the
-     * info-configuration assertions stay independent of any published docs.
+     * Point the docs directory somewhere absent so no manual leaks in.
      *
      * @return void
      */
@@ -130,8 +128,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the assembled document's info block reflects the per-audience
-     * info configured for the resolved audience.
+     * Test that the info block reflects the resolved audience's info.
      *
      * @return void
      */
@@ -156,8 +153,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the assembled document's info block falls back to the top-level
-     * info default when the audience declares none.
+     * Test that the info block falls back to the top-level default.
      *
      * @return void
      */
@@ -178,9 +174,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the committed Markdown manual is injected into
-     * info.description, with the configured description leading and the manual
-     * following.
+     * Test that the manual follows the configured info description.
      *
      * @return void
      */
@@ -199,8 +193,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the manual becomes the whole description when no description is
-     * configured for the audience.
+     * Test that the manual is the whole description when none is configured.
      *
      * @return void
      */
@@ -216,8 +209,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that info carries no description when neither a description is
-     * configured nor a docs directory exists, keeping the info block valid.
+     * Test that info has no description without a configured one or docs.
      *
      * @return void
      */
@@ -232,8 +224,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the document declares no path operations, so the package never
-     * crosses the components/paths seam.
+     * Test that the document declares no path operations.
      *
      * @return void
      */
@@ -246,8 +237,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the paths value serialises to an empty JSON object rather than
-     * an array, keeping the document schema-valid.
+     * Test that an empty paths value serialises to a JSON object.
      *
      * @return void
      */
@@ -259,9 +249,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that a request field whose rules give no constraint serialises to an
-     * empty JSON object rather than an array, keeping the document
-     * schema-valid.
+     * Test that an unconstrained request field serialises to a JSON object.
      *
      * @return void
      */
@@ -276,8 +264,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the components block is populated with schemas, parameters, and
-     * responses.
+     * Test that the components block is populated.
      *
      * @return void
      */
@@ -291,8 +278,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the resource schemas reachable from the audience's paths appear
-     * under components.schemas alongside the shared error-envelope schema.
+     * Test that reachable resource schemas appear beside the error envelope.
      *
      * @return void
      */
@@ -309,9 +295,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that an enum referenced by a reachable resource field is emitted as
-     * its own component, typed by its backing type, and survives reachability
-     * filtering because the resource schema references it.
+     * Test that a reachable enum is emitted as its own typed component.
      *
      * @return void
      */
@@ -332,8 +316,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the shared response-envelope pagination schemas are emitted
-     * under components.schemas.
+     * Test that the pagination envelope schemas are emitted.
      *
      * @return void
      */
@@ -349,10 +332,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that an index operation offers both pagination shapes as an anyOf of
-     * the length-aware and cursor collection envelopes, and that the cursor
-     * envelope's schemas survive the reachability filtering now a path
-     * references them.
+     * Test that an index offers both pagination envelopes, both retained.
      *
      * @return void
      */
@@ -382,8 +362,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that components.securitySchemes carries exactly the distinct schemes
-     * referenced by the assembled paths, each with its correct definition.
+     * Test that securitySchemes carries exactly the referenced schemes.
      *
      * @return void
      */
@@ -407,8 +386,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that a document whose paths reference no auth scheme omits the
-     * securitySchemes key entirely, keeping the components block valid.
+     * Test that securitySchemes is omitted when no path references a scheme.
      *
      * @return void
      */
@@ -423,8 +401,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the reusable total-count header is emitted under
-     * components.headers.
+     * Test that the total-count header is emitted under components.headers.
      *
      * @return void
      */
@@ -437,8 +414,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the shared query-parameter vocabulary is emitted once under
-     * components.parameters.
+     * Test that the query-parameter vocabulary is emitted once.
      *
      * @return void
      */
@@ -454,8 +430,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that each error code yields a reusable response under
-     * components.responses.
+     * Test that each error code yields a reusable response.
      *
      * @return void
      */
@@ -468,8 +443,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the assembled document serialises to valid JSON, proving it is
-     * a plain associative array ready for the output port.
+     * Test that the assembled document serialises to valid JSON.
      *
      * @return void
      */
@@ -482,8 +456,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that a non-empty audience argument is honoured verbatim rather than
-     * being coerced to the configured default audience.
+     * Test that a non-empty audience argument is honoured verbatim.
      *
      * @return void
      */
@@ -502,8 +475,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that an operation naming two single-scheme security requirements
-     * contributes both schemes to the components block, not just one.
+     * Test that two security requirements contribute both schemes.
      *
      * @return void
      */
@@ -521,8 +493,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the shared error-envelope schema is retained even when the
-     * audience documents no paths that could reference it.
+     * Test that the error envelope is kept even without any paths.
      *
      * @return void
      */
@@ -535,8 +506,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the configured servers are exported in order, with their
-     * descriptions and variables intact, between the info block and the paths.
+     * Test that configured servers are exported in order, intact.
      *
      * @return void
      */
@@ -560,8 +530,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that an audience's own servers replace the global list for that
-     * audience's document only.
+     * Test that an audience's own servers replace the global list.
      *
      * @return void
      */
@@ -583,8 +552,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that no servers key is exported when none are configured, nor when
-     * the audience overrides the global list with an empty one.
+     * Test that no servers key is exported when the list is empty.
      *
      * @return void
      */
@@ -599,8 +567,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that a server without a string url fails the export with a message
-     * naming the entry.
+     * Test that a server without a string url fails the export.
      *
      * @return void
      */
@@ -615,9 +582,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that a resource whose component name is also a shared envelope
-     * schema's name fails the export, naming both sources, rather than having
-     * its schema silently replaced by the envelope.
+     * Test that a resource named like an envelope schema fails the export.
      *
      * @return void
      */
@@ -635,8 +600,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Create a temporary docs directory seeded with the given files, registered
-     * for teardown, and return its path.
+     * Create a temporary docs directory seeded with the given files.
      *
      * @param  array<string, string>  $files
      * @return string
@@ -657,8 +621,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Assemble a document from real builders backed by a stubbed catalogue and
-     * a real resolver against the live test schema.
+     * Assemble a document from real builders over a stubbed catalogue.
      *
      * @return array<string, mixed>
      */
@@ -668,9 +631,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Assemble a document for an allowlist audience no route opts into, so the
-     * paths object is genuinely empty even with the framework's default routes
-     * registered.
+     * Assemble a document for an allowlist audience no route opts into.
      *
      * @return array<string, mixed>
      */
@@ -684,8 +645,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Build an assembler from the real builders over a catalogue exposing the
-     * resource map.
+     * Build an assembler from the real builders over the resource map.
      *
      * @param  array<class-string, class-string>  $resourceMap
      * @return \SineMacula\ApiToolkit\OpenApi\OpenApiAssembler
@@ -729,8 +689,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Register a full REST route set for the user resource so its schema is
-     * reachable from the assembled paths.
+     * Register a full REST route set for the user resource.
      *
      * @return void
      */
@@ -786,8 +745,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Build a stubbed catalogue exposing the resource map, the operator
-     * vocabulary, and a single error descriptor.
+     * Build a stubbed catalogue with resources, operators and one error.
      *
      * @param  array<class-string, class-string>  $resourceMap
      * @return \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue
@@ -806,8 +764,7 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Build a real field-type resolver against the container-bound
-     * introspector.
+     * Build a real field-type resolver against the bound introspector.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
      * @return \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver

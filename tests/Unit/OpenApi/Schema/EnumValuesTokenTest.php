@@ -32,8 +32,7 @@ final class EnumValuesTokenTest extends TestCase
     }
 
     /**
-     * Test that a token's argument reads back as exactly the values it was
-     * built from, an empty list included.
+     * Test that a token's argument reads back as its original values.
      *
      * @return void
      */
@@ -63,8 +62,7 @@ final class EnumValuesTokenTest extends TestCase
     }
 
     /**
-     * Test that an argument not holding a list of integer or string values
-     * reads as null.
+     * Test that an argument not holding an int or string list reads as null.
      *
      * @param  string  $argument
      * @return void

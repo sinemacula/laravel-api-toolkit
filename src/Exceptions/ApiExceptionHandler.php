@@ -31,10 +31,7 @@ use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
 /**
- * API exception handler.
- *
- * Handles all API exceptions, ensuring they are properly formatted for API
- * responses.
+ * Renders exceptions as API error responses.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -102,16 +99,11 @@ final class ApiExceptionHandler
             return null;
         }
 
-        // In auto mode, defer to Laravel's default rendering when the request
-        // does not expect JSON and debug mode is enabled
+        // Auto mode leaves non-JSON requests in debug to Laravel's renderer
         if ($strategy === 'auto' && !$request->expectsJson() && (bool) Config::get('app.debug')) {
             return null;
         }
 
-        // If the exception is not already an App Exception, then determine what
-        // it is and return the relevant custom exception. Any exceptions that
-        // are not matched will just be returned as a 'general error' i.e. an
-        // unhandled exception
         if (!$exception instanceof ApiException) {
             $exception = self::mapApiException($exception);
         }
@@ -144,11 +136,6 @@ final class ApiExceptionHandler
     /**
      * Resolve the API exception class that the given throwable maps to.
      *
-     * The first source-type the throwable is an instance of wins, so the order
-     * of the map is significant: more specific source types must precede the
-     * broader interfaces they extend. Anything unmatched falls back to the
-     * unhandled exception.
-     *
      * @param  \Throwable  $exception
      * @return class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>
      */
@@ -166,15 +153,14 @@ final class ApiExceptionHandler
     /**
      * The ordered map of source exception types to their API exception class.
      *
-     * Ordering is significant: entries are evaluated top-to-bottom and the
-     * first match wins, so more specific types precede the broader interfaces
-     * they implement.
+     * The first match wins, so specific types precede the interfaces they
+     * implement.
      *
      * @return array<class-string<\Throwable>, class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
      */
     private static function exceptionMap(): array
     {
-        // @phpstan-ignore return.type (values are class-strings; PHPStan widens the large map literal to string)
+        // @phpstan-ignore return.type
         return [
             NotFoundHttpException::class           => NotFoundException::class,
             BackedEnumCaseNotFoundException::class => NotFoundException::class,
@@ -209,9 +195,7 @@ final class ApiExceptionHandler
      */
     private static function mapGenericHttpException(SymfonyHttpExceptionInterface $exception, ?array $meta, array $headers): ApiException
     {
-        // Laravel's handler converts session token mismatches to a generic 419
-        // HttpException before render callbacks run; 419 has no HttpStatus
-        // case, so map it back to the dedicated exception
+        // Laravel converts token mismatches to a generic 419 before rendering
         if ($exception->getStatusCode() === 419) {
             return new TokenMismatchException($meta, $headers, $exception);
         }

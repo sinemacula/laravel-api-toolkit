@@ -6,23 +6,13 @@ use SineMacula\ApiToolkit\Enums\ErrorCode;
 
 return [
 
-    /*
-    |---------------------------------------------------------------------------
-    | General Errors
-    |---------------------------------------------------------------------------
-    */
-
+    // General errors
     ErrorCode::UNHANDLED_ERROR->getCode() => [
         'title'  => 'Unknown Error',
         'detail' => 'Oh no! Something has gone wrong!',
     ],
 
-    /*
-    |---------------------------------------------------------------------------
-    | HTTP Errors
-    |---------------------------------------------------------------------------
-    */
-
+    // HTTP errors
     ErrorCode::BAD_REQUEST->getCode() => [
         'title'  => 'Bad Request',
         'detail' => 'There was an issue with the request, please try again',
@@ -88,19 +78,12 @@ return [
         'detail' => 'The service is temporarily unavailable, please try again a little later',
     ],
 
-    // No title is defined for the generic HTTP error; the handler derives it
-    // from the runtime HTTP status so the response reflects the original status
-    // phrase (e.g. "Conflict" for an abort(409))
+    // No title: the handler derives it from the runtime HTTP status
     ErrorCode::HTTP_ERROR->getCode() => [
         'detail' => 'The request could not be completed',
     ],
 
-    /*
-    |---------------------------------------------------------------------------
-    | App Errors
-    |---------------------------------------------------------------------------
-    */
-
+    // Application errors
     ErrorCode::MAINTENANCE_MODE->getCode() => [
         'title'  => 'Maintenance Mode',
         'detail' => (is_string($name = config('app.name')) ? $name : 'The application') . ' is currently in maintenance mode, please try again a little later',
@@ -111,18 +94,9 @@ return [
         'detail' => 'The query exceeds a limit on how much work a single request may ask for, please narrow it and try again',
     ],
 
-    /*
-    |---------------------------------------------------------------------------
-    | Status-Derived Titles
-    |---------------------------------------------------------------------------
-    |
-    | Titles for the generic HTTP error path are derived from the HTTP status
-    | enum case name by default. Publish per-status overrides here to localise
-    | them, keyed by status code (e.g. 404 => 'Introuvable'). The unknown key
-    | covers exceptions whose status has no enum case.
-    |
-    */
-
+    // Generic HTTP error titles, keyed by status code (e.g. 404 => 'Not Found')
+    // to override the status-derived default; 'unknown' covers a status with no
+    // enum case
     'http' => [
         'unknown' => 'Unknown Error',
     ],

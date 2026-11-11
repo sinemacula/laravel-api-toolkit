@@ -27,8 +27,7 @@ use Tests\TestCase;
 final class RequestBodyResolverTest extends TestCase
 {
     /**
-     * Test that a directive-named source resolves a required JSON body carrying
-     * the translated schema.
+     * Test that a directive-named source resolves a required JSON body.
      *
      * @return void
      */
@@ -44,8 +43,7 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that a type-hinted Payload parameter is discovered and documented as
-     * the exact schema its own rules() translate to.
+     * Test that a type-hinted Payload parameter is discovered.
      *
      * @return void
      */
@@ -91,8 +89,7 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that an action with neither a directive nor a rules-source parameter
-     * resolves to null.
+     * Test that an action without a directive or rules source has no body.
      *
      * @return void
      */
@@ -102,8 +99,7 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that a source carrying a binary field is served as multipart form
-     * data.
+     * Test that a source with a binary field is served as multipart.
      *
      * @return void
      */
@@ -117,8 +113,7 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that a FormRequest whose rules() throws degrades to no body rather
-     * than surfacing the failure.
+     * Test that a FormRequest whose rules() throws documents no body.
      *
      * @return void
      */
@@ -128,8 +123,7 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that a closure route, which has no controller class, resolves to
-     * null.
+     * Test that a closure route resolves to null.
      *
      * @return void
      */
@@ -139,8 +133,7 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that a type-hinted FormRequest source is instantiated and documented
-     * as the exact schema its rules() translate to.
+     * Test that a type-hinted FormRequest source is discovered.
      *
      * @return void
      */
@@ -166,9 +159,7 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that a FormRequest also declaring static rules is read through its
-     * static rules rather than its throwing constructor, documenting the static
-     * schema.
+     * Test that a FormRequest with static rules is read through them.
      *
      * @return void
      */
@@ -193,8 +184,7 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that a FormRequest whose rules() yields a non-array value degrades
-     * to no documented body.
+     * Test that a FormRequest whose rules() is not an array has no body.
      *
      * @return void
      */
@@ -204,8 +194,7 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that a parameter whose type is not a single named class names no
-     * rules source and resolves to null.
+     * Test that a parameter not typed as a single class resolves to null.
      *
      * @return void
      */
@@ -215,8 +204,7 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that every discovery path documents a byte-identical body from one
-     * shared rule set, the equivalence oracle across the four input flows.
+     * Test that every discovery path documents a byte-identical body.
      *
      * @return void
      */
@@ -250,8 +238,7 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that a rules source describing a top-level list, whose translated
-     * schema carries no named property, documents no body.
+     * Test that a top-level list rules source documents no body.
      *
      * @return void
      */
@@ -265,8 +252,7 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
-     * Test that a directive naming a class that is neither a self-describing
-     * input nor a FormRequest documents no body.
+     * Test that a directive naming an unusable class documents no body.
      *
      * @return void
      */

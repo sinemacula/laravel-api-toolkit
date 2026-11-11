@@ -7,13 +7,6 @@ namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 /**
  * Immutable descriptor for a single error code's OpenAPI contract.
  *
- * Carries the integer error code, its resolved HTTP status, and the canonical
- * title and detail strings sourced from the package language file. Consumed by
- * the error-response builder to assemble the components.responses section of
- * the emitted document. The owning exception class is carried so the
- * documentation can group errors by the module the exception belongs to, and is
- * null for a code with no discoverable owning exception.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

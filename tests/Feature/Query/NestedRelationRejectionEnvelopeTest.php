@@ -21,14 +21,10 @@ use Tests\Fixtures\Resources\PostResource;
 use Tests\TestCase;
 
 /**
- * Feature tests proving a nested-relation rejection renders as a 422 envelope.
+ * Feature tests for a nested-relation rejection rendering as a 422 envelope.
  *
- * A ValidationException raised deep inside a traversed relation - an undeclared
- * column on the related resource, or an onward traversal the related resource
- * never declared - must unwind out of the whereHas closure mid-pagination and
- * render as the toolkit 422 envelope keyed on the offending nested field, not
- * escape the kernel as a 500. Both the undeclared-column and the
- * undeclared-traversal cases are driven through a real request.
+ * The exception has to unwind out of the whereHas closure mid-pagination
+ * without escaping as a 500.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -44,8 +40,7 @@ final class NestedRelationRejectionEnvelopeTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up each test with a users route, the Post resource map, and seeded
-     * users and posts.
+     * Set up a users route, the Post resource map, and seeded users and posts.
      *
      * @return void
      */
@@ -73,8 +68,8 @@ final class NestedRelationRejectionEnvelopeTest extends TestCase
     }
 
     /**
-     * Test that an undeclared column on a traversed relation renders as a 422
-     * envelope keyed on the nested column, not a 500.
+     * Test that an undeclared column on a traversed relation renders a 422
+     * keyed on the nested column.
      *
      * @return void
      */
@@ -92,8 +87,8 @@ final class NestedRelationRejectionEnvelopeTest extends TestCase
     }
 
     /**
-     * Test that an undeclared onward traversal renders as a 422 envelope keyed
-     * on the nested relation, not a 500.
+     * Test that an undeclared onward traversal renders a 422 keyed on the
+     * nested relation.
      *
      * @return void
      */

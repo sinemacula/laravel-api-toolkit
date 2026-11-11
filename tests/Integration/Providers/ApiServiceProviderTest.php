@@ -91,8 +91,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the package neither adds log channels nor merges anything into
-     * a channel the application already defines.
+     * Test that the package neither adds nor merges into log channels.
      *
      * @return void
      */
@@ -146,7 +145,6 @@ final class ApiServiceProviderTest extends TestCase
 
         self::assertInstanceOf(ApiQueryParser::class, $parser);
 
-        // Same instance on second resolve (singleton)
         self::assertSame($parser, $app->make($alias));
     }
 
@@ -165,9 +163,9 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the toolkit's PreventRequestsDuringMaintenance middleware takes
-     * the framework middleware's place in the global stack when enabled
-     * (default), so it still runs after HandleCors.
+     * Test that the toolkit maintenance middleware replaces the framework's.
+     *
+     * It must keep the framework's slot after HandleCors.
      *
      * @return void
      */
@@ -184,8 +182,6 @@ final class ApiServiceProviderTest extends TestCase
 
         self::assertIsInt($cors);
 
-        // It should sit directly after HandleCors, where the framework places
-        // its own maintenance middleware
         self::assertSame(PreventRequestsDuringMaintenance::class, $middleware[$cors + 1] ?? null);
     }
 
@@ -221,8 +217,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the services config section reads the correlation id from the
-     * X-Request-Id header by default.
+     * Test that the correlation id is read from X-Request-Id by default.
      *
      * @return void
      */
@@ -232,8 +227,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test backward compatibility: default config produces the same behavior as
-     * the previous version.
+     * Test that the default config registers the expected middleware.
      *
      * @return void
      */
@@ -245,14 +239,11 @@ final class ApiServiceProviderTest extends TestCase
         $kernel = $app->make(HttpKernel::class);
         $global = $kernel->getGlobalMiddleware();
 
-        // Maintenance mode middleware replaces the framework's in its position
         self::assertContains(PreventRequestsDuringMaintenance::class, $global);
         self::assertNotContains(FrameworkMaintenance::class, $global);
 
-        // JsonPrettyPrint is in the global stack
         self::assertContains(JsonPrettyPrint::class, $global);
 
-        // Throttle alias is set
         /** @var \Illuminate\Routing\Router $router */
         $router     = $app->make(Router::class);
         $middleware = $router->getMiddleware();
@@ -283,25 +274,17 @@ final class ApiServiceProviderTest extends TestCase
     {
         $app = $this->getApplication();
 
-        // Create a fresh app with notifications disabled
         $this->getConfig()->set('api-toolkit.notifications.enable_logging', false);
 
-        // Re-register with new config by creating a fresh provider
         $provider = new ApiServiceProvider($app);
         $provider->register();
 
-        // We can check that the current listeners include the notification ones
-        // (they were already registered in setUp, but this test validates the
-        // config gate)
+        // Smoke test only: re-registering with logging disabled must not throw
         self::assertTrue(true);
     }
 
     /**
      * Test that registerNotificationLogging returns early when disabled.
-     *
-     * This test exercises the early-return branch inside
-     * registerNotificationLogging() directly via a fresh provider instance
-     * booted with logging disabled.
      *
      * @return void
      */
@@ -314,13 +297,11 @@ final class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        // If we reach here the early-return executed without error.
         self::assertFalse((bool) $this->getConfig()->get('api-toolkit.notifications.enable_logging'));
     }
 
     /**
-     * Test that boot merges attribute-discovered resources beneath the
-     * configured resource map, with an explicit entry winning for its model.
+     * Test that boot merges discovered resources beneath the configured map.
      *
      * @return void
      */
@@ -361,9 +342,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the discovery merge is skipped while the config cache is being
-     * built, directly or by optimize, and while the compiled resource map is
-     * rebuilt or cleared, directly or by optimize:clear.
+     * Test that the discovery merge is skipped while caches build or clear.
      *
      * @param  array<int, string>  $argv
      * @return void
@@ -399,8 +378,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that every other invocation keeps the discovery merge, including one
-     * whose argument value merely reads a cache build command.
+     * Test that every other invocation keeps the discovery merge.
      *
      * @param  array<int, string>|null  $argv
      * @return void
@@ -420,9 +398,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that a request outside the console keeps the discovery merge even
-     * when its arguments, filled from the query string, read a cache build
-     * command.
+     * Test that a web request keeps the discovery merge whatever its arguments.
      *
      * @return void
      */
@@ -451,8 +427,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that rebuilding the resource map in the process that merged a stale
-     * compiled map still reports a conflict on the contested model.
+     * Test that a rebuild over a stale compiled map still reports conflicts.
      *
      * @return void
      */
@@ -474,8 +449,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that a compiled map binding a resource that can no longer resolve
-     * its type does not block its own rebuild.
+     * Test that a stale compiled map does not block its own rebuild.
      *
      * @return void
      */
@@ -500,8 +474,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that boot registers the derived morph aliases when dynamic mapping
-     * is enabled, without requiring a morph map.
+     * Test that boot registers derived morph aliases when enabled.
      *
      * @return void
      */
@@ -543,8 +516,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that boot registers the morph aliases after the discovery merge, so
-     * discovered resources are aliased too.
+     * Test that boot registers morph aliases for discovered resources too.
      *
      * @return void
      */
@@ -565,8 +537,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the OperatorRegistry is registered as a singleton with built-in
-     * operators.
+     * Test that the OperatorRegistry is a singleton with built-in operators.
      *
      * @return void
      */
@@ -577,10 +548,8 @@ final class ApiServiceProviderTest extends TestCase
 
         self::assertInstanceOf(OperatorRegistry::class, $registry);
 
-        // Same instance on second resolve (singleton)
         self::assertSame($registry, $app->make(OperatorRegistry::class));
 
-        // Built-in operators are pre-registered
         self::assertTrue($registry->has('$eq'));
         self::assertTrue($registry->has('$neq'));
         self::assertTrue($registry->has('$gt'));
@@ -598,9 +567,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that every shipped operator token is permitted by at least one
-     * capability, so an operator cannot be registered without the declaration
-     * matrix deciding which columns may reach it.
+     * Test that every shipped operator token is permitted by some capability.
      *
      * @return void
      */
@@ -637,7 +604,7 @@ final class ApiServiceProviderTest extends TestCase
         $provider->register();
         $provider->boot();
 
-        // Boot completed without exception — valid schemas passed validation
+        // Boot did not throw, so the valid schemas passed validation
         self::assertTrue(true);
     }
 
@@ -659,7 +626,7 @@ final class ApiServiceProviderTest extends TestCase
         $provider->register();
         $provider->boot();
 
-        // Boot completed without calling validator — config gate works
+        // Smoke test only: boot completes with schema validation disabled
         self::assertFalse((bool) $this->getConfig()->get('api-toolkit.resources.validate_schemas'));
     }
 
@@ -697,7 +664,6 @@ final class ApiServiceProviderTest extends TestCase
 
         self::assertInstanceOf(SchemaValidator::class, $validator);
 
-        // Same instance on second resolve (singleton)
         self::assertSame($validator, $app->make(SchemaValidator::class));
     }
 
@@ -744,8 +710,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that registering the provider hooks the resource commands into
-     * optimize and optimize:clear under the package key.
+     * Test that registering the provider hooks the resource optimize commands.
      *
      * @return void
      */
@@ -754,8 +719,7 @@ final class ApiServiceProviderTest extends TestCase
         $optimize = ServiceProvider::$optimizeCommands;
         $clear    = ServiceProvider::$optimizeClearCommands;
 
-        // The registry is static and outlives each test application, so an
-        // earlier registration must not satisfy this one.
+        // The registry is static and outlives each test application
         unset(ServiceProvider::$optimizeCommands['api-toolkit'], ServiceProvider::$optimizeClearCommands['api-toolkit']);
 
         try {
@@ -770,8 +734,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that optimize compiles the resource map and optimize:clear removes
-     * it.
+     * Test that optimize compiles the resource map and optimize:clear drops it.
      *
      * @return void
      */
@@ -796,8 +759,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the shipped configuration invalidates metadata after migrations
-     * by default.
+     * Test that the shipped config invalidates metadata after migrations.
      *
      * @return void
      */
@@ -845,8 +807,7 @@ final class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.lifecycle.octane', true);
 
-        // Reset the dispatcher so Octane's own OperationTerminated listeners do
-        // not mask whether the provider wires the toolkit's listener.
+        // Reset the dispatcher so Octane's own listeners cannot mask the result
         Event::swap(new Dispatcher($app));
 
         $provider = new ApiServiceProvider($app);
@@ -859,8 +820,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the Octane flush listener is not registered when config is
-     * disabled.
+     * Test that the Octane flush listener is not registered when disabled.
      *
      * @return void
      */
@@ -870,8 +830,7 @@ final class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.lifecycle.octane', false);
 
-        // Reset the dispatcher so Octane's own OperationTerminated listeners do
-        // not mask that the provider leaves the toolkit's listener unwired.
+        // Reset the dispatcher so Octane's own listeners cannot mask the result
         Event::swap(new Dispatcher($app));
 
         $provider = new ApiServiceProvider($app);
@@ -884,8 +843,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the queue flush subscriber is registered when config is
-     * enabled.
+     * Test that the queue flush subscriber is registered when enabled.
      *
      * @return void
      */
@@ -905,8 +863,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the queue flush subscriber is not registered when config is
-     * disabled.
+     * Test that the queue flush subscriber is not registered when disabled.
      *
      * @return void
      */
@@ -921,11 +878,8 @@ final class ApiServiceProviderTest extends TestCase
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        // The WritePoolFlushSubscriber also listens to JobProcessed, so we
-        // check that QueueFlushSubscriber specifically was not subscribed by
-        // verifying only the write pool subscriber listeners exist. Since both
-        // subscribers listen to the same events, we verify the disabled branch
-        // by confirming boot completes without error.
+        // Smoke test only: both subscribers hear JobProcessed, so this only
+        // proves boot completes with the queue lifecycle off
         self::assertFalse((bool) $this->getConfig()->get('api-toolkit.lifecycle.queue'));
     }
 
@@ -973,8 +927,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the WritePool receives the configured strategy when on_failure
-     * is set to a non-default value.
+     * Test that the WritePool receives a non-default on_failure strategy.
      *
      * @return void
      */
@@ -996,8 +949,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that an invalid on_failure config value throws a ValueError when
-     * resolving the WritePool.
+     * Test that an invalid on_failure value throws a ValueError.
      *
      * @return void
      */
@@ -1016,8 +968,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the ParseApiQuery middleware is pushed to the global stack when
-     * parser middleware registration is enabled.
+     * Test that ParseApiQuery is pushed to the global stack when enabled.
      *
      * @return void
      */
@@ -1031,11 +982,10 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that all middleware registrations fall back to enabled defaults when
-     * the relevant config keys are missing entirely.
+     * Test that middleware registration defaults on when keys are missing.
      *
-     * A fresh kernel and router are resolved so the assertions observe only
-     * what this boot registers.
+     * A fresh kernel and router are resolved so only this boot's registrations
+     * show.
      *
      * @return void
      */
@@ -1071,8 +1021,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the package config file is publishable under the config group
-     * with the expected source and destination paths.
+     * Test that the config file is publishable under the config group.
      *
      * @return void
      */
@@ -1087,8 +1036,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the package translations are publishable under the translations
-     * group with the expected source and destination paths.
+     * Test that the translations are publishable under the translations group.
      *
      * @return void
      */
@@ -1103,8 +1051,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that no morph alias is registered when dynamic morph mapping is
-     * disabled, even when a valid resource map is configured.
+     * Test that no morph alias is registered when dynamic mapping is disabled.
      *
      * @return void
      */
@@ -1125,11 +1072,10 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that schema validation defaults to disabled when the
-     * validate_schemas config key is missing entirely.
+     * Test that schema validation defaults off when its config key is missing.
      *
-     * Boot must complete without throwing even though the resource map contains
-     * an invalid schema, proving the default gate is off.
+     * The resource map holds an invalid schema, so a passing boot proves the
+     * gate is off.
      *
      * @return void
      */
@@ -1151,8 +1097,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that schema validation is skipped when the resource map is not an
-     * array, completing boot without error.
+     * Test that schema validation is skipped for a non-array resource map.
      *
      * @return void
      */
@@ -1170,8 +1115,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that notification logging defaults to enabled when the
-     * enable_logging config key is missing entirely.
+     * Test that notification logging defaults on when its key is missing.
      *
      * @return void
      */
@@ -1190,8 +1134,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that no notification listeners are added when notification logging
-     * is disabled.
+     * Test that no notification listeners are added when logging is disabled.
      *
      * @return void
      */
@@ -1212,8 +1155,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the notification events are wired to the NotificationListener
-     * sending and sent handlers.
+     * Test that notification events are wired to the NotificationListener.
      *
      * @return void
      */
@@ -1226,8 +1168,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the ResourceMetadataProvider contract is bound to the
-     * ResourceMetadataService as a singleton.
+     * Test that ResourceMetadataProvider is bound to a singleton.
      *
      * @return void
      */
@@ -1241,8 +1182,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the SchemaIntrospectionProvider contract is bound to the
-     * SchemaIntrospector as a singleton.
+     * Test that SchemaIntrospectionProvider is bound to a singleton.
      *
      * @return void
      */
@@ -1256,8 +1196,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the write pool flush subscriber is subscribed to the HTTP and
-     * console lifecycle events.
+     * Test that the write pool flush subscriber hears the lifecycle events.
      *
      * @return void
      */
@@ -1268,8 +1207,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the queue flush subscriber is subscribed when the queue
-     * lifecycle is enabled.
+     * Test that the queue flush subscriber is subscribed when enabled.
      *
      * @return void
      */
@@ -1287,8 +1225,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the queue flush subscriber is not subscribed when the queue
-     * lifecycle is disabled.
+     * Test that the queue flush subscriber is not subscribed when disabled.
      *
      * @return void
      */
@@ -1296,8 +1233,7 @@ final class ApiServiceProviderTest extends TestCase
     {
         $app = $this->getApplication();
 
-        // Reset the dispatcher so the boot-time wiring (now default-on) does
-        // not pollute the baseline being tested.
+        // Reset the dispatcher so boot-time wiring does not skew the baseline
         Event::swap(new Dispatcher($app));
 
         $this->getConfig()->set('api-toolkit.lifecycle.queue', false);
@@ -1310,8 +1246,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the WritePool falls back to the default sizes when the config
-     * keys are missing entirely.
+     * Test that the WritePool uses default sizes when config keys are missing.
      *
      * @return void
      */
@@ -1331,8 +1266,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the WritePool falls back to the default sizes when the
-     * configured values are not numeric.
+     * Test that the WritePool uses default sizes for non-numeric config.
      *
      * @return void
      */
@@ -1386,7 +1320,6 @@ final class ApiServiceProviderTest extends TestCase
 
         assert($app instanceof Application);
 
-        // Enable middleware registration for these tests
         /** @var \Illuminate\Config\Repository $config */
         $config = $app->make('config');
 
@@ -1395,8 +1328,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Boot a fresh provider with the given console arguments, restoring the
-     * original arguments afterwards.
+     * Boot a fresh provider with the given console arguments, then restore.
      *
      * @param  array<int, string>|null  $argv
      * @return void
@@ -1455,8 +1387,7 @@ final class ApiServiceProviderTest extends TestCase
     /**
      * Resolve a path relative to the service provider source directory.
      *
-     * Mirrors the __DIR__-relative paths used by the provider when registering
-     * publishable assets.
+     * Mirrors the __DIR__-relative paths the provider publishes from.
      *
      * @param  string  $path
      * @return string
@@ -1484,8 +1415,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Determine whether the given event has a listener belonging to the given
-     * subscriber class.
+     * Determine whether the event has a listener from the given subscriber.
      *
      * @param  class-string  $event
      * @param  class-string  $subscriber

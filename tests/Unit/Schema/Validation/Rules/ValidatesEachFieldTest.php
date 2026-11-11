@@ -23,8 +23,7 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 final class ValidatesEachFieldTest extends TestCase
 {
     /**
-     * Test that checkField runs for every non-null field and the errors from
-     * each are accumulated in field order.
+     * Test that each non-null field is checked and errors kept in field order.
      *
      * @return void
      */
@@ -61,8 +60,7 @@ final class ValidatesEachFieldTest extends TestCase
     }
 
     /**
-     * Test that a null field does not halt iteration, so a later field's error
-     * is still reported.
+     * Test that a null field does not halt iteration.
      *
      * @return void
      *

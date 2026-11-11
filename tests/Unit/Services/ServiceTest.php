@@ -34,10 +34,6 @@ use Tests\TestCase;
 /**
  * Tests for the Service base class.
  *
- * Covers the typed input skeleton, actor API, make/by/withContext fluent
- * methods, run() totality, runOrFail(), getLockKey(), the run context read
- * through context(), and the serviceHooks() and bindRunContext() seams.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -92,9 +88,7 @@ final class ServiceTest extends TestCase
      */
     public function testActorReadsNoAmbientAuthState(): void
     {
-        // Facade is NOT faked — any Auth call would throw or require setup.
-        // If actor() internally called Auth::user() without setup, it would
-        // produce a non-AnonymousActor or throw. AnonymousActor is the proof.
+        // Auth is not faked, so any Auth read would throw or not be anonymous
         $service = new OutputService(new ArrayInput([]));
 
         self::assertInstanceOf(AnonymousActor::class, $service->actor());
@@ -161,8 +155,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that runOrFail() fires ServiceCompleted and not ServiceFailed when
-     * the service succeeds.
+     * Test that runOrFail() fires only ServiceCompleted on success.
      *
      * @return void
      *
@@ -182,8 +175,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that runOrFail() rethrows the exception thrown by handle() after
-     * running onFailure() and dispatching ServiceFailed.
+     * Test that runOrFail() rethrows after onFailure() and ServiceFailed.
      *
      * @return void
      *
@@ -235,8 +227,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that runOrFail() returns the output typed as the service's declared
-     * output template.
+     * Test that runOrFail() returns the service's declared output type.
      *
      * @return void
      *
@@ -435,8 +426,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that run() reuses the context supplied via withContext() rather than
-     * building a fresh one.
+     * Test that run() reuses the context supplied via withContext().
      *
      * @return void
      */
@@ -456,8 +446,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that dispatch() reuses the context supplied via withContext() rather
-     * than building a fresh one.
+     * Test that dispatch() reuses the context supplied via withContext().
      *
      * @return void
      */
@@ -517,8 +506,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that serviceHooks wires onFailure() so it is invoked when the run
-     * fails.
+     * Test that serviceHooks wires onFailure() to run on failure.
      *
      * @return void
      */
@@ -560,14 +548,12 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that every overridable lifecycle hook remains protected so concrete
-     * services can override it.
+     * Test that every overridable lifecycle hook remains protected.
      *
      * @return void
      */
     public function testLifecycleHooksRemainProtectedForOverriding(): void
     {
-        // Exercise the non-overridden base hook bodies so they are covered.
         (new OutputService(new ArrayInput([])))->run();
 
         $failing = new class (new ArrayInput([])) extends Service {
@@ -596,8 +582,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that context() inside handle() returns the context given through
-     * withContext().
+     * Test that context() inside handle() returns the withContext() context.
      *
      * @return void
      */
@@ -612,8 +597,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that with no context attached, context() returns the INTERNAL
-     * context run() built, which is the one the completion event reports.
+     * Test that with no attached context, context() returns the run's own.
      *
      * @return void
      */
@@ -671,8 +655,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that two runs of one instance without an attached context each get
-     * their own correlation id.
+     * Test that two runs with no attached context get distinct correlation ids.
      *
      * @return void
      */
@@ -690,8 +673,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that a run nested inside another run of the same instance sees its
-     * own context and restores the outer one when it ends.
+     * Test that a nested run sees its own context and restores the outer one.
      *
      * @return void
      */
@@ -710,8 +692,7 @@ final class ServiceTest extends TestCase
             public ?ServiceContext $afterNested = null;
 
             /**
-             * Run once more with an inner context on the first call, recording
-             * the context before and after.
+             * Run again with an inner context, recording what each run reads.
              *
              * @return mixed
              */
@@ -742,8 +723,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that every lifecycle hook, concerns() and lockId() on the success
-     * path read the same context instance.
+     * Test that every hook on the success path reads the same context.
      *
      * @return void
      */
@@ -764,8 +744,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that onFailure() reads the same context instance as the hooks that
-     * ran before the failure.
+     * Test that onFailure() reads the same context as the earlier hooks.
      *
      * @return void
      */
@@ -783,8 +762,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that while a run is in progress actor() returns the run context's
-     * actor, and the actor given to by() again once the run ends.
+     * Test that actor() returns the run context's actor only during a run.
      *
      * @return void
      */
@@ -820,8 +798,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that by() after withContext() changes actor() outside a run but
-     * leaves the attached context, and so the run's actor, unchanged.
+     * Test that by() after withContext() leaves the run actor unchanged.
      *
      * @return void
      */
@@ -844,8 +821,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that a later run of a lockable instance whose lockId() reads the
-     * context locks on the key its own context derives, not the first run's.
+     * Test that each run of a lockable instance locks on its own context's key.
      *
      * @return void
      */
@@ -896,8 +872,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that bindRunContext() binds the given context and returns the one it
-     * replaced.
+     * Test that bindRunContext() binds the context and returns the prior one.
      *
      * @return void
      */
@@ -914,9 +889,7 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Run the typed input service and return its output through a native string
-     * return type, which holds only if runOrFail() returns the service's
-     * declared output type.
+     * Run the typed input service, returning its output through a string type.
      *
      * @param  string  $city
      * @return string

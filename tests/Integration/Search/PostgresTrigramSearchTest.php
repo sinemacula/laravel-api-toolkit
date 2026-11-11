@@ -21,15 +21,10 @@ use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
 final class PostgresTrigramSearchTest extends EngineSearchTestCase
 {
     /**
-     * Assert that the engine can answer the query from an index rather than by
-     * reading the table.
+     * Assert that the engine can answer the query from an index.
      *
-     * The planner costs a sequential scan against the table it has, and the
-     * seeded table is small enough that a scan wins on cost whatever indexes
-     * exist. Penalising the scan separates the question this asserts - whether
-     * the emitted predicate is one an index can serve at all - from the size of
-     * the table it was measured on. A predicate no index can serve is still
-     * planned as a sequential scan with the penalty applied.
+     * The seeded table is small enough that a scan always wins on cost, so the
+     * scan is penalised to ask only whether an index can serve the predicate.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>  $query
      * @return void
@@ -96,9 +91,8 @@ final class PostgresTrigramSearchTest extends EngineSearchTestCase
     /**
      * Drop the index serving the leading match on the searched column.
      *
-     * This engine reads a leading match from the same trigram index as an
-     * anywhere-match, so what is dropped here is a trigram index rather than
-     * the ordinary one the column also carries.
+     * This engine reads a leading match from the trigram index, not the
+     * ordinary one.
      *
      * @return void
      */
@@ -131,8 +125,7 @@ final class PostgresTrigramSearchTest extends EngineSearchTestCase
     }
 
     /**
-     * Drop the ordinary index serving the equality match on the searched
-     * column.
+     * Drop the ordinary index serving the equality match.
      *
      * @return void
      */
@@ -143,8 +136,7 @@ final class PostgresTrigramSearchTest extends EngineSearchTestCase
     }
 
     /**
-     * Recreate the ordinary index serving the equality match on the searched
-     * column.
+     * Recreate the ordinary index serving the equality match.
      *
      * @return void
      */
@@ -155,8 +147,7 @@ final class PostgresTrigramSearchTest extends EngineSearchTestCase
     }
 
     /**
-     * Replace the ordinary index with a partial one, which serves only a query
-     * carrying the same predicate.
+     * Replace the ordinary index with a partial one the query cannot use.
      *
      * @return void
      */

@@ -21,8 +21,7 @@ use Tests\TestCase;
 final class PresenceConstraintBuilderTest extends TestCase
 {
     /**
-     * Test that a required confirmed field adds its confirmation sibling, of
-     * the field's base type, to the required list.
+     * Test that a required confirmed field requires its typed confirmation.
      *
      * @return void
      */
@@ -46,8 +45,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that an optional confirmed field requires its confirmation only when
-     * the field itself is sent.
+     * Test that an optional confirmed field requires confirmation when sent.
      *
      * @return void
      */
@@ -70,8 +68,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a confirmation sibling is a string when the confirmed field
-     * carries no single scalar type.
+     * Test that a confirmation is a string when the field type is ambiguous.
      *
      * @return void
      */
@@ -88,8 +85,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a confirmation sibling of a field declaring several types
-     * mirrors each of them but null.
+     * Test that a confirmation mirrors each non-null type of its field.
      *
      * @return void
      */
@@ -106,8 +102,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a confirmed rule naming its confirmation field adds and
-     * requires that sibling instead of the default name.
+     * Test that a named confirmation field replaces the default name.
      *
      * @return void
      */
@@ -131,9 +126,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a confirmation field shared by confirmed fields of different
-     * types is left unconstrained, while one shared by fields of the same type
-     * keeps that type.
+     * Test that a confirmation shared across types is left unconstrained.
      *
      * @return void
      */
@@ -151,8 +144,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a declared confirmation field keeps its own schema and place
-     * while still being required alongside the confirmed field, once.
+     * Test that a declared confirmation field keeps its own schema and place.
      *
      * @return void
      */
@@ -176,8 +168,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a confirmation field named outside the object is skipped, while
-     * another confirmed rule on the same field is still applied.
+     * Test that an out-of-object confirmation field is skipped.
      *
      * @return void
      */
@@ -200,9 +191,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a field that may never be sent gains no confirmation sibling,
-     * while its conditional presence rules still constrain the fields they
-     * name, as the validator then refuses the body whichever way it is sent.
+     * Test that a never-sendable field gains no confirmation sibling.
      *
      * @return void
      */
@@ -223,9 +212,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a field an exclude rule may drop from validation requires
-     * neither its confirmation nor itself, while its confirmation is still
-     * documented.
+     * Test that an excludable field requires neither itself nor confirmation.
      *
      * @return void
      */
@@ -245,8 +232,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Provide each conditional presence rule over one and over several fields
-     * with the constraint it adds to the object.
+     * Provide each conditional presence rule with the constraint it adds.
      *
      * @return iterable<string, array{0: string, 1: array<string, mixed>}>
      */
@@ -263,8 +249,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that each conditional presence rule, naming one or several sibling
-     * fields, adds the constraint the validator applies.
+     * Test that each conditional presence rule adds its constraint.
      *
      * @param  string  $rule
      * @param  array<string, mixed>  $expected
@@ -279,8 +264,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a required field or one the validator skips when absent adds no
-     * conditional constraint, since the rule never changes its presence.
+     * Test that a required or skippable field adds no conditional constraint.
      *
      * @return void
      */
@@ -300,8 +284,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that several conditions on one object combine under allOf in the
-     * order the fields declare them, rather than overwriting one another.
+     * Test that several conditions combine under allOf in declared order.
      *
      * @return void
      */
@@ -324,8 +307,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a condition stated more than once, from either side or in
-     * another order, is emitted once as first stated.
+     * Test that a repeated condition is emitted once as first stated.
      *
      * @return void
      */
@@ -348,8 +330,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a lone condition whose keyword the object schema already
-     * carries is placed under allOf instead of replacing it.
+     * Test that a lone condition on an existing keyword goes under allOf.
      *
      * @return void
      */
@@ -366,8 +347,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that the requirements of confirmed and required_with rules sharing a
-     * trigger field merge into one entry without repeats.
+     * Test that confirmed and required_with on one trigger merge.
      *
      * @return void
      */
@@ -387,9 +367,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a rule needing any one of its fields keeps the references it
-     * can place, while a rule needing all of them is skipped when one is
-     * unplaceable, and a repeated reference still counts as placed.
+     * Test that any-field rules keep placeable references, all-field ones skip.
      *
      * @return void
      */
@@ -412,8 +390,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that the fields of an array item object reference one another by
-     * their wildcard paths, while a field outside the item is unplaceable.
+     * Test that array item fields reference one another by wildcard path.
      *
      * @return void
      */
@@ -426,8 +403,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a referenced field name carrying a colon is read whole, as the
-     * validator reads a rule's arguments after its first colon.
+     * Test that a referenced field name carrying a colon is read whole.
      *
      * @return void
      */
@@ -439,8 +415,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that a quoted reference is read as one field name, commas included,
-     * as the validator reads it.
+     * Test that a quoted reference is read as one field name.
      *
      * @return void
      */
@@ -452,8 +427,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that numeric property names, held as integer keys, are constrained
-     * like any other.
+     * Test that integer-keyed property names are constrained too.
      *
      * @return void
      */
@@ -465,8 +439,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Test that an object without properties is returned with an empty
-     * properties map and nothing else added.
+     * Test that an object without properties gains only an empty map.
      *
      * @return void
      */
@@ -476,8 +449,7 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
-     * Build an object whose every field has an empty schema from the given
-     * tokens, then add its presence constraints.
+     * Build an object of empty-schema fields and add its constraints.
      *
      * @param  array<array-key, list<string>>  $tokens
      * @param  list<string>  $required

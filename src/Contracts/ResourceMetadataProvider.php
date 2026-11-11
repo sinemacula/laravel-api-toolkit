@@ -5,10 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Contracts;
 
 /**
- * Resource metadata provider interface.
- *
- * Decouples the repository criteria layer from resource class statics, allowing
- * metadata to be resolved without direct static calls.
+ * Resolves resource metadata without static calls on the resource classes.
  *
  * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
  *
@@ -26,10 +23,7 @@ interface ResourceMetadataProvider
     public function getResourceType(string $resourceClass): string;
 
     /**
-     * Resolve the active fields for the given resource class.
-     *
-     * Returns requested fields from the API query, or defaults if none
-     * requested.
+     * Resolve the requested fields for the resource class, or its defaults.
      *
      * @param  string  $resourceClass
      * @return array<int, string>

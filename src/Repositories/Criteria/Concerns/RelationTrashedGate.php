@@ -16,12 +16,7 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 /**
  * Cascades soft-delete visibility to eager-loaded relations.
  *
- * Decorates a with()-ready eager-load map so each relation load applies the
- * requested trashed scope only when that relation's own leaf model uses
- * SoftDeletes and its mapped resource opts in. The gate is closed by default
- * and resolved independently per relation, so a relation whose resource has not
- * opted in never surfaces trashed rows even when the same request opened the
- * root or a sibling relation.
+ * Gated per relation, so one relation's opt-in never opens another.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -112,8 +107,7 @@ final readonly class RelationTrashedGate
     }
 
     /**
-     * Append a relation with its default live-only scope, preserving any
-     * existing constraint.
+     * Append a relation with its default live-only scope.
      *
      * @param  array<int|string, mixed>  $decorated
      * @param  string  $path
@@ -132,8 +126,7 @@ final readonly class RelationTrashedGate
     }
 
     /**
-     * Walk the dot-path from the root model to resolve the leaf related model,
-     * returning null when any segment cannot be resolved.
+     * Walk the dot-path from the root to its leaf model, or null if unresolved.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $root
      * @param  string  $path
@@ -158,8 +151,7 @@ final readonly class RelationTrashedGate
     }
 
     /**
-     * Determine whether the leaf model uses SoftDeletes and its mapped resource
-     * opts in to trashed visibility for the current request.
+     * Determine whether the leaf uses SoftDeletes and its resource opts in.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $leaf
      * @return bool
@@ -180,8 +172,7 @@ final readonly class RelationTrashedGate
     }
 
     /**
-     * Build a constraint closure that applies the gated scope on top of any
-     * existing constraint.
+     * Build a closure applying the gated scope after any existing constraint.
      *
      * @param  (\Closure(mixed): void)|null  $existing
      * @param  \SineMacula\ApiToolkit\Enums\TrashedState  $state

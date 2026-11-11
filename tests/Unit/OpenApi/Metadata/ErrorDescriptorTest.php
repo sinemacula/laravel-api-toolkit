@@ -59,8 +59,7 @@ final class ErrorDescriptorTest extends TestCase
     }
 
     /**
-     * Test that a null title is stored correctly (used for codes that derive
-     * their title at runtime from the HTTP status phrase).
+     * Test that a null title is stored.
      *
      * @return void
      */

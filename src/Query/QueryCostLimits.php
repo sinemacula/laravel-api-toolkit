@@ -8,13 +8,9 @@ use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 
 /**
- * Operator-tunable structural caps for an incoming API query.
+ * Configurable structural caps on the cost of an incoming API query.
  *
- * Each cap bounds one dimension of a request whose parts are individually cheap
- * and declared but multiply into an expensive query: the size and nesting of
- * the filter document, the nodes and value-list items it dispatches, the sort
- * keys and relation aggregates it asks for, and how deep into a result set it
- * pages. A cap of zero or less disables that dimension.
+ * A cap of zero or less disables that dimension.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -45,7 +41,7 @@ final readonly class QueryCostLimits
     /** @var string Bounds the page number a paginated request may start at */
     public const string MAX_OFFSET = 'max_offset';
 
-    /** @var array<string, int> The shipped default for every cap, mirrored by the published config file and used as the fallback when that file predates the caps */
+    /** @var array<string, int> The default for every cap, mirrored by the published config file */
     public const array DEFAULTS = [
         self::MAX_BYTES       => 8192,
         self::MAX_PARSE_DEPTH => 16,
@@ -72,9 +68,7 @@ final readonly class QueryCostLimits
     /**
      * Resolve every cap from configuration.
      *
-     * A cap configured as null is disabled rather than defaulted, so the two
-     * documented ways of turning a dimension off agree. A cap the published
-     * config never declares falls back to its shipped default instead.
+     * A null cap is disabled; an undeclared one falls back to its default.
      *
      * @return self
      */

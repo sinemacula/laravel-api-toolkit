@@ -5,12 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Schema;
 
 /**
- * Carries an exact list of enum values from the rule normaliser to the field
- * schema builder.
+ * Carries exact enum values from the rule normaliser to the schema builder.
  *
- * A narrowed enum rule accepts values the validator never reads from an `in:`
- * list, so they travel as JSON instead: each value keeps its type and every
- * character, and an empty list stays distinguishable from no list at all.
+ * Encoded as JSON so values keep their type and an empty list stays distinct.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -32,8 +29,7 @@ final readonly class EnumValuesToken
     }
 
     /**
-     * Read the values from a token's argument, or null when it does not hold a
-     * list of values.
+     * Read the values from a token's argument, or null when it holds no list.
      *
      * @param  string  $argument
      * @return list<int|string>|null

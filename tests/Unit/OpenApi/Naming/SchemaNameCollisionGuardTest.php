@@ -35,8 +35,7 @@ final class SchemaNameCollisionGuardTest extends TestCase
     }
 
     /**
-     * Test that re-claiming a name with the same source is a no-op, so a schema
-     * shared across sources stays a single claim.
+     * Test that re-claiming a name with the same source is a no-op.
      *
      * @return void
      */
@@ -50,8 +49,7 @@ final class SchemaNameCollisionGuardTest extends TestCase
     }
 
     /**
-     * Test that claiming a name held by a different source fails loud, naming
-     * both the existing and the colliding source.
+     * Test that claiming a name held by another source fails loud.
      *
      * @return void
      */

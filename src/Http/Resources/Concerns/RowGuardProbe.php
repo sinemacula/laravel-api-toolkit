@@ -7,15 +7,7 @@ namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 /**
  * Stand-in resource passed to a guard to detect whether it reads the row.
  *
- * A guard receives the resource and the request. Per-row data only ever reaches
- * a guard through the resource argument, so handing the guard this probe in
- * place of a real resource and recording whether it interacts with the probe
- * reveals whether the guard depends on the row (per-item) or only on the
- * request. Every recorded access flips an internal flag and returns a value
- * that lets the guard keep running, so a chained read is observed before it can
- * error. Any access the probe does not model (array access, invocation,
- * counting) throws, which the caller treats as a per-item read by failing
- * closed.
+ * Unmodelled access throws, which the caller treats as a per-item read.
  *
  * @internal
  *
@@ -26,7 +18,7 @@ namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
  */
 final class RowGuardProbe implements \IteratorAggregate, \Stringable
 {
-    /** @var bool Whether the guard interacted with the probe in any way. */
+    /** @var bool Whether the guard interacted with the probe */
     private bool $touched = false;
 
     /**

@@ -11,10 +11,6 @@ use Tests\TestCase;
 /**
  * Tests for the RowGuardProbe stand-in resource.
  *
- * Every modelled access - property read, isset check, method call, string
- * coercion, and iteration - must flip the internal touched flag and return a
- * value that lets a chained guard keep running.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *

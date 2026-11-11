@@ -21,10 +21,8 @@ use Tests\TestCase;
 /**
  * Integration tests for the MiddlewareRegistrar.
  *
- * The middleware configuration permutations are pinned by the
- * ApiServiceProvider integration suite; this test proves the registrar
- * registers its surface when invoked directly, and pins how the maintenance
- * swap rewrites a seeded global stack, which the provider suite cannot build.
+ * Also pins how the maintenance swap rewrites a seeded global stack, which the
+ * provider suite cannot build.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -35,8 +33,7 @@ use Tests\TestCase;
 final class MiddlewareRegistrarTest extends TestCase
 {
     /**
-     * Test that the registrar pushes the kernel middleware and aliases the
-     * throttle middleware when invoked.
+     * Test that the registrar pushes kernel middleware and aliases throttle.
      *
      * @return void
      */
@@ -63,8 +60,7 @@ final class MiddlewareRegistrarTest extends TestCase
         self::assertContains(PreventRequestsDuringMaintenance::class, $middleware);
         self::assertContains(JsonPrettyPrint::class, $middleware);
 
-        // The maintenance swap removes the framework middleware so the toolkit
-        // middleware is the sole gate and its except list is authoritative.
+        // Without the framework middleware the toolkit's except list is final
         self::assertNotContains(FrameworkMaintenance::class, $middleware);
 
         /** @var \Illuminate\Routing\Router $router */
@@ -74,8 +70,7 @@ final class MiddlewareRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the maintenance swap replaces the framework middleware in its
-     * existing position rather than moving it ahead of HandleCors.
+     * Test that the maintenance swap replaces the framework middleware in situ.
      *
      * @return void
      */
@@ -87,8 +82,7 @@ final class MiddlewareRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the maintenance swap does not duplicate the toolkit middleware
-     * when it is already in the stack alongside the framework middleware.
+     * Test that the maintenance swap does not duplicate the toolkit middleware.
      *
      * @return void
      */
@@ -103,8 +97,9 @@ final class MiddlewareRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the maintenance swap adds nothing when the framework middleware
-     * is not in the stack, since an application that removed it has opted out.
+     * Test that the maintenance swap adds nothing if the framework's is absent.
+     *
+     * An application that removed it has opted out.
      *
      * @return void
      */
@@ -117,8 +112,7 @@ final class MiddlewareRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the maintenance swap leaves an existing toolkit registration
-     * where it is when the framework middleware is not in the stack.
+     * Test that the maintenance swap leaves a toolkit registration where it is.
      *
      * @return void
      */
@@ -131,8 +125,7 @@ final class MiddlewareRegistrarTest extends TestCase
     }
 
     /**
-     * Seed the kernel's global stack, run the registrar over it, and return the
-     * resulting global stack.
+     * Seed the kernel's global stack, run the registrar, and return the stack.
      *
      * @param  list<class-string>  $global
      * @return array<int, class-string|string>

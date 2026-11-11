@@ -11,20 +11,17 @@ use SineMacula\ApiToolkit\Exceptions\MetadataInvalidationException;
 /**
  * Artisan command to invalidate the toolkit's cached schema metadata.
  *
- * Metadata is cached in the shared store, mostly forever, and a process only
- * forgets the keys it touched itself. Run this on every deploy once the new
- * release is live, so no process serves metadata that old code wrote after the
- * migrations ran.
+ * Run on every deploy once the new release is live.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class InvalidateMetadataCommand extends Command
 {
-    /** @var string The console command signature. */
+    /** @var string The console command signature */
     protected $signature = 'api-toolkit:invalidate-metadata';
 
-    /** @var string The console command description. */
+    /** @var string The console command description */
     protected $description = 'Invalidate the cached schema metadata in every process sharing the cache store';
 
     /**

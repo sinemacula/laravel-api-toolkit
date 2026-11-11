@@ -57,8 +57,7 @@ final class SuccessResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that the body falls back to the undocumented envelope when the
-     * action declares no response schema.
+     * Test that the body falls back to the undocumented envelope.
      *
      * @return void
      */
@@ -71,8 +70,7 @@ final class SuccessResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that an action's response schema replaces the resource exactly when
-     * it names anything but that resource in the given shape.
+     * Test that a response schema replaces the resource only when it differs.
      *
      * @return void
      */
@@ -87,8 +85,7 @@ final class SuccessResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that a response is left untouched when the action declares neither a
-     * status nor a header, or is a closure.
+     * Test that a response is untouched without a declared status or header.
      *
      * @return void
      */
@@ -101,8 +98,7 @@ final class SuccessResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that declaring the default status keeps the response, only adding
-     * the declared headers between its description and its body.
+     * Test that declaring the default status only adds the declared headers.
      *
      * @return void
      */
@@ -115,8 +111,7 @@ final class SuccessResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that a no-content status drops the body and the headers the exporter
-     * emits beside it, keeping the declared headers.
+     * Test that a no-content status drops the body and exporter headers.
      *
      * @return void
      */
@@ -131,8 +126,7 @@ final class SuccessResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that any other status keeps the body and the exporter headers, the
-     * declared headers following them.
+     * Test that another status keeps the body, then the declared headers.
      *
      * @return void
      */
@@ -147,8 +141,7 @@ final class SuccessResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that a status carrying a body gives a response that carried none the
-     * action's declared body.
+     * Test that a body-carrying status gives a bodyless response its body.
      *
      * @return void
      */

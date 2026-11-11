@@ -11,38 +11,14 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
 /**
  * Normalised and bounded free-text search term.
  *
- * Parses the raw client term once and renders it for whichever match shape a
- * driver applies, so no driver ever builds a pattern out of client input
- * itself. Every metacharacter the rendering could otherwise smuggle is escaped
- * here: a term of "%" matches a literal percent sign rather than every row. The
- * one character no rendering can carry is the double quote, which delimits the
- * phrase a full-text match is bound as and has no escape of its own; it is
- * dropped during normalisation, before any bound is measured, so every engine
- * is asked about the same term rather than one seeing it and another not.
- *
- * The escape character carries no meaning of its own inside a string literal,
- * so the ESCAPE clause naming it reads the same way on every engine and
- * whatever the connection is configured to make of a backslash. A backslash
- * there would escape the quote that closes the clause, running the literal on
- * into the comparison beside it and hiding the placeholder that comparison
- * binds.
- *
- * The bounds are refusals, never silent truncations, and each is operator
- * tunable. The minimum is applied to every word rather than to the term as a
- * whole, because that is the unit the indexes answer: a full-text parser emits
- * no token for a word shorter than its token size and drops it from the phrase,
- * which widens the match, while a trigram index cannot serve a chunk shorter
- * than a trigram and reads the whole table instead. A term whose words clear
- * the minimum is answered the same way by both. Configuration may raise that
- * minimum but never lower it, so the floor cannot be configured back into the
- * hazard it exists to close.
+ * Escapes wildcards and drops double quotes, which no rendering can carry.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class SearchTerm
 {
-    /** @var int The shortest word every supported index answers correctly and without scanning, and the floor no configured minimum may fall below */
+    /** @var int The shortest word every supported index serves without scanning; also the floor */
     public const int MIN_WORD_LENGTH = 3;
 
     /** @var int The shipped longest term accepted, bounding the work one search may ask for */
@@ -51,7 +27,7 @@ final readonly class SearchTerm
     /** @var int The shipped ceiling on the whitespace-separated words one term may carry */
     public const int MAX_WORDS = 10;
 
-    /** @var string The character escaping a wildcard within a rendered pattern, and one no string literal reads as anything but itself */
+    /** @var string Escapes wildcards; unlike a backslash, no string literal treats it specially */
     public const string ESCAPE_CHARACTER = '!';
 
     /** @var string The setting naming the shortest word a term may carry */
@@ -111,8 +87,7 @@ final readonly class SearchTerm
     }
 
     /**
-     * Return the shortest word a search term may carry, held at the floor no
-     * configured value may fall below.
+     * Return the shortest word a term may carry, never below the floor.
      *
      * @return int
      */
@@ -154,10 +129,6 @@ final readonly class SearchTerm
     /**
      * Render the term for the given match strategy.
      *
-     * A pattern-matching strategy receives the escaped term wrapped in its
-     * wildcards; an equality strategy receives the term as it stands, since a
-     * comparison reads no metacharacters.
-     *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @return string
      */
@@ -171,9 +142,7 @@ final readonly class SearchTerm
     /**
      * Render the term as a quoted phrase for a boolean-mode match.
      *
-     * The delimiter the phrase is wrapped in is already gone from the term, so
-     * nothing here can close the phrase early and let the remainder be read as
-     * operators.
+     * Quotes are stripped on parse, so nothing can close the phrase early.
      *
      * @return string
      */
@@ -199,10 +168,7 @@ final readonly class SearchTerm
     /**
      * Collapse whitespace and strip the characters no engine can match on.
      *
-     * Whitespace is collapsed before the control characters and the phrase
-     * delimiter are removed, so a newline separates two words rather than
-     * joining them. A term that is not valid UTF-8 leaves nothing behind and is
-     * rejected on length.
+     * Whitespace collapses first, so a newline still separates two words.
      *
      * @param  string  $term
      * @return string

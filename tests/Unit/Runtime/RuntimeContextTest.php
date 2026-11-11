@@ -70,7 +70,7 @@ final class RuntimeContextTest extends TestCase
 
     /**
      * Test that isServingUnderOctane returns false when the Octane server
-     * global is absent (the php-fpm case).
+     * global is absent.
      *
      * @return void
      */
@@ -112,9 +112,8 @@ final class RuntimeContextTest extends TestCase
     }
 
     /**
-     * Test that the no-connection check detects an actual worker from the
-     * running command, not from the default queue driver: a web request whose
-     * default queue is non-sync is not a worker.
+     * Test that the no-connection check detects a worker from the running
+     * command, not the default queue driver.
      *
      * @return void
      */
@@ -158,9 +157,8 @@ final class RuntimeContextTest extends TestCase
     }
 
     /**
-     * Test that a process whose argument list is not readable is not taken for
-     * a queue worker, since the detector cannot see what it was invoked as, and
-     * that a readable list naming the command still is.
+     * Test that a process with an unreadable argument list is not taken for a
+     * queue worker.
      *
      * @return void
      */

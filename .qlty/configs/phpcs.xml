@@ -1,10 +1,7 @@
 <?xml version="1.0"?>
 <ruleset name="Project">
 
-    <!-- DisallowMixedTypeHint excluded: this toolkit handles arbitrary user-shaped
-         data (filter values, attribute maps, resource JSON), so `mixed` and
-         `array<string, mixed>` are correct types, not laziness. Narrowable cases
-         were tightened first; PHPStan still guards unsafe mixed access. -->
+    <!-- mixed is the correct type for the user-shaped data this package handles (filter values, attribute maps) -->
     <rule ref="SineMaculaLaravelPackage">
         <exclude name="SlevomatCodingStandard.TypeHints.DisallowMixedTypeHint"/>
     </rule>

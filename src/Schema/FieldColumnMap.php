@@ -7,9 +7,6 @@ namespace SineMacula\ApiToolkit\Schema;
 /**
  * Per-resource-type map of field key to declared column reads.
  *
- * Built once per resource type and queried per request to determine whether a
- * set of requested fields can be satisfied by a narrowed column projection.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -31,8 +28,7 @@ final readonly class FieldColumnMap
     ) {}
 
     /**
-     * Build a field-column map from the per-field column lists and the set of
-     * provably-mapped field keys.
+     * Build a map from per-field column lists and the provably-mapped keys.
      *
      * @param  array<string, array<int, string>>  $columns
      * @param  array<int, string>  $mapped
@@ -44,8 +40,7 @@ final readonly class FieldColumnMap
     }
 
     /**
-     * Return the declared columns for a field, or null when the field is not
-     * mapped.
+     * Return the declared columns for a field, or null when it is not mapped.
      *
      * @param  string  $field
      * @return array<int, string>|null

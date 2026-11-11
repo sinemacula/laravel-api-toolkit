@@ -15,12 +15,7 @@ use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Support\PureEnumName;
 
 /**
- * Resolves individual field values and counts payload from compiled schema
- * definitions.
- *
- * Dispatches to the appropriate resolution strategy (simple property, accessor,
- * computed, or relation) based on the compiled field definition, delegating
- * guard evaluation to the injected GuardEvaluator.
+ * Resolves field values and metric payloads from compiled schema definitions.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -29,10 +24,10 @@ use SineMacula\ApiToolkit\Support\PureEnumName;
  */
 final class ValueResolver
 {
-    /** @var array<string, array<string, bool>> Memo of cast-accessor reflection results, keyed by [class][field]. */
+    /** @var array<string, array<string, bool>> Cast-accessor reflection results, keyed by [class][field] */
     private static array $castAccessorCache = [];
 
-    /** @var \WeakMap<\SineMacula\ApiToolkit\Schema\CompiledFieldDefinition, array<int, string>|null>|null Memo of resolved child field sets, keyed by compiled definition. */
+    /** @var \WeakMap<\SineMacula\ApiToolkit\Schema\CompiledFieldDefinition, array<int, string>|null>|null Resolved child field sets, keyed by compiled definition */
     private static ?\WeakMap $relationFieldsCache = null;
 
     /**
@@ -49,11 +44,6 @@ final class ValueResolver
     /**
      * Clear the static serialization memo caches.
      *
-     * Invoked by CacheManager::flush() at request and worker boundaries so the
-     * per-(class, field) cast-accessor results and per-definition child field
-     * sets do not leak across requests under long-running runtimes (Octane,
-     * queues).
-     *
      * @return void
      */
     public static function clearCache(): void
@@ -65,11 +55,7 @@ final class ValueResolver
     /**
      * Resolve a single field's value from the schema definition.
      *
-     * Uses a match expression to dispatch to the appropriate resolution
-     * strategy: compute, relation, accessor, or simple property. Guards are
-     * evaluated first, and transformers are applied to the resolved value. A
-     * pure enum case resolves to its lowercase case name, the form the API
-     * accepts it in, since it has no backing value to serialise.
+     * A pure enum has no backing value, so it resolves to its lowercase name.
      *
      * @param  string  $field
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
@@ -99,10 +85,6 @@ final class ValueResolver
 
     /**
      * Resolve the counts payload from compiled count definitions.
-     *
-     * Iterates over the compiled schema's count definitions, including only
-     * those that match the requested aliases (or defaults) and pass guard
-     * evaluation.
      *
      * @param  mixed  $resource
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
@@ -147,10 +129,6 @@ final class ValueResolver
 
     /**
      * Resolve the sums or averages payload from compiled aggregate definitions.
-     *
-     * Iterates compiled aggregate definitions matching the given metric,
-     * including only those that match the requested relation-column map (or
-     * defaults) and pass guard evaluation.
      *
      * @param  string  $metric
      * @param  mixed  $resource
@@ -198,10 +176,6 @@ final class ValueResolver
     /**
      * Access a simple property on the underlying resource model.
      *
-     * Checks for direct properties, Eloquent attributes, appended attributes,
-     * Eloquent cast accessors, and magic __isset before falling back to a
-     * MissingValue.
-     *
      * @param  string  $field
      * @param  mixed  $resource
      * @return mixed
@@ -220,9 +194,7 @@ final class ValueResolver
     }
 
     /**
-     * Determine whether the model exposes the given field through any
-     * accessible path (property, attribute, appended, cast accessor, or magic
-     * __isset).
+     * Determine whether the model exposes the given field by any means.
      *
      * @param  object  $model
      * @param  string  $field
@@ -242,8 +214,7 @@ final class ValueResolver
     }
 
     /**
-     * Check whether the field is accessible as an Eloquent attribute, appended
-     * attribute, or cast accessor.
+     * Determine whether the field is an Eloquent attribute or cast accessor.
      *
      * @param  object  $model
      * @param  string  $field
@@ -265,8 +236,7 @@ final class ValueResolver
     }
 
     /**
-     * Determine whether the field is an Eloquent cast accessor (returns
-     * Attribute).
+     * Determine whether the field is an Eloquent cast accessor.
      *
      * @param  object  $model
      * @param  string  $field
@@ -278,12 +248,7 @@ final class ValueResolver
     }
 
     /**
-     * Determine, via reflection, whether the field is an Eloquent cast accessor
-     * (returns Attribute).
-     *
-     * Isolated from isCastAccessor() so the expensive ReflectionMethod
-     * construction runs at most once per (class, field) on the serialization
-     * hot path.
+     * Determine via reflection whether the field is an Eloquent cast accessor.
      *
      * @param  object  $model
      * @param  string  $field
@@ -341,10 +306,6 @@ final class ValueResolver
     /**
      * Resolve a relation field without triggering lazy loading.
      *
-     * Returns a MissingValue when the relation is not loaded, null when the
-     * related model is null, or wraps the related model with the appropriate
-     * child resource class.
-     *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  mixed  $resource
      * @param  \Illuminate\Http\Request|null  $request
@@ -365,8 +326,7 @@ final class ValueResolver
     }
 
     /**
-     * Resolve the final value for a loaded relation, dispatching to accessor
-     * resolution or child resource wrapping as appropriate.
+     * Resolve a loaded relation through its accessor or child resource.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  mixed  $related
@@ -437,9 +397,6 @@ final class ValueResolver
 
         $fields = $definition->fields;
 
-        // Resolve once per compiled definition rather than once per parent
-        // record on the serialization hot path; null when no explicit child
-        // field set was declared.
         if (is_array($fields)) {
             $fields = array_values(array_filter($fields, static fn ($f) => is_string($f) && $f !== '')); // @phpstan-ignore function.alreadyNarrowedType
         } else {

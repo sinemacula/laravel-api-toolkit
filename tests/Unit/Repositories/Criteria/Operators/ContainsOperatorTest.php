@@ -86,8 +86,7 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that apply with a comma-separated string creates multiple
-     * conditions.
+     * Test that a comma-separated string creates multiple conditions.
      *
      * @return void
      */
@@ -115,8 +114,7 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that apply with a comma-separated string trims items and drops empty
-     * segments.
+     * Test that a comma-separated string is trimmed and empty items dropped.
      *
      * @return void
      */
@@ -190,8 +188,7 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that a valid JSON string containing commas is passed to
-     * whereJsonContains untouched rather than being split.
+     * Test that a valid JSON string containing commas is not split.
      *
      * @return void
      */
@@ -226,8 +223,7 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that a grammar rejection of the JSON-contains clause propagates
-     * rather than dropping the predicate and widening the result set.
+     * Test that a grammar rejection of the JSON-contains clause propagates.
      *
      * @return void
      */
@@ -248,9 +244,7 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that a non-string, non-empty scalar is routed to the defensive
-     * containment path and recorded verbatim rather than fed to JSON
-     * validation, which would reject a non-string argument.
+     * Test that a non-string scalar takes the defensive containment path.
      *
      * @return void
      */
@@ -269,8 +263,7 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that a grammar rejection of an array payload propagates too, so
-     * every containment path fails the request rather than dropping it.
+     * Test that a grammar rejection of an array payload propagates.
      *
      * @return void
      */
@@ -290,8 +283,7 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that the comma-split conditions are grouped inside a single nested
-     * where on the parent query.
+     * Test that comma-split conditions are grouped inside one nested where.
      *
      * @return void
      */
@@ -311,9 +303,7 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that apply honours the OR boolean of the current filter context so a
-     * direct $contains branch inside an $or group is combined with OR rather
-     * than AND.
+     * Test that a direct $contains honours the OR boolean of the context.
      *
      * @return void
      */
@@ -333,9 +323,7 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that apply honours the OR boolean when grouping a comma-separated
-     * $contains branch inside an $or group, so the nested group is combined with
-     * OR rather than AND.
+     * Test that a comma-separated $contains group honours the OR boolean.
      *
      * @return void
      */
@@ -355,8 +343,7 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that a comma-separated value reports one item per containment clause
-     * it expands to, counting the items that survive trimming.
+     * Test that a comma-separated value reports one item per clause.
      *
      * @return void
      */
@@ -369,8 +356,7 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that a value applied as a single containment clause reports one
-     * item, whatever commas it happens to carry.
+     * Test that a single containment clause reports one item.
      *
      * @return void
      */

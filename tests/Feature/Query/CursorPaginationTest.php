@@ -20,11 +20,6 @@ use Tests\TestCase;
 /**
  * Feature tests for cursor-paginated collections through the kernel.
  *
- * Requesting cursor mode via the query string selects the cursor paginator, so
- * the response carries the cursor envelope: a data block, a boolean
- * `meta.continue` flag, and `links` exposing the next/prev cursors. Following
- * the emitted next cursor returns the subsequent page of rows.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -56,8 +51,7 @@ final class CursorPaginationTest extends TestCase
             return new ApiResourceCollection($users, FilterableUserResource::class);
         });
 
-        // Created in ascending id order; the cursor paginator orders by the
-        // primary key by default, so page order follows creation order.
+        // The cursor paginator orders by key, so pages follow creation order
         User::create(['name' => 'Anna', 'email' => 'anna@example.com']);
         User::create(['name' => 'Ben', 'email' => 'ben@example.com']);
         User::create(['name' => 'Cara', 'email' => 'cara@example.com']);
@@ -66,8 +60,7 @@ final class CursorPaginationTest extends TestCase
     }
 
     /**
-     * Test that requesting cursor mode returns the cursor envelope on the first
-     * page: data, a boolean continue flag, a next cursor, and a null prev.
+     * Test that cursor mode returns the cursor envelope on the first page.
      *
      * @return void
      */
@@ -88,8 +81,7 @@ final class CursorPaginationTest extends TestCase
     }
 
     /**
-     * Test that following the emitted next cursor returns the following page of
-     * rows while the envelope shape is preserved.
+     * Test that following the next cursor returns the following page.
      *
      * @return void
      */
@@ -117,13 +109,12 @@ final class CursorPaginationTest extends TestCase
 
         self::assertTrue($second->json('meta.continue'));
 
-        // The prev cursor is populated once past the first page.
         self::assertIsString($second->json('links.prev'));
     }
 
     /**
-     * Test that following the next cursors to the terminal page returns the
-     * single trailing row with no further cursor.
+     * Test that following the next cursors to the end returns the trailing row
+     * with no further cursor.
      *
      * @return void
      */
@@ -133,7 +124,6 @@ final class CursorPaginationTest extends TestCase
 
         $response->assertOk();
 
-        // Walk the next cursors until the terminal page is reached.
         while (is_string($next = $response->json('links.next'))) {
 
             $parts = parse_url($next);
@@ -146,8 +136,6 @@ final class CursorPaginationTest extends TestCase
             $response->assertOk();
         }
 
-        // Five rows over pages of two leaves a single trailing row with no
-        // further pages and a null next cursor.
         $response->assertJsonCount(1, 'data');
         $response->assertJsonPath('data.0.name', 'Evan');
 
@@ -157,9 +145,8 @@ final class CursorPaginationTest extends TestCase
     }
 
     /**
-     * Test that supplying a cursor token alone, without an explicit
-     * pagination=cursor flag, resolves cursor pagination and returns the page
-     * addressed by the token rather than falling back to page pagination.
+     * Test that a cursor token alone, without pagination=cursor, resolves
+     * cursor pagination.
      *
      * @return void
      */
@@ -195,8 +182,8 @@ final class CursorPaginationTest extends TestCase
     }
 
     /**
-     * Test that a cursor request matching no rows returns the terminal envelope
-     * with empty data and null cursors on both sides.
+     * Test that a cursor request matching no rows returns empty data and null
+     * cursors.
      *
      * @return void
      */

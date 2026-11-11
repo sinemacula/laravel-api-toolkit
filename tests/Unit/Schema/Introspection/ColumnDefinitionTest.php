@@ -55,9 +55,7 @@ final class ColumnDefinitionTest extends TestCase
     }
 
     /**
-     * Test that a catalogue row is read into a definition, with its type name
-     * lower-cased so a comparison against it does not turn on the engine's own
-     * folding.
+     * Test that a catalogue row is read with its type name lower-cased.
      *
      * @return void
      */
@@ -86,8 +84,7 @@ final class ColumnDefinitionTest extends TestCase
     }
 
     /**
-     * Test that a row in any shape but a name, a type name, and a nullability
-     * flag is passed over.
+     * Test that a row lacking a name, type name or nullability is passed over.
      *
      * @param  mixed  $entry
      * @return void
@@ -99,8 +96,7 @@ final class ColumnDefinitionTest extends TestCase
     }
 
     /**
-     * Test that a definition is returned as the catalogue row it is read from,
-     * and that the row reads back as an equal definition.
+     * Test that a definition round-trips through its catalogue row.
      *
      * @return void
      */

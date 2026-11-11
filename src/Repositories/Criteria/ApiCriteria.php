@@ -32,10 +32,7 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
 
 /**
- * API criteria.
- *
- * Thin orchestrator that delegates searching, filtering, eager loading,
- * limiting, and ordering to single-responsibility concern classes.
+ * Applies the parsed API query to an Eloquent query.
  *
  * @implements \SineMacula\Repositories\Contracts\CriteriaInterface<\Illuminate\Database\Eloquent\Model>
  *
@@ -178,11 +175,7 @@ final class ApiCriteria implements CriteriaInterface
     /**
      * Apply the filter expression inside a nested WHERE group.
      *
-     * The group stops a root-level `$or` escaping a constraint the caller ANDs
-     * onto the query afterwards, such as a tenant or security scope. Ungrouped,
-     * SQL `AND` binds tighter than a root-level `OR`, so that constraint would
-     * bind to only one disjunct. An empty filter set yields an empty group,
-     * which the builder discards.
+     * Grouped so a root `$or` cannot escape constraints ANDed on afterwards.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
@@ -277,8 +270,9 @@ final class ApiCriteria implements CriteriaInterface
     }
 
     /**
-     * Build the declared query surface for the resolved resource. A model with
-     * no mapped resource yields an empty surface, so every key is rejected.
+     * Build the declared query surface for the resolved resource.
+     *
+     * An unmapped model yields an empty surface, so every key is rejected.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface

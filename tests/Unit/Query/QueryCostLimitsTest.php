@@ -14,10 +14,6 @@ use Tests\TestCase;
 /**
  * Tests for the QueryCostLimits value object.
  *
- * Every cap is exercised at exactly its limit and one above it, so the
- * comparison that separates an accepted request from a rejected one is pinned
- * from both sides.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -65,8 +61,8 @@ final class QueryCostLimitsTest extends TestCase
     }
 
     /**
-     * Test that a measurement one above the cap is rejected, carrying the whole
-     * rejection detail and the meta a client needs to correct the query.
+     * Test that a measurement one above the cap is rejected with the full
+     * rejection detail and meta.
      *
      * @param  string  $cap
      * @return void
@@ -114,8 +110,7 @@ final class QueryCostLimitsTest extends TestCase
     }
 
     /**
-     * Test that a cap set to null disables enforcement, matching the other
-     * documented way of turning a dimension off rather than quietly restoring
+     * Test that a cap set to null disables enforcement rather than restoring
      * the shipped default.
      *
      * @param  string  $cap
@@ -136,8 +131,7 @@ final class QueryCostLimitsTest extends TestCase
     }
 
     /**
-     * Test that a negative cap disables enforcement rather than rejecting every
-     * request.
+     * Test that a negative cap disables enforcement.
      *
      * @return void
      *
@@ -172,7 +166,7 @@ final class QueryCostLimitsTest extends TestCase
 
     /**
      * Test that a numeric string, as an environment override supplies, is read
-     * as its integer value.
+     * as an integer.
      *
      * @return void
      */
@@ -184,8 +178,7 @@ final class QueryCostLimitsTest extends TestCase
     }
 
     /**
-     * Test that a non-numeric cap falls back to the shipped default rather than
-     * silently disabling the cap.
+     * Test that a non-numeric cap falls back to the shipped default.
      *
      * @return void
      */
@@ -216,8 +209,8 @@ final class QueryCostLimitsTest extends TestCase
     }
 
     /**
-     * Test that the shipped config file publishes exactly the defaults the
-     * class falls back to, so the two cannot drift.
+     * Test that the shipped config file publishes exactly the class's fallback
+     * defaults.
      *
      * @return void
      */

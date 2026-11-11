@@ -11,10 +11,6 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 /**
  * Base handler for binary comparison filter operators.
  *
- * Applies a single comparison constraint to the query builder using the SQL
- * operator symbol declared by the concrete subclass, honouring the logical
- * operator of the current filter context.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

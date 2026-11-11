@@ -22,7 +22,7 @@ final class ClassNameResolverTest extends TestCase
     /** @var string The namespace every generated fixture class is declared under */
     private const string SCRATCH = 'Tests\Scratch\ClassNameResolver';
 
-    /** @var string The fixture controller naming its exceptions in every form a class name takes */
+    /** @var string Fixture controller naming its exceptions in every class-name form */
     private const string IMPORTED = 'Tests\Fixtures\OpenApi\ImportedThrowsController';
 
     /** @var array<int, string> The generated fixture files to remove */
@@ -44,8 +44,7 @@ final class ClassNameResolverTest extends TestCase
     }
 
     /**
-     * Test that a name written fully qualified is returned without its leading
-     * backslash, whatever the file imports.
+     * Test that a fully qualified name loses its leading backslash.
      *
      * @return void
      */
@@ -57,8 +56,7 @@ final class ClassNameResolverTest extends TestCase
     }
 
     /**
-     * Test that a short name matching an import, a plain, aliased, or grouped
-     * one, compared case-insensitively, resolves to the imported name.
+     * Test that a short name matching any import kind resolves to it.
      *
      * @return void
      */
@@ -75,8 +73,7 @@ final class ClassNameResolverTest extends TestCase
     }
 
     /**
-     * Test that a qualified name whose first segment matches an import resolves
-     * under the imported name.
+     * Test that a qualified name with an imported first segment resolves.
      *
      * @return void
      */
@@ -91,9 +88,7 @@ final class ClassNameResolverTest extends TestCase
     }
 
     /**
-     * Test that a name matching no import resolves relative to the enclosing
-     * namespace, including a name an import only aliases and a name written
-     * with the namespace prefix.
+     * Test that an unimported name resolves against the namespace.
      *
      * @return void
      */
@@ -110,8 +105,7 @@ final class ClassNameResolverTest extends TestCase
     }
 
     /**
-     * Test that inherited and trait methods resolve against the file declaring
-     * them rather than the class they are reflected from.
+     * Test that inherited and trait methods resolve in their own file.
      *
      * @return void
      */
@@ -134,8 +128,7 @@ final class ClassNameResolverTest extends TestCase
     }
 
     /**
-     * Test that each braced namespace block, named or global, resolves against
-     * its own imports and namespace only.
+     * Test that each braced namespace block resolves on its own.
      *
      * @return void
      */
@@ -173,9 +166,7 @@ final class ClassNameResolverTest extends TestCase
     }
 
     /**
-     * Test that a later unbraced namespace statement starts a fresh block, even
-     * one sharing a line with the method, and a file without one resolves
-     * against the global namespace, past any leading braced statement block.
+     * Test that unbraced namespace statements each start a fresh block.
      *
      * @return void
      */
@@ -223,8 +214,7 @@ final class ClassNameResolverTest extends TestCase
     }
 
     /**
-     * Test that every clause of a multi-clause use statement is imported, and a
-     * fully qualified import drops its leading backslash.
+     * Test that every clause of a multi-clause use statement is imported.
      *
      * @return void
      */
@@ -254,8 +244,7 @@ final class ClassNameResolverTest extends TestCase
     }
 
     /**
-     * Test that function and constant imports, whether whole statements or
-     * items of a mixed group, are not imports of a class.
+     * Test that function and constant imports are not class imports.
      *
      * @return void
      */
@@ -286,8 +275,7 @@ final class ClassNameResolverTest extends TestCase
     }
 
     /**
-     * Test that trait uses inside a class body, even after an interpolated
-     * string, and closure uses are not imports.
+     * Test that trait uses and closure uses are not imports.
      *
      * @return void
      */
@@ -329,8 +317,7 @@ final class ClassNameResolverTest extends TestCase
     }
 
     /**
-     * Test that keywords used as method names and literal braces inside
-     * interpolated strings neither open a namespace nor shift the brace depth.
+     * Test that keywords and interpolated braces do not shift the depth.
      *
      * @return void
      */
@@ -400,8 +387,7 @@ final class ClassNameResolverTest extends TestCase
     }
 
     /**
-     * Test that a method whose file cannot be read resolves against its class's
-     * namespace with no imports.
+     * Test that an unreadable file resolves against the class namespace.
      *
      * @return void
      */
@@ -426,8 +412,7 @@ final class ClassNameResolverTest extends TestCase
     }
 
     /**
-     * Test that each file is read once, so a name keeps resolving against the
-     * imports first read after the file is gone.
+     * Test that each file is read once.
      *
      * @return void
      */

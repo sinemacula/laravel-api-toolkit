@@ -7,10 +7,7 @@ namespace SineMacula\ApiToolkit\Services\Pipeline;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Database transaction stage.
- *
- * Wraps the service pipeline in a database transaction with configurable retry
- * attempts. The transaction commits on success and rolls back on exception.
+ * Pipeline stage wrapping the rest of the run in a database transaction.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -18,7 +15,7 @@ use Illuminate\Support\Facades\DB;
 final class TransactionStage
 {
     /**
-     * Wrap $next in DB::transaction with $attempts retries.
+     * Run $next in a transaction, retrying up to $attempts times.
      *
      * @param  \Closure(): mixed  $next
      * @param  int  $attempts

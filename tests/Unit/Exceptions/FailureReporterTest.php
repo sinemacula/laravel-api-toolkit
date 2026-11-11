@@ -45,7 +45,7 @@ final class FailureReporterTest extends TestCase
 
     /**
      * Test that a failure of reporting falls back to an error log line that
-     * carries the original exception, not the reporting failure.
+     * carries the original exception.
      *
      * @return void
      */

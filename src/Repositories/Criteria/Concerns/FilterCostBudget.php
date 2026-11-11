@@ -9,11 +9,7 @@ use SineMacula\ApiToolkit\Query\QueryCostLimits;
 /**
  * Mutable cost budget shared by every level of a single filter walk.
  *
- * The dispatch context is immutable and is rebuilt at each level, so the
- * running node total lives here and is referenced by every context derived from
- * the root. Both caps are enforced as the walk descends, so an oversized
- * document is refused part-way through rather than after the whole tree has
- * been materialised.
+ * Caps are enforced during descent, so an oversized document fails part-way.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

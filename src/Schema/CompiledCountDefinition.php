@@ -7,9 +7,6 @@ namespace SineMacula\ApiToolkit\Schema;
 /**
  * Typed representation of a single compiled count definition.
  *
- * Provides typed access to all resolved count properties stored in the schema
- * cache.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

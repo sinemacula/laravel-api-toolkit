@@ -21,16 +21,7 @@ use Tests\Fixtures\Resources\ExportableUserResource;
 use Tests\TestCase;
 
 /**
- * Regression tests proving that exporting a toolkit resource collection or
- * single item through the ExportNegotiator does not re-query relations that
- * were already eager-loaded before the export began.
- *
- * ResourceCollectionSource and ResourceItemSource do not implement
- * DerivesAggregates, so the engine's withCount/withSum plan is never applied to
- * them. DerivesTabularSchema.tabular() also produces a schema whose with() is
- * empty (relation fields are skipped entirely), so loadMissing() is not called
- * on the pre-loaded collection. The tests confirm both invariants empirically
- * by counting the queries issued exclusively during the streaming phase.
+ * Regression tests that exports do not re-query eager-loaded relations.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -72,29 +63,14 @@ final class ExportEagerLoadRegressionTest extends TestCase
         parent::tearDown();
     }
 
-    // -------------------------------------------------------------------------
-    // Collection - zero queries during export with pre-loaded relation
-    // -------------------------------------------------------------------------
-
     /**
-     * Test that a collection CSV export issues zero queries when the underlying
-     * models have their relations already eager-loaded.
-     *
-     * ResourceCollectionSource.rows() only calls loadMissing() when
-     * withRelations() received a non-empty list. DerivesTabularSchema skips all
-     * Relation fields, so the engine derives an empty with() list and the load
-     * is never triggered. The export also issues no withCount or withSum
-     * queries because ResourceCollectionSource does not implement
-     * DerivesAggregates. Pre-loaded models therefore reach the CSV writer with
-     * zero additional queries.
+     * Test that a collection export issues no queries for loaded relations.
      *
      * @return void
      */
     public function testCollectionExportDoesNotRequeryEagerLoadedRelations(): void
     {
-        // The route handler loads users with their organisation eager-loaded.
-        // StreamedResponse defers the callback until streamedContent(), so the
-        // DB query log can be reset cleanly between the two phases.
+        // The callback is deferred, so the query log is reset between phases
         $response = $this->get('/eager-export/users', ['Accept' => 'text/csv']);
 
         $response->assertOk();
@@ -122,18 +98,8 @@ final class ExportEagerLoadRegressionTest extends TestCase
         self::assertStringContainsString('Bob', $content);
     }
 
-    // -------------------------------------------------------------------------
-    // Item - zero queries during export with pre-loaded relation
-    // -------------------------------------------------------------------------
-
     /**
-     * Test that a single-item CSV export issues zero queries when the
-     * underlying model has its relation already eager-loaded.
-     *
-     * ResourceItemSource.rows() only calls loadMissing() when withRelations()
-     * received a non-empty list. Since the derived tabular schema carries no
-     * with() hints and DerivesAggregates is not implemented, the pre-loaded
-     * model is yielded and shaped into a CSV row without any further queries.
+     * Test that an item export issues no queries for an eager-loaded relation.
      *
      * @return void
      */
@@ -212,14 +178,7 @@ final class ExportEagerLoadRegressionTest extends TestCase
     }
 
     /**
-     * Register the HTTP routes used by the eager-load regression scenarios.
-     *
-     * Both routes explicitly eager-load the organisation relation before
-     * returning the resource, mirroring what a real repository or service layer
-     * would do. The organisation column is a Relation field in
-     * ExportableUserResource and is therefore excluded from the tabular
-     * schema - confirming that the export neither re-loads it nor uses it to
-     * derive aggregates.
+     * Register the routes used by the eager-load regression scenarios.
      *
      * @return void
      */

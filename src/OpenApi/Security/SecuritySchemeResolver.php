@@ -11,17 +11,8 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 /**
  * Derives a route's OpenAPI security requirement from its auth middleware.
  *
- * Authentication is read from standard Laravel config, orthogonal to
- * authorization: the route's Authenticate middleware, resolved through groups
- * and aliases as the router dispatches it, yields a guard list (a bare `auth`
- * resolves the default guard; `auth:user,guest` is an OR of both), each guard's
- * driver comes from `auth.guards.<guard>.driver`, and the driver maps to a
- * security scheme through the mapper. Guards mapping to different schemes
- * become separate single-scheme requirements (an OR); guards mapping to the
- * same scheme collapse to one, never revealing the guard distinction. A route
- * with no auth middleware is public and yields an empty requirement list.
- * Authorization middleware (`can:`) is not authentication, so a route carrying
- * only `can:` is treated as public for scheme purposes.
+ * Guards sharing a scheme collapse to one requirement so the guard distinction
+ * is never revealed.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -44,9 +35,7 @@ final readonly class SecuritySchemeResolver
     ) {}
 
     /**
-     * Build the per-operation security value: an ordered, deduped list of
-     * single-scheme requirement objects for the route's auth guards, or an
-     * empty list when the route is public.
+     * Build the deduplicated security requirements for the route's auth guards.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @return list<array<string, list<string>>>
@@ -72,8 +61,7 @@ final readonly class SecuritySchemeResolver
     }
 
     /**
-     * Resolve the definition for a referenced scheme name, or null when no
-     * mapped driver emits it.
+     * Resolve the definition for a referenced scheme name.
      *
      * @param  string  $name
      * @return array<string, mixed>|null
@@ -84,8 +72,7 @@ final readonly class SecuritySchemeResolver
     }
 
     /**
-     * Resolve the scheme for a guard from its configured driver, or null when
-     * the guard or its driver has no mapping.
+     * Resolve the scheme for a guard from its configured driver.
      *
      * @param  string  $guard
      * @return array{name: string, definition: array<string, mixed>}|null
@@ -98,8 +85,7 @@ final readonly class SecuritySchemeResolver
     }
 
     /**
-     * Read the configured driver for a guard, or null when the guard is absent
-     * from config.
+     * Read the configured driver for a guard.
      *
      * @param  string  $guard
      * @return string|null

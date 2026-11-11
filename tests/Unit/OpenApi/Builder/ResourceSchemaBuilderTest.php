@@ -62,15 +62,12 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a compiled field key that resolves to no field definition is
-     * skipped when building the schema, emitting an empty-property object.
+     * Test that a field key with no definition is skipped.
      *
      * @return void
      */
     public function testSkipsFieldKeyWithoutADefinition(): void
     {
-        // A compiled schema whose only field key maps to a null definition -
-        // the builder must skip it rather than resolve a property.
         $schema = new CompiledSchema(['ghost' => null], []); // @phpstan-ignore argument.type
 
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
@@ -81,8 +78,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a null field definition only skips its own key: later field
-     * keys in the same compiled schema are still emitted as properties.
+     * Test that a null field definition skips only its own key.
      *
      * @return void
      */
@@ -101,8 +97,6 @@ final class ResourceSchemaBuilderTest extends TestCase
             transformers: [],
         );
 
-        // The null 'ghost' key precedes a valid relation key; skipping the null
-        // must not abandon the rest of the loop.
         $schema = new CompiledSchema(['ghost' => null, 'posts' => $relation], []); // @phpstan-ignore argument.type
 
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
@@ -118,8 +112,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that exactly one schema is emitted per registered resource, keyed by
-     * its PascalCase component name.
+     * Test that one schema is emitted per resource under its component name.
      *
      * @return void
      */
@@ -135,8 +128,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that every compiled scalar, relation, and projection field key of a
-     * resource appears as a property of its emitted schema.
+     * Test that every compiled field key appears as a schema property.
      *
      * @return void
      */
@@ -157,8 +149,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a clean count key (no colliding field) becomes a property of
-     * its resource schema.
+     * Test that a non-colliding count key becomes a schema property.
      *
      * @return void
      */
@@ -183,8 +174,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that an inferred scalar field carries a concrete type derived from
-     * its backing column.
+     * Test that an inferred scalar carries a type from its backing column.
      *
      * @return void
      */
@@ -197,8 +187,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a scalar field whose model cast is a backed enum emits a
-     * reference to the enum's named component rather than an inline type.
+     * Test that a backed enum cast references the enum's component.
      *
      * @return void
      */
@@ -215,8 +204,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resolved to-one relation (a BelongsTo) emits a single
-     * reference to the related component with no cardinality flag.
+     * Test that a to-one relation emits a single reference.
      *
      * @return void
      */
@@ -231,8 +219,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resolved to-many relation (a HasMany) emits an array of
-     * references to the related component with no cardinality flag.
+     * Test that a to-many relation emits an array of references.
      *
      * @return void
      */
@@ -250,8 +237,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resolved many-to-many relation (a BelongsToMany) emits an
-     * array of references to the related component.
+     * Test that a many-to-many relation emits an array of references.
      *
      * @return void
      */
@@ -267,9 +253,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a relation whose owning model cannot be instantiated falls back
-     * to the conservative object-or-array-or-null reference shape flagged with
-     * an unknown cardinality.
+     * Test that an uninstantiable owner falls back to the unknown shape.
      *
      * @return void
      */
@@ -303,8 +287,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a string-projection relation with no child resource is not
-     * emitted as a reference but flagged undocumented through the resolver.
+     * Test that a projection without a child resource is undocumented.
      *
      * @return void
      */
@@ -333,8 +316,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a count never overwrites a colliding relation property: the
-     * richer relation reference shape is preserved.
+     * Test that a count never overwrites a colliding relation property.
      *
      * @return void
      */
@@ -348,8 +330,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that non-guarded scalar field keys are listed as required while
-     * relations and counts are not.
+     * Test that unguarded scalars are required but relations and counts not.
      *
      * @return void
      */
@@ -383,8 +364,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a field whose type cannot be resolved keeps its undocumented
-     * marker and remains schema-valid (admits any value).
+     * Test that an unresolvable field stays undocumented and schema-valid.
      *
      * @return void
      */
@@ -399,8 +379,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a relation field reference targets the related resource's
-     * component schema by name.
+     * Test that a relation reference targets the related component by name.
      *
      * @return void
      */
@@ -413,8 +392,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that every resource schema leads with a `_type` discriminator fixed
-     * to the resource's registered type via a constant.
+     * Test that every resource schema leads with a constant `_type` field.
      *
      * @return void
      */
@@ -428,8 +406,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that the `_type` discriminator is listed as a required property of
-     * the resource schema.
+     * Test that the `_type` discriminator is required.
      *
      * @return void
      */
@@ -442,9 +419,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource whose class cannot be resolved as an API resource
-     * omits the `_type` discriminator rather than resolving a type from a
-     * non-existent class.
+     * Test that an unresolvable resource class omits the `_type` field.
      *
      * @return void
      */
@@ -465,8 +440,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resolved HasOne relation is classified as to-one, emitting a
-     * single reference, while a to-many relation on the same model is not.
+     * Test that a HasOne relation is classified as to-one.
      *
      * @return void
      */
@@ -479,8 +453,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resolved MorphOne relation is classified as to-one, emitting
-     * a single reference rather than an array of references.
+     * Test that a MorphOne relation is classified as to-one.
      *
      * @return void
      */
@@ -492,8 +465,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resolved HasOneThrough relation is classified as to-one
-     * despite descending from the to-many HasManyThrough base class.
+     * Test that a HasOneThrough relation is classified as to-one.
      *
      * @return void
      */
@@ -505,8 +477,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a guarded scalar field is emitted as an undocumented, optional
-     * property while a non-guarded sibling scalar remains required.
+     * Test that a guarded scalar is undocumented and optional.
      *
      * @return void
      */
@@ -521,9 +492,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a field carrying a full author-declared OpenAPI contract is
-     * emitted verbatim through the compiler and builder, applying the 2020-12
-     * nullable type-array form.
+     * Test that a declared OpenAPI contract is emitted verbatim.
      *
      * @return void
      */
@@ -541,8 +510,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a to-one relation emits a single reference while a to-many
-     * relation on the same resource emits an array of references.
+     * Test that to-one and to-many relations differ in reference shape.
      *
      * @return void
      */
@@ -558,8 +526,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a nullable inferred scalar emits the 2020-12 null type member
-     * while a non-nullable sibling scalar emits a bare scalar type.
+     * Test that a nullable scalar emits the 2020-12 null type member.
      *
      * @return void
      */
@@ -573,9 +540,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a filterable field documents the key a filter names it by, the
-     * capability it was declared with, and the operator tokens that capability
-     * answers, so two capabilities on one resource carry two operator sets.
+     * Test that a filterable field documents its key, capability and operators.
      *
      * @return void
      */
@@ -597,8 +562,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a field declaring nothing queryable carries no query surface at
-     * all, rather than an empty one.
+     * Test that a field declaring nothing queryable has no query surface.
      *
      * @return void
      */
@@ -611,9 +575,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a field declared sortable and nothing else documents only the
-     * order it answers, and is documented as index-backed, no exemption having
-     * been recorded against it.
+     * Test that a sortable-only field documents its order as index-backed.
      *
      * @return void
      */
@@ -628,8 +590,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a sortable column exempted from needing an index is documented
-     * as unindexed and carries the reason the resource recorded for it.
+     * Test that an index-exempt sortable column documents it and the reason.
      *
      * @return void
      */
@@ -646,8 +607,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a searchable field documents the strategy its column is matched
-     * by, so two columns under different strategies read differently.
+     * Test that a searchable field documents its match strategy.
      *
      * @return void
      */
@@ -663,9 +623,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a declaration the compiled query sets do not carry is never
-     * documented, so the document cannot offer a column the request-time gates
-     * would reject.
+     * Test that a declaration absent from the compiled sets is not documented.
      *
      * @return void
      */
@@ -686,9 +644,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that an aliased field documents the key the query grammar accepts
-     * rather than the key the resource is presented under, the two differing
-     * wherever a field carries an alias.
+     * Test that an aliased field documents its query-grammar key.
      *
      * @return void
      */
@@ -704,9 +660,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that an operator the live vocabulary no longer holds is dropped from
-     * the documented set while the rest survive, so the document cannot offer a
-     * predicate the filter engine refuses as an undeclared key.
+     * Test that an operator gone from the vocabulary is dropped.
      *
      * @return void
      */
@@ -726,9 +680,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a column whose every operator has left the vocabulary carries
-     * no filter surface at all, being no more filterable than an undeclared
-     * column.
+     * Test that a column with no remaining operators has no filter surface.
      *
      * @return void
      */
@@ -752,9 +704,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a relation naming a resource no registered model maps to emits
-     * a self-contained shape rather than a reference to a component the
-     * document never defines.
+     * Test that an unregistered relation target emits an inline shape.
      *
      * @return void
      */
@@ -770,9 +720,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that the same relation emits its reference once the target resource
-     * is registered, so the self-contained shape is the absence of a component
-     * rather than a blanket refusal to reference one.
+     * Test that a registered relation target emits its reference.
      *
      * @return void
      */
@@ -785,9 +733,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that the relations a filter may descend through are named on the
-     * schema itself, the grammar accepting the relation name rather than the
-     * property key.
+     * Test that the schema names the relations a filter may descend through.
      *
      * @return void
      */
@@ -799,8 +745,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource declaring no traversable relation carries no such
-     * key, rather than an empty list.
+     * Test that a resource without traversable relations omits the key.
      *
      * @return void
      */
@@ -812,8 +757,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that two distinct resources deriving the same component name make
-     * the build fail loud, naming the collided name and both resource classes.
+     * Test that two resources deriving one component name fail loud.
      *
      * @return void
      */
@@ -832,8 +776,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that the same resource claimed under two models does not collide, so
-     * a resource shared across models still builds a single schema.
+     * Test that one resource shared across models builds a single schema.
      *
      * @return void
      */
@@ -849,9 +792,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a #[SchemaName] override on one of two basename-colliding
-     * resources disambiguates them, so both schemas survive under distinct
-     * keys.
+     * Test that a #[SchemaName] override disambiguates colliding resources.
      *
      * @return void
      */
@@ -868,10 +809,9 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Build the single schema of a synthetic resource compiled from the given
-     * schema, so a compiled shape the schema DSL cannot express is still put
-     * through the builder. The user model backs it, so a scalar property still
-     * resolves against a real table.
+     * Build the schema of a synthetic resource compiled from the given schema.
+     *
+     * The user model backs it so scalar properties resolve against a table.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @param  array<int, string>|null  $vocabulary
@@ -885,8 +825,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Build a compiled field definition carrying only the query declarations a
-     * test names.
+     * Build a compiled field definition with only the given query declarations.
      *
      * @param  string|null  $filterable
      * @param  \SineMacula\ApiToolkit\Enums\Capability|null  $capability
@@ -926,8 +865,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Build a ResourceSchemaBuilder backed by a stubbed catalogue returning the
-     * given resource map, and a real resolver against the live test schema.
+     * Build a ResourceSchemaBuilder over the given resource map.
      *
      * @param  array<class-string, class-string>  $resourceMap
      * @param  array<int, string>|null  $vocabulary
@@ -943,8 +881,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Build a builder over a stubbed compiled schema keyed by an unmapped name,
-     * so a resource with no compiled class of its own can still be built.
+     * Build a builder over a stubbed compiled schema keyed by an unmapped name.
      *
      * @param  array<string, string>  $resourceMap
      * @param  array<int, string>|null  $vocabulary
@@ -967,8 +904,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Build a real field-type resolver against the container-bound
-     * introspector.
+     * Build a real field-type resolver against the bound introspector.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver
      */

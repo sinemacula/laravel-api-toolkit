@@ -1,43 +1,23 @@
-# ==============================================================================
-# RELEASE
-# ==============================================================================
-# Trunk-based release automation. release-please maintains a standing Release PR
-# on `master`; merging it tags the release and cuts a GitHub Release. Packagist
-# updates from the new tag via its webhook (no publish step needed here).
-#
-# Delegates to the org reusable workflow, pinned to a release tag. use-app-token
-# mints a GitHub App token to create the tag (required by the org tag ruleset).
-# ==============================================================================
+# release-please keeps a Release PR open on master; merging it tags the release
+# and publishes a GitHub Release, which Packagist picks up from the tag.
 name: Release
 
-# ==============================================================================
-# TRIGGER
-# ==============================================================================
 on:
     push:
         branches: [ master ]
 
-# ==============================================================================
-# CONCURRENCY
-# ==============================================================================
 concurrency:
     group: release-${{ github.ref }}
     cancel-in-progress: false
 
-# ==============================================================================
-# PERMISSIONS
-# ==============================================================================
 permissions:
     contents: write
     pull-requests: write
 
 jobs:
-
-    # ==========================================================================
-    # JOB: RELEASE
-    # ==========================================================================
     release:
         uses: sinemacula/.github/.github/workflows/release.yml@v2.0.0
         secrets: inherit
         with:
+            # The org tag ruleset only accepts tags created with the GitHub App token
             use-app-token: true

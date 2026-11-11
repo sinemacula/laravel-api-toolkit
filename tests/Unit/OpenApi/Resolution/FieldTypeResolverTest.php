@@ -32,9 +32,7 @@ use Tests\Fixtures\Models\User;
 final class FieldTypeResolverTest extends TestCase
 {
     /**
-     * Test that a declared schema is returned verbatim and is never overridden
-     * by inference, even when the field maps to an inferrable column whose
-     * inferred type disagrees with the declaration.
+     * Test that a declared schema is never overridden by inference.
      *
      * @return void
      */
@@ -54,8 +52,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a plain scalar backed by a typed, non-null column is inferred
-     * with a concrete type and is not flagged.
+     * Test that a typed non-null column infers a concrete unflagged type.
      *
      * @return void
      */
@@ -73,8 +70,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a nullable column produces a nullable inferred schema, so
-     * nullability is never dropped.
+     * Test that a nullable column produces a nullable inferred schema.
      *
      * @return void
      */
@@ -91,8 +87,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a model boolean cast takes precedence over the column type,
-     * resolving the tinyint ambiguity in favour of boolean.
+     * Test that a boolean cast takes precedence over the column type.
      *
      * @return void
      */
@@ -108,8 +103,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a backed-enum cast resolves to a reference to the enum's named
-     * component rather than an inline type, registering the enum.
+     * Test that a backed-enum cast references and registers the enum.
      *
      * @return void
      */
@@ -130,8 +124,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a pure-enum cast resolves to a reference to the enum's named
-     * component, as a backed-enum cast does, registering the enum.
+     * Test that a pure-enum cast references and registers the enum.
      *
      * @return void
      */
@@ -162,8 +155,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a nullable backed-enum cast widens the reference to an anyOf
-     * with a null member, since a bare $ref cannot carry the null type.
+     * Test that a nullable enum cast widens the reference to an anyOf.
      *
      * @return void
      */
@@ -183,9 +175,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that an aliased scalar field is inferred from the column matching
-     * its presentation key, since the field key is the attribute the value is
-     * read from.
+     * Test that an aliased scalar is inferred from its presentation key.
      *
      * @return void
      */
@@ -237,8 +227,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that an accessor field with no declaration is flagged undocumented
-     * rather than inferred or guessed.
+     * Test that an undeclared accessor field is flagged undocumented.
      *
      * @return void
      */
@@ -270,8 +259,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a relation field with a child resource is flagged undocumented,
-     * because its cardinality is unknowable from the compiled definition alone.
+     * Test that a relation field with a child resource is undocumented.
      *
      * @return void
      */
@@ -287,8 +275,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a guarded field is flagged undocumented when it carries no
-     * declaration, so a conditionally present value is never confidently typed.
+     * Test that an undeclared guarded field is flagged undocumented.
      *
      * @return void
      */
@@ -306,8 +293,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a field carrying a transformer is flagged undocumented, since
-     * the transformer changes the emitted value away from the column type.
+     * Test that a field with a transformer is flagged undocumented.
      *
      * @return void
      */
@@ -325,8 +311,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a plain scalar whose key matches no column is flagged
-     * undocumented rather than guessed.
+     * Test that a scalar matching no column is flagged undocumented.
      *
      * @return void
      */
@@ -342,8 +327,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a plain scalar backed by a column of unknown driver type is
-     * flagged undocumented rather than guessed.
+     * Test that a column of unknown driver type is flagged undocumented.
      *
      * @return void
      */
@@ -359,8 +343,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that no flagged field ever carries a concrete narrow type -- the
-     * flag-never-guess invariant -- across every opaque and unresolvable case.
+     * Test that no flagged field ever carries a concrete narrow type.
      *
      * @return void
      */
@@ -402,8 +385,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that the resolver works against a model without a configured cast
-     * map, inferring purely from the column type.
+     * Test that a model without a cast map infers from the column type.
      *
      * @return void
      */
@@ -420,8 +402,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a scalar field degrades to its declared cast when no column
-     * definition is available, mirroring an export run without a database.
+     * Test that a scalar degrades to its cast without a column definition.
      *
      * @return void
      */
@@ -436,9 +417,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a scalar field with neither a column definition nor a mappable
-     * cast is flagged undocumented rather than failing, when no database is
-     * available.
+     * Test that a scalar without column or mappable cast is undocumented.
      *
      * @return void
      */
@@ -452,8 +431,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Build a resolver whose introspector returns the given column definitions
-     * for any model.
+     * Build a resolver whose introspector returns the given columns.
      *
      * @param  array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>  $columns
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry|null  $enums
@@ -468,8 +446,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Build a compiled field definition with the given attributes, defaulting
-     * to a plain scalar.
+     * Build a compiled field definition, defaulting to a plain scalar.
      *
      * @param  mixed  $accessor
      * @param  mixed  $compute
@@ -505,8 +482,7 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Assert that a schema is a permissive, flagged-undocumented schema that
-     * carries no concrete type.
+     * Assert that a schema is permissive, flagged undocumented and untyped.
      *
      * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema  $schema
      * @return void

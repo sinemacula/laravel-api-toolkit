@@ -38,8 +38,7 @@ final class QuerySurfaceDescriptorTest extends TestCase
     }
 
     /**
-     * Test that a resource declaring no traversable relation defaults to none,
-     * rather than requiring the caller to say so.
+     * Test that traversable relations default to none.
      *
      * @return void
      */

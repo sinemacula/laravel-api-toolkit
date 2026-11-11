@@ -7,17 +7,7 @@ namespace SineMacula\ApiToolkit\Http\Resources;
 /**
  * Base class for aggregated read-model (report) resources.
  *
- * Reports are a second read model: a raw aggregation query is hydrated into a
- * plain data-transfer object and transformed here, sharing the toolkit's
- * response envelope without the schema-driven, Eloquent-bound machinery of
- * {@see ApiResource}. Subclasses implement `toArray()` to shape their payload
- * and may stamp a discriminator via {@see ToolkitResource::withType()}; reports
- * carry a `_type` only when they opt into one, since an aggregated row has no
- * intrinsic entity type.
- *
- * Overriding {@see self::newCollection()} ensures `static::collection(...)`
- * yields a {@see ReportCollection}, so paginated reports inherit the identical
- * envelope as entity collections.
+ * Reports have no intrinsic entity type, so `_type` is opt-in via withType().
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

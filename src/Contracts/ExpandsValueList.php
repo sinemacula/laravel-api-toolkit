@@ -5,13 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Contracts;
 
 /**
- * Value-list expansion contract for filter operator handlers.
- *
- * Implemented by an operator that fans a single value out into more than one
- * predicate, so the dispatcher measures the list the handler will actually
- * materialise against the item cap rather than the shape of the raw value. An
- * operator that does not implement this contract is measured as one item per
- * non-list value.
+ * Implemented by a filter operator that fans one value out into several
+ * predicates, so the item cap measures the expanded list.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

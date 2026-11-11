@@ -56,9 +56,8 @@ final class FieldTest extends TestCase
     }
 
     /**
-     * Test that filterable() emits the field's column name alongside the
-     * capability it was declared with, and that sortable() emits the column
-     * name.
+     * Test that filterable() emits the column name with its declared capability
+     * and sortable() emits the column name.
      *
      * @return void
      */
@@ -632,9 +631,6 @@ final class FieldTest extends TestCase
 
     /**
      * Test that the openapi key is absent when no declaration was made.
-     *
-     * This is the byte-for-byte backward-compatibility oracle (AC-11): a scalar
-     * field with no openapi() call must serialize identically.
      *
      * @return void
      */

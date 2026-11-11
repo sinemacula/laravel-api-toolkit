@@ -15,18 +15,6 @@ use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 /**
  * Applies filter trees to an Eloquent query builder.
  *
- * The walk carries a cost budget on the dispatch context, so a document that
- * nests too deeply, visits too many keys, or hands an operator too long a value
- * list is refused where it is reached rather than after the whole tree has been
- * built.
- *
- * Every predicate the walk emits is put to the query surface as a (column,
- * operator) pair rather than as a column alone, so the column's declared
- * capability decides whether the operator reaches its handler. The bare
- * shorthand carries no token of its own and is put as the equality it compiles
- * to, so a column is held to the same declaration whichever spelling asks for
- * it.
- *
  * @SuppressWarnings("php:S1448")
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -34,7 +22,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
  */
 final class FilterApplier
 {
-    /** @var array<int, string> The structural (logical + relational) filter operator tokens - the canonical grammar the OpenAPI exporter documents. Keep aligned with the dispatch maps below (guarded by a test). */
+    /** @var array<int, string> Structural operator tokens, kept aligned with the dispatch maps */
     public const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', self::OPERATOR_HASNT];
 
     /** @var string */
@@ -86,9 +74,7 @@ final class FilterApplier
     /**
      * Apply the value given for a field to the query.
      *
-     * Any value other than a document of conditions is the bare shorthand, so a
-     * falsy value such as "0", 0, false or "" is matched like any other rather
-     * than read as the absence of a filter.
+     * Any scalar, falsy ones included, is the bare equality shorthand.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
@@ -134,14 +120,7 @@ final class FilterApplier
     }
 
     /**
-     * Assert that a filter position carries a named key rather than a list
-     * index.
-     *
-     * A value spelled as a list, such as a field given two alternatives
-     * directly, reaches this walk with integer keys where a field or condition
-     * name is expected. Left alone the index meets a string parameter and
-     * raises a type error, so the request fails as an unhandled error rather
-     * than as a rejection the caller can read and correct.
+     * Assert that a filter position carries a named key, not a list index.
      *
      * @param  mixed  $key
      * @param  string  $position
@@ -162,8 +141,7 @@ final class FilterApplier
     }
 
     /**
-     * Assert that a filter position carries a document of conditions rather
-     * than a bare value.
+     * Assert that a filter position carries a document of conditions.
      *
      * @param  mixed  $value
      * @param  string  $position
@@ -181,8 +159,7 @@ final class FilterApplier
     }
 
     /**
-     * Assert that an entry listed by a relation existence filter names a
-     * relation.
+     * Assert that a relation existence filter lists a relation name.
      *
      * @param  mixed  $relation
      * @param  string  $operator
@@ -234,11 +211,7 @@ final class FilterApplier
     /**
      * Route a plain (non-operator) key to its relation or column handler.
      *
-     * The declared surface routes the key without schema introspection: a
-     * declared traversable relation goes to the relation filter, and any other
-     * key is gated as a filter column so an undeclared key is rejected at that
-     * key before the cached relation lookup is ever reached, rather than
-     * descending into its value.
+     * Undeclared keys are rejected before any relation lookup or descent.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
@@ -347,9 +320,7 @@ final class FilterApplier
     /**
      * Count the items the given handler will read out of the operator value.
      *
-     * A handler that fans a single value out into one predicate per item
-     * reports its own count, so a list spelled as a delimited string is capped
-     * on the same footing as one spelled as an array.
+     * A handler that fans a delimited string out reports its own count.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\FilterOperator|null  $handler
      * @param  mixed  $value
@@ -426,10 +397,7 @@ final class FilterApplier
     /**
      * Apply a relation filter using whereHas or orWhereHas.
      *
-     * The relation scope is entered with no logical operator in effect: an OR
-     * above the relation is carried by orWhereHas at the parent level, and
-     * repeating it inside the subquery would OR the conditions against the
-     * correlation predicate, matching every parent row.
+     * An OR inside the subquery would disjoin the correlation predicate.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
@@ -468,10 +436,7 @@ final class FilterApplier
      */
     private function processRelationFilters(Builder $query, array $filters, FilterContext $context): void
     {
-        // The relation scope booleans its whole slice with the first clause
-        // added to it, so an `or` emitted here would disjoin away the
-        // correlation predicate written before this callback runs and match
-        // every parent row. The group keeps that clause an `and`.
+        // Grouped so the clause beside the correlation predicate stays an `and`
         $query->where(function (Builder $group) use ($filters, $context): void {
             foreach ($filters as $key => $value) {
 

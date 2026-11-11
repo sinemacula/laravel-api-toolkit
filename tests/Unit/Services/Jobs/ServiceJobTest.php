@@ -24,11 +24,6 @@ use Tests\TestCase;
 /**
  * Tests for the ServiceJob queue bridge.
  *
- * Covers payload serialisation, worker-side re-hydration and execution via
- * ServiceRunner, QUEUE source enforcement, the QUEUE context a queued service
- * reads through context(), the absence of Auth or Request consultation on the
- * worker, and a failed run failing the job with the exception it captured.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -60,17 +55,14 @@ final class ServiceJobTest extends TestCase
      */
     public function testPayloadSerialisesAndRestores(): void
     {
-        // Arrange
         $input   = new ArrayInput(['key' => 'value']);
         $actor   = new StubActor;
         $context = ServiceContext::for($actor, ServiceSource::HTTP, [], 'corr-123');
         $job     = new ServiceJob(ConcernCapturingService::class, $input, $context);
 
-        // Act
         $restored = unserialize(serialize($job));
         assert($restored instanceof ServiceJob);
 
-        // Assert
         self::assertSame(ConcernCapturingService::class, $restored->service);
         self::assertSame(['key' => 'value'], $restored->input->toArray());
         self::assertSame('corr-123', $restored->context->correlationId);
@@ -84,16 +76,13 @@ final class ServiceJobTest extends TestCase
      */
     public function testHandleRebuildsAndRunsViaRunner(): void
     {
-        // Arrange
         $input   = new ArrayInput([]);
         $actor   = new StubActor;
         $context = ServiceContext::for($actor, ServiceSource::HTTP);
         $job     = new ServiceJob(ConcernCapturingService::class, $input, $context);
 
-        // Act
         $job->handle(new ServiceRunner);
 
-        // Assert - concern was invoked, proving the service was rebuilt and run
         self::assertNotNull(ContextCapturingConcern::$captured);
         self::assertSame(ServiceSource::QUEUE, ContextCapturingConcern::$captured->source);
     }
@@ -105,7 +94,6 @@ final class ServiceJobTest extends TestCase
      */
     public function testWorkerRunUsesQueueSourceAndNoAuth(): void
     {
-        // Arrange - assert Auth is never consulted
         Auth::shouldReceive('user')->never();
         Auth::shouldReceive('check')->never();
         Auth::shouldReceive('id')->never();
@@ -116,18 +104,15 @@ final class ServiceJobTest extends TestCase
         $context = ServiceContext::for($actor, ServiceSource::HTTP, [], 'no-auth-corr');
         $job     = new ServiceJob(ConcernCapturingService::class, $input, $context);
 
-        // Act
         $job->handle(new ServiceRunner);
 
-        // Assert - source is QUEUE and actor came from the serialised context
         self::assertNotNull(ContextCapturingConcern::$captured);
         self::assertSame(ServiceSource::QUEUE, ContextCapturingConcern::$captured->source);
         self::assertSame('stub-id', ContextCapturingConcern::$captured->actor->actorIdentifier());
     }
 
     /**
-     * Test that a queued service reads the QUEUE context through context(),
-     * carrying the dispatched actor, correlation id and metadata.
+     * Test that a queued service reads the QUEUE context through context().
      *
      * @return void
      */
@@ -149,8 +134,7 @@ final class ServiceJobTest extends TestCase
     }
 
     /**
-     * Test that handle() throws the exception the failed run captured, rather
-     * than one wrapping it, so the worker fails the job with the real cause.
+     * Test that handle() rethrows the exception the failed run captured.
      *
      * @return void
      *
@@ -171,8 +155,7 @@ final class ServiceJobTest extends TestCase
     }
 
     /**
-     * Test that a failing service fails the job on the sync queue, which marks
-     * the job failed and rethrows the exception the run captured.
+     * Test that a failing service fails the job on the sync queue.
      *
      * @return void
      */
@@ -196,8 +179,7 @@ final class ServiceJobTest extends TestCase
     }
 
     /**
-     * Test that a succeeding service completes the job on the sync queue
-     * without failing it.
+     * Test that a succeeding service completes the job on the sync queue.
      *
      * @return void
      */

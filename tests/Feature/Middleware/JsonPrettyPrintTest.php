@@ -13,11 +13,6 @@ use Tests\TestCase;
 /**
  * Feature tests for the JSON pretty-print middleware through the HTTP kernel.
  *
- * Dispatches real requests against a route wrapped in the pretty-print
- * middleware and proves the query-string toggle survives the full request flow:
- * a truthy pretty parameter renders indented JSON while its absence or a falsey
- * value leaves the compact envelope untouched.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -30,8 +25,8 @@ final class JsonPrettyPrintTest extends TestCase
     private const array PAYLOAD = ['key' => 'value', 'nested' => ['a' => 1]];
 
     /**
-     * Set up each test with a route returning a fixed JSON payload behind the
-     * pretty-print middleware.
+     * Set up a route returning a fixed JSON payload behind the pretty-print
+     * middleware.
      *
      * @return void
      */
@@ -63,7 +58,7 @@ final class JsonPrettyPrintTest extends TestCase
 
     /**
      * Test that an omitted pretty parameter leaves the compact envelope
-     * untouched over HTTP.
+     * untouched.
      *
      * @return void
      */
@@ -81,8 +76,8 @@ final class JsonPrettyPrintTest extends TestCase
     }
 
     /**
-     * Test that a falsey pretty parameter leaves the compact envelope untouched
-     * over HTTP.
+     * Test that a falsey pretty parameter leaves the compact envelope
+     * untouched.
      *
      * @return void
      */

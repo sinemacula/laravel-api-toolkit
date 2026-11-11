@@ -9,14 +9,6 @@ use Composer\Autoload\ClassLoader;
 /**
  * Exposes the application's non-vendor PSR-4 namespace roots.
  *
- * Reads the registered Composer autoloader's PSR-4 prefix map and filters out
- * the vendor tree, restricting the roots to the application, its modules, and
- * any local path packages. The scanning collaborator reads the existing
- * directories to walk, while the module resolver reads the prefixes to match a
- * class against its owning root. Centralising the acquisition here keeps the
- * ClassLoader access and the vendor filtering in one place rather than
- * duplicated across every consumer.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -40,9 +32,6 @@ final readonly class Psr4RootMap
     /**
      * Build a root map from the registered Composer autoloader.
      *
-     * Locates the ClassLoader among the registered SPL autoloaders and reads
-     * its public PSR-4 prefix map, yielding an empty map when none is found.
-     *
      * @return self
      */
     public static function fromComposer(): self
@@ -63,8 +52,7 @@ final readonly class Psr4RootMap
     }
 
     /**
-     * Return the prefix to real directories map, keeping only existing,
-     * non-vendor directories.
+     * Return the prefix to existing, non-vendor real directories map.
      *
      * @return array<string, array<int, string>>
      */
@@ -88,10 +76,6 @@ final readonly class Psr4RootMap
 
     /**
      * Return the non-vendor namespace prefixes, longest first.
-     *
-     * Trailing separators are trimmed so a prefix can be matched against a
-     * class name, and the longest-first order lets a consumer take the most
-     * specific matching root.
      *
      * @return array<int, string>
      */
@@ -153,8 +137,10 @@ final readonly class Psr4RootMap
     }
 
     /**
-     * Determine whether any of the given directories is non-vendor, resolving
-     * each to its real path where it exists so a synthetic root is honoured.
+     * Determine whether any of the given directories is non-vendor.
+     *
+     * A directory that does not exist is checked as given, so a synthetic root
+     * is honoured.
      *
      * @param  array<int, string>  $dirs
      * @return bool

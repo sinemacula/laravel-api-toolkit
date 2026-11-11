@@ -28,12 +28,6 @@ use Tests\TestCase;
 /**
  * Feature tests exercising the filter-operator matrix over real HTTP requests.
  *
- * Drives the comparison operators, the between range operator and its
- * malformed-payload no-op, the null and not-null presence operators against a
- * nullable filterable column, multi-clause AND composition, and the logical
- * grouping operators through the parsed query string, asserting the narrowed
- * rows and meta totals in the rendered envelope.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -53,9 +47,8 @@ final class FilterOperatorMatrixTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up two repository-backed routes and seed five rows with a mix of
-     * present and absent organization ids, and one row held apart by status so
-     * the negation operator has a closed-domain column to exclude on.
+     * Set up two routes and seed rows with present and absent organization ids
+     * and one distinct status.
      *
      * @return void
      */
@@ -150,8 +143,7 @@ final class FilterOperatorMatrixTest extends TestCase
     }
 
     /**
-     * Test that a between payload with fewer than two bounds is dropped and
-     * widens to the full set.
+     * Test that a between payload with fewer than two bounds is dropped.
      *
      * @return void
      */
@@ -164,8 +156,7 @@ final class FilterOperatorMatrixTest extends TestCase
     }
 
     /**
-     * Test that a between payload with more than two bounds is dropped and
-     * widens to the full set.
+     * Test that a between payload with more than two bounds is dropped.
      *
      * @return void
      */
@@ -202,8 +193,8 @@ final class FilterOperatorMatrixTest extends TestCase
     }
 
     /**
-     * Test that the presence-operator payload boolean is ignored and only the
-     * token decides the constraint.
+     * Test that only the presence-operator token decides the constraint, not
+     * its payload.
      *
      * @return void
      */

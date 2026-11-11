@@ -7,12 +7,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
 /**
  * Reads how a field's normalised rule tokens govern its presence.
  *
- * The validator runs a field's required and present rules even when the field
- * is missing, unless sometimes skips it, and an exclude rule may drop the field
- * from validation altogether, so a field it may drop demands nothing. A
- * required or filled field refuses null, an empty string, and an empty array
- * once sent, and a missing ancestor leaves every field beneath it missing too,
- * so the rules requiring such a field refuse the body missing that ancestor.
+ * Laravel runs required and present rules on a missing field unless sometimes
+ * skips it or an exclude rule drops it.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -20,9 +16,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
 final readonly class FieldPresence
 {
     /**
-     * Determine whether the field is required: a required or present token
-     * present and no sometimes token relaxing it, nor an exclude rule that may
-     * drop it.
+     * Determine whether the field is required.
      *
      * @param  list<string>  $tokens
      * @return bool
@@ -35,9 +29,7 @@ final readonly class FieldPresence
     }
 
     /**
-     * Determine whether a sent value of the field must not be empty: a required
-     * or filled token present and no exclude rule that may drop it, since the
-     * validator then refuses null, an empty string, and an empty array.
+     * Determine whether a sent value of the field must not be empty.
      *
      * @param  list<string>  $tokens
      * @return bool
@@ -48,8 +40,7 @@ final readonly class FieldPresence
     }
 
     /**
-     * Determine whether the field accepts null: a nullable token present and no
-     * rule refusing an empty value.
+     * Determine whether the field accepts null.
      *
      * @param  list<string>  $tokens
      * @return bool
@@ -61,10 +52,7 @@ final readonly class FieldPresence
 
     /**
      * Determine whether a field's rules refuse every body missing the given
-     * ancestor, the field being missing too: a required or present field does,
-     * as does a `required_without` field naming any field within the ancestor
-     * and a `required_without_all` field naming only such fields, unless
-     * sometimes skips the field when missing or an exclude rule may drop it.
+     * ancestor.
      *
      * @param  list<string>  $tokens
      * @param  string  $ancestor
@@ -77,9 +65,7 @@ final readonly class FieldPresence
 
     /**
      * Determine whether a field's rules refuse every body in which the given
-     * ancestor holds no named key, as a list holds none, the fields it would
-     * name being missing: as for a missing ancestor, but counting only the
-     * fields named beneath one of its named keys.
+     * ancestor holds no named key, as a list does.
      *
      * @param  list<string>  $tokens
      * @param  string  $ancestor
@@ -114,8 +100,8 @@ final readonly class FieldPresence
     }
 
     /**
-     * Determine whether a field's rules refuse every body in which the fields
-     * the given test picks out are missing, the field among them.
+     * Determine whether a field's rules refuse every body missing the fields
+     * the test picks out.
      *
      * @param  list<string>  $tokens
      * @param  \Closure(string): bool  $missing
@@ -166,8 +152,8 @@ final readonly class FieldPresence
     }
 
     /**
-     * Split a rule token into its rule name and arguments, read as the
-     * validator reads them: comma-separated values that may be quoted.
+     * Split a rule token into its rule name and arguments as the validator
+     * does.
      *
      * @param  string  $token
      * @return array{0: string, 1: list<string>}

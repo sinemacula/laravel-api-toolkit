@@ -7,32 +7,7 @@ namespace SineMacula\ApiToolkit\Schema\Introspection;
 /**
  * What a connection reports about the indexes a proof may reason from.
  *
- * The shared catalogue read names every index a table declares without saying
- * whether a proof may rest on one, and five separate facts decide that. An
- * index the engine disregards is one no plan will reach. An index that is
- * restricted holds only the rows its own predicate admits, so it serves only a
- * query carrying that predicate. An index keyed on an expression leads with
- * something the catalogue cannot report as a column, and because the column
- * list is aggregated over the parts that do name columns, the part naming none
- * is dropped and whatever follows it reads as the column the index leads with.
- *
- * The last two concern whether the leading key answers for its column. A key
- * truncated to a prefix of its column, or ordered by an operator family other
- * than the column's, cannot hand rows back in the column's order, yet still
- * finds rows by that column, so it defeats only a proof needing order. A key
- * collated apart from its column cannot answer a comparison written against the
- * column at all, so it defeats every proof reading the reported columns, and it
- * lacks the column's order too.
- *
- * The facts are kept apart rather than flattened into one refusal because they
- * do not disqualify an index for the same readers. A proof reading the reported
- * columns is defeated by every fact but the one about order alone; a developer
- * naming an index outright is asserting what the column list was never going to
- * show, and is defeated only by the engine refusing the index altogether.
- *
- * Every list is held lowered, and a name is lowered before it is compared,
- * because the catalogue reports names folded while a declaration may name one
- * in whatever case it was created with.
+ * The facts stay apart because each reader is defeated by a different subset.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -56,9 +31,6 @@ final readonly class IndexEligibility
 
     /**
      * Create a new index eligibility report.
-     *
-     * A connection that cannot distinguish these facts reports none of them,
-     * which leaves every reader exactly as strict as it was without the report.
      *
      * @param  array<int, string>  $disregarded
      * @param  array<int, string>  $restricted
@@ -99,8 +71,7 @@ final readonly class IndexEligibility
     }
 
     /**
-     * Determine whether the index leads with an expression rather than one of
-     * the columns the catalogue reports for it.
+     * Determine whether the index leads with an expression, not a column.
      *
      * @param  string  $name
      * @return bool
@@ -113,8 +84,7 @@ final readonly class IndexEligibility
     /**
      * Determine whether the leading key cannot deliver its column's own order.
      *
-     * A key collated apart from its column is ordered by that other collation,
-     * so it is counted here as well as on its own.
+     * A recollated key is ordered by its own collation, so it counts here too.
      *
      * @param  string  $name
      * @return bool
@@ -136,8 +106,7 @@ final readonly class IndexEligibility
     }
 
     /**
-     * Determine whether a proof reading the reported columns may rest on the
-     * index, which needs every fact but the one about order alone to be absent.
+     * Determine whether a proof over the reported columns may use the index.
      *
      * @param  string  $name
      * @return bool

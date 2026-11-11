@@ -17,11 +17,6 @@ use Tests\TestCase;
 /**
  * Tests for the SqliteSearchDriver.
  *
- * The driver serves every strategy so a term behaves the same way locally as it
- * does in front of an engine that indexes it, and claims nothing about the
- * indexes behind them, which is what leaves the limitation visible rather than
- * hidden.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -36,8 +31,7 @@ final class SqliteSearchDriverTest extends TestCase
     private const string TERM = 'smith';
 
     /**
-     * Test that the driver implements every match strategy, so a development
-     * connection answers the same declarations a production one does.
+     * Test that the driver implements every match strategy.
      *
      * @return void
      */
@@ -47,8 +41,7 @@ final class SqliteSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the driver claims no index proof for any strategy, so every
-     * declaration it serves is refused unless the connection waives the proof.
+     * Test that the driver claims no index proof for any strategy.
      *
      * @return void
      */
@@ -62,9 +55,7 @@ final class SqliteSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the driver reports no defect for any strategy, since a driver
-     * that can prove nothing has found nothing rather than proved there is
-     * nothing wrong.
+     * Test that the driver reports no index defect for any strategy.
      *
      * @return void
      */
@@ -78,8 +69,7 @@ final class SqliteSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the driver refuses no combination of strategies, since it
-     * resolves none of them from an index in the first place.
+     * Test that the driver refuses no combination of strategies.
      *
      * @return void
      */
@@ -89,8 +79,7 @@ final class SqliteSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an equality match is emitted as a plain comparison against the
-     * qualified column.
+     * Test that an equality match is a plain comparison on the column.
      *
      * @return void
      */
@@ -103,8 +92,9 @@ final class SqliteSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a prefix match names the escape character the term was escaped
-     * with, which SQLite reads as a literal without it.
+     * Test that a prefix match names the escape character.
+     *
+     * SQLite reads the escape character as a literal without the clause.
      *
      * @return void
      */
@@ -130,8 +120,7 @@ final class SqliteSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that every declared column contributes its own comparison, so a
-     * match on any one of them is a match.
+     * Test that every declared column contributes its own comparison.
      *
      * @return void
      */
@@ -147,9 +136,7 @@ final class SqliteSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that every declared column contributes its own comparison under the
-     * equality match too, so a resource declaring two columns narrows on both
-     * rather than on the first alone.
+     * Test that every declared column contributes its own equality comparison.
      *
      * @return void
      */
@@ -162,10 +149,9 @@ final class SqliteSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that every value bound to the statement keeps a placeholder of its
-     * own once the quoted literals are read out of it, since a literal left
-     * open swallows the placeholder of the clause beside it and leaves the
-     * value it stood for with nothing to bind to.
+     * Test that every binding keeps a placeholder of its own.
+     *
+     * A quoted literal left open would swallow the placeholder beside it.
      *
      * @return void
      */
@@ -183,8 +169,7 @@ final class SqliteSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a wildcard carried by the term matches itself rather than every
-     * row, which is what the escape clause exists for.
+     * Test that a wildcard carried by the term matches itself.
      *
      * @return void
      */

@@ -13,41 +13,18 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 /**
  * Search driver serving a MySQL connection.
  *
- * An anywhere-match is emitted as a boolean-mode full-text match against
- * columns indexed with the n-gram parser, which is the only arrangement MySQL
- * answers a substring with from an index. The term is bound as a quoted phrase:
- * unquoted, the n-grams it decomposes into are OR-ed together and a search for
- * one word returns every row sharing any two of its characters. The default
- * parser is not an alternative - it indexes whole words, so a term inside a
- * longer word matches nothing, which is a wrong answer rather than a slow one.
- *
- * Every declared column is matched through one match over the whole set rather
- * than through a match each. A full-text index is an access path, not a filter
- * the optimiser can combine: two matches OR-ed together read the table row by
- * row, and so does a match OR-ed with any other predicate. One match over the
- * declared set keeps the access path, and MySQL resolves it against the
- * full-text index whose column list is that same set, which is the index the
- * proof asks for. Column order is not part of that match, so the proof compares
- * the sets rather than the sequences.
- *
- * The same rule is why a substring declaration may not sit beside another
- * strategy on this connection: the two would be OR-ed and the access path would
- * be lost, which the driver refuses rather than serves as a scan.
- *
- * An equality or a prefix match reads an ordinary B-tree, so both are emitted
- * as plain comparisons and both are proved against an ordinary index.
+ * An anywhere-match is one quoted full-text match over an n-gram index.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class MySqlNgramSearchDriver extends EngineSearchDriver
 {
-    /** @var string The parser a full-text index has to be created with before it can answer a substring */
+    /** @var string The full-text parser an anywhere-match index must use */
     public const string PARSER = 'ngram';
 
     /**
-     * Return why the driver cannot resolve the given strategies from an index
-     * when they are declared together, or null when it can.
+     * Return why the strategies cannot be index-resolved together, or null.
      *
      * @param  array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $strategies
      * @return string|null
@@ -104,8 +81,7 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
     }
 
     /**
-     * Return what the columns are missing before a prefix match can be served
-     * from an index, keyed by column.
+     * Return, keyed by column, what blocks an index-served prefix match.
      *
      * @param  array<int, string>  $columns
      * @param  string  $table
@@ -119,11 +95,9 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
     }
 
     /**
-     * Return what the columns are missing before an anywhere-match can be
-     * served from an index, keyed by column.
+     * Return, keyed by column, what blocks an index-served anywhere-match.
      *
-     * The declared set is matched as a unit, so a defect found here belongs to
-     * every column in it.
+     * The set is matched as a unit, so each defect applies to every column.
      *
      * @param  array<int, string>  $columns
      * @param  string  $table
@@ -164,8 +138,7 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
     }
 
     /**
-     * Determine whether the declared columns carry a full-text index over
-     * exactly that set, created with the n-gram parser.
+     * Determine whether one n-gram full-text index covers exactly the columns.
      *
      * @param  array<int, string>  $columns
      * @param  string  $table
@@ -197,9 +170,7 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
     /**
      * Determine whether the named full-text index declares the n-gram parser.
      *
-     * The parser is absent from the information schema, so it is read back from
-     * the table definition, where it is emitted alongside the index it belongs
-     * to.
+     * The information schema omits the parser, so the table definition is read.
      *
      * @param  string  $index
      * @param  string  $definition
@@ -217,8 +188,7 @@ final class MySqlNgramSearchDriver extends EngineSearchDriver
     }
 
     /**
-     * Return the number of characters the n-gram parser tokenises at a time, or
-     * null when the connection did not report it.
+     * Return the n-gram parser's token size, or null when it is not reported.
      *
      * @param  \Illuminate\Database\Connection  $connection
      * @return int|null

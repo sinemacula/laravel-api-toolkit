@@ -12,11 +12,7 @@ use SineMacula\ApiToolkit\Enums\TrashedState;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
- * API query parser.
- *
- * Thin orchestrator that validates and extracts API parameters supplied within
- * the query string of a request, delegating to single-responsibility concern
- * classes and exposing typed access to the parsed parameters.
+ * Validates and parses the API parameters in a request's query string.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -170,18 +166,10 @@ class ApiQueryParser
     }
 
     /**
-     * Returns the current page cursor.
-     *  - e.g. ?cursor=eyJpZCI6MTAwfQ==.
+     * Return the page size the read will use, falling back to the configured
+     * default.
      *
-     * @return string|null
-     */
-    /**
-     * Return the page size the read will actually use.
-     *
-     * The client may leave the page size out, in which case the configured
-     * default stands in, so anything measuring what a page costs has to resolve
-     * it the same way the read itself does. Resolved in one place so the guard
-     * bounding the cost and the query paying it cannot disagree.
+     * Shared by the cost guard and the query so the two cannot disagree.
      *
      * @return int
      */
@@ -193,11 +181,10 @@ class ApiQueryParser
     }
 
     /**
-     * Determine whether the read is paginated by cursor rather than by page.
+     * Determine whether the read is paginated by cursor.
      *
-     * A cursor seeks to its position rather than counting rows to it, so a page
-     * number carried alongside one is not an offset the query pays and must not
-     * be charged as though it were.
+     * A cursor seeks to its position, so a page number alongside one is not a
+     * paid offset.
      *
      * @return bool
      */
@@ -257,18 +244,13 @@ class ApiQueryParser
 
         $this->parameters = $this->extractor->extract($request);
 
-        // Read from the request being parsed rather than the current one, so
-        // the answer belongs to the same request as every other parameter.
+        // Read from the parsed request, which may not be the current one
         $this->cursorPaginated = $request->query('pagination') === 'cursor'
             || $request->has('cursor');
     }
 
     /**
-     * Trim a flat list of string values, tolerating a malformed shape.
-     *
-     * A missing value stays null, while a nested or otherwise non-string entry
-     * is skipped rather than allowed to raise a type error on the public
-     * accessors.
+     * Trim a flat list of string values, skipping any non-string entry.
      *
      * @param  mixed  $values
      * @return array<int, string>|null

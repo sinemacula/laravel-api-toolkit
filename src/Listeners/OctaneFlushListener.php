@@ -9,13 +9,8 @@ use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 
 /**
- * Resets the toolkit's in-process state after each Octane operation.
- *
- * Fires after every request, task, and tick a long-running Octane worker
- * serves, delegating to the centralized CacheManager so in-process memos do not
- * grow without bound and the worker re-reads the metadata generation. The
- * metadata in the shared store is left warm for every worker. When not serving
- * under Octane (e.g. php-fpm), the flush is skipped entirely.
+ * Resets the toolkit's in-process state after each Octane request, task and
+ * tick, so in-process memos do not grow without bound.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -31,18 +26,15 @@ final readonly class OctaneFlushListener
      */
     public function __construct(
 
-        /** The cache manager for flushing toolkit caches. */
+        /** The cache manager for flushing toolkit caches */
         private CacheManager $cacheManager,
 
-        /** The runtime context for detecting the serving environment. */
+        /** The runtime context for detecting the serving environment */
         private RuntimeContext $runtime,
     ) {}
 
     /**
      * Handle the event.
-     *
-     * The event parameter is unused but required by Laravel's event listener
-     * signature.
      *
      * @SuppressWarnings("php:S1172")
      *
@@ -58,7 +50,7 @@ final readonly class OctaneFlushListener
         try {
             $this->cacheManager->flush();
         } catch (\Throwable $exception) { // @phpstan-ignore catch.neverThrown
-            // Container resolution can throw; never crash the worker.
+            // Never crash the worker
             FailureReporter::report($exception, 'Octane cache flush failed');
         }
     }

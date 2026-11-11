@@ -116,8 +116,8 @@ final class LockableTest extends TestCase
     }
 
     /**
-     * Test that the Lockable trait works in a standalone class that does not
-     * extend Service.
+     * Test that the Lockable trait works in a class that does not extend
+     * Service.
      *
      * @return void
      *
@@ -211,7 +211,7 @@ final class LockableTest extends TestCase
     }
 
     /**
-     * Test that getLockExpiration remains callable from a subclass of the trait
+     * Test that getLockExpiration is callable from a subclass of the trait
      * consumer.
      *
      * @return void
@@ -265,8 +265,7 @@ final class LockableTest extends TestCase
     }
 
     /**
-     * Test that each lock() call resolves the provider's current key rather
-     * than reusing the key of an earlier call.
+     * Test that each lock() call resolves the provider's current key.
      *
      * @return void
      */

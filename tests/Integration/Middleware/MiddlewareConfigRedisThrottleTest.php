@@ -13,10 +13,7 @@ use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
 use Tests\TestCase;
 
 /**
- * Integration tests for the throttle middleware with Redis cache driver.
- *
- * This test class configures the cache driver to redis before the service
- * provider boots, verifying the Redis throttle variant is auto-selected.
+ * Integration tests for the throttle middleware with the Redis cache driver.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -28,8 +25,7 @@ use Tests\TestCase;
 final class MiddlewareConfigRedisThrottleTest extends TestCase
 {
     /**
-     * Test that the throttle middleware uses the Redis variant when the cache
-     * driver is redis.
+     * Test that the throttle middleware uses the Redis variant under redis.
      *
      * @return void
      */

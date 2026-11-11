@@ -11,9 +11,6 @@ use SineMacula\ApiToolkit\Schema\Validation\RawSchemaValidator;
 /**
  * Compiles raw resource schema arrays into typed CompiledSchema objects.
  *
- * Manages a per-class static cache so that each resource class is compiled only
- * once per request lifecycle.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -57,10 +54,6 @@ final class SchemaCompiler
 
     /**
      * Build a CompiledSchema from a raw schema array.
-     *
-     * Each entry is sorted into a CompiledFieldDefinition, a
-     * CompiledCountDefinition, or a CompiledAggregateDefinition based on the
-     * metric value present in the definition.
      *
      * @param  array<string, array<string, mixed>>  $rawSchema
      * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
@@ -155,13 +148,7 @@ final class SchemaCompiler
     /**
      * Resolve the presentation key for an aggregate definition.
      *
-     * Returns the bare present key used both as the `presentKey` property on
-     * the compiled definition and as the suffix for the Eloquent attribute
-     * name. Both the `__sum__:` and `__avg__:` prefixes are 8 characters long,
-     * so a single substr offset strips either.
-     *
-     * The dict key stored in `$aggregates` is `{metric}:{presentKey}`; this
-     * method returns only the bare present-key portion.
+     * Both prefixes are 8 characters, so one substr offset strips either.
      *
      * @param  string  $schemaKey
      * @param  array<string, mixed>  $definition
@@ -207,14 +194,7 @@ final class SchemaCompiler
     }
 
     /**
-     * Collect filterable, sortable, traversable, and searchable markers from a
-     * field definition into the corresponding accumulator arrays.
-     *
-     * A filterable column is collected only alongside the capability it was
-     * declared with, and a searchable one only alongside its strategy. Keeping
-     * either without its declaration would leave the operators it answers, or
-     * the match shape it carries, to be guessed later, which is the one
-     * decision this layer never makes for a resource.
+     * Collect a field definition's query markers into the accumulators.
      *
      * @param  array<string, mixed>  $definition
      * @param  array<string, \SineMacula\ApiToolkit\Enums\Capability>  $filterable
@@ -304,8 +284,7 @@ final class SchemaCompiler
     }
 
     /**
-     * Return the callable entries of a definition's guard or transformer list,
-     * reindexed.
+     * Return the callable entries of a guard or transformer list, reindexed.
      *
      * @param  array<string, mixed>  $definition
      * @param  'guards'|'transformers'  $list
@@ -349,8 +328,7 @@ final class SchemaCompiler
     }
 
     /**
-     * Return the column declared at the given key, or null when the key is
-     * absent or holds something other than a string.
+     * Return the column declared at the given key, or null when not a string.
      *
      * @param  array<string, mixed>  $definition
      * @param  string  $key
@@ -365,9 +343,6 @@ final class SchemaCompiler
 
     /**
      * Resolve the primary relation name for a field definition.
-     *
-     * The relation may be declared as a string or as a list; only the first
-     * entry is used, and only when it is a string.
      *
      * @param  array<string, mixed>  $definition
      * @return string|null

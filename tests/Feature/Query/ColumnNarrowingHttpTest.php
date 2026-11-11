@@ -22,14 +22,7 @@ use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
- * Feature tests proving column narrowing over the real HTTP pipeline.
- *
- * Drives the middleware plus repository pagination path so the narrowing
- * decision is observed on the wire: with the flag on, the base users SELECT is
- * a strict column subset that never leaks the password column, while the
- * rendered envelope stays byte-identical to the flag-off baseline; an opaque
- * unmapped field forces the query to fall back to the full column set while the
- * computed value still renders.
+ * Feature tests for column narrowing over the real HTTP pipeline.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -85,8 +78,8 @@ final class ColumnNarrowingHttpTest extends TestCase
     }
 
     /**
-     * Test that a narrowed request emits a strict-subset base SELECT while the
-     * rendered envelope stays byte-identical to the flag-off baseline.
+     * Test that a narrowed request emits a strict-subset select with a
+     * byte-identical envelope.
      *
      * @return void
      */
@@ -111,21 +104,18 @@ final class ColumnNarrowingHttpTest extends TestCase
         $on->assertOk();
         $onSql = $this->baseUsersSelect();
 
-        // Flag-off selects the whole table; flag-on selects a strict subset
-        // that never leaks the password column.
         self::assertStringContainsString('users.*', $this->unquote($offSql));
         self::assertStringNotContainsString('users.*', $this->unquote($onSql));
         self::assertStringContainsString('name', $this->unquote($onSql));
         self::assertStringContainsString('email', $this->unquote($onSql));
         self::assertStringNotContainsString('password', $this->unquote($onSql));
 
-        // The rendered envelope is unchanged by the SQL narrowing.
         self::assertSame($off->baseResponse->getContent(), $on->baseResponse->getContent());
     }
 
     /**
-     * Test that an opaque unmapped field forces a fallback to the full SELECT
-     * while the computed value still renders.
+     * Test that an opaque unmapped field falls back to the full select while
+     * still rendering.
      *
      * @return void
      */
@@ -141,11 +131,9 @@ final class ColumnNarrowingHttpTest extends TestCase
 
         $response->assertOk();
 
-        // The un-annotated compute is opaque, so the narrower falls back to the
-        // full column set rather than risk dropping a column the closure reads.
+        // The un-annotated compute is opaque, so its columns are unknown
         self::assertStringContainsString('users.*', $this->unquote($sql));
 
-        // The computed field still resolves from the fully-hydrated model.
         $response->assertJsonPath('data.0.full_label', 'Alice <alice@example.com>');
     }
 
@@ -169,8 +157,7 @@ final class ColumnNarrowingHttpTest extends TestCase
                 continue;
             }
 
-            // Skip the paginator's row-count query and the schema introspection
-            // statements so only the hydrating base select is returned.
+            // Skip the row-count query and schema introspection statements
             if (str_contains($unquoted, 'as aggregate') || str_contains($unquoted, 'pragma') || str_contains($unquoted, 'sqlite_master')) {
                 continue;
             }

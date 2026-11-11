@@ -32,13 +32,10 @@ final class MySqlNgramSearchTest extends EngineSearchTestCase
     }
 
     /**
-     * Assert that the engine answers the query through the full-text access
-     * path rather than by reading the table.
+     * Assert that the engine answers the query through its full-text index.
      *
-     * The access path is the whole point: this engine resolves a full-text
-     * match against its index only where the match is not one branch of a
-     * disjunction, and a match it cannot resolve that way is read row by row
-     * while returning the same rows.
+     * This engine resolves a full-text match from its index only outside a
+     * disjunction; otherwise it reads row by row and returns the same rows.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>  $query
      * @return void
@@ -86,8 +83,8 @@ final class MySqlNgramSearchTest extends EngineSearchTestCase
     /**
      * Drop the index serving the leading match on the searched column.
      *
-     * This engine reads a leading match from an ordinary index, and the only
-     * one leading with the searched column is the unique index behind it.
+     * This engine reads a leading match from an ordinary index, here the unique
+     * one.
      *
      * @return void
      */
@@ -121,8 +118,7 @@ final class MySqlNgramSearchTest extends EngineSearchTestCase
     }
 
     /**
-     * Drop the ordinary index serving the equality match on the searched
-     * column.
+     * Drop the ordinary index serving the equality match.
      *
      * @return void
      */
@@ -133,8 +129,7 @@ final class MySqlNgramSearchTest extends EngineSearchTestCase
     }
 
     /**
-     * Recreate the ordinary index serving the equality match on the searched
-     * column.
+     * Recreate the ordinary index serving the equality match.
      *
      * @return void
      */
@@ -145,8 +140,7 @@ final class MySqlNgramSearchTest extends EngineSearchTestCase
     }
 
     /**
-     * Hide the ordinary index from the planner while leaving it in the
-     * catalogue.
+     * Hide the ordinary index from the planner, keeping it in the catalogue.
      *
      * @return void
      */

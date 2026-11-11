@@ -9,16 +9,8 @@ use Illuminate\Support\Facades\Config;
 /**
  * Maps a Laravel auth guard driver to an OpenAPI security scheme.
  *
- * The toolkit ships no authentication of its own; it reads the standard auth
- * config so a custom auth package needs zero cooperation. Each supported driver
- * resolves to a stable scheme name and its OpenAPI definition; every bearer
- * driver (jwt, sanctum, token) shares one plain bearer scheme, so a document
- * never claims a token format it cannot be sure of. A config entry under
- * `api-toolkit.openapi.security.drivers` adds or overrides a driver, keyed by
- * driver name and carrying a scheme name and definition, so an application that
- * knows its bearer tokens are JWTs can add the bearerFormat there. A driver
- * with no mapping resolves to null so the exporter skips it rather than
- * inventing a scheme.
+ * Bearer drivers share a plain bearer scheme, so the document never claims a
+ * token format it cannot know.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -29,8 +21,7 @@ final readonly class SecuritySchemeMapper
     private const string SESSION_COOKIE_FALLBACK = 'session';
 
     /**
-     * Resolve the scheme name and definition for the given driver, or null when
-     * the driver has no built-in mapping and no config override.
+     * Resolve the scheme name and definition for the given driver.
      *
      * @param  string  $driver
      * @return array{name: string, definition: array<string, mixed>}|null
@@ -41,9 +32,8 @@ final readonly class SecuritySchemeMapper
     }
 
     /**
-     * Resolve the definition for a scheme name, or null when no mapped driver
-     * emits that name. The first driver declaring the name wins, keeping the
-     * canonical definition deterministic when drivers share a scheme shape.
+     * Resolve the definition for a scheme name, the first declaring driver
+     * winning.
      *
      * @param  string  $name
      * @return array<string, mixed>|null
@@ -60,8 +50,7 @@ final readonly class SecuritySchemeMapper
     }
 
     /**
-     * Build the driver-keyed scheme map, merging the config overrides over the
-     * built-in defaults.
+     * Build the driver-keyed scheme map, config overrides over the defaults.
      *
      * @return array<string, array{name: string, definition: array<string, mixed>}>
      */
@@ -87,8 +76,7 @@ final readonly class SecuritySchemeMapper
     }
 
     /**
-     * Read the driver-to-scheme overrides from config, keeping only entries
-     * that carry both a scheme name and a definition.
+     * Read the valid driver-to-scheme overrides from config.
      *
      * @return array<string, array{name: string, definition: array<string, mixed>}>
      */
@@ -115,8 +103,7 @@ final readonly class SecuritySchemeMapper
     }
 
     /**
-     * Determine whether a config override entry carries a string scheme name
-     * and an array definition.
+     * Determine whether a config override entry carries a name and definition.
      *
      * @param  mixed  $scheme
      * @return bool

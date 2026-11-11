@@ -22,9 +22,7 @@ use Tests\TestCase;
 final class ColumnConditionTest extends TestCase
 {
     /**
-     * Test that a pattern match is a like comparison against the bound pattern
-     * naming the search term's escape character, with the column wrapped by the
-     * grammar.
+     * Test that a pattern match is a like comparison with an escape clause.
      *
      * @return void
      */
@@ -48,8 +46,7 @@ final class ColumnConditionTest extends TestCase
     }
 
     /**
-     * Test that a full-text match reads every column it is given against the
-     * bound phrase in boolean mode.
+     * Test that a full-text match reads every column in boolean mode.
      *
      * @return void
      */

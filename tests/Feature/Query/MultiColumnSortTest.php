@@ -19,11 +19,6 @@ use Tests\TestCase;
 /**
  * Feature tests for multi-column ordering through the kernel.
  *
- * A comma-separated `order` applies each column in turn: the first column is
- * the primary sort and every subsequent column breaks ties. Two rows sharing a
- * name are ordered by name ascending, and the descending id secondary sort
- * decides which of the tied rows appears first.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -54,16 +49,14 @@ final class MultiColumnSortTest extends TestCase
             return new ApiResourceCollection($users, FilterableUserResource::class);
         });
 
-        // Two rows share the name Mia so the secondary id sort decides their
-        // order; Zed trails both alphabetically.
+        // Two rows share the name Mia, so the secondary id sort decides
         User::create(['name' => 'Mia', 'email' => 'mia-first@example.com']);
         User::create(['name' => 'Mia', 'email' => 'mia-second@example.com']);
         User::create(['name' => 'Zed', 'email' => 'zed@example.com']);
     }
 
     /**
-     * Test that a comma-separated order applies the primary column with the
-     * secondary column breaking ties.
+     * Test that the secondary order column breaks ties in the primary one.
      *
      * @return void
      */
@@ -74,8 +67,6 @@ final class MultiColumnSortTest extends TestCase
         $response->assertOk();
         $response->assertJsonCount(3, 'data');
 
-        // Name ascending puts the two Mia rows first; id descending then places
-        // the later-created Mia (higher id) before the earlier one.
         $response->assertJsonPath('data.0.name', 'Mia');
         $response->assertJsonPath('data.1.name', 'Mia');
         $response->assertJsonPath('data.2.name', 'Zed');

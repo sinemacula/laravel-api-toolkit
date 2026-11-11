@@ -31,8 +31,7 @@ final class MetadataGenerationTest extends TestCase
     private const string TOKEN_PATTERN = '/^[A-Za-z0-9]{16}$/';
 
     /**
-     * Test that a store holding no generation gets one minted and kept, so
-     * every later process reads the same namespace.
+     * Test that a store holding no generation gets one minted and kept.
      *
      * @return void
      */
@@ -60,8 +59,7 @@ final class MetadataGenerationTest extends TestCase
     }
 
     /**
-     * Test that the generation is read once and held until forgotten, so a
-     * process does not go back to the store for every metadata key.
+     * Test that the generation is read once and held until forgotten.
      *
      * @return void
      */
@@ -164,8 +162,7 @@ final class MetadataGenerationTest extends TestCase
     }
 
     /**
-     * Test that advancing writes the generation without an expiry, so it cannot
-     * lapse and silently turn every metadata entry cold.
+     * Test that advancing writes the generation without an expiry.
      *
      * @return void
      */
@@ -217,11 +214,8 @@ final class MetadataGenerationTest extends TestCase
 
     /**
      * Test that metadata written under one generation is unreachable from a
-     * fresh process once another process has advanced it, on every store the
-     * toolkit supports.
-     *
-     * Each process has its own registry and generation memo, as separate PHP
-     * processes would; only the store is shared.
+     * fresh process once another process has advanced it, on every supported
+     * store.
      *
      * @param  string  $store
      * @return void

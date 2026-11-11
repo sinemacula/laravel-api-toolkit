@@ -15,16 +15,7 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 /**
  * Base driver for an engine whose own catalogue can be read back.
  *
- * Owns the parts of a driver that do not vary with the engine: the equality
- * match, which every supported engine serves from an ordinary B-tree, the
- * catalogue read behind the index proof, and the dispatch from a strategy to
- * the predicate and the proof that belong to it. A concrete driver is left with
- * the two shapes that are genuinely engine-specific - the prefix match and the
- * anywhere-match - and the index each of them needs.
- *
- * Every column is qualified with its table before it reaches a predicate, so a
- * clause written here stays unambiguous under a join the application added
- * around it.
+ * Columns are always table-qualified so predicates survive application joins.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -55,8 +46,7 @@ abstract class EngineSearchDriver implements SearchDriver
     }
 
     /**
-     * Return why the driver cannot resolve the given strategies from an index
-     * when they are declared together, or null when it can.
+     * Return why the strategies cannot be index-resolved together, or null.
      *
      * @param  array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $strategies
      * @return string|null
@@ -81,8 +71,7 @@ abstract class EngineSearchDriver implements SearchDriver
     }
 
     /**
-     * Return what the columns are missing before the strategy can be served
-     * from an index on this connection, keyed by column.
+     * Return, keyed by column, what blocks serving the strategy from an index.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @param  array<int, string>  $columns
@@ -150,8 +139,7 @@ abstract class EngineSearchDriver implements SearchDriver
     abstract protected function applySubstringMatch(Builder $query, array $columns, SearchTerm $term): void;
 
     /**
-     * Return what the columns are missing before a prefix match can be served
-     * from an index, keyed by column.
+     * Return, keyed by column, what blocks an index-served prefix match.
      *
      * @param  array<int, string>  $columns
      * @param  string  $table
@@ -161,8 +149,7 @@ abstract class EngineSearchDriver implements SearchDriver
     abstract protected function prefixIndexDefects(array $columns, string $table, Connection $connection): array;
 
     /**
-     * Return what the columns are missing before an anywhere-match can be
-     * served from an index, keyed by column.
+     * Return, keyed by column, what blocks an index-served anywhere-match.
      *
      * @param  array<int, string>  $columns
      * @param  string  $table
@@ -189,8 +176,7 @@ abstract class EngineSearchDriver implements SearchDriver
     }
 
     /**
-     * Return the column qualified with its table and wrapped for this
-     * connection's grammar, ready to be written into a raw fragment.
+     * Return the column table-qualified and wrapped for a raw fragment.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
@@ -204,12 +190,7 @@ abstract class EngineSearchDriver implements SearchDriver
     }
 
     /**
-     * Return what the columns are missing before a strategy an ordinary index
-     * serves can be read from one, keyed by column.
-     *
-     * The catalogue is read once for the whole declaration rather than once per
-     * column: every column is proved against the same answer, and a read apiece
-     * would multiply the one round trip this layer is allowed to make.
+     * Return, keyed by column, what blocks serving the strategy from a B-tree.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @param  array<int, string>  $columns
@@ -240,16 +221,7 @@ abstract class EngineSearchDriver implements SearchDriver
     }
 
     /**
-     * Return the indexes declared on the table whose kind the connection names.
-     *
-     * An index the connection reports without a kind is left out: a driver here
-     * proves a match against an index of a particular kind, and an unnamed kind
-     * proves nothing about the shape the strategy needs. An index the engine
-     * will not plan against is left out for the same reason, since an index the
-     * planner refuses backs no search, and so is one whose reported columns
-     * overstate it, since every proof here reads that column list. An index
-     * whose leading key is collated apart from its column is left out too,
-     * because a comparison written against the column cannot use it.
+     * Return the table's indexes of a known kind that a proof may rest on.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
@@ -280,10 +252,6 @@ abstract class EngineSearchDriver implements SearchDriver
 
     /**
      * Determine whether an ordinary B-tree index leads with the given column.
-     *
-     * A composite index counts when the column comes first, since that is the
-     * prefix of the key an equality or a leading-literal comparison reads. An
-     * index of any other kind does not, whatever it covers.
      *
      * @param  string  $column
      * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>  $indexes

@@ -23,16 +23,8 @@ use Tests\Fixtures\Resources\RestrictedArticleResource;
 use Tests\TestCase;
 
 /**
- * Feature tests proving trashed visibility over the real HTTP pipeline.
- *
- * Drives the query-parser middleware plus repository reads so the `?trashed`
- * parameter is observed end to end: a resource that opts in widens the
- * soft-delete scope to include or isolate trashed rows, while a resource that
- * has not opted in keeps them hidden regardless of the request - the
- * safe-by-default guarantee proven through a real request. Both read actions
- * the document advertises the parameter on are driven, the single-record read
- * included, since a widening the document offers on a show has to be one a
- * repository-backed show honours.
+ * Feature tests for trashed visibility over the real HTTP pipeline, on
+ * collection and single-record reads.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -144,7 +136,7 @@ final class TrashedVisibilityHttpTest extends TestCase
 
     /**
      * Test that trashed=with is ignored when the resource keeps the gate
-     * closed, so soft-deleted rows are never exposed by default.
+     * closed.
      *
      * @return void
      */
@@ -160,8 +152,7 @@ final class TrashedVisibilityHttpTest extends TestCase
 
     /**
      * Test that a single-record read widens the same way a collection read
-     * does, so the visibility the document offers on a show is one a
-     * repository-backed show honours rather than a claim about a collection.
+     * does.
      *
      * @return void
      */
@@ -178,9 +169,8 @@ final class TrashedVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that a single-record read keeps a trashed row hidden while the
-     * resource keeps the gate closed, the widening being an opt-in on both read
-     * actions alike.
+     * Test that a single-record read keeps a trashed row hidden while the gate
+     * is closed.
      *
      * @return void
      */
@@ -192,8 +182,8 @@ final class TrashedVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Point the Article model at the given resource so the criteria resolves
-     * its trashed gate through it.
+     * Point the Article model at the given resource for the criteria to resolve
+     * its trashed gate.
      *
      * @param  class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>  $resource
      * @return void

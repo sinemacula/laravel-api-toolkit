@@ -21,13 +21,10 @@ use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
 
 /**
- * Proves that the SHIPPED DEFAULT config engages the lifecycle flush.
+ * Integration tests that the shipped default config engages the flush.
  *
- * No lifecycle config keys are set in this file - the tests read the merged
- * package default directly to pin that the shipped default is true and that the
- * flush engages under a detected serving runtime. This kills the default-value
- * mutation (a mutant flipping the default back to false must fail these
- * assertions).
+ * No lifecycle config is set here, so the merged package default is what is
+ * read.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -75,23 +72,15 @@ final class LifecycleDefaultEngagementTest extends TestCase
     }
 
     /**
-     * Test that the shipped default for lifecycle.octane and lifecycle.queue is
-     * true and that the Octane flush engages on a detected serving runtime.
-     *
-     * With no config override the merged default is true, and invoking the
-     * Octane boundary on a serving runtime resets in-process state while the
-     * shared metadata stays warm.
+     * Test that the shipped defaults are on and engage the Octane flush.
      *
      * @return void
      */
     public function testShippedDefaultEngagesOctaneFlushOnServingRuntime(): void
     {
-        // Assert the shipped defaults are on - kills the default-value
-        // mutation.
         self::assertTrue((bool) config('api-toolkit.lifecycle.octane'));
         self::assertTrue((bool) config('api-toolkit.lifecycle.queue'));
 
-        // Arrange: simulate a serving Octane runtime.
         $_SERVER['LARAVEL_OCTANE'] = 1;
 
         Event::fake();
@@ -101,30 +90,23 @@ final class LifecycleDefaultEngagementTest extends TestCase
         $this->writer()->rememberMetadataForever($key, static fn () => 'value');
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
 
-        // Act: invoke the Octane boundary with the shipped default config.
         $this->octaneListener()->handle(new \stdClass);
 
-        // Assert: in-process state was reset and the shared metadata kept.
         self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
         self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
         Event::assertDispatched(CacheFlushed::class);
     }
 
     /**
-     * Test that the shipped queue default engages the flush on a non-sync
-     * worker boundary.
-     *
-     * The shipped queue default is true, and the flush engages when a real
-     * (non-sync) queue connection processes a job.
+     * Test that the shipped queue default engages the flush on a real worker.
      *
      * @return void
      */
     public function testShippedDefaultEngagesQueueFlushOnServingRuntime(): void
     {
-        // Assert the shipped queue default is on.
         self::assertTrue((bool) config('api-toolkit.lifecycle.queue'));
 
-        // Arrange: configure a non-sync connection to signal a real worker.
+        // A non-sync connection signals a real worker
         Config::set('queue.connections.database.driver', 'database');
 
         Event::fake();
@@ -134,11 +116,9 @@ final class LifecycleDefaultEngagementTest extends TestCase
         $this->writer()->rememberMetadataForever($key, static fn () => 'value');
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
 
-        // Act: invoke the queue boundary with the shipped default config.
         $event = new JobProcessed('database', self::createStub(Job::class));
         $this->queueSubscriber()->handleFlush($event);
 
-        // Assert: in-process state was reset and the shared metadata kept.
         self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
         self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
         Event::assertDispatched(CacheFlushed::class);

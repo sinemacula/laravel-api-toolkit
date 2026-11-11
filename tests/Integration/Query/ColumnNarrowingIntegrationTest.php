@@ -27,10 +27,6 @@ use Tests\TestCase;
 /**
  * End-to-end integration tests for repository-driven column narrowing.
  *
- * Drives the full ApiCriteria applier chain against a real SQLite database,
- * capturing the emitted base-table SQL via the query log to prove the narrowing
- * decision, the safety set, and byte-identical default-off behaviour.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -74,8 +70,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * With the flag off the base query selects every column and the response is
-     * byte-identical to the baseline across the field taxonomy.
+     * Test that with narrowing off the query selects * and output is unchanged.
      *
      * @return void
      *
@@ -97,8 +92,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * With the flag on and a fully-mapped field set, the base query selects a
-     * strict subset of the table columns and the response is byte-identical.
+     * Test that a fully-mapped field set narrows to a strict column subset.
      *
      * @return void
      *
@@ -120,8 +114,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * With the flag on and an un-annotated opaque field present, the narrower
-     * falls back and the base query selects every column.
+     * Test that an unannotated opaque field falls back to select *.
      *
      * @return void
      *
@@ -140,11 +133,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * With the flag on, the safety set retains the primary key, soft-delete
-     * column, append source, and order column so every scalar/accessor field
-     * resolves and the response is byte-identical; a requested relation field
-     * is opaque, so the query safely falls back and the relation still
-     * hydrates.
+     * Test that the safety set keeps key, soft-delete, append and order fields.
      *
      * @return void
      *
@@ -171,10 +160,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * With the flag on, a column-mapped field that pulls a `belongsTo` via
-     * `extras` retains the relation's parent foreign key in the narrowed
-     * select, so the eager-loaded relation still hydrates instead of silently
-     * resolving to null.
+     * Test that an extras-loaded belongsTo keeps its foreign key when narrowed.
      *
      * @return void
      *
@@ -194,9 +180,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * A field set changed imperatively after the query executes cannot reach
-     * the built query, so an opaque field set leaves the executed query
-     * selecting all columns while the late field set still renders correctly.
+     * Test that a field set changed after execution leaves select * in place.
      *
      * @return void
      *
@@ -227,8 +211,9 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * A narrowed select survives pagination because the hard-coded
-     * paginate('*') only applies when no columns have been set on the query.
+     * Test that a narrowed select survives pagination.
+     *
+     * paginate('*') only applies when no columns are set on the query.
      *
      * @return void
      *
@@ -251,16 +236,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * Narrowing reduces both the base-query column count and the hydrated
-     * model's fetched attribute payload while keeping the serialised API
-     * response identical.
-     *
-     * The response is byte-identical by design (narrowing changes the SQL, not
-     * the output). The genuine data-layer reduction is proven by comparing the
-     * serialised attribute map of a model fetched with a narrowed SELECT (which
-     * omits heavy columns like `body` from the result set) against a model
-     * fetched with a full SELECT - the narrowed model's attributes must weigh
-     * less.
+     * Test that narrowing reduces the columns and the fetched attributes.
      *
      * @return void
      *
@@ -289,8 +265,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * A scalar-only resource narrows with zero annotation and reuses its
-     * compiled field-column map across requests of the same type.
+     * Test that a scalar-only resource narrows unannotated and reuses its map.
      *
      * @return void
      *
@@ -312,10 +287,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * With the flag on, an aliased scalar narrows to the key it is exposed
-     * under - the same key the serializer reads from the model - so the real
-     * column survives and the response is byte-identical to the flag-off
-     * baseline. The canonical source name never reaches the narrowed SELECT.
+     * Test that an aliased scalar narrows to the key it is exposed under.
      *
      * @return void
      *
@@ -337,8 +309,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * Serialise the seeded users through the aliased-scalar resource for the
-     * given field set.
+     * Serialise the seeded users through the aliased-scalar resource.
      *
      * @param  string  $fields
      * @return string
@@ -355,8 +326,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * Capture the narrowed base-table column names set on the aliased-scalar
-     * user query.
+     * Capture the narrowed column names set on the aliased-scalar user query.
      *
      * @param  string  $fields
      * @return array<int, string>
@@ -386,8 +356,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * Apply the criteria chain to a user query bound to the aliased-scalar
-     * resource.
+     * Apply the criteria chain to a user query bound to the aliased resource.
      *
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
      *
@@ -534,8 +503,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * Apply the criteria chain to an article query bound to the article
-     * resource.
+     * Apply the criteria chain to an article query.
      *
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\Article>
      *
@@ -585,8 +553,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * Strip identifier quote characters so SQL assertions are driver-agnostic:
-     * SQLite and PostgreSQL double-quote identifiers, MySQL backticks them.
+     * Strip identifier quotes so SQL assertions are driver-agnostic.
      *
      * @param  string  $sql
      * @return string
@@ -620,12 +587,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
-     * Fetch the first article row under the current narrowing config for
-     * attribute-payload comparison.
-     *
-     * The caller is responsible for setting the narrow_columns config flag
-     * before invoking this helper; applyArticleCriteria() honours whatever is
-     * currently configured.
+     * Fetch the first article under the current narrowing config.
      *
      * @return \Tests\Fixtures\Models\Article
      *
@@ -653,9 +615,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     /**
      * Normalise a builder column list to plain base-table column names.
      *
-     * A null column list (plain `select *`) and a withCount-injected
-     * `['table.*', Expression]` both collapse to the wildcard marker, while a
-     * narrowed list returns its string column names.
+     * A null list and a withCount ['table.*', Expression] both collapse to the
+     * wildcard.
      *
      * @param  array<int, mixed>|null  $columns
      * @return array<int, string>

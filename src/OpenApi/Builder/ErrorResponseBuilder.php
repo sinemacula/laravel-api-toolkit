@@ -10,12 +10,6 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 /**
  * Builds the components.responses set, one entry per defined error code.
  *
- * Each response carries the toolkit's stable error-envelope shape together with
- * the code's resolved HTTP status and its canonical title/detail. The shared
- * Error envelope schema is emitted once via buildEnvelopeSchema() and
- * referenced by every response; the per-code descriptions and status come from
- * the metadata catalogue's error catalogue.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -60,9 +54,7 @@ final readonly class ErrorResponseBuilder
     /**
      * Build the shared error-envelope schema referenced by every response.
      *
-     * The envelope mirrors the runtime exception payload: a top-level `error`
-     * object carrying the HTTP status, the integer error code, an optional
-     * title, the detail, and an optional free-form meta object.
+     * Mirrors the runtime exception payload.
      *
      * @return array<string, mixed>
      */
@@ -127,8 +119,7 @@ final readonly class ErrorResponseBuilder
     }
 
     /**
-     * Resolve the human-readable description for the given descriptor, falling
-     * back to the detail when no title is defined.
+     * Resolve the description for the given descriptor, title before detail.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor  $descriptor
      * @return string

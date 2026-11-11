@@ -121,8 +121,7 @@ final class ValidateRelationClassesTest extends TestCase
     }
 
     /**
-     * Test that validation continues past fields without resources and still
-     * reports later defects.
+     * Test that validation continues past fields without resources.
      *
      * @return void
      */
@@ -144,8 +143,7 @@ final class ValidateRelationClassesTest extends TestCase
     }
 
     /**
-     * Test that a field whose relation class exists does not halt iteration, so
-     * a later field's missing class is still reported.
+     * Test that validation continues past a field whose relation class exists.
      *
      * @return void
      */

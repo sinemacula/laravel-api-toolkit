@@ -1,4 +1,4 @@
-# 0001 — Deferred writes are safe-by-default
+# 0001 - Deferred writes are safe-by-default
 
 - Status: Accepted
 - Date: 2026-06-13
@@ -11,7 +11,7 @@ arrays in memory and flushes them as chunked bulk INSERT statements at lifecycle
 unsafe-by-default in three ways:
 
 1. **Log-and-drop default.** The default `on_failure` strategy was `log`, which caught a chunk
-   failure, logged at error level, continued, and then **cleared the entire buffer** — silently
+   failure, logged at error level, continued, and then **cleared the entire buffer** - silently
    discarding the failed records. A single constraint violation in a buffered batch lost the
    affected rows with no retention and no inspectable signal beyond a log line.
 2. **Memory-pressure auto-flush downgrade.** When `add()` crossed the pool limit it triggered an
@@ -27,7 +27,7 @@ chunk failed" message hid that the chunk held hundreds of rows.
 
 ## Decision
 
-Make the deferred-write pool safe-by-default — no silent data loss — while keeping the boundary
+Make the deferred-write pool safe-by-default - no silent data loss - while keeping the boundary
 flush from hard-crashing completed requests.
 
 - **New default `on_failure = 'collect'` (retain, not drop).** The safe default catches every
@@ -45,7 +45,7 @@ flush from hard-crashing completed requests.
   sinks, alerting, or metrics.
 - **Loud boundary subscriber.** The subscriber's catch is split: a `WritePoolFlushException` (the
   expected loud failure under `throw`) is escalated with a warning log and a dispatched
-  `WritePoolFlushFailed` event carrying the partial result — it is no longer flattened to a
+  `WritePoolFlushFailed` event carrying the partial result - it is no longer flattened to a
   generic error log. It is re-thrown only when the new `rethrow_at_boundary` flag is enabled
   (default off, so the boundary is never hard-crashed). Any other `\Throwable` (e.g. container
   resolution failure) keeps the generic error log.
@@ -64,7 +64,7 @@ flush from hard-crashing completed requests.
 ## Consequences
 
 - **Breaking change: default flip.** The default behaviour changes from log-and-drop to
-  collect-and-retain. This is intentional — the old default was the silent-data-loss bug. Existing
+  collect-and-retain. This is intentional - the old default was the silent-data-loss bug. Existing
   `Deferrable` consumers that relied on drop-on-failure now retain failed records in the scoped
   pool and re-attempt them on each subsequent boundary within the scope's lifetime. Opt back into
   the old behaviour with `DEFERRED_WRITES_ON_FAILURE=log`, which is now an explicit choice for
@@ -86,7 +86,7 @@ flush from hard-crashing completed requests.
 - **Transactional trade-offs.** A per-table transaction over a large `pool_limit` (default 10000
   rows) can be heavy; the default-off setting mitigates this. Under `transactional + collect`, a
   rolled-back table retains *all* its records (including chunks that committed before the failing
-  chunk), reflected in the record-count accounting — a deliberate, documented difference from
+  chunk), reflected in the record-count accounting - a deliberate, documented difference from
   non-transactional collect.
 - **Non-breaking additions.** The new `transactional` and `rethrow_at_boundary` config keys both
   default to behaviour-preserving values; the new `WritePoolFlushResult` getters are additive with

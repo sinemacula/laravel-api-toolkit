@@ -1,10 +1,7 @@
 # Advanced Querying
 
-The API offers a powerful, flexible query layer that lets consumers tailor each
-request to retrieve precisely the data they need. Clients can choose which
-fields are returned, filter and search records, order results, and page through
-large datasets, all through query parameters. This keeps responses lean and
-puts the shape of the data in the hands of the consumer.
+Clients can choose which fields are returned, filter and search records, order
+results, and page through large datasets, all through query parameters.
 
 The parameters combine freely on any endpoint that returns resources. A typical
 request looks like this:
@@ -35,22 +32,20 @@ deletes at all; a resource that has not opted in to exposing its soft-deleted
 records ignores it. Cursor paging adds two more, `pagination` and `cursor`,
 described in the Pagination section.
 
-Which of these an endpoint answers is not left to prose: every operation in the
-OpenAPI document lists the parameters it accepts, by reference to the shared
-definitions in `components.parameters`.
+Every operation in the OpenAPI document lists the parameters it accepts, by
+reference to the shared definitions in `components.parameters`.
 
 ## Fields
 
 Use `fields` to declare exactly which attributes should appear in the response,
-keyed by the resource type. Requesting only what you need is strongly
-recommended, as it minimises the size of the response body.
+keyed by the resource type. Request only what you need to keep responses small.
 
 There are three ways to define the fields returned:
 
 | Selection          | Example                              |
 |--------------------|--------------------------------------|
 | All allowed fields | `?fields[user]=:all`                 |
-| Default fields     | `?fields[user]=:default`             |
+| Default fields     | Omit `fields[user]`                  |
 | Explicit list      | `?fields[user]=first_name,last_name` |
 
 Fields can be selected on related resources in the same request by keying each
@@ -272,9 +267,9 @@ Every declared match shape is served from an index the application's own
 migrations create. `php artisan api-toolkit:validate-schemas` reports a
 declaration with no index behind it, and the build is the cheapest place to
 find one. Because schema validation is disabled in production by default, the
-same proof is taken again on the first search each worker process serves and
-memoised from there, so a missing index refuses the request rather than being
-answered out of a scan.
+same proof is also taken when a search is served, and cached for a short expiry
+(`api-toolkit.search.index_proof_ttl`), so a missing index refuses the request
+rather than being answered out of a scan.
 
 | Strategy    | MySQL                                                                        | PostgreSQL                                 |
 |-------------|------------------------------------------------------------------------------|--------------------------------------------|

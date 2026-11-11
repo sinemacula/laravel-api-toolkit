@@ -101,9 +101,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Test that the summary resource count equals the registered resource count
-     * when the document's paths reach every registered resource, so nothing is
-     * pruned.
+     * Test that the resource count equals the registry when nothing is pruned.
      *
      * @return void
      */
@@ -120,8 +118,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Test that the summary resource count leaves out the envelope schemas the
-     * document always carries, so a document reaching no resource counts none.
+     * Test that the resource count leaves out the envelope schemas.
      *
      * @return void
      */
@@ -136,8 +133,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Test that each audience's summary resource count is the number of
-     * resource schemas its own pruned document contains, not the registry size.
+     * Test that each audience counts the resources its own document contains.
      *
      * @return void
      */
@@ -164,8 +160,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Test that the summary parameter and response counts reflect the assembled
-     * components.
+     * Test that the parameter and response counts reflect the components.
      *
      * @return void
      */
@@ -187,8 +182,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Test that the summary operation count sums every verb across every path,
-     * so a route matching two verbs counts twice.
+     * Test that the operation count sums every verb across every path.
      *
      * @return void
      */
@@ -202,8 +196,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Test that the summary operation count is zero when no route is
-     * documented.
+     * Test that the operation count is zero when no route is documented.
      *
      * @return void
      */
@@ -213,8 +206,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Provide documents whose paths object is absent or not an array, or holds
-     * a path item that is not an array, with the operation count expected.
+     * Provide malformed paths documents with the operation count expected.
      *
      * @return iterable<string, array{array<string, mixed>, int}>
      */
@@ -226,8 +218,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Test that a paths object or path item that is not an array counts as no
-     * operations rather than raising a type error.
+     * Test that a non-array paths object or path item counts as nothing.
      *
      * @param  array<string, mixed>  $document
      * @param  int  $expected
@@ -242,8 +233,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Provide documents whose components section is absent, non-array, or holds
-     * a non-array section value.
+     * Provide documents with an absent or malformed components section.
      *
      * @return iterable<string, array{array<string, mixed>}>
      */
@@ -255,8 +245,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Test that a components section that is missing or not an array counts as
-     * zero rather than raising a type error.
+     * Test that a missing or non-array components section counts as zero.
      *
      * @param  array<string, mixed>  $document
      * @return void
@@ -270,9 +259,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Declare a public and an internal audience, routing an organization
-     * listing to both and a tag listing documented in the internal audience
-     * alone.
+     * Declare a public and an internal audience with their routes.
      *
      * @return void
      */
@@ -302,8 +289,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Run the use case for the audience against real builders, a real resolver,
-     * and a stubbed catalogue exposing the resource map.
+     * Run the use case for the audience against real builders.
      *
      * @param  string|null  $audience
      * @param  array<class-string, class-string>  $resourceMap
@@ -352,8 +338,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Build a stubbed catalogue exposing the resource map and a single error
-     * descriptor.
+     * Build a stubbed catalogue exposing the resource map and one error.
      *
      * @param  array<class-string, class-string>  $resourceMap
      * @return \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue

@@ -19,13 +19,6 @@ use Tests\TestCase;
 /**
  * Feature tests for the maintenance-mode middleware through the HTTP kernel.
  *
- * Activates maintenance mode and dispatches real requests: a guarded route
- * renders the toolkit service-unavailable envelope rather than a raw HTML error
- * page, while a route named in the bypass list is served as normal - which only
- * holds because the swap removes the framework default so the toolkit except
- * list is authoritative - and the 503 still carries the CORS headers a browser
- * client needs to read it.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -49,9 +42,7 @@ final class MaintenanceModeTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        // Use an in-memory maintenance driver so activation stays scoped to
-        // this test's app; the default file driver writes a process-global down
-        // file that 503s unrelated tests in parallel workers.
+        // The file driver's process-global down file would 503 parallel workers
         assert($this->app !== null);
         $this->app->instance(MaintenanceMode::class, new ArrayMaintenanceMode);
 
@@ -60,8 +51,7 @@ final class MaintenanceModeTest extends TestCase
         Route::middleware(PreventRequestsDuringMaintenance::class)->get('/data', static fn (): array => ['ok' => true]);
         Route::middleware(PreventRequestsDuringMaintenance::class)->get('/health', static fn (): array => ['ok' => true]);
 
-        // Guarded only by the global stack, so its maintenance response can
-        // only come from where the swap placed the toolkit middleware
+        // Guarded only by the global stack the swap placed the middleware in
         Route::get('/open', static fn (): array => ['ok' => true]);
         Route::get('/broken', static function (): never {
             throw new \RuntimeException('Broken');
@@ -84,8 +74,7 @@ final class MaintenanceModeTest extends TestCase
     }
 
     /**
-     * Test that a guarded route forwards the Retry-After and Refresh headers
-     * when maintenance mode was activated with a retry and refresh interval.
+     * Test that a guarded route forwards the Retry-After and Refresh headers.
      *
      * @return void
      */
@@ -102,7 +91,7 @@ final class MaintenanceModeTest extends TestCase
 
     /**
      * Test that a guarded route sends no Retry-After or Refresh headers when
-     * maintenance mode was activated without them.
+     * none were set.
      *
      * @return void
      */
@@ -117,8 +106,8 @@ final class MaintenanceModeTest extends TestCase
     }
 
     /**
-     * Test that the maintenance response is not reported, while an unhandled
-     * exception raised afterwards still is.
+     * Test that the maintenance response is not reported, while a later
+     * unhandled exception still is.
      *
      * @return void
      */
@@ -148,9 +137,10 @@ final class MaintenanceModeTest extends TestCase
 
     /**
      * Test that the maintenance response carries the CORS headers for an
-     * allowed origin, so a browser client can read the 503 rather than seeing a
-     * CORS failure. This holds only because the swap keeps the toolkit
-     * middleware after HandleCors in the global stack.
+     * allowed origin.
+     *
+     * This holds only because the swap keeps the toolkit middleware after
+     * HandleCors.
      *
      * @return void
      */
@@ -168,8 +158,7 @@ final class MaintenanceModeTest extends TestCase
     }
 
     /**
-     * Test that a CORS preflight request is answered during maintenance mode
-     * rather than rejected with a 503 that carries no CORS headers.
+     * Test that a CORS preflight request is answered during maintenance mode.
      *
      * @return void
      */
@@ -201,8 +190,7 @@ final class MaintenanceModeTest extends TestCase
     }
 
     /**
-     * Configure CORS to allow credentialed requests from the given origin on
-     * every path.
+     * Configure CORS to allow credentialed requests from the given origin.
      *
      * @param  string  $origin
      * @return void
@@ -217,8 +205,7 @@ final class MaintenanceModeTest extends TestCase
     }
 
     /**
-     * Activate maintenance mode with the given payload overrides, run the
-     * callback, and deactivate afterwards.
+     * Activate maintenance mode with the given overrides around the callback.
      *
      * @template TReturn
      *

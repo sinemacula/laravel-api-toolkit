@@ -7,15 +7,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
 /**
  * Rewrites the empty schemas of an assembled document as empty objects.
  *
- * The document is built from PHP arrays, and an empty array encodes as a JSON
- * array, which is neither a JSON Schema nor a valid keyword map. This pass
- * finds every schema position - a `schema` value, a `components.schemas` entry,
- * and every subschema a schema nests - and replaces an empty one, or an empty
- * map of named subschemas such as `properties`, with an empty object, so it
- * encodes as `{}`. A map keyed by names, such as `properties` or
- * `dependentRequired`, whose names are all consecutive integers from zero is
- * made an object too, so it does not encode as a JSON array. Boolean schemas
- * and example values are left untouched.
+ * An empty PHP array encodes as a JSON array, which is not a valid schema or
+ * keyword map.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -57,8 +50,7 @@ final readonly class SchemaObjectNormaliser
     }
 
     /**
-     * Normalise the components block, each entry of which is a map of named
-     * components, its schemas a map of schemas.
+     * Normalise the components block.
      *
      * @param  array<array-key, mixed>  $components
      * @return array<array-key, mixed>
@@ -77,9 +69,7 @@ final readonly class SchemaObjectNormaliser
     }
 
     /**
-     * Walk a non-schema node, normalising the schema under each `schema` key
-     * and the components block, and reading the entries of a named map by their
-     * structure, never their name.
+     * Walk a non-schema node, normalising each schema it carries.
      *
      * @param  array<array-key, mixed>  $node
      * @return array<array-key, mixed>
@@ -114,8 +104,7 @@ final readonly class SchemaObjectNormaliser
     }
 
     /**
-     * Normalise a schema and the subschemas it nests, returning an empty object
-     * for an empty schema.
+     * Normalise a schema and the subschemas it nests.
      *
      * @param  array<array-key, mixed>  $schema
      * @return array<array-key, mixed>|\stdClass
@@ -144,8 +133,7 @@ final readonly class SchemaObjectNormaliser
     }
 
     /**
-     * Normalise a map of named schemas, returning an object for a map that
-     * would otherwise encode as a JSON array.
+     * Normalise a map of named schemas.
      *
      * @param  array<array-key, mixed>  $map
      * @return array<array-key, mixed>|\stdClass
@@ -156,8 +144,7 @@ final readonly class SchemaObjectNormaliser
     }
 
     /**
-     * Return a map keyed by names as an object when it is empty or its names
-     * are all consecutive integers from zero, so it encodes as a JSON object.
+     * Return a list-shaped name map as an object so it encodes as one.
      *
      * @param  array<array-key, mixed>  $map
      * @return array<array-key, mixed>|\stdClass

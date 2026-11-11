@@ -19,14 +19,9 @@ use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\TestCase;
 
 /**
- * Feature test proving a filtered HTTP read caches under its own fingerprint
- * rather than the whole table.
+ * Feature test proving a filtered HTTP read caches under its own fingerprint.
  *
- * A filtered read is keyed by the executed query, so repeating one filter is a
- * zero-query hit returning only its rows, while a different filter issues fresh
- * queries and returns a distinct rowset. This guards the highest-value
- * correctness case: a whole-table collision would silently serve the wrong rows
- * for the second filter.
+ * A whole-table key would serve the first filter's rows for the second.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -40,8 +35,7 @@ use Tests\TestCase;
 final class FilteredCacheFingerprintTest extends TestCase
 {
     /**
-     * Set up each test with a cacheable users route and seeded rows split
-     * across two email domains.
+     * Set up a cacheable users route and seed rows across two email domains.
      *
      * @return void
      */
@@ -78,8 +72,7 @@ final class FilteredCacheFingerprintTest extends TestCase
     }
 
     /**
-     * Test that two distinct filters are cached under separate fingerprints,
-     * with no whole-table collision.
+     * Test that two distinct filters are cached under separate fingerprints.
      *
      * @return void
      */
@@ -88,13 +81,11 @@ final class FilteredCacheFingerprintTest extends TestCase
         $keepUrl = '/cached-users?' . http_build_query(['filters' => json_encode(['name' => ['$in' => ['Alpha', 'Bravo']]])]);
         $dropUrl = '/cached-users?' . http_build_query(['filters' => json_encode(['name' => ['$in' => ['Charlie']]])]);
 
-        // Warm the cache for the first filter.
         $this->getJson($keepUrl)->assertOk()->assertJsonCount(2, 'data');
 
         DB::enableQueryLog();
         DB::flushQueryLog();
 
-        // Repeating the first filter is a zero-query hit returning its rows.
         $keepRepeat = $this->getJson($keepUrl);
 
         $keepRepeat->assertOk();
@@ -104,9 +95,7 @@ final class FilteredCacheFingerprintTest extends TestCase
 
         DB::flushQueryLog();
 
-        // A different filter falls through to a fresh query with a distinct
-        // rowset, proving it was not served from the first filter's entry nor a
-        // whole-table snapshot.
+        // A different filter must miss the first filter's entry
         $dropRead = $this->getJson($dropUrl);
 
         $dropRead->assertOk();

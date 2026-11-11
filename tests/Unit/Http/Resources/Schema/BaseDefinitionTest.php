@@ -11,9 +11,7 @@ use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldDeclaration;
 
 /**
- * Tests for the BaseDefinition abstract class.
- *
- * Uses Field as the concrete implementation since BaseDefinition is abstract.
+ * Tests for the BaseDefinition abstract class, through Field.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -296,11 +294,8 @@ final class BaseDefinitionTest extends TestCase
     }
 
     /**
-     * Test that a definition with no openapi declaration serializes identically
-     * to the pre-feature output.
-     *
-     * This is the byte-for-byte backward-compatibility oracle (AC-11): the
-     * openapi key must never appear unless openapi() was explicitly called.
+     * Test that a definition with no openapi declaration serializes without the
+     * openapi key.
      *
      * @return void
      */

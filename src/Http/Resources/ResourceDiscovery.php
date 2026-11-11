@@ -13,21 +13,7 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 /**
  * Boot-time discovery of attribute-bound API resources.
  *
- * Scans the configured resource paths for classes carrying the ForModel
- * attribute and compiles them into a model to resource map. When a compiled map
- * exists under bootstrap/cache, written by the api-toolkit:resources:cache
- * command (which php artisan optimize runs), it is served as-is and no
- * directory is walked; otherwise the paths are scanned on every boot, which is
- * the development path. When schema validation is enabled the compiled map is
- * ignored so every diagnostic fires on every boot. The cache store is never
- * used, so discovery works without a reachable store.
- *
- * Files are visited in a deterministic (sorted) order; when two resources claim
- * the same model the first discovered binding wins and a warning is logged, or
- * the scan fails hard when schema validation is enabled - unless the model is
- * explicitly declared in the resource map, which resolves the ambiguity. A
- * binding whose class is not an instantiable API resource, or whose model does
- * not exist, is skipped with a warning.
+ * Serves the compiled map from bootstrap/cache unless schemas are validated.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -50,8 +36,7 @@ final readonly class ResourceDiscovery
     ) {}
 
     /**
-     * Discover the model to resource bindings, serving the compiled map when
-     * one exists.
+     * Discover the model to resource bindings, preferring the compiled map.
      *
      * @return array<class-string, class-string>
      */
@@ -65,16 +50,9 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Merge the discovered bindings beneath the explicitly configured resource
-     * map.
+     * Merge the discovered bindings beneath the explicit resource map.
      *
-     * The bindings the merge contributes are recorded beside the map, so a
-     * later merge or scan, including one reading a cached config the merge was
-     * baked into, still tells them apart from explicit entries. An explicit
-     * entry naming the very resource recorded for its model cannot be told
-     * apart from the recorded binding, so it is treated as discovered and
-     * follows later discovery; an explicit entry naming any other resource
-     * always wins.
+     * Records its bindings so later merges can tell them from explicit ones.
      *
      * @return void
      */
@@ -94,8 +72,7 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Scan the configured paths and compile the model to resource bindings,
-     * ignoring any compiled map.
+     * Scan the configured paths for bindings, ignoring any compiled map.
      *
      * @return array<class-string, class-string>
      */
@@ -103,10 +80,7 @@ final readonly class ResourceDiscovery
     {
         $configured = Config::get('api-toolkit.resources.paths');
 
-        // A null value - or an absent key on a config that predates it -
-        // resolves to the default roots; an explicit array is honoured as-is,
-        // so an empty array still disables discovery, and any other type
-        // disables it too.
+        // Null means the default roots; a non-array disables discovery
         $paths = match (true) {
             $configured === null  => $this->defaultPaths(),
             is_array($configured) => $configured,
@@ -119,7 +93,7 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * The path of the compiled discovery map.
+     * Get the path of the compiled discovery map.
      *
      * @return string
      */
@@ -131,8 +105,7 @@ final readonly class ResourceDiscovery
     /**
      * Load the compiled discovery map, or null when there is none.
      *
-     * The map is required rather than required once so every boot in a
-     * long-lived process reads it afresh.
+     * Not require_once, so each boot in a long-lived process reads it afresh.
      *
      * @return array<class-string, class-string>|null
      *
@@ -159,15 +132,9 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * The default scan roots when no paths are configured.
+     * Get the default scan roots when no paths are configured.
      *
-     * Resolved from app_path() at scan time rather than baked into the cached
-     * config, so a newly added module is found on the next uncached boot or
-     * rebuild of the compiled map, and a modular application - which repoints
-     * app_path() at its module root - is covered with no coupling to any
-     * modules package. The application's own resource directory is scanned
-     * alongside each module's, the latter sitting one level below the flat
-     * directory.
+     * Resolved at scan time so an app that repoints app_path() is covered.
      *
      * @return array<int, string>
      */
@@ -201,10 +168,7 @@ final readonly class ResourceDiscovery
     /**
      * Merge the bindings declared by the given class into the map.
      *
-     * A class that is not autoloadable is skipped silently (the scan derives
-     * names from file contents, so a stray file is not an error). A model that
-     * is already bound is never rebound - the first discovered binding wins -
-     * and the duplicate claim is reported.
+     * The first binding wins; a class that is not autoloadable is skipped.
      *
      * @param  array<class-string, class-string>  $map
      * @param  string  $class
@@ -231,10 +195,9 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Report a duplicate claim on an already-bound model: silently for a
-     * re-declaration of the same class or a model resolved by an explicit
-     * resource map entry, with a warning otherwise - or fatally when schema
-     * validation is enabled.
+     * Report a duplicate claim on an already-bound model.
+     *
+     * Silent for the same class or an explicit entry; fatal when validating.
      *
      * @param  array<class-string, class-string>  $map
      * @param  class-string  $class
@@ -265,8 +228,7 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Determine whether the discovered binding is valid, logging a warning when
-     * it is not.
+     * Determine whether the discovered binding is valid, warning when not.
      *
      * @param  class-string  $class
      * @param  string  $model
@@ -286,8 +248,7 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Diagnose the discovered binding, returning null when it is valid, or the
-     * rejection message otherwise.
+     * Diagnose the discovered binding, returning the rejection message or null.
      *
      * @param  class-string  $class
      * @param  string  $model
@@ -309,7 +270,7 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * The configured resource map without the bindings the merge contributed.
+     * Get the configured resource map without the merge-contributed bindings.
      *
      * @return array<class-string, class-string>
      */
@@ -332,7 +293,7 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * The bindings the merge contributed to the configured resource map.
+     * Get the bindings the merge contributed to the configured resource map.
      *
      * @return array<class-string, class-string>
      */
@@ -364,11 +325,9 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * List every PHP file directly discoverable beneath a single path.
+     * List every PHP file beneath a single path.
      *
-     * A directory removed between the discovery filter and this scan - as
-     * happens under concurrent filesystem changes - yields an empty list rather
-     * than propagating the iterator failure.
+     * A directory removed mid-scan yields an empty list.
      *
      * @param  string  $path
      * @return array<int, string>
@@ -405,9 +364,7 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Read a file's contents, tolerating a file removed between enumeration and
-     * read (a hot deploy swapping resources mid-scan, or a concurrent test) by
-     * returning null rather than aborting discovery.
+     * Read a file's contents, or null when it was removed mid-scan.
      *
      * @param  string  $file
      * @return string|null
@@ -417,8 +374,7 @@ final readonly class ResourceDiscovery
         try {
             $contents = file_get_contents($file);
         } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
-            // A booted error handler turns the read warning for a file removed
-            // mid-scan into a throwable; tolerate it rather than abort.
+            // The error handler throws on the read warning for a removed file
             return null;
         }
 
@@ -432,10 +388,7 @@ final readonly class ResourceDiscovery
     /**
      * Resolve the fully qualified class names declared in the given file.
      *
-     * Tokenising avoids loading the file, so a scanned file that is not a class
-     * (or is not autoloadable) has no side effects on the process. A
-     * class keyword preceded by a double colon (a ::class constant) or by
-     * new (an anonymous class) is not a declaration and is skipped.
+     * Tokenises the file so scanning it has no side effects on the process.
      *
      * @param  string  $file
      * @return array<int, string>
@@ -477,8 +430,7 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Resolve the namespace name following the namespace keyword at the given
-     * index, or null when the keyword declares no name.
+     * Resolve the name declared by the namespace keyword at the given index.
      *
      * @param  array<int, \PhpToken>  $tokens
      * @param  int  $index
@@ -501,10 +453,9 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Resolve the declared name following the class keyword at the given
-     * index, or null when the keyword is not a declaration - a ::class
-     * constant reference, an anonymous class expression, or a name-less
-     * trailing keyword.
+     * Resolve the name declared by the class keyword at the given index.
+     *
+     * Null for a ::class reference, an anonymous class or a trailing keyword.
      *
      * @param  array<int, \PhpToken>  $tokens
      * @param  int  $index

@@ -7,16 +7,6 @@ namespace SineMacula\ApiToolkit\Schema\Introspection;
 /**
  * Immutable description of a single index the connection's catalogue reports.
  *
- * Carries the ordered column list, because the position a column holds in an
- * index decides what the index can serve: only the leading column is a key
- * prefix, so an index naming a column second cannot answer an ordered read of
- * that column alone.
- *
- * The kind is nullable because not every connection reports one. A connection
- * that names no kind has not said the index is unusable, only that it does not
- * distinguish kinds, and a reader deciding what an index can serve has to tell
- * those two apart.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -42,14 +32,9 @@ final readonly class IndexDefinition
     ) {}
 
     /**
-     * Build a definition from one catalogue entry, or return null when the
-     * connection reported anything but an entry carrying a name, columns that
-     * are names, and either a kind or nothing at all.
+     * Build a definition from a catalogue entry, or null when it is malformed.
      *
-     * The entry is read as unknown rather than as the shape the schema builder
-     * promises, because what the connection actually returned is what decides
-     * whether it can be read at all. The same reader rebuilds a definition from
-     * its stored form, which another version of the toolkit may have written.
+     * Cached entries may have been written by another toolkit version.
      *
      * @param  mixed  $entry
      * @return self|null
@@ -73,8 +58,7 @@ final readonly class IndexDefinition
     }
 
     /**
-     * Return the definition as the catalogue entry it is read from, so it can
-     * be cached without its class.
+     * Return the definition as a cacheable catalogue entry.
      *
      * @return array{name: string, columns: array<int, string>, type: string|null}
      */
@@ -95,12 +79,7 @@ final readonly class IndexDefinition
     }
 
     /**
-     * Return the column names an index covers, or null when the connection
-     * reported one as something other than a name.
-     *
-     * An entry that is not a name leaves the position of every column after it
-     * unknown, and the leading one is what decides what the index serves, so
-     * the whole index is passed over rather than resequenced around the gap.
+     * Return the column names an index covers, or null when any is not a name.
      *
      * @param  array<mixed>  $columns
      * @return array<int, string>|null

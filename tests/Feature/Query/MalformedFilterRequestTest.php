@@ -17,12 +17,7 @@ use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\TestCase;
 
 /**
- * Feature test proving a non-JSON filters payload is rejected up front.
- *
- * The base validation rule requires the filters parameter to be valid JSON, so
- * a malformed value is rejected as the toolkit 422 envelope keyed on the
- * filters parameter itself rather than on a nested column, and the request
- * never reaches the repository.
+ * Feature tests for malformed filters payloads being rejected up front.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -77,7 +72,7 @@ final class MalformedFilterRequestTest extends TestCase
 
     /**
      * Test that a filters document nested beyond the decoder depth limit is
-     * rejected rather than dropped, which would answer with the whole table.
+     * rejected.
      *
      * @return void
      */
@@ -94,8 +89,7 @@ final class MalformedFilterRequestTest extends TestCase
     }
 
     /**
-     * Test that a JSON list is rejected rather than dropped, which would answer
-     * with the whole table.
+     * Test that a JSON list is rejected rather than read as no filters.
      *
      * @return void
      */
@@ -112,12 +106,6 @@ final class MalformedFilterRequestTest extends TestCase
     /**
      * Test that a field given a bare list of values is rejected rather than
      * raising a type error.
-     *
-     * The list reaches the filter walk with integer keys where a field or
-     * condition name is expected, which met a string parameter and failed the
-     * request as an unhandled error. An advanced search UI composing an "any
-     * of" group by hand emits exactly this shape, so it must read as a
-     * rejection the caller can correct.
      *
      * @return void
      */

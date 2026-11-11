@@ -25,12 +25,11 @@ use Tests\TestCase;
 #[CoversClass(ThrowsErrorResolver::class)]
 final class ThrowsErrorResolverTest extends TestCase
 {
-    /** @var string The fixture controller naming its exceptions in every form a class name takes */
+    /** @var string Fixture controller naming its exceptions in every class-name form */
     private const string IMPORTED = 'Tests\Fixtures\OpenApi\ImportedThrowsController';
 
     /**
-     * Test that each named ApiException is described under its status with a
-     * code example, ignoring other throwables and a status-less ApiException.
+     * Test that each named ApiException is described with a code example.
      *
      * @return void
      */
@@ -47,9 +46,7 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Test that an exception's declared headers, including those inherited from
-     * its parent, are carried under its status, while an exception declaring
-     * none carries no header.
+     * Test that exception headers, inherited ones too, are carried.
      *
      * @return void
      */
@@ -65,8 +62,7 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Test that exceptions sharing a status merge their headers in @throws
-     * order, the first declaration of a name winning.
+     * Test that a shared status merges headers in @throws order.
      *
      * @return void
      */
@@ -84,8 +80,7 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Test that exceptions sharing a status merge their examples under one
-     * descriptor carrying the multi-word phrase.
+     * Test that a shared status merges examples under one descriptor.
      *
      * @return void
      */
@@ -127,8 +122,7 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Test that an action the controller does not declare yields none rather
-     * than throwing.
+     * Test that an undeclared action yields nothing.
      *
      * @return void
      */
@@ -138,8 +132,7 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Test that an exception named by the short name it is imported under is
-     * documented.
+     * Test that an exception named by its imported short name is documented.
      *
      * @return void
      */
@@ -149,8 +142,7 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Test that an exception named by its import alias is documented under its
-     * own class name.
+     * Test that an exception named by its import alias is documented.
      *
      * @return void
      */
@@ -160,8 +152,7 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Test that exceptions imported by a group use, one of them aliased, are
-     * documented.
+     * Test that exceptions imported by a group use are documented.
      *
      * @return void
      */
@@ -175,8 +166,7 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Test that each member of a union is documented, including a name
-     * qualified by an imported namespace.
+     * Test that each member of a union is documented.
      *
      * @return void
      */
@@ -189,8 +179,7 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Test that an exception in the controller's own namespace is documented
-     * without an import.
+     * Test that a same-namespace exception is documented without an import.
      *
      * @return void
      */
@@ -213,8 +202,7 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Test that an inherited action resolves its names against the imports of
-     * the parent declaring it.
+     * Test that an inherited action resolves against its parent's imports.
      *
      * @return void
      */
@@ -227,8 +215,7 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Test that an action from a trait resolves its names against the imports
-     * of the trait.
+     * Test that a trait action resolves against the trait's imports.
      *
      * @return void
      */
@@ -238,9 +225,7 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Test that names resolving to no class are skipped, including the short
-     * name of an exception imported only under an alias, while a resolvable
-     * name is kept.
+     * Test that names resolving to no class are skipped.
      *
      * @return void
      */
@@ -265,8 +250,7 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Build the descriptor expected for a status whose single exception
-     * declares no header.
+     * Build the descriptor for a status with one headerless exception.
      *
      * @param  string  $phrase
      * @param  string  $name

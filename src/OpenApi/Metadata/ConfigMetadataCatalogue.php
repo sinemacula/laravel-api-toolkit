@@ -16,13 +16,6 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 /**
  * Config-backed adapter for the MetadataCatalogue port.
  *
- * Reads the registered resource map from the toolkit config, operator tokens
- * from the bound OperatorRegistry (so application-registered additions are
- * reflected), and delegates error-catalogue resolution to ErrorCatalogueReader
- * and query-surface resolution to QuerySurfaceReader. The query and search
- * bounds are resolved through the same objects the request-time gates resolve
- * them through, so a documented bound is the bound a request is held to.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -52,16 +45,10 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
     ) {}
 
     /**
-     * Return the full resource map (model class → resource class).
+     * Return the full resource map (model class -> resource class).
      *
-     * Unions the explicitly configured resource map with the resources found by
-     * attribute discovery, resolved at call time. Configured entries keep their
-     * existing order and always win on a model collision, so the static map
-     * stays the canonical tiebreak; discovered bindings for models absent from
-     * the config are appended. Discovery is resolved directly rather than read
-     * from the merged config because the boot-time merge is skipped while the
-     * config cache is being built, so the full set is returned regardless of
-     * cache state.
+     * Discovery runs here because the boot-time merge is skipped while the
+     * config cache is built.
      *
      * @return array<class-string, class-string>
      */
@@ -76,7 +63,7 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
     }
 
     /**
-     * Return the registered filter operator tokens from the OperatorRegistry.
+     * Return the registered filter operator tokens.
      *
      * @return array<int, string>
      */
@@ -87,8 +74,7 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
     }
 
     /**
-     * Return the structural filter operators, read from the filter engine so
-     * the documented grammar cannot drift from what the engine dispatches.
+     * Return the structural filter operators the filter engine dispatches.
      *
      * @return array<int, string>
      */
@@ -123,13 +109,7 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
     }
 
     /**
-     * Return every bound one request is held to, keyed by the name the refusal
-     * reports as its reason and in the order the caps are declared.
-     *
-     * The structural caps are followed by the page-size ceiling, which is
-     * enforced from the parser configuration rather than from the cost limits
-     * but is refused the same way and under the same reason, so a client reads
-     * one list of the bounds it can be turned away for.
+     * Return every bound one request is held to, keyed by refusal reason.
      *
      * @return array<string, int>
      */
@@ -143,14 +123,13 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
             $caps[$cap] = $limits->limit($cap);
         }
 
-        $caps[QueryParameterValidator::MAX_LIMIT] = $this->pageSizeCeiling();
+        $caps[QueryParameterValidator::MAX_LIMIT] = QueryParameterValidator::pageSizeCeiling();
 
         return $caps;
     }
 
     /**
-     * Return the bounds a free-text search term is held to, read from the term
-     * itself so the floor the shortest word is held at is the reported one.
+     * Return the bounds a free-text search term is held to.
      *
      * @return array<string, int>
      */
@@ -162,16 +141,5 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
             SearchTerm::MAX_LENGTH_KEY      => SearchTerm::maximumLength(),
             SearchTerm::MAX_WORDS_KEY       => SearchTerm::maximumWords(),
         ];
-    }
-
-    /**
-     * Resolve the page-size ceiling, reporting a non-numeric or absent setting
-     * as disabled exactly as the guard that enforces it reads one.
-     *
-     * @return int
-     */
-    private function pageSizeCeiling(): int
-    {
-        return QueryParameterValidator::pageSizeCeiling();
     }
 }

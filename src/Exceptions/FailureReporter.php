@@ -9,11 +9,8 @@ use Illuminate\Support\Facades\Log;
 /**
  * Reports a caught failure through the exception handler without ever throwing.
  *
- * Used where a failure is caught at a boundary that must not crash, or after an
- * outcome has already been committed. Reporting itself can throw (the logger
- * cannot be built, a reportable callback fails), so a reporting failure falls
- * back to an error log line carrying the original exception, and a failure of
- * that log write is swallowed.
+ * Reporting can itself throw, so it falls back to an error log line and then to
+ * nothing.
  *
  * @internal
  *
@@ -38,7 +35,7 @@ final class FailureReporter
             try {
                 Log::error($fallbackMessage, ['exception' => $exception]);
             } catch (\Throwable) {
-                // Nothing is left to report to.
+                // Nothing is left to report to
             }
         }
     }

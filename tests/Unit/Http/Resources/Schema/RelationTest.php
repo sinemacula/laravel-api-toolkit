@@ -256,9 +256,6 @@ final class RelationTest extends TestCase
     /**
      * Test that the openapi key is absent when no declaration was made.
      *
-     * Backward-compatibility oracle (AC-11): a relation with no openapi() call
-     * must serialize without the new key.
-     *
      * @return void
      */
     public function testToArrayOmitsOpenApiWhenNotDeclared(): void

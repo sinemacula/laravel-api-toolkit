@@ -13,9 +13,8 @@ use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
 /**
  * Sort eligibility integration suite for the MySQL engine.
  *
- * The engine will not use an index whose first key part holds only a prefix of
- * its column to deliver that column's order, while still finding rows through
- * it, so the sort proof and the search proof have to part ways over one.
+ * MySQL will not use a prefix-keyed index to order its column, though it still
+ * finds rows through it.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -26,8 +25,7 @@ use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
 final class MySqlSortIndexEligibilityTest extends EngineSortIndexEligibilityTestCase
 {
     /**
-     * Test that an index keyed on a prefix of the column is refused for
-     * sorting.
+     * Test that an index keyed on a prefix of the column is refused.
      *
      * @return void
      */
@@ -39,8 +37,7 @@ final class MySqlSortIndexEligibilityTest extends EngineSortIndexEligibilityTest
     }
 
     /**
-     * Test that a prefix key after the leading one leaves the leading column's
-     * order intact.
+     * Test that a prefix key after the leading one keeps the leading order.
      *
      * @return void
      */
@@ -52,8 +49,7 @@ final class MySqlSortIndexEligibilityTest extends EngineSortIndexEligibilityTest
     }
 
     /**
-     * Test that an ordinary index over the whole column is accepted, so the
-     * refusal above answers to the prefix rather than to the table.
+     * Test that an ordinary index over the whole column is accepted.
      *
      * @return void
      */
@@ -65,8 +61,7 @@ final class MySqlSortIndexEligibilityTest extends EngineSortIndexEligibilityTest
     }
 
     /**
-     * Test that an index keyed on a prefix of the column still backs a search
-     * finding rows by that column.
+     * Test that a prefix-keyed index still backs a search on the column.
      *
      * @return void
      */

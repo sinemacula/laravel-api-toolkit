@@ -17,13 +17,7 @@ use Tests\Fixtures\Repositories\DeferrableUserRepository;
 use Tests\TestCase;
 
 /**
- * Integration tests for the deferred-write flush across a simulated request
- * boundary.
- *
- * Exercises the WritePool and WritePoolFlushSubscriber lifecycle the way a
- * consuming application does: records are buffered through a Deferrable
- * repository inside a route handler, the kernel completes the request, and the
- * subscriber flushes the pool when the RequestHandled lifecycle event fires.
+ * Integration tests for the deferred-write flush across a request boundary.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -67,8 +61,7 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
     }
 
     /**
-     * Test that records deferred during a request are flushed to the database
-     * when the request lifecycle completes.
+     * Test that records deferred during a request are flushed at its end.
      *
      * @return void
      */
@@ -78,8 +71,7 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
 
         $response->assertStatus(202);
 
-        // The route handler observed an empty table: deferred records must not
-        // be persisted while the request is still in flight.
+        // Deferred records must not persist while the request is in flight
         $response->assertJsonPath('persisted_during_request', 0);
 
         self::assertSame(2, DB::table('users')->count());
@@ -88,8 +80,7 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
     }
 
     /**
-     * Test that the request boundary flush leaves the scoped write pool empty
-     * for subsequent work.
+     * Test that the request boundary flush leaves the write pool empty.
      *
      * @return void
      */
@@ -105,8 +96,7 @@ final class DeferredWriteRequestBoundaryTest extends TestCase
     }
 
     /**
-     * Test that sequential requests each flush their own deferred records at
-     * their own request boundary.
+     * Test that sequential requests each flush their own deferred records.
      *
      * @return void
      */

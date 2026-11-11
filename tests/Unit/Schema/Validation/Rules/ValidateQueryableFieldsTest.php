@@ -17,10 +17,7 @@ use Tests\TestCase;
 /**
  * Tests for the ValidateQueryableFields validation rule.
  *
- * The column listing behind the rule is supplied rather than read, so every
- * answer a connection can give - a listing naming the column, one that does
- * not, and one that could not be read at all - is exercised on whichever engine
- * the suite runs against.
+ * The column listing is stubbed so every possible answer runs on any engine.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -31,8 +28,7 @@ use Tests\TestCase;
 final class ValidateQueryableFieldsTest extends TestCase
 {
     /**
-     * Test that a scalar field declared filterable and sortable against a
-     * column the table carries is accepted.
+     * Test that a filterable and sortable field on a real column is accepted.
      *
      * @return void
      */
@@ -47,8 +43,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a resource declaring nothing queryable is passed over, so the
-     * column listing is never read for a resource with no query surface.
+     * Test that a resource declaring nothing queryable never reads the columns.
      *
      * @return void
      */
@@ -67,12 +62,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a computed field declared filterable is reported, since the
-     * emitted clause would name a column that does not exist.
-     *
-     * The listing does not name the column either, so the single error also
-     * pins that one declaration yields one defect rather than two readings of
-     * the same one.
+     * Test that a computed filterable field is reported exactly once.
      *
      * @return void
      */
@@ -95,8 +85,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a computed field declared sortable is reported under the sort
-     * declaration rather than the filter one.
+     * Test that a computed sortable field is reported as a sort defect.
      *
      * @return void
      */
@@ -117,8 +106,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that both declarations on the same computed field are reported
-     * independently.
+     * Test that both declarations on one computed field are reported.
      *
      * @return void
      */
@@ -143,8 +131,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a field reading a different path from the column it declares is
-     * reported.
+     * Test that an accessor path differing from the column is reported.
      *
      * @return void
      */
@@ -165,8 +152,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that an accessor path matching the declared column is accepted, so
-     * an aliased presentation of a real column stays queryable.
+     * Test that an accessor path matching the declared column is accepted.
      *
      * @return void
      */
@@ -181,8 +167,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a closure accessor declaring a column the table carries is
-     * accepted, since the path it reads is opaque and the column is real.
+     * Test that a closure accessor declaring a real column is accepted.
      *
      * @return void
      */
@@ -197,8 +182,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a closure accessor declaring a column the table does not carry
-     * is reported, which is the half the schema alone cannot prove.
+     * Test that a closure accessor declaring a missing column is reported.
      *
      * @return void
      */
@@ -220,8 +204,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a scalar field declared filterable against a column the table
-     * does not carry is reported.
+     * Test that a filterable field on a missing column is reported.
      *
      * @return void
      */
@@ -242,9 +225,9 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a filterable declaration carrying no capability is reported,
-     * since the compiled surface drops the column and every filter on it is
-     * then refused as unpermitted.
+     * Test that a filterable declaration with no capability is reported.
+     *
+     * The compiled surface drops the column, so every filter on it is refused.
      *
      * @return void
      */
@@ -266,9 +249,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a sortable declaration on the same field is judged on its own,
-     * so the missing capability is reported against the filterable declaration
-     * alone rather than standing in for both.
+     * Test that a sortable declaration on the same field is judged on its own.
      *
      * @return void
      */
@@ -289,9 +270,9 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that two fields declaring one column with different capabilities are
-     * reported, since the filter surface is keyed by column and the declaration
-     * compiled last would otherwise decide what it answers.
+     * Test that one column declared with differing capabilities is reported.
+     *
+     * The filter surface is keyed by column, so the last declaration would win.
      *
      * @return void
      */
@@ -317,9 +298,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that every column declared with two capabilities is reported, and
-     * that a field declaring nothing filterable is passed over rather than
-     * ending the walk.
+     * Test that every conflicting column is reported, past undeclared fields.
      *
      * @return void
      */
@@ -344,8 +323,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a field repeating the capability another already declared does
-     * not end the walk, so a third field changing it is still reported.
+     * Test that a field repeating a capability does not end the walk.
      *
      * @return void
      */
@@ -367,9 +345,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a declaration carrying no capability is not weighed against the
-     * field that does govern the column, since it declares no capability to
-     * conflict with and is already reported as dropped.
+     * Test that a capability-less declaration is not weighed as a conflict.
      *
      * @return void
      */
@@ -394,8 +370,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a sound filterable declaration does not end the walk over the
-     * field's declarations, so the sortable one beside it is still judged.
+     * Test that a sound filterable declaration does not end the walk.
      *
      * @return void
      */
@@ -416,9 +391,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a second field repeating the same capability for one column is
-     * accepted, since an alias naming the surface the first field declared
-     * leaves nothing to decide.
+     * Test that two fields repeating one column's capability are accepted.
      *
      * @return void
      */
@@ -436,12 +409,9 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a listing that could not be read proves nothing, so a
-     * declaration is left alone rather than refused.
+     * Test that an unreadable column listing proves nothing.
      *
-     * A listing comes back empty only where the connection could not be
-     * inspected or the table is not there to inspect, since no table carries no
-     * columns at all.
+     * Only a missing table or uninspectable connection gives an empty listing.
      *
      * @return void
      */
@@ -456,8 +426,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a resource with no model behind it is passed over, since there
-     * is no table whose columns could be read.
+     * Test that a resource with no model behind it is passed over.
      *
      * @return void
      */
@@ -472,8 +441,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a mapped class that is not an Eloquent model is passed over
-     * rather than instantiated.
+     * Test that a mapped class that is not a model is passed over.
      *
      * @return void
      */
@@ -488,8 +456,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that the schema defect is still reported where no model is behind
-     * the resource, since it is decided from the schema alone.
+     * Test that a schema defect is reported even with no model behind it.
      *
      * @return void
      */
@@ -510,8 +477,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that every offending field is reported, not just the first, and that
-     * a field declaring nothing is passed over rather than ending the walk.
+     * Test that every offending field is reported, past undeclared fields.
      *
      * @return void
      */
@@ -535,9 +501,7 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Build the rule over an introspection provider reporting the given column
-     * listing, where an empty listing stands for a connection that could not be
-     * read.
+     * Build the rule over the given column listing, empty meaning unreadable.
      *
      * @param  array<int, string>  $columns
      * @return \SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateQueryableFields

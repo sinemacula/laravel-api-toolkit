@@ -10,17 +10,6 @@ use SineMacula\ApiToolkit\Support\PureEnumName;
 /**
  * Renders the referenced enums as an auto-generated Markdown section.
  *
- * Groups the referenced enums by the module they belong to, so a modular
- * application reads one module section per module beneath an optional shared
- * "Common" section, with each enum a subsection carrying a table of its cases
- * in declaration order. A flat application resolves every enum to no module,
- * collapsing to one subsection per enum with no module headings as the
- * degenerate case of the same grouping. Enums are ordered by component name and
- * the section opens with a machine-generated banner, so the output is stable
- * and byte-identical between runs. A backed enum lists each case's backing
- * value; a pure enum has no backing value, so its value cell shows a hyphen
- * placeholder.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

@@ -12,15 +12,6 @@ use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 /**
  * Resolves the request body a write action documents from its rules source.
  *
- * Discovery follows a fixed precedence: a #[RequestSchema] directive naming a
- * rules source always wins, then a type-hinted action parameter that is a
- * FormRequest or a self-describing input, and otherwise no body is documented.
- * A self-describing source is read through its static rules() with no instance,
- * while a FormRequest is instantiated plainly and read through a guarded
- * rules() call so a rules() reaching for the request degrades to no body rather
- * than throwing. The rules are translated to an inlined schema and served as
- * multipart form data when any field is binary, otherwise as JSON.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -44,8 +35,7 @@ final readonly class RequestBodyResolver
     ) {}
 
     /**
-     * Resolve the request body object for the action, or null when no rules
-     * source is discoverable or it yields no documentable field.
+     * Resolve the request body object for the action, if it documents one.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -93,8 +83,7 @@ final readonly class RequestBodyResolver
     }
 
     /**
-     * Read the rules-source class named by a #[RequestSchema] directive on the
-     * action, or null when the action carries none.
+     * Read the rules-source class named by a #[RequestSchema] on the action.
      *
      * @param  class-string  $controllerClass
      * @param  string  $action
@@ -108,8 +97,7 @@ final readonly class RequestBodyResolver
     }
 
     /**
-     * Find the first action parameter type-hinting a rules source, or null when
-     * no parameter is a rules source.
+     * Find the first action parameter type-hinting a rules source.
      *
      * @param  class-string  $controllerClass
      * @param  string  $action
@@ -136,8 +124,7 @@ final readonly class RequestBodyResolver
     }
 
     /**
-     * Determine whether the class is a rules source: a self-describing input or
-     * a FormRequest.
+     * Determine whether the class is a self-describing input or a FormRequest.
      *
      * @param  string  $class
      * @return bool
@@ -149,8 +136,9 @@ final readonly class RequestBodyResolver
     }
 
     /**
-     * Read the rules array from the source, degrading to null when reading it
-     * throws or it yields no rules.
+     * Read the rules array from the source.
+     *
+     * A rules() that reaches for the live request throws, so it yields no body.
      *
      * @param  string  $source
      * @return array<array-key, mixed>|null
@@ -167,8 +155,7 @@ final readonly class RequestBodyResolver
     }
 
     /**
-     * Extract the raw rules value from the source, statically for a
-     * self-describing input and through a plain instance for a FormRequest.
+     * Extract the raw rules value from the source.
      *
      * @param  string  $source
      * @return mixed

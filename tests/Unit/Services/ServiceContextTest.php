@@ -127,8 +127,7 @@ final class ServiceContextTest extends TestCase
     }
 
     /**
-     * Test that fromRequest() captures the client IP address and user agent
-     * under the documented metadata keys.
+     * Test that fromRequest() captures the client IP and user agent.
      *
      * @return void
      */
@@ -143,8 +142,7 @@ final class ServiceContextTest extends TestCase
     }
 
     /**
-     * Test that fromRequest() keeps both metadata keys when the request has no
-     * user agent.
+     * Test that fromRequest() keeps both metadata keys with no user agent.
      *
      * @return void
      */
@@ -195,8 +193,7 @@ final class ServiceContextTest extends TestCase
     }
 
     /**
-     * Test that fromRequest() uses the X-Request-Id header as the correlation
-     * id.
+     * Test that fromRequest() uses X-Request-Id as the correlation id.
      *
      * @return void
      */
@@ -233,8 +230,7 @@ final class ServiceContextTest extends TestCase
     }
 
     /**
-     * Test that fromRequest() generates a correlation id when the request has
-     * no correlation header.
+     * Test that fromRequest() generates a correlation id without a header.
      *
      * @return void
      */
@@ -246,8 +242,7 @@ final class ServiceContextTest extends TestCase
     }
 
     /**
-     * Test that fromRequest() reads the configured header rather than
-     * X-Request-Id.
+     * Test that fromRequest() reads the configured correlation header.
      *
      * @return void
      */
@@ -264,8 +259,7 @@ final class ServiceContextTest extends TestCase
     }
 
     /**
-     * Test that fromRequest() falls back to X-Request-Id when the header is not
-     * configured at all.
+     * Test that fromRequest() falls back to X-Request-Id when unconfigured.
      *
      * @return void
      */
@@ -290,8 +284,7 @@ final class ServiceContextTest extends TestCase
     }
 
     /**
-     * Test that fromRequest() generates a correlation id when header reading is
-     * disabled.
+     * Test that fromRequest() generates a correlation id when reading is off.
      *
      * @param  string|null  $header
      * @return void
@@ -324,8 +317,7 @@ final class ServiceContextTest extends TestCase
     }
 
     /**
-     * Test that fromRequest() generates a correlation id when the header value
-     * is not a usable one.
+     * Test that fromRequest() generates a correlation id for an unusable value.
      *
      * @param  string  $value
      * @return void
@@ -351,8 +343,7 @@ final class ServiceContextTest extends TestCase
     }
 
     /**
-     * Build a request from a client IP address with a user agent and the given
-     * extra server variables.
+     * Build a request from a client IP with a user agent and extra server vars.
      *
      * @param  array<string, string>  $server
      * @return \Illuminate\Http\Request

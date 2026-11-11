@@ -10,13 +10,6 @@ use SineMacula\ApiToolkit\OpenApi\Attributes\Tag;
 /**
  * Resolves the OpenAPI tag an operation is grouped under.
  *
- * Resolution walks the most-specific source first: a method-level then a
- * class-level #[Tag] attribute wins outright. Failing that, a resource route
- * keeps its resource schema name, a controller-backed route falls back to the
- * controller basename with a trailing "Controller" stripped, and a closure
- * route derives its tag from the first non-parameter URI segment, defaulting to
- * a shared fallback when the URI carries none.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -52,8 +45,7 @@ final readonly class TagResolver
     }
 
     /**
-     * Read the tag declared by a #[Tag] attribute, preferring the method level
-     * over the class level, or null when the controller declares none.
+     * Read the #[Tag] declared on the method, else on the controller class.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -73,8 +65,7 @@ final readonly class TagResolver
     }
 
     /**
-     * Read the tag name from the first #[Tag] attribute on the reflector, or
-     * null when none is declared.
+     * Read the tag name from the first #[Tag] attribute on the reflector.
      *
      * @param  \ReflectionClass<object>|\ReflectionMethod  $reflector
      * @return string|null
@@ -87,8 +78,8 @@ final readonly class TagResolver
     }
 
     /**
-     * Derive the tag from the controller basename, stripping a trailing
-     * "Controller" suffix while keeping a bare "Controller" name intact.
+     * Derive the tag from the controller basename without a "Controller"
+     * suffix.
      *
      * @param  class-string  $controllerClass
      * @return string
@@ -101,8 +92,7 @@ final readonly class TagResolver
     }
 
     /**
-     * Derive the tag from the first non-parameter URI segment, falling back to
-     * the shared default when the URI carries no literal segment.
+     * Derive the tag from the first non-parameter URI segment.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @return string

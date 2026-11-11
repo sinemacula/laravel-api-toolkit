@@ -9,22 +9,8 @@ use Illuminate\Support\Facades\Config;
 /**
  * Assembles the committed Markdown manual injected into info.description.
  *
- * Reads the section files (`*.md`) from the configured docs directory and
- * concatenates them in filename (sorted) order, separated by a blank line, so
- * the rendered documentation opens with the manual and then lists the
- * endpoints. The directory holds toolkit-fixed templates, developer-authored
- * sections, and auto-generated sections side by side, ordered purely by their
- * numeric filename prefixes. A missing or empty directory yields an empty
- * string, so the manual is opt-in and stays absent until the templates are
- * published.
- *
- * A section describing one audience's resources belongs to that audience alone,
- * so the directory carries an `audiences` subdirectory holding one directory
- * per audience name. The files there join the shared ones for that audience
- * only, and a file whose name matches a shared one replaces it, so a section
- * can be either shared or written per audience without the assembly having to
- * know which is which. There is no other selection: nothing else about a
- * section file decides which document it lands in.
+ * An audience's own files under `audiences/<name>` join, and by name replace,
+ * the shared ones.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -38,8 +24,7 @@ final readonly class DocManualAssembler
     private const string DEFAULT_DIRECTORY = 'api-docs';
 
     /**
-     * Assemble the concatenated Markdown manual for the given audience, or an
-     * empty string when the docs directory is absent or empty.
+     * Assemble the concatenated Markdown manual for the given audience.
      *
      * @param  string|null  $audience
      * @return string
@@ -50,8 +35,7 @@ final readonly class DocManualAssembler
     }
 
     /**
-     * List the section files the audience reads, shared files first overridden
-     * by the audience's own file of the same name, ordered by filename.
+     * List the section files the audience reads, ordered by filename.
      *
      * @param  string  $path
      * @param  string|null  $audience
@@ -75,8 +59,7 @@ final readonly class DocManualAssembler
     }
 
     /**
-     * Resolve the directory holding the given audience's own section files, or
-     * null when no audience is named.
+     * Resolve the directory holding the given audience's own section files.
      *
      * @param  string  $path
      * @param  string|null  $audience
@@ -92,8 +75,7 @@ final readonly class DocManualAssembler
     }
 
     /**
-     * List the Markdown files directly within the given directory, or none
-     * where the directory is absent or unreadable.
+     * List the Markdown files directly within the given directory.
      *
      * @param  string|null  $directory
      * @return list<string>
@@ -114,8 +96,8 @@ final readonly class DocManualAssembler
     }
 
     /**
-     * Concatenate the given files' trimmed contents in order, separated by a
-     * blank line, skipping any file that reads empty or unreadable.
+     * Concatenate the non-empty files' trimmed contents, separated by a blank
+     * line.
      *
      * @param  array<string, string>  $files
      * @return string
@@ -139,8 +121,7 @@ final readonly class DocManualAssembler
     }
 
     /**
-     * Read a file's trimmed contents, tolerating a file removed between the
-     * glob and the read by returning null rather than aborting the assembly.
+     * Read a file's trimmed contents, tolerating one removed since the glob.
      *
      * @param  string  $file
      * @return string|null
@@ -163,9 +144,7 @@ final readonly class DocManualAssembler
     }
 
     /**
-     * Resolve the docs directory, falling back to the application resources
-     * directory when the config value is unset, so a published-then-edited
-     * directory is picked up automatically.
+     * Resolve the docs directory, defaulting to the application resources.
      *
      * @return string
      */

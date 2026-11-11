@@ -21,12 +21,6 @@ use Tests\TestCase;
 /**
  * Feature tests for sparse fieldset resolution over the real HTTP pipeline.
  *
- * Drives the middleware plus repository pagination path so field selection is
- * proven on the wire: the `:all` token expands to every declared field, the
- * default set applies when the fields parameter is omitted, computed and
- * accessor fields surface with their closure output, and an undeclared
- * requested field is silently dropped rather than rejected.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -87,10 +81,8 @@ final class SparseFieldsetHttpTest extends TestCase
     }
 
     /**
-     * Test that the default field set applies when the fields parameter is
-     * omitted, exposing only the default fields while withholding non-default
-     * declared fields and the aggregate buckets whose pseudo-fields are absent
-     * from the default set.
+     * Test that the default field set, without aggregate buckets, applies when
+     * fields is omitted.
      *
      * @return void
      */
@@ -129,8 +121,7 @@ final class SparseFieldsetHttpTest extends TestCase
     }
 
     /**
-     * Test that an undeclared requested field is silently dropped rather than
-     * rejected with an error envelope.
+     * Test that an undeclared requested field is dropped rather than rejected.
      *
      * @return void
      */

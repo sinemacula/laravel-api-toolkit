@@ -24,11 +24,6 @@ use Tests\TestCase;
 /**
  * Integration tests for attribute-based resource discovery at boot.
  *
- * Boots the service provider against the discovery fixtures and asserts the
- * discovered bindings merge beneath the configured resource map (an explicit
- * entry always wins), feed the dynamic morph map, and resolve end-to-end
- * through polymorphic serialization.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -39,9 +34,7 @@ use Tests\TestCase;
 final class ResourceDiscoveryIntegrationTest extends TestCase
 {
     /**
-     * Test that discovered bindings merge beneath the configured resource map:
-     * an explicit entry wins for its model while discovered bindings fill the
-     * rest.
+     * Test that discovered bindings merge beneath the configured resource map.
      *
      * @return void
      */
@@ -59,8 +52,7 @@ final class ResourceDiscoveryIntegrationTest extends TestCase
     }
 
     /**
-     * Test that with no configured map at all, discovery alone populates the
-     * resource map - a consumer can omit the config entirely.
+     * Test that discovery alone populates the resource map with no config.
      *
      * @return void
      */
@@ -94,8 +86,7 @@ final class ResourceDiscoveryIntegrationTest extends TestCase
     }
 
     /**
-     * Test that a discovered binding resolves end-to-end through polymorphic
-     * serialization without any resource_map entry.
+     * Test that a discovered binding resolves through polymorphic output.
      *
      * @return void
      */
@@ -114,8 +105,7 @@ final class ResourceDiscoveryIntegrationTest extends TestCase
     }
 
     /**
-     * Test that boot leaves the resource map untouched when nothing is
-     * discovered.
+     * Test that boot leaves the resource map alone when nothing is discovered.
      *
      * @return void
      */
@@ -131,8 +121,7 @@ final class ResourceDiscoveryIntegrationTest extends TestCase
     }
 
     /**
-     * Test that boot discovers and merges the resource map when the cache store
-     * is unreachable.
+     * Test that boot merges discovered resources with an unreachable cache.
      *
      * @return void
      */
@@ -153,8 +142,7 @@ final class ResourceDiscoveryIntegrationTest extends TestCase
     }
 
     /**
-     * Test that boot serves the compiled map when the cache store is
-     * unreachable.
+     * Test that boot serves the compiled map with an unreachable cache.
      *
      * @return void
      */
@@ -176,9 +164,7 @@ final class ResourceDiscoveryIntegrationTest extends TestCase
     }
 
     /**
-     * Test that route:cache, which boots a fresh application, succeeds with an
-     * unreachable cache store and caches routes built against the discovered
-     * resource map.
+     * Test that route:cache succeeds with an unreachable cache store.
      *
      * @return void
      */
@@ -221,8 +207,7 @@ final class ResourceDiscoveryIntegrationTest extends TestCase
     }
 
     /**
-     * Assert the default cache store fails, so a boot that succeeds against it
-     * cannot have used it.
+     * Assert the default cache store fails, so a passing boot never used it.
      *
      * @return void
      */
@@ -240,8 +225,7 @@ final class ResourceDiscoveryIntegrationTest extends TestCase
     }
 
     /**
-     * Re-boot the service provider so discovery runs against the configured
-     * environment.
+     * Re-boot the service provider so discovery runs against the environment.
      *
      * @return void
      */

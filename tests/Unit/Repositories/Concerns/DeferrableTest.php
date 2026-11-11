@@ -66,8 +66,7 @@ final class DeferrableTest extends TestCase
     }
 
     /**
-     * Test that boot invokes the parent boot chain so inherited repository
-     * collaborators are initialized.
+     * Test that boot invokes the parent boot chain.
      *
      * @return void
      */
@@ -257,8 +256,7 @@ final class DeferrableTest extends TestCase
     }
 
     /**
-     * Test that defer propagates a WritePoolFlushException when a
-     * memory-pressure auto-flush fails under the throw strategy.
+     * Test that defer propagates a failed auto-flush under THROW.
      *
      * @return void
      *

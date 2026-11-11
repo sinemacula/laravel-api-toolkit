@@ -14,26 +14,9 @@ use SineMacula\Exporter\Schema\Column;
 use SineMacula\Exporter\Schema\TabularSchema;
 
 /**
- * Derives a tabular export schema from the resource's compiled field
- * definitions.
+ * Derives a tabular export schema from the resource's compiled fields.
  *
- * Intended for use on {@see \SineMacula\ApiToolkit\Http\Resources\ApiResource}
- * subclasses that also implement
- * {@see \SineMacula\Exporter\Contracts\ProvidesTabularExport}. When mixed in,
- * the `tabular()` method is satisfied for free: it compiles the resource schema
- * and maps each non-relation field to a typed Column, resolving each cell
- * through a fresh resource so the field's compute, accessor, and transformers
- * are honoured exactly as the JSON response applies them.
- *
- * Field guards are honoured at the column level. A guard that depends only on
- * the request maps to the exporter's column-visibility gate, so the whole
- * column is omitted when the guard hides the field. A guard that inspects the
- * row cannot be honoured by a flat tabular schema - the exporter drops whole
- * columns, not individual cells - so such a field is refused at build time to
- * avoid leaking the values the guard is meant to hide.
- *
- * The schema returned is request-aware so column visibility and field selection
- * can be narrowed by the active API query.
+ * Row-reading guards are refused: the exporter can only drop whole columns.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -45,11 +28,7 @@ trait DerivesTabularSchema
     /**
      * Derive the tabular schema from the resource's compiled field definitions.
      *
-     * Compiles the resource schema and builds one Column per non-relation
-     * field. When a field set is active on the current API query, only the
-     * requested fields are included, mirroring what the JSON response returns.
-     * Relation fields are skipped because they cannot be represented as scalar
-     * cells without an explicit expansion policy.
+     * Relation fields are skipped as they have no scalar cell form.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \SineMacula\Exporter\Schema\TabularSchema
@@ -85,9 +64,6 @@ trait DerivesTabularSchema
     /**
      * Build a single tabular column for the given field definition.
      *
-     * Resolves the cell value (with transformers) and then applies the field's
-     * guards to the column.
-     *
      * @param  string  $key
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>  $resourceClass
@@ -103,11 +79,6 @@ trait DerivesTabularSchema
 
     /**
      * Build the value-resolving column for the field, before guards.
-     *
-     * Fields with a compute, a callable accessor, or transformers resolve their
-     * value through a fresh resource so the JSON value, transformers included,
-     * is mirrored in the cell. Plain scalar and string-accessor fields without
-     * transformers keep the exporter's raw attribute read.
      *
      * @param  string  $key
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
@@ -143,10 +114,7 @@ trait DerivesTabularSchema
     /**
      * Build the closure that resolves a cell value through a resource instance.
      *
-     * Delegates to the same value resolver the JSON response uses, so compute,
-     * accessor, and transformer logic produce identical values. A MissingValue
-     * (an absent attribute or unmet guard) collapses to null so the column's
-     * null/default policy applies.
+     * A MissingValue collapses to null so the column's null policy applies.
      *
      * @param  string  $key
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
@@ -166,10 +134,6 @@ trait DerivesTabularSchema
 
     /**
      * Apply the field's guards to the column.
-     *
-     * A field with no guards is returned untouched. A guard that inspects the
-     * row cannot gate a flat column, so the field is refused. Guards that
-     * depend only on the request map to the column-visibility gate.
      *
      * @param  string  $key
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
@@ -195,12 +159,7 @@ trait DerivesTabularSchema
     }
 
     /**
-     * Determine whether any guard depends on the row rather than the request.
-     *
-     * Each guard is invoked with a probe in place of the resource. A guard that
-     * touches the probe, or errors when handed it, is treating the row as
-     * load-bearing and is reported as per-item. Failing closed, an
-     * unclassifiable guard is treated as per-item.
+     * Determine whether any guard reads the row (or throws when probed).
      *
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  \Illuminate\Http\Request  $request
@@ -220,9 +179,7 @@ trait DerivesTabularSchema
     /**
      * Evaluate the request-scoped guards for column visibility.
      *
-     * Mirrors the JSON guard semantics: a guard suppresses the column only when
-     * it returns exactly false. A guard that touches the row, or errors, hides
-     * the column rather than risk exposing it.
+     * A guard that touches the row or throws hides the column.
      *
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  \Illuminate\Http\Request  $request
@@ -243,10 +200,7 @@ trait DerivesTabularSchema
     }
 
     /**
-     * Invoke a guard with a probe row and report what it did.
-     *
-     * Returns a two-element tuple: whether the guard touched the probe or
-     * threw, and the value it returned (false when it threw).
+     * Probe a guard: whether it touched the row (or threw), and its result.
      *
      * @param  callable(mixed, \Illuminate\Http\Request): mixed  $guard
      * @param  \Illuminate\Http\Request  $request

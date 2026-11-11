@@ -65,8 +65,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a filterable column reports the capability the compiled map
-     * holds it to, so two capabilities on one resource read differently.
+     * Test that a filterable column reports its compiled capability.
      *
      * @return void
      */
@@ -80,8 +79,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a column declared sortable and nothing else reports the order
-     * alone, with no capability and no search strategy beside it.
+     * Test that a sortable-only column reports the order alone.
      *
      * @return void
      */
@@ -96,8 +94,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a filterable column the resource never declared sortable
-     * reports no order.
+     * Test that a column never declared sortable reports no order.
      *
      * @return void
      */
@@ -107,8 +104,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a column answering nothing queryable is left out of the surface
-     * entirely rather than reported as an empty offer.
+     * Test that a column answering nothing is left out of the surface.
      *
      * @return void
      */
@@ -121,8 +117,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that an aliased column reports both the property the response
-     * carries it under and the column the query grammar names.
+     * Test that an aliased column reports both property and column.
      *
      * @return void
      */
@@ -135,8 +130,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that an order exempted from needing an index carries the reason the
-     * resource recorded for it.
+     * Test that an index-exempt order carries its recorded reason.
      *
      * @return void
      */
@@ -149,8 +143,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a searchable column reports the strategy the compiled map
-     * matches it by.
+     * Test that a searchable column reports its compiled strategy.
      *
      * @return void
      */
@@ -163,8 +156,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that only the relations declared traversable are reported, an
-     * ordinary relation being no part of the filter grammar.
+     * Test that only traversable relations are reported.
      *
      * @return void
      */
@@ -174,8 +166,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a resource declaring nothing queryable reads as a surface with
-     * no columns and no relations rather than being skipped.
+     * Test that a resource declaring nothing queryable reads as empty.
      *
      * @return void
      */
@@ -188,9 +179,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a declaration the compiled maps refuse to carry is never
-     * reported, so the surface cannot offer a column the request-time gates
-     * would reject.
+     * Test that a declaration the compiled maps refuse is not reported.
      *
      * @return void
      */
@@ -204,8 +193,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a filterable column reports the operators its capability
-     * answers, in the capability's own order.
+     * Test that a filterable column reports its operators in order.
      *
      * @return void
      */
@@ -218,9 +206,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that an operator the live vocabulary no longer holds is dropped from
-     * the column's reported operators while the rest survive, so the surface
-     * cannot offer a predicate the filter engine no longer dispatches.
+     * Test that an operator gone from the vocabulary is dropped.
      *
      * @return void
      */
@@ -234,8 +220,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a column whose every operator has left the vocabulary reports
-     * no capability at all, being no more filterable than an undeclared one.
+     * Test that a column with no remaining operators reports no capability.
      *
      * @return void
      */
@@ -250,10 +235,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a field naming a different column in each declaration is
-     * reported once per column, each carrying only what that column answers, so
-     * no capability or strategy is attributed to a column never declared for
-     * it.
+     * Test that each declared column reports only what it answers.
      *
      * @return void
      */
@@ -275,8 +257,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that the recorded exemption reason travels with the column the field
-     * declared sortable rather than with a sibling column of the same field.
+     * Test that an exemption reason stays with the sortable column.
      *
      * @return void
      */
@@ -289,9 +270,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a column another field made orderable is not reported orderable
-     * on a field that never declared an order for it, an order belonging to the
-     * field that declared it rather than to the resource's sortable set.
+     * Test that an order belongs to the field that declared it.
      *
      * @return void
      */
@@ -317,8 +296,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a marker the compiled maps refuse is skipped without abandoning
-     * the columns the same field declares after it.
+     * Test that a refused marker does not abandon the field's later columns.
      *
      * @return void
      */
@@ -335,9 +313,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a compiled field key holding no definition is stepped over
-     * without abandoning the keys that follow it, so the surface still reports
-     * the columns the rest of the schema declares.
+     * Test that a null field definition does not abandon later keys.
      *
      * @return void
      */
@@ -358,8 +334,6 @@ final class QuerySurfaceReaderTest extends TestCase
             filterCapability: Capability::EXACT,
         );
 
-        // The null 'ghost' key precedes a declared field, so stepping over it
-        // must not abandon the rest of the loop.
         $schema = new CompiledSchema(['ghost' => null, 'name' => $field], [], [], ['name' => Capability::EXACT]); // @phpstan-ignore argument.type
 
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
@@ -388,8 +362,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Read the surface of a resource name the compiler has been primed for, so
-     * a schema with no compiled class of its own can still be read.
+     * Read the surface of a resource name the compiler has been primed for.
      *
      * @param  string  $resourceClass
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
@@ -411,8 +384,7 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Read a single resource's columns, keyed by the property each is presented
-     * under.
+     * Read a single resource's columns, keyed by property.
      *
      * @param  class-string  $resourceClass
      * @param  array<int, string>|null  $vocabulary

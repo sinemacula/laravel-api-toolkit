@@ -30,8 +30,7 @@ final class RequestSchemaTest extends TestCase
     }
 
     /**
-     * Test that the directive is read back off a method declaration, which is
-     * the only target it may be written on.
+     * Test that the directive is read back off a method declaration.
      *
      * @return void
      */

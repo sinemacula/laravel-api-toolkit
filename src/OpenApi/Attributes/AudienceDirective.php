@@ -7,9 +7,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Attributes;
 /**
  * Base for the audience inclusion and exclusion directives.
  *
- * Holds the shared list of audiences named by a directive. The concrete
- * subclasses stay distinct types so the resolver can tell inclusion from
- * exclusion by the attribute class alone.
+ * Distinct subclasses let the resolver tell inclusion from exclusion by type.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

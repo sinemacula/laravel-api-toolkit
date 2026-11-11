@@ -21,12 +21,6 @@ use Tests\TestCase;
 /**
  * Feature tests for offset-paginated collections through the kernel.
  *
- * Driving `page=` over the length-aware paginator returns the requested slice
- * of rows alongside the full meta block (total, count, continue), the self,
- * first, prev, next, and last links, and the total-count response header. The
- * terminal page reports no further pages and a null next link, and the
- * configured default limit applies when the client supplies none.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -58,8 +52,7 @@ final class OffsetPaginationTest extends TestCase
             return new ApiResourceCollection($users, FilterableUserResource::class);
         });
 
-        // Created in ascending id order; the paginator orders by the primary
-        // key by default, so page order follows creation order.
+        // The paginator orders by primary key, so pages follow creation order
         User::create(['name' => 'Anna', 'email' => 'anna@example.com']);
         User::create(['name' => 'Ben', 'email' => 'ben@example.com']);
         User::create(['name' => 'Cara', 'email' => 'cara@example.com']);
@@ -68,8 +61,8 @@ final class OffsetPaginationTest extends TestCase
     }
 
     /**
-     * Test that the second offset page returns the next slice of rows with the
-     * full meta block, the complete links block, and the total-count header.
+     * Test that the second page returns the next slice with the full meta,
+     * links and total-count header.
      *
      * @return void
      */
@@ -102,8 +95,7 @@ final class OffsetPaginationTest extends TestCase
     }
 
     /**
-     * Test that the last offset page reports no further pages and a null next
-     * link while the prev link points at the preceding page.
+     * Test that the last page reports no further pages and a null next link.
      *
      * @return void
      */

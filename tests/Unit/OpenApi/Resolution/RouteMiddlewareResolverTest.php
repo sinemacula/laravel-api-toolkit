@@ -60,8 +60,7 @@ final class RouteMiddlewareResolverTest extends TestCase
     }
 
     /**
-     * Test that HTTP basic authentication counts as authentication without
-     * contributing a guard.
+     * Test that HTTP basic auth authenticates without contributing a guard.
      *
      * @return void
      */
@@ -74,8 +73,7 @@ final class RouteMiddlewareResolverTest extends TestCase
     }
 
     /**
-     * Test that everything after the first colon is the parameter list, as the
-     * router itself parses it.
+     * Test that everything after the first colon is the parameter list.
      *
      * @return void
      */
@@ -95,8 +93,7 @@ final class RouteMiddlewareResolverTest extends TestCase
     }
 
     /**
-     * Test that an Authenticate entry naming no guard resolves the configured
-     * default guard.
+     * Test that an Authenticate entry without a guard resolves the default.
      *
      * @return void
      */
@@ -125,8 +122,7 @@ final class RouteMiddlewareResolverTest extends TestCase
     }
 
     /**
-     * Test that a can alias and an #[Authorize] attribute both resolve to an
-     * authorization check without implying authentication.
+     * Test that can and #[Authorize] authorize without authenticating.
      *
      * @return void
      */
@@ -210,8 +206,7 @@ final class RouteMiddlewareResolverTest extends TestCase
     }
 
     /**
-     * Test that a closure middleware is skipped while the string entries beside
-     * it are still read.
+     * Test that a closure middleware is skipped, string entries still read.
      *
      * @return void
      */
@@ -223,8 +218,7 @@ final class RouteMiddlewareResolverTest extends TestCase
     }
 
     /**
-     * Test that a controller whose middleware cannot be resolved degrades to no
-     * facts rather than throwing, even with route-level auth.
+     * Test that unresolvable controller middleware degrades to no facts.
      *
      * @return void
      */

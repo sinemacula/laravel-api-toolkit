@@ -22,12 +22,6 @@ use Tests\TestCase;
 /**
  * Feature test for filtering on a traversable relation column over HTTP.
  *
- * Under the allowlist posture a filter keyed on a declared-traversable relation
- * whose related resource declares the target column filterable compiles to a
- * whereHas constraint. A real request proves the nested key narrows the
- * envelope to only the users owning a matching related row, with the meta total
- * reduced accordingly.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -41,8 +35,7 @@ final class NestedRelationFilterHttpTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up each test with a users route, the Post resource map, and seeded
-     * users and posts.
+     * Set up a users route, the Post resource map, and seeded users and posts.
      *
      * @return void
      */
@@ -75,7 +68,7 @@ final class NestedRelationFilterHttpTest extends TestCase
 
     /**
      * Test that a filter on a traversable relation column narrows the envelope
-     * to the matching owner.
+     * to the owner.
      *
      * @return void
      */

@@ -68,8 +68,7 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that each driver type name maps to the expected JSON Schema type and
-     * format.
+     * Test that each driver type maps to its JSON Schema type and format.
      *
      * @param  string  $typeName
      * @param  string  $expectedType
@@ -122,8 +121,7 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Provide each type name that, absent a cast, the mapper cannot confidently
-     * describe and so resolves to an undocumented schema.
+     * Provide each type name that resolves undocumented without a cast.
      *
      * @return iterable<string, array{0: string}>
      */
@@ -135,9 +133,7 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that a type name the mapper cannot confidently describe, with no
-     * cast, resolves to a flagged undocumented schema rather than guessing a
-     * concrete type.
+     * Test that an indescribable type without a cast resolves undocumented.
      *
      * @param  string  $typeName
      * @return void
@@ -155,8 +151,7 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that a boolean cast overrides a tinyint column, resolving the MySQL
-     * tinyint(1) ambiguity in favour of boolean.
+     * Test that a boolean cast overrides a tinyint column.
      *
      * @return void
      */
@@ -186,8 +181,7 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that a datetime cast resolves to a date-time format even when the
-     * column type alone would not.
+     * Test that a datetime cast resolves to a date-time format.
      *
      * @return void
      */
@@ -235,8 +229,7 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that a cast is matched case-insensitively, mirroring the way
-     * Eloquent normalises cast names.
+     * Test that a cast is matched case-insensitively, as Eloquent does.
      *
      * @return void
      */
@@ -251,8 +244,7 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that a parameterised encrypted array cast resolves to an array
-     * schema off the full cast token, not just its colon-prefixed base.
+     * Test that an encrypted array cast resolves off the full cast token.
      *
      * @return void
      */
@@ -267,8 +259,7 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that a datetime cast carrying a format argument still resolves to a
-     * date-time format.
+     * Test that a datetime cast with a format still resolves to date-time.
      *
      * @return void
      */
@@ -283,8 +274,7 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that an array cast resolves to an array schema even over a json
-     * column.
+     * Test that an array cast beats a json column.
      *
      * @return void
      */
@@ -329,8 +319,7 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that an unrecognised cast falls back to the column type-name mapping
-     * rather than producing the wrong shape.
+     * Test that an unrecognised cast falls back to the column type mapping.
      *
      * @return void
      */
@@ -358,8 +347,7 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that a mappable cast still resolves when no column is available,
-     * degrading to a non-nullable schema derived from the cast alone.
+     * Test that a mappable cast resolves without a column, non-nullable.
      *
      * @return void
      */
@@ -375,8 +363,7 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that an absent column and absent cast resolves to an undocumented
-     * schema rather than failing.
+     * Test that an absent column and cast resolves undocumented.
      *
      * @return void
      */

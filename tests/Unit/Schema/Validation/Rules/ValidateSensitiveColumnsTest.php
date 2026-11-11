@@ -42,8 +42,7 @@ final class ValidateSensitiveColumnsTest extends TestCase
     }
 
     /**
-     * Test that a sensitive column carrying no query declaration is accepted,
-     * so presenting the field is untouched by the rule.
+     * Test that a sensitive column with no query declaration is accepted.
      *
      * @return void
      */
@@ -77,8 +76,7 @@ final class ValidateSensitiveColumnsTest extends TestCase
     }
 
     /**
-     * Test that a sensitive column declared sortable is reported under the sort
-     * declaration rather than the filter one.
+     * Test that a sensitive sortable column is reported as a sort defect.
      *
      * @return void
      */
@@ -121,8 +119,7 @@ final class ValidateSensitiveColumnsTest extends TestCase
     }
 
     /**
-     * Test that a sensitive column declared searchable is reported, so a free
-     * text match cannot become the oracle the filter surface refuses to be.
+     * Test that a sensitive searchable column is reported.
      *
      * @return void
      */
@@ -167,8 +164,7 @@ final class ValidateSensitiveColumnsTest extends TestCase
     }
 
     /**
-     * Test that a column merely containing a sensitive name is accepted, so the
-     * list matches whole column names rather than fragments.
+     * Test that a column merely containing a sensitive name is accepted.
      *
      * @return void
      */
@@ -183,8 +179,7 @@ final class ValidateSensitiveColumnsTest extends TestCase
     }
 
     /**
-     * Test that the rule reads the configured list, so an application may both
-     * add a column of its own and drop a shipped default.
+     * Test that the configured list can add and drop sensitive names.
      *
      * @return void
      */
@@ -207,9 +202,7 @@ final class ValidateSensitiveColumnsTest extends TestCase
     }
 
     /**
-     * Test that a configured entry matches a column name only when both the
-     * value and its type agree, so a numeric column name is never matched by a
-     * numerically equal entry of another type.
+     * Test that a configured entry matches only with the same value and type.
      *
      * @return void
      */
@@ -232,8 +225,7 @@ final class ValidateSensitiveColumnsTest extends TestCase
     }
 
     /**
-     * Test that a configured value that is not a list falls back to the shipped
-     * names rather than throwing at boot or leaving the rule inert.
+     * Test that a non-list configured value falls back to the shipped names.
      *
      * @return void
      */
@@ -256,9 +248,7 @@ final class ValidateSensitiveColumnsTest extends TestCase
     }
 
     /**
-     * Test that a published config predating the list falls back to the shipped
-     * names, so an application whose resources block omits the key is still
-     * refused a queryable credential column.
+     * Test that a config missing the list falls back to the shipped names.
      *
      * @return void
      */
@@ -278,8 +268,7 @@ final class ValidateSensitiveColumnsTest extends TestCase
     }
 
     /**
-     * Test that the shipped config declares exactly the fallback names, so the
-     * published file and the fallback cannot drift apart.
+     * Test that the shipped config declares exactly the fallback names.
      *
      * @return void
      */

@@ -10,15 +10,8 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
 /**
  * Immutable descriptor for what one column of a resource may be queried by.
  *
- * Carries the property the response presents the column under, the column name
- * a filter, an order, or a search has to name it by, and what each of those
- * three answers: the capability the column is filterable with together with the
- * operator tokens it still answers, whether it may be ordered by and any reason
- * the resource recorded for leaving that order unindexed, and the strategy a
- * free-text search matches it by. A part the column does not answer reads as
- * null, so a descriptor exists only for a column answering at least one of
- * them. The operators are carried rather than derived from the capability so a
- * token the operator registry no longer binds is absent from both.
+ * Operators are carried, not derived, so a token the registry no longer binds
+ * is absent.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

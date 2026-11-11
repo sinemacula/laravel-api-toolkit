@@ -5,10 +5,8 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
+use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
-use Tests\Fixtures\Models\User;
-use Tests\TestCase;
 
 /**
  * Tests for the NotEqualOperator class.
@@ -19,50 +17,27 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(NotEqualOperator::class)]
-final class NotEqualOperatorTest extends TestCase
+final class NotEqualOperatorTest extends ComparisonOperatorTestCase
 {
     /**
-     * Test that apply adds a where clause with the not-equals operator.
+     * Create the operator under test.
      *
-     * @return void
+     * @return \SineMacula\ApiToolkit\Contracts\FilterOperator
      */
-    public function testApplyAddsWhereClauseWithNotEqualsOperator(): void
+    #[\Override]
+    protected function operator(): FilterOperator
     {
-        $operator = new NotEqualOperator;
-        $query    = (new User)->newQuery();
-
-        $operator->apply($query, 'status', 'inactive', FilterContext::root());
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertCount(1, $wheres);
-        self::assertSame('Basic', $wheres[0]['type']);
-        self::assertSame('status', $wheres[0]['column']);
-        self::assertSame('<>', $wheres[0]['operator']);
-        self::assertSame('inactive', $wheres[0]['value']);
-        self::assertSame('and', $wheres[0]['boolean']);
+        return new NotEqualOperator;
     }
 
     /**
-     * Test that apply in an $or context uses orWhere.
+     * Return the SQL comparison the operator emits.
      *
-     * @return void
+     * @return string
      */
-    public function testNotEqualApplyInOrContextUsesOrWhere(): void
+    #[\Override]
+    protected function sqlOperator(): string
     {
-        $operator = new NotEqualOperator;
-        $query    = (new User)->newQuery();
-        $context  = FilterContext::nested('$or');
-
-        $operator->apply($query, 'status', 'banned', $context);
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertCount(1, $wheres);
-        self::assertSame('Basic', $wheres[0]['type']);
-        self::assertSame('status', $wheres[0]['column']);
-        self::assertSame('<>', $wheres[0]['operator']);
-        self::assertSame('banned', $wheres[0]['value']);
-        self::assertSame('or', $wheres[0]['boolean']);
+        return '<>';
     }
 }

@@ -17,10 +17,7 @@ use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 
 /**
- * Flushes the deferred write pool at lifecycle boundaries.
- *
- * This subscriber listens to HTTP request, CLI command, and queue job lifecycle
- * events to ensure all buffered inserts are persisted before the process ends.
+ * Flushes the deferred write pool at request, command and job boundaries.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -54,20 +51,10 @@ final readonly class WritePoolFlushSubscriber
     }
 
     /**
-     * Flush the write pool and handle any failures.
+     * Flush the write pool and escalate any failures.
      *
-     * The pool is resolved from the container at event time to ensure the
-     * correct scoped instance is used in Octane environments. The flush itself
-     * invalidates the per-query cache for the tables it persists, so this
-     * subscriber only escalates failures: when the flush returns a result with
-     * failures, or raises a WritePoolFlushException under the throw strategy,
-     * the failure is reported as a WritePoolFlushException and a
-     * WritePoolFlushFailed event is dispatched. Under the log strategy the
-     * failed writes are disposable and each chunk is already logged, so only
-     * the event is dispatched. A raised exception is only re-thrown when the
-     * rethrow_at_boundary config flag is enabled, in which case reporting is
-     * left to the boundary that catches it. Any other throwable is unexpected
-     * and is reported.
+     * The pool is resolved at event time to get Octane's scoped instance. A
+     * flush exception is re-thrown only when rethrow_at_boundary is enabled.
      *
      * @return void
      *
@@ -95,8 +82,8 @@ final readonly class WritePoolFlushSubscriber
     }
 
     /**
-     * Escalate a WritePoolFlushException raised by the throw strategy,
-     * re-throwing it when the rethrow_at_boundary config flag is enabled.
+     * Escalate an exception raised by the throw strategy, re-throwing it when
+     * rethrow_at_boundary is enabled.
      *
      * @param  \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException  $exception
      * @return void
@@ -115,11 +102,9 @@ final readonly class WritePoolFlushSubscriber
     }
 
     /**
-     * Escalate a flush failure by optionally reporting it and dispatching a
-     * WritePoolFlushFailed event.
+     * Optionally report a flush failure, then dispatch WritePoolFlushFailed.
      *
-     * Neither step can escape: a reporting failure falls back to a log line and
-     * still lets the event dispatch, and a dispatch failure is reported.
+     * Neither step can throw.
      *
      * @param  \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException  $exception
      * @param  bool  $report

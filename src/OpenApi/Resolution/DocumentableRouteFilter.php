@@ -10,20 +10,8 @@ use Illuminate\Support\Facades\Config;
 /**
  * Excludes framework and tooling routes from the documented surface.
  *
- * A route is dropped when the class defining its handler - its controller, or a
- * closure's declaring namespace - begins with any configured namespace prefix.
- * The shipped default blocks the framework and common first-party tooling only,
- * so an organisation that splits its own internal routes into separate composer
- * packages keeps them documented; those namespaces are absent from the default.
- *
- * The configured list replaces the built-in default outright rather than
- * merging with it: the shipped config seeds the key with the default set so an
- * application adds or removes a prefix by editing that array, and the built-in
- * constant is used only as the fallback when the key is entirely unset. A
- * prefix matches on a namespace boundary, so `Illuminate\` excludes
- * `Illuminate\Routing\Foo` but never `IlluminateApp\Foo`. Matching is
- * case-sensitive and reflection is guarded, so a malformed handler degrades to
- * keeping the route rather than throwing.
+ * The configured namespace list replaces the default; prefixes match on a
+ * namespace boundary.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -70,9 +58,7 @@ final readonly class DocumentableRouteFilter
     }
 
     /**
-     * Best-effort resolve the declaring namespace of the route's closure
-     * handler, or null when the handler is not a closure or cannot be
-     * reflected.
+     * Resolve the declaring namespace of the route's closure handler, if any.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @return string|null
@@ -91,10 +77,7 @@ final readonly class DocumentableRouteFilter
             return null;
         }
 
-        // PHP 8.4 stopped reporting a namespace for a closure via
-        // getNamespaceName(), so prefer the lexical scope class (stable across
-        // versions) and fall back to the function namespace for a closure
-        // defined outside a class.
+        // PHP 8.4 reports no namespace for a closure, so prefer its scope class
         $scope     = $reflection->getClosureScopeClass();
         $namespace = $scope !== null ? $scope->getNamespaceName() : $reflection->getNamespaceName();
 
@@ -121,8 +104,7 @@ final readonly class DocumentableRouteFilter
     }
 
     /**
-     * Read the configured blocklist, falling back to the built-in default when
-     * the key is unset or malformed.
+     * Read the configured blocklist, falling back to the default when invalid.
      *
      * @return list<string>
      */

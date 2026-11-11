@@ -44,8 +44,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that every descriptor in the catalogue is an ErrorDescriptor
-     * instance.
+     * Test that every descriptor is an ErrorDescriptor instance.
      *
      * @return void
      */
@@ -59,8 +58,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Provide every ErrorCode case with its expected HTTP status so that the
-     * test matrix is driven by the enum itself.
+     * Provide every ErrorCode case with its expected HTTP status.
      *
      * @return iterable<string, array{0: \SineMacula\ApiToolkit\Enums\ErrorCode, 1: int}>
      */
@@ -85,8 +83,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that each error code maps to the HTTP status that agrees with its
-     * owning ApiException subclass.
+     * Test that each code maps to its owning ApiException's HTTP status.
      *
      * @param  \SineMacula\ApiToolkit\Enums\ErrorCode  $errorCode
      * @param  int  $expectedHttpStatus
@@ -105,8 +102,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that descriptors carry real title strings from the language file
-     * (not empty strings or nulls for codes that define a title).
+     * Test that descriptors carry real title strings from the language file.
      *
      * @return void
      */
@@ -115,7 +111,6 @@ final class ErrorCatalogueReaderTest extends TestCase
         $reader      = $this->reader();
         $descriptors = $reader->read();
 
-        // NOT_FOUND has a defined title in the language file
         $descriptor = $this->findDescriptor($descriptors, ErrorCode::NOT_FOUND->getCode());
 
         self::assertNotNull($descriptor);
@@ -139,8 +134,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that the HTTP_ERROR code has a null title because the language file
-     * intentionally omits a title for the generic HTTP error.
+     * Test that HTTP_ERROR has a null title.
      *
      * @return void
      */
@@ -156,8 +150,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that the TOKEN_MISMATCH code resolves to HTTP 419 via its static
-     * override rather than an HTTP_STATUS constant.
+     * Test that TOKEN_MISMATCH resolves to 419 via its static override.
      *
      * @return void
      */
@@ -187,8 +180,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that the exception map is memoised so a second read does not re-scan
-     * the filesystem.
+     * Test that the exception map is memoised.
      *
      * @return void
      */
@@ -197,16 +189,14 @@ final class ErrorCatalogueReaderTest extends TestCase
         $reader = $this->reader();
         $first  = $reader->read();
 
-        // Force the directory scan to fail; a re-scan would now throw, so a
-        // successful second read proves the map was memoised.
+        // A re-scan would fail, so a successful second read proves memoisation
         FunctionOverrides::set('glob', static fn (): false => false);
 
         self::assertEquals($first, $reader->read());
     }
 
     /**
-     * Test that a failed exceptions-directory scan raises a metadata read
-     * exception naming the directory.
+     * Test that a failed directory scan raises a metadata read exception.
      *
      * @return void
      */
@@ -227,9 +217,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that a discovered subclass declaring no CODE constant does not abort
-     * the scan: a later file is still processed and mapped, proving the CODE
-     * guard skips the offending file rather than stopping the loop.
+     * Test that a subclass without a CODE constant does not abort the scan.
      *
      * @return void
      */
@@ -254,14 +242,12 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that an error code with no owning exception subclass falls back to
-     * HTTP 500, matching the unhandled-exception default.
+     * Test that a code without an owning exception falls back to 500.
      *
      * @return void
      */
     public function testUnmappedErrorCodeFallsBackToStatus500(): void
     {
-        // No exception files are discovered, so every code is unmapped.
         FunctionOverrides::set('glob', static fn (): array => []);
 
         $descriptor = $this->findDescriptor($this->reader()->read(), ErrorCode::NOT_FOUND->getCode());
@@ -271,8 +257,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that a discovered exception subclass declaring no CODE constant is
-     * skipped, so its error code remains unmapped and falls back to HTTP 500.
+     * Test that a subclass without a CODE constant is skipped.
      *
      * @return void
      */
@@ -282,8 +267,7 @@ final class ErrorCatalogueReaderTest extends TestCase
 
         self::assertIsString($file);
 
-        // The NotFoundException file is discovered, but its CODE constant is
-        // reported absent, so the scan skips it and NOT_FOUND stays unmapped.
+        // The file is discovered but its CODE constant is reported absent
         FunctionOverrides::set('glob', static fn (): array => [$file]);
         FunctionOverrides::set(
             'defined',
@@ -297,9 +281,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that an application ApiException discovered outside the toolkit is
-     * documented with its own code and HTTP status, while the toolkit's
-     * baseline codes remain present alongside it.
+     * Test that an application ApiException is documented beside the baseline.
      *
      * @return void
      */
@@ -320,8 +302,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that a discovered application exception's descriptor carries the
-     * owning exception class as its source, so the catalogue can group it.
+     * Test that an application exception's descriptor carries its class.
      *
      * @return void
      */
@@ -336,8 +317,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that a toolkit code with a discovered owning exception carries that
-     * class as its source.
+     * Test that a toolkit code carries its owning exception class.
      *
      * @return void
      */
@@ -350,8 +330,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that a code with no owning exception subclass carries a null source,
-     * keeping the generic path safe to group into the shared section.
+     * Test that a code without an owning exception has a null source.
      *
      * @return void
      */
@@ -366,9 +345,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Test that two exceptions declaring the same code are reported: the first
-     * discovered wins and a warning names the ignored class rather than the
-     * clash being silently resolved.
+     * Test that a duplicate code keeps the first class and warns.
      *
      * @return void
      */
@@ -392,8 +369,7 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
-     * Build a reader backed by the given discoverer, defaulting to one that
-     * discovers no application exceptions so the toolkit baseline is isolated.
+     * Build a reader over the given discoverer, defaulting to an empty one.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer|null  $discoverer
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader

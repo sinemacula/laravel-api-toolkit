@@ -23,8 +23,7 @@ use Tests\Fixtures\Resources\UserResource;
 final class ValidateComputedFieldsTest extends TestCase
 {
     /**
-     * Test that no errors are returned for a schema with a callable compute
-     * value.
+     * Test that a callable compute value produces no errors.
      *
      * @return void
      */
@@ -55,8 +54,7 @@ final class ValidateComputedFieldsTest extends TestCase
     }
 
     /**
-     * Test that no errors are returned for a schema with a string compute value
-     * matching a method on the resource class.
+     * Test that a compute value naming a resource method produces no errors.
      *
      * @return void
      */
@@ -87,8 +85,7 @@ final class ValidateComputedFieldsTest extends TestCase
     }
 
     /**
-     * Test that an error is reported for a non-callable, non-method compute
-     * value.
+     * Test that a non-callable, non-method compute value is reported.
      *
      * @return void
      */
@@ -124,8 +121,7 @@ final class ValidateComputedFieldsTest extends TestCase
     }
 
     /**
-     * Test that no errors are returned for a global function name compute
-     * value.
+     * Test that a global function name compute value produces no errors.
      *
      * @return void
      */
@@ -145,8 +141,7 @@ final class ValidateComputedFieldsTest extends TestCase
     }
 
     /**
-     * Test that validation continues past fields without compute values and
-     * still reports later defects.
+     * Test that validation continues past fields without compute values.
      *
      * @return void
      */
@@ -168,8 +163,7 @@ final class ValidateComputedFieldsTest extends TestCase
     }
 
     /**
-     * Test that validation continues past fields with Closure compute values
-     * and still reports later defects.
+     * Test that validation continues past fields with Closure compute values.
      *
      * @return void
      */
@@ -191,8 +185,7 @@ final class ValidateComputedFieldsTest extends TestCase
     }
 
     /**
-     * Test that validation continues past fields with valid method name compute
-     * values and still reports later defects.
+     * Test that validation continues past valid method name compute values.
      *
      * @return void
      */

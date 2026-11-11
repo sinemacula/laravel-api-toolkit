@@ -45,8 +45,7 @@ final class InRuleValuesTest extends TestCase
     }
 
     /**
-     * Test that a field's enum is parsed as the validator parses it and carries
-     * exact numbers only on a numeric field.
+     * Test that an enum carries exact numbers only on a numeric field.
      *
      * @param  string  $argument
      * @param  string|null  $type
@@ -60,8 +59,7 @@ final class InRuleValuesTest extends TestCase
     }
 
     /**
-     * Test that an array's item enum lists each value as a string and, when it
-     * has one, as its exact number too.
+     * Test that an array item enum lists values as strings and numbers.
      *
      * @return void
      */

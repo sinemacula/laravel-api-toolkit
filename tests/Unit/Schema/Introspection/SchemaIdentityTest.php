@@ -36,8 +36,7 @@ final class SchemaIdentityTest extends TestCase
     ];
 
     /**
-     * Test that the identity names the connection and stays the same for the
-     * same connection, so every process reading one schema shares its keys.
+     * Test that the identity names the connection and is stable for it.
      *
      * @return void
      */
@@ -53,8 +52,7 @@ final class SchemaIdentityTest extends TestCase
     }
 
     /**
-     * Test that the name is part of the hashed identity as well as its label,
-     * so two names over the same schema never share a key.
+     * Test that the name is hashed into the identity as well as labelling it.
      *
      * @return void
      */
@@ -90,8 +88,7 @@ final class SchemaIdentityTest extends TestCase
     }
 
     /**
-     * Test that two connections sharing a name but reading different schemas
-     * have distinct identities, whichever part of the connection differs.
+     * Test that same-named connections reading different schemas differ.
      *
      * @param  array<string, mixed>  $change
      * @return void
@@ -117,8 +114,7 @@ final class SchemaIdentityTest extends TestCase
     }
 
     /**
-     * Test that a connection is described by its own state, so a switcher that
-     * repoints it without touching configuration still moves the identity.
+     * Test that a connection repointed by a setter moves the identity.
      *
      * @param  string  $setter
      * @return void
@@ -156,8 +152,7 @@ final class SchemaIdentityTest extends TestCase
     }
 
     /**
-     * Test that settings naming the same server in different forms give the
-     * same identity, so every worker shares one set of keys.
+     * Test that one server named in different forms gives the same identity.
      *
      * @param  array<string, mixed>  $left
      * @param  array<string, mixed>  $right
@@ -175,8 +170,7 @@ final class SchemaIdentityTest extends TestCase
     }
 
     /**
-     * Test that a read and write connection with several write hosts keeps one
-     * identity however the framework orders the hosts it connects through.
+     * Test that several write hosts give one identity whatever their order.
      *
      * @return void
      */
@@ -201,8 +195,7 @@ final class SchemaIdentityTest extends TestCase
     }
 
     /**
-     * Test that the order of a search path is kept, since it decides which
-     * schema an unqualified table resolves to.
+     * Test that a search path keeps its order, which decides table resolution.
      *
      * @return void
      */
@@ -215,8 +208,7 @@ final class SchemaIdentityTest extends TestCase
     }
 
     /**
-     * Test that a connection configured by URL is identified by the database
-     * the URL names, as the framework built it.
+     * Test that a connection configured by URL is identified by its database.
      *
      * @return void
      */
@@ -240,8 +232,7 @@ final class SchemaIdentityTest extends TestCase
     }
 
     /**
-     * Test that a read and write connection whose database is set only under
-     * its write options is identified by that database.
+     * Test that a database set only in the write options is identified.
      *
      * @return void
      */
@@ -266,12 +257,9 @@ final class SchemaIdentityTest extends TestCase
     }
 
     /**
-     * Test that a read alias of a connection is identified apart from the
-     * connection itself.
+     * Test that a read alias is identified apart from its connection.
      *
-     * The alias reports the name, database, and options of its write side while
-     * reading the catalogue of the server behind its read side, so sharing the
-     * write side's identity would serve one server's schema for the other.
+     * The alias reports its write side but reads the read side's catalogue.
      *
      * @return void
      */
@@ -294,8 +282,7 @@ final class SchemaIdentityTest extends TestCase
     }
 
     /**
-     * Build the named connection from the given configuration, running no
-     * query.
+     * Build the named connection from the given configuration without querying.
      *
      * @param  string  $name
      * @param  array<string, mixed>  $config

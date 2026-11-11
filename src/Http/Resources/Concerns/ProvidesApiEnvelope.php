@@ -10,13 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Provides the toolkit's response envelope for resource collections.
- *
- * Single source of truth for the pagination contract shared by every toolkit
- * collection: the `meta`/`links` blocks for length-aware and cursor paginators
- * and the `Total-Count` response header. Hosting it in a trait lets both the
- * Eloquent-backed collection and non-Eloquent (report) collections emit an
- * identical envelope without inheriting each other's item-mapping concerns.
+ * Provides the toolkit's pagination envelope for resource collections.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -25,9 +19,6 @@ trait ProvidesApiEnvelope
 {
     /**
      * Customize the response for a request.
-     *
-     * The request parameter is unused but required by Laravel's resource
-     * response signature.
      *
      * @SuppressWarnings("php:S1172")
      *
@@ -47,9 +38,6 @@ trait ProvidesApiEnvelope
 
     /**
      * Customize the pagination information for the resource.
-     *
-     * The request, paginated, and default parameters are unused but required by
-     * Laravel's resource-collection signature.
      *
      * @SuppressWarnings("php:S1172")
      *

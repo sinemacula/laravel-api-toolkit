@@ -54,7 +54,7 @@ final class QueryTooExpensiveExceptionTest extends TestCase
 
     /**
      * Test that the meta carries every field a client needs to correct the
-     * query without server-side diagnosis.
+     * query.
      *
      * @return void
      */

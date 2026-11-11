@@ -63,8 +63,7 @@ final class CacheResourcesCommandTest extends TestCase
     }
 
     /**
-     * Test that the command replaces a stale compiled map with a fresh scan
-     * rather than re-writing the stale one.
+     * Test that the command replaces a stale compiled map with a fresh scan.
      *
      * @return void
      */
@@ -95,8 +94,7 @@ final class CacheResourcesCommandTest extends TestCase
     }
 
     /**
-     * Test that the command never touches the cache store, so a build whose
-     * store is unreachable still compiles the map.
+     * Test that the command never touches the cache store.
      *
      * @return void
      */

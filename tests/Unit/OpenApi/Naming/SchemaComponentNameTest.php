@@ -30,8 +30,7 @@ use Tests\Fixtures\Resources\V2\UserResource as V2UserResource;
 final class SchemaComponentNameTest extends TestCase
 {
     /**
-     * Test that the trailing Resource suffix is stripped from the class
-     * basename.
+     * Test that the trailing Resource suffix is stripped.
      *
      * @return void
      */
@@ -42,8 +41,7 @@ final class SchemaComponentNameTest extends TestCase
     }
 
     /**
-     * Test that a class basename with no Resource suffix is returned unchanged,
-     * so only a trailing suffix is stripped.
+     * Test that a basename without the Resource suffix is unchanged.
      *
      * @return void
      */
@@ -53,9 +51,7 @@ final class SchemaComponentNameTest extends TestCase
     }
 
     /**
-     * Test that two distinct resource classes sharing a basename across version
-     * namespaces both derive the same component name, so the derivation is
-     * driven purely by the basename and ignores the namespace.
+     * Test that the derivation ignores the namespace.
      *
      * @return void
      */
@@ -70,8 +66,7 @@ final class SchemaComponentNameTest extends TestCase
     }
 
     /**
-     * Test that a #[SchemaName] override on the class wins over the basename
-     * derivation, so a resource can declare a distinct component name.
+     * Test that a #[SchemaName] override beats the basename derivation.
      *
      * @return void
      */
@@ -81,8 +76,7 @@ final class SchemaComponentNameTest extends TestCase
     }
 
     /**
-     * Test that an empty #[SchemaName] override is ignored and the derivation
-     * falls back to the class basename.
+     * Test that an empty #[SchemaName] override is ignored.
      *
      * @return void
      */
@@ -92,8 +86,7 @@ final class SchemaComponentNameTest extends TestCase
     }
 
     /**
-     * Test that an enum keeps its class basename verbatim, with no Resource
-     * suffix stripping applied.
+     * Test that an enum keeps its basename verbatim.
      *
      * @return void
      */
@@ -103,8 +96,7 @@ final class SchemaComponentNameTest extends TestCase
     }
 
     /**
-     * Test that a #[SchemaName] override on an enum wins over its basename, so
-     * two basename-colliding enums can declare distinct component names.
+     * Test that a #[SchemaName] override on an enum beats its basename.
      *
      * @return void
      */
@@ -114,8 +106,7 @@ final class SchemaComponentNameTest extends TestCase
     }
 
     /**
-     * Test that a name is not read off a class the autoloader cannot produce,
-     * so a stale resource map entry names nothing rather than raising.
+     * Test that a class the autoloader cannot produce names nothing.
      *
      * @return void
      */

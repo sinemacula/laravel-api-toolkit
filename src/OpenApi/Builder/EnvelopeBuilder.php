@@ -7,15 +7,6 @@ namespace SineMacula\ApiToolkit\OpenApi\Builder;
 /**
  * Builds the shared response-envelope components once.
  *
- * Mirrors the toolkit's runtime envelope contract as reusable components: the
- * length-aware and cursor pagination `meta`/`links` schemas and the
- * `Total-Count` response header emitted on length-aware collections. Nullable
- * link fields use the JSON Schema 2020-12 `{"type": "null"}` union member
- * rather than the OpenAPI 3.0 `nullable` keyword, and url/link strings carry
- * the `uri` format. The wrapper helpers assemble single and collection
- * envelopes around a resource reference for path operations to consume; the
- * shared components are never duplicated per endpoint.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -67,8 +58,7 @@ final readonly class EnvelopeBuilder
     }
 
     /**
-     * Build the single-resource envelope wrapping the given schema reference in
-     * the inherited `data` wrapper.
+     * Build the single-resource envelope wrapping the given schema reference.
      *
      * @param  string  $schemaRef
      * @return array<string, mixed>
@@ -79,12 +69,7 @@ final readonly class EnvelopeBuilder
     }
 
     /**
-     * Build the single-resource envelope wrapping the given data schema node in
-     * the inherited `data` wrapper.
-     *
-     * The node is a reference to a registered component, an inline JSON-Schema
-     * fragment, or a oneOf of such nodes, so a declared non-resource body wraps
-     * in the same envelope as a resource reference.
+     * Build the single-resource envelope wrapping the given data schema node.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
@@ -103,11 +88,6 @@ final readonly class EnvelopeBuilder
     /**
      * Build the single envelope wrapping an opaque, undocumented body.
      *
-     * Shares the `data` wrapper shape of the single envelope but marks the
-     * inner schema with the `x-undocumented` extension rather than a resource
-     * reference, so a route with no resolved resource still documents its
-     * envelope without asserting a body it cannot describe.
-     *
      * @return array<string, mixed>
      */
     public function undocumentedEnvelope(): array
@@ -122,8 +102,8 @@ final readonly class EnvelopeBuilder
     }
 
     /**
-     * Build the length-aware collection envelope wrapping an array of the given
-     * schema reference alongside the pagination meta and links components.
+     * Build the length-aware collection envelope for the given schema
+     * reference.
      *
      * @param  string  $schemaRef
      * @return array<string, mixed>
@@ -134,13 +114,8 @@ final readonly class EnvelopeBuilder
     }
 
     /**
-     * Build the length-aware collection envelope wrapping an array of the given
-     * item schema node alongside the pagination meta and links components.
-     *
-     * The item node is a reference to a registered component, an inline
-     * JSON-Schema fragment, or a oneOf of such nodes, so a declared
-     * non-resource collection wraps in the same envelope as a resource
-     * reference.
+     * Build the length-aware collection envelope for the given item schema
+     * node.
      *
      * @param  array<string, mixed>  $items
      * @return array<string, mixed>
@@ -159,9 +134,7 @@ final readonly class EnvelopeBuilder
     }
 
     /**
-     * Build the cursor collection envelope wrapping an array of the given
-     * schema reference alongside the cursor pagination meta and links
-     * components.
+     * Build the cursor collection envelope for the given schema reference.
      *
      * @param  string  $schemaRef
      * @return array<string, mixed>
@@ -252,8 +225,7 @@ final readonly class EnvelopeBuilder
     }
 
     /**
-     * Build the reusable total-count response header emitted on length-aware
-     * collection responses.
+     * Build the total-count header emitted on length-aware collections.
      *
      * @return array<string, mixed>
      */
@@ -278,9 +250,7 @@ final readonly class EnvelopeBuilder
     /**
      * Build a nullable uri-formatted string schema.
      *
-     * Nullability is expressed with a JSON Schema 2020-12 `{"type": "null"}`
-     * union member rather than the OpenAPI 3.0 `nullable` keyword, which is an
-     * inert unknown keyword under 3.1 / JSON Schema 2020-12.
+     * OpenAPI 3.0's `nullable` is an inert unknown keyword under 3.1.
      *
      * @return array<string, mixed>
      */

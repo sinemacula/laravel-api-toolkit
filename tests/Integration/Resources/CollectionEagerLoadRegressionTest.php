@@ -20,15 +20,7 @@ use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
- * Regression guard for N+1 queries when serialising a relation-bearing
- * collection.
- *
- * Drives the eager-load planner through the criteria chain, then serialises the
- * resulting collection under a query log. The query count must be constant
- * regardless of how many rows the collection holds: a regression that made a
- * nested relation resolve per-row would inflate the count in lockstep with the
- * row count. The serialised relations are asserted to prove the constant count
- * reflects eager loading rather than nothing loading at all.
+ * Regression guard for N+1 queries when serialising a collection.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -55,9 +47,7 @@ final class CollectionEagerLoadRegressionTest extends TestCase
     {
         parent::setUp();
 
-        // These assertions measure query shape and call counts; pin column
-        // narrowing off so the on-by-default narrowing metadata pass cannot
-        // skew them (narrowing behaviour has its own dedicated coverage).
+        // Narrowing adds a metadata pass that would skew the query counts
         Config::set('api-toolkit.resources.narrow_columns', false);
 
         $organization = Organization::create(['name' => 'Acme Corp', 'slug' => 'acme-corp']);
@@ -66,8 +56,7 @@ final class CollectionEagerLoadRegressionTest extends TestCase
     }
 
     /**
-     * The fetch-and-serialise query count is identical for a small and a large
-     * collection, and stays within the eager-load bound.
+     * Test that the query count is the same for a small and a large collection.
      *
      * @return void
      *
@@ -82,8 +71,7 @@ final class CollectionEagerLoadRegressionTest extends TestCase
         /** @var \Tests\Fixtures\Models\Organization $organization */
         $organization = Organization::query()->firstOrFail();
 
-        // Grow the result set an order of magnitude; an N+1 regression would
-        // scale the query count with these extra rows.
+        // An N+1 regression would scale the query count with these extra rows
         $this->seedUsers(45, $organization->id, 5);
 
         $large = $this->fetchAndSerialise();
@@ -91,8 +79,7 @@ final class CollectionEagerLoadRegressionTest extends TestCase
         self::assertSame($small['queries'], $large['queries']);
         self::assertSame(self::EXPECTED_QUERIES, $large['queries']);
 
-        // Prove the relations actually hydrated, so the constant count reflects
-        // eager loading rather than a firewall returning missing values.
+        // The relations hydrated, so the constant count is not an empty load
         self::assertSame('Acme Corp', $large['first']['organization']['name']);
         self::assertNotEmpty($large['first']['posts']);
         self::assertIsArray($large['first']['posts'][0]);
@@ -100,9 +87,7 @@ final class CollectionEagerLoadRegressionTest extends TestCase
     }
 
     /**
-     * Count, sum, and average aggregates fold into the base query, so the
-     * fetch-and-serialise query count stays constant regardless of row count -
-     * a per-row re-load of the pre-loaded aggregates would scale with the rows.
+     * Test that aggregates fold into the base query regardless of row count.
      *
      * @return void
      *
@@ -128,8 +113,7 @@ final class CollectionEagerLoadRegressionTest extends TestCase
         self::assertSame($small['queries'], $large['queries']);
         self::assertSame(1, $large['queries']);
 
-        // Prove the aggregates actually resolved rather than the constant count
-        // reflecting nothing loaded.
+        // The aggregates resolved, so the constant count is not an empty load
         self::assertSame(2, $large['first']['counts']['posts']);
         self::assertIsArray($large['first']['sums']);
         self::assertArrayHasKey('posts_id', $large['first']['sums']);
@@ -138,8 +122,7 @@ final class CollectionEagerLoadRegressionTest extends TestCase
     }
 
     /**
-     * Fetch the seeded users through the criteria chain and serialise them
-     * under a query log, returning the query count and the decoded record.
+     * Fetch and serialise the users under a query log.
      *
      * @return array{queries: int, first: array<string, mixed>}
      *

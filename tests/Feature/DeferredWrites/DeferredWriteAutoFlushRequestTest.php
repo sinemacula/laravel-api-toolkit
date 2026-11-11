@@ -19,12 +19,6 @@ use Tests\TestCase;
 /**
  * Feature test proving a config-wired pool limit auto-flushes mid-request.
  *
- * With the deferred-writes pool limit bound from config to two, a route that
- * defers three rows through the config-bound repository sees the first two
- * persisted while the request is still in flight (the auto-flush fired when the
- * buffer reached the limit) and the trailing row persisted only once the
- * request lifecycle boundary flush runs.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -60,8 +54,8 @@ final class DeferredWriteAutoFlushRequestTest extends TestCase
     }
 
     /**
-     * Test that reaching the config-bound pool limit auto-flushes mid-request
-     * while the trailing row waits for the boundary flush.
+     * Test that reaching the pool limit auto-flushes while the trailing row
+     * waits for the boundary.
      *
      * @return void
      */
@@ -71,8 +65,6 @@ final class DeferredWriteAutoFlushRequestTest extends TestCase
 
         $response->assertStatus(202);
 
-        // Two rows crossed the pool limit and were auto-flushed while the
-        // request was still executing; the third stayed buffered.
         $response->assertJsonPath('persisted_during_request', 2);
 
         self::assertSame(3, DB::table('users')->count());

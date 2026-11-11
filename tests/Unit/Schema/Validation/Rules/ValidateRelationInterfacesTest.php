@@ -148,8 +148,7 @@ final class ValidateRelationInterfacesTest extends TestCase
     }
 
     /**
-     * Test that validation continues past non-existent classes and still
-     * reports later defects.
+     * Test that validation continues past non-existent classes.
      *
      * @return void
      */
@@ -171,8 +170,7 @@ final class ValidateRelationInterfacesTest extends TestCase
     }
 
     /**
-     * Test that a relation class implementing the interface does not halt
-     * iteration, so a later non-conforming class is still reported.
+     * Test that validation continues past a conforming relation class.
      *
      * @return void
      */

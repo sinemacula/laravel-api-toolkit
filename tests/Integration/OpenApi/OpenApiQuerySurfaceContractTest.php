@@ -50,36 +50,8 @@ use Tests\TestCase;
 /**
  * Contract tests binding the emitted query surface to the live package.
  *
- * The exported document makes two promises a consumer cannot check for itself:
- * that every operator it names is one the package still ships, and that the
- * operators it advertises for a column are the operators a request may pair
- * with that column.
- *
- * The operator scan reads the whole document, including the Markdown manual
- * assembled into the description, so a token the registry no longer holds is
- * reported wherever it survives: in the shared parameter grammar, in a
- * property's own surface, or in the shipped prose describing either. The
- * document side of it is narrowed against the live registry, so removing a
- * token leaves only the hand-written prose to report, which is what the scan
- * exists to catch.
- *
- * The agreement between the document and enforcement is asserted at the gate,
- * which decides every filter predicate the query layer emits, so the whole
- * matrix can be walked without an operator whose SQL a development connection
- * cannot answer standing between the assertion and the answer. The two
- * directions read the capability matrix on both sides, so what they carry is
- * narrower than a full independent check: that the advertised key is the key
- * the gate accepts under an alias, that the matrix governs no operator outside
- * the union of its permitted sets, and that a refusal names the advertised set
- * back to the client. The matrix itself is pinned by its own unit tests. One
- * resource in the map presents the columns it is filtered and ordered by under
- * an alias, so the walk reaches a key that is not the property it hangs on
- * rather than only the cases where the two names coincide.
- *
- * Two wire-level cases close the loop: the operators a refusal names a client
- * may send are the operators the document told it to send, and the key
- * advertised for an aliased field is the key a filter and an order send it
- * under, the property carrying its value back being refused as undeclared.
+ * Agreement is asserted at the gate, which decides every filter predicate, so
+ * the whole matrix is walked without SQL a development connection cannot run.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -136,10 +108,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that every operator token the document carries anywhere is one the
-     * live operator vocabulary still holds, so a token the package has dropped
-     * cannot survive in the shipped grammar, in a property's own surface, or in
-     * the prose describing either.
+     * Test that every operator token in the document is in the live vocabulary.
      *
      * @return void
      */
@@ -162,13 +131,11 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that the scan reports a token the registry no longer holds, so the
-     * assertion above is the thing that catches a vocabulary the package has
-     * changed rather than passing whatever it is given.
+     * Test that the scan reports a token the registry no longer holds.
      *
-     * The generated halves of the document are narrowed against the registry,
-     * so what survives a removal is the hand-written prose naming the operator
-     * table by hand. That prose is the drift the scan exists to refuse.
+     * The generated halves are narrowed against the registry, so only
+     * hand-written prose survives a removal, which is the drift the scan exists
+     * to catch.
      *
      * @return void
      */
@@ -185,9 +152,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that a token the registry no longer holds is gone from every column
-     * the document advertises and from the shared filter grammar, an unbound
-     * token being refused as an undeclared key rather than dispatched.
+     * Test that a dropped token leaves every column and the shared grammar.
      *
      * @return void
      */
@@ -217,9 +182,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that a column whose only operator has left the registry is no longer
-     * advertised as filterable at all, rather than as a capability answering
-     * nothing the filter engine can dispatch.
+     * Test that a column left with no dispatchable operator is not advertised.
      *
      * @return void
      */
@@ -239,8 +202,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that every operator the document advertises for a column is one the
-     * request-time gate permits on that column.
+     * Test that every advertised operator is permitted by the gate.
      *
      * @return void
      */
@@ -276,13 +238,10 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that every operator the document omits from a column is one the
-     * request-time gate refuses on that column, naming the operators the
-     * document does advertise.
+     * Test that every omitted operator is refused by the gate.
      *
-     * Only the operators the capability matrix governs are asserted: a token
-     * outside it was bound to a handler by the application, which the package
-     * deliberately leaves to the application rather than refusing.
+     * Only matrix-governed operators are asserted; any other token was bound to
+     * a handler by the application.
      *
      * @return void
      */
@@ -323,9 +282,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that the walk above reaches a column declared with every capability,
-     * so the agreement is asserted over the whole matrix rather than over the
-     * two or three cases a fixture happens to declare.
+     * Test that the documented surfaces cover every capability.
      *
      * @return void
      */
@@ -343,9 +300,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that a refusal on the wire names exactly the operators the document
-     * advertises for the refused column, so the correction a client is handed
-     * is the surface it was documented against.
+     * Test that a wire refusal names exactly the advertised operators.
      *
      * @return void
      */
@@ -378,21 +333,13 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that the longest term the document publishes is the one the wire
-     * actually enforces.
-     *
-     * The bound was enforced and described in prose long before the schema
-     * carried it, so a generated client read no bound at all and a gateway
-     * validating against the schema passed a term the server then refused.
-     * Asserting the published figure against a live refusal is what keeps the
-     * two from drifting again.
+     * Test that the documented longest term is the one the wire enforces.
      *
      * @return void
      */
     public function testTheDocumentedLongestTermIsTheOneTheWireEnforces(): void
     {
-        // The development engine cannot prove an index backs a search, and the
-        // bound under test is enforced well before any index is consulted.
+        // The dev engine cannot prove an index; the bound is enforced first
         Config::set('api-toolkit.search.unverified_connections', ['testing']);
 
         $this->registerApiExceptionHandler();
@@ -420,9 +367,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that the walk over the documented surfaces reaches a key that is not
-     * the property it hangs on, so the agreement it asserts is asserted under
-     * an alias rather than only where the two names happen to coincide.
+     * Test that the documented surfaces reach a key that is not its property.
      *
      * @return void
      */
@@ -445,9 +390,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that the key the document advertises for an aliased field is the
-     * column the field is queried by rather than the property the response
-     * carries its value under, for an order as well as for a filter.
+     * Test that an aliased field advertises its column, not its property.
      *
      * @return void
      */
@@ -463,10 +406,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that the key the document advertises for an aliased field is the key
-     * a request sends it under: sending the advertised key narrows the
-     * collection and the rows come back under the aliased property, while
-     * sending the property name is refused as an undeclared key.
+     * Test that an aliased field's advertised key is the key a filter sends.
      *
      * @return void
      */
@@ -502,9 +442,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that the key the document advertises for an aliased field is the key
-     * an order names it by, the rows coming back under the aliased property in
-     * the order the column holds, while the property name is refused.
+     * Test that an aliased field's advertised key is the key an order names.
      *
      * @return void
      */
@@ -541,9 +479,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that the shipped manual tables the parameters the document defines
-     * and names every one of them, so a parameter gained or lost by the builder
-     * cannot leave the hand-written table behind.
+     * Test that the manual tables every parameter the document defines.
      *
      * @return void
      */
@@ -568,9 +504,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that the manual splits the grammar the way the operations do: the
-     * parameters it tables first are the ones a write carries, and the ones it
-     * tables next are the collection grammar an index carries beyond them.
+     * Test that the manual splits the grammar the way the operations do.
      *
      * @return void
      */
@@ -585,17 +519,14 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
 
         self::assertSame($shaping, array_slice($tabled, 0, count($shaping)));
 
-        // The manual tables the selection grammar next, holding back the two
-        // parameters it describes under cursor paging instead.
+        // Selection grammar next, holding back the two cursor-paging parameters
         $selection = array_values(array_diff($this->parametersFor('index', $names), $shaping, ['cursor', 'pagination']));
 
         self::assertSame($selection, array_slice($tabled, count($shaping), count($selection)));
     }
 
     /**
-     * Test that the operator table the manual carries by hand is the live
-     * vocabulary, so a token the package adds or drops cannot leave the shipped
-     * prose describing a grammar the API does not answer.
+     * Test that the manual operator table is the live vocabulary.
      *
      * @return void
      */
@@ -616,9 +547,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that the capability matrix the manual tables by hand is the matrix
-     * the enum holds, row for row and in the same order, so an operator moved
-     * between capabilities cannot leave the shipped prose behind.
+     * Test that the manual capability matrix is the enum matrix, row for row.
      *
      * @return void
      */
@@ -638,8 +567,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that the worked surface example the manual carries names a
-     * capability and lists exactly the operators that capability answers.
+     * Test that the manual surface example lists its capability's operators.
      *
      * @return void
      */
@@ -697,8 +625,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Read one column of every row of the manual table whose header line starts
-     * with the given prefix.
+     * Read one column of every row of the manual table under the given header.
      *
      * @param  string  $header
      * @param  int  $column
@@ -762,8 +689,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Map each parameter component name the document defines to the query
-     * parameter name it carries.
+     * Map each parameter component name to the query parameter name it carries.
      *
      * @param  array<string, mixed>  $document
      * @return array<string, string>
@@ -777,8 +703,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * List the query parameter names an action carries, resolved through the
-     * component names the builder references.
+     * List the query parameter names an action carries.
      *
      * @param  string  $action
      * @param  array<string, string>  $names
@@ -818,8 +743,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Seed the articles the aliased surface is queried over, whose slugs order
-     * differently from the order they are written in.
+     * Seed articles whose slugs order differently from their insertion order.
      *
      * @return void
      */
@@ -839,12 +763,10 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Collect every distinct operator-shaped token the document carries in a
-     * value, in sorted order.
+     * Collect every distinct operator-shaped token in the document's values.
      *
-     * Keys are left out: the only dollar-prefixed key the document carries is
-     * the JSON Schema reference keyword, which names a component rather than an
-     * operator.
+     * Keys are skipped: the only dollar-prefixed key is the JSON Schema $ref
+     * keyword.
      *
      * @param  array<string, mixed>  $document
      * @return array<int, string>
@@ -892,9 +814,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * List the filter surfaces the document advertises, one per property
-     * carrying one, each naming the model whose column it stands for and the
-     * property it hangs on.
+     * List the filter surfaces the document advertises, one per property.
      *
      * @param  array<string, mixed>  $document
      * @return array<int, array{model: class-string<\Illuminate\Database\Eloquent\Model>, property: string, key: string, capability: string, operators: array<int, string>}>
@@ -948,8 +868,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Read the query surface the document advertises on a single property of a
-     * single resource.
+     * Read the query surface advertised on one property of one resource.
      *
      * @param  array<string, mixed>  $document
      * @param  class-string  $resourceClass
@@ -968,8 +887,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Read the key the document advertises for one part of the query surface on
-     * a single property.
+     * Read the key advertised for one part of a property's query surface.
      *
      * @param  array<string, mixed>  $document
      * @param  class-string  $resourceClass
@@ -987,8 +905,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Read the operators the document advertises for a single column of a
-     * single model.
+     * Read the operators advertised for one column of one model.
      *
      * @param  array<string, mixed>  $document
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
@@ -1008,8 +925,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Build the request-time gate for a model exactly as the criteria layer
-     * builds it, from the compiled schema of the resource mapped to it.
+     * Build the request-time gate for a model as the criteria layer does.
      *
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
@@ -1058,8 +974,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Read the live operator vocabulary: the registered tokens plus the
-     * structural operators applied outside the registry.
+     * Read the live operator vocabulary, structural operators included.
      *
      * @return array<int, string>
      */
@@ -1096,9 +1011,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Point the manual at a copy of the shipped Markdown sections and generate
-     * the reference sections beside them, so the assembled description carries
-     * both the committed prose and the generated tables.
+     * Assemble the manual from the shipped sections plus generated ones.
      *
      * @return void
      */
@@ -1136,8 +1049,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Register the repository-backed route the wire-level refusal is driven
-     * through, under a path of its own so it is not the documented one.
+     * Register the repository-backed route the wire-level refusal goes through.
      *
      * @return void
      */
@@ -1167,9 +1079,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Register the repository-backed route the aliased surface is driven
-     * through, so a request names the keys the document advertises for a
-     * resource whose queried columns are carried under other names.
+     * Register the repository-backed route the aliased surface goes through.
      *
      * @return void
      */

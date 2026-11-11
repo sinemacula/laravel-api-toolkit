@@ -24,22 +24,8 @@ use Tests\TestCase;
 /**
  * Integration tests for sortable index backing against a live catalogue.
  *
- * The rule decides a sortable declaration on two things the connection reports:
- * the kind of an index, and the order of the columns within it. Neither can be
- * proven against a supplied catalogue, and neither can be proven on an engine
- * that names no kind, so the suite runs only against the engines that do, over
- * a table shaped to hold all three cases at once - a column leading an ordered
- * index, a column named second in one, and a column carrying only an index of a
- * kind that holds no order.
- *
- * The catalogue read is asserted first and on its own terms, because a refusal
- * proves nothing about a kind if the index the column was refused over is
- * simply missing. What the engine reports is pinned there; the acceptance and
- * the refusals that follow are then decided by it.
- *
- * The table is created and dropped by the suite rather than migrated with the
- * rest, since an index of a kind that holds no order is written in a dialect
- * only its own engine speaks.
+ * Index kind and column order cannot be proven against a supplied catalogue, so
+ * this runs only on engines that name index kinds.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -59,8 +45,7 @@ final class SortIndexBackingCatalogueTest extends TestCase
     private const array ENGINES = ['mysql', 'pgsql'];
 
     /**
-     * Build the table whose catalogue every test reads, having skipped the
-     * suite on any engine that names no index kind.
+     * Build the table every test reads, skipping engines naming no index kind.
      *
      * @return void
      */
@@ -94,9 +79,7 @@ final class SortIndexBackingCatalogueTest extends TestCase
     /**
      * Leave the table the suite builds outside a transaction.
      *
-     * One of the engines under test commits the open transaction as a side
-     * effect of creating a table, so the wrapper the suite would otherwise roll
-     * back is already gone by the time the first index is read.
+     * One engine commits the open transaction when a table is created.
      *
      * @return void
      */
@@ -104,9 +87,7 @@ final class SortIndexBackingCatalogueTest extends TestCase
     public function beginDatabaseTransaction(): void {}
 
     /**
-     * Test that the connection reports the index kinds and the column order the
-     * rule decides on, which is what makes the acceptance and the refusals
-     * below answers about a catalogue rather than about a missing index.
+     * Test that the connection reports the index kinds and column order.
      *
      * @return void
      */
@@ -125,9 +106,7 @@ final class SortIndexBackingCatalogueTest extends TestCase
     }
 
     /**
-     * Test that the gate a deployment runs accepts sortable columns an ordered
-     * index leads with, which is the half an engine reporting the ordered kind
-     * under another name would break for every consuming application at once.
+     * Test that validation accepts columns an ordered index leads with.
      *
      * @return void
      */
@@ -143,9 +122,7 @@ final class SortIndexBackingCatalogueTest extends TestCase
     }
 
     /**
-     * Test that a sortable column the engine names second in a composite index
-     * is refused, so the position the catalogue reports decides the answer
-     * rather than mere membership of an index.
+     * Test that a column named second in a composite index is refused.
      *
      * @return void
      */
@@ -158,9 +135,7 @@ final class SortIndexBackingCatalogueTest extends TestCase
     }
 
     /**
-     * Test that a sortable column whose only index is of a kind the engine
-     * reports as holding no order is refused, so a column indexed for matching
-     * alone cannot offer an ordered read of the whole table.
+     * Test that a column whose only index holds no order is refused.
      *
      * @return void
      */
@@ -173,12 +148,9 @@ final class SortIndexBackingCatalogueTest extends TestCase
     }
 
     /**
-     * Test that a sortable column led only by an index the engine will not plan
-     * against is refused, which the catalogue alone cannot decide.
+     * Test that a column led only by an unplannable index is refused.
      *
-     * The catalogue reports such an index exactly as it reports a usable one,
-     * so the same declaration accepted above has to be refused once the index
-     * behind it stops being one the planner would reach.
+     * The catalogue reports such an index exactly as it reports a usable one.
      *
      * @return void
      */
@@ -210,13 +182,7 @@ final class SortIndexBackingCatalogueTest extends TestCase
     }
 
     /**
-     * Replace the ordered index over the label column with one the engine
-     * carries but will not plan against.
-     *
-     * Each engine is made to refuse the index in the way it offers: one is told
-     * to hold the index back from the planner outright, the other is given an
-     * index restricted to part of the table, which no unqualified ordered read
-     * can use.
+     * Replace the label index with one the engine carries but will not plan.
      *
      * @return void
      */
@@ -254,8 +220,7 @@ final class SortIndexBackingCatalogueTest extends TestCase
     }
 
     /**
-     * Create the table and the three indexes the declarations are proved
-     * against.
+     * Create the table and the three indexes the declarations are proved on.
      *
      * @return void
      */
@@ -277,8 +242,7 @@ final class SortIndexBackingCatalogueTest extends TestCase
     }
 
     /**
-     * Create the index over the body column in whichever kind the engine
-     * carries that holds no order.
+     * Create the body column index in a kind that holds no order.
      *
      * @return void
      */
@@ -296,8 +260,7 @@ final class SortIndexBackingCatalogueTest extends TestCase
     }
 
     /**
-     * Return the defects validation reports against the given field of the
-     * unbacked declaration.
+     * Return the defects validation reports against the given field.
      *
      * @param  string  $field
      * @return array<int, string>
@@ -314,8 +277,7 @@ final class SortIndexBackingCatalogueTest extends TestCase
     }
 
     /**
-     * Validate the unbacked declaration and return the errors it is refused
-     * with.
+     * Validate the unbacked declaration and return its errors.
      *
      * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
      */

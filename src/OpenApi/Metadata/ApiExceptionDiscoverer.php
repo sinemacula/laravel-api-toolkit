@@ -10,17 +10,6 @@ use SineMacula\ApiToolkit\Exceptions\ApiException;
 /**
  * Discovers application and module defined ApiException subclasses.
  *
- * Scans a set of PSR-4 namespace roots for ApiException subclasses declaring a
- * CODE constant, so the error catalogue documents every exception an
- * application throws, not only the toolkit's own. The prefix-to-directories map
- * is injected so the source can be driven from the registered Composer
- * autoloader in production and pointed at a controlled directory under test.
- * The shared root map excludes vendor and non-existent roots, restricting the
- * scan to the application, its modules, and any local path packages. A caller
- * may list extra namespace prefixes to scan in addition, matched against the
- * full prefix map so an installed package's exceptions can be catalogued on
- * request even though they resolve under vendor.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -45,10 +34,7 @@ final readonly class ApiExceptionDiscoverer
     /**
      * Build a discoverer from the registered Composer autoloader.
      *
-     * Locates the ClassLoader among the registered SPL autoloaders and reads
-     * its public PSR-4 prefix map. Vendor directories are filtered at scan
-     * time, so the full prefix map is handed over untouched, alongside the
-     * configured extra namespaces to also scan under vendor.
+     * The full prefix map is kept so extra namespaces can resolve under vendor.
      *
      * @return self
      */
@@ -79,9 +65,7 @@ final readonly class ApiExceptionDiscoverer
     }
 
     /**
-     * Resolve the prefix and directory pairs to scan: the non-vendor roots plus
-     * the directories of any configured extra namespace, which are included
-     * even when they resolve under vendor.
+     * Resolve the prefix and directory pairs to scan.
      *
      * @return array<int, array{0: string, 1: string}>
      */
@@ -103,12 +87,7 @@ final readonly class ApiExceptionDiscoverer
     }
 
     /**
-     * Resolve the prefix and real-directory pairs for the configured extra
-     * namespaces, each looked up as a registered PSR-4 root in the full prefix
-     * map so a package installed under vendor is scanned when its root
-     * namespace is listed. The lookup key is normalised to a single trailing
-     * separator so a listed namespace matches with or without one. A class also
-     * reached by a non-vendor root is de-duplicated by discover().
+     * Resolve the prefix and real-directory pairs for the extra namespaces.
      *
      * @return array<int, array{0: string, 1: string}>
      */
@@ -137,9 +116,6 @@ final readonly class ApiExceptionDiscoverer
 
     /**
      * Scan one PSR-4 root, returning the qualifying exception classes.
-     *
-     * The root map has already reduced the directory to an existing, non-vendor
-     * real path, so the scan walks it directly.
      *
      * @param  string  $prefix
      * @param  string  $root
@@ -216,10 +192,8 @@ final readonly class ApiExceptionDiscoverer
     /**
      * Determine whether the candidate is an ApiException subclass with a CODE.
      *
-     * Autoloading is suppressed for a file already loaded so a non-class file -
-     * such as one declaring only functions - is never re-included, and any
-     * error raised while autoloading a candidate leaves it unqualified rather
-     * than aborting the scan.
+     * An already-loaded file is not autoloaded, so a function-only file is
+     * never re-included.
      *
      * @param  string  $class
      * @param  string  $file

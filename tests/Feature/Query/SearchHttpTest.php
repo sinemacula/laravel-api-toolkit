@@ -32,16 +32,8 @@ use Tests\TestCase;
 /**
  * Feature tests driving the search parameter over real HTTP requests.
  *
- * A term travels the whole path a consuming application exercises: parsed from
- * the query string, bounded, applied through the criteria layer against the
- * connection's registered driver, and rendered as narrowed rows. The rows are
- * chosen so the term appears in the same case on every supported engine, since
- * one of them matches patterns case-sensitively and another does not.
- *
- * One route is served by a resource whose relations are traversable and whose
- * related resources declare searchable columns of their own, so the boundary
- * between the two surfaces is observable on the wire: a filter reaches a
- * related row, a search never does.
+ * Seeded terms keep one case, since one supported engine matches patterns
+ * case-sensitively.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -57,14 +49,8 @@ final class SearchHttpTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up three repository-backed routes: a resource declaring a search
-     * surface, one declaring none, and one declaring a search surface beside
-     * traversable relations, with a driver registered for the connection under
-     * test.
-     *
-     * The related models are mapped to resources declaring searchable columns
-     * of their own, so a search that followed a relation would find everything
-     * it needed on the far side of one.
+     * Set up search-declaring, search-less and relation-traversing routes with
+     * a driver registered for the connection.
      *
      * @return void
      */
@@ -114,8 +100,7 @@ final class SearchHttpTest extends TestCase
     }
 
     /**
-     * Test that a term matches inside a value rather than only at its start,
-     * which is the whole reason the substring strategy exists.
+     * Test that a term matches inside a value, not only at its start.
      *
      * @return void
      */
@@ -127,8 +112,8 @@ final class SearchHttpTest extends TestCase
     }
 
     /**
-     * Test that a column declared under the prefix strategy matches from the
-     * start of its own value, so one term reaches every declared strategy.
+     * Test that a prefix-strategy column matches from the start of its own
+     * value.
      *
      * @return void
      */
@@ -141,7 +126,7 @@ final class SearchHttpTest extends TestCase
 
     /**
      * Test that the search narrows a request carrying a root-level filter
-     * disjunction, which cannot escape the search group and widen the result.
+     * disjunction.
      *
      * @return void
      */
@@ -158,16 +143,13 @@ final class SearchHttpTest extends TestCase
 
         $response->assertOk();
 
-        // The disjunction alone matches Goldsmith and Jones; the search alone
-        // matches the three smiths. Jones appearing would mean the search was
-        // absorbed into one branch of the filter rather than ANDed with it.
+        // Jones would mean the search was absorbed into one filter branch
         self::assertSame(['Goldsmith'], $this->names($response));
         $response->assertJsonPath('meta.total', 1);
     }
 
     /**
-     * Test that a term below the minimum length is rejected rather than
-     * answered from an index that cannot serve it.
+     * Test that a term below the minimum length is rejected.
      *
      * @return void
      */
@@ -191,10 +173,10 @@ final class SearchHttpTest extends TestCase
     }
 
     /**
-     * Test that an empty term is rejected rather than treated as no search at
-     * all, which would answer with the whole table. The stack converts empty
-     * input to null before the parameter is read, so it is the shape that
-     * refuses it rather than the length.
+     * Test that an empty term is rejected.
+     *
+     * The stack converts empty input to null, so it is the shape rule that
+     * refuses it.
      *
      * @return void
      */
@@ -207,8 +189,7 @@ final class SearchHttpTest extends TestCase
     }
 
     /**
-     * Test that a term supplied as an array is rejected on its shape, before
-     * anything tries to read it as a term.
+     * Test that a term supplied as an array is rejected on its shape.
      *
      * @return void
      */
@@ -221,8 +202,7 @@ final class SearchHttpTest extends TestCase
     }
 
     /**
-     * Test that a resource declaring nothing searchable refuses the parameter
-     * rather than answering it with an unnarrowed list.
+     * Test that a resource declaring nothing searchable refuses the parameter.
      *
      * @return void
      */
@@ -248,9 +228,8 @@ final class SearchHttpTest extends TestCase
     }
 
     /**
-     * Test that a term carried only by a belongs-to related record leaves the
-     * owning row unmatched, while the row carrying the term in a column of its
-     * own is returned.
+     * Test that a term carried only by a belongs-to related record does not
+     * match the owning row.
      *
      * @return void
      */
@@ -265,15 +244,11 @@ final class SearchHttpTest extends TestCase
 
         $response->assertOk();
 
-        // Renwick carries the term only through its organization; Bellweather
-        // carries it in the root column. Renwick appearing would mean the
-        // search had followed the relation.
+        // Renwick carries the term only through its organization
         self::assertSame(['Bellweather'], $this->names($response));
         $response->assertJsonPath('meta.total', 1);
 
-        // The same relation is reachable by a filter, so the row is absent
-        // above because a search stops at the requested resource, not because
-        // the related record is missing or unjoinable.
+        // The relation is reachable by a filter, so the related record exists
         $filters  = json_encode(['organization' => ['name' => ['$eq' => 'Fairweather Works']]]);
         $filtered = $this->getJson('/scoped-users?' . http_build_query(['filters' => $filters]));
 
@@ -283,7 +258,7 @@ final class SearchHttpTest extends TestCase
 
     /**
      * Test that a term carried only by a has-many related record matches
-     * nothing at all, so no row is reached through the relation.
+     * nothing.
      *
      * @return void
      */
@@ -299,9 +274,7 @@ final class SearchHttpTest extends TestCase
         self::assertSame([], $this->names($response));
         $response->assertJsonPath('meta.total', 0);
 
-        // The post is attached and its title is reachable by a filter, so the
-        // empty result above is the search boundary rather than a row that was
-        // never written.
+        // The post is reachable by a filter, so this is the search boundary
         $filters  = json_encode(['posts' => ['title' => ['$eq' => 'notes from the marshland']]]);
         $filtered = $this->getJson('/scoped-users?' . http_build_query(['filters' => $filters]));
 
@@ -310,13 +283,8 @@ final class SearchHttpTest extends TestCase
     }
 
     /**
-     * Test that the search predicate is compared against the root columns in
-     * place, with no correlated subquery over a relation.
-     *
-     * The rows answer what a search matches; this answers what it costs. A
-     * predicate that reached a relation would arrive as a subquery evaluated
-     * once per candidate row, which is the expense the boundary exists to
-     * refuse.
+     * Test that the search predicate compares the root columns in place, with
+     * no correlated subquery.
      *
      * @return void
      */
@@ -330,8 +298,7 @@ final class SearchHttpTest extends TestCase
         $response->assertOk();
         self::assertEqualsCanonicalizing(['Highsmith', 'Blacksmith', 'Goldsmith'], $this->names($response));
 
-        // One engine compares the column as text rather than in its own type,
-        // so the cast sits between the column and the operator.
+        // One engine compares as text, so a cast precedes the operator
         self::assertMatchesRegularExpression('/["`]?name["`]?(::text)? like \?/', $sql);
         self::assertMatchesRegularExpression('/["`]?email["`]?(::text)? like \?/', $sql);
         self::assertStringNotContainsString('exists', $sql);
@@ -362,8 +329,7 @@ final class SearchHttpTest extends TestCase
     }
 
     /**
-     * Drain the recorded query log into one identifier-unquoted string, so SQL
-     * assertions read the whole request and stay driver-agnostic.
+     * Drain the query log into one identifier-unquoted string.
      *
      * @return string
      */

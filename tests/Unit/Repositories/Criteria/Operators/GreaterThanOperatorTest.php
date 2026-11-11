@@ -5,10 +5,8 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
+use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\GreaterThanOperator;
-use Tests\Fixtures\Models\User;
-use Tests\TestCase;
 
 /**
  * Tests for the GreaterThanOperator class.
@@ -19,50 +17,27 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(GreaterThanOperator::class)]
-final class GreaterThanOperatorTest extends TestCase
+final class GreaterThanOperatorTest extends ComparisonOperatorTestCase
 {
     /**
-     * Test that apply adds a where clause with the greater-than operator.
+     * Create the operator under test.
      *
-     * @return void
+     * @return \SineMacula\ApiToolkit\Contracts\FilterOperator
      */
-    public function testApplyAddsWhereClauseWithGreaterThanOperator(): void
+    #[\Override]
+    protected function operator(): FilterOperator
     {
-        $operator = new GreaterThanOperator;
-        $query    = (new User)->newQuery();
-
-        $operator->apply($query, 'id', 10, FilterContext::root());
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertCount(1, $wheres);
-        self::assertSame('Basic', $wheres[0]['type']);
-        self::assertSame('id', $wheres[0]['column']);
-        self::assertSame('>', $wheres[0]['operator']);
-        self::assertSame(10, $wheres[0]['value']);
-        self::assertSame('and', $wheres[0]['boolean']);
+        return new GreaterThanOperator;
     }
 
     /**
-     * Test that apply in an $or context uses orWhere.
+     * Return the SQL comparison the operator emits.
      *
-     * @return void
+     * @return string
      */
-    public function testGreaterThanApplyInOrContextUsesOrWhere(): void
+    #[\Override]
+    protected function sqlOperator(): string
     {
-        $operator = new GreaterThanOperator;
-        $query    = (new User)->newQuery();
-        $context  = FilterContext::nested('$or');
-
-        $operator->apply($query, 'id', 5, $context);
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertCount(1, $wheres);
-        self::assertSame('Basic', $wheres[0]['type']);
-        self::assertSame('id', $wheres[0]['column']);
-        self::assertSame('>', $wheres[0]['operator']);
-        self::assertSame(5, $wheres[0]['value']);
-        self::assertSame('or', $wheres[0]['boolean']);
+        return '>';
     }
 }

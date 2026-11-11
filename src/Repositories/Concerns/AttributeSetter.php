@@ -25,12 +25,11 @@ use SineMacula\ApiToolkit\Support\PureEnumName;
  */
 final class AttributeSetter
 {
-    /** @var array<string, string|null> Resolved cast map keyed by attribute name. */
+    /** @var array<string, string|null> Resolved cast map keyed by attribute name */
     private array $casts = [];
 
     /**
-     * Create an attribute setter with the given schema introspector for
-     * resolving model relation types.
+     * Create a new attribute setter instance.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
      * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $metadataCacheWriter
@@ -46,8 +45,7 @@ final class AttributeSetter
     ) {}
 
     /**
-     * Persist the given attributes to the model, deferring sync relations until
-     * after the model is saved.
+     * Persist the given attributes, syncing relations once the model is saved.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>  $attributes
@@ -111,10 +109,7 @@ final class AttributeSetter
     /**
      * Resolve the native cast key for the given attribute.
      *
-     * An attribute with no cast is treated as a possible relation. A declared
-     * object cast and a pure-enum cast are the only casts the setter normalises
-     * before assignment; everything else is assigned as-is and left to the
-     * model's own cast to convert.
+     * An attribute with no cast is treated as a possible relation.
      *
      * @param  string  $attribute
      * @param  string|null  $cast
@@ -137,8 +132,7 @@ final class AttributeSetter
     }
 
     /**
-     * Map a relation type to its sync/associate cast, or null when the
-     * attribute does not correspond to a recognized relation.
+     * Map a relation type to its sync/associate cast, or null.
      *
      * @param  string  $attribute
      * @param  \Illuminate\Database\Eloquent\Model|null  $model
@@ -167,9 +161,6 @@ final class AttributeSetter
 
     /**
      * Determine whether the given model cast is one of Laravel's object casts.
-     *
-     * The setter normalises an object cast before assignment: a falsy value
-     * becomes null and a truthy value is wrapped in stdClass.
      *
      * @param  string  $cast
      * @return bool
@@ -202,12 +193,9 @@ final class AttributeSetter
     }
 
     /**
-     * Resolve a string written to a pure-enum attribute as the case it names in
-     * wire form, leaving any other value for the model's cast to judge.
+     * Resolve a wire-form string written to a pure-enum attribute as its case.
      *
-     * A string that names no case fails the way an unknown value for a backed
-     * enum does, rather than as the undefined constant the model's cast would
-     * look up.
+     * An unknown name throws ValueError, as an unknown backed-enum value does.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
@@ -256,8 +244,7 @@ final class AttributeSetter
     }
 
     /**
-     * Sync a many-to-many relation, accepting an array of IDs, a Collection of
-     * models, or a single Model instance.
+     * Sync a many-to-many relation from keys, a model or a model collection.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
@@ -291,8 +278,7 @@ final class AttributeSetter
     }
 
     /**
-     * Resolve the relation instance for the given attribute by invoking its
-     * camel-cased relation method on the model.
+     * Resolve the relation by calling the attribute's camel-cased method.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
@@ -312,30 +298,18 @@ final class AttributeSetter
     }
 
     /**
-     * Persist the resolved casts to the memo cache so subsequent requests skip
-     * re-resolution.
+     * Persist the resolved casts to the metadata cache.
      *
      * @param  string  $modelClass
      * @return void
      */
     private function storeCastsInCache(string $modelClass): void
     {
-        $this->metadataCacheWriter()->rememberMetadataForever(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), fn () => $this->casts);
+        $this->metadataCacheWriter->rememberMetadataForever(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), fn () => $this->casts);
     }
 
     /**
-     * Get the injected metadata cache writer.
-     *
-     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
-     */
-    private function metadataCacheWriter(): MetadataCacheWriter
-    {
-        return $this->metadataCacheWriter;
-    }
-
-    /**
-     * Load previously resolved casts from the memo cache, returning an empty
-     * array on cache miss.
+     * Load the resolved casts from the metadata cache, or an empty array.
      *
      * @param  string  $modelClass
      * @return array<string, string|null>
@@ -343,6 +317,6 @@ final class AttributeSetter
     private function resolveCastsFromCache(string $modelClass): array
     {
         /** @var array<string, string|null> */
-        return $this->metadataCacheWriter()->readMetadata(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), []);
+        return $this->metadataCacheWriter->readMetadata(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), []);
     }
 }

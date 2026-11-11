@@ -24,8 +24,7 @@ use Tests\TestCase;
 final class ErrorCatalogueDocGeneratorTest extends TestCase
 {
     /**
-     * Test that the generator emits the banner, heading, and a well-formed
-     * table header.
+     * Test that the generator emits the banner, heading and table header.
      *
      * @return void
      */
@@ -95,8 +94,7 @@ final class ErrorCatalogueDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a flat catalogue, where every descriptor resolves to no module,
-     * renders the single combined table with no module headings.
+     * Test that a flat catalogue renders a single combined table.
      *
      * @return void
      */
@@ -111,9 +109,7 @@ final class ErrorCatalogueDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a modular catalogue renders the shared section first followed
-     * by one module section per module sorted by name, each a table of its
-     * codes.
+     * Test that a modular catalogue renders shared first, then sorted modules.
      *
      * @return void
      */
@@ -137,8 +133,7 @@ final class ErrorCatalogueDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that a grouped catalogue with no shared codes omits the Common
-     * section and still renders the module sections.
+     * Test that a catalogue without shared codes omits the Common section.
      *
      * @return void
      */
@@ -153,8 +148,7 @@ final class ErrorCatalogueDocGeneratorTest extends TestCase
     }
 
     /**
-     * Test that an empty catalogue still renders the combined table header with
-     * no module headings.
+     * Test that an empty catalogue still renders the combined table header.
      *
      * @return void
      */
@@ -167,8 +161,7 @@ final class ErrorCatalogueDocGeneratorTest extends TestCase
     }
 
     /**
-     * Build a generator whose grouper resolves no module, yielding combined
-     * output.
+     * Build a generator whose grouper resolves no module.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Docs\ErrorCatalogueDocGenerator
      */

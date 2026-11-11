@@ -23,11 +23,7 @@ final class IndexProofWaiverTest extends TestCase
     /**
      * Test that the shipped configuration waives the proof on nothing at all.
      *
-     * The waiver is the only switch that turns the request-time proof off, so a
-     * shipped entry would waive it for every application that had not
-     * considered the question. The connection names checked here are the ones a
-     * stock application uses, which is what made a shipped entry reach a
-     * production deployment by default rather than by choice.
+     * A shipped entry would switch the proof off for every stock application.
      *
      * @return void
      */
@@ -53,8 +49,7 @@ final class IndexProofWaiverTest extends TestCase
     }
 
     /**
-     * Test that an empty list waives nothing, so removing the shipped entry
-     * refuses an unprovable declaration everywhere.
+     * Test that an empty list waives nothing.
      *
      * @return void
      */
@@ -66,8 +61,7 @@ final class IndexProofWaiverTest extends TestCase
     }
 
     /**
-     * Test that a configured value that is not a list waives nothing rather
-     * than being read as one entry.
+     * Test that a configured value that is not a list waives nothing.
      *
      * @return void
      */
@@ -79,8 +73,7 @@ final class IndexProofWaiverTest extends TestCase
     }
 
     /**
-     * Test that a connection reporting no name of its own is waived by nothing,
-     * even by a list carrying an entry with no name either.
+     * Test that a connection with no name is not waived, even by a null entry.
      *
      * @return void
      */

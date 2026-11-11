@@ -11,12 +11,7 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Exceptions\ResourceMappingException;
 
 /**
- * Polymorphic resource class for handling dynamic resource resolution in a
- * polymorphic relationship context.
- *
- * This class maps model instances to their corresponding API resource classes
- * based on a configurable mapping. It is designed to handle responses where
- * different types of models need to be returned in a uniform API structure.
+ * Resolves a polymorphic model to its API resource via the configured map.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -102,8 +97,7 @@ final class PolymorphicResource extends JsonResource
     }
 
     /**
-     * Map the given resource to its corresponding resource class based on a
-     * configuration map.
+     * Map the given model to its configured resource class.
      *
      * @param  mixed  $resource
      * @return \SineMacula\ApiToolkit\Contracts\ApiResourceInterface

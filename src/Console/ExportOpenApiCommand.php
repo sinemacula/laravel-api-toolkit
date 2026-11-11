@@ -15,29 +15,19 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 /**
  * Artisan command to export the toolkit's OpenAPI 3.1 document.
  *
- * Walks the application route table, the registered resource map, the operator
- * grammar, and the error catalogue to assemble a schema-valid OpenAPI 3.1
- * document for a target audience, then serializes it to pretty-printed JSON and
- * writes it through the DocumentWriter output port. Without options the default
- * audience is exported to the resolved output path; --audience exports a named
- * audience; --all exports every configured audience, each to its own path
- * derived by injecting the audience name before the output extension. Every
- * target audience is exported before anything is written: when any of them
- * documents no operations the command writes nothing and fails, unless
- * --allow-empty is passed. The command is opt-in -- invoked explicitly,
- * mirroring ValidateSchemasCommand -- and never runs as part of request
- * handling.
+ * Every audience is exported before anything is written, so one empty audience
+ * fails the whole run unless --allow-empty is passed.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class ExportOpenApiCommand extends Command
 {
-    /** @var string The notice printed when the export runs without a database. */
+    /** @var string The notice printed when the export runs without a database */
     private const string NO_DATABASE_NOTICE = 'No database connection - field types and nullability are inferred'
         . ' from declared casts only; run against a database for the most accurate output.';
 
-    /** @var string The console command signature. */
+    /** @var string The console command signature */
     protected $signature = <<<'EOD'
         api-toolkit:export-openapi
                 {--output= : The path to write the OpenAPI document to}
@@ -46,7 +36,7 @@ final class ExportOpenApiCommand extends Command
                 {--allow-empty : Write the document and exit successfully even when an audience documents no operations}
         EOD;
 
-    /** @var string The console command description. */
+    /** @var string The console command description */
     protected $description = 'Export the toolkit metadata as an OpenAPI 3.1 document';
 
     /**
@@ -89,8 +79,7 @@ final class ExportOpenApiCommand extends Command
     }
 
     /**
-     * Export the document for every target audience, pairing each result with
-     * its audience name.
+     * Export the document for every target audience, paired with its name.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents  $exporter
      * @param  list<string>  $targets
@@ -126,8 +115,7 @@ final class ExportOpenApiCommand extends Command
     }
 
     /**
-     * Report every audience that documents no operations, and that nothing was
-     * written as a result.
+     * Report every audience that documents no operations.
      *
      * @param  list<string>  $audiences
      * @return void
@@ -147,8 +135,7 @@ final class ExportOpenApiCommand extends Command
     }
 
     /**
-     * Resolve the audiences to export, or null when a named audience is
-     * unknown.
+     * Resolve the audiences to export, or null when a named one is unknown.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration  $audiences
      * @return list<string>|null
@@ -171,8 +158,7 @@ final class ExportOpenApiCommand extends Command
     }
 
     /**
-     * Resolve a single named audience, printing an error and returning null
-     * when it is not configured.
+     * Resolve a single named audience, or report it and return null.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration  $audiences
      * @param  string  $requested
@@ -194,8 +180,7 @@ final class ExportOpenApiCommand extends Command
     }
 
     /**
-     * Serialize and write the exported document, reporting the emission, or
-     * warning when the document carries no operations.
+     * Serialize and write the exported document, then report the result.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter  $writer
      * @param  \SineMacula\ApiToolkit\OpenApi\ExportResult  $result
@@ -231,10 +216,6 @@ final class ExportOpenApiCommand extends Command
     /**
      * Determine whether a live database connection is available.
      *
-     * Column type and nullability inference is the only part of the export that
-     * needs a connection; when none can be established the export still runs
-     * against declared casts alone.
-     *
      * @return bool
      */
     private function hasDatabaseConnection(): bool
@@ -249,8 +230,7 @@ final class ExportOpenApiCommand extends Command
     }
 
     /**
-     * Resolve the base output path from the command option, falling back to the
-     * configured default.
+     * Resolve the base output path from the option or the config.
      *
      * @return string
      */
@@ -268,8 +248,7 @@ final class ExportOpenApiCommand extends Command
     }
 
     /**
-     * Derive a per-audience output path by injecting the audience name before
-     * the base path's extension, e.g. openapi.json becomes openapi.public.json.
+     * Derive a per-audience output path, e.g. openapi.public.json.
      *
      * @param  string  $base
      * @param  string  $audience

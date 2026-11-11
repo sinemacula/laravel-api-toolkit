@@ -20,20 +20,7 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 /**
  * Applies a free-text search term to an Eloquent query builder.
  *
- * The term is matched against the columns the root resource declared
- * searchable, and against those only: a text predicate carried into a
- * correlated subquery is the shape that turns one cheap request into a scan per
- * row, so a search never traverses a relation. Every declared column is OR-ed
- * within one nested group, which is then ANDed onto the query, so a search
- * narrows the result set no matter what the filter document does with its own
- * disjunctions.
- *
- * Nothing here decides what a match means. The connection's driver owns the
- * predicate, and this applier only refuses to ask for one the driver has said
- * it cannot serve from an index, or one the connection's own catalogue says no
- * index is behind. A resource that declared no searchable column is refused for
- * the same reason: answering a search with the unnarrowed table is the silent
- * failure the declaration exists to make impossible.
+ * Never traverses a relation: a text predicate in a subquery scans per row.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -95,8 +82,7 @@ final readonly class SearchApplier
     }
 
     /**
-     * Resolve the search plan for the resolved resource, refusing a resource
-     * that declared nothing searchable.
+     * Resolve the resource's search plan, refusing one with nothing searchable.
      *
      * @param  string|null  $resourceClass
      * @return \SineMacula\ApiToolkit\Search\SearchPlan
@@ -117,16 +103,9 @@ final readonly class SearchApplier
     }
 
     /**
-     * Assert that the driver serves the declared surface from an index on this
-     * connection.
+     * Assert that the driver serves the declared surface from an index.
      *
-     * The strategies are checked together first, since an engine may serve each
-     * of them alone and none of them beside the others. Each is then proved
-     * against the live catalogue, and the answer is shared across operations
-     * for a short expiry. A driver that cannot inspect the connection has
-     * proved nothing, so it is refused unless the connection is one where the
-     * proof has been waived - the development connection a suite runs against
-     * rather than anything serving traffic.
+     * Strategies are checked together first, as an engine may not combine them.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  \SineMacula\ApiToolkit\Search\SearchPlan  $plan
@@ -152,8 +131,9 @@ final readonly class SearchApplier
     }
 
     /**
-     * Assert that the driver serves one declared strategy from an index on this
-     * connection.
+     * Assert that the driver serves one strategy from an index.
+     *
+     * An unverifiable driver is refused unless the connection waives the proof.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy

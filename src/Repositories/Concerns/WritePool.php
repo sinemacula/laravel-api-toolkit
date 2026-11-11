@@ -11,18 +11,17 @@ use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 
 /**
- * Buffers insert attribute arrays in memory grouped by table and flushes them
- * as chunked bulk INSERT statements.
+ * Buffers inserts in memory by table and flushes them as chunked bulk INSERTs.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class WritePool
 {
-    /** @var array<string, list<array<string, mixed>>> Records buffered by table name. */
+    /** @var array<string, list<array<string, mixed>>> Records buffered by table name */
     private array $buffer = [];
 
-    /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult|null The retained outcome of the most recent auto-flush; persists until the next auto-flush overwrites it. */
+    /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult|null Outcome of the most recent auto-flush */
     private ?WritePoolFlushResult $lastAutoFlushResult = null;
 
     /**
@@ -52,9 +51,7 @@ final class WritePool
     /**
      * Add an attribute array to the buffer for the given table.
      *
-     * When the total buffered record count reaches or exceeds the configured
-     * pool limit, an automatic flush is triggered using the instance strategy.
-     * Under the throw strategy this auto-flush may raise out of add().
+     * Reaching the pool limit auto-flushes, which may throw.
      *
      * @param  string  $table
      * @param  array<string, mixed>  $attributes
@@ -70,17 +67,12 @@ final class WritePool
             return;
         }
 
-        // Retain the outcome so lastAutoFlushResult() can surface a
-        // non-throwing collect/log auto-flush failure.
+        // Retained so a non-throwing auto-flush failure stays observable
         $this->lastAutoFlushResult = $this->flush();
     }
 
     /**
      * Flush all buffered records as chunked bulk INSERT statements.
-     *
-     * Records are grouped by table and split into chunks of at most the
-     * configured chunk size. The active strategy determines how chunk failures
-     * are handled and whether the buffer is retained.
      *
      * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy|null  $strategy
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult
@@ -107,16 +99,9 @@ final class WritePool
     }
 
     /**
-     * Return the outcome of the most recent auto-flush triggered by add(), or
-     * null if no auto-flush has occurred.
+     * Return the outcome of the most recent auto-flush, or null if none ran.
      *
-     * This is a supported observability hook. Under the non-throwing collect
-     * and log strategies an auto-flush that fails inside add() returns without
-     * raising, so this accessor is the only in-process signal that an
-     * auto-flush failed. Because the pool is a scoped singleton it is reachable
-     * after a deferred write via app(WritePool::class)->lastAutoFlushResult(),
-     * which resolves the same instance the Deferrable trait and the boundary
-     * flush subscriber use.
+     * The only in-process signal that a non-throwing auto-flush failed.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult|null
      */
@@ -153,11 +138,6 @@ final class WritePool
 
     /**
      * Invalidate the per-query cache for the tables a flush persisted.
-     *
-     * Gated by the invalidate_query_cache config flag, so every flush - the
-     * auto-flush triggered when the pool limit is reached as well as the
-     * boundary flush - keeps a Cacheable repository's cached collections in
-     * step with the rows it just committed.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult  $result
      * @return void
@@ -221,8 +201,7 @@ final class WritePool
     }
 
     /**
-     * Flush a table's chunks inside a database transaction so the table's
-     * inserts are applied all-or-nothing.
+     * Flush a table's chunks all-or-nothing inside a database transaction.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
@@ -247,8 +226,7 @@ final class WritePool
     }
 
     /**
-     * Account for a table whose transaction committed, counting every chunk and
-     * record as flushed.
+     * Count every chunk of a table whose transaction committed as flushed.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
@@ -262,8 +240,7 @@ final class WritePool
     }
 
     /**
-     * Account for a table whose transaction rolled back, treating the whole
-     * table's records as a single failure for the strategy.
+     * Treat a rolled-back table's records as a single failure for the strategy.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
@@ -320,9 +297,6 @@ final class WritePool
     /**
      * Handle a single chunk insertion failure for the active strategy.
      *
-     * The context must carry the chunk index (via withChunkIndex) so that
-     * retainUnprocessedRecords can compute the remaining chunks correctly.
-     *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
      * @param  list<array<string, mixed>>  $chunk
@@ -339,9 +313,7 @@ final class WritePool
         $accumulator->recordFailure($context->table(), $chunk, $exception);
 
         if ($context->strategy() === FlushStrategy::THROW) {
-            // Per-chunk retain: failed chunk + remaining chunks + remaining
-            // tables. Mirror of whole-table retain in handleTableRollback -
-            // keep in sync if either path changes.
+            // Per-chunk mirror of handleTableRollback()'s whole-table retain
             $this->retainUnprocessedRecords($context, $chunk);
 
             throw new WritePoolFlushException($accumulator->toThrowResult($this->count(), $context->tables()), $exception);
@@ -375,8 +347,7 @@ final class WritePool
     /**
      * Retain the failed chunk and all unprocessed records in the buffer.
      *
-     * The context must carry the chunk index (set via withChunkIndex) so that
-     * the remaining chunks for this table can be computed correctly.
+     * The context must carry the chunk index (see withChunkIndex()).
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
      * @param  list<array<string, mixed>>  $chunk
@@ -391,8 +362,7 @@ final class WritePool
     }
 
     /**
-     * Rebuild the buffer to retain the failed table's records plus every table
-     * not yet reached, discarding the tables already flushed.
+     * Rebuild the buffer from the failed table's records and unreached tables.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
      * @param  list<array<string, mixed>>  $failedTableRecords

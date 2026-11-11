@@ -7,10 +7,6 @@ namespace SineMacula\ApiToolkit\Schema;
 /**
  * Relation schema helper for nested resource fields.
  *
- * Examples: Relation::to('organization', OrganizationResource::class)
- * Relation::to('organization', 'name') Relation::to('organization', 'name',
- * 'organization_name')
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -43,7 +39,7 @@ final class Relation extends BaseDefinition
         /** Relation method/name on the model */
         private readonly string $name,
 
-        // Child ApiResource class or relation-local accessor (e.g. "name")
+        // Child resource class or relation-local accessor
         callable|string $resourceOrAccessor,
 
         /** Optional alias to expose this field under */
@@ -86,8 +82,7 @@ final class Relation extends BaseDefinition
     }
 
     /**
-     * Specify the child fields to be considered when planning nested eager
-     * loads.
+     * Specify the child fields considered when planning nested eager loads.
      *
      * @param  array<int, string>  $fields
      * @return self
@@ -102,9 +97,7 @@ final class Relation extends BaseDefinition
     /**
      * Apply an eager-load constraint callback to this relation.
      *
-     * The callback receives the relation's query builder, except for a MorphTo
-     * relation, which is passed itself because it replays the calls on the
-     * query of each type it loads.
+     * A MorphTo receives itself, since it replays the calls per loaded type.
      *
      * @param  callable(\Illuminate\Contracts\Database\Eloquent\Builder): void  $constraint
      * @return self
@@ -117,8 +110,7 @@ final class Relation extends BaseDefinition
     }
 
     /**
-     * Declare this relation as externally traversable via $has/$hasnt and
-     * nested relation filters.
+     * Declare this relation traversable by $has/$hasnt and nested filters.
      *
      * @return self
      */

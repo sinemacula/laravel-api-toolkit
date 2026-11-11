@@ -28,13 +28,6 @@ use Tests\TestCase;
 /**
  * Feature tests proving the service failure path renders the right envelope.
  *
- * Each route runs a service through runOrFail(), or through run()->throw() for
- * the handle() failure, inside the real request lifecycle, so a captured
- * business failure is rethrown, mapped by the toolkit exception handler, and
- * rendered as the taxonomy JSON envelope. Covers the four failure origins:
- * input validation (422), lock contention (429), authorization denial (403),
- * and a handle() failure that rolls its write back behind a 500.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *

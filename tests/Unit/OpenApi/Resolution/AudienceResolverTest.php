@@ -129,8 +129,7 @@ final class AudienceResolverTest extends TestCase
     }
 
     /**
-     * Test that Undocumented plus DocumentedIn documents only the named
-     * audience and excludes the route from all others.
+     * Test that Undocumented plus DocumentedIn documents only that audience.
      *
      * @return void
      */
@@ -204,8 +203,7 @@ final class AudienceResolverTest extends TestCase
     }
 
     /**
-     * Test that resolution falls back to the posture when no controller or
-     * directives are available.
+     * Test that resolution falls back to the posture without a controller.
      *
      * @return void
      */
@@ -265,8 +263,7 @@ final class AudienceResolverTest extends TestCase
     }
 
     /**
-     * Test that an unknown method on the controller is treated as having no
-     * directives.
+     * Test that an unknown controller method has no directives.
      *
      * @return void
      */

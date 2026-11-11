@@ -13,30 +13,9 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIdentity;
 
 /**
- * The index proof behind a declared search surface, as the request path asks
- * for it.
+ * The index proof behind a declared search surface, asked on the request path.
  *
- * The proof reads the connection's catalogue, which is why schema validation
- * runs it in a build. It is asked again on the request path because that build
- * step is optional and disabled in production by default, and on one supported
- * engine a missing index is not an error at all: the predicate stays legal and
- * the request quietly reads the whole table, which is the outcome the whole
- * search surface exists to remove. Asking here turns that into a refused
- * request naming the missing index.
- *
- * The answer is keyed by everything that could change it - the schema identity
- * of the connection, the search driver, the table, the strategy, the columns
- * declared with it, and the shortest word a term may carry - and shared through
- * the metadata store under a short fixed expiry, so every process serving the
- * same schema pays the catalogue reads once per expiry rather than once per
- * request. The expiry is what bounds an index changed outside a migration: one
- * created, dropped, or made unusable by hand is reflected once it lapses, while
- * a migration or an explicit invalidation retires every stored answer at once.
- * An expiry of zero keeps the answer for one operation only.
- *
- * Within one operation the answer is also held in process, and that copy is
- * cleared at every lifecycle boundary, so one long operation may keep an answer
- * past the expiry.
+ * Asked per request because a missing index silently scans on some engines.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -67,8 +46,7 @@ final class IndexProof
     ) {}
 
     /**
-     * Return every reason the columns declared with the strategy are not served
-     * from an index on this connection.
+     * Return every reason the strategy's columns are not index-served.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
@@ -95,8 +73,7 @@ final class IndexProof
     }
 
     /**
-     * Return the proof held in the shared store under the key, taking it when
-     * none is held or sharing is switched off.
+     * Return the shared proof under the key, taking it when none is held.
      *
      * @param  string  $key
      * @param  callable(): array<int, string>  $prove
@@ -106,7 +83,7 @@ final class IndexProof
     {
         $ttl = self::ttl();
 
-        // A store forgets rather than keeps a value written with no lifetime.
+        // A cache write with no lifetime forgets the value
         if ($ttl === 0) {
             return $prove();
         }
@@ -116,8 +93,7 @@ final class IndexProof
     }
 
     /**
-     * Return the key every part of the declaration that could change the proof
-     * is folded into.
+     * Return the cache key folding in everything that could change the proof.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
@@ -141,8 +117,7 @@ final class IndexProof
     }
 
     /**
-     * Return the seconds an answer is shared for, falling back to the default
-     * when the configured value is not numeric or is negative.
+     * Return the configured sharing TTL, or the default when it is invalid.
      *
      * @return int
      */

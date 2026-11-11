@@ -51,9 +51,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an array element carrying a pipe stays one rule, as the
-     * validator does not split array elements, so a regex alternation survives
-     * intact.
+     * Test that an array element carrying a pipe stays one rule.
      *
      * @return void
      */
@@ -63,8 +61,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an empty string array element is dropped, as the validator
-     * skips an empty rule.
+     * Test that an empty string array element is dropped.
      *
      * @return void
      */
@@ -74,8 +71,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an Enum rule object expands to an enum-class token naming the
-     * enum class rather than inlining its backing values.
+     * Test that an Enum rule expands to an enum-class token.
      *
      * @return void
      */
@@ -85,9 +81,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an Enum narrowed by only() or except() on a string-backed enum
-     * expands to a string token and an enum-values token listing the values it
-     * accepts, in case declaration order.
+     * Test that a narrowed string-backed Enum lists its accepted values.
      *
      * @return void
      */
@@ -100,9 +94,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an Enum narrowed by only() or except() on an int-backed enum
-     * expands to an integer token and an enum-values token listing the values
-     * it accepts as integers.
+     * Test that a narrowed int-backed Enum lists its values as integers.
      *
      * @return void
      */
@@ -115,8 +107,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that a narrowed Enum lists values carrying commas, quotes, or a
-     * trailing backslash exactly.
+     * Test that a narrowed Enum lists awkward values exactly.
      *
      * @return void
      */
@@ -129,8 +120,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that a narrowed Enum lists its backing values even when the enum
-     * serialises its cases to something else.
+     * Test that a narrowed Enum lists its backing values, not serialised ones.
      *
      * @return void
      */
@@ -140,8 +130,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an Enum or PureEnum narrowed to no case expands to an empty
-     * enum-values list, since the rule accepts nothing.
+     * Test that an Enum narrowed to no case lists no values.
      *
      * @return void
      */
@@ -155,8 +144,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an Enum given both only() and except() accepts what only()
-     * names, ignoring except() as the rule does.
+     * Test that only() wins when an Enum has both only() and except().
      *
      * @return void
      */
@@ -168,8 +156,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an Enum whose narrowing still admits every case references the
-     * enum's component.
+     * Test that an Enum still admitting every case references the component.
      *
      * @return void
      */
@@ -184,8 +171,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an Enum rule over a pure enum references the enum's component
-     * even when narrowed, since its cases have no backing values to list.
+     * Test that a narrowed Enum over a pure enum references the component.
      *
      * @return void
      */
@@ -195,8 +181,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an Enum whose only() or except() list cannot be read as an
-     * array references the enum's component.
+     * Test that an unreadable only() or except() references the component.
      *
      * @return void
      */
@@ -215,8 +200,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an In rule object expands to the quoted in token its string
-     * form renders.
+     * Test that an In rule expands to its quoted in token.
      *
      * @return void
      */
@@ -226,8 +210,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an In rule object's token is not split on a pipe inside one of
-     * its values, as the validator does not split it either.
+     * Test that an In rule's token is not split on a pipe in a value.
      *
      * @return void
      */
@@ -237,8 +220,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that a NotIn rule object, which has no schema translation, yields no
-     * tokens.
+     * Test that a NotIn rule yields no tokens.
      *
      * @return void
      */
@@ -248,8 +230,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that a PureEnum rule object expands to the same enum-class token as
-     * an Enum rule, so both reference the enum's named component.
+     * Test that a PureEnum rule expands to the same enum-class token.
      *
      * @return void
      */
@@ -259,9 +240,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that a PureEnum narrowed by only() or except() expands to a string
-     * token and an enum-values token listing the names it accepts, since the
-     * enum's component lists every case.
+     * Test that a narrowed PureEnum lists the names it accepts.
      *
      * @return void
      */
@@ -274,8 +253,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that a PureEnum whose only() list names every case still references
-     * the enum's component.
+     * Test that a PureEnum naming every case references the component.
      *
      * @return void
      */
@@ -285,8 +263,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that a Password rule object expands to a string token and its
-     * minimum length.
+     * Test that a Password rule expands to a string and its minimum.
      *
      * @return void
      */
@@ -296,8 +273,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that each exclude rule object expands to the bare name of the rule
-     * it expresses, whatever its condition, so the field stays droppable.
+     * Test that each exclude rule object expands to its bare name.
      *
      * @return void
      */
@@ -315,8 +291,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an object definition passed directly, not wrapped in an array,
-     * is expanded.
+     * Test that an unwrapped object definition is expanded.
      *
      * @return void
      */
@@ -326,8 +301,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an Enum whose backing type is a class but not an enum yields no
-     * tokens.
+     * Test that an Enum over a non-enum class yields no tokens.
      *
      * @return void
      */
@@ -337,8 +311,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that a Password whose minimum is zero yields only a string token,
-     * omitting the min token.
+     * Test that a zero-minimum Password yields only a string token.
      *
      * @return void
      */
@@ -352,8 +325,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that a mixed array of tokens and objects is fully flattened in
-     * order.
+     * Test that a mixed array of tokens and objects is flattened in order.
      *
      * @return void
      */
@@ -365,8 +337,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that an unrecognised rule object is dropped while its sibling tokens
-     * survive.
+     * Test that an unrecognised rule object is dropped.
      *
      * @return void
      */
@@ -378,8 +349,7 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that a non-string, non-array, non-object definition yields no
-     * tokens.
+     * Test that a scalar non-string definition yields no tokens.
      *
      * @return void
      */

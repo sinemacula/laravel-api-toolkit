@@ -12,14 +12,8 @@ use SineMacula\ApiToolkit\OpenApi\Attributes\Undocumented;
 /**
  * Decides whether a route belongs to a given OpenAPI audience.
  *
- * Membership is resolved from three directive sources - route macros, method
- * attributes, and class attributes - applying the most-specific-wins rule: a
- * route macro overrides a method attribute, which overrides a class attribute.
- * A level decides the outcome for an audience only when it speaks about that
- * audience (names it, or carries a blanket Undocumented); otherwise resolution
- * falls through to the next-broader level and finally to the audience posture.
- * Under the blocklist posture a route is a member by default; under the
- * allowlist posture it is a member only when explicitly included.
+ * The most specific level that names the audience wins: route macro, then
+ * method, then class.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -62,13 +56,10 @@ final readonly class AudienceResolver
             $included = in_array($audience, $level['documentedIn'], true);
             $excluded = in_array($audience, $level['notDocumentedIn'], true);
 
-            // Skip a level that says nothing about this audience.
             if (!$included && !$excluded && !$level['undocumented']) {
                 continue;
             }
 
-            // Exclusion wins over a same-level inclusion; inclusion overrides a
-            // blanket Undocumented for the named audience.
             return $included && !$excluded;
         }
 

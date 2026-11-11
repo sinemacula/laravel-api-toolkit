@@ -27,10 +27,6 @@ use Tests\TestCase;
 /**
  * Integration tests for the LifecycleRegistrar.
  *
- * The lifecycle configuration permutations are pinned by the ApiServiceProvider
- * integration suite; this test proves the registrar registers its surface when
- * invoked directly.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -73,8 +69,7 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the lifecycle subscribers are registered when the registrar is
-     * invoked with the queue lifecycle enabled.
+     * Test that the lifecycle subscribers register with the queue enabled.
      *
      * @return void
      */
@@ -94,8 +89,7 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the Octane flush listener is wired when the lifecycle Octane
-     * flush is enabled and the Octane marker interface is available.
+     * Test that the Octane flush listener is wired when enabled and available.
      *
      * @return void
      */
@@ -108,8 +102,7 @@ final class LifecycleRegistrarTest extends TestCase
         $config->set('api-toolkit.lifecycle.octane', true);
         $config->set('api-toolkit.lifecycle.queue', false);
 
-        // Reset the dispatcher so Octane's own OperationTerminated listeners do
-        // not mask whether the registrar wires the toolkit's listener.
+        // Reset the dispatcher so Octane's own listeners cannot mask the result
         Event::swap(new Dispatcher($this->getApplication()));
 
         (new LifecycleRegistrar)->register();
@@ -121,8 +114,7 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the Octane flush listener is not wired when the Octane marker
-     * interface is absent, even with the lifecycle Octane flush enabled.
+     * Test that the Octane flush listener is not wired without Octane.
      *
      * @return void
      */
@@ -135,15 +127,13 @@ final class LifecycleRegistrarTest extends TestCase
         $config->set('api-toolkit.lifecycle.octane', true);
         $config->set('api-toolkit.lifecycle.queue', false);
 
-        // Simulate laravel/octane being absent so the interface_exists guard
-        // short-circuits before the listener binds.
+        // Simulate laravel/octane being absent
         FunctionOverrides::set(
             'interface_exists',
             static fn (mixed ...$arguments): bool => is_string($arguments[0]) && $arguments[0] !== OperationTerminated::class && \interface_exists($arguments[0]),
         );
 
-        // Reset the dispatcher so Octane's own OperationTerminated listeners do
-        // not mask the registrar short-circuiting.
+        // Reset the dispatcher so Octane's own listeners cannot mask the result
         Event::swap(new Dispatcher($this->getApplication()));
 
         (new LifecycleRegistrar)->register();
@@ -155,8 +145,7 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the migration invalidation listener is wired when the
-     * migrations lifecycle gate is on.
+     * Test that the migration invalidation listener is wired when enabled.
      *
      * @return void
      */
@@ -177,9 +166,9 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the migration invalidation listener is wired for a config
-     * published before the migrations gate existed, whose lifecycle array lacks
-     * the key.
+     * Test that the migration listener is wired when the gate is unpublished.
+     *
+     * A config published before the gate existed lacks the key.
      *
      * @return void
      */
@@ -200,8 +189,7 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the migration invalidation listener is not wired when the
-     * migrations lifecycle gate is off.
+     * Test that the migration invalidation listener is not wired when disabled.
      *
      * @return void
      */
@@ -222,8 +210,10 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that resolving the migrator binds a cache store that follows the
-     * default connection before the migrator can swap that connection.
+     * Test that resolving the migrator binds the default cache store.
+     *
+     * The store must follow the default connection before the migrator swaps
+     * it.
      *
      * @return void
      */
@@ -242,8 +232,7 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that a migrator resolved before the registrar ran has the default
-     * cache store bound straight away.
+     * Test that an already-resolved migrator gets the store bound at once.
      *
      * @return void
      */
@@ -261,8 +250,7 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the cache store is left to resolve lazily until the migrator is
-     * resolved.
+     * Test that the cache store resolves lazily until the migrator is resolved.
      *
      * @return void
      */
@@ -280,8 +268,7 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the cache store is left to resolve lazily when the migrations
-     * lifecycle gate is off.
+     * Test that the cache store resolves lazily when the gate is off.
      *
      * @return void
      */
@@ -303,8 +290,7 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that an unusable cache store does not stop the migrator resolving,
-     * leaving the listener to report it once the migrations end.
+     * Test that an unusable cache store does not stop the migrator resolving.
      *
      * @return void
      */
@@ -323,12 +309,10 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that a cache store failing with an engine error while it is built
-     * does not stop the migrator resolving.
+     * Test that a cache store failing with an Error does not stop the migrator.
      *
-     * A driver whose dependency is not installed fails as an error rather than
-     * an exception, and binding the store must not turn that into every
-     * migration command, and the command list itself, failing to build.
+     * A driver whose dependency is missing fails as an Error, which must not
+     * break every migration command and the command list.
      *
      * @return void
      */
@@ -351,8 +335,7 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that an off-state diagnostic is logged when serving under Octane but
-     * the lifecycle flush is opted-out.
+     * Test that an off-state diagnostic is logged under Octane when opted out.
      *
      * @return void
      */
@@ -377,8 +360,7 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that an off-state diagnostic is logged when serving as a queue
-     * worker but the lifecycle flush is opted-out.
+     * Test that an off-state diagnostic is logged on a worker when opted out.
      *
      * @return void
      */
@@ -414,9 +396,10 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that no off-state diagnostic is logged under php-fpm even when the
-     * default queue driver is non-sync: a web request is not a worker, so the
-     * flush opt-out must stay silent.
+     * Test that no off-state diagnostic is logged under php-fpm.
+     *
+     * A web request is not a worker, even when the default queue driver is
+     * non-sync.
      *
      * @return void
      */
@@ -474,8 +457,7 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Determine whether the given event has a listener belonging to the given
-     * subscriber class.
+     * Determine whether the event has a listener from the given subscriber.
      *
      * @param  class-string  $event
      * @param  class-string  $subscriber
@@ -502,8 +484,9 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Point the default cache store at a database store that names no
-     * connection, beside a second connection the default can be swapped to.
+     * Point the default cache store at a connection-less database store.
+     *
+     * A second connection is defined for the default to be swapped to.
      *
      * @return void
      */

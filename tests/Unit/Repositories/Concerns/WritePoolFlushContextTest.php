@@ -50,8 +50,7 @@ final class WritePoolFlushContextTest extends TestCase
     }
 
     /**
-     * Test that a chunk index provided to the constructor is exposed by the
-     * accessor.
+     * Test that the constructor chunk index is exposed by the accessor.
      *
      * @return void
      */
@@ -64,9 +63,7 @@ final class WritePoolFlushContextTest extends TestCase
     }
 
     /**
-     * Test that withChunkIndex returns a new instance carrying the given chunk
-     * index while preserving every other field and leaving the original
-     * untouched.
+     * Test that withChunkIndex returns a modified copy.
      *
      * @return void
      */

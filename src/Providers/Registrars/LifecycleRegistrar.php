@@ -19,10 +19,6 @@ use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 /**
  * Registers the toolkit lifecycle listeners.
  *
- * Subscribes the write pool flush subscriber, the Octane flush listener, the
- * queue flush subscriber, and the migration invalidation listener to their
- * lifecycle events, honouring the configured gates.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -87,11 +83,8 @@ final class LifecycleRegistrar
     /**
      * Register the migration invalidation listener if configured.
      *
-     * The migrator makes the connection being migrated the default for as long
-     * as it runs, and the listener fires inside that window. A cache store that
-     * follows the default connection is therefore bound as soon as the migrator
-     * is resolved, before it can swap connections, so the invalidation lands in
-     * the store every serving process reads.
+     * The migrator swaps the default connection while it runs, so the cache
+     * store is bound first to keep the invalidation in the serving store.
      *
      * @return void
      */
@@ -125,17 +118,13 @@ final class LifecycleRegistrar
         try {
             Cache::store();
         } catch (\Throwable) {
-            // The listener reports an unusable store once the migrations end.
+            // The listener reports an unusable store once the migrations end
         }
     }
 
     /**
-     * Emit a boot-time informational log when a serving runtime is detected but
-     * the corresponding lifecycle flush is opted-out, so the off state is
-     * observable rather than silent.
-     *
-     * Under php-fpm both runtime checks return false (no Octane marker, no
-     * worker command) and nothing is logged.
+     * Log at boot when a serving runtime is detected but its lifecycle flush is
+     * disabled.
      *
      * @return void
      */

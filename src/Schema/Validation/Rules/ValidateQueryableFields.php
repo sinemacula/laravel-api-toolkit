@@ -14,44 +14,14 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 /**
  * Validate that filterable and sortable declarations name a backing column.
  *
- * A filter or sort is emitted as a clause against the declared column name, so
- * a declaration with nothing behind that name fails at request time with a
- * database error. The declaration is proved from whichever source can answer
- * it. Two defects are provable from the schema alone: a computed field, which
- * has no column at all, and a field whose accessor reads a different path from
- * the one it declares. The rest is proved against the table, which is the only
- * authority on whether a column exists - a closure accessor reads a path this
- * rule cannot resolve, and a scalar field names a column nothing in the
- * resource contradicts.
- *
- * A column listing that comes back empty is the connection saying nothing
- * rather than saying the table is bare, since no table carries no columns, so a
- * boot with no database behind it, or one whose migrations have not run, proves
- * nothing and the rule stays silent for it. A listing that was read and does
- * not name the column has proved the declaration wrong. The listing is read
- * during validation and cached from there, so proving a declaration costs the
- * request path nothing.
- *
- * The comparison against the listing is exact. The emitted clause quotes the
- * column as it was declared, and an engine treating a quoted identifier as
- * case-sensitive resolves nothing else, so a spelling the table does not carry
- * is a defect rather than a difference.
- *
- * A filterable declaration carrying no capability is reported for a different
- * reason: the compiled surface drops the column, so the resource would present
- * a filterable field every filter on which is refused as unpermitted. The field
- * builder cannot produce that shape, since it takes the capability with the
- * declaration, but a schema written as a raw array can. Two fields declaring
- * one column with different capabilities are reported for the same kind of
- * reason: that surface is keyed by column, so the declaration compiled last
- * would quietly decide what the column answers.
+ * Column matching is exact, since quoted identifiers may be case-sensitive.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class ValidateQueryableFields implements SchemaValidationRule
 {
-    /** @var string The declaration a capability belongs to, and so the one this rule weighs it against */
+    /** @var string The declaration a capability belongs to */
     private const string FILTERABLE = 'filterable';
 
     /**
@@ -111,14 +81,9 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
     }
 
     /**
-     * Return the defect carried by each field declaring a capability another
-     * field already declared for the same column, keyed by field key.
+     * Return the capability conflicts between fields sharing a column, by key.
      *
-     * The filter surface is keyed by column, so two fields declaring one column
-     * with different capabilities leave a single entry decided by whichever was
-     * compiled last, silently widening or narrowing what the column answers. A
-     * field is only in conflict with one that declares something else: an alias
-     * repeating the same capability names the same surface.
+     * An alias repeating the same capability is not a conflict.
      *
      * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition>  $declared
      * @return array<string, string>
@@ -160,8 +125,7 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
     }
 
     /**
-     * Return the fields carrying a filterable or sortable declaration, keyed by
-     * field key.
+     * Return the fields declaring a filterable or sortable column, by key.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition>
@@ -185,8 +149,7 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
     }
 
     /**
-     * Resolve the model behind the resource, or null where the mapped class is
-     * not an Eloquent model and has no table to read.
+     * Resolve the model behind the resource, or null when it is not a model.
      *
      * @param  string|null  $modelClass
      * @return \Illuminate\Database\Eloquent\Model|null
@@ -232,8 +195,7 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
     }
 
     /**
-     * Describe what a declaration is missing, or return null where a column
-     * backs it.
+     * Describe what a declaration is missing, or null when a column backs it.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  string  $declaration
@@ -247,7 +209,7 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
         $dropped = $declaration === self::FILTERABLE && $field->filterCapability === null;
         $source  = $this->resourceSource($field, $column);
 
-        // An empty listing is the connection saying nothing, not saying bare.
+        // An empty listing means the columns are unknown
         $unbacked = $columns !== [] && !in_array($column, $columns, true);
 
         return match (true) {
@@ -259,9 +221,7 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
     }
 
     /**
-     * Name how the resource produces the field's value where it produces it
-     * rather than reading the declared column, or return null where the schema
-     * alone cannot say the column is missing.
+     * Name how the resource derives the value, or null when it may be a column.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  string  $column

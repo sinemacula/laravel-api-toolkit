@@ -48,7 +48,7 @@ final class SearchStrategyTest extends TestCase
 
     /**
      * Test that the enum declares exactly the three match shapes the package
-     * serves, so a fourth cannot arrive without a driver being taught it.
+     * serves.
      *
      * @return void
      */
@@ -73,8 +73,7 @@ final class SearchStrategyTest extends TestCase
     }
 
     /**
-     * Test that every strategy but the equality one matches by pattern, so the
-     * term it is given has to be escaped.
+     * Test that every strategy but equality matches by pattern.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @param  bool  $expected

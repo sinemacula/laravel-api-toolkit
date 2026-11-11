@@ -24,13 +24,6 @@ use Tests\TestCase;
 /**
  * Query-bound guard for a three-level nested field selection.
  *
- * Drives the eager-load planner across users -> posts -> tags, then serialises
- * the collection under a query log. The count must be a small constant (one
- * query per level, batched) and identical for a small and a large row count:
- * were the third level loaded per row, the count would scale with the rows. The
- * tags are asserted to have hydrated so a constant count cannot mean the
- * deepest level simply never loaded.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -60,9 +53,7 @@ final class DeepNestingQueryBoundTest extends TestCase
     {
         parent::setUp();
 
-        // These assertions measure query shape and call counts; pin column
-        // narrowing off so the on-by-default narrowing metadata pass cannot
-        // skew them (narrowing behaviour has its own dedicated coverage).
+        // Narrowing adds a metadata pass that would skew the query counts
         Config::set('api-toolkit.resources.narrow_columns', false);
 
         $this->tagIds = [
@@ -76,8 +67,7 @@ final class DeepNestingQueryBoundTest extends TestCase
     }
 
     /**
-     * The three-level fetch-and-serialise count is constant regardless of row
-     * count, proving the tag level is batched rather than loaded per row.
+     * Test that the three-level query count is constant across row counts.
      *
      * @return void
      *
@@ -92,8 +82,7 @@ final class DeepNestingQueryBoundTest extends TestCase
         /** @var \Tests\Fixtures\Models\Organization $organization */
         $organization = Organization::query()->firstOrFail();
 
-        // Grow the result set an order of magnitude; a per-row load of the
-        // deepest level would scale the query count with these extra rows.
+        // A per-row load of the deepest level would scale with these rows
         $this->seedUsers(45, $organization->id, 5);
 
         $large = $this->fetchAndSerialise();
@@ -101,8 +90,7 @@ final class DeepNestingQueryBoundTest extends TestCase
         self::assertSame($small['queries'], $large['queries']);
         self::assertSame(self::EXPECTED_QUERIES, $large['queries']);
 
-        // Prove every level hydrated, so the constant count reflects batched
-        // eager loading rather than the deepest relation never loading.
+        // Every level hydrated, so the constant count is not an empty load
         self::assertNotEmpty($large['first']['posts']);
 
         $firstPost = $large['first']['posts'][0];
@@ -112,17 +100,13 @@ final class DeepNestingQueryBoundTest extends TestCase
         self::assertNotEmpty($firstPost['tags']);
         self::assertArrayHasKey('name', $firstPost['tags'][0]);
 
-        // The user resource declares default count and sum metrics, but this
-        // request asks for neither, so no metric block may leak into the
-        // response - the schema gate must not run a payload the client did not
-        // request.
+        // Default metrics the request did not ask for must not leak
         self::assertArrayNotHasKey('counts', $large['first']);
         self::assertArrayNotHasKey('sums', $large['first']);
     }
 
     /**
-     * Fetch the seeded users through the criteria chain and serialise them
-     * under a query log, returning the query count and the decoded record.
+     * Fetch and serialise the users under a query log.
      *
      * @return array{queries: int, first: array<string, mixed>}
      *
@@ -150,8 +134,7 @@ final class DeepNestingQueryBoundTest extends TestCase
     }
 
     /**
-     * Parse a user request declaring the nested users -> posts -> tags field
-     * selection so the planner recurses all three levels.
+     * Parse a request selecting users -> posts -> tags so the planner recurses.
      *
      * @return void
      */
@@ -187,8 +170,7 @@ final class DeepNestingQueryBoundTest extends TestCase
     }
 
     /**
-     * Seed the given number of users, each with two posts, each post carrying
-     * the shared tag pool.
+     * Seed users, each with two posts carrying the shared tag pool.
      *
      * @param  int  $count
      * @param  int  $organizationId

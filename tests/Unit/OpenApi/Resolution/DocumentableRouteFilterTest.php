@@ -69,8 +69,7 @@ final class DocumentableRouteFilterTest extends TestCase
     }
 
     /**
-     * Test that a config override adds a prefix and replaces the built-in
-     * default rather than merging with it.
+     * Test that a config override replaces the built-in default prefixes.
      *
      * @return void
      */
@@ -83,8 +82,7 @@ final class DocumentableRouteFilterTest extends TestCase
     }
 
     /**
-     * Test that a prefix matches only on a namespace boundary, so 'Illuminate\'
-     * never excludes a class merely sharing the leading characters.
+     * Test that a prefix matches only on a namespace boundary.
      *
      * @return void
      */
@@ -94,8 +92,7 @@ final class DocumentableRouteFilterTest extends TestCase
     }
 
     /**
-     * Test that a prefix without a trailing separator still matches on its
-     * boundary rather than as a bare string prefix.
+     * Test that a prefix without a trailing separator matches its boundary.
      *
      * @return void
      */
@@ -118,8 +115,7 @@ final class DocumentableRouteFilterTest extends TestCase
     }
 
     /**
-     * Test that a non-closure handler with no controller degrades to keeping
-     * the route without throwing.
+     * Test that a non-closure handler without a controller is kept.
      *
      * @return void
      */
@@ -129,8 +125,7 @@ final class DocumentableRouteFilterTest extends TestCase
     }
 
     /**
-     * Test that an empty configured blocklist documents everything, including a
-     * class that the built-in default would have excluded.
+     * Test that an empty configured blocklist documents everything.
      *
      * @return void
      */
@@ -142,8 +137,7 @@ final class DocumentableRouteFilterTest extends TestCase
     }
 
     /**
-     * Test that a string function-name handler is never reflected, so its
-     * declaring namespace cannot exclude the route.
+     * Test that a string function-name handler is never reflected.
      *
      * @return void
      */
@@ -159,8 +153,7 @@ final class DocumentableRouteFilterTest extends TestCase
     }
 
     /**
-     * Test that a blocklist entry of nothing but the namespace separator
-     * matches no class at all, rather than excluding every root-qualified one.
+     * Test that a lone namespace separator entry matches no class.
      *
      * @return void
      */
@@ -173,8 +166,7 @@ final class DocumentableRouteFilterTest extends TestCase
     }
 
     /**
-     * Test that a blocklist configured as something other than an array is
-     * discarded whole, falling back to the built-in default.
+     * Test that a non-array blocklist falls back to the built-in default.
      *
      * @return void
      */
@@ -187,8 +179,7 @@ final class DocumentableRouteFilterTest extends TestCase
     }
 
     /**
-     * Test that a stringable prefix in the configured blocklist excludes a
-     * matching class, proving each entry is cast to a string before use.
+     * Test that a stringable blocklist prefix is cast to a string.
      *
      * @return void
      */
