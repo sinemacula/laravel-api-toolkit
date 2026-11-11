@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
@@ -59,127 +60,63 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that subscribe registers a listener for RequestHandled.
+     * Test that subscribe registers a listener for each lifecycle end event.
      *
+     * @param  class-string  $event
      * @return void
      */
-    public function testSubscribeRegistersListenerForRequestHandled(): void
+    #[DataProvider('lifecycleEventProvider')]
+    public function testSubscribeRegistersListenerForLifecycleEvent(string $event): void
     {
         self::assertNotNull($this->app);
 
-        $events     = new Dispatcher;
-        $subscriber = new WritePoolFlushSubscriber($this->app);
+        $events = new Dispatcher;
 
-        $subscriber->subscribe($events);
+        (new WritePoolFlushSubscriber($this->app))->subscribe($events);
 
-        self::assertTrue($events->hasListeners(RequestHandled::class));
+        self::assertTrue($events->hasListeners($event));
     }
 
     /**
-     * Test that subscribe registers a listener for CommandFinished.
+     * Provide the lifecycle end events the subscriber listens for.
      *
-     * @return void
+     * @return iterable<string, array{class-string}>
      */
-    public function testSubscribeRegistersListenerForCommandFinished(): void
+    public static function lifecycleEventProvider(): iterable
     {
-        self::assertNotNull($this->app);
-
-        $events     = new Dispatcher;
-        $subscriber = new WritePoolFlushSubscriber($this->app);
-
-        $subscriber->subscribe($events);
-
-        self::assertTrue($events->hasListeners(CommandFinished::class));
+        yield 'request handled' => [RequestHandled::class];
+        yield 'command finished' => [CommandFinished::class];
+        yield 'job processed' => [JobProcessed::class];
+        yield 'job failed' => [JobFailed::class];
     }
 
     /**
-     * Test that subscribe registers a listener for JobProcessed.
+     * Test that dispatching a lifecycle end event flushes the pool.
      *
+     * @param  \Closure(): object  $event
      * @return void
      */
-    public function testSubscribeRegistersListenerForJobProcessed(): void
+    #[DataProvider('lifecycleEventInstanceProvider')]
+    public function testDispatchingLifecycleEventFlushesThePool(\Closure $event): void
     {
-        self::assertNotNull($this->app);
+        [$events, $pool] = $this->subscribeWithPooledRow('lifecycle@example.com');
 
-        $events     = new Dispatcher;
-        $subscriber = new WritePoolFlushSubscriber($this->app);
-
-        $subscriber->subscribe($events);
-
-        self::assertTrue($events->hasListeners(JobProcessed::class));
-    }
-
-    /**
-     * Test that subscribe registers a listener for JobFailed.
-     *
-     * @return void
-     */
-    public function testSubscribeRegistersListenerForJobFailed(): void
-    {
-        self::assertNotNull($this->app);
-
-        $events     = new Dispatcher;
-        $subscriber = new WritePoolFlushSubscriber($this->app);
-
-        $subscriber->subscribe($events);
-
-        self::assertTrue($events->hasListeners(JobFailed::class));
-    }
-
-    /**
-     * Test that dispatching RequestHandled flushes the pool.
-     *
-     * @return void
-     */
-    public function testDispatchingRequestHandledFlushesThePool(): void
-    {
-        [$events, $pool] = $this->subscribeWithPooledRow('request@example.com');
-
-        $events->dispatch(new RequestHandled(Request::create('/test', 'GET'), new Response));
+        $events->dispatch($event());
 
         self::assertTrue($pool->isEmpty());
     }
 
     /**
-     * Test that dispatching CommandFinished flushes the pool.
+     * Provide a factory for each lifecycle end event.
      *
-     * @return void
+     * @return iterable<string, array{\Closure(): object}>
      */
-    public function testDispatchingCommandFinishedFlushesThePool(): void
+    public static function lifecycleEventInstanceProvider(): iterable
     {
-        [$events, $pool] = $this->subscribeWithPooledRow('command@example.com');
-
-        $events->dispatch(new CommandFinished('test:command', new ArrayInput([]), new NullOutput, 0));
-
-        self::assertTrue($pool->isEmpty());
-    }
-
-    /**
-     * Test that dispatching JobProcessed flushes the pool.
-     *
-     * @return void
-     */
-    public function testDispatchingJobProcessedFlushesThePool(): void
-    {
-        [$events, $pool] = $this->subscribeWithPooledRow('job@example.com');
-
-        $events->dispatch(new JobProcessed('sync', self::createStub(Job::class)));
-
-        self::assertTrue($pool->isEmpty());
-    }
-
-    /**
-     * Test that dispatching JobFailed flushes the pool.
-     *
-     * @return void
-     */
-    public function testDispatchingJobFailedFlushesThePool(): void
-    {
-        [$events, $pool] = $this->subscribeWithPooledRow('failed-job@example.com');
-
-        $events->dispatch(new JobFailed('sync', self::createStub(Job::class), new \RuntimeException('Job failure')));
-
-        self::assertTrue($pool->isEmpty());
+        yield 'request handled' => [static fn (): object => new RequestHandled(Request::create('/test', 'GET'), new Response)];
+        yield 'command finished' => [static fn (): object => new CommandFinished('test:command', new ArrayInput([]), new NullOutput, 0)];
+        yield 'job processed' => [static fn (): object => new JobProcessed('sync', self::createStub(Job::class))];
+        yield 'job failed' => [static fn (): object => new JobFailed('sync', self::createStub(Job::class), new \RuntimeException('Job failure'))];
     }
 
     /**
