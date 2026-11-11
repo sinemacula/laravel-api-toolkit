@@ -54,8 +54,7 @@ final class WritePoolFlushExceptionTest extends TestCase
     }
 
     /**
-     * Test that flushResult returns the same instance provided to the
-     * constructor.
+     * Test that flushResult returns the same instance given to the constructor.
      *
      * @return void
      */

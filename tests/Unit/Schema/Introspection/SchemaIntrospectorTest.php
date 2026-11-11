@@ -66,8 +66,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumns returns the cached result on a second call without
-     * hitting Schema again.
+     * Test that a second getColumns call is served from cache.
      *
      * @return void
      */
@@ -88,8 +87,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumns serves the instance cache without consulting the
-     * memo cache or the schema again.
+     * Test that getColumns serves the instance cache before the memo or schema.
      *
      * @return void
      */
@@ -112,9 +110,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that an empty column listing is not stored, so a later instance asks
-     * the connection again rather than serving a table that did not exist yet
-     * as columnless for good.
+     * Test that an empty column listing is not stored.
      *
      * @return void
      */
@@ -136,8 +132,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that an empty listing already in the store is read as a miss, so a
-     * listing stored before its table existed is not served back.
+     * Test that a stored empty listing is read as a miss.
      *
      * @return void
      */
@@ -151,9 +146,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a model naming a connection the application cannot build
-     * degrades to nothing rather than failing, as a model on an unreachable
-     * connection does.
+     * Test that a model on an unbuildable connection degrades to nothing.
      *
      * @return void
      */
@@ -172,9 +165,9 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that the schema is keyed by the connection object the model reads
-     * through rather than by its name, so a resolver handing out another
-     * tenant's connection under the same name reads that tenant's schema.
+     * Test that the schema is keyed by the model's connection object.
+     *
+     * A tenancy resolver may reuse one name for another tenant's connection.
      *
      * @return void
      */
@@ -200,8 +193,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumns stores the result in the memo cache under a key
-     * scoped to the model class and the connection it was read from.
+     * Test that getColumns memoises under a model- and connection-scoped key.
      *
      * @return void
      */
@@ -218,8 +210,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumns keeps the cached columns of different models
-     * separate.
+     * Test that getColumns keeps different models' columns separate.
      *
      * @return void
      */
@@ -236,10 +227,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that the column listing is read from the connection the model itself
-     * resolves rather than the default one, and cached under a key naming that
-     * connection, so two models of the same class on different connections
-     * cannot serve each other's answer.
+     * Test that columns are read and cached per the model's own connection.
      *
      * @return void
      */
@@ -256,9 +244,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that one connection name repointed at another tenant's database
-     * inside a single job reads that tenant's schema rather than reusing the
-     * previous tenant's, from the store or from the instance.
+     * Test that a connection repointed mid-job reads the new tenant's schema.
      *
      * @return void
      */
@@ -292,8 +278,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Provide the ways a connection can be repointed while keeping its name and
-     * its database.
+     * Provide ways to repoint a connection keeping its name and database.
      *
      * @return iterable<string, array{0: array<string, string>}>
      */
@@ -304,8 +289,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that the same connection name under another table prefix or search
-     * path keeps its own stored entries and its own instance memo.
+     * Test that a changed prefix or search path keeps its own cache entries.
      *
      * @param  array<string, string>  $change
      * @return void
@@ -345,8 +329,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumnDefinitions returns one ColumnDefinition per column
-     * keyed by column name, carrying its type and nullability.
+     * Test that getColumnDefinitions returns definitions keyed by column name.
      *
      * @return void
      */
@@ -364,8 +347,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumnDefinitions reports a non-nullable column as not
-     * nullable and a nullable column as nullable.
+     * Test that getColumnDefinitions reports each column's nullability.
      *
      * @return void
      */
@@ -381,8 +363,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumnDefinitions normalises the driver type name to lower
-     * case.
+     * Test that getColumnDefinitions lower-cases the driver type name.
      *
      * @return void
      */
@@ -397,8 +378,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumnDefinitions serves the instance cache without
-     * consulting Schema again.
+     * Test that getColumnDefinitions serves the instance cache.
      *
      * @return void
      */
@@ -421,8 +401,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a fresh introspector serves column definitions from the memo
-     * cache populated by an earlier instance, without re-querying the schema.
+     * Test that a fresh introspector serves definitions from the memo cache.
      *
      * @return void
      */
@@ -446,8 +425,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that an empty set of column definitions is not stored, so a later
-     * instance asks the connection again once the table exists.
+     * Test that an empty set of column definitions is not stored.
      *
      * @return void
      */
@@ -472,9 +450,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumnDefinitions stores the result in the memo cache under
-     * a key scoped to the model class and the connection it was read from, as
-     * rows rather than objects.
+     * Test that getColumnDefinitions memoises rows under a scoped key.
      *
      * @return void
      */
@@ -491,8 +467,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that flush clears cached column definitions so the next call
-     * re-queries the schema.
+     * Test that flush clears cached column definitions.
      *
      * @return void
      */
@@ -511,8 +486,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getIndexes returns the indexes the connection reports, carrying
-     * each composite index in the order the connection lists its columns.
+     * Test that getIndexes returns composite indexes in reported column order.
      *
      * @return void
      */
@@ -526,9 +500,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a table the connection reads and finds no index on reports an
-     * empty catalogue rather than an unverifiable one, since an empty answer is
-     * a real answer a declaration can be refused against.
+     * Test that a table with no index reports an empty, verifiable catalogue.
      *
      * @return void
      */
@@ -538,10 +510,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that the index catalogue is read from the connection the model
-     * itself resolves, so a sortable declaration is judged against the table
-     * actually behind the model rather than a same-named table on the default
-     * connection.
+     * Test that the index catalogue is read from the model's own connection.
      *
      * @return void
      */
@@ -554,12 +523,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a connection that cannot be inspected reports null rather than
-     * an empty catalogue, so a boot with no database behind it proves nothing
-     * instead of proving every table indexless.
-     *
-     * The two answers must never be conflated: reading the unverifiable one as
-     * an empty catalogue turns every such boot into a refusal.
+     * Test that an uninspectable connection reports a null catalogue.
      *
      * @return void
      */
@@ -577,12 +541,9 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a table the connection does not carry reports an unverifiable
-     * catalogue rather than an empty one, since an engine answers for a table
-     * that is not there with an empty catalogue rather than an error.
+     * Test that a missing table reports an unverifiable catalogue.
      *
-     * Reading that silence as an answer would refuse every sortable declaration
-     * in an application whose migrations have not run yet.
+     * Engines answer a missing table with an empty catalogue, not an error.
      *
      * @return void
      */
@@ -595,10 +556,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a memoised unverifiable catalogue is served back rather than
-     * resolved again, so a boot against a connection that cannot be reached
-     * pays one failed read for the model rather than one for every resource
-     * mapped to it.
+     * Test that a memoised unverifiable catalogue is served back.
      *
      * @return void
      */
@@ -620,9 +578,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that an unverifiable catalogue is not written to the persistent
-     * cache, so a later run against a live connection resolves the real
-     * indexes.
+     * Test that an unverifiable catalogue is not persisted.
      *
      * @return void
      */
@@ -644,8 +600,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getIndexes stores the result in the memo cache under a key
-     * scoped to the model class and the connection it was read from.
+     * Test that getIndexes memoises under a model- and connection-scoped key.
      *
      * @return void
      */
@@ -661,8 +616,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getIndexes serves the instance cache on a second call without
-     * consulting the schema again.
+     * Test that a second getIndexes call is served from the instance cache.
      *
      * @return void
      */
@@ -685,9 +639,9 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that an empty catalogue is served from the memo cache on a later
-     * instance rather than being read again, since an empty catalogue is a
-     * valid cached result and a miss would be read as unverifiable.
+     * Test that an empty catalogue is served from the memo cache.
+     *
+     * A miss would otherwise be read as unverifiable.
      *
      * @return void
      */
@@ -710,8 +664,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a catalogue entry the connection reports in a shape that cannot
-     * be read is passed over, leaving the readable entries behind it.
+     * Test that an unreadable catalogue entry is skipped, keeping the rest.
      *
      * @return void
      */
@@ -736,8 +689,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that flush clears cached indexes so the next call reads the
-     * catalogue again.
+     * Test that flush clears cached indexes.
      *
      * @return void
      */
@@ -794,8 +746,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation does not attempt to invoke, or log a failure for, a
-     * non-existent method.
+     * Test that isRelation neither invokes nor logs for a missing method.
      *
      * @return void
      */
@@ -837,8 +788,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that parentKeysFor returns the foreign key for a BelongsTo relation
-     * and the local key for a HasOneOrMany relation.
+     * Test that parentKeysFor resolves BelongsTo and HasOneOrMany keys.
      *
      * @return void
      */
@@ -847,17 +797,14 @@ final class SchemaIntrospectorTest extends TestCase
         $introspector = $this->makeIntrospector();
         $user         = new User;
 
-        // BelongsTo resolves to the owning foreign key on the child table.
         self::assertSame(['organization_id'], $introspector->parentKeysFor($user->organization()));
 
-        // HasOne and HasMany (HasOneOrMany) resolve to the parent's local key.
         self::assertSame([$user->getKeyName()], $introspector->parentKeysFor($user->posts()));
         self::assertSame([$user->getKeyName()], $introspector->parentKeysFor($user->profile()));
     }
 
     /**
-     * Test that isRelation returns false for a method with a non-relation
-     * return type.
+     * Test that isRelation returns false for a non-relation return type.
      *
      * @return void
      */
@@ -883,8 +830,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation returns false for a method without a return type
-     * declaration.
+     * Test that isRelation returns false for a method with no return type.
      *
      * @return void
      */
@@ -910,8 +856,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation returns true for a union return type that contains a
-     * Relation subclass.
+     * Test that isRelation returns true for a union containing a Relation.
      *
      * @return void
      */
@@ -937,8 +882,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation returns false for a union return type with no
-     * Relation subclass.
+     * Test that isRelation returns false for a union with no Relation.
      *
      * @return void
      */
@@ -1015,8 +959,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation caches its result under the configured time-to-live
-     * rather than storing it forever, bounding the relation cache key space.
+     * Test that isRelation caches its result under the configured TTL.
      *
      * @return void
      */
@@ -1044,8 +987,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation falls back to the default day-long time-to-live when
-     * the configured value is missing or non-numeric.
+     * Test that isRelation falls back to a day-long TTL for a bad config value.
      *
      * @return void
      */
@@ -1073,8 +1015,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that resolveRelation returns a Relation instance for a valid
-     * relation.
+     * Test that resolveRelation returns a Relation for a valid relation.
      *
      * @return void
      */
@@ -1115,8 +1056,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that the service provider registers SchemaIntrospectionProvider as a
-     * singleton bound to SchemaIntrospector.
+     * Test that the provider binds SchemaIntrospectionProvider as a singleton.
      *
      * @return void
      */
@@ -1130,14 +1070,12 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that flush clears cached columns so the next getColumns call
-     * re-queries the database.
+     * Test that flush clears cached columns.
      *
      * @return void
      */
     public function testFlushClearsColumns(): void
     {
-        // Arrange
         $builder = self::createMock(SchemaBuilder::class);
 
         $builder->expects(self::exactly(2))
@@ -1152,20 +1090,17 @@ final class SchemaIntrospectorTest extends TestCase
 
         self::assertNotEmpty($originalColumns);
 
-        // Act
         $introspector->flush();
         Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
 
         $refreshedColumns = $introspector->getColumns($model);
 
-        // Assert
         self::assertSame(['id', 'name', 'extra_column'], $refreshedColumns);
         self::assertNotSame($originalColumns, $refreshedColumns);
     }
 
     /**
-     * Test that calling flush on a freshly constructed introspector with no
-     * prior calls does not throw an exception.
+     * Test that flushing a fresh introspector does not throw.
      *
      * @return void
      */
@@ -1180,8 +1115,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that resolveRelation returns null and logs a warning when the
-     * relation method throws a LogicException.
+     * Test that resolveRelation returns null and warns on a LogicException.
      *
      * @return void
      */
@@ -1217,8 +1151,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that resolveRelation returns null and logs a warning when the
-     * relation method throws a ReflectionException.
+     * Test that resolveRelation returns null and warns on ReflectionException.
      *
      * @return void
      */
@@ -1252,8 +1185,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that resolveRelation does not catch generic exceptions and allows
-     * them to propagate.
+     * Test that resolveRelation lets generic exceptions propagate.
      *
      * @return void
      */
@@ -1286,8 +1218,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that resolveRelation returns a Relation instance for a dynamically
-     * registered relation.
+     * Test that resolveRelation resolves a dynamically registered relation.
      *
      * @return void
      */
@@ -1310,8 +1241,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getDeletedAtColumn returns null for a model that does not use
-     * SoftDeletes.
+     * Test that getDeletedAtColumn returns null without SoftDeletes.
      *
      * @return void
      */
@@ -1323,8 +1253,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getDeletedAtColumn returns the configured soft-delete column
-     * for a model that uses SoftDeletes.
+     * Test that getDeletedAtColumn returns the configured soft-delete column.
      *
      * @return void
      */
@@ -1370,8 +1299,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that parentKeysFor returns both the morph type and morph id columns
-     * for a MorphTo relation.
+     * Test that parentKeysFor returns both morph columns for MorphTo.
      *
      * @return void
      */
@@ -1392,8 +1320,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that parentKeysFor returns an empty array for an unrecognised
-     * relation type without throwing.
+     * Test that parentKeysFor returns nothing for an unrecognised relation.
      *
      * @return void
      */
@@ -1455,9 +1382,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that column definitions written by one process read back as equal
-     * definitions in the next, from a store that unserializes no class, without
-     * the schema being read again.
+     * Test that column definitions are restored from a class-free store.
      *
      * @return void
      */
@@ -1482,9 +1407,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that an index catalogue written by one process reads back as equal
-     * definitions in the next, from a store that unserializes no class, without
-     * the catalogue being read again.
+     * Test that an index catalogue is restored from a class-free store.
      *
      * @return void
      */
@@ -1525,8 +1448,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that stored column definitions this version cannot read are read
-     * again from the connection and replaced, rather than served.
+     * Test that unreadable stored column definitions are re-read and replaced.
      *
      * @param  mixed  $stale
      * @return void
@@ -1566,8 +1488,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a stored index catalogue this version cannot read is read again
-     * from the connection and replaced, rather than served.
+     * Test that an unreadable stored index catalogue is re-read and replaced.
      *
      * @param  mixed  $stale
      * @return void
@@ -1594,8 +1515,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a column row the connection reports in a shape that cannot be
-     * read is passed over, leaving the readable rows behind it.
+     * Test that an unreadable column row is skipped, keeping the rest.
      *
      * @return void
      */
@@ -1614,8 +1534,9 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation stores its answer keyed by the model class alone,
-     * since a relation is declared in code and reads the same for every tenant.
+     * Test that isRelation caches its answer keyed by model class alone.
+     *
+     * A relation is declared in code, so it reads the same for every tenant.
      *
      * @return void
      */
@@ -1629,8 +1550,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a fresh introspector serves the full multi-column listing from
-     * the memo cache populated by an earlier instance.
+     * Test that a fresh introspector serves a multi-column listing from memo.
      *
      * @return void
      */
@@ -1648,8 +1568,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumnDefinitions lower-cases a driver-reported type name
-     * that arrives in mixed case.
+     * Test that getColumnDefinitions lower-cases a mixed-case type name.
      *
      * @return void
      */
@@ -1671,8 +1590,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that parentKeysFor returns the parent local key for a MorphOneOrMany
-     * relation.
+     * Test that parentKeysFor returns the local key for MorphOneOrMany.
      *
      * @return void
      */
@@ -1688,8 +1606,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that parentKeysFor drops empty key names and reindexes the survivors
-     * into a contiguous list.
+     * Test that parentKeysFor drops empty key names and reindexes the rest.
      *
      * @return void
      */
@@ -1723,9 +1640,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumns degrades to an empty listing when the schema lookup
-     * fails, as happens when no database connection is available, rather than
-     * letting the failure propagate.
+     * Test that getColumns degrades to an empty listing when the lookup fails.
      *
      * @return void
      */
@@ -1743,9 +1658,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a failed getColumns lookup does not write the empty result to
-     * the persistent cache, so a later run with a live connection is able to
-     * resolve the real columns.
+     * Test that a failed getColumns lookup is not persisted.
      *
      * @return void
      */
@@ -1769,9 +1682,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumnDefinitions degrades to an empty set when the schema
-     * lookup fails, as happens when no database connection is available, rather
-     * than letting the failure propagate.
+     * Test that getColumnDefinitions degrades to empty when the lookup fails.
      *
      * @return void
      */
@@ -1789,9 +1700,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a failed getColumnDefinitions lookup does not write the empty
-     * result to the persistent cache, so a later run with a live connection is
-     * able to resolve the real definitions.
+     * Test that a failed getColumnDefinitions lookup is not persisted.
      *
      * @return void
      */
@@ -1815,8 +1724,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Build a model backed by the keyless staging table, which carries no
-     * primary key and no index.
+     * Build a model over the keyless staging table, which has no index.
      *
      * @return \Illuminate\Database\Eloquent\Model
      */
@@ -1826,8 +1734,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Return the columns the named index covers, or null when the catalogue
-     * carries no index of that name.
+     * Return the named index's columns, or null when it is absent.
      *
      * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>  $indexes
      * @param  string  $name
@@ -1846,9 +1753,9 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Build a model bound to a second connection carrying a table of the same
-     * name as the default one, so a read that ignores the model's connection
-     * resolves the wrong catalogue rather than failing outright.
+     * Build a model on a second connection with a same-named table.
+     *
+     * A read ignoring the model's connection then reads the wrong catalogue.
      *
      * @return \Illuminate\Database\Eloquent\Model
      */
@@ -1872,8 +1779,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Create a tenant database file holding a widgets table, and an
-     * other_widgets table for a prefixed read, built by the given definition.
+     * Create a tenant database file with widgets and other_widgets tables.
      *
      * @param  \Closure(\Illuminate\Database\Schema\Blueprint): void  $definition
      * @return string
@@ -1898,8 +1804,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Point the tenant connection at the given configuration, the way a tenancy
-     * switcher does between jobs.
+     * Repoint the tenant connection, as a tenancy switcher does between jobs.
      *
      * @param  array<string, string>  $config
      * @return void
@@ -1922,9 +1827,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Build a model whose connection reads its catalogue from the given schema
-     * builder, so a test can pin what the connection reports and how often it
-     * is asked.
+     * Build a model reading its catalogue through the given schema builder.
      *
      * @param  \Illuminate\Database\Schema\Builder&\PHPUnit\Framework\MockObject\MockObject  $builder
      * @return \Illuminate\Database\Eloquent\Model
@@ -1939,8 +1842,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Build a model reading the widgets table through the given connection
-     * object, however it was built.
+     * Build a model reading the widgets table through the given connection.
      *
      * @param  \Illuminate\Database\Connection  $connection
      * @return \Illuminate\Database\Eloquent\Model
@@ -1973,8 +1875,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Build a connection named tenant over the given database file without
-     * registering it, the way a custom tenancy resolver hands one out.
+     * Build an unregistered tenant connection over the given database file.
      *
      * @param  string  $database
      * @return \Illuminate\Database\Connection
@@ -1985,8 +1886,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Drop this process's memoised store, so the next read is served from the
-     * shared store as another process would see it.
+     * Drop this process's memoised store so reads hit the shared store.
      *
      * @return void
      */
@@ -1998,8 +1898,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Write a value straight to the default store, as an earlier version of the
-     * toolkit left it, without announcing the write.
+     * Write a value directly to the default store, as an older toolkit left it.
      *
      * @param  string  $key
      * @param  mixed  $value
@@ -2026,8 +1925,7 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Resolve a schema introspector with its dependencies wired from the
-     * container.
+     * Resolve a schema introspector from the container.
      *
      * @return \SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector
      */

@@ -20,11 +20,7 @@ use Tests\Fixtures\Support\UnreachableCacheStore;
 use Tests\TestCase;
 
 /**
- * Tests for the MetadataCacheWriter chokepoint.
- *
- * The metadata cache is optional: a store that throws or rejects a write is
- * reported once and bypassed for the retry window, so values are computed
- * without the cache rather than failing the caller.
+ * Tests for the MetadataCacheWriter.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -62,20 +58,16 @@ final class MetadataCacheWriterTest extends TestCase
     }
 
     /**
-     * Test that rememberMetadataForever returns the value produced by the
-     * callback.
+     * Test that rememberMetadataForever returns the callback's value.
      *
      * @return void
      */
     public function testRememberMetadataForeverReturnsTheCallbackValue(): void
     {
-        // Arrange
         $writer = new MetadataCacheWriter(new MetadataGeneration);
 
-        // Act
         $value = $writer->rememberMetadataForever('test-key', fn () => 'expected-value');
 
-        // Assert
         self::assertSame('expected-value', $value);
     }
 
@@ -86,20 +78,17 @@ final class MetadataCacheWriterTest extends TestCase
      */
     public function testRememberMetadataForeverWritesToTheMemoStore(): void
     {
-        // Arrange
         $writer = new MetadataCacheWriter(new MetadataGeneration);
         $key    = 'memo-store-key';
 
-        // Act
         $writer->rememberMetadataForever($key, fn () => 'stored-value');
 
-        // Assert
         self::assertSame('stored-value', Cache::memo()->get($writer->storageKey($key)));
     }
 
     /**
-     * Test that rememberMetadataForever serves a value another process already
-     * stored under the current generation without running the callback.
+     * Test that rememberMetadataForever serves a value already stored under the
+     * current generation without running the callback.
      *
      * @return void
      */
@@ -124,7 +113,7 @@ final class MetadataCacheWriterTest extends TestCase
 
     /**
      * Test that readMetadata serves a value another process wrote under the
-     * current generation, which is what lets every worker share the store.
+     * current generation.
      *
      * @return void
      */
@@ -153,7 +142,7 @@ final class MetadataCacheWriterTest extends TestCase
 
     /**
      * Test that readMetadata does not serve a value stored under the bare
-     * metadata key, since only the generation-namespaced key is current.
+     * metadata key.
      *
      * @return void
      */
@@ -165,12 +154,7 @@ final class MetadataCacheWriterTest extends TestCase
     }
 
     /**
-     * Test that a value stored as an empty array reads back as itself rather
-     * than as absence.
-     *
-     * An empty listing is a real answer about a table, so reading it as a miss
-     * would send every reader back to the connection for something already
-     * settled.
+     * Test that a value stored as an empty array is not read as absence.
      *
      * @return void
      */
@@ -244,8 +228,8 @@ final class MetadataCacheWriterTest extends TestCase
     }
 
     /**
-     * Test that storeMetadataForever touches nothing further and reports once
-     * when the generation cannot be read from an unreachable store.
+     * Test that storeMetadataForever reports an unreachable store once, at the
+     * generation read.
      *
      * @return void
      */
@@ -288,8 +272,7 @@ final class MetadataCacheWriterTest extends TestCase
     }
 
     /**
-     * Test that the decoder is not given an absent value, so absence reads as
-     * the caller's own answer whatever the decoder would make of nothing.
+     * Test that the decoder is not given an absent value.
      *
      * @return void
      */
@@ -305,13 +288,10 @@ final class MetadataCacheWriterTest extends TestCase
      */
     public function testRememberMetadataReturnsTheCallbackValue(): void
     {
-        // Arrange
         $writer = new MetadataCacheWriter(new MetadataGeneration);
 
-        // Act
         $value = $writer->rememberMetadata('ttl-key', fn () => 'expected-value', 3600);
 
-        // Assert
         self::assertSame('expected-value', $value);
     }
 
@@ -322,26 +302,21 @@ final class MetadataCacheWriterTest extends TestCase
      */
     public function testRememberMetadataWritesToTheMemoStore(): void
     {
-        // Arrange
         $writer = new MetadataCacheWriter(new MetadataGeneration);
         $key    = 'ttl-memo-store-key';
 
-        // Act
         $writer->rememberMetadata($key, fn () => 'stored-value', 3600);
 
-        // Assert
         self::assertSame('stored-value', Cache::memo()->get($writer->storageKey($key)));
     }
 
     /**
-     * Test that rememberMetadata passes the given time-to-live through to the
-     * underlying store rather than storing the value forever.
+     * Test that rememberMetadata passes the given time-to-live to the store.
      *
      * @return void
      */
     public function testRememberMetadataPassesTheTtlToTheStore(): void
     {
-        // Arrange
         $writer     = new MetadataCacheWriter(new MetadataGeneration);
         $storageKey = $writer->storageKey('ttl-passthrough-key');
 
@@ -359,16 +334,13 @@ final class MetadataCacheWriterTest extends TestCase
             ->twice()
             ->andReturn($repository);
 
-        // Act
         $value = $writer->rememberMetadata('ttl-passthrough-key', fn () => 'value', 1234);
 
-        // Assert
         self::assertSame('value', $value);
     }
 
     /**
-     * Test that the stored key carries the current generation, so the same
-     * metadata key lands somewhere else once the generation moves on.
+     * Test that the stored key carries the current generation.
      *
      * @return void
      */
@@ -491,8 +463,8 @@ final class MetadataCacheWriterTest extends TestCase
     }
 
     /**
-     * Test that a write the store rejects is reported once a window without
-     * bypassing the store, which may still serve its warm entries.
+     * Test that a rejected write is reported once a window without bypassing
+     * the store, which may still serve its warm entries.
      *
      * @return void
      */
@@ -555,8 +527,7 @@ final class MetadataCacheWriterTest extends TestCase
     }
 
     /**
-     * Test that the null store's rejected writes are not reported, since it
-     * rejects every write by design.
+     * Test that the null store's rejected writes are not reported.
      *
      * @return void
      */
@@ -572,7 +543,7 @@ final class MetadataCacheWriterTest extends TestCase
 
     /**
      * Test that a time-to-live of zero or less stores nothing and touches no
-     * store, rather than reading as a rejected write.
+     * store.
      *
      * @return void
      */
@@ -739,8 +710,7 @@ final class MetadataCacheWriterTest extends TestCase
     }
 
     /**
-     * Test that the store is bypassed for the retry window once it fails, so an
-     * outage is reported once rather than on every call.
+     * Test that the store is bypassed for the retry window once it fails.
      *
      * @return void
      */
@@ -837,8 +807,7 @@ final class MetadataCacheWriterTest extends TestCase
     }
 
     /**
-     * Test that a lifecycle flush does not end the retry window, so a
-     * long-lived worker does not retry and re-report on every request.
+     * Test that a lifecycle flush does not end the retry window.
      *
      * @return void
      */

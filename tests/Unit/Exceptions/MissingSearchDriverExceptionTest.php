@@ -20,9 +20,8 @@ use SineMacula\ApiToolkit\Exceptions\MissingSearchDriverException;
 final class MissingSearchDriverExceptionTest extends TestCase
 {
     /**
-     * Test that the exception extends RuntimeException, so an absent driver is
-     * an operational failure rather than a client error rendered as a
-     * rejection.
+     * Test that the exception extends RuntimeException, as an absent driver is
+     * an operational failure.
      *
      * @return void
      */

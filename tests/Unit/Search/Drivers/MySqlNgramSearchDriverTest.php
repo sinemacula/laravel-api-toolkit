@@ -19,14 +19,7 @@ use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
 /**
- * Tests for the MySqlNgramSearchDriver.
- *
- * The predicates are compiled against a MySQL grammar the suite never connects
- * to, so the emitted clause and its bindings are asserted here whatever engine
- * the suite is running against; that the engine answers them from an index is
- * proven by the driver-gated integration suite. The index proof is driven from
- * a stubbed catalogue, so every arrangement it has to refuse is exercised
- * without one being created first.
+ * Tests for the MySqlNgramSearchDriver against an unconnected MySQL grammar.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -93,8 +86,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the driver implements every match strategy, so no declaration
-     * is refused for a shape MySQL can serve.
+     * Test that the driver implements every match strategy.
      *
      * @return void
      */
@@ -104,8 +96,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the driver claims it can prove index backing, so a declaration
-     * it serves is checked against the live schema.
+     * Test that the driver claims it can prove index backing.
      *
      * @return void
      */
@@ -119,8 +110,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an anywhere-match declared on its own is accepted, since one
-     * match over the declared columns keeps the full-text access path.
+     * Test that an anywhere-match declared on its own is accepted.
      *
      * @return void
      */
@@ -130,9 +120,9 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the strategies an ordinary index serves are accepted together,
-     * since the engine combines their bitmaps rather than losing the index to
-     * the disjunction.
+     * Test that the strategies an ordinary index serves are accepted together.
+     *
+     * The engine merges their index reads for the OR instead of scanning.
      *
      * @return void
      */
@@ -142,9 +132,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an anywhere-match declared beside another strategy is refused
-     * with the whole reason, since a full-text match OR-ed with any other
-     * predicate reads the whole table.
+     * Test that an anywhere-match declared beside another strategy is refused.
      *
      * @return void
      */
@@ -158,8 +146,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an equality match is emitted as a plain comparison against the
-     * qualified column, which an ordinary index answers.
+     * Test that an equality match is a plain comparison on the column.
      *
      * @return void
      */
@@ -172,8 +159,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a prefix match is emitted as a trailing-wildcard comparison
-     * naming the escape character the term was escaped with.
+     * Test that a prefix match is a trailing-wildcard comparison.
      *
      * @return void
      */
@@ -186,8 +172,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that every prefix column contributes its own comparison, which the
-     * engine reads as a range on each index and combines.
+     * Test that every prefix column contributes its own comparison.
      *
      * @return void
      */
@@ -203,10 +188,9 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that every value bound to the statement keeps a placeholder of its
-     * own once the quoted literals are read out of it, since a literal left
-     * open swallows the placeholder of the clause beside it and leaves the
-     * value it stood for with nothing to bind to.
+     * Test that every binding keeps a placeholder of its own.
+     *
+     * A quoted literal left open would swallow the placeholder beside it.
      *
      * @return void
      */
@@ -224,9 +208,9 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an anywhere-match is emitted as a boolean-mode match binding
-     * the term as a quoted phrase, which is the only form the n-gram parser
-     * answers as a substring rather than as a bag of character pairs.
+     * Test that an anywhere-match is a boolean-mode match on a quoted phrase.
+     *
+     * Only a phrase makes the n-gram parser match a substring, not loose pairs.
      *
      * @return void
      */
@@ -239,9 +223,9 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that every declared column is matched through one match over the
-     * whole set rather than through a match each, since two matches OR-ed
-     * together lose the access path the index exists to provide.
+     * Test that every declared column is matched through one match.
+     *
+     * Two matches OR-ed together lose the full-text access path.
      *
      * @return void
      */
@@ -257,9 +241,8 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a full-text index over the declared column list, created with
-     * the n-gram parser, proves an anywhere-match, and that it is found among
-     * the several indexes a real table carries.
+     * Test that an n-gram full-text index over the declared columns proves an
+     * anywhere-match.
      *
      * @return void
      */
@@ -278,9 +261,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the index is matched by the set of columns it covers rather
-     * than by their sequence, since the engine resolves a match the same way
-     * whichever order the match names them in.
+     * Test that the index is matched by its column set, not their order.
      *
      * @return void
      */
@@ -295,8 +276,9 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the parser and the token size are read from the connection,
-     * since neither is reported by the information schema.
+     * Test that the token size and the table definition are read in turn.
+     *
+     * The information schema reports neither the parser nor the token size.
      *
      * @return void
      */
@@ -310,9 +292,9 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the token size and the table definition are read from the
-     * primary rather than a read replica, so they describe the same server as
-     * the index states and a shared answer describes one endpoint.
+     * Test that the token size and table definition are read from the primary.
+     *
+     * The index states are read there too, so both describe one server.
      *
      * @return void
      */
@@ -327,8 +309,8 @@ final class MySqlNgramSearchDriverTest extends TestCase
 
     /**
      * Test that a full-text index created with the default parser is refused.
-     * It indexes whole words, so a term inside a longer word matches nothing -
-     * a wrong answer rather than a slow one.
+     *
+     * It indexes whole words, so a term inside a longer word matches nothing.
      *
      * @return void
      */
@@ -347,8 +329,9 @@ final class MySqlNgramSearchDriverTest extends TestCase
 
     /**
      * Test that a full-text index covering more than the declared columns is
-     * refused, since MySQL resolves a match only against an index whose column
-     * list is exactly the matched one.
+     * refused.
+     *
+     * MySQL only uses an index whose column list is exactly the matched one.
      *
      * @return void
      */
@@ -366,9 +349,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a full-text index over one of the declared columns does not
-     * prove the set, and that the defect is reported against every column in
-     * it, since the whole set is matched as a unit.
+     * Test that an index over part of the declared columns proves none of them.
      *
      * @return void
      */
@@ -389,8 +370,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an ordinary index does not prove an anywhere-match, whatever it
-     * covers.
+     * Test that an ordinary index does not prove an anywhere-match.
      *
      * @return void
      */
@@ -405,10 +385,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a server tokenising n-grams longer than the shortest word a
-     * term may carry is reported, since an accepted term would produce no
-     * tokens and come back as an empty result indistinguishable from a genuine
-     * no-match.
+     * Test that a token size longer than the minimum word length is reported.
      *
      * @return void
      */
@@ -428,8 +405,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a token size equal to the shortest accepted word is accepted,
-     * so the bound is exercised at exactly the limit as well as one beyond it.
+     * Test that a token size equal to the minimum word length is accepted.
      *
      * @return void
      */
@@ -445,8 +421,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a connection reporting no token size is reported rather than
-     * read as a token size small enough, since the proof was not obtained.
+     * Test that a token size the connection does not report is a defect.
      *
      * @return void
      */
@@ -467,7 +442,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
 
     /**
      * Test that an ordinary index leading with the column proves a prefix
-     * match, which reads it as a leading-literal range.
+     * match.
      *
      * @return void
      */
@@ -481,9 +456,6 @@ final class MySqlNgramSearchDriverTest extends TestCase
     /**
      * Test that an index keyed on only a prefix of the column still proves an
      * equality or prefix match.
-     *
-     * Such a key cannot hand rows back in the column's order, but it still
-     * finds them by the column, which is all a search asks of it.
      *
      * @return void
      */
@@ -523,8 +495,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the read is scoped to the prefixed table and its schema, so a
-     * connection carrying a prefix does not ask about another table's indexes.
+     * Test that the read is scoped to the prefixed table and its schema.
      *
      * @return void
      */
@@ -541,12 +512,9 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an index the engine keeps but the planner ignores proves
-     * nothing.
+     * Test that an invisible index proves nothing.
      *
-     * An invisible index is maintained on every write and reported by the
-     * catalogue exactly as a usable one is, so a proof that reads the catalogue
-     * alone would accept it and the search would still read the table.
+     * The catalogue reports an invisible index exactly as a usable one.
      *
      * @return void
      */
@@ -558,8 +526,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
 
         self::assertSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $visible));
 
-        // Two names, so the list the read collects is proved to carry more than
-        // the first row it saw.
+        // Two names prove the read collects more than its first row
         $invisible = $this->catalogue($indexes, invisible: ['users_email_index', 'users_name_index']);
 
         self::assertNotSame([], (new MySqlNgramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $invisible));
@@ -602,12 +569,11 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an engine which cannot answer leaves the proof as strict as it
-     * was rather than refusing every search.
+     * Test that an engine which cannot report index states leaves the proof as
+     * it was.
      *
-     * The column naming an index the planner would refuse is not offered by
-     * every server the driver is reachable on, and a read that fails there must
-     * not take the whole search surface down with it.
+     * Not every server offers the visibility column, and failing there would
+     * refuse every search.
      *
      * @return void
      */
@@ -635,8 +601,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Build a connection reporting the given indexes, table definition, and
-     * n-gram token size.
+     * Build a connection reporting the given catalogue state.
      *
      * @param  array<int, array<string, mixed>>  $indexes
      * @param  string  $definition
@@ -688,8 +653,7 @@ final class MySqlNgramSearchDriverTest extends TestCase
     }
 
     /**
-     * Build a connection whose read of the index states fails, as a server
-     * without the column naming them does.
+     * Build a connection whose read of the index states fails.
      *
      * @param  array<int, array<string, mixed>>  $indexes
      * @return \Illuminate\Database\Connection

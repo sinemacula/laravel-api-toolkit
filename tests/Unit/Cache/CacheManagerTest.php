@@ -45,8 +45,7 @@ final class CacheManagerTest extends TestCase
     use InteractsWithNonPublicMembers;
 
     /**
-     * Test that flush leaves toolkit metadata in the shared store, so every
-     * worker keeps serving what any worker has already read.
+     * Test that flush leaves toolkit metadata in the shared store.
      *
      * @return void
      */
@@ -71,18 +70,15 @@ final class CacheManagerTest extends TestCase
      */
     public function testFlushClearsSchemaCompilerCache(): void
     {
-        // Arrange
         Event::fake();
 
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
 
         self::assertNotEmpty($this->getStaticProperty(SchemaCompiler::class, 'cache'));
 
-        // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
-        // Assert
         self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
     }
 
@@ -93,18 +89,15 @@ final class CacheManagerTest extends TestCase
      */
     public function testFlushClearsValueResolverCache(): void
     {
-        // Arrange
         Event::fake();
 
         $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', ['FakeModel' => ['field' => true]]);
 
         self::assertNotEmpty($this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
 
-        // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
-        // Assert
         self::assertSame([], $this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
     }
 
@@ -115,18 +108,15 @@ final class CacheManagerTest extends TestCase
      */
     public function testFlushClearsEagerLoadPlannerCache(): void
     {
-        // Arrange
         Event::fake();
 
         $this->setStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache', ['FakeResource|fields' => ['relation']]);
 
         self::assertNotEmpty($this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache'));
 
-        // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
-        // Assert
         self::assertSame([], $this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache'));
     }
 
@@ -137,18 +127,15 @@ final class CacheManagerTest extends TestCase
      */
     public function testFlushClearsFieldResolverCache(): void
     {
-        // Arrange
         Event::fake();
 
         $this->setStaticProperty(FieldResolver::class, 'resolvedCache', ['name\0email|||' => ['name', 'email']]);
 
         self::assertNotEmpty($this->getStaticProperty(FieldResolver::class, 'resolvedCache'));
 
-        // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
-        // Assert
         self::assertSame([], $this->getStaticProperty(FieldResolver::class, 'resolvedCache'));
     }
 
@@ -159,70 +146,58 @@ final class CacheManagerTest extends TestCase
      */
     public function testFlushClearsFieldColumnMapperCache(): void
     {
-        // Arrange
         Event::fake();
 
         $this->setStaticProperty(FieldColumnMapper::class, 'cache', ['FakeResource' => 'map']);
 
         self::assertNotEmpty($this->getStaticProperty(FieldColumnMapper::class, 'cache'));
 
-        // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
-        // Assert
         self::assertSame([], $this->getStaticProperty(FieldColumnMapper::class, 'cache'));
     }
 
     /**
-     * Test that flush clears the SearchPlan static cache, so a compiled search
-     * surface cannot outlive the schema it was built from.
+     * Test that flush clears the SearchPlan static cache.
      *
      * @return void
      */
     public function testFlushClearsSearchPlanCache(): void
     {
-        // Arrange
         Event::fake();
 
         $this->setStaticProperty(SearchPlan::class, 'cache', ['FakeResource' => 'plan']);
 
         self::assertNotEmpty($this->getStaticProperty(SearchPlan::class, 'cache'));
 
-        // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
-        // Assert
         self::assertSame([], $this->getStaticProperty(SearchPlan::class, 'cache'));
     }
 
     /**
-     * Test that flush clears the IndexProof static cache, so a proof taken
-     * against one catalogue cannot answer for the next.
+     * Test that flush clears the IndexProof static cache.
      *
      * @return void
      */
     public function testFlushClearsIndexProofCache(): void
     {
-        // Arrange
         Event::fake();
 
         $this->setStaticProperty(IndexProof::class, 'cache', ['sqlite|sqlite|users|substring|name' => ['defect']]);
 
         self::assertNotEmpty($this->getStaticProperty(IndexProof::class, 'cache'));
 
-        // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
-        // Assert
         self::assertSame([], $this->getStaticProperty(IndexProof::class, 'cache'));
     }
 
     /**
-     * Test that flush leaves the shared index proof in the store, so the next
-     * operation is answered without the catalogue being read again.
+     * Test that flush leaves the shared index proof in the store.
      *
      * @return void
      */
@@ -252,7 +227,6 @@ final class CacheManagerTest extends TestCase
      */
     public function testFlushClearsSchemaIntrospectorState(): void
     {
-        // Arrange
         Event::fake();
 
         $mock = $this->mock(SchemaIntrospectionProvider::class);
@@ -260,11 +234,8 @@ final class CacheManagerTest extends TestCase
         $mock->shouldReceive('flush')
             ->once();
 
-        // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
-
-        // Assert (handled by Mockery expectation)
     }
 
     /**
@@ -274,14 +245,11 @@ final class CacheManagerTest extends TestCase
      */
     public function testFlushDispatchesCacheFlushedEvent(): void
     {
-        // Arrange
         Event::fake();
 
-        // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
-        // Assert
         Event::assertDispatched(CacheFlushed::class);
     }
 
@@ -294,7 +262,6 @@ final class CacheManagerTest extends TestCase
      */
     public function testFlushResetsBoundQueryParser(): void
     {
-        // Arrange
         Event::fake();
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
@@ -304,11 +271,9 @@ final class CacheManagerTest extends TestCase
 
         self::assertSame(['name', 'email'], $parser->getFields());
 
-        // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
-        // Assert
         self::assertNull($parser->getFields());
     }
 
@@ -347,7 +312,6 @@ final class CacheManagerTest extends TestCase
      */
     public function testFlushSkipsQueryParserResetWhenAliasNotBound(): void
     {
-        // Arrange
         Event::fake();
 
         config()->set('api-toolkit.parser.alias', 'api.query.unbound');
@@ -355,12 +319,10 @@ final class CacheManagerTest extends TestCase
         assert($this->app !== null);
         self::assertFalse($this->app->bound('api.query.unbound'));
 
-        // Act
         /** @var \SineMacula\ApiToolkit\Cache\CacheManager $manager */
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
-        // Assert
         Event::assertDispatched(CacheFlushed::class);
     }
 
@@ -371,44 +333,36 @@ final class CacheManagerTest extends TestCase
      */
     public function testFlushOnEmptyStateIsHarmless(): void
     {
-        // Arrange
         Event::fake();
 
-        // Act
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
-        // Assert
         self::assertNull(Cache::memo()->get('nonexistent')); // @phpstan-ignore method.notFound
         self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
         Event::assertDispatched(CacheFlushed::class);
     }
 
     /**
-     * Test that flush leaves a non-toolkit key on the same store intact, so a
-     * boundary never clears the store it shares with the application.
+     * Test that flush leaves a non-toolkit key on the same store intact.
      *
      * @return void
      */
     public function testFlushLeavesNonToolkitKeyIntact(): void
     {
-        // Arrange
         Event::fake();
 
         Cache::memo()->rememberForever('non-toolkit-key', fn () => 'survivor'); // @phpstan-ignore method.notFound
 
-        // Act
         /** @var \SineMacula\ApiToolkit\Cache\CacheManager $manager */
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
-        // Assert
         self::assertSame('survivor', Cache::memo()->get('non-toolkit-key')); // @phpstan-ignore method.notFound
     }
 
     /**
-     * Test that schema metadata an earlier process wrote is still served after
-     * a boundary, without the connection being asked again.
+     * Test that schema metadata an earlier process wrote survives a flush.
      *
      * @return void
      */
@@ -429,8 +383,7 @@ final class CacheManagerTest extends TestCase
     }
 
     /**
-     * Test that a flush keeps the generation, so a boundary in one worker never
-     * retires the metadata every other worker is serving.
+     * Test that a flush keeps the generation shared by every worker.
      *
      * @return void
      */
@@ -449,7 +402,7 @@ final class CacheManagerTest extends TestCase
 
     /**
      * Test that a flush drops the memoised generation, so a long-lived worker
-     * picks up an invalidation another process made at its next boundary.
+     * picks up an invalidation made by another process.
      *
      * @return void
      */
@@ -470,8 +423,7 @@ final class CacheManagerTest extends TestCase
     }
 
     /**
-     * Test that invalidating replaces the generation in the store and in this
-     * process.
+     * Test that invalidating replaces the generation in the store and process.
      *
      * @return void
      */
@@ -492,9 +444,8 @@ final class CacheManagerTest extends TestCase
     }
 
     /**
-     * Test that a store rejecting the new generation is surfaced before this
-     * process is flushed, so nothing reports an invalidation that did not
-     * happen.
+     * Test that a rejected generation write is surfaced before this process is
+     * flushed.
      *
      * @return void
      */
@@ -515,9 +466,7 @@ final class CacheManagerTest extends TestCase
     }
 
     /**
-     * Test that invalidating also flushes this process: metadata written under
-     * the previous generation is no longer read, memos are cleared, and the
-     * flushed event is dispatched.
+     * Test that invalidating also flushes this process.
      *
      * @return void
      */
@@ -541,9 +490,6 @@ final class CacheManagerTest extends TestCase
     /**
      * Test that metadata an earlier process wrote is retired by a process that
      * never touched it, and the next read recomputes it.
-     *
-     * A flush leaves the shared store alone, so only replacing the generation
-     * reaches an entry the writing process left behind.
      *
      * @return void
      */

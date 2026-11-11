@@ -18,14 +18,7 @@ use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
 /**
- * Tests for the PostgresTrigramSearchDriver.
- *
- * The predicates are compiled against a PostgreSQL grammar the suite never
- * connects to, so the emitted clause and its bindings are asserted here
- * whatever engine the suite is running against; that the engine answers them
- * from a trigram index is proven by the driver-gated integration suite. The
- * index proof is driven from a stubbed catalogue, so the missing extension and
- * the missing index are both exercised without either being removed first.
+ * Tests for the PostgresTrigramSearchDriver against an unconnected grammar.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -53,8 +46,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     private array $replicaReads = [];
 
     /**
-     * Register a PostgreSQL connection the driver compiles its predicates
-     * against.
+     * Register a PostgreSQL connection to compile the predicates against.
      *
      * @return void
      */
@@ -79,8 +71,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the driver implements every match strategy, so no declaration
-     * is refused for a shape PostgreSQL can serve.
+     * Test that the driver implements every match strategy.
      *
      * @return void
      */
@@ -90,8 +81,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the driver claims it can prove index backing, so a declaration
-     * it serves is checked against the live schema.
+     * Test that the driver claims it can prove index backing.
      *
      * @return void
      */
@@ -105,8 +95,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an equality match is emitted as a plain comparison against the
-     * qualified column, which an ordinary index answers.
+     * Test that an equality match is a plain comparison on the column.
      *
      * @return void
      */
@@ -119,9 +108,9 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a prefix match is emitted as a case-insensitive comparison, so
-     * the same declaration answers the same rows here as on an engine whose
-     * collation folds case.
+     * Test that a prefix match is emitted as a case-insensitive comparison.
+     *
+     * This matches the rows an engine with a case-folding collation returns.
      *
      * @return void
      */
@@ -134,8 +123,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an anywhere-match is emitted as a case-insensitive comparison
-     * wrapped in wildcards, which a trigram index serves from either end.
+     * Test that an anywhere-match is a case-insensitive wildcard comparison.
      *
      * @return void
      */
@@ -148,8 +136,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that every declared column contributes its own comparison, so a
-     * match on any one of them is a match.
+     * Test that every declared column contributes its own comparison.
      *
      * @return void
      */
@@ -165,10 +152,9 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that every value bound to the statement keeps a placeholder of its
-     * own once the quoted literals are read out of it, since a literal left
-     * open swallows the placeholder of the clause beside it and leaves the
-     * value it stood for with nothing to bind to.
+     * Test that every binding keeps a placeholder of its own.
+     *
+     * A quoted literal left open would swallow the placeholder beside it.
      *
      * @return void
      */
@@ -186,8 +172,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an index built over a trigram operator class proves a pattern
-     * match, and that it is found among the several a real table carries.
+     * Test that an index over a trigram operator class proves a pattern match.
      *
      * @return void
      */
@@ -202,9 +187,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the extension is asked for before the indexes it would have to
-     * have created, that both are read from the connection's own catalogue, and
-     * that each statement carries the value its placeholder stands for.
+     * Test that the extension, index states and definitions are read in turn.
      *
      * @return void
      */
@@ -242,9 +225,9 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that every catalogue read goes to the primary rather than a read
-     * replica, so the extension, the index states, and the definitions all
-     * describe the same server and a shared answer describes one endpoint.
+     * Test that every catalogue read goes to the primary.
+     *
+     * The reads must all describe the same server.
      *
      * @return void
      */
@@ -258,8 +241,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the other trigram operator class proves a pattern match too,
-     * and that a quoted column name in the definition is read.
+     * Test that a quoted column under the gist trigram class proves a match.
      *
      * @return void
      */
@@ -271,8 +253,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a column carried by a trigram index alongside another is read,
-     * so a multi-column index proves each of its columns.
+     * Test that a multi-column trigram index proves each of its columns.
      *
      * @return void
      */
@@ -284,8 +265,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a trigram key collated apart from its column does not prove a
-     * pattern match.
+     * Test that a trigram key collated apart from its column proves no match.
      *
      * @return void
      */
@@ -306,11 +286,9 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a later trigram key carrying its column's collation proves a
-     * pattern match when the key before it is collated apart.
+     * Test that a later trigram key proves a match behind one collated apart.
      *
-     * The collation fact describes only the leading key, so it must not be let
-     * refuse the whole of a multi-column index.
+     * The collation fact describes only the leading key.
      *
      * @return void
      */
@@ -325,8 +303,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that each declared column is proved on its own, so the one an index
-     * covers is accepted while the one beside it is reported.
+     * Test that each declared column is proved on its own.
      *
      * @return void
      */
@@ -357,8 +334,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a column left without a trigram index is reported for each of
-     * them rather than for the first alone.
+     * Test that every column without a trigram index is reported.
      *
      * @return void
      */
@@ -372,9 +348,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a missing extension is reported as itself rather than as a
-     * missing index, since no index the operator creates can exist without it,
-     * and that it is reported against every declared column.
+     * Test that a missing extension is reported in place of a missing index.
      *
      * @return void
      */
@@ -392,7 +366,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
 
     /**
      * Test that an ordinary index leading with the column proves an equality
-     * match, which reads the column as it is stored.
+     * match.
      *
      * @return void
      */
@@ -404,8 +378,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a catalogue row whose definition is not readable is stepped
-     * past, so one unreadable entry does not hide the index beside it.
+     * Test that a catalogue row with no readable definition is stepped past.
      *
      * @return void
      */
@@ -442,8 +415,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the catalogue is read under the name it actually holds, which
-     * carries the connection's table prefix the model's own name does not.
+     * Test that the catalogue is read under the prefixed relation name.
      *
      * @return void
      */
@@ -457,8 +429,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a schema-qualified table is read under its own namespace rather
-     * than the connection's current one, where the relation does not exist.
+     * Test that a schema-qualified table is read under its own namespace.
      *
      * @return void
      */
@@ -472,8 +443,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the read naming the indexes the planner will not use asks for
-     * exactly the states that disqualify one, scoped to the table.
+     * Test that the index-state read asks for every disqualifying state.
      *
      * @return void
      */
@@ -507,10 +477,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     /**
      * Test that an index the planner will not use proves no exact match.
      *
-     * The exact strategy reads the shared catalogue, which reports an index
-     * left behind by a failed concurrent build, a partial index and one whose
-     * leading key is an expression exactly as it reports a usable one. None of
-     * them serves an unqualified predicate on the column.
+     * The shared catalogue reports an invalid index exactly as a usable one.
      *
      * @return void
      */
@@ -528,12 +495,10 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an engine which cannot answer leaves the proof as strict as it
-     * was rather than refusing every search.
+     * Test that an engine which cannot report index states leaves the proof as
+     * it was.
      *
-     * The column naming an index the planner would refuse is not offered by
-     * every server the driver is reachable on, and a read that fails there must
-     * not take the whole search surface down with it.
+     * A refused read must not take every search down with it.
      *
      * @return void
      */
@@ -547,8 +512,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     /**
      * Test that a trigram index the engine disregards proves no anywhere match.
      *
-     * The statement read back describes the index the strategy needs, so only
-     * what the engine says about the index itself can refuse it.
+     * The definition alone looks usable, so only the index state can refuse it.
      *
      * @return void
      */
@@ -567,12 +531,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a trigram index holding only part of the table proves no
-     * anywhere match.
-     *
-     * A search carries no predicate of its own, so an index restricted to the
-     * rows its own admits cannot serve one over the whole table. This is the
-     * other half of the refusal, and it has to stand on its own.
+     * Test that a partial trigram index proves no anywhere match.
      *
      * @return void
      */
@@ -588,11 +547,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     /**
      * Test that an index keyed on an expression still proves an anywhere match.
      *
-     * This proof matches the statement that would recreate the index, which
-     * names the expression outright, so the fact that defeats a proof reading
-     * the reported column list must not defeat this one. Folding the three
-     * facts together here would refuse every trigram index over an expression,
-     * which is the ordinary way one is written.
+     * This proof reads the index definition, which names the expression itself.
      *
      * @return void
      */
@@ -625,8 +580,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Build a connection reporting the given index definitions, extension
-     * state, and indexes.
+     * Build a connection reporting the given catalogue state.
      *
      * @param  array<int, string>  $definitions
      * @param  bool  $extension
@@ -698,8 +652,7 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
-     * Build a connection whose read of the index states fails, as a server
-     * refusing the catalogue does.
+     * Build a connection whose read of the index states fails.
      *
      * @param  array<int, array<string, mixed>>  $indexes
      * @return \Illuminate\Database\Connection

@@ -16,8 +16,6 @@ use SineMacula\Http\Enums\HttpStatus;
 /**
  * Tests for the ApiException abstract class.
  *
- * Uses BadRequestException as the concrete implementation.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -175,7 +173,7 @@ final class ApiExceptionTest extends TestCase
     }
 
     /**
-     * Test that getInternalErrorCode throws LogicException without CODE
+     * Test that getInternalErrorCode throws LogicException without the CODE
      * constant.
      *
      * @return void
@@ -185,8 +183,6 @@ final class ApiExceptionTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('The CODE constant must be defined on the exception');
 
-        // Call static method directly on an anonymous class without
-        // instantiating
         $class = new class extends ApiException {
             /** The mapped HTTP status for the test exception. */
             public const HttpStatus HTTP_STATUS = HttpStatus::BAD_REQUEST;
@@ -196,7 +192,7 @@ final class ApiExceptionTest extends TestCase
     }
 
     /**
-     * Test that getHttpStatusCode throws LogicException without HTTP_STATUS
+     * Test that getHttpStatusCode throws LogicException without the HTTP_STATUS
      * constant.
      *
      * @return void
@@ -206,8 +202,6 @@ final class ApiExceptionTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('The HTTP_STATUS constant must be defined on the exception');
 
-        // Call static method directly on an anonymous class without
-        // instantiating
         $class = new class extends ApiException {
             /** The internal error code for the test exception. */
             public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::BAD_REQUEST;
@@ -267,11 +261,7 @@ final class ApiExceptionTest extends TestCase
      */
     public function testSubclassesCanOverrideTheTranslationNamespace(): void
     {
-        // Register a detail translation under a custom namespace so the
-        // override can be proven by resolution. A missing key now yields ''
-        // (see testGetCustomDetailReturnsEmptyStringWhenTranslationMissing)
-        // rather than leaking the raw translation key, so resolution is the
-        // oracle.
+        // A missing key resolves to '', so only the override yields a detail
         Lang::addLines(['exceptions.10100.detail' => 'Custom namespace detail'], 'en', 'custom-namespace');
 
         $exception = new class extends ApiException {
@@ -293,15 +283,12 @@ final class ApiExceptionTest extends TestCase
             }
         };
 
-        // The translation registered under the custom namespace resolves,
-        // proving the override changed the translation key.
         self::assertSame('Custom namespace detail', $exception->getCustomDetail());
     }
 
     /**
      * Test that getCustomDetail returns an empty string when the detail
-     * translation key is missing from every locale, rather than leaking the raw
-     * translation key.
+     * translation key is missing from every locale.
      *
      * @return void
      */
@@ -358,16 +345,14 @@ final class ApiExceptionTest extends TestCase
     }
 
     /**
-     * Test that getCustomTitle returns the code-keyed title translation when
-     * one is registered, over the status-derived default title.
+     * Test that getCustomTitle prefers a code-keyed title translation over the
+     * status-derived default.
      *
      * @return void
      */
     public function testGetCustomTitleUsesCodeKeyedTranslationWhenPresent(): void
     {
-        // Register a code-keyed title under a custom namespace whose value
-        // differs from the status-derived default (which would be "Bad
-        // Request"), so resolving through the translation branch is the oracle.
+        // Differs from the status-derived default title, "Bad Request"
         Lang::addLines(['exceptions.10100.title' => 'Bespoke Title'], 'en', 'code-keyed-title-ns');
 
         $exception = new class extends ApiException {
@@ -428,8 +413,7 @@ final class ApiExceptionTest extends TestCase
 
     /**
      * Test that an exception whose status has no enum case resolves its title
-     * through the unknown-status translation key, which a published lang file
-     * can localise.
+     * through the unknown-status translation key.
      *
      * @return void
      */
@@ -472,8 +456,7 @@ final class ApiExceptionTest extends TestCase
 
     /**
      * Test that an exception whose status has no enum case falls back to the
-     * generic literal title when no unknown-status translation is registered
-     * under its namespace.
+     * generic literal title when no unknown-status translation is registered.
      *
      * @return void
      */
@@ -506,8 +489,7 @@ final class ApiExceptionTest extends TestCase
             }
 
             /**
-             * Resolve from a namespace with no registered translations so the
-             * unknown-status key is absent.
+             * Resolve from a namespace with no registered translations.
              *
              * @return string
              */
@@ -522,8 +504,7 @@ final class ApiExceptionTest extends TestCase
     }
 
     /**
-     * Test that a non-string per-status translation yields an empty title
-     * rather than an error, matching the code-keyed title guard.
+     * Test that a non-string per-status translation yields an empty title.
      *
      * @return void
      */
@@ -539,8 +520,7 @@ final class ApiExceptionTest extends TestCase
     /**
      * Define the test environment.
      *
-     * Loads the package's exception translations so getCustomDetail resolves
-     * real translations rather than the (now-fixed) raw-key fallback.
+     * Loads the package's exception translations for getCustomDetail.
      *
      * @param  mixed  $app
      * @return void

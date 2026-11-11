@@ -27,8 +27,7 @@ final class RawSchemaValidatorTest extends TestCase
     private const string RESOURCE = 'App\Http\Resources\UserResource';
 
     /**
-     * Test that a schema declaring Closure constraints and callable guards and
-     * transformers passes.
+     * Test that Closure constraints with callable guards and transformers pass.
      *
      * @return void
      */
@@ -44,8 +43,7 @@ final class RawSchemaValidatorTest extends TestCase
     }
 
     /**
-     * Test that every non-callable guard or transformer and every non-Closure
-     * constraint is reported, each entry by its position in its list.
+     * Test that each non-callable or non-Closure entry is reported by position.
      *
      * @return void
      */
@@ -107,8 +105,7 @@ final class RawSchemaValidatorTest extends TestCase
     }
 
     /**
-     * Validate the given raw schema and return the reported errors as resource
-     * class, field key and defect triples.
+     * Return the errors for the raw schema as class, key and defect triples.
      *
      * @param  array<string, array<string, mixed>>  $rawSchema
      * @return list<array{string, string, string}>

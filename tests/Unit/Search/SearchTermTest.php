@@ -15,10 +15,6 @@ use Tests\TestCase;
 /**
  * Tests for the SearchTerm value object.
  *
- * Every bound is exercised at exactly its limit and one beyond it, and every
- * metacharacter a rendering could smuggle is asserted through the rendering
- * that has to neutralise it.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -52,8 +48,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a raw term is trimmed, collapsed, and stripped of the
-     * characters no engine can match on.
+     * Test that a raw term is trimmed, collapsed and normalised.
      *
      * @param  string  $raw
      * @param  string  $expected
@@ -80,8 +75,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a term one character below the minimum is rejected, carrying
-     * the whole rejection message under the search parameter.
+     * Test that a term one character below the minimum is rejected.
      *
      * @return void
      */
@@ -91,10 +85,9 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a multi-word term is measured word by word, at exactly the
-     * minimum and one character below it: the bound is what each engine
-     * answers, and a word beneath it is dropped from the phrase by one engine
-     * and read out of the whole table by the other.
+     * Test that each word of a multi-word term is measured against the minimum.
+     *
+     * Engines disagree on a short word: one drops it, another scans the table.
      *
      * @return void
      *
@@ -108,8 +101,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a term long enough overall is still rejected when one of its
-     * words is not, so the two engines cannot answer it with different rows.
+     * Test that a long enough term is rejected when one word is too short.
      *
      * @return void
      */
@@ -119,8 +111,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a term of only whitespace normalises to nothing and is rejected
-     * on length rather than reaching a driver.
+     * Test that a whitespace-only term is rejected on length.
      *
      * @return void
      */
@@ -130,8 +121,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a term that is not valid UTF-8 is rejected rather than reaching
-     * a pattern as an unmatchable byte sequence.
+     * Test that a term that is not valid UTF-8 is rejected.
      *
      * @return void
      */
@@ -141,9 +131,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the minimum length counts characters rather than bytes: a
-     * three-character multibyte term is accepted, and a two-character one is
-     * rejected even though its bytes would clear the bound.
+     * Test that the minimum length counts characters, not bytes.
      *
      * @return void
      *
@@ -181,8 +169,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a term carrying exactly the maximum number of words is
-     * accepted.
+     * Test that a term of exactly the maximum number of words is accepted.
      *
      * @return void
      *
@@ -206,8 +193,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a configured minimum above the shipped floor is enforced, at
-     * exactly the configured length and one character below it.
+     * Test that a configured minimum above the shipped floor is enforced.
      *
      * @return void
      *
@@ -222,8 +208,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a configured minimum below the shipped floor is held at the
-     * floor, so the measured bound cannot be configured away.
+     * Test that a configured minimum below the shipped floor is held at it.
      *
      * @return void
      */
@@ -235,8 +220,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a configured maximum length is enforced, at exactly the
-     * configured length and one character above it.
+     * Test that a configured maximum length is enforced.
      *
      * @return void
      *
@@ -251,8 +235,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a configured word cap is enforced, at exactly the configured
-     * count and one word beyond it.
+     * Test that a configured word cap is enforced.
      *
      * @return void
      *
@@ -267,8 +250,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a fractional bound is measured as the whole number it truncates
-     * to, so a term of exactly that many characters is accepted.
+     * Test that a fractional bound is truncated to a whole number.
      *
      * @return void
      *
@@ -282,8 +264,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a bound configured as something other than a number falls back
-     * to the shipped default rather than to nothing at all.
+     * Test that a non-numeric bound falls back to the shipped default.
      *
      * @return void
      */
@@ -295,8 +276,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the longest term accepted is reported as the configured value,
-     * so a reader of the bound is told the one the term is measured against.
+     * Test that the maximum length is reported as the configured value.
      *
      * @return void
      */
@@ -308,8 +288,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the longest term accepted falls back to the shipped default
-     * when nothing valid is configured.
+     * Test that the maximum length falls back to the shipped default.
      *
      * @return void
      */
@@ -321,7 +300,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the most words accepted is reported as the configured value.
+     * Test that the maximum word count is reported as the configured value.
      *
      * @return void
      */
@@ -333,8 +312,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the most words accepted falls back to the shipped default when
-     * nothing valid is configured.
+     * Test that the maximum word count falls back to the shipped default.
      *
      * @return void
      */
@@ -346,8 +324,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the shortest word accepted is reported as the configured value,
-     * so a reader of the bound is told the one each word is measured against.
+     * Test that the minimum word length is reported as the configured value.
      *
      * @return void
      */
@@ -359,9 +336,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the shortest word accepted is held at the shipped floor rather
-     * than lowered to a configured value beneath it, so a bound reported to a
-     * client is one the term is really held to.
+     * Test that the reported minimum word length is held at the shipped floor.
      *
      * @return void
      */
@@ -373,8 +348,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the shortest word accepted falls back to the shipped default
-     * when nothing valid is configured.
+     * Test that the minimum word length falls back to the shipped default.
      *
      * @return void
      */
@@ -398,8 +372,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that each strategy renders the term for the match it performs, with
-     * only the pattern-matching strategies escaping the wildcard.
+     * Test that each strategy renders the term for the match it performs.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @param  string  $expected
@@ -414,8 +387,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Provide terms carrying a metacharacter, and one carrying the character
-     * that no longer is one, with the substring pattern each renders to.
+     * Provide raw terms with the substring pattern each renders to.
      *
      * @return iterable<string, array{string, string}>
      */
@@ -430,8 +402,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that every metacharacter a pattern reads is escaped, so a term of
-     * wildcards matches those characters literally rather than every row.
+     * Test that every pattern metacharacter is escaped.
      *
      * @param  string  $raw
      * @param  string  $expected
@@ -446,8 +417,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the escape character is itself escaped before the wildcards, so
-     * an escaped wildcard cannot be reassembled from the term.
+     * Test that the escape character is escaped before the wildcards.
      *
      * @return void
      *
@@ -471,9 +441,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a double quote carried by the term is dropped once, during
-     * normalisation, so it can neither end the phrase it is wrapped in nor
-     * leave one rendering matching a character the other has thrown away.
+     * Test that a double quote is dropped from every rendering.
      *
      * @return void
      *
@@ -489,8 +457,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a term of nothing but delimiters normalises to nothing and is
-     * rejected, rather than reaching an engine as a phrase matching no rows.
+     * Test that a term of nothing but phrase delimiters is rejected.
      *
      * @return void
      */
@@ -500,9 +467,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the escape character is the one the pattern bindings and every
-     * ESCAPE clause agree on, and one a quoted literal carries as itself rather
-     * than as an escape for the character after it.
+     * Test that the escape character is one a quoted literal carries literally.
      *
      * @return void
      */
@@ -512,8 +477,7 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Assert that the raw term is rejected with the given whole message under
-     * the search parameter.
+     * Assert that the raw term is rejected with the whole message under search.
      *
      * @param  string  $raw
      * @param  string  $message

@@ -18,12 +18,7 @@ use Tests\Fixtures\Search\StubFilteringSearchDriver;
 use Tests\TestCase;
 
 /**
- * Tests for the EngineSearchDriver base.
- *
- * Exercised through a fixture driver whose two engine-specific halves name
- * themselves, so the dispatch, the equality match, and the catalogue read the
- * base owns are asserted without going through the grammar or the index kinds
- * of any one engine.
+ * Tests for the EngineSearchDriver base, through a fixture driver.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -37,11 +32,9 @@ final class EngineSearchDriverTest extends TestCase
     private const string TERM = 'smith';
 
     /**
-     * Test that an index the engine would refuse to plan against is dropped
-     * before any strategy is proved against it.
+     * Test that an index the engine would refuse to plan against is dropped.
      *
-     * The catalogue reports such an index exactly as it reports a usable one,
-     * so a proof reading the catalogue alone would accept it.
+     * The catalogue reports such an index exactly as it reports a usable one.
      *
      * @return void
      */
@@ -59,9 +52,7 @@ final class EngineSearchDriverTest extends TestCase
     /**
      * Test that an index is refused whatever case the engine names it in.
      *
-     * The catalogue reports a name lowered while an engine may report it as it
-     * was declared, so comparing the two literally would let a name carrying a
-     * capital slip past the refusal and prove a match it cannot serve.
+     * The catalogue lowers the name while an engine may report it as declared.
      *
      * @return void
      */
@@ -75,12 +66,9 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an index whose reported columns overstate it proves no match.
+     * Test that a partial or expression index proves no match.
      *
-     * Every proof here reads the column list the catalogue reports, so an index
-     * restricted to part of the table, or leading with an expression the list
-     * cannot name, would otherwise prove a match over columns it does not
-     * serve.
+     * The catalogue's column list cannot express either restriction.
      *
      * @return void
      */
@@ -94,8 +82,7 @@ final class EngineSearchDriverTest extends TestCase
         self::assertNotSame([], $restricted->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
         self::assertNotSame([], $expressed->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
 
-        // The same catalogue under a report naming the index for neither fact
-        // proves the column, so each refusal above is the fact doing the work.
+        // Without either fact the same index proves the column
         self::assertSame([], (new StubFilteringSearchDriver)->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
     }
 
@@ -103,8 +90,7 @@ final class EngineSearchDriverTest extends TestCase
      * Test that an index whose leading key lacks the column's order still
      * proves an equality match.
      *
-     * A truncated or pattern-class key still finds rows by the column, so only
-     * an ordered read has reason to pass it over.
+     * A truncated or pattern-class key still finds rows by the column.
      *
      * @return void
      */
@@ -118,11 +104,9 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an index whose leading key is collated apart from the column is
-     * refused for an equality match.
+     * Test that an index whose leading key is collated apart is refused.
      *
-     * A comparison written against the column cannot use a key ordered by
-     * another collation, so the index proves nothing about the match.
+     * A comparison on the column cannot use a key ordered by another collation.
      *
      * @return void
      */
@@ -157,9 +141,6 @@ final class EngineSearchDriverTest extends TestCase
     /**
      * Test that a refused index does not stop a later one proving the match.
      *
-     * The walk has to keep reading past the index it drops, or an unusable
-     * index declared first would hide every usable one behind it.
-     *
      * @return void
      */
     public function testKeepsReadingPastAnIndexItRefuses(): void
@@ -173,9 +154,7 @@ final class EngineSearchDriverTest extends TestCase
 
         self::assertSame([], $driver->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $connection));
 
-        // With only the refused index declared, the same read must report the
-        // column as unproved, so the pass above is the loop continuing rather
-        // than the filter doing nothing.
+        // Alone, the refused index leaves the column unproved
         $only = $this->catalogue([['name' => 'users_name_hidden', 'columns' => ['name'], 'type' => 'btree']]);
 
         self::assertNotSame([], $driver->indexDefects(SearchStrategy::EXACT, ['name'], 'users', $only));
@@ -192,8 +171,8 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a driver over an engine claims it can prove index backing for
-     * every strategy, since the engine's own catalogue can be read back.
+     * Test that a driver over an engine can prove index backing for every
+     * strategy.
      *
      * @return void
      */
@@ -207,9 +186,7 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a driver over an engine refuses no combination of strategies
-     * until it says otherwise, so a base that leaves the two engine-specific
-     * halves to a concrete driver does not invent a conflict between them.
+     * Test that the base refuses no combination of strategies by default.
      *
      * @return void
      */
@@ -223,9 +200,7 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the equality match the base owns is emitted as a comparison
-     * against the column qualified with its table, so the clause stays
-     * unambiguous under a join.
+     * Test that the equality match compares against the table-qualified column.
      *
      * @return void
      */
@@ -238,8 +213,7 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a prefix declaration reaches the prefix half rather than any
-     * other.
+     * Test that a prefix declaration reaches the prefix half.
      *
      * @return void
      */
@@ -252,8 +226,7 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an anywhere declaration reaches the anywhere half rather than
-     * any other.
+     * Test that an anywhere declaration reaches the anywhere half.
      *
      * @return void
      */
@@ -266,8 +239,7 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that every declared column contributes its own predicate, combined
-     * by disjunction.
+     * Test that every declared column contributes its own predicate, or'd.
      *
      * @return void
      */
@@ -280,8 +252,7 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a strategy declaring no column emits nothing, so an empty set
-     * cannot reach a driver as a predicate with no operand.
+     * Test that a strategy declaring no column emits no predicate.
      *
      * @return void
      */
@@ -294,9 +265,7 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the index proof is dispatched to the half the strategy belongs
-     * to, and that the defect it reports comes back under the column it was
-     * asked about.
+     * Test that the index proof is dispatched to the strategy's half.
      *
      * @return void
      */
@@ -316,8 +285,7 @@ final class EngineSearchDriverTest extends TestCase
 
     /**
      * Test that an ordinary index leading with the column proves an equality
-     * match, and that it is found among the several indexes a real table
-     * carries rather than only as the first one reported.
+     * match, wherever it appears among the table's indexes.
      *
      * @return void
      */
@@ -333,8 +301,7 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that each declared column is proved on its own, so one column left
-     * unindexed is reported without hiding the one beside it that is.
+     * Test that each declared column is proved on its own.
      *
      * @return void
      */
@@ -349,9 +316,7 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a column left unindexed is reported for each of them rather
-     * than for the first alone, so a resource declaring two of them learns
-     * about both in one pass.
+     * Test that every unindexed column is reported, not just the first.
      *
      * @return void
      */
@@ -363,10 +328,9 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a catalogue entry the connection reports unreadably is stepped
-     * over rather than ending the read, so an index declared after it is still
-     * found. A row reported as an object is stepped over as surely as a bare
-     * name, since reaching into one for a name is fatal rather than a miss.
+     * Test that an unreadable catalogue entry is stepped over.
+     *
+     * Reaching into an object row for a name would be fatal, not a miss.
      *
      * @return void
      */
@@ -383,7 +347,7 @@ final class EngineSearchDriverTest extends TestCase
 
     /**
      * Test that an index carrying the column anywhere but first does not prove
-     * an equality match, since only the leading key is read.
+     * an equality match.
      *
      * @return void
      */
@@ -398,8 +362,7 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an index of another kind does not prove an equality match,
-     * whatever it leads with.
+     * Test that an index of another kind does not prove an equality match.
      *
      * @return void
      */
@@ -411,8 +374,7 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that a catalogue entry the connection reports without a name, a
-     * column list, or a kind is passed over rather than read as a proof.
+     * Test that a catalogue entry missing its name, columns or kind is skipped.
      *
      * @return void
      */
@@ -429,11 +391,9 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that an index carrying a column the connection reports as something
-     * other than a name is passed over whole, rather than being read as though
-     * the columns after it had moved up. The unreadable entry trails the one
-     * the proof would otherwise accept, so passing over the index and merely
-     * skipping the entry give different answers.
+     * Test that an index carrying a column that is not a name is passed over.
+     *
+     * The bad column trails one the proof would accept on its own.
      *
      * @return void
      */
@@ -445,9 +405,7 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the catalogue is read once for a declaration naming several
-     * columns rather than once per column, since every column is proved against
-     * the same answer and the read is a round trip to the connection.
+     * Test that the catalogue is read once for the whole declaration.
      *
      * @return void
      */

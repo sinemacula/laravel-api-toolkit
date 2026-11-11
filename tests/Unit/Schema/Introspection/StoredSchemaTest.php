@@ -12,8 +12,7 @@ use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\StoredSchema;
 
 /**
- * Tests for the conversion of schema definitions to and from the form the
- * metadata cache holds.
+ * Tests for converting schema definitions to and from their cached form.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -42,8 +41,7 @@ final class StoredSchemaTest extends TestCase
     }
 
     /**
-     * Test that stored rows are rebuilt into column definitions keyed by column
-     * name.
+     * Test that stored rows are rebuilt into definitions keyed by column name.
      *
      * @return void
      */
@@ -61,8 +59,7 @@ final class StoredSchemaTest extends TestCase
     }
 
     /**
-     * Test that an empty stored list rebuilds as an empty set rather than as a
-     * value that cannot be read.
+     * Test that an empty stored list rebuilds as an empty set.
      *
      * @return void
      */
@@ -85,8 +82,7 @@ final class StoredSchemaTest extends TestCase
     }
 
     /**
-     * Test that stored column definitions that cannot be rebuilt whole are
-     * rejected.
+     * Test that stored column definitions that cannot be rebuilt are rejected.
      *
      * @param  mixed  $stored
      * @return void
@@ -147,8 +143,7 @@ final class StoredSchemaTest extends TestCase
     }
 
     /**
-     * Test that a stored index catalogue that cannot be rebuilt whole is
-     * rejected rather than read short.
+     * Test that a stored index catalogue that cannot be rebuilt is rejected.
      *
      * @param  mixed  $stored
      * @return void

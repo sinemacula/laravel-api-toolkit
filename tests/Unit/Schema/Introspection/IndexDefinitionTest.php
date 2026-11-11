@@ -38,8 +38,7 @@ final class IndexDefinitionTest extends TestCase
     }
 
     /**
-     * Test that a catalogue entry is read into a definition carrying the
-     * columns in the order the connection reported them.
+     * Test that an entry is read with its columns in the reported order.
      *
      * @return void
      */
@@ -58,8 +57,7 @@ final class IndexDefinitionTest extends TestCase
     }
 
     /**
-     * Test that a kind the connection reports in another case is lower-cased,
-     * so a comparison against it does not turn on the engine's own folding.
+     * Test that a kind reported in another case is lower-cased.
      *
      * @return void
      */
@@ -76,9 +74,9 @@ final class IndexDefinitionTest extends TestCase
     }
 
     /**
-     * Test that an entry the connection reports without a kind is read whole
-     * and carries a null kind, rather than being passed over: a connection that
-     * distinguishes no kinds still reports real indexes.
+     * Test that an entry reported without a kind is read with a null kind.
+     *
+     * A connection that distinguishes no kinds still reports real indexes.
      *
      * @return void
      */
@@ -96,8 +94,7 @@ final class IndexDefinitionTest extends TestCase
     }
 
     /**
-     * Test that an entry missing the kind key entirely is read the same way as
-     * one reporting it as null.
+     * Test that an entry missing the kind key reads the same as a null kind.
      *
      * @return void
      */
@@ -113,10 +110,7 @@ final class IndexDefinitionTest extends TestCase
     }
 
     /**
-     * Test that an entry that is not an array is passed over even when it
-     * carries everything a readable one would, so the catalogue is read as the
-     * connection reported it rather than through whatever happens to answer an
-     * offset.
+     * Test that a non-array entry is passed over even when it holds every key.
      *
      * @return void
      */
@@ -144,8 +138,7 @@ final class IndexDefinitionTest extends TestCase
     }
 
     /**
-     * Test that an entry reporting its columns as something other than a list
-     * is passed over.
+     * Test that an entry whose columns are not a list is passed over.
      *
      * @return void
      */
@@ -159,11 +152,7 @@ final class IndexDefinitionTest extends TestCase
     }
 
     /**
-     * Test that an entry carrying a column the connection reports as something
-     * other than a name is passed over whole, rather than being read as though
-     * the columns after it had moved up. The unreadable entry trails the one a
-     * caller would otherwise lead with, so passing over the index and merely
-     * skipping the entry give different answers.
+     * Test that an entry with a non-string column is passed over whole.
      *
      * @return void
      */
@@ -177,8 +166,7 @@ final class IndexDefinitionTest extends TestCase
     }
 
     /**
-     * Test that an entry reporting a kind that is neither a name nor nothing is
-     * passed over, since the kind cannot be compared against.
+     * Test that an entry with a kind neither string nor null is passed over.
      *
      * @return void
      */
@@ -192,8 +180,7 @@ final class IndexDefinitionTest extends TestCase
     }
 
     /**
-     * Test that an index leads with its first column and with no other, so a
-     * column named second is not read as leading.
+     * Test that an index leads with its first column only.
      *
      * @return void
      */
@@ -218,8 +205,7 @@ final class IndexDefinitionTest extends TestCase
     }
 
     /**
-     * Test that a definition is returned as the catalogue entry it is read
-     * from, and that the entry reads back as an equal definition.
+     * Test that a definition round-trips through its catalogue entry.
      *
      * @return void
      */

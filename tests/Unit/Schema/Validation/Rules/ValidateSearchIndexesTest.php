@@ -21,11 +21,7 @@ use Tests\TestCase;
 /**
  * Tests for the ValidateSearchIndexes validation rule.
  *
- * The rule is driven against the connection the suite runs on, with the driver
- * serving it replaced per test, so every way a declaration can fail to be
- * served from an index is exercised without an engine carrying that index kind.
- * The catalogue behind the table is answered by a stubbed introspector, so a
- * catalogue that was read and one that could not be are driven apart directly.
+ * Drivers are swapped per test and the catalogue is stubbed.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -39,8 +35,7 @@ final class ValidateSearchIndexesTest extends TestCase
     private SearchDriverRegistry $drivers;
 
     /**
-     * Set up an empty driver registry and waive the index proof on the
-     * connection the suite runs against.
+     * Set up an empty driver registry and waive the index proof.
      *
      * @return void
      */
@@ -55,8 +50,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a resource declaring nothing searchable is passed over, so the
-     * connection is never read for a resource with no search surface.
+     * Test that a resource with nothing searchable is passed over.
      *
      * @return void
      */
@@ -68,8 +62,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a resource with no model behind it is passed over, since there
-     * is no table whose indexes could be read.
+     * Test that a resource with no model behind it is passed over.
      *
      * @return void
      */
@@ -79,8 +72,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a mapped class that is not an Eloquent model is passed over
-     * rather than instantiated.
+     * Test that a mapped class that is not a model is passed over.
      *
      * @return void
      */
@@ -90,8 +82,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a connection with no driver registered is reported, since a
-     * search reaching it has nothing to serve it.
+     * Test that a connection with no registered driver is reported.
      *
      * @return void
      */
@@ -108,8 +99,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that every declared field is reported against a connection no driver
-     * serves, rather than the first alone.
+     * Test that every field is reported against a connection no driver serves.
      *
      * @return void
      */
@@ -123,8 +113,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a strategy the registered driver does not implement is
-     * reported.
+     * Test that a strategy the driver does not implement is reported.
      *
      * @return void
      */
@@ -142,8 +131,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a driver that can prove nothing is accepted on a connection
-     * where the proof is waived, so a development connection stays quiet.
+     * Test that an unproving driver is accepted where the proof is waived.
      *
      * @return void
      */
@@ -155,9 +143,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a driver that can prove nothing is reported on a connection
-     * where the proof is not waived, rather than serving a predicate that may
-     * be reading the whole table.
+     * Test that an unproving driver is reported where the proof is not waived.
      *
      * @return void
      */
@@ -182,8 +168,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a defect the driver reports is carried through against the
-     * field that declared it.
+     * Test that a driver-reported defect is carried against its field.
      *
      * @return void
      */
@@ -212,9 +197,9 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a connection the driver could not read is passed over rather
-     * than reported, since a read that failed proves nothing about the index
-     * behind the declaration and the request path proves it again anyway.
+     * Test that a connection the driver could not read is passed over.
+     *
+     * A failed read proves nothing, and the request path proves it again.
      *
      * @return void
      */
@@ -232,11 +217,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a catalogue the connection never described is told apart from
-     * one that was read and carries no index: the first proves nothing and is
-     * passed over, the second proves the declaration wrong and is reported.
-     * Conflating them either boots a deployment whose index is genuinely
-     * missing or refuses to boot a machine with no database behind it.
+     * Test that an unread catalogue is passed over and an empty one reported.
      *
      * @return void
      */
@@ -253,9 +234,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a strategy no registered driver implements is reported even
-     * where the catalogue could not be read, since nothing the catalogue
-     * carries decides it.
+     * Test that an unimplemented strategy is reported with no catalogue.
      *
      * @return void
      */
@@ -273,10 +252,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that every declared field is reported, not just the first, and that
-     * a field declaring nothing searchable is passed over rather than ending
-     * the walk: the undeclared field leads, so skipping it and stopping at it
-     * give different answers.
+     * Test that every declared field is reported, past undeclared fields.
      *
      * @return void
      */
@@ -292,9 +268,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a field carrying a searchable column with no strategy behind it
-     * is passed over, since there is no declared shape to prove and a null
-     * strategy cannot reach a driver.
+     * Test that a searchable column with no strategy is passed over.
      *
      * @return void
      */
@@ -312,9 +286,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that strategies the driver cannot resolve from an index once they
-     * are declared together are reported against the first declaring field,
-     * alongside whatever each strategy is missing on its own.
+     * Test that a combination defect is reported against the first field.
      *
      * @return void
      */
@@ -336,9 +308,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a field carrying both a combination defect and a defect of its
-     * own reports both, so the surface-wide reason does not displace what the
-     * column itself is missing.
+     * Test that a field reports a combination defect and its own defect.
      *
      * @return void
      */
@@ -353,9 +323,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that every column declared with one strategy reaches the proof, so
-     * an engine resolving them through a single index is asked about the whole
-     * set.
+     * Test that every column under one strategy reaches the proof together.
      *
      * @return void
      */
@@ -378,9 +346,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Build the rule under test over the registry the tests populate, with the
-     * catalogue behind the table answered as given: an array for a catalogue
-     * that was read, and null for one the connection could not describe.
+     * Build the rule with the catalogue as given, null meaning an unread one.
      *
      * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null  $indexes
      * @return \SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchIndexes
@@ -420,8 +386,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Build a compiled schema declaring two searchable columns under two
-     * strategies, led by a field declaring nothing searchable.
+     * Build a schema with two searchable columns led by an unsearchable field.
      *
      * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
      */
@@ -464,8 +429,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Return the engine the connection under test speaks, which is the name a
-     * driver is registered against.
+     * Return the driver name of the connection under test.
      *
      * @return string
      */
@@ -475,8 +439,7 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Return the name of the connection under test, which is the name the
-     * waiver is keyed by.
+     * Return the name of the connection under test.
      *
      * @return string
      */

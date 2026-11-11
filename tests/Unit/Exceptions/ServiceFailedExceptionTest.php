@@ -21,8 +21,7 @@ use SineMacula\ApiToolkit\Services\ServiceResult;
 final class ServiceFailedExceptionTest extends TestCase
 {
     /**
-     * Test that result() returns the same failed result given to the
-     * constructor.
+     * Test that result() returns the failed result given to the constructor.
      *
      * @return void
      */

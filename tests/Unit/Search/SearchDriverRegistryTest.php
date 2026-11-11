@@ -60,8 +60,7 @@ final class SearchDriverRegistryTest extends TestCase
     }
 
     /**
-     * Test that registering a connection twice is refused, carrying the whole
-     * message that names the replacement route.
+     * Test that registering a connection twice is refused.
      *
      * @return void
      */
@@ -105,9 +104,9 @@ final class SearchDriverRegistryTest extends TestCase
     }
 
     /**
-     * Test that resolving an unregistered connection throws rather than
-     * returning a null the caller could read as search being unavailable, which
-     * would drop the predicate and widen the result set.
+     * Test that resolving an unregistered connection throws.
+     *
+     * A null would let the caller drop the predicate and widen the result set.
      *
      * @return void
      */
@@ -170,8 +169,7 @@ final class SearchDriverRegistryTest extends TestCase
             }
 
             /**
-             * Return why the declared strategies cannot be resolved from an
-             * index together, or null when they can.
+             * Return why the strategies cannot share an index, or null.
              *
              * @param  array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $strategies
              * @return string|null
@@ -196,8 +194,7 @@ final class SearchDriverRegistryTest extends TestCase
             }
 
             /**
-             * Return what the columns are missing before the strategy can be
-             * served from an index on this connection, keyed by column.
+             * Return the index defects of the columns, keyed by column.
              *
              * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
              * @param  array<int, string>  $columns

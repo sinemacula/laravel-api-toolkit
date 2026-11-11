@@ -20,9 +20,7 @@ use SineMacula\ApiToolkit\Exceptions\PerItemGuardedFieldException;
 final class PerItemGuardedFieldExceptionTest extends TestCase
 {
     /**
-     * Test that forField builds the full guidance message verbatim, with the
-     * field and resource type interpolated and every sentence fragment in its
-     * intended order.
+     * Test that forField builds the full guidance message verbatim.
      *
      * @return void
      */

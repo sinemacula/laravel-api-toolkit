@@ -39,8 +39,7 @@ final class ValidateSearchableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a field carrying no search declaration is accepted whatever it
-     * resolves through.
+     * Test that a field with no search declaration is always accepted.
      *
      * @return void
      */
@@ -55,8 +54,7 @@ final class ValidateSearchableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a computed field declared searchable is reported, since the
-     * emitted predicate would name a column that does not exist.
+     * Test that a computed searchable field is reported.
      *
      * @return void
      */
@@ -78,8 +76,7 @@ final class ValidateSearchableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a field reading a different path from the column it declares is
-     * reported.
+     * Test that an accessor path differing from the column is reported.
      *
      * @return void
      */
@@ -100,8 +97,7 @@ final class ValidateSearchableFieldsTest extends TestCase
     }
 
     /**
-     * Test that an accessor path matching the declared column is accepted, so
-     * an aliased presentation of a real column stays searchable.
+     * Test that an accessor path matching the declared column is accepted.
      *
      * @return void
      */
@@ -116,8 +112,7 @@ final class ValidateSearchableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a closure accessor is accepted, since the path it reads cannot
-     * be resolved from the schema alone.
+     * Test that a closure accessor is accepted.
      *
      * @return void
      */
@@ -132,9 +127,7 @@ final class ValidateSearchableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a column declared searchable without a strategy is reported,
-     * since the compiled plan drops it and the field would quietly match
-     * nothing.
+     * Test that a searchable column without a strategy is reported.
      *
      * @return void
      */
@@ -155,8 +148,7 @@ final class ValidateSearchableFieldsTest extends TestCase
     }
 
     /**
-     * Test that the missing strategy is reported ahead of the missing column,
-     * so the defect the resource can act on first is the one named.
+     * Test that a missing strategy is reported ahead of a missing column.
      *
      * @return void
      */

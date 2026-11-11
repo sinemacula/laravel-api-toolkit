@@ -20,10 +20,7 @@ use Tests\TestCase;
 /**
  * Tests for the ValidateIndexBacking validation rule.
  *
- * The catalogue behind the rule is supplied rather than read, so every shape a
- * connection can report - an index of a kind that holds no order, a column
- * named second, a catalogue that is empty, and one that could not be read at
- * all - is exercised on whichever engine the suite runs against.
+ * The catalogue is stubbed so every reportable shape runs on any engine.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -34,8 +31,7 @@ use Tests\TestCase;
 final class ValidateIndexBackingTest extends TestCase
 {
     /**
-     * Test that a resource declaring nothing sortable is passed over, so the
-     * catalogue is never read for a resource with no sort surface.
+     * Test that nothing sortable means the catalogue is never read.
      *
      * @return void
      */
@@ -51,8 +47,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a sortable declaration with no model behind the resource proves
-     * nothing, since there is no table whose catalogue could be read.
+     * Test that a sortable declaration with no model behind it proves nothing.
      *
      * @return void
      */
@@ -62,8 +57,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a mapped class that is not an Eloquent model proves nothing
-     * rather than being instantiated for a table it does not have.
+     * Test that a mapped class that is not a model proves nothing.
      *
      * @return void
      */
@@ -73,9 +67,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a defect decided from the schema alone is reported even with no
-     * model behind the resource, since contradicting overrides need no table to
-     * be read as contradicting.
+     * Test that a schema-only defect is reported even with no model behind it.
      *
      * @return void
      */
@@ -105,8 +97,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a sortable column leading a composite index is accepted, since
-     * the leading column is the key prefix an ordered read follows.
+     * Test that a sortable column leading a composite index is accepted.
      *
      * @return void
      */
@@ -120,10 +111,7 @@ final class ValidateIndexBackingTest extends TestCase
     /**
      * Test that a sortable column named second in a composite index is refused.
      *
-     * This is the case that separates a leading-column check from a membership
-     * check: the column is covered by the index and still cannot be ordered by
-     * on its own, so a rule reading membership would pass a declaration the
-     * database cannot serve.
+     * The column is in the index but cannot be ordered by on its own.
      *
      * @return void
      */
@@ -161,8 +149,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a catalogue the connection read and found empty refuses the
-     * declaration, since an empty catalogue is a real answer.
+     * Test that a verified empty catalogue refuses the declaration.
      *
      * @return void
      */
@@ -178,14 +165,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a catalogue the connection could not be inspected for is passed
-     * over rather than refused, so a developer booting with no database behind
-     * the application does not get a hard failure.
-     *
-     * An unverifiable catalogue and a verified empty one must never be
-     * conflated: reading the first as the second turns every such boot into a
-     * refusal, and reading the second as the first stops the rule refusing
-     * anything at all.
+     * Test that a catalogue that could not be inspected is passed over.
      *
      * @return void
      */
@@ -195,8 +175,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that an index of a kind that holds no order is refused even when it
-     * leads with the column, since it cannot answer an ordered read.
+     * Test that an unordered index kind is refused even when it leads.
      *
      * @return void
      */
@@ -214,9 +193,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that an index the connection reports without a kind is accepted, so
-     * a connection that distinguishes no kinds is read as reporting ordered
-     * indexes rather than unusable ones.
+     * Test that an index reported without a kind is read as ordered.
      *
      * @return void
      */
@@ -228,9 +205,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that an index leading with the column is still found when an index
-     * of a kind that holds no order leads with it first, so the walk does not
-     * stop at the first index over the column.
+     * Test that the walk looks past an unordered index to an ordered one.
      *
      * @return void
      */
@@ -245,10 +220,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that every sortable column is reported, not just the first, and that
-     * a field declaring nothing sortable is passed over rather than ending the
-     * walk: the undeclared field leads, so skipping it and stopping at it give
-     * different answers.
+     * Test that every sortable column is reported, past undeclared fields.
      *
      * @return void
      */
@@ -270,9 +242,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a column declared against a named index the table carries is
-     * accepted, so an index introspection cannot attribute to a column is not
-     * refused for being invisible.
+     * Test that a column naming an index the table carries is accepted.
      *
      * @return void
      */
@@ -286,8 +256,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that the named index is matched without regard to case, so a name
-     * the engine folded to its own is not refused for the folding.
+     * Test that a named index is matched case-insensitively.
      *
      * @return void
      */
@@ -301,9 +270,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a column declared against a named index the table does not
-     * carry is refused, so the override cannot be used to wave the check
-     * through.
+     * Test that a column naming an index the table lacks is refused.
      *
      * @return void
      */
@@ -321,8 +288,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a column carrying a recorded exemption is accepted without the
-     * catalogue being consulted for it.
+     * Test that an exempt column is accepted without consulting the catalogue.
      *
      * @return void
      */
@@ -334,8 +300,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a field declaring both a backing index and an exemption is
-     * reported, since neither can be said to govern the sort.
+     * Test that declaring both a backing index and an exemption is reported.
      *
      * @return void
      */
@@ -353,9 +318,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a field naming a backing index without declaring anything
-     * sortable is reported, so an override with nothing to govern is not left
-     * standing as though it did something.
+     * Test that a backing index on a field with nothing sortable is reported.
      *
      * @return void
      */
@@ -377,9 +340,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a field carrying an exemption without declaring anything
-     * sortable is reported in its own terms, so an author is not sent looking
-     * for an index declaration the field never made.
+     * Test that an exemption on an unsortable field gets its own error.
      *
      * @return void
      */
@@ -400,8 +361,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a declaration defect is reported even against a catalogue that
-     * could not be read, since it is decided from the schema alone.
+     * Test that a declaration defect is reported without a readable catalogue.
      *
      * @return void
      */
@@ -419,12 +379,9 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a sortable column is refused where the only index leading with
-     * it is one the connection will not plan against.
+     * Test that a column whose only leading index is disregarded is refused.
      *
-     * The catalogue reports such an index exactly as it reports a usable one,
-     * so the sort proof would otherwise accept an order the table cannot serve
-     * while the search proof over the same index refuses it.
+     * The catalogue reports such an index exactly as it reports a usable one.
      *
      * @return void
      */
@@ -439,20 +396,14 @@ final class ValidateIndexBackingTest extends TestCase
             array_map(static fn ($error): string => $error->defect, $rule->validate(UserResource::class, User::class, $this->schema('name'))),
         );
 
-        // Without the report the same catalogue proves the column, so the
-        // refusal above is the report doing the work rather than the
-        // declaration failing for some other reason.
+        // Without the report the same catalogue proves the column.
         self::assertSame([], $this->rule($indexes)->validate(UserResource::class, User::class, $this->schema('name')));
     }
 
     /**
-     * Test that a sortable column is refused where the index leading with it is
-     * keyed on an expression.
+     * Test that an index keyed on an expression does not prove the column.
      *
-     * A key part naming no column is dropped from the column list the catalogue
-     * aggregates, so the column that follows it reads as the one the index
-     * leads with, and an ordered read of that column alone cannot be served by
-     * an index led by the expression in front of it.
+     * The catalogue omits the expression, so the next column reads as leading.
      *
      * @return void
      */
@@ -467,11 +418,9 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a sortable column is refused where the index leading with it
-     * holds only the rows its own predicate admits.
+     * Test that a column is refused where its leading index is partial.
      *
-     * An ordered read carries no predicate of its own, so an index restricted
-     * to part of the table cannot answer one over the whole of it.
+     * An ordered read has no predicate, so a partial index cannot serve it.
      *
      * @return void
      */
@@ -486,12 +435,9 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a sortable column is refused where the only index leading with
-     * it cannot deliver the column's own order.
+     * Test that a column is refused where its only index lacks its order.
      *
-     * A key truncated to a prefix of the column, or ordered under another
-     * collation or operator family, still names the column first, and the
-     * catalogue reports it exactly as it reports one holding that order.
+     * A truncated or differently collated key still names the column first.
      *
      * @return void
      */
@@ -508,8 +454,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that an ordinary index alongside one lacking the column's order
-     * still proves the column.
+     * Test that an ordinary index proves the column beside one lacking order.
      *
      * @return void
      */
@@ -524,11 +469,9 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that naming an index lacking the column's order outright is left to
-     * the author to vouch for.
+     * Test that a named index lacking the column's order is vouched for.
      *
-     * The named override is the escape hatch for any index the inferred proof
-     * conservatively passes over, so only the engine's refusal defeats it.
+     * Only the engine's refusal defeats the named override.
      *
      * @return void
      */
@@ -545,9 +488,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a sortable column is refused where the only index leading with
-     * it is collated apart from the column, while naming that index outright is
-     * still vouched for.
+     * Test that a collated-apart index is refused unless named outright.
      *
      * @return void
      */
@@ -569,8 +510,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that an exemption still stands over an index lacking the column's
-     * order.
+     * Test that an exemption still stands over an index lacking the order.
      *
      * @return void
      */
@@ -587,12 +527,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a refused index does not hide a later one that proves the
-     * column.
-     *
-     * The walk has to keep reading past the index it passes over, or an index
-     * the engine disregards declared first would refuse a column a perfectly
-     * good index behind it leads with.
+     * Test that a refused index does not hide a later one proving the column.
      *
      * @return void
      */
@@ -607,20 +542,14 @@ final class ValidateIndexBackingTest extends TestCase
 
         self::assertSame([], $rule->validate(UserResource::class, User::class, $this->schema('name')));
 
-        // With only the passed-over index declared, the same read must refuse
-        // the column, so the acceptance above is the walk continuing rather
-        // than the report being ignored.
+        // With only the passed-over index declared, the column is refused.
         $only = $this->rule([new IndexDefinition('users_name_hidden', ['name'], 'btree')], $eligibility);
 
         self::assertNotSame([], $only->validate(UserResource::class, User::class, $this->schema('name')));
     }
 
     /**
-     * Test that a connection whose catalogue could not be read is not asked
-     * what it thinks of the indexes in it.
-     *
-     * There is nothing to report against, and asking would spend a read on a
-     * table the rule has already decided it cannot judge.
+     * Test that eligibility is not asked for when the catalogue is unreadable.
      *
      * @return void
      */
@@ -640,11 +569,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a named index the connection will not plan against is refused,
-     * and said to be carried rather than missing.
-     *
-     * Telling an author the table carries no index of a name it demonstrably
-     * carries sends them looking for the wrong thing entirely.
+     * Test that a disregarded named index is refused as carried, not missing.
      *
      * @return void
      */
@@ -664,12 +589,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that naming an index outright still accepts one the column list was
-     * never going to describe.
-     *
-     * The override exists for exactly that index, so a report describing it as
-     * expression keyed or restricted is the author's to vouch for rather than
-     * the rule's to refuse.
+     * Test that a named expression-keyed or partial index is accepted.
      *
      * @return void
      */
@@ -686,8 +606,7 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Build the rule over an introspection provider reporting the given
-     * catalogue, where null stands for a connection that could not be read.
+     * Build the rule over the given catalogue, null meaning an unreadable one.
      *
      * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null  $indexes
      * @param  \SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility  $eligibility

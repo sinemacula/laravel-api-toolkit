@@ -164,8 +164,7 @@ final class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
-     * Test that validation continues past fields without relations and still
-     * reports later defects.
+     * Test that validation continues past fields without relations.
      *
      * @return void
      */
@@ -254,8 +253,7 @@ final class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
-     * Test that a field whose relation method is valid does not halt iteration,
-     * so a later field's defect is still reported.
+     * Test that validation continues past a field with a valid relation method.
      *
      * @return void
      */
@@ -299,8 +297,7 @@ final class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
-     * Test that a count definition whose relation method is valid does not halt
-     * iteration, so a later count definition's defect is still reported.
+     * Test that validation continues past a valid count relation method.
      *
      * @return void
      */
@@ -334,8 +331,7 @@ final class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
-     * Test that a count definition whose relation method is valid produces no
-     * error, so the loop advances past it.
+     * Test that a count definition with a valid relation method has no error.
      *
      * @return void
      */
@@ -526,8 +522,7 @@ final class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
-     * Test reports field relation method with union type containing no
-     * Relation.
+     * Test reports a field relation method whose union holds no Relation.
      *
      * @return void
      */
@@ -570,8 +565,7 @@ final class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
-     * Test reports field relation method with an intersection type containing
-     * no Relation.
+     * Test reports a field relation intersection type with no Relation.
      *
      * @return void
      */
@@ -658,8 +652,7 @@ final class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
-     * Test reports count definition relation method with non-Relation return
-     * type.
+     * Test reports a count relation method with a non-Relation return type.
      *
      * @return void
      */
@@ -701,8 +694,7 @@ final class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
-     * Test reports relation method missing on model for an aggregate
-     * definition.
+     * Test reports a missing relation method for an aggregate definition.
      *
      * @return void
      */
@@ -734,8 +726,7 @@ final class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
-     * Test that an aggregate definition whose relation method is valid produces
-     * no error.
+     * Test that a valid aggregate relation method produces no error.
      *
      * @return void
      */

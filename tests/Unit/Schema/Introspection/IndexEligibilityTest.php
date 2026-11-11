@@ -20,10 +20,7 @@ use Tests\TestCase;
 final class IndexEligibilityTest extends TestCase
 {
     /**
-     * Test that a report naming nothing leaves every index usable.
-     *
-     * An engine that cannot answer reports nothing, and that has to read as
-     * silence rather than as a refusal of everything it was not asked about.
+     * Test that an empty report leaves every index usable.
      *
      * @return void
      */
@@ -40,10 +37,7 @@ final class IndexEligibilityTest extends TestCase
     }
 
     /**
-     * Test that each fact is reported apart from the others.
-     *
-     * The facts defeat different readers, so one of them holding must not make
-     * the others answer for an index they were never told about.
+     * Test that each fact is reported independently of the others.
      *
      * @return void
      */
@@ -83,9 +77,7 @@ final class IndexEligibilityTest extends TestCase
     /**
      * Test that a leading key lacking its column's order is still described.
      *
-     * A truncated or pattern-class key still finds rows by its column, so a
-     * proof reading the reported columns for anything other than order must
-     * keep resting on it.
+     * A truncated or pattern-class key still finds rows by its column.
      *
      * @return void
      */
@@ -100,9 +92,7 @@ final class IndexEligibilityTest extends TestCase
     /**
      * Test that a key collated apart from its column is not described.
      *
-     * Such a key cannot answer a comparison written against the column, so a
-     * proof reading the reported columns may not rest on it, and it is ordered
-     * by the other collation, so it does not hold the column's order either.
+     * Such a key answers no comparison on the column and holds no order for it.
      *
      * @return void
      */
@@ -118,8 +108,7 @@ final class IndexEligibilityTest extends TestCase
     }
 
     /**
-     * Test that any one of the four facts defeats a proof reading the reported
-     * columns.
+     * Test that any one of the four facts defeats a column-reading proof.
      *
      * @return void
      */
@@ -133,11 +122,9 @@ final class IndexEligibilityTest extends TestCase
     }
 
     /**
-     * Test that a name is matched whatever case either side names it in.
+     * Test that a name is matched case-insensitively on either side.
      *
-     * The catalogue reports a name folded while a declaration may name one as
-     * it was created, so comparing the two literally would let a name carrying
-     * a capital slip past every fact reported about it.
+     * The catalogue folds names while a declaration may not.
      *
      * @return void
      */
