@@ -209,6 +209,63 @@ final class OperatorRegistryTest extends TestCase
     }
 
     /**
+     * Test that tokens is empty when no operators are registered.
+     *
+     * @return void
+     */
+    public function testTokensReturnsEmptyArrayWhenNoOperatorsRegistered(): void
+    {
+        self::assertSame([], (new OperatorRegistry)->tokens());
+    }
+
+    /**
+     * Test that tokens lists the registered tokens in registration order.
+     *
+     * @return void
+     */
+    public function testTokensReturnsAllRegisteredTokens(): void
+    {
+        $registry = new OperatorRegistry;
+
+        $registry->register('$eq', $this->createStubOperator());
+        $registry->register('$neq', $this->createStubOperator());
+        $registry->register('$gt', $this->createStubOperator());
+
+        self::assertSame(['$eq', '$neq', '$gt'], $registry->tokens());
+    }
+
+    /**
+     * Test that tokens reflects a removed operator immediately.
+     *
+     * @return void
+     */
+    public function testTokensReflectsRemoval(): void
+    {
+        $registry = new OperatorRegistry;
+
+        $registry->register('$eq', $this->createStubOperator());
+        $registry->register('$neq', $this->createStubOperator());
+        $registry->remove('$eq');
+
+        self::assertSame(['$neq'], array_values($registry->tokens()));
+    }
+
+    /**
+     * Test that an overridden operator keeps its token.
+     *
+     * @return void
+     */
+    public function testTokensReflectsOverride(): void
+    {
+        $registry = new OperatorRegistry;
+
+        $registry->register('$eq', $this->createStubOperator());
+        $registry->override('$eq', $this->createStubOperator());
+
+        self::assertSame(['$eq'], $registry->tokens());
+    }
+
+    /**
      * Create a stub FilterOperator implementation for testing.
      *
      * @return \SineMacula\ApiToolkit\Contracts\FilterOperator
