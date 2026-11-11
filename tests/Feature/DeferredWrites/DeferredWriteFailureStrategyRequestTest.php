@@ -20,14 +20,7 @@ use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\TestCase;
 
 /**
- * Feature test covering the deferred-write failure strategies over live
- * requests.
- *
- * Proves each config-wired on_failure posture behaves as documented when a
- * flush fails: throw reports a boundary flush failure (and surfaces the
- * exception instead only when rethrow_at_boundary is set), log drops the failed
- * records after logging a warning, and an in-handler auto-flush failure under
- * throw reaches the client as a server error rather than the accepted response.
+ * Feature tests for the deferred-write failure strategies over live requests.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -54,7 +47,7 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        // Buffers a record for a table that does not exist so the flush fails.
+        // The table does not exist, so the flush fails
         Route::post('/deferred-invalid-boundary', function (): JsonResponse {
 
             app(WritePool::class)->add('nonexistent_table', ['col' => 'val']);
@@ -62,8 +55,7 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
             return response()->json(['accepted' => true], 202);
         });
 
-        // Buffers a record for a missing table with the pool limit at one, so
-        // the auto-flush fires (and may throw) inside the handler itself.
+        // The pool limit is one, so the auto-flush fires inside the handler
         Route::post('/deferred-invalid-handler', function (): JsonResponse {
 
             app(WritePool::class)->add('nonexistent_table', ['col' => 'val']);
@@ -73,8 +65,8 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
     }
 
     /**
-     * Test that the throw strategy reports a boundary flush failure once while
-     * the request still returns its accepted response.
+     * Test that the throw strategy reports a boundary flush failure once and
+     * still returns the response.
      *
      * @return void
      */
@@ -93,8 +85,8 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
     }
 
     /**
-     * Test that the throw strategy surfaces the flush exception at the boundary
-     * when rethrow_at_boundary is enabled.
+     * Test that the throw strategy rethrows the flush exception when
+     * rethrow_at_boundary is enabled.
      *
      * @return void
      */
@@ -105,9 +97,8 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
 
         Exceptions::fake();
 
-        // The boundary flush runs after the response is produced, so the
-        // re-thrown exception surfaces out of the test kernel rather than as a
-        // rendered response, and its reporting is left to the boundary.
+        // The boundary flush runs after the response, so this escapes the
+        // kernel
         $this->expectException(WritePoolFlushException::class);
 
         try {
@@ -118,9 +109,8 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
     }
 
     /**
-     * Test that the log strategy drops the failed records after logging a
-     * warning, without reporting, while the request returns its accepted
-     * response.
+     * Test that the log strategy drops the failed records after a warning,
+     * without reporting.
      *
      * @return void
      */
@@ -144,8 +134,8 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
     }
 
     /**
-     * Test that an in-handler auto-flush failure under the throw strategy
-     * reaches the client as a server error rather than the accepted response.
+     * Test that an in-handler auto-flush failure under throw reaches the client
+     * as a server error.
      *
      * @return void
      */

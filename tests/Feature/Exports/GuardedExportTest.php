@@ -24,16 +24,10 @@ use Tests\Fixtures\Resources\ThrowingGuardExportResource;
 use Tests\TestCase;
 
 /**
- * Feature tests proving the data-leak guarantees of field guards inside
- * content-negotiated exports, observed on the streamed bytes and the aborted
- * response.
+ * Feature tests for field guards inside content-negotiated exports.
  *
- * A request-scoped guard drops or keeps its whole column in the streamed CSV
- * depending on the request, so a guarded value never reaches the wire unless
- * the request permits it. A row-dependent or fail-closed guard cannot be
- * honoured by a flat tabular schema, so the export aborts before any row is
- * streamed, surfacing a non-200 error with a non-tabular content type and no
- * leaked rows.
+ * A flat tabular schema cannot honour a row-dependent or fail-closed guard, so
+ * those exports abort before any row is streamed.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -51,8 +45,8 @@ final class GuardedExportTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up each test with the exporter bound, the handler wired, seeded users
-     * and the guarded export routes.
+     * Set up the exporter, the handler, seeded users and the guarded export
+     * routes.
      *
      * @return void
      */
@@ -83,9 +77,8 @@ final class GuardedExportTest extends TestCase
     }
 
     /**
-     * Test that a request-scoped guard omits its column and every guarded value
-     * from the streamed CSV by default, and includes them when the request
-     * permits the field.
+     * Test that a request-scoped guard drops its column from the streamed CSV
+     * unless the request permits it.
      *
      * @return void
      */
@@ -116,10 +109,8 @@ final class GuardedExportTest extends TestCase
     }
 
     /**
-     * Test that a row-dependent guard and a fail-closed guard abort the export
-     * before any row is streamed, returning a non-200 error with a non-tabular
-     * content type and no leaked values, for both the item and collection
-     * forms.
+     * Test that row-dependent and fail-closed guards abort the export before
+     * any row is streamed.
      *
      * @return void
      */
@@ -185,11 +176,6 @@ final class GuardedExportTest extends TestCase
 
     /**
      * Register the guarded export routes.
-     *
-     * The streaming route attaches a distinctive secret value to each row so
-     * the guarded column can be proven present or absent in the streamed bytes.
-     * The aborting routes carry guards that cannot be honoured on a flat
-     * tabular schema, so building their export throws before streaming.
      *
      * @return void
      */

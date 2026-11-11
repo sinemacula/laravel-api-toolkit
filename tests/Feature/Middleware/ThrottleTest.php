@@ -16,10 +16,6 @@ use Tests\TestCase;
 /**
  * Feature tests for the throttle middleware through the HTTP kernel.
  *
- * Dispatches real requests against a rate-limited route and asserts that an
- * exhausted bucket produces the toolkit too-many-requests envelope with a
- * Retry-After header, rather than the framework default.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -66,8 +62,8 @@ final class ThrottleTest extends TestCase
     }
 
     /**
-     * Test that an allowed response carries the rate-limit headers and the
-     * remaining count decrements across successive successful requests.
+     * Test that an allowed response carries the rate-limit headers with a
+     * decrementing remaining count.
      *
      * @return void
      */

@@ -22,11 +22,6 @@ use Tests\TestCase;
  * Feature tests for polymorphic collection serialization through the HTTP
  * kernel.
  *
- * A heterogeneous collection of mixed models is returned from a real route and
- * asserted to carry the correct per-type discriminator and field set for each
- * element - the mixed-type feed shape that unit tests only exercise one item at
- * a time. An unmapped model renders an error rather than a partial payload.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -83,8 +78,8 @@ final class PolymorphicCollectionTest extends TestCase
     }
 
     /**
-     * Test that a model absent from the map renders an error rather than a
-     * partial payload.
+     * Test that a model absent from the map renders an error, not a partial
+     * payload.
      *
      * @return void
      */

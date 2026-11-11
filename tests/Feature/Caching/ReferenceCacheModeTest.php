@@ -17,13 +17,10 @@ use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\TestCase;
 
 /**
- * Feature test proving whole-table reference-cache mode over repeated HTTP
- * reads.
+ * Feature test for whole-table reference-cache mode over repeated HTTP reads.
  *
- * A reference-mode repository serves the whole-table snapshot with zero queries
- * on a repeat read, but a criteria-composed read is an active composition that
- * bypasses the snapshot and falls through to the database, so a filtered
- * request never receives the unfiltered snapshot.
+ * A criteria-composed read bypasses the snapshot, so a filtered request never
+ * receives the unfiltered table.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -79,20 +76,18 @@ final class ReferenceCacheModeTest extends TestCase
     }
 
     /**
-     * Test that a repeat snapshot read serves zero queries while a
-     * criteria-composed read falls through to the database.
+     * Test that a repeat snapshot read issues no queries while a
+     * criteria-composed read falls through.
      *
      * @return void
      */
     public function testSnapshotReadHitsCacheWhileCriteriaReadFallsThrough(): void
     {
-        // Warm the whole-table snapshot.
         $this->getJson('/reference-users')->assertOk()->assertJsonCount(3, 'data');
 
         DB::enableQueryLog();
         DB::flushQueryLog();
 
-        // The repeat snapshot read is served with zero queries.
         $snapshot = $this->getJson('/reference-users');
 
         $snapshot->assertOk();
@@ -101,8 +96,6 @@ final class ReferenceCacheModeTest extends TestCase
 
         DB::flushQueryLog();
 
-        // A criteria-composed read is an active composition: it bypasses the
-        // snapshot, issues a fresh query, and narrows to the matching rows.
         $filtered = $this->getJson('/reference-users-filtered?' . http_build_query([
             'filters' => json_encode(['name' => ['$in' => ['Alpha', 'Bravo']]]),
         ]));

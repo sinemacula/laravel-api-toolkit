@@ -17,15 +17,8 @@ use Tests\Fixtures\Resources\NestedChildGuardPostResource;
 use Tests\TestCase;
 
 /**
- * Feature tests for relation-level guards and nested child field guards in a
- * real JSON response body.
- *
- * A guarded relation is security-adjacent: a consumer needs proof the embedded
- * relation is absent from the actual body, not merely from a unit resolve.
- * These tests drive a resource whose relation carries a request-scoped guard,
- * and a parent whose embedded child declares its own field guard, through real
- * responses to prove the guarded relation and the child's guarded field drop
- * out unless the request permits them.
+ * Feature tests for relation guards and nested child field guards in a real
+ * JSON body.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -55,8 +48,7 @@ final class RelationGuardResponseTest extends TestCase
 
         Post::create(['user_id' => $alice->id, 'title' => 'First Post', 'body' => 'Content', 'published' => true]);
 
-        // Fetch fresh instances per request so no model is flagged as recently
-        // created, which would alter the response status.
+        // A recently created model would alter the response status
         Route::get('/guarded-relation', static fn (): GuardedRelationUserResource => new GuardedRelationUserResource(
             User::query()->with('organization')->firstOrFail(),
         ));
@@ -98,7 +90,7 @@ final class RelationGuardResponseTest extends TestCase
 
     /**
      * Test that an embedded child's guarded field is hidden while its
-     * transformer still applies when the child's guard fails.
+     * transformer still applies.
      *
      * @return void
      */
@@ -115,7 +107,7 @@ final class RelationGuardResponseTest extends TestCase
 
     /**
      * Test that an embedded child's guarded field is revealed when the child's
-     * guard passes on the same request.
+     * guard passes.
      *
      * @return void
      */

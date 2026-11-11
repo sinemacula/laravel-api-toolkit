@@ -94,7 +94,7 @@ final class NotificationListenerTest extends TestCase
     }
 
     /**
-     * Test that the log includes notification class, notifiable class, and
+     * Test that the log includes the notification class, notifiable class and
      * channel.
      *
      * @return void
@@ -167,8 +167,8 @@ final class NotificationListenerTest extends TestCase
     }
 
     /**
-     * Test that non-excluded notification is logged when exclusion list is
-     * non-empty.
+     * Test that a non-excluded notification is logged when the exclusion list
+     * is non-empty.
      *
      * @return void
      */
@@ -245,8 +245,8 @@ final class NotificationListenerTest extends TestCase
     }
 
     /**
-     * Test that the audit log is written to the application's default channel
-     * when no channel is configured.
+     * Test that the audit log is written to the default channel when none is
+     * configured.
      *
      * @return void
      */
@@ -302,7 +302,7 @@ final class NotificationListenerTest extends TestCase
 
     /**
      * Test that a blank or non-string configured channel falls back to the
-     * application's default channel.
+     * default channel.
      *
      * @param  mixed  $channel
      * @return void
@@ -347,8 +347,8 @@ final class NotificationListenerTest extends TestCase
     }
 
     /**
-     * Register the capturing channels, make one the application's default and
-     * configure the audit log channel.
+     * Register capturing channels, make one the default and configure the audit
+     * log channel.
      *
      * @param  mixed  $auditChannel
      * @return void

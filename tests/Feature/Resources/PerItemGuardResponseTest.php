@@ -16,12 +16,6 @@ use Tests\TestCase;
 /**
  * Feature tests for a per-row field guard varying visibility inside one body.
  *
- * A field guard that reads the row being rendered must be evaluated once per
- * element as the collection is mapped, so a single JSON body can reveal the
- * guarded field on some rows and omit it on others. This drives a two-row
- * collection (one active, one inactive) through a real route and asserts the
- * guarded email surfaces on the active row and is absent on the inactive one.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -48,8 +42,7 @@ final class PerItemGuardResponseTest extends TestCase
         User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);
         User::create(['name' => 'Bob', 'email' => 'bob@example.com', 'status' => 'inactive']);
 
-        // Fetch fresh instances per request so no model is flagged as recently
-        // created, which would alter the response status.
+        // A recently created model would alter the response status
         Route::get('/per-item-guarded', static function (): ApiResourceCollection {
             $users = User::query()->get();
 
@@ -58,8 +51,8 @@ final class PerItemGuardResponseTest extends TestCase
     }
 
     /**
-     * Test that the guarded field appears on the active row and is absent on
-     * the inactive row within the same response body.
+     * Test that the guarded field appears on the active row and not on the
+     * inactive row.
      *
      * @return void
      */

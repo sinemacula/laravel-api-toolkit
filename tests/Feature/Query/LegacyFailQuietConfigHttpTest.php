@@ -19,12 +19,8 @@ use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\TestCase;
 
 /**
- * Feature test proving undeclared-key rejection cannot be configured away.
- *
- * Rejection of an undeclared key under the allowlist posture is unconditional,
- * so a published configuration file still carrying the withdrawn fail-quiet
- * toggle does not reopen the hole: the request is answered with the 422
- * envelope rather than the unfiltered set.
+ * Feature test proving undeclared-key rejection cannot be configured away by
+ * the withdrawn fail-quiet toggle.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -39,8 +35,8 @@ final class LegacyFailQuietConfigHttpTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up each test with the withdrawn fail-quiet toggle present in the
-     * configuration and seeded rows.
+     * Set up the withdrawn fail-quiet toggle in the configuration and seed
+     * rows.
      *
      * @return void
      */
@@ -66,8 +62,7 @@ final class LegacyFailQuietConfigHttpTest extends TestCase
     }
 
     /**
-     * Test that an undeclared filter key is rejected with the 422 envelope
-     * rather than dropped and answered with the full set.
+     * Test that an undeclared filter key is rejected with the 422 envelope.
      *
      * @return void
      */

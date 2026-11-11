@@ -30,9 +30,6 @@ use Tests\Fixtures\Support\UnreachableCacheStore;
 /**
  * Base test case for the API toolkit package.
  *
- * Provides an in-memory SQLite database, configures the package service
- * providers, and sets up the schema required by fixture models.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -46,16 +43,15 @@ abstract class TestCase extends OrchestraTestCase
     /** @var string|null The per-test isolated bootstrap directory, if one was provisioned. */
     private ?string $bootstrapPath = null;
 
-    /** @var array<int, string> The toolkit cache keys written with a value that does not read back without its classes. */
+    /** @var array<int, string> Toolkit cache keys whose value does not read back without its classes */
     private array $unreadableCacheWrites = [];
 
     /**
-     * Fail the test when it wrote a toolkit cache entry that would not read
-     * back with every class refused, as Laravel's serializable_classes setting
-     * refuses them by default.
+     * Fail the test when a toolkit cache write would not read back with every
+     * class refused, as Laravel's serializable_classes default does.
      *
-     * A test that fakes every event keeps the cache's writes from the listener,
-     * so the writes the fake recorded are checked here instead.
+     * Writes recorded by an event fake are checked here, since the fake keeps
+     * them from the listener.
      *
      * @return void
      */
@@ -86,9 +82,6 @@ abstract class TestCase extends OrchestraTestCase
     /**
      * Clean up the testing environment before the next test.
      *
-     * Resets the morph map, which is process-global static state, so tests
-     * remain order-independent, and removes the per-test file-cache directory.
-     *
      * @return void
      */
     #[\Override]
@@ -96,9 +89,7 @@ abstract class TestCase extends OrchestraTestCase
     {
         FunctionOverrides::reset();
 
-        // Mirror the process-static caches that CacheManager::flush() clears at
-        // a real request/worker boundary, so metadata resolved by one test
-        // cannot leak into the next (the harness never crosses that boundary).
+        // Clear the process-static caches a real request boundary would flush
         FieldResolver::clearCache();
         ValueResolver::clearCache();
         EagerLoadPlanner::clearCache();
@@ -123,8 +114,7 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
-     * Return the key the store holds the given metadata key under in the
-     * current generation.
+     * Return the key the store holds the given metadata key under.
      *
      * @param  string  $key
      * @return string
@@ -138,8 +128,8 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
-     * Point the application at an empty bootstrap directory of its own, so a
-     * compiled file one test writes is never read by a parallel process.
+     * Point the application at a bootstrap directory of its own, so parallel
+     * processes never share a compiled file.
      *
      * @return string
      */
@@ -185,8 +175,7 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
-     * Make the default cache store one whose every operation throws, as a store
-     * behind an unreachable network would.
+     * Make the default cache store one whose every operation throws.
      *
      * @return void
      */
@@ -251,10 +240,7 @@ abstract class TestCase extends OrchestraTestCase
         /** @var \Illuminate\Config\Repository $config */
         $config = $app['config'];
 
-        // Isolate the file cache per test so parallel mutation runs (each
-        // mutant is a separate process) never collide on a shared cache
-        // directory, which otherwise makes TTL/expiry-sensitive cache
-        // assertions flap and the mutation score non-deterministic.
+        // Isolate the file cache so parallel mutant processes never share it
         $this->fileCachePath = sys_get_temp_dir() . '/api-toolkit-test-cache-' . getmypid() . '-' . uniqid('', true);
         $config->set('cache.stores.file.path', $this->fileCachePath);
 
@@ -303,12 +289,10 @@ abstract class TestCase extends OrchestraTestCase
 
     /**
      * Record a toolkit cache write whose value does not read back unchanged
-     * once serialized and unserialized with every class refused.
+     * with every class refused.
      *
-     * The write is recorded rather than failed here, since the metadata cache
-     * writer reports and absorbs any exception the store raises. It is recorded
-     * before the value is serialized, so a value that cannot be serialized at
-     * all stays recorded when serializing it throws.
+     * Recorded before serializing, so a value that cannot be serialized at all
+     * stays recorded.
      *
      * @param  \Illuminate\Cache\Events\KeyWritten  $event
      * @return void
@@ -331,10 +315,8 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
-     * Get the database connection configuration.
-     *
-     * Reads the DB_DRIVER environment variable to determine which database to
-     * use. Defaults to in-memory SQLite for fast local testing.
+     * Get the database connection configuration from the DB_DRIVER environment
+     * variable, defaulting to in-memory SQLite.
      *
      * @return array<string, mixed>
      */
@@ -529,10 +511,7 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
-     * Create the articles table.
-     *
-     * Wide, soft-deleting table backing the Article fixture used by the
-     * column-narrowing integration suite.
+     * Create the soft-deleting articles table.
      *
      * @return void
      */
@@ -558,11 +537,7 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
-     * Create the comments table.
-     *
-     * Soft-deleting child table backing the Comment fixture used to prove that
-     * trashed visibility cascades to eager-loaded relations only when the
-     * child's resource opts in.
+     * Create the soft-deleting comments table.
      *
      * @return void
      */
@@ -581,10 +556,8 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
-     * Create the devices table.
-     *
-     * The platform column holds a pure enum and the status column a backed one,
-     * each stored as Eloquent writes it.
+     * Create the devices table, holding a pure enum platform and a backed enum
+     * status.
      *
      * @return void
      */
@@ -604,11 +577,7 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
-     * Create the import rows table.
-     *
-     * Keyless staging table carrying no primary key and no index, so a test
-     * reading its catalogue back gets an answer that is genuinely empty rather
-     * than one that could not be read.
+     * Create the import rows table, with no primary key and no index.
      *
      * @return void
      */
@@ -622,15 +591,10 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
-     * Create the indexes the shipped search drivers prove a declaration
-     * against.
+     * Create the indexes the shipped search drivers prove declarations against.
      *
-     * The declared columns live on the users table, and the index each match
-     * strategy needs is written in a dialect only its own engine speaks, so the
-     * statements are issued per driver. MySQL matches the anywhere-match
-     * columns together and so takes one index over both; PostgreSQL matches
-     * each on its own and so takes one each. SQLite carries neither index kind
-     * and is left alone, which is why it is a development connection here.
+     * MySQL takes one fulltext index over both columns, PostgreSQL one trigram
+     * index each, and SQLite none.
      *
      * @return void
      */

@@ -23,11 +23,6 @@ use Tests\TestCase;
  * Feature tests for the page-size ceiling and filter-operator grammar over
  * HTTP.
  *
- * A client-supplied page limit above the configured ceiling is refused rather
- * than quietly reduced to it, and a small sample of declared filter operators -
- * greater-than and in - each narrow the result set through the parsed query
- * string.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -87,8 +82,7 @@ final class LimitAndOperatorTest extends TestCase
 
     /**
      * Test that a per-page limit one above the configured ceiling is refused
-     * with the typed rejection rather than answered with a smaller page the
-     * client cannot tell from an exhausted result set.
+     * with the typed rejection.
      *
      * @return void
      */

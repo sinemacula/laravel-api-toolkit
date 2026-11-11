@@ -267,8 +267,8 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getFilters keeps every falsy value the filter document carries
-     * and reads an empty document as no filters.
+     * Test that getFilters keeps every falsy filter value and reads an empty
+     * document as no filters.
      *
      * @return void
      *
@@ -304,9 +304,7 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that parsing rejects a valid-JSON but non-associative filter value
-     * rather than reducing it to an empty set, which would answer with the
-     * unfiltered table.
+     * Test that parsing rejects a valid-JSON but non-associative filter value.
      *
      * @param  string  $filters
      * @return void
@@ -328,8 +326,7 @@ final class ApiQueryParserTest extends TestCase
 
     /**
      * Test that getFields tolerates a list-form parameter without a resource
-     * key, returning a safe result instead of raising a type error while
-     * trimming the nested value.
+     * key.
      *
      * @return void
      *
@@ -345,8 +342,7 @@ final class ApiQueryParserTest extends TestCase
 
     /**
      * Test that getCounts tolerates a list-form parameter without a resource
-     * key, returning a safe result instead of raising a type error while
-     * trimming the nested value.
+     * key.
      *
      * @return void
      *
@@ -427,8 +423,7 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that a limit at the configured ceiling is parsed and returned as
-     * asked for.
+     * Test that a limit at the configured ceiling is returned as asked for.
      *
      * @return void
      *
@@ -445,9 +440,8 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that a limit one above the configured ceiling is rejected by the
-     * parse rather than reduced to the ceiling, so a client asking for more
-     * rows than it may have is told so.
+     * Test that a limit one above the configured ceiling is rejected rather
+     * than reduced to the ceiling.
      *
      * @return void
      */
@@ -474,7 +468,7 @@ final class ApiQueryParserTest extends TestCase
 
     /**
      * Test that getLimit returns the requested value untouched when the ceiling
-     * is disabled, so nothing is capped once it is parsed.
+     * is disabled.
      *
      * @return void
      *
@@ -567,8 +561,7 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getCursor coerces a non-string scalar into its string form
-     * rather than returning the raw scalar.
+     * Test that getCursor coerces a non-string scalar into its string form.
      *
      * @return void
      */
@@ -595,8 +588,7 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getSearch returns null when no term was supplied, so an absent
-     * parameter is distinguishable from an empty one.
+     * Test that getSearch returns null when no term was supplied.
      *
      * @return void
      *
@@ -612,7 +604,7 @@ final class ApiQueryParserTest extends TestCase
 
     /**
      * Test that getSearch returns null for a stored parameter that is not a
-     * parsed term, rather than handing the raw value to the criteria layer.
+     * parsed term.
      *
      * @return void
      */
@@ -714,9 +706,8 @@ final class ApiQueryParserTest extends TestCase
     /**
      * Test that normalizeFields returns an array value unchanged.
      *
-     * This path is only reachable through direct method invocation because the
-     * parser's validation rules reject non-string aggregation field values
-     * before they can reach the parsing logic.
+     * Only reachable directly, since validation rejects non-string aggregation
+     * fields.
      *
      * @return void
      */
@@ -800,8 +791,7 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getLimit truncates fractional values below one and returns
-     * null.
+     * Test that getLimit truncates fractional values below one to null.
      *
      * @return void
      */
@@ -813,8 +803,8 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getPage truncates fractional values below one and returns the
-     * first page.
+     * Test that getPage truncates fractional values below one to the first
+     * page.
      *
      * @return void
      */
@@ -826,8 +816,7 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that parse trims surrounding whitespace from the page and limit
-     * parameters.
+     * Test that parse trims whitespace from the page and limit parameters.
      *
      * @return void
      *
@@ -1039,13 +1028,8 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that a request is recognised as reading by cursor from either the
-     * pagination mode or a carried cursor token.
-     *
-     * The offset cap reads this to decide whether a page number costs rows to
-     * honour, so a read wrongly classed as paging would be charged for an
-     * offset a cursor never pays, closing the escape hatch offered to a caller
-     * who has to read deeply.
+     * Test that a request reads by cursor from either the pagination mode or a
+     * carried cursor token.
      *
      * @param  array<string, string>  $parameters
      * @param  bool  $expected
@@ -1064,10 +1048,6 @@ final class ApiQueryParserTest extends TestCase
     /**
      * Test that the page size resolves to the configured default when the
      * client leaves it out.
-     *
-     * The guard bounding what a page costs and the query paying that cost both
-     * read this, so a disagreement between them would bound something other
-     * than the work actually done.
      *
      * @return void
      *
@@ -1101,13 +1081,9 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that an unusable configured page size resolves to a single row
-     * rather than to nothing.
+     * Test that an unusable configured page size resolves to a single row.
      *
-     * A page size of zero would divide the offset arithmetic by zero, and a
-     * negative one would read the cap backwards, so the smallest page that can
-     * exist stands in. It is deliberately not the shipped default, because a
-     * misconfigured page size should be visible rather than papered over.
+     * Not the shipped default, so a misconfigured page size stays visible.
      *
      * @param  mixed  $configured
      * @return void

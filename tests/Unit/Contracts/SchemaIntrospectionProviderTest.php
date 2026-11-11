@@ -92,9 +92,8 @@ final class SchemaIntrospectionProviderTest extends TestCase
     }
 
     /**
-     * Test that getIndexes is declared with the correct signature, returning a
-     * nullable array so an unverifiable catalogue is a distinct answer from an
-     * empty one.
+     * Test that getIndexes returns a nullable array, so an unverifiable
+     * catalogue differs from an empty one.
      *
      * @return void
      */

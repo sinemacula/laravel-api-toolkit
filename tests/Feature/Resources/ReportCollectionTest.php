@@ -17,10 +17,8 @@ use Tests\TestCase;
 /**
  * Feature tests for report read-model serialization through the HTTP kernel.
  *
- * A paginated report of DTO rows is returned from a real route and asserted to
- * inherit the identical envelope as an entity collection - `data`, `meta`,
- * `links`, and the `Total-Count` header - which only a real dispatch confirms
- * because the pagination hooks fire through the response, not `toArray()`.
+ * The pagination hooks fire through the response, so only a real dispatch shows
+ * the envelope.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -60,8 +58,8 @@ final class ReportCollectionTest extends TestCase
     }
 
     /**
-     * Test that a paginated report collection renders the toolkit envelope with
-     * the Total-Count header and per-row discriminator.
+     * Test that a paginated report renders the envelope with the Total-Count
+     * header and per-row discriminator.
      *
      * @return void
      */

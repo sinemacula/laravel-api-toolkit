@@ -50,8 +50,8 @@ final class InvalidateMetadataCommandTest extends TestCase
     }
 
     /**
-     * Test that metadata written by an earlier process is served to no process
-     * after the command runs, though the command never touched its key.
+     * Test that metadata written by an earlier process is no longer served
+     * after the command runs.
      *
      * @return void
      */
@@ -82,7 +82,7 @@ final class InvalidateMetadataCommandTest extends TestCase
     }
 
     /**
-     * Test that the command fails, and says why, when the store rejects the new
+     * Test that the command fails, saying why, when the store rejects the new
      * generation.
      *
      * @return void

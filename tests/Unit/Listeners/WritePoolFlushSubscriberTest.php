@@ -45,9 +45,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     /**
      * Set up the test environment.
      *
-     * The write pool flush now invalidates the per-query cache itself; disable
-     * that here so the subscriber's flush and escalation assertions observe it
-     * in isolation, without a cache side effect.
+     * The flush's own cache invalidation is disabled so the subscriber is
+     * observed in isolation.
      *
      * @return void
      */
@@ -128,8 +127,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that dispatching RequestHandled flushes the pool through the
-     * registered listener.
+     * Test that dispatching RequestHandled flushes the pool.
      *
      * @return void
      */
@@ -143,8 +141,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that dispatching CommandFinished flushes the pool through the
-     * registered listener.
+     * Test that dispatching CommandFinished flushes the pool.
      *
      * @return void
      */
@@ -158,8 +155,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that dispatching JobProcessed flushes the pool through the
-     * registered listener.
+     * Test that dispatching JobProcessed flushes the pool.
      *
      * @return void
      */
@@ -173,8 +169,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that dispatching JobFailed flushes the pool through the registered
-     * listener.
+     * Test that dispatching JobFailed flushes the pool.
      *
      * @return void
      */
@@ -188,8 +183,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that handleFlush resolves the WritePool from the container and calls
-     * flush.
+     * Test that handleFlush resolves the WritePool from the container and
+     * flushes it.
      *
      * @return void
      */
@@ -212,9 +207,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a collected flush failure is reported exactly once as a
-     * WritePoolFlushException chained to the underlying database exception and
-     * carrying the failing table in its context.
+     * Test that a collected flush failure is reported once, chained to the
+     * database exception with the table.
      *
      * @return void
      */
@@ -248,10 +242,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a systemic COLLECT failure, where every table fails, is
-     * reported once and dispatches a WritePoolFlushFailed event whose result
-     * carries every failing table so downstream escalation can act on the full
-     * set.
+     * Test that a systemic COLLECT failure is reported once and dispatches an
+     * event carrying every table.
      *
      * @return void
      */
@@ -273,8 +265,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a collected failure is still reported, and not thrown, when the
-     * rethrow_at_boundary flag is enabled, since nothing was raised to rethrow.
+     * Test that a collected failure is reported, not thrown, even with
+     * rethrow_at_boundary enabled.
      *
      * @return void
      */
@@ -293,8 +285,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a log strategy failure dispatches the event without reporting,
-     * since its writes are disposable and each chunk is already logged.
+     * Test that a log strategy failure dispatches the event without reporting.
      *
      * @return void
      */
@@ -331,8 +322,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a failed event dispatch after a collected failure does not
-     * escape and is itself reported alongside the flush failure.
+     * Test that a failed event dispatch after a collected failure is reported,
+     * not thrown.
      *
      * @return void
      */
@@ -352,8 +343,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a failed event dispatch after a raised throw strategy failure
-     * does not escape and is itself reported alongside the flush failure.
+     * Test that a failed event dispatch after a throw strategy failure is
+     * reported, not thrown.
      *
      * @return void
      */
@@ -373,8 +364,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that when reporting the flush failure itself fails, the failure
-     * falls back to the error log and the event is still dispatched.
+     * Test that when reporting the flush failure fails, it falls back to the
+     * error log and still dispatches.
      *
      * @return void
      */
@@ -397,8 +388,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that an unexpected throwable during pool resolution is caught and
-     * reported without crashing the boundary.
+     * Test that an unexpected throwable during pool resolution is reported
+     * without crashing the boundary.
      *
      * @return void
      */
@@ -420,8 +411,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a WritePoolFlushException raised by the throw strategy is
-     * reported once as the raised instance and the event is dispatched.
+     * Test that a throw strategy exception is reported once as the raised
+     * instance and the event dispatched.
      *
      * @return void
      */
@@ -440,8 +431,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that the subscriber reports rather than re-throws a flush exception
-     * when the rethrow_at_boundary flag is disabled.
+     * Test that the subscriber reports rather than rethrows when
+     * rethrow_at_boundary is disabled.
      *
      * @return void
      */
@@ -460,9 +451,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that the subscriber reports rather than re-throws a flush exception
-     * when the rethrow_at_boundary key is absent, so the safe default keeps the
-     * boundary from hard-crashing.
+     * Test that the subscriber reports rather than rethrows when
+     * rethrow_at_boundary is absent.
      *
      * @return void
      */
@@ -483,9 +473,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that the subscriber re-throws the raised flush exception after
-     * dispatching the event, leaving its reporting to the boundary, when the
-     * rethrow_at_boundary flag is enabled.
+     * Test that the subscriber rethrows after dispatching the event when
+     * rethrow_at_boundary is enabled.
      *
      * @return void
      */

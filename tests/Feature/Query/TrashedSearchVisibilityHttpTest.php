@@ -33,23 +33,10 @@ use Tests\TestCase;
 
 /**
  * Feature tests driving a search term and a trashed visibility request together
- * over the real HTTP pipeline.
+ * over HTTP.
  *
- * Each parameter is correct on its own, which is why the pair needs proving:
- * the visibility scope is resolved before the search, and the search
- * contributes a group of ORed predicates that has to stay a group. Isolating
- * the scope to trashed rows writes a plain predicate onto the builder rather
- * than a scope the query nests for itself, so a search group escaping its
- * wrapper would OR against that predicate and answer a trashed-only read with
- * live rows. A gate opening on anything other than the request would put
- * soft-deleted rows into a plain `?search=`. Neither is visible to a
- * search-only or a trashed-only request, each carrying half the pair.
- *
- * The rows are seeded so the term matches on both sides of the soft-delete
- * boundary and so rows exist that the term alone excludes, which is what makes
- * a widened scope observable as a widening rather than as an unnarrowed table.
- * The term appears in the same case in every seeded value, since one supported
- * engine matches patterns case-sensitively and another does not.
+ * Isolating trashed rows writes a plain predicate onto the builder, so a search
+ * group escaping its wrapper would OR live rows back in.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -65,9 +52,8 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up repository-backed routes over a searchable soft-deleting resource,
-     * its gate-closed twin, and a searchable parent carrying a soft-deleting
-     * relation, with a driver registered for the connection under test.
+     * Set up searchable soft-deleting routes, a gate-closed twin and a
+     * searchable parent with a soft-deleting relation.
      *
      * @return void
      */
@@ -128,10 +114,8 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that a term carried on its own answers with live matches only, even
-     * though a trashed row matches it and the resource would have opened its
-     * gate had the request asked for it. The widening is the request's to ask
-     * for, never the term's to imply.
+     * Test that a term on its own answers with live matches only, even on a
+     * resource whose gate is open.
      *
      * @return void
      */
@@ -146,8 +130,7 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that a widened scope is still narrowed by the term, so the trashed
-     * rows the request opens are the matching ones rather than all of them.
+     * Test that a widened scope is still narrowed by the term.
      *
      * @return void
      */
@@ -166,10 +149,7 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
 
     /**
      * Test that a scope isolated to trashed rows is narrowed by the term as
-     * well, so the non-matching trashed row stays out of the answer. This is
-     * the read where the scope stands as a plain predicate beside the search
-     * rather than as one the query nests for itself, so a search group that
-     * escaped its wrapper would OR live rows back into the answer here.
+     * well.
      *
      * @return void
      */
@@ -185,8 +165,7 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
 
     /**
      * Test that a resource holding its trashed gate closed keeps soft-deleted
-     * rows hidden from a request that carries both parameters, so a search is
-     * never the thing that opens soft-delete visibility.
+     * rows hidden from a search.
      *
      * @return void
      */
@@ -201,10 +180,8 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that a term, a widened scope, and a root-level filter disjunction
-     * all narrow together on one request. The disjunction alone reaches three
-     * rows and the term alone reaches three others; only their intersection may
-     * answer, which no branch of either group can widen.
+     * Test that a term, a widened scope and a root-level filter disjunction all
+     * narrow together.
      *
      * @return void
      */
@@ -229,8 +206,7 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
 
     /**
      * Test that a term narrowing the parent leaves its eager-loaded children
-     * live-only, the relation cascade staying closed on a request that asked
-     * for no trashed rows.
+     * live-only.
      *
      * @return void
      */
@@ -245,9 +221,8 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that the same searched parent carries its trashed children when the
-     * request asks for them, the term narrowing the root while the trashed
-     * state is spent on the relation.
+     * Test that a searched parent carries its trashed children when the request
+     * asks for them.
      *
      * @return void
      */
@@ -263,8 +238,7 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
 
     /**
      * Test that a searched parent isolates its trashed children when the
-     * request asks for those alone, the parent itself staying visible since it
-     * never soft deletes.
+     * request asks for those alone.
      *
      * @return void
      */
@@ -296,8 +270,8 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Seed the authors the relation-level requests read, one matching the term
-     * and one not, each carrying live and trashed children.
+     * Seed one author matching the term and one not, each with live and trashed
+     * children.
      *
      * @return void
      */

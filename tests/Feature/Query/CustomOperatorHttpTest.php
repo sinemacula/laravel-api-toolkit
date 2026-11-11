@@ -21,11 +21,6 @@ use Tests\TestCase;
 /**
  * Feature test proving a provider-registered custom operator applies over HTTP.
  *
- * A closure-backed operator token is registered on the resolved registry before
- * the request, then driven through the query string, confirming the advertised
- * extension point reaches the filter handler and narrows the result set end to
- * end without any core change.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -39,8 +34,7 @@ final class CustomOperatorHttpTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up a repository-backed users route, register a custom operator, and
-     * seed rows.
+     * Set up a users route, register a custom operator and seed rows.
      *
      * @return void
      */
@@ -72,7 +66,7 @@ final class CustomOperatorHttpTest extends TestCase
 
     /**
      * Test that the registered custom operator narrows the result set by a name
-     * prefix over HTTP.
+     * prefix.
      *
      * @return void
      */

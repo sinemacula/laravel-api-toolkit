@@ -19,12 +19,6 @@ use Tests\TestCase;
 /**
  * Feature tests for the allowlist query-surface posture through the kernel.
  *
- * Exercises the secure-by-default posture as a consuming application does: a
- * real request travels through the ParseApiQuery middleware and the repository
- * criteria. A declared column is applied and narrows the result set, while an
- * undeclared filter or sort key is rejected and rendered as the toolkit 422
- * envelope keyed on the offending field.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -76,8 +70,8 @@ final class AllowlistRejectionTest extends TestCase
     }
 
     /**
-     * Test that an undeclared filter column is rejected as a 422 envelope keyed
-     * on the offending field.
+     * Test that an undeclared filter column is rejected as a 422 keyed on the
+     * field.
      *
      * @return void
      */
@@ -95,8 +89,7 @@ final class AllowlistRejectionTest extends TestCase
     }
 
     /**
-     * Test that a column declared filterable but not sortable is rejected when
-     * used to order the result set.
+     * Test that a filterable but non-sortable column is rejected as a sort key.
      *
      * @return void
      */

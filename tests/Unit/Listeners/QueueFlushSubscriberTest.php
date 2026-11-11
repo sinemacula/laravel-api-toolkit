@@ -42,7 +42,6 @@ final class QueueFlushSubscriberTest extends TestCase
      */
     public function testSubscribeRegistersJobProcessedAndJobFailedListeners(): void
     {
-        // Arrange
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $dispatcher   = \Mockery::mock(Dispatcher::class);
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
@@ -55,19 +54,17 @@ final class QueueFlushSubscriberTest extends TestCase
             ->once()
             ->with(JobFailed::class, [$subscriber, 'handleFlush']);
 
-        // Act
         $subscriber->subscribe($dispatcher);
     }
 
     /**
-     * Test that handleFlush resets in-process state for a real worker
-     * connection while the shared metadata stays warm.
+     * Test that handleFlush resets in-process state for a worker while the
+     * shared metadata stays warm.
      *
      * @return void
      */
     public function testHandleFlushEngagesOnRealWorkerConnection(): void
     {
-        // Arrange
         Config::set('queue.connections.database.driver', 'database');
 
         Event::fake();
@@ -85,26 +82,21 @@ final class QueueFlushSubscriberTest extends TestCase
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
         $event        = new JobProcessed('database', self::createStub(Job::class));
 
-        // Act
         $subscriber->handleFlush($event);
 
-        // Assert
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
         Event::assertDispatched(CacheFlushed::class);
     }
 
     /**
-     * Test that handleFlush does not flush for a sync connection (in-request
-     * job).
+     * Test that handleFlush does not flush for a sync connection.
      *
-     * Sync jobs run within the HTTP request and must not trigger a flush at the
-     * job boundary.
+     * Sync jobs run within the HTTP request.
      *
      * @return void
      */
     public function testHandleFlushDoesNotEngageOnSyncConnection(): void
     {
-        // Arrange
         Config::set('queue.connections.sync.driver', 'sync');
 
         Event::fake();
@@ -118,10 +110,8 @@ final class QueueFlushSubscriberTest extends TestCase
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
         $event        = new JobProcessed('sync', self::createStub(Job::class));
 
-        // Act
         $subscriber->handleFlush($event);
 
-        // Assert
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
         Event::assertNotDispatched(CacheFlushed::class);
     }
@@ -134,7 +124,6 @@ final class QueueFlushSubscriberTest extends TestCase
      */
     public function testHandleFlushDelegatesToCacheManager(): void
     {
-        // Arrange
         Config::set('queue.connections.database.driver', 'database');
 
         Event::fake();
@@ -152,17 +141,15 @@ final class QueueFlushSubscriberTest extends TestCase
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
         $event        = new JobProcessed('database', self::createStub(Job::class));
 
-        // Act
         $subscriber->handleFlush($event);
 
-        // Assert
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
         Event::assertDispatched(CacheFlushed::class);
     }
 
     /**
-     * Test that a CacheManager flush failure is caught and reported through the
-     * exception handler rather than propagating and crashing the worker.
+     * Test that a CacheManager flush failure is reported rather than crashing
+     * the worker.
      *
      * @return void
      */
@@ -191,8 +178,8 @@ final class QueueFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that when reporting the flush failure itself fails, the original
-     * failure falls back to the error log and the worker is not crashed.
+     * Test that when reporting the flush failure fails, it falls back to the
+     * error log.
      *
      * @return void
      */

@@ -16,12 +16,6 @@ use Tests\TestCase;
 /**
  * Feature tests for a single polymorphic resource through the HTTP kernel.
  *
- * A single mapped model is returned from a real route as a PolymorphicResource
- * and asserted to render the data-wrapped envelope with its type discriminator
- * - the JsonResource wrap that unit tests never travel through, which only a
- * real dispatch confirms. A field excluded via withoutFields drops from the
- * body even when it is a default field.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -50,14 +44,13 @@ final class PolymorphicResourceEnvelopeTest extends TestCase
 
         User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);
 
-        // Fetch a fresh instance per request so the model is not flagged as
-        // recently created, which would alter the response status.
+        // A recently created model would alter the response status
         Route::get('/polymorphic-item', static fn (): PolymorphicResource => (new PolymorphicResource(User::query()->firstOrFail()))->withoutFields(['email']));
     }
 
     /**
-     * Test that the single polymorphic resource renders a data-wrapped typed
-     * item with the excluded field absent.
+     * Test that a single polymorphic resource renders a data-wrapped typed item
+     * without the excluded field.
      *
      * @return void
      */

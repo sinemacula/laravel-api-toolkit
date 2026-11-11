@@ -21,11 +21,6 @@ use Tests\TestCase;
 /**
  * Feature tests for which exceptions reach the application log.
  *
- * Dispatches real requests through the kernel with the default log channel
- * captured, proving that handled exceptions never reach a reporter or the log,
- * that unhandled exceptions are reported as themselves, and that the request
- * input never reaches the logged record.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -75,8 +70,8 @@ final class ExceptionReportingTest extends TestCase
     }
 
     /**
-     * Test that an unhandled exception is reported once as itself, with none of
-     * the request input in the logged record, and rendered as the generic 500.
+     * Test that an unhandled exception is reported once, without the request
+     * input, and rendered as a 500.
      *
      * @return void
      */
@@ -116,8 +111,8 @@ final class ExceptionReportingTest extends TestCase
     }
 
     /**
-     * Test that a handled exception reaches neither a reportable registered
-     * before the toolkit handler nor the log.
+     * Test that a handled exception reaches neither an earlier reportable nor
+     * the log.
      *
      * @return void
      */

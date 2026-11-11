@@ -65,8 +65,7 @@ final class MigrationInvalidationListenerTest extends TestCase
     }
 
     /**
-     * Test that a pretended run, which changes no schema, leaves the metadata
-     * warm.
+     * Test that a pretended run leaves the metadata warm.
      *
      * @return void
      */
@@ -80,8 +79,8 @@ final class MigrationInvalidationListenerTest extends TestCase
     }
 
     /**
-     * Test that a rollback which dropped the database cache store's own table
-     * completes with a warning rather than failing after the fact.
+     * Test that a rollback dropping the database cache store's own table
+     * completes with a warning.
      *
      * @return void
      */
@@ -110,7 +109,7 @@ final class MigrationInvalidationListenerTest extends TestCase
 
     /**
      * Test that a store rejecting the new generation is logged with the command
-     * to run, rather than thrown.
+     * to run, not thrown.
      *
      * @return void
      */

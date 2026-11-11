@@ -88,8 +88,7 @@ final class GenerateDocsCommandTest extends TestCase
     }
 
     /**
-     * Test that the command writes every section file into the configured docs
-     * directory and exits successfully.
+     * Test that the command writes every section file into the docs directory.
      *
      * @return void
      */
@@ -134,9 +133,8 @@ final class GenerateDocsCommandTest extends TestCase
     }
 
     /**
-     * Test that the generated query surface reference names the resources of
-     * the registered map, the bounds a request is held to, and the shape an
-     * over-budget request is answered with.
+     * Test that the query surface reference names the mapped resources, request
+     * bounds and over-budget shape.
      *
      * @return void
      */
@@ -156,8 +154,7 @@ final class GenerateDocsCommandTest extends TestCase
     }
 
     /**
-     * Test that a second run produces byte-identical files, proving the output
-     * is idempotent and carries no timestamp.
+     * Test that a second run produces byte-identical files.
      *
      * @return void
      */
@@ -193,9 +190,8 @@ final class GenerateDocsCommandTest extends TestCase
     }
 
     /**
-     * Test that the surface reference is written once per configured audience,
-     * each holding only the resources that audience's own document reaches, so
-     * one audience's columns never travel into another's manual.
+     * Test that the surface reference is written per audience, holding only the
+     * resources it reaches.
      *
      * @return void
      */
@@ -216,8 +212,7 @@ final class GenerateDocsCommandTest extends TestCase
     }
 
     /**
-     * Test that the bounds every request is held to are written for every
-     * audience, being a property of the API rather than of any one resource.
+     * Test that the request bounds are written for every audience.
      *
      * @return void
      */
@@ -237,9 +232,8 @@ final class GenerateDocsCommandTest extends TestCase
     }
 
     /**
-     * Test that an application declaring no audiences at all still gets one
-     * surface reference, written under the default audience, so emptying the
-     * registry silences the manual rather than the reference.
+     * Test that an application declaring no audiences gets one reference under
+     * the default audience.
      *
      * @return void
      */
@@ -334,8 +328,7 @@ final class GenerateDocsCommandTest extends TestCase
     }
 
     /**
-     * Register documented routes reaching every mapped resource, the reference
-     * tabling only the resources an audience's paths actually reach.
+     * Register documented routes reaching every mapped resource.
      *
      * @return void
      */

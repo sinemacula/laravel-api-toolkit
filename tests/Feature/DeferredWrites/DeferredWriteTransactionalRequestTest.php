@@ -23,12 +23,6 @@ use Tests\TestCase;
 /**
  * Feature test proving transactional deferred writes roll back all-or-nothing.
  *
- * With the transactional flag config-wired on and a chunk size of one, a route
- * defers two rows whose second entry violates the unique email constraint. When
- * the boundary flush runs the whole table's inserts are applied inside a single
- * transaction, so the constraint violation rolls the entire table back to zero
- * rows and the failure is escalated through the dispatched event.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -40,8 +34,7 @@ use Tests\TestCase;
 final class DeferredWriteTransactionalRequestTest extends TestCase
 {
     /**
-     * Set up each test with transactional deferred writes and a deferring
-     * route.
+     * Set up transactional deferred writes and a deferring route.
      *
      * @return void
      */
@@ -63,8 +56,8 @@ final class DeferredWriteTransactionalRequestTest extends TestCase
     }
 
     /**
-     * Test that a unique-constraint violation inside a transactional flush
-     * rolls the whole table back and escalates the failure.
+     * Test that a unique-constraint violation in a transactional flush rolls
+     * the table back and escalates.
      *
      * @return void
      */

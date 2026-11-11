@@ -20,7 +20,7 @@ use SineMacula\ApiToolkit\Enums\Capability;
 #[CoversClass(Capability::class)]
 final class CapabilityTest extends TestCase
 {
-    /** @var array<string, array<int, string>> The permitted matrix restated by token, so the enum is checked against a table rather than against itself */
+    /** @var array<string, array<int, string>> The permitted matrix restated by token, independent of the enum */
     private const array MATRIX = [
         '$eq'       => ['exact', 'enum', 'range', 'opaque'],
         '$neq'      => ['enum'],
@@ -64,8 +64,7 @@ final class CapabilityTest extends TestCase
     }
 
     /**
-     * Test that the enum declares exactly the five profiles the matrix decides,
-     * so a sixth cannot arrive without its permitted operators being chosen.
+     * Test that the enum declares exactly the five profiles the matrix decides.
      *
      * @return void
      */
@@ -93,7 +92,7 @@ final class CapabilityTest extends TestCase
 
     /**
      * Test that each case permits exactly the operator tokens its access path
-     * serves, and nothing beside them.
+     * serves.
      *
      * @param  \SineMacula\ApiToolkit\Enums\Capability  $capability
      * @param  array<int, string>  $expected
@@ -106,8 +105,8 @@ final class CapabilityTest extends TestCase
     }
 
     /**
-     * Provide every capability paired with every shipped operator token, and
-     * whether the pair is permitted.
+     * Provide every capability paired with every shipped operator token and
+     * whether it is permitted.
      *
      * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\Capability, string, bool}>
      */
@@ -121,8 +120,8 @@ final class CapabilityTest extends TestCase
     }
 
     /**
-     * Test that every capability answers the whole shipped operator vocabulary
-     * exactly as the matrix says, permitting and refusing each token.
+     * Test that every capability permits and refuses each shipped token as the
+     * matrix says.
      *
      * @param  \SineMacula\ApiToolkit\Enums\Capability  $capability
      * @param  string  $token
@@ -151,8 +150,7 @@ final class CapabilityTest extends TestCase
 
     /**
      * Test that a token outside the shipped vocabulary is refused by every
-     * capability, so an unregistered or misspelled operator can never inherit a
-     * permission from a profile.
+     * capability.
      *
      * @param  \SineMacula\ApiToolkit\Enums\Capability  $capability
      * @param  string  $token
@@ -177,8 +175,7 @@ final class CapabilityTest extends TestCase
     }
 
     /**
-     * Test that the matrix reports itself as governing every token it ships, so
-     * the gate holds each of them to a declaring column's capability.
+     * Test that the matrix reports itself as governing every token it ships.
      *
      * @param  string  $token
      * @return void
@@ -203,9 +200,8 @@ final class CapabilityTest extends TestCase
     }
 
     /**
-     * Test that a token no capability mentions is reported as ungoverned, so an
-     * operator the application bound to a handler of its own is left to the
-     * application rather than held to a matrix that never described it.
+     * Test that a token no capability mentions is reported as ungoverned,
+     * leaving it to the application.
      *
      * @param  string  $token
      * @return void
@@ -217,8 +213,7 @@ final class CapabilityTest extends TestCase
     }
 
     /**
-     * Test that every shipped token is permitted by at least one capability, so
-     * an operator cannot ship as one no declaration can ever reach.
+     * Test that every shipped token is permitted by at least one capability.
      *
      * @return void
      */

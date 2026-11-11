@@ -65,8 +65,8 @@ final class PureEnumTest extends TestCase
     }
 
     /**
-     * Test that a value naming no case in its exact lowercase form fails with
-     * the enum rule's message.
+     * Test that a value naming no case in exact lowercase fails with the enum
+     * rule's message.
      *
      * @param  mixed  $value
      * @return void
@@ -81,8 +81,7 @@ final class PureEnumTest extends TestCase
     }
 
     /**
-     * Test that the failure message is read from the enum rule's translation
-     * key, so an application's override applies.
+     * Test that the failure message uses the enum rule's translation key.
      *
      * @return void
      */
@@ -169,8 +168,8 @@ final class PureEnumTest extends TestCase
     }
 
     /**
-     * Test that names() lists the wire name of every accepted case in
-     * declaration order, narrowed by only() and except().
+     * Test that names() lists accepted wire names in declaration order,
+     * narrowed by only() and except().
      *
      * @return void
      */
@@ -231,8 +230,7 @@ final class PureEnumTest extends TestCase
     }
 
     /**
-     * Wrap the given cases in an arrayable, the form a caller holding a
-     * collection of cases passes.
+     * Wrap the given cases in an arrayable.
      *
      * @param  \UnitEnum  ...$cases
      * @return \Illuminate\Contracts\Support\Arrayable<array-key, \UnitEnum>

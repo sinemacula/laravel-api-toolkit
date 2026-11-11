@@ -64,14 +64,13 @@ final class OctaneFlushListenerTest extends TestCase
     }
 
     /**
-     * Test that handle resets in-process state when serving under Octane while
-     * the shared metadata stays warm.
+     * Test that handle resets in-process state under Octane while the shared
+     * metadata stays warm.
      *
      * @return void
      */
     public function testHandleEngagesFlushWhenServingUnderOctane(): void
     {
-        // Arrange
         $_SERVER['LARAVEL_OCTANE'] = 1;
 
         Event::fake();
@@ -88,24 +87,19 @@ final class OctaneFlushListenerTest extends TestCase
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $listener     = new OctaneFlushListener($cacheManager, new RuntimeContext);
 
-        // Act
         $listener->handle(new \stdClass);
 
-        // Assert
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
         Event::assertDispatched(CacheFlushed::class);
     }
 
     /**
-     * Test that handle does not flush when not serving under Octane (php-fpm).
-     *
-     * A php-fpm process with Octane installed must not flush on every request.
+     * Test that handle does not flush when not serving under Octane.
      *
      * @return void
      */
     public function testHandleDoesNotEngageFlushUnderPhpFpm(): void
     {
-        // Arrange
         unset($_SERVER['LARAVEL_OCTANE']);
 
         Event::fake();
@@ -118,10 +112,8 @@ final class OctaneFlushListenerTest extends TestCase
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $listener     = new OctaneFlushListener($cacheManager, new RuntimeContext);
 
-        // Act
         $listener->handle(new \stdClass);
 
-        // Assert
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
         Event::assertNotDispatched(CacheFlushed::class);
     }
@@ -134,7 +126,6 @@ final class OctaneFlushListenerTest extends TestCase
      */
     public function testHandleDelegatesToCacheManager(): void
     {
-        // Arrange
         $_SERVER['LARAVEL_OCTANE'] = 1;
 
         Event::fake();
@@ -151,17 +142,15 @@ final class OctaneFlushListenerTest extends TestCase
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $listener     = new OctaneFlushListener($cacheManager, new RuntimeContext);
 
-        // Act
         $listener->handle(new \stdClass);
 
-        // Assert
         self::assertSame('cached', Cache::memo()->get($key)); // @phpstan-ignore method.notFound
         Event::assertDispatched(CacheFlushed::class);
     }
 
     /**
-     * Test that a CacheManager flush failure is caught and reported through the
-     * exception handler rather than propagating and crashing the worker.
+     * Test that a CacheManager flush failure is reported rather than crashing
+     * the worker.
      *
      * @return void
      */
@@ -189,8 +178,8 @@ final class OctaneFlushListenerTest extends TestCase
     }
 
     /**
-     * Test that when reporting the flush failure itself fails, the original
-     * failure falls back to the error log and the worker is not crashed.
+     * Test that when reporting the flush failure fails, it falls back to the
+     * error log.
      *
      * @return void
      */

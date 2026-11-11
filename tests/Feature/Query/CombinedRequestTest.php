@@ -26,21 +26,7 @@ use Tests\Fixtures\Search\PatternSearchDriver;
 use Tests\TestCase;
 
 /**
- * Feature test combining every read modifier in a single request.
- *
- * Under the default allowlist posture a real request narrows the fieldset,
- * applies a declared filter, orders by a declared sortable column, and
- * truncates with a page limit. The four modifiers are proven to apply together:
- * the fieldset drops undeclared keys, the filtered total excludes non-matching
- * rows, the ordering fixes row positions, and the limit caps the page while the
- * meta still reports the filtered total.
- *
- * A second route adds the search surface to that combination, so one request
- * carries a term, a filter, a two-column sort, a sparse fieldset and a page
- * beyond the first. The term is applied first and the base-table projection is
- * narrowed last, so the search has to reach a column the fieldset never renders
- * and the paginator's own count query has to carry the search group beside the
- * filter. Each is a wrong answer no single-modifier test can see.
+ * Feature tests combining every read modifier in a single request.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -58,15 +44,11 @@ final class CombinedRequestTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up each test with two repository-backed users routes and seeded rows.
+     * Set up two users routes, one plain and one searchable with column
+     * narrowing on, and seed rows.
      *
-     * The first route renders a resource declaring no search surface: four rows
-     * carry a retained name and two carry an excluded name that sorts ahead of
-     * every retained row, so a missing filter would surface them first under
-     * the descending sort. The second renders a resource declaring searchable
-     * columns, served by a driver registered for the connection under test.
-     * Column narrowing is pinned on, since it is the step that runs last and
-     * the search predicate has to survive it.
+     * The excluded rows sort ahead of every retained row, so a missing filter
+     * would surface them first.
      *
      * @return void
      */
@@ -109,8 +91,7 @@ final class CombinedRequestTest extends TestCase
     }
 
     /**
-     * Test that a fieldset, a filter, a sort, and a limit apply together in one
-     * request.
+     * Test that a fieldset, a filter, a sort and a limit apply together.
      *
      * @return void
      */
@@ -125,21 +106,16 @@ final class CombinedRequestTest extends TestCase
 
         $response->assertOk();
 
-        // Limit applied: two of the four matching rows are returned.
         $response->assertJsonCount(2, 'data');
 
-        // Sort applied: descending by name over the filtered set.
         $response->assertJsonPath('data.0.name', 'Delta');
         $response->assertJsonPath('data.1.name', 'Charlie');
 
-        // Filter applied: the meta total reflects the four retained rows only,
-        // and the two excluded rows never reach the top of the sort.
+        // Without the filter the excluded rows would lead the descending sort
         $response->assertJsonPath('meta.total', 4);
         $response->assertJsonPath('meta.count', 2);
         $response->assertJsonPath('meta.continue', true);
 
-        // Fieldset applied: the requested key is present and the undeclared key
-        // is absent.
         $record = $response->json('data.0');
 
         self::assertIsArray($record);
@@ -148,8 +124,8 @@ final class CombinedRequestTest extends TestCase
     }
 
     /**
-     * Test that a search, a filter, a two-column sort, a sparse fieldset and a
-     * page beyond the first apply together in one request.
+     * Test that a search, a filter, a two-column sort, a fieldset and a later
+     * page apply together.
      *
      * @return void
      */
@@ -166,19 +142,15 @@ final class CombinedRequestTest extends TestCase
 
         $response->assertOk();
 
-        // Limit and page applied: the second slice of the matched set holds the
-        // two rows sharing a name, which trail one name match and one match
-        // made on the email alone.
+        // The second page holds the two rows sharing a name
         $response->assertJsonCount(2, 'data');
         $response->assertJsonPath('data.0.name', 'Coppersmith');
         $response->assertJsonPath('data.1.name', 'Coppersmith');
 
-        // Secondary sort applied: the tied rows are ordered by descending id,
-        // so the later-created row leads the page.
+        // The tied rows are ordered by descending id
         self::assertGreaterThan($response->json('data.1.id'), $response->json('data.0.id'));
 
-        // The count query carries the search group beside the filter: the term
-        // alone matches six rows and the filter alone matches twelve.
+        // The term alone matches six rows and the filter alone twelve
         $response->assertJsonPath('meta.total', 5);
         $response->assertJsonPath('meta.count', 2);
         $response->assertJsonPath('meta.continue', true);
@@ -188,8 +160,6 @@ final class CombinedRequestTest extends TestCase
         self::assertIsString($next);
         self::assertStringContainsString('page=3', $next);
 
-        // Fieldset applied: neither the searched email nor the filtered status
-        // is rendered.
         $record = $response->json('data.0');
 
         self::assertIsArray($record);
@@ -200,7 +170,7 @@ final class CombinedRequestTest extends TestCase
 
     /**
      * Test that the term still matches a column the narrowed projection leaves
-     * out of the base-table select.
+     * out.
      *
      * @return void
      */
@@ -222,8 +192,6 @@ final class CombinedRequestTest extends TestCase
         // Bexley and Wexford carry the term in the email alone.
         self::assertSame(['Ashsmith', 'Bexley', 'Coppersmith', 'Coppersmith', 'Wexford'], $this->names($response));
 
-        // The select is narrowed to the rendered fieldset and the safety set,
-        // so the searched email column is never projected.
         self::assertStringContainsString('name', $projection);
         self::assertStringNotContainsString('email', $projection);
         self::assertStringNotContainsString('*', $projection);
@@ -232,14 +200,8 @@ final class CombinedRequestTest extends TestCase
     /**
      * Seed the rows the search-composed requests read.
      *
-     * Five rows match the term and the filter together: one carries the term in
-     * its name, two share a name carrying it so the secondary sort decides
-     * their order, and two carry it in the email alone, which a name-only
-     * fieldset never renders. Three more are held back, one by the filter, one
-     * by the term, and one by both, and each of them sorts inside the matching
-     * set so a dropped modifier moves the page rather than only the total. The
-     * term appears in the same case in every matching value, since one
-     * supported engine matches patterns case-sensitively and another does not.
+     * Each held-back row sorts inside the matching set, so a dropped modifier
+     * moves the page and not only the total.
      *
      * @return void
      */
@@ -256,8 +218,7 @@ final class CombinedRequestTest extends TestCase
     }
 
     /**
-     * Get the projected column list of the hydrating users select from the
-     * recorded query log.
+     * Get the projected column list of the hydrating users select.
      *
      * @return string
      */

@@ -25,13 +25,7 @@ use Tests\TestCase;
 
 /**
  * Feature tests for nested field selection and relation aggregates in a real
- * JSON response body.
- *
- * Drives the full request lifecycle so the serialization and embedding step is
- * proven on the wire: a nested sparse fieldset restricts an embedded relation
- * to its requested keys, the count/sum/average aggregates surface under an
- * item, and the same fieldset shapes the resource a write returns, not only the
- * one a read does.
+ * JSON body.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -110,8 +104,7 @@ final class ResourceResponseShapeTest extends TestCase
     }
 
     /**
-     * Test that a sparse fieldset shapes the resource a write returns, so the
-     * parameter belongs on a write operation as much as on a read.
+     * Test that a sparse fieldset shapes the resource a write returns.
      *
      * @return void
      */
@@ -156,16 +149,14 @@ final class ResourceResponseShapeTest extends TestCase
     }
 
     /**
-     * Test that undeclared and non-existent aggregate relations are silently
-     * omitted without raising a database error.
+     * Test that undeclared and non-existent aggregate relations are omitted
+     * without a database error.
      *
      * @return void
      */
     public function testUndeclaredAggregateRelationsAreSilentlyOmitted(): void
     {
-        // The spray asks for more aggregates than the shipped cap allows, so
-        // disable the cap here: this test measures what is dropped, not what is
-        // rejected for cost.
+        // The request asks for more aggregates than the shipped cap allows
         Config::set('api-toolkit.query_cost.max_aggregates', 0);
 
         $response = $this->getJson('/users?' . http_build_query([
@@ -177,9 +168,7 @@ final class ResourceResponseShapeTest extends TestCase
 
         $response->assertOk();
 
-        // Only the declared aggregate surfaces; the undeclared relation
-        // (organization) and the non-existent relation (comments) are dropped
-        // rather than compiled into a broken query.
+        // Undeclared and non-existent relations are dropped, not queried
         $response->assertJsonPath('data.0.counts.posts', 2);
 
         /** @var array<string, mixed> $item */
@@ -193,8 +182,8 @@ final class ResourceResponseShapeTest extends TestCase
     }
 
     /**
-     * Test that default-flagged aggregates surface without explicit selection
-     * while non-default aggregates stay omitted.
+     * Test that default aggregates surface without selection while non-default
+     * ones stay omitted.
      *
      * @return void
      */
@@ -206,7 +195,6 @@ final class ResourceResponseShapeTest extends TestCase
 
         $response->assertOk();
 
-        // The default count and sum surface with no selection parameters.
         $response->assertJsonPath('data.0.counts.posts', 2);
 
         /** @var array<string, mixed> $item */
@@ -214,14 +202,13 @@ final class ResourceResponseShapeTest extends TestCase
 
         self::assertArrayHasKey('posts_id', (array) $item['sums']);
 
-        // The average is declared but not default, so the whole bucket is
-        // absent when nothing requests it.
+        // The average is declared but not default
         self::assertArrayNotHasKey('averages', $item);
     }
 
     /**
-     * Test that the sum and average aggregate values are numerically correct in
-     * the rendered payload.
+     * Test that the sum and average aggregate values are correct in the
+     * rendered payload.
      *
      * @return void
      */
@@ -267,8 +254,7 @@ final class ResourceResponseShapeTest extends TestCase
         $response->assertJsonCount(1, 'data');
         $response->assertJsonPath('meta.total', 1);
 
-        // The single returned row is Bob, and its count reflects only Bob's
-        // three posts, not Alice's two.
+        // Bob's count excludes Alice's two posts
         $response->assertJsonPath('data.0.name', 'Bob');
         $response->assertJsonPath('data.0.counts.posts', 3);
     }

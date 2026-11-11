@@ -24,14 +24,8 @@ use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\TestCase;
 
 /**
- * Feature test proving an HTTP write invalidates the per-query cache so the
- * next HTTP read envelope is fresh.
- *
- * A read warms the cached collection, a deferred create is buffered through a
- * route and flushed at the request boundary, and the boundary flush invalidates
- * the users-table cache. The second read re-queries and the client-visible
- * envelope reports the new total, joining the read and write halves over the
- * real response body rather than direct repository calls.
+ * Feature test proving an HTTP write invalidates the per-query cache for the
+ * next HTTP read.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -96,27 +90,23 @@ final class CacheInvalidationRoundTripTest extends TestCase
     }
 
     /**
-     * Test that a deferred create flushed at the boundary invalidates the cache
-     * so the next read envelope reports the new total.
+     * Test that a deferred create flushed at the boundary invalidates the
+     * cached collection.
      *
      * @return void
      */
     public function testBoundaryFlushMakesNextReadEnvelopeFresh(): void
     {
-        // Warm the cached collection: two rows.
         $this->getJson('/cached-users')
             ->assertOk()
             ->assertJsonPath('meta.total', 2)
             ->assertJsonCount(2, 'data');
 
-        // Defer a create; completing the request flushes the pool at the
-        // boundary and invalidates the users-table cache.
+        // Completing the request flushes the pool at the boundary
         $this->postJson('/deferred-users', ['email' => 'carol@example.com'])->assertStatus(202);
 
         self::assertSame(3, DB::table('users')->count());
 
-        // The stale cached collection is gone: the read re-queried and the
-        // envelope now reflects the freshly persisted row.
         $fresh = $this->getJson('/cached-users');
 
         $fresh->assertOk();

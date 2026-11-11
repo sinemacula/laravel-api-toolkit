@@ -26,11 +26,6 @@ use Tests\TestCase;
 /**
  * Feature tests for serving requests while the cache store is unreachable.
  *
- * Resolving resources and repositories reads and writes toolkit metadata
- * through the shared store. With the store unreachable, each request is still
- * served from metadata computed in-process, and the outage is reported once
- * rather than failing the request or reporting on every call.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -42,8 +37,8 @@ final class MetadataCacheOutageTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up each test with repository-backed routes, seeded rows, and an
-     * unreachable cache store.
+     * Set up repository-backed routes, seeded rows and an unreachable cache
+     * store.
      *
      * @return void
      */
@@ -54,8 +49,7 @@ final class MetadataCacheOutageTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        // A driver that verifies its index backing, so a search proves its
-        // index through the shared store rather than being waived
+        // A driver that verifies its index, so the proof goes through the store
         $this->app?->make(SearchDriverRegistry::class)->override(DB::connection()->getDriverName(), new PatternSearchDriver(verifiesIndexBacking: true));
 
         Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
@@ -91,8 +85,8 @@ final class MetadataCacheOutageTest extends TestCase
     }
 
     /**
-     * Test that a filtered, sorted list request is served while the store is
-     * unreachable, and the outage is reported once.
+     * Test that a filtered, sorted list is served while the store is
+     * unreachable, reporting once.
      *
      * @return void
      */
@@ -113,8 +107,8 @@ final class MetadataCacheOutageTest extends TestCase
     }
 
     /**
-     * Test that a search request, which proves its index through the shared
-     * store, is served while the store is unreachable.
+     * Test that a search, which proves its index through the store, is served
+     * during an outage.
      *
      * @return void
      */
@@ -137,8 +131,8 @@ final class MetadataCacheOutageTest extends TestCase
     }
 
     /**
-     * Test that a write through the repository, which reads the model's casts
-     * through the shared store, is served while the store is unreachable.
+     * Test that a repository write, which reads casts through the store, is
+     * served during an outage.
      *
      * @return void
      */

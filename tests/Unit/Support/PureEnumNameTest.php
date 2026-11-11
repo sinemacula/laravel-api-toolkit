@@ -88,8 +88,8 @@ final class PureEnumNameTest extends TestCase
     }
 
     /**
-     * Test that resolving a value fails loud when two cases of the enum share a
-     * lowercase name, rather than picking one.
+     * Test that resolving a value fails loud when two cases share a lowercase
+     * name.
      *
      * @return void
      */

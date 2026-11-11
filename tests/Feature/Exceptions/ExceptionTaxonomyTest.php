@@ -19,12 +19,7 @@ use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
 /**
- * Feature tests rounding out the exception taxonomy through the real kernel.
- *
- * With the toolkit handler wired as a consuming application wires it, a missing
- * model surfaces as a not-found envelope and an authorization failure surfaces
- * as a forbidden envelope, each carrying the matching HTTP status and internal
- * error code.
+ * Feature tests for the exception taxonomy through the real kernel.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -48,33 +43,22 @@ final class ExceptionTaxonomyTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        // findOrFail on an empty table raises a ModelNotFoundException, which
-        // Laravel prepares into a NotFoundHttpException before the toolkit
-        // render callback maps it to the not-found envelope.
+        // Laravel prepares this into a NotFoundHttpException
         Route::get('/model-missing', static function (): void {
             User::findOrFail(99999);
         });
 
         // A statusless AuthorizationException is prepared into an
-        // AccessDeniedHttpException, which the toolkit maps to the forbidden
-        // envelope. abort(403) would instead yield a generic HTTP error code.
+        // AccessDeniedHttpException; abort(403) would yield a generic code
         Route::get('/forbidden', static function (): never {
             throw new AuthorizationException('This action is unauthorized.');
         });
 
-        // A GET-only route so that a POST raises the router's
-        // MethodNotAllowedHttpException, which the toolkit maps to the
-        // not-allowed envelope.
         Route::get('/get-only', static fn (): array => ['ok' => true]);
 
-        // A route behind the auth middleware so an unauthenticated JSON caller
-        // raises an AuthenticationException, which the toolkit maps to the
-        // unauthenticated envelope.
         Route::get('/requires-auth', static fn (): array => ['ok' => true])
             ->middleware('auth');
 
-        // Directly-thrown taxonomy exceptions render their dedicated envelopes
-        // rather than the generic HTTP error an abort() would produce.
         Route::get('/bad-request', static function (): never {
             throw new BadRequestException;
         });
@@ -125,8 +109,7 @@ final class ExceptionTaxonomyTest extends TestCase
     }
 
     /**
-     * Test that posting to a GET-only route renders as a 405 not-allowed
-     * envelope.
+     * Test that posting to a GET-only route renders a 405 not-allowed envelope.
      *
      * @return void
      */
@@ -141,8 +124,8 @@ final class ExceptionTaxonomyTest extends TestCase
     }
 
     /**
-     * Test that an unauthenticated request to an auth-guarded route renders as
-     * a 401 unauthenticated envelope.
+     * Test that an unauthenticated request to an auth-guarded route renders a
+     * 401 envelope.
      *
      * @return void
      */
@@ -174,7 +157,7 @@ final class ExceptionTaxonomyTest extends TestCase
 
     /**
      * Test that a directly-thrown taxonomy exception renders its dedicated
-     * status, code, title, and detail rather than the generic HTTP error.
+     * envelope.
      *
      * @param  string  $path
      * @param  int  $status

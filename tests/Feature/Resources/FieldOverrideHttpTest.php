@@ -15,11 +15,7 @@ use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
- * Feature test for an imperative field override on a single resource.
- *
- * Drives a route that returns a single UserResource with withoutFields()
- * applied, proving the exclusion reaches the rendered response body: a default
- * field is removed while the remaining default and fixed fields survive.
+ * Feature test for a withoutFields() override on a single resource.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -55,8 +51,8 @@ final class FieldOverrideHttpTest extends TestCase
     }
 
     /**
-     * Test that withoutFields() removes a default field from the response body
-     * while the remaining default and fixed fields survive.
+     * Test that withoutFields() removes a default field while the other default
+     * and fixed fields remain.
      *
      * @return void
      */

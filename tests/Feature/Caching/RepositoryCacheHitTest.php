@@ -18,13 +18,7 @@ use Tests\TestCase;
 
 /**
  * Feature test proving a repeated identical HTTP read is served from the
- * per-query cache without touching the database.
- *
- * Two identical requests travel through the real ParseApiQuery middleware into
- * a Cacheable repository read. The first request warms the per-query cache; the
- * second returns a byte-identical envelope while the database query log stays
- * empty, proving the cache hit is observable end to end rather than only
- * through a direct repository call.
+ * per-query cache.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -74,13 +68,12 @@ final class RepositoryCacheHitTest extends TestCase
 
     /**
      * Test that a second identical read serves a byte-identical envelope with
-     * zero database queries.
+     * no queries.
      *
      * @return void
      */
     public function testSecondIdenticalReadServesFromCacheWithZeroQueries(): void
     {
-        // Warm the per-query cache with the first read.
         $first = $this->getJson('/cached-users');
 
         $first->assertOk();
@@ -93,10 +86,8 @@ final class RepositoryCacheHitTest extends TestCase
 
         $second->assertOk();
 
-        // The repeat read did not touch the database.
         self::assertCount(0, DB::getQueryLog());
 
-        // The envelope is byte-identical to the warmed response.
         self::assertSame($first->baseResponse->getContent(), $second->baseResponse->getContent());
     }
 }

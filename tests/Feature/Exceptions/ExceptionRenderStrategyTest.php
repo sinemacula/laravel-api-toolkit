@@ -14,12 +14,6 @@ use Tests\TestCase;
 /**
  * Feature tests for the exception render-strategy matrix through the kernel.
  *
- * These prove the strategy switch and the debug controls that govern the
- * rendered error body: always_json forces the JSON envelope even for an
- * HTML-accepting client, include_debug_info surfaces the underlying throwable
- * internals, auto defers to the framework HTML page for a non-JSON request in
- * debug, and the pretty flag indents the rendered error body.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -52,8 +46,8 @@ final class ExceptionRenderStrategyTest extends TestCase
     }
 
     /**
-     * Test that the always_json strategy forces the JSON envelope for a request
-     * that accepts HTML rather than JSON.
+     * Test that the always_json strategy forces the JSON envelope for an HTML
+     * request.
      *
      * @return void
      */
@@ -70,8 +64,8 @@ final class ExceptionRenderStrategyTest extends TestCase
     }
 
     /**
-     * Test that include_debug_info surfaces the underlying throwable internals
-     * into the rendered error meta even when the framework debug flag is off.
+     * Test that include_debug_info surfaces the throwable internals even with
+     * debug off.
      *
      * @return void
      */
@@ -96,8 +90,8 @@ final class ExceptionRenderStrategyTest extends TestCase
     }
 
     /**
-     * Test that the auto strategy defers to the framework HTML error page for a
-     * non-JSON request when debug mode is enabled.
+     * Test that the auto strategy defers to the framework HTML page for a
+     * non-JSON request in debug.
      *
      * @return void
      */
@@ -122,8 +116,7 @@ final class ExceptionRenderStrategyTest extends TestCase
     }
 
     /**
-     * Test that the pretty flag indents the rendered error body while the
-     * absence of the flag keeps it compact.
+     * Test that the pretty flag indents the rendered error body.
      *
      * @return void
      */

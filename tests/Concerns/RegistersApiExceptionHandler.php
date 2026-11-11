@@ -10,11 +10,8 @@ use Illuminate\Foundation\Exceptions\Handler;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 
 /**
- * Registers the toolkit exception handler for full-stack feature tests.
- *
- * Mirrors the bootstrap/app.php withExceptions() wiring used by consuming
- * applications, so dispatched requests render failures through the toolkit JSON
- * error envelope rather than the framework default.
+ * Registers the toolkit exception handler as bootstrap/app.php does in a
+ * consuming application.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -22,7 +19,7 @@ use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 trait RegistersApiExceptionHandler
 {
     /**
-     * Register the toolkit exception handler against the application's real
+     * Register the toolkit exception handler against the application's
      * exception handler.
      *
      * @return void

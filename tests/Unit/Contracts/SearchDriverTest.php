@@ -24,8 +24,7 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 final class SearchDriverTest extends TestCase
 {
     /**
-     * Test that the contract declares the five capabilities a driver has to
-     * answer for, and nothing that would tie it to one engine.
+     * Test that the contract declares exactly the five driver capabilities.
      *
      * @return void
      */
@@ -42,8 +41,7 @@ final class SearchDriverTest extends TestCase
 
     /**
      * Test that the strategy declaration is a parameterless method returning an
-     * array, so a driver states what it implements without being asked about a
-     * particular connection.
+     * array.
      *
      * @return void
      */
@@ -56,8 +54,7 @@ final class SearchDriverTest extends TestCase
     }
 
     /**
-     * Test that index verification is asked per strategy and per connection, so
-     * a driver serving two connections answers for each separately.
+     * Test that index verification is asked per strategy and per connection.
      *
      * @return void
      */
@@ -76,8 +73,7 @@ final class SearchDriverTest extends TestCase
 
     /**
      * Test that the combination is asked about the declared strategies alone,
-     * with no connection to read, so the answer is the constant a request path
-     * can afford to ask for on every search.
+     * with no connection.
      *
      * @return void
      */
@@ -95,8 +91,7 @@ final class SearchDriverTest extends TestCase
 
     /**
      * Test that the index proof is asked for the columns of one table declared
-     * with one strategy, so an engine resolving that set through a single index
-     * is asked about the set rather than about each column apart.
+     * with one strategy.
      *
      * @return void
      */
@@ -116,8 +111,8 @@ final class SearchDriverTest extends TestCase
     }
 
     /**
-     * Test that the predicate is applied for a set of columns, a parsed term,
-     * and a strategy, so a driver never parses client input itself.
+     * Test that the predicate is applied for columns, a parsed term and a
+     * strategy.
      *
      * @return void
      */
