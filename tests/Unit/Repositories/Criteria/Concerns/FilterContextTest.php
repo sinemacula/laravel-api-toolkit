@@ -50,8 +50,7 @@ final class FilterContextTest extends TestCase
     }
 
     /**
-     * Test that descending records the position and the operator asked for
-     * rather than the one in effect above it.
+     * Test that descending records the position and the requested operator.
      *
      * @return void
      *
@@ -66,9 +65,7 @@ final class FilterContextTest extends TestCase
     }
 
     /**
-     * Test that a segment entered without descending moves the position but
-     * keeps the operator in effect and the level already reached, so the next
-     * descent is measured from where the walk actually stands.
+     * Test that entering a segment keeps the operator and level in effect.
      *
      * @return void
      *
@@ -101,8 +98,7 @@ final class FilterContextTest extends TestCase
     }
 
     /**
-     * Test that a segment entered without descending carries the budget, so a
-     * node admitted there counts against the walk.
+     * Test that entering a segment carries the budget.
      *
      * @return void
      *
@@ -132,8 +128,7 @@ final class FilterContextTest extends TestCase
     }
 
     /**
-     * Test that a context built without a budget enforces nothing, so the value
-     * object stays usable outside a governed walk.
+     * Test that a context without a budget enforces nothing.
      *
      * @return void
      *
@@ -153,8 +148,7 @@ final class FilterContextTest extends TestCase
     }
 
     /**
-     * Test that a descent beyond the depth cap is refused by the budget the
-     * root was given, pointing at the level it was refused at.
+     * Test that a descent beyond the depth cap is refused by the root's budget.
      *
      * @return void
      *
@@ -182,8 +176,7 @@ final class FilterContextTest extends TestCase
     }
 
     /**
-     * Test that the budget is shared by every derived level, so nodes admitted
-     * at one level count against those admitted at another.
+     * Test that the budget is shared by every derived level.
      *
      * @return void
      *

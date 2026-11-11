@@ -87,9 +87,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that an invalid enum value degrades to a validation failure when the
-     * subclass omits Rule::enum, so the caller sees a 422 rather than a fatal
-     * ValueError from the string-to-enum cast.
+     * Test that an invalid enum without Rule::enum fails as a validation error.
      *
      * @return void
      */
@@ -154,8 +152,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a pure enum parameter is cast from the lowercase case name
-     * under its snake_case body key.
+     * Test that a pure enum parameter is cast from its lowercase case name.
      *
      * @return void
      */
@@ -167,8 +164,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a nullable pure enum parameter hydrates as null when the body
-     * sends null or omits the key.
+     * Test that a nullable pure enum parameter hydrates as null when absent.
      *
      * @return void
      */
@@ -179,8 +175,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a pure enum value in any form other than the exact lowercase
-     * case name fails validation, keyed by the body key.
+     * Test that a pure enum value other than the lowercase name fails.
      *
      * @return void
      */
@@ -196,8 +191,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a pure enum parameter whose rules omit the enum rule is still
-     * cast from its lowercase case name.
+     * Test that a pure enum parameter is cast even without the enum rule.
      *
      * @return void
      */
@@ -207,8 +201,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that an unknown pure enum value whose rules omit the enum rule fails
-     * as a validation error naming the body key, rather than a fatal error.
+     * Test that an unknown pure enum value without the enum rule fails.
      *
      * @return void
      */
@@ -224,9 +217,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a non-string value for a pure enum parameter whose rules admit
-     * it fails as a validation error naming the body key, rather than a type
-     * error from the constructor.
+     * Test that a non-string pure enum value fails as a validation error.
      *
      * @return void
      */
@@ -280,8 +271,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that an int-backed enum parameter hydrates from an integer or the
-     * canonical decimal string of one.
+     * Test that an int-backed enum hydrates from an integer or decimal string.
      *
      * @param  mixed  $value
      * @param  \Tests\Fixtures\Enums\Magnitude  $expected
@@ -294,8 +284,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Provide values that are not the canonical form of an int-backed enum
-     * value.
+     * Provide values that are not the canonical form of an int-backed enum.
      *
      * @return iterable<string, array{mixed}>
      */
@@ -320,9 +309,9 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a value that is not the canonical form of an int-backed enum
-     * value fails as a validation error naming the body key, even where
-     * Laravel's enum rule would coerce it to a case.
+     * Test that a non-canonical int-backed enum value fails validation.
+     *
+     * Laravel's enum rule alone would coerce it to a case.
      *
      * @param  mixed  $value
      * @return void
@@ -340,8 +329,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a string-backed enum parameter hydrates from its string value
-     * and refuses any other type, even one naming a case once coerced.
+     * Test that a string-backed enum hydrates only from its string value.
      *
      * @return void
      */
@@ -362,9 +350,6 @@ final class PayloadTest extends TestCase
 
     /**
      * Test that a rules() override contributes cross-field constraints.
-     *
-     * Verifies that a subclass returning a confirmed rule from rules() causes
-     * from() to reject input missing the confirmation field.
      *
      * @return void
      */
@@ -449,8 +434,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that from() skips constructor parameters that are not promoted, so
-     * such parameters are never hydrated from the validated input.
+     * Test that from() never hydrates non-promoted constructor parameters.
      *
      * @return void
      */
@@ -538,9 +522,7 @@ final class PayloadTest extends TestCase
         /** @var \Tests\Fixtures\Input\SampleInput $input */
         $input = $reflection->newInstanceWithoutConstructor();
 
-        // Initialise the first and last properties, leaving the middle one
-        // uninitialised, so the loop must skip the gap and keep the later
-        // value.
+        // Leave the middle property uninitialised so the loop must skip it
         $reflection->getProperty('city')->setValue($input, 'OnlyCity');
         $reflection->getProperty('status')->setValue($input, StubStatusEnum::ACTIVE);
 
@@ -552,9 +534,6 @@ final class PayloadTest extends TestCase
 
     /**
      * Test that a value for a parameter without a named type is left unchanged.
-     *
-     * The enum cast only applies when the parameter declares a single named
-     * type, so a union-typed parameter must receive its value verbatim.
      *
      * @return void
      */
@@ -592,9 +571,6 @@ final class PayloadTest extends TestCase
     /**
      * Test that a non-string value for an enum parameter is passed through.
      *
-     * The enum cast only applies to string values, so an already-constructed
-     * enum instance must be returned unchanged rather than re-cast.
-     *
      * @return void
      */
     public function testCastValueLeavesNonStringEnumValueUnchanged(): void
@@ -629,8 +605,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that the base rules() returns an empty rule set when a subclass does
-     * not override it, permitting construction from an empty source.
+     * Test that the base rules() is empty when a subclass does not override it.
      *
      * @return void
      */
@@ -658,8 +633,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that Payload and its subclasses satisfy the input-schema contract,
-     * so the exporter can read the rules through the shared interface.
+     * Test that Payload and its subclasses satisfy the input-schema contract.
      *
      * @return void
      */
@@ -670,8 +644,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that the rules can be read statically with no instance or request,
-     * which is what lets the exporter read them faithfully.
+     * Test that the rules can be read statically with no instance or request.
      *
      * @return void
      */
@@ -681,8 +654,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that toArray() omits a promoted parameter marked sensitive while
-     * keeping its unmarked siblings.
+     * Test that toArray() omits a promoted parameter marked sensitive.
      *
      * @return void
      */
@@ -694,8 +666,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a sensitive value hydrated by from() stays readable on the
-     * instance even though toArray() leaves it out.
+     * Test that a sensitive value stays readable though toArray() omits it.
      *
      * @return void
      */
@@ -708,8 +679,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a sensitive property promoted by an inherited parent
-     * constructor is omitted.
+     * Test that a sensitive property promoted by a parent is omitted.
      *
      * @return void
      */
@@ -721,8 +691,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a sensitive property promoted by a parent constructor stays
-     * omitted when the subclass redeclares its own constructor.
+     * Test that a sensitive parent property stays omitted in a subclass.
      *
      * @return void
      */
@@ -747,8 +716,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a sensitive property promoted by a trait constructor is
-     * omitted.
+     * Test that a sensitive property promoted by a trait is omitted.
      *
      * @return void
      */
@@ -762,8 +730,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a sensitive property promoted by an aliased trait constructor
-     * stays omitted when the payload declares its own constructor.
+     * Test that a sensitive property from an aliased trait is omitted.
      *
      * @return void
      */
@@ -792,8 +759,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a trait without a constructor leaves the summary unchanged
-     * while a sibling trait's sensitive property is still omitted.
+     * Test that a trait without a constructor leaves the summary unchanged.
      *
      * @return void
      */
@@ -807,8 +773,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a subclass overriding toArray() keeps full control of the
-     * summary, even for a parameter marked sensitive.
+     * Test that a subclass overriding toArray() controls the summary fully.
      *
      * @return void
      */
@@ -843,8 +808,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that sensitivity is resolved per class, so a marked field on one
-     * payload does not hide a same-named unmarked field on another.
+     * Test that sensitivity is resolved per class.
      *
      * @return void
      */
@@ -939,8 +903,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a property named exactly after its rule key still hydrates,
-     * including a snake_case property.
+     * Test that a property named exactly after its rule key hydrates.
      *
      * @return void
      */
@@ -987,8 +950,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a rule key matching a property exactly wins over another key
-     * whose camelCase form is the same name, whichever is declared first.
+     * Test that an exact-name rule key wins over a camelCase-equivalent one.
      *
      * @return void
      */
@@ -1028,8 +990,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that the first declared of two keys camelCasing to the same name
-     * hydrates the property.
+     * Test that the first of two keys camelCasing to one name hydrates.
      *
      * @return void
      */
@@ -1069,8 +1030,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that dotted rule keys map by their first segment, hydrating the
-     * property with the nested data unchanged.
+     * Test that dotted rule keys map by their first segment.
      *
      * @return void
      */
@@ -1117,8 +1077,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a rule key with no parameter is only validated, and that a
-     * parameter with no rule keeps its default even when the body sends it.
+     * Test that rule keys and parameters without a counterpart are left alone.
      *
      * @return void
      */
@@ -1167,8 +1126,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that toArray() keys each mapped property by its rule key, so the
-     * summary of a hydrated payload has the body's keys.
+     * Test that toArray() keys each mapped property by its rule key.
      *
      * @return void
      */
@@ -1212,8 +1170,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that toArray() keeps a property's own name when no rule key maps to
-     * it.
+     * Test that toArray() keeps the property name when no rule key maps to it.
      *
      * @return void
      */
@@ -1236,8 +1193,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a backed enum on a mapped property is cast, and that an invalid
-     * value without Rule::enum fails under the body key.
+     * Test that a backed enum on a mapped property is cast and validated.
      *
      * @return void
      */
@@ -1279,8 +1235,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that an invalid enum under a camelCase body key names the field in
-     * the validator's display form.
+     * Test that an invalid camelCase-keyed enum names the display field.
      *
      * @return void
      */
@@ -1320,8 +1275,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a sensitive camelCase property hydrated from its snake_case key
-     * is readable but omitted from toArray().
+     * Test that a sensitive camelCase property is readable but not summarised.
      *
      * @return void
      */
@@ -1366,8 +1320,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that key maps are resolved per class, so one payload's rule keys do
-     * not rename a same-named property on another.
+     * Test that key maps are resolved per class.
      *
      * @return void
      */
@@ -1416,8 +1369,7 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a top-level rule key PHP casts to an integer is validated and
-     * leaves the body keys of the payload's properties resolvable.
+     * Test that an integer top-level rule key leaves body keys resolvable.
      *
      * @return void
      */

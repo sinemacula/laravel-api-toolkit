@@ -32,8 +32,7 @@ final class PureEnumFilterValueTest extends TestCase
     }
 
     /**
-     * Test that each wire name in a list resolves to its stored case name, the
-     * list keeping its order.
+     * Test that each wire name in a list resolves to its case name, in order.
      *
      * @return void
      */
@@ -57,8 +56,7 @@ final class PureEnumFilterValueTest extends TestCase
     }
 
     /**
-     * Test that a value naming no case resolves to one no stored case name can
-     * equal, so the filter matches nothing.
+     * Test that a value naming no case resolves to one no case name equals.
      *
      * @param  mixed  $value
      * @return void
@@ -70,8 +68,7 @@ final class PureEnumFilterValueTest extends TestCase
     }
 
     /**
-     * Test that a list keeps the stored name of each case it names and makes
-     * every other item unmatchable.
+     * Test that a list makes every item naming no case unmatchable.
      *
      * @return void
      */
@@ -106,8 +103,7 @@ final class PureEnumFilterValueTest extends TestCase
     }
 
     /**
-     * Test that a column without a pure-enum cast is filtered by the value as
-     * given.
+     * Test that a column without a pure-enum cast is filtered by the raw value.
      *
      * @param  string  $column
      * @param  mixed  $value

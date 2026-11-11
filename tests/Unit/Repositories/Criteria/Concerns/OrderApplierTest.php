@@ -70,8 +70,7 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that apply with multiple columns adds multiple orderBy clauses in
-     * order.
+     * Test that apply adds an orderBy clause per column, in order.
      *
      * @return void
      */
@@ -90,8 +89,7 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that apply with the random keyword calls inRandomOrder once the
-     * capability is enabled.
+     * Test that the random keyword applies inRandomOrder once enabled.
      *
      * @return void
      */
@@ -109,9 +107,7 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that the random keyword is passed to the sort guard while the
-     * capability is disabled, so it is rejected like any undeclared column
-     * rather than bypassing the guard.
+     * Test that the random keyword is sort-guarded while disabled.
      *
      * @return void
      */
@@ -123,9 +119,7 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that the random keyword stays disabled when the repository
-     * configuration is absent entirely, so an unpublished config cannot enable
-     * the capability by omission.
+     * Test that the random keyword is disabled when the config is absent.
      *
      * @return void
      */
@@ -139,8 +133,7 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that a truthy configured value enables the capability, so a value
-     * arriving from the environment as a string still applies.
+     * Test that a truthy string config value enables the capability.
      *
      * @return void
      */
@@ -180,8 +173,7 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that apply with both random and regular columns applies both
-     * ordering types.
+     * Test that apply applies both random and regular ordering.
      *
      * @return void
      */
@@ -201,8 +193,7 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that a column carrying an unusable direction is skipped without
-     * halting the loop, so a valid column declared after it is still applied.
+     * Test that a column with an unusable direction is skipped.
      *
      * @return void
      */
@@ -229,8 +220,7 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Build a query surface declaring the sortable columns these tests order
-     * by, so the gate under test is the applier rather than the declaration.
+     * Build a query surface declaring the sortable columns these tests use.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
      */
@@ -240,8 +230,7 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Assert that applying the order rejects the given column with a named
-     * validation error.
+     * Assert that applying the order rejects the column.
      *
      * @param  callable(): mixed  $apply
      * @param  string  $column

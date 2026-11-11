@@ -13,8 +13,7 @@ use Tests\Fixtures\Repositories\CacheableDeferrableTagRepository;
 use Tests\TestCase;
 
 /**
- * Tests that the Cacheable and Deferrable concerns coexist on a single
- * repository without a boot() collision.
+ * Tests that the Cacheable and Deferrable concerns coexist on one repository.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -41,9 +40,7 @@ final class CacheableDeferrableTest extends TestCase
     }
 
     /**
-     * Test that a repository using both Cacheable and Deferrable boots without
-     * a trait collision and that both concerns are functional: the cache is
-     * populated on read and a deferred write is persisted on flush.
+     * Test that a repository using Cacheable and Deferrable boots both.
      *
      * @return void
      *
@@ -55,13 +52,11 @@ final class CacheableDeferrableTest extends TestCase
 
         $repository = $this->app->make(CacheableDeferrableTagRepository::class);
 
-        // Cacheable booted: a read populates the per-query cache.
         $result = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
 
         self::assertInstanceOf(Collection::class, $result);
         self::assertTrue($repository->getCacheStatus()->isPopulated());
 
-        // Deferrable booted: a deferred write is buffered then persisted.
         $repository->defer(['name' => 'deferred']);
         $flush = $repository->flushWrites();
 

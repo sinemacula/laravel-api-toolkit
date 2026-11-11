@@ -100,8 +100,7 @@ final class ResolvesResourceTest extends TestCase
     }
 
     /**
-     * Test that resolveResource prefers the custom resource class over the
-     * configured mapping.
+     * Test that resolveResource prefers the custom resource over the mapping.
      *
      * @return void
      */
@@ -119,8 +118,7 @@ final class ResolvesResourceTest extends TestCase
     }
 
     /**
-     * Test that resource resolution caches mappings per model class rather than
-     * sharing a single cache entry.
+     * Test that resource resolution caches mappings per model class.
      *
      * @return void
      */
@@ -136,8 +134,7 @@ final class ResolvesResourceTest extends TestCase
     }
 
     /**
-     * Test that the resolution methods remain accessible to consuming
-     * repository subclasses as protected extension points.
+     * Test that the resolution methods stay protected extension points.
      *
      * @return void
      *
@@ -178,8 +175,7 @@ final class ResolvesResourceTest extends TestCase
     }
 
     /**
-     * Test that resolving a model resource stores it in the shared store under
-     * the MODEL_RESOURCES key.
+     * Test that a resolved resource is stored under the MODEL_RESOURCES key.
      *
      * @return void
      */

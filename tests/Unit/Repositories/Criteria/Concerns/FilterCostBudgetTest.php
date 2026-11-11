@@ -39,8 +39,7 @@ final class FilterCostBudgetTest extends TestCase
     }
 
     /**
-     * Test that a descent one level beyond the depth cap is refused, naming the
-     * level it was refused at.
+     * Test that a descent one level beyond the depth cap is refused.
      *
      * @return void
      */
@@ -64,8 +63,7 @@ final class FilterCostBudgetTest extends TestCase
     }
 
     /**
-     * Test that exactly the node cap is admitted across successive levels,
-     * proving the running total is shared rather than reset per level.
+     * Test that exactly the node cap is admitted across successive levels.
      *
      * @return void
      *
@@ -85,8 +83,7 @@ final class FilterCostBudgetTest extends TestCase
     }
 
     /**
-     * Test that one node beyond the cap is refused, reporting the running total
-     * rather than the count at a single level.
+     * Test that one node beyond the cap is refused with the running total.
      *
      * @return void
      *

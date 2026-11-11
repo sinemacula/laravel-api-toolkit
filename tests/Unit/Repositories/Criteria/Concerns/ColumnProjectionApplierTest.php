@@ -134,8 +134,7 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that apply returns the query unchanged when the resolved field set
-     * is empty.
+     * Test that apply leaves the query unchanged for an empty field set.
      *
      * @return void
      *
@@ -158,8 +157,7 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that a fall-back decision applies no select and leaves the query
-     * unchanged.
+     * Test that a fall-back decision applies no select.
      *
      * @return void
      *
@@ -183,8 +181,7 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that a fall-back forced by an unmapped field is recorded at debug
-     * level carrying the offending field key and query context.
+     * Test that a fall-back forced by an unmapped field is logged at debug.
      *
      * @return void
      *
@@ -212,8 +209,7 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that a narrow decision applies the select exactly once with the
-     * decision columns.
+     * Test that a narrow decision applies the select once with its columns.
      *
      * @return void
      *
@@ -237,8 +233,7 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that the ':all' fields token resolves the full declared field set
-     * via getAllFields rather than the request-narrowed resolveFields.
+     * Test that the ':all' token resolves the full declared field set.
      *
      * @return void
      *
@@ -263,10 +258,9 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that the parent key of every list-keyed (plain or extra) relation in
-     * the eager-load map is retained, not just the first. The relation name of
-     * a list entry lives in the value, so deriving keys via array_keys would
-     * yield integer indices that resolve to no relation.
+     * Test that the parent key of every list-keyed relation is retained.
+     *
+     * A list entry carries the relation name in its value, not its key.
      *
      * @return void
      *
@@ -310,9 +304,7 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that a dotted relation path is reduced to its first segment - the
-     * relation declared on the base model - so the base-model parent key is
-     * resolved rather than the whole path, which matches no relation.
+     * Test that a dotted relation path resolves its first segment's parent key.
      *
      * @return void
      *
@@ -348,9 +340,7 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that an eager-load map entry whose relation path is not a string is
-     * skipped when deriving base-model relation names, so narrowing still
-     * proceeds over the remaining resolvable fields.
+     * Test that an eager-load entry with a non-string relation path is skipped.
      *
      * @return void
      *
@@ -365,8 +355,7 @@ final class ColumnProjectionApplierTest extends TestCase
         $provider = self::createStub(ResourceMetadataProvider::class);
         $provider->method('getResourceType')->willReturn('users');
         $provider->method('resolveFields')->willReturn(self::USER_DEFAULT_FIELDS);
-        // Int-keyed entry carrying a non-string relation path (a nested array
-        // rather than a dot-path string).
+        // A nested array where a dot-path string is expected
         $provider->method('eagerLoadMapFor')->willReturn([['nested', 'array']]);
 
         $query  = (new User)->newQuery();
@@ -381,8 +370,7 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that when the narrow-columns flag is entirely absent from config the
-     * applier defaults to disabled, leaving the query unnarrowed.
+     * Test that narrowing defaults to disabled when the config flag is absent.
      *
      * @return void
      *
@@ -406,9 +394,7 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that a non-string relation path preceding a valid list-keyed
-     * relation is skipped without halting the loop, so the later relation's
-     * parent key is still retained.
+     * Test that a non-string relation path does not stop later relations.
      *
      * @return void
      *
@@ -423,8 +409,7 @@ final class ColumnProjectionApplierTest extends TestCase
         $provider = self::createStub(ResourceMetadataProvider::class);
         $provider->method('getResourceType')->willReturn('users');
         $provider->method('resolveFields')->willReturn(self::USER_DEFAULT_FIELDS);
-        // A non-string path (nested array under an int key) precedes a valid
-        // list-keyed relation entry.
+        // A non-string path precedes a valid list-keyed relation
         $provider->method('eagerLoadMapFor')->willReturn([['nested', 'array'], 'author']);
 
         $author = self::createStub(Relation::class);
@@ -446,9 +431,7 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that the random-ordering keyword is excluded from the order-derived
-     * safety columns, so a real column that happens to share its name is not
-     * force-retained by a random-order request.
+     * Test that the random-ordering keyword is not retained as a safety column.
      *
      * @return void
      *
@@ -479,8 +462,7 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Build a column projection applier over a stubbed introspection provider
-     * reporting the fixture user columns.
+     * Build a column projection applier over the fixture user columns.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier
      */

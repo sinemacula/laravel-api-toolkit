@@ -60,8 +60,7 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
-     * Test that a relation whose leaf model does not use SoftDeletes is left
-     * with its default scope.
+     * Test that a relation to a non-soft-deleting model keeps its scope.
      *
      * @return void
      */
@@ -73,8 +72,7 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
-     * Test that a relation whose child resource has not opted in is left with
-     * its default scope, even when the request asks for trashed rows.
+     * Test that a relation whose resource has not opted in keeps its scope.
      *
      * @return void
      */
@@ -86,9 +84,7 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
-     * Test that a soft-deleting relation whose leaf model is bound to no
-     * resource is left with its default scope, since the gate has nowhere to
-     * read an opt-in from.
+     * Test that a relation to a model bound to no resource keeps its scope.
      *
      * @return void
      */
@@ -100,9 +96,7 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
-     * Test that a soft-deleting relation whose leaf model is bound to a class
-     * that is not an API resource is left with its default scope, rather than
-     * having an opt-in read off a class that cannot answer for one.
+     * Test that a relation bound to a non-resource class keeps its scope.
      *
      * @return void
      */
@@ -114,8 +108,7 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
-     * Test that an opted-in relation is wrapped in a constraint that widens the
-     * scope to include trashed rows.
+     * Test that an opted-in relation widens the scope to include trashed rows.
      *
      * @return void
      */
@@ -129,8 +122,7 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
-     * Test that an opted-in relation under the Only state is wrapped in a
-     * constraint that isolates trashed rows.
+     * Test that an opted-in relation under Only isolates trashed rows.
      *
      * @return void
      */
@@ -143,8 +135,7 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
-     * Test that an existing relation constraint is preserved and composed with
-     * the gated scope when the gate is open.
+     * Test that an existing relation constraint is composed with the gate.
      *
      * @return void
      */
@@ -163,9 +154,7 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
-     * Test that a nested multi-segment relation path resolves its leaf gate, so
-     * an opted-in leaf reached through several segments still widens the scope
-     * to include trashed rows.
+     * Test that a nested relation path resolves the gate of its leaf.
      *
      * @return void
      */
@@ -179,9 +168,7 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
-     * Test that a nested multi-segment relation path whose leaf resource has
-     * not opted in is left with its default live-only scope, even under a
-     * trashed request.
+     * Test that a nested relation path with a closed leaf keeps its scope.
      *
      * @return void
      */
@@ -193,9 +180,7 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
-     * Test that a closed leaf gate wins over a user-supplied constraint under a
-     * trashed request: the constraint is preserved verbatim and the scope is
-     * never widened.
+     * Test that a closed gate preserves a user constraint and never widens.
      *
      * @return void
      */
@@ -216,9 +201,7 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
-     * Test that a gated constraint handed a query that is not an Eloquent
-     * builder leaves it exactly as it found it, rather than reaching for a
-     * soft-delete scope that only an Eloquent builder answers to.
+     * Test that a gated constraint leaves a non-Eloquent query untouched.
      *
      * @return void
      */
@@ -238,8 +221,7 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
-     * Test that a single trashed request widens both a soft-deleting root that
-     * opts in and its opted-in eager-loaded relation together.
+     * Test that one trashed request widens both the root and its relation.
      *
      * @return void
      */
@@ -290,8 +272,7 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
-     * Apply the given constraint closure to a fresh article query and return
-     * the resulting SQL.
+     * Apply the constraint to a fresh article query and return the SQL.
      *
      * @param  mixed  $constraint
      * @return string

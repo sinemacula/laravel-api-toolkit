@@ -77,8 +77,7 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Test that exactly the aggregate cap is accepted, counting each requested
-     * column of a relation separately.
+     * Test that exactly the aggregate cap is accepted, counting each column.
      *
      * @return void
      *
@@ -99,8 +98,7 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Test that one aggregate too many is rejected, counting counts, sums, and
-     * averages together.
+     * Test that one aggregate too many is rejected across all aggregate kinds.
      *
      * @return void
      */
@@ -118,8 +116,7 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Test that expressions spread across several relations of the same map
-     * accumulate, and that exactly the cap is accepted.
+     * Test that expressions across relations accumulate up to the cap.
      *
      * @return void
      *
@@ -139,9 +136,7 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Test that expressions spread across several relations of the same map
-     * accumulate, so a request one expression over the cap is rejected rather
-     * than being measured by its last relation alone.
+     * Test that expressions across relations accumulate past the cap.
      *
      * @return void
      */
@@ -157,8 +152,7 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Test that an aggregate whose columns are not a list counts as a single
-     * expression rather than raising a type error.
+     * Test that an aggregate with non-list columns counts as one expression.
      *
      * @return void
      */
@@ -178,9 +172,7 @@ final class QueryCostGuardTest extends TestCase
     /**
      * Test that exactly the offset cap is accepted.
      *
-     * The cap counts the rows skipped to reach the page, so the page that lands
-     * on it is the cap divided by the page size, plus the first page which
-     * skips nothing.
+     * The cap counts the rows skipped to reach the page.
      *
      * @return void
      *
@@ -198,11 +190,7 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Test that the same page number is bounded differently at a larger page
-     * size, because the rows skipped to reach it are what the cap counts.
-     *
-     * Bounding the page number alone let the real ceiling move whenever an
-     * operator tuned the page size, which is the defect this cap carried.
+     * Test that the same page is bounded differently at a larger page size.
      *
      * @return void
      */
@@ -216,11 +204,7 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Test that a cursor-paginated read is not charged an offset it never pays.
-     *
-     * A cursor seeks to its position rather than counting rows to it, so a page
-     * number carried alongside one costs nothing to honour. Charging it would
-     * close the very escape hatch offered to a caller who has to read deeply.
+     * Test that a cursor-paginated read is not charged an offset.
      *
      * @return void
      *
@@ -238,8 +222,7 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Test that a page one beyond the offset cap is rejected outright rather
-     * than being clamped to the last page within the cap.
+     * Test that a page beyond the offset cap is rejected, not clamped.
      *
      * @return void
      */
@@ -249,20 +232,14 @@ final class QueryCostGuardTest extends TestCase
 
         $this->parseQuery(['page' => '12', 'limit' => '10']);
 
-        // Reported in pages: the caller asked for a page, so a row count names
-        // a number they never supplied.
+        // Reported in pages, the unit the caller supplied
         $this->assertRejectedForCost('page', QueryCostLimits::MAX_OFFSET, 11, 12);
 
         self::assertSame(12, ApiQuery::getPage());
     }
 
     /**
-     * Test that a cap of zero leaves the offset unbounded rather than refusing
-     * every page past the first.
-     *
-     * Zero is the documented way to turn a cap off, and the deepest page a
-     * caller can reach is what this one governs, so reading zero as a bound of
-     * zero rows would refuse every page but the first.
+     * Test that a cap of zero leaves the offset unbounded.
      *
      * @return void
      *
@@ -280,8 +257,7 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Test that a parser reporting no page number leaves the offset cap with
-     * nothing to measure rather than being read as a page of its own.
+     * Test that a missing page number leaves the offset cap nothing to measure.
      *
      * @return void
      *
@@ -319,8 +295,7 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Assert that the parsed query is rejected on cost, carrying the parameter
-     * at fault, the cap that rejected it, and both sides of the comparison.
+     * Assert that the parsed query is rejected on cost with the given details.
      *
      * @param  string  $parameter
      * @param  string  $reason

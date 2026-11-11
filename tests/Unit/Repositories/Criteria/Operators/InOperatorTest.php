@@ -62,8 +62,7 @@ final class InOperatorTest extends TestCase
     }
 
     /**
-     * Test that apply honours the OR boolean of the current filter context so
-     * an $in branch inside an $or group is combined with OR rather than AND.
+     * Test that apply honours the OR boolean of the filter context.
      *
      * @return void
      */

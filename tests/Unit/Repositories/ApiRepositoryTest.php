@@ -69,11 +69,7 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that withApiCriteria composes the API criteria into a copy and
-     * leaves the handle it was called on untouched.
-     *
-     * A composition abandoned by a caller that never queries through the copy
-     * has to be garbage rather than state the next unrelated query inherits.
+     * Test that withApiCriteria composes into a copy, leaving the original.
      *
      * @return void
      */
@@ -93,8 +89,7 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that usingResource sets the custom resource class and propagates to
-     * existing ApiCriteria.
+     * Test that usingResource sets the resource and propagates it to criteria.
      *
      * @return void
      *
@@ -114,8 +109,7 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that usingResource skips registered criteria that are not
-     * ApiCriteria instances while still propagating to the ApiCriteria ones.
+     * Test that usingResource skips criteria that are not ApiCriteria.
      *
      * @return void
      */
@@ -127,8 +121,7 @@ final class ApiRepositoryTest extends TestCase
 
         $result = $scoped->usingResource(UserResource::class);
 
-        // Naming the resource is configuration, so it mutates the handle it is
-        // called on rather than composing another copy.
+        // Naming the resource mutates the handle instead of composing a copy
         self::assertSame($scoped, $result);
 
         $criteria = $scoped->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
@@ -138,8 +131,7 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that getResourceClass resolves the resource from the model's
-     * resource map configuration.
+     * Test that getResourceClass resolves the resource from the resource map.
      *
      * @return void
      *
@@ -171,9 +163,7 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that the metadata cache writer accessor keeps protected visibility
-     * so a subclass override is honoured when resolving the resource, rather
-     * than being shadowed by a private base implementation.
+     * Test that a subclass override of the metadata cache writer is honoured.
      *
      * @return void
      *
@@ -424,8 +414,7 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that usingResource propagates the resource class to every
-     * ApiCriteria already registered on the repository.
+     * Test that usingResource propagates the resource to every ApiCriteria.
      *
      * @return void
      */
@@ -440,15 +429,12 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that withApiCriteria propagates an already-set custom resource class
-     * onto the newly created criteria instance.
+     * Test that withApiCriteria carries an already-set resource over.
      *
      * @return void
      */
     public function testWithApiCriteriaSetsResourceOnNewCriteriaInstance(): void
     {
-        // Naming the resource first is the ordering that carries: the copy the
-        // composition returns is built from a handle that already knows it.
         $scoped = $this->repository->usingResource(UserResource::class)->withApiCriteria();
 
         $criteria = $scoped->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
@@ -510,8 +496,7 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that paginate appends the current query string to the generated
-     * pagination URLs.
+     * Test that paginate appends the current query string to pagination URLs.
      *
      * @return void
      *
@@ -543,8 +528,7 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that scopeByIds de-duplicates the given ids before binding them into
-     * the query.
+     * Test that scopeByIds de-duplicates the given ids.
      *
      * @return void
      */
@@ -659,11 +643,7 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that naming a resource reaches the criteria the same handle already
-     * carries.
-     *
-     * The composition lives on the copy, so the propagation has to run over
-     * that copy's criteria rather than over the ones the original never took.
+     * Test that naming a resource reaches the criteria the handle carries.
      *
      * @return void
      */
@@ -679,9 +659,6 @@ final class ApiRepositoryTest extends TestCase
 
     /**
      * Test that a named resource outranks the one the model maps to.
-     *
-     * The map is the default rather than the authority, so a caller naming a
-     * resource for one read has to be answered with the one it named.
      *
      * @return void
      *
@@ -702,8 +679,7 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that persist auto-discovers BelongsTo cast via reflection when the
-     * attribute is not pre-cached.
+     * Test that persist auto-discovers an uncached BelongsTo cast.
      *
      * @return void
      *
@@ -714,16 +690,13 @@ final class ApiRepositoryTest extends TestCase
         $org  = Organization::create(['name' => 'AutoOrg', 'slug' => 'auto-org']);
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        // No 'organization' pre-set in casts - resolveCastForAttribute
-        // discovers it through resolveCastForRelation (line 220).
         $result = $this->repository->persist($user, ['organization' => $org->id]);
 
         self::assertTrue($result);
     }
 
     /**
-     * Test that persist auto-discovers BelongsToMany cast via
-     * resolveCastForRelation on Post.tags().
+     * Test that persist auto-discovers a BelongsToMany cast on Post.tags().
      *
      * @return void
      *
@@ -745,8 +718,7 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that persist resolves and sets an enum-cast attribute, with the cast
-     * resolved from the model rather than a pre-populated cache.
+     * Test that persist sets an enum attribute using the model cast.
      *
      * @return void
      *
@@ -770,8 +742,7 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that an ApiRepository subclass without the Cacheable trait reads
-     * directly from the database.
+     * Test that a repository without Cacheable reads from the database.
      *
      * @return void
      */
@@ -786,8 +757,7 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that an ApiRepository subclass with the Cacheable trait returns
-     * cached data on subsequent reads.
+     * Test that a repository with Cacheable serves cached data on later reads.
      *
      * @return void
      */

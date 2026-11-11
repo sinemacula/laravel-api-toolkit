@@ -24,8 +24,7 @@ use Tests\TestCase;
 final class LockStageTest extends TestCase
 {
     /**
-     * Test that wrap acquires the lock before $next, releases after, and
-     * returns the value from $next.
+     * Test that wrap locks around $next and returns its value.
      *
      * @return void
      */
@@ -47,8 +46,7 @@ final class LockStageTest extends TestCase
     }
 
     /**
-     * Test that wrap releases the lock in the finally block even when $next
-     * throws.
+     * Test that wrap releases the lock even when $next throws.
      *
      * @return void
      */

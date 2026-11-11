@@ -32,10 +32,7 @@ use Tests\TestCase;
 /**
  * Tests for the SearchApplier.
  *
- * The connection the suite runs against cannot prove an index backs anything,
- * so each test states the waiver it needs rather than inheriting the shipped
- * list, and the refusals are driven from both sides: a driver that cannot
- * prove, and a connection that does not waive the proof.
+ * The test connection cannot prove an index, so each test sets its waiver.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -94,8 +91,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that the whole search is applied as one nested group, so no filter
-     * disjunction applied alongside it can escape the narrowing.
+     * Test that the whole search is applied as one nested group.
      *
      * @return void
      */
@@ -111,8 +107,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that each declared strategy contributes its own group, combined with
-     * the others by disjunction so a match on any one of them is a match.
+     * Test that each declared strategy contributes its own OR-ed group.
      *
      * @return void
      */
@@ -129,8 +124,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that every declared column is bound through the pattern its own
-     * strategy renders, rather than one shape being applied to all of them.
+     * Test that each column is bound through its own strategy's pattern.
      *
      * @return void
      */
@@ -145,8 +139,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that a resource declaring nothing searchable refuses the parameter
-     * rather than answering it with the unnarrowed table.
+     * Test that a resource declaring nothing searchable refuses the parameter.
      *
      * @return void
      */
@@ -176,8 +169,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that a resolved class that is not an API resource refuses the
-     * parameter rather than being compiled as a schema.
+     * Test that a non-API-resource class refuses the parameter.
      *
      * @return void
      */
@@ -192,8 +184,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that a connection with no registered driver fails rather than
-     * dropping the narrowing predicate.
+     * Test that a connection with no registered driver fails.
      *
      * @return void
      */
@@ -206,8 +197,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that a driver asked for a strategy it does not implement throws
-     * rather than emitting some other match shape.
+     * Test that a driver asked for an unsupported strategy throws.
      *
      * @return void
      */
@@ -225,8 +215,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that a driver which cannot prove an index backs the strategy is
-     * refused on a connection that does not waive the proof.
+     * Test that a driver unable to prove an index is refused without a waiver.
      *
      * @return void
      */
@@ -247,8 +236,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that a driver refusing the declared strategies together is refused
-     * with the whole reason, before any predicate is emitted.
+     * Test that a driver refusing the strategies together is refused whole.
      *
      * @return void
      */
@@ -267,9 +255,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that a driver which proves index backing has its proof read on the
-     * request path, so a missing index refuses the request rather than quietly
-     * scanning where the build never ran the same check.
+     * Test that a driver's index proof is read on the request path.
      *
      * @return void
      */
@@ -290,9 +276,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that a search in a later operation is proved without the catalogue
-     * being read again, because the first operation's proof is shared across
-     * the lifecycle boundary between them.
+     * Test that a later operation reuses the first operation's index proof.
      *
      * @return void
      */
@@ -322,9 +306,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that a waived connection stops at the waiver rather than going on to
-     * read a proof the driver has already said it cannot give, which would turn
-     * an empty answer into a refusal.
+     * Test that a waived connection does not go on to read a proof.
      *
      * @return void
      */
@@ -340,9 +322,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that the waiver excuses only a driver that cannot prove anything:
-     * one that can is held to its proof even where the connection is listed,
-     * since the waiver exists for an absent proof rather than a failed one.
+     * Test that the waiver excuses only a driver that cannot prove anything.
      *
      * @return void
      */
@@ -390,12 +370,9 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that the waiver names a connection rather than the engine behind it.
+     * Test that the waiver names a connection rather than its engine.
      *
-     * Two connections speaking the same engine are waived apart: the one the
-     * list names serves the search, and its sibling is still refused. Nothing
-     * separates the pair but the name, so a waiver read as an engine cannot
-     * tell them apart and would serve both.
+     * Two connections on the same engine are waived apart by name alone.
      *
      * @return void
      */
@@ -425,9 +402,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that a connection reporting no name of its own is waived by nothing,
-     * even where the list names the key it is configured under, and is refused
-     * with the engine named because nothing else names it.
+     * Test that a connection reporting no name of its own is never waived.
      *
      * @return void
      */
@@ -477,8 +452,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Define two connections speaking the same engine as the one the suite runs
-     * against, so the waiver has a pair to tell apart.
+     * Define two connections on the engine the suite runs against.
      *
      * @return void
      */
@@ -491,8 +465,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Define a connection resolved by an extension that reports no name of its
-     * own, which the framework's own factory never produces.
+     * Define a connection whose resolver reports no name of its own.
      *
      * @return void
      */
@@ -526,8 +499,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Determine whether the applier serves a search against the resource rather
-     * than refusing it for the index behind it.
+     * Determine whether the applier serves a search against the resource.
      *
      * @param  string  $resourceClass
      * @return bool
@@ -554,8 +526,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Return the engine the connection under test speaks, which is the name a
-     * driver is registered against.
+     * Return the engine of the connection under test.
      *
      * @return string
      */
@@ -565,8 +536,7 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Return the name of the connection under test, which is the name the
-     * waiver is keyed by.
+     * Return the name of the connection under test.
      *
      * @return string
      */

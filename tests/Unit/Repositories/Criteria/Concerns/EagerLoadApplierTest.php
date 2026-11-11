@@ -67,8 +67,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply with a non-ApiResource class returns the query
-     * unmodified.
+     * Test that apply leaves the query unmodified for a non-ApiResource class.
      *
      * @return void
      *
@@ -89,8 +88,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply uses getAllFields when the ':all' token is present in the
-     * fields array.
+     * Test that apply uses getAllFields when the ':all' token is present.
      *
      * @return void
      *
@@ -123,8 +121,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply uses resolveFields when the ':all' token is not present
-     * in the fields array.
+     * Test that apply uses resolveFields when the ':all' token is absent.
      *
      * @return void
      *
@@ -157,8 +154,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply returns early without calling eagerLoadMapFor when the
-     * resolved fields array is empty.
+     * Test that apply returns early when the resolved fields are empty.
      *
      * @return void
      *
@@ -188,8 +184,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply calls with() on the query when the eager load map is not
-     * empty.
+     * Test that apply calls with() when the eager load map is not empty.
      *
      * @return void
      *
@@ -219,8 +214,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply does not call with() on the query when the eager load map
-     * is empty.
+     * Test that apply does not call with() when the eager load map is empty.
      *
      * @return void
      *
@@ -250,8 +244,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply calls withCount() on the query when the eager load count
-     * map is not empty.
+     * Test that apply calls withCount() when the count map is not empty.
      *
      * @return void
      *
@@ -285,8 +278,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply does not call withCount() on the query when the eager
-     * load count map is empty.
+     * Test that apply does not call withCount() when the count map is empty.
      *
      * @return void
      *
@@ -316,8 +308,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply calls withSum() for each sum entry when the sum map is
-     * not empty.
+     * Test that apply calls withSum() for each entry of the sum map.
      *
      * @return void
      *
@@ -350,13 +341,11 @@ final class EagerLoadApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
 
-        // withSum adds a select sub-query, so columns should be non-empty
         self::assertNotNull($result->getQuery()->columns);
     }
 
     /**
-     * Test that a sum or average declaring a constraint is loaded through its
-     * constrained relation rather than skipped.
+     * Test that a constrained sum or average is loaded through its constraint.
      *
      * @return void
      *
@@ -436,8 +425,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply passes the actual requested sums to eagerLoadSumsFor, not
-     * an empty array produced by coalescing.
+     * Test that apply passes the requested sums to eagerLoadSumsFor.
      *
      * @return void
      *
@@ -474,8 +462,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply passes the actual requested averages to
-     * eagerLoadAveragesFor, not an empty array produced by coalescing.
+     * Test that apply passes the requested averages to eagerLoadAveragesFor.
      *
      * @return void
      *
@@ -512,8 +499,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply calls withAvg() on the query for each entry returned by
-     * eagerLoadAveragesFor.
+     * Test that apply calls withAvg() for each entry of the average map.
      *
      * @return void
      *
@@ -546,7 +532,6 @@ final class EagerLoadApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
 
-        // withAvg appends a select sub-query; columns list must be non-empty
         self::assertNotNull($result->getQuery()->columns, 'withAvg must be applied when avg entries are returned');
     }
 

@@ -152,8 +152,7 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that the record-level count getters default to zero when no record
-     * counts are provided.
+     * Test that the record count getters default to zero.
      *
      * @return void
      */
@@ -168,8 +167,7 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that the record-level count getters return the values provided to
-     * the constructor.
+     * Test that the record count getters return the constructor values.
      *
      * @return void
      */
@@ -192,8 +190,7 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that flushedTables defaults to an empty array when no tables are
-     * provided.
+     * Test that flushedTables defaults to an empty array.
      *
      * @return void
      */
@@ -205,8 +202,7 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that flushedTables returns the table list provided to the
-     * constructor.
+     * Test that flushedTables returns the constructor table list.
      *
      * @return void
      */
@@ -234,8 +230,7 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that firstException returns the exception provided to the
-     * constructor.
+     * Test that firstException returns the constructor exception.
      *
      * @return void
      */
@@ -249,9 +244,7 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that a result survives a serialization round trip with every count
-     * and detail intact while dropping an underlying exception that cannot be
-     * serialized.
+     * Test that a result survives serialization without its exception.
      *
      * @return void
      */

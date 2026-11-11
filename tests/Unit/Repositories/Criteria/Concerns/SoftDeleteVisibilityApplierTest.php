@@ -65,8 +65,7 @@ final class SoftDeleteVisibilityApplierTest extends TestCase
     }
 
     /**
-     * Test that a model without SoftDeletes is never widened, even when the
-     * gate would otherwise be open.
+     * Test that a model without SoftDeletes is never widened.
      *
      * @return void
      */
@@ -131,8 +130,7 @@ final class SoftDeleteVisibilityApplierTest extends TestCase
     }
 
     /**
-     * Test that the With state drops the soft-delete constraint so trashed rows
-     * are included alongside live rows.
+     * Test that the With state includes trashed rows alongside live ones.
      *
      * @return void
      */

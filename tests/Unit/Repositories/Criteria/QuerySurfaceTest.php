@@ -27,8 +27,7 @@ use Tests\TestCase;
 final class QuerySurfaceTest extends TestCase
 {
     /**
-     * Test that a declared root filter column is permitted and an undeclared
-     * one is rejected with a validation error naming the key.
+     * Test that only a declared filter column is permitted.
      *
      * @return void
      */
@@ -48,9 +47,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that an operator the declaring column's capability answers is
-     * permitted and one it does not is rejected, naming both the operator and
-     * the column and listing what the column does accept.
+     * Test that the operator gate follows the column's capability.
      *
      * @return void
      */
@@ -72,9 +69,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that the operator gate rejects an undeclared column with the
-     * undeclared-key message rather than an operator message, so a client that
-     * named a column the resource never exposed is told so.
+     * Test that the operator gate rejects an undeclared column as undeclared.
      *
      * @return void
      */
@@ -94,9 +89,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a token the capability matrix does not govern is permitted on a
-     * declared column, so an operator the application bound to a handler of its
-     * own stays usable.
+     * Test that a token outside the capability matrix is permitted.
      *
      * @return void
      */
@@ -108,11 +101,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a column on a related model is gated by the capability the
-     * related resource declared it with, not the root resource's.
-     *
-     * PostResource declares 'title' with the exact capability, which does not
-     * answer the containment operator.
+     * Test that a related column is gated by the related resource's capability.
      *
      * @return void
      */
@@ -137,8 +126,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that declared sort columns and traversable relations are permitted
-     * and undeclared ones rejected.
+     * Test that sort columns and traversable relations must be declared.
      *
      * @return void
      */
@@ -154,8 +142,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a declared traversable relation on the root model is reported
-     * as declared, and an undeclared key is not, without throwing either way.
+     * Test that isDeclaredRelation reports root relations without throwing.
      *
      * @return void
      */
@@ -168,8 +155,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a resource with no declared surface rejects every root key
-     * (secure by default).
+     * Test that a resource with no declared surface rejects every root key.
      *
      * @return void
      */
@@ -181,10 +167,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a column declared filterable in the related model's mapped
-     * resource is permitted.
-     *
-     * PostResource declares 'title' as filterable, so it must pass.
+     * Test that a column filterable in the related resource is permitted.
      *
      * @return void
      */
@@ -199,8 +182,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a column NOT declared in the related model's resource
-     * filterable set is rejected with a ValidationException.
+     * Test that a column not filterable in the related resource is rejected.
      *
      * @return void
      */
@@ -215,11 +197,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a column declared sortable in the related model's mapped
-     * resource is permitted for ordering at a non-root hop.
-     *
-     * FilterableUserResource declares 'created_at' sortable, so with User
-     * reached as a related model the ordering key must pass.
+     * Test that a column sortable in the related resource is permitted.
      *
      * @return void
      */
@@ -234,9 +212,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a column that is filterable but not sortable in the related
-     * resource is rejected for ordering, confirming the two sets are enforced
-     * independently.
+     * Test that a filterable but unsortable related column cannot be ordered.
      *
      * @return void
      */
@@ -251,8 +227,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a related model with no entry in the resource map fails closed:
-     * every column is rejected.
+     * Test that a related model with no mapped resource rejects every column.
      *
      * @return void
      */
@@ -265,8 +240,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a related model mapped to a class that is not an API resource
-     * fails closed rather than attempting to compile the bogus class.
+     * Test that a related model mapped to a non-resource class fails closed.
      *
      * @return void
      */
@@ -278,11 +252,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a relation declared traversable in the related model's mapped
-     * resource is permitted at a non-root hop.
-     *
-     * FilterableUserResource declares 'posts' traversable, so with User reached
-     * as a related model the traversal must pass.
+     * Test that a relation traversable in the related resource is permitted.
      *
      * @return void
      */
@@ -297,11 +267,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a relation NOT declared traversable in the related model's
-     * resource is rejected at a non-root hop.
-     *
-     * FilterableUserResource declares 'organization' as a relation but not as
-     * traversable, so traversing it from a related User must be rejected.
+     * Test that a relation not traversable in the related resource is rejected.
      *
      * @return void
      */
@@ -316,22 +282,20 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a related model with no mapped resource fails closed: every
-     * onward relation is rejected.
+     * Test that a related model with no mapped resource rejects every relation.
      *
      * @return void
      */
     public function testFailsClosedWhenRelatedModelHasNoMappedResourceForRelation(): void
     {
-        // Empty resource map - User is not mapped, so its traversable set is
-        // unresolvable.
+        // Empty resource map, so User has no resolvable traversable set
         $surface = $this->make(rootModel: new Post);
 
         $this->assertRejects(fn () => $surface->guardRelation('posts', new User), 'filters.posts');
     }
 
     /**
-     * Build a query surface with sensible defaults for the test under focus.
+     * Build a query surface for the test under focus.
      *
      * @param  array<string, \SineMacula\ApiToolkit\Enums\Capability>  $filterable
      * @param  array<int, string>  $sortable
@@ -352,7 +316,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Assert that invoking the guard permits the key rather than rejecting it.
+     * Assert that invoking the guard permits the key.
      *
      * @param  callable(): void  $guard
      * @param  string  $key
@@ -372,8 +336,7 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Assert that invoking the guard rejects with a ValidationException whose
-     * errors contain the given key.
+     * Assert that the guard rejects with a ValidationException for the key.
      *
      * @param  callable(): void  $guard
      * @param  string  $errorKey

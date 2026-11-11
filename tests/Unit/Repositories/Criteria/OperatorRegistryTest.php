@@ -194,8 +194,7 @@ final class OperatorRegistryTest extends TestCase
     }
 
     /**
-     * Test that the exception message from duplicate registration contains the
-     * token string.
+     * Test that the duplicate registration message contains the token.
      *
      * @return void
      */
@@ -235,7 +234,7 @@ final class OperatorRegistryTest extends TestCase
             #[\Override]
             public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
             {
-                // Intentionally empty — stub for registry tests
+                // Intentionally empty
             }
         };
     }

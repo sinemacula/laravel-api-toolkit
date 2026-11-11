@@ -89,9 +89,7 @@ final class ServiceResultTest extends TestCase
     /**
      * Test that outputOr() returns the default value for a failed result.
      *
-     * A failed result returns the default even when a non-null output was
-     * captured alongside the failure, letting the caller distinguish failure
-     * from a null output without inspecting the status.
+     * This holds even when an output was captured alongside the failure.
      *
      * @return void
      */
@@ -147,8 +145,7 @@ final class ServiceResultTest extends TestCase
     }
 
     /**
-     * Test that throw() raises a ServiceFailedException carrying the result
-     * when the result failed without capturing an exception.
+     * Test that throw() raises a ServiceFailedException with no captured cause.
      *
      * @return void
      *

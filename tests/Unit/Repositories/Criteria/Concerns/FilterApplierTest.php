@@ -334,8 +334,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that $contains with a comma-separated string creates multiple JSON
-     * contains conditions.
+     * Test that a comma-separated $contains adds several conditions.
      *
      * @return void
      *
@@ -396,8 +395,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that $has with a named relation and conditions applies constrained
-     * whereHas.
+     * Test that $has with a named relation and conditions applies whereHas.
      *
      * @return void
      *
@@ -585,9 +583,9 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that the conditions inside a relation filter under $or are combined
-     * with AND, so the OR stays at the parent level rather than being combined
-     * with the relation's own correlation predicate.
+     * Test that conditions inside a relation filter under $or combine with AND.
+     *
+     * The OR belongs to the parent, not the correlation predicate.
      *
      * @return void
      *
@@ -710,9 +708,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a $has filter is not double-applied as a column condition when
-     * a handler happens to be registered for the $has token in the operator
-     * registry.
+     * Test that $has is not also applied as a column condition.
      *
      * @return void
      *
@@ -760,9 +756,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that an undeclared key is rejected at the key itself rather than
-     * after descending into its value, so the error names what the client sent
-     * at that level.
+     * Test that an undeclared key is rejected at the key, before its value.
      *
      * @return void
      *
@@ -774,8 +768,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that an undeclared column inside a logical group is rejected, so the
-     * group is not a way around the declared surface.
+     * Test that an undeclared column inside a logical group is rejected.
      *
      * @return void
      *
@@ -787,8 +780,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that an undeclared column carrying a condition operator inside a
-     * logical group is rejected before the operator handler runs.
+     * Test that an undeclared column in a group is rejected before its handler.
      *
      * @return void
      *
@@ -800,8 +792,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a relation listed by an existence operator is rejected when the
-     * resource does not declare it traversable.
+     * Test that an existence operator rejects an undeclared relation.
      *
      * @return void
      *
@@ -813,8 +804,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a named relation carrying conditions under an existence
-     * operator is rejected when the resource does not declare it traversable.
+     * Test that a named relation with conditions must be declared traversable.
      *
      * @return void
      *
@@ -826,8 +816,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a condition operator applied to a column that fails the query
-     * surface guard is rejected rather than reaching the operator handler.
+     * Test that a column failing the surface guard never reaches the handler.
      *
      * @return void
      *
@@ -839,8 +828,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that an operator the declaring column's capability does not answer
-     * is rejected before its handler runs, leaving the query untouched.
+     * Test that an operator the column's capability refuses is rejected.
      *
      * @return void
      *
@@ -852,9 +840,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that the bare shorthand is gated as the equality it compiles to, so
-     * a column declaring only containment cannot be compared by equality
-     * through the spelling that names no operator.
+     * Test that the bare shorthand is gated as the equality it compiles to.
      *
      * @return void
      *
@@ -866,8 +852,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a refused operator inside a logical group is rejected, so the
-     * group is not a way around the capability the column was declared with.
+     * Test that a refused operator inside a logical group is rejected.
      *
      * @return void
      *
@@ -879,8 +864,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a refused operator inside a traversed relation is rejected
-     * against the related resource's declaration rather than the root's.
+     * Test that a relation's operators are gated by the related resource.
      *
      * @return void
      *
@@ -892,9 +876,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a token the capability matrix does not govern reaches its
-     * handler on a declared column, so an operator the application registered
-     * stays usable rather than being refused everywhere.
+     * Test that a token outside the capability matrix reaches its handler.
      *
      * @return void
      *
@@ -915,8 +897,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a condition operator whose token is reported as registered but
-     * resolves to no handler is skipped, leaving the query untouched.
+     * Test that a registered token resolving to no handler is skipped.
      *
      * @return void
      *
@@ -924,8 +905,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testConditionOperatorWithNullHandlerIsSkipped(): void
     {
-        // Force a token that the registry reports present but resolves to null,
-        // so has() and resolve() disagree - the guard must drop it silently.
+        // Registered but resolving to null, so has() and resolve() disagree
         $operators             = $this->getProperty($this->operatorRegistry, 'operators');
         $operators['$phantom'] = null;
         $this->setProperty($this->operatorRegistry, 'operators', $operators);
@@ -936,9 +916,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that the published STRUCTURAL_OPERATORS grammar stays aligned with
-     * the tokens the applier actually dispatches, so the OpenAPI exporter
-     * (which reads the constant) cannot drift from real behaviour.
+     * Test that STRUCTURAL_OPERATORS matches the tokens the applier dispatches.
      *
      * @return void
      */
@@ -960,8 +938,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that an undeclared filter key is rejected with a validation error
-     * naming the key.
+     * Test that an undeclared filter key is rejected naming the key.
      *
      * @return void
      *
@@ -1023,8 +1000,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that condition and logical operators keep working when applied
-     * against a declared column.
+     * Test that condition and logical operators work on a declared column.
      *
      * @return void
      *
@@ -1047,8 +1023,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that the $has structural operator still routes to a relation
-     * existence clause for a declared relation.
+     * Test that $has routes to an existence clause for a declared relation.
      *
      * @return void
      *
@@ -1084,8 +1059,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a document nested one level beyond the depth cap is rejected,
-     * pointing at the level it was refused at.
+     * Test that a document one level beyond the depth cap is rejected.
      *
      * @return void
      */
@@ -1103,8 +1077,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a relation subquery counts as a level, since each traversal
-     * adds its own correlated subquery.
+     * Test that a relation subquery counts as a level.
      *
      * @return void
      */
@@ -1201,8 +1174,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that the keys inside a logical group within a traversed relation
-     * count toward the node cap.
+     * Test that keys in a group within a relation count toward the node cap.
      *
      * @return void
      */
@@ -1220,9 +1192,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that each relation listed by an existence operator counts toward the
-     * node cap, reported at its position beneath the operator rather than at
-     * the root.
+     * Test that each relation an existence operator lists counts as a node.
      *
      * @return void
      */
@@ -1240,8 +1210,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a rejection inside a relation named by an existence operator
-     * points at its position beneath the operator.
+     * Test that a rejection inside an existence operator points beneath it.
      *
      * @return void
      */
@@ -1277,8 +1246,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that an operator value list one item over the cap is rejected before
-     * the values are bound.
+     * Test that a value list one item over the cap is rejected before binding.
      *
      * @return void
      */
@@ -1296,9 +1264,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a delimited value list of exactly the item cap is applied, so
-     * the cap counts the items an operator reads rather than the shape of the
-     * value it was handed.
+     * Test that a delimited value list of exactly the item cap is applied.
      *
      * @return void
      *
@@ -1316,8 +1282,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a delimited value list one item over the cap is rejected, so
-     * the delimited spelling cannot outrun the list spelling.
+     * Test that a delimited value list one item over the cap is rejected.
      *
      * @return void
      */
@@ -1335,8 +1300,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that an operator value carrying no list counts as a single item, so
-     * an ordinary scalar comparison is never measured as a list.
+     * Test that a scalar operator value counts as a single item.
      *
      * @return void
      *
@@ -1354,8 +1318,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a rejection inside a traversed relation points at the position
-     * within the document rather than at the root.
+     * Test that a rejection inside a relation points at its own position.
      *
      * @return void
      */
@@ -1373,14 +1336,9 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that an $or nested below the top level of a relation filter is
-     * grouped rather than emitted as the scope's first clause.
+     * Test that an $or nested inside a relation filter is grouped.
      *
-     * The relation scope booleans its whole slice with the first clause added
-     * to it. An `or` there disjoins the correlation predicate the scope wrote
-     * before the callback ran, so the existence check passes for every parent
-     * row as soon as any child in the table matches, widening the result set
-     * instead of narrowing it.
+     * An ungrouped `or` would disjoin the scope's correlation predicate.
      *
      * @return void
      *
@@ -1405,8 +1363,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a key sitting beside $or in a relation filter is applied rather
-     * than discarded, so the existence check is the one the client asked for.
+     * Test that a key beside $or in a relation filter is applied.
      *
      * @return void
      *
@@ -1427,14 +1384,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a list reaching the root of the filter walk is named against
-     * the parameter rather than an empty position.
-     *
-     * The extractor refuses a top-level list before the walk sees one, so this
-     * guard is the second line rather than the first. It is asserted directly
-     * because a rejection naming an empty position would tell the caller
-     * nothing about where to look, and the extractor's guard is not this
-     * class's to rely on.
+     * Test that a list at the root of the walk is named against the parameter.
      *
      * @return void
      *
@@ -1454,13 +1404,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a list given to a named field names that field rather than the
-     * enclosing parameter.
-     *
-     * A rejection that always named the parameter would point an advanced
-     * search UI at the whole document instead of the one field it spelled
-     * wrongly, which is the difference between a correctable error and a
-     * puzzle.
+     * Test that a list given to a named field names that field.
      *
      * @return void
      *
@@ -1487,8 +1431,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Provide filters whose shape the grammar refuses, with the position and
-     * message each is refused with.
+     * Provide filters of a refused shape, with their position and message.
      *
      * @return iterable<string, array{array<string, mixed>, string, string}>
      */
@@ -1508,9 +1451,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a position the grammar reads as a document of conditions, or a
-     * relation existence filter's list of relation names, refuses a value of
-     * any other shape at that position rather than failing with a type error.
+     * Test that a value of the wrong shape is refused at its position.
      *
      * @param  array<string, mixed>  $filters
      * @param  string  $position
@@ -1557,10 +1498,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a pure-enum column is filtered by the lowercase wire name the
-     * document lists, matching the rows that store its case, while any other
-     * spelling matches nothing and the backed-enum and plain columns are
-     * filtered by their values as before.
+     * Test that a pure-enum column is filtered by its lowercase wire name.
      *
      * @param  array<string, mixed>  $filters
      * @param  array<int, string>  $expected
@@ -1584,8 +1522,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a pure-enum column on a related model is filtered by its wire
-     * name, the cast resolved on the model the relation reaches.
+     * Test that a pure-enum column on a related model is filtered by wire name.
      *
      * @return void
      *
@@ -1634,8 +1571,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a falsy value filters the rows that hold it, under the bare
-     * shorthand and $eq alike, rather than being read as no filter at all.
+     * Test that a falsy value filters the rows that hold it.
      *
      * @param  array<string, mixed>  $filters
      * @param  array<int, string>  $expected
@@ -1667,9 +1603,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Assert that the given filters are rejected on cost, carrying the cap that
-     * rejected them, the position within the document, and both sides of the
-     * comparison.
+     * Assert that the filters are rejected on cost with the given details.
      *
      * @param  array<string, mixed>  $filters
      * @param  string  $reason
@@ -1712,8 +1646,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Seed users holding falsy names and organisations, the user whose name is
-     * empty owning the only post titled "0".
+     * Seed users holding falsy names and organisations.
      *
      * @return void
      */
@@ -1729,8 +1662,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Apply the filters to the users and return the names matched, in the order
-     * the users were created.
+     * Apply the filters to the users and return the matched names in order.
      *
      * @param  array<string, mixed>|null  $filters
      * @return array<int, string>
@@ -1759,8 +1691,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Apply filters using the FilterApplier and return the resulting query
-     * builder.
+     * Apply the filters and return the resulting query builder.
      *
      * @param  array<string, mixed>|null  $filters
      * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>
@@ -1774,12 +1705,9 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Build the query surface these mechanics tests filter against, declaring
-     * the root columns and relation they use plus the related post resource
-     * that governs the nested hops.
+     * Build the query surface these mechanics tests filter against.
      *
-     * One column is declared per capability, so every operator the dispatch
-     * tests drive has a column whose declaration answers it.
+     * One column per capability, so every dispatched operator has a column.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
      */
@@ -1800,9 +1728,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Assert that applying the filters rejects the operator on the given
-     * column, naming both and listing what the column does accept, and that no
-     * clause reached the builder before the refusal.
+     * Assert that applying the filters refuses the operator on the column.
      *
      * @param  array<string, mixed>  $filters
      * @param  string  $column
@@ -1829,8 +1755,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Assert that applying the filters rejects the given key with a named
-     * validation error.
+     * Assert that applying the filters rejects the key with a validation error.
      *
      * @param  array<string, mixed>  $filters
      * @param  string  $key
@@ -1852,9 +1777,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Return the filter clauses a relation scope carries, having asserted the
-     * scope groups them rather than emitting them beside its correlation
-     * predicate.
+     * Return the grouped filter clauses a relation scope carries.
      *
      * @param  \Illuminate\Database\Query\Builder  $subQuery
      * @return \Illuminate\Support\Collection<int, array<string, mixed>>
