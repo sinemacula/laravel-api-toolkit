@@ -32,7 +32,7 @@ abstract class BaseDefinition implements Arrayable
     protected array $needs = [];
 
     /**
-     * Add a guard condition — return false to suppress the field.
+     * Add a guard; returning false suppresses the field.
      *
      * @param  callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): bool  $guard
      * @return static
@@ -91,11 +91,7 @@ abstract class BaseDefinition implements Arrayable
     }
 
     /**
-     * Begin (or continue) declaring this field's OpenAPI contract.
-     *
-     * Returns the carrier for chaining; call end() to return to the definition.
-     * The carrier is created lazily on first use, so a definition that never
-     * calls openapi() carries no declaration and is unaffected.
+     * Begin or continue declaring this field's OpenAPI contract.
      *
      * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldDeclaration
      */
@@ -115,8 +111,7 @@ abstract class BaseDefinition implements Arrayable
     }
 
     /**
-     * Declare the base-table columns this field reads so a narrowed SELECT can
-     * include them.
+     * Declare the base-table columns this field reads, for narrowed selects.
      *
      * @param  string  ...$columns
      * @return static
@@ -137,15 +132,7 @@ abstract class BaseDefinition implements Arrayable
     abstract public function toArray(): array;
 
     /**
-     * The guard, transformer, and OpenAPI attributes shared by every
-     * definition's toArray() tail.
-     *
-     * Concrete definitions spread this into their own attribute array, which
-     * applies its own array_filter - so key order and per-definition filtering
-     * are preserved while the shared resolution lives in one place. These three
-     * values are null-or-non-empty (guards/transformers via `?: null`) or
-     * null-or-object (openapi), so both the `!== null` and the stricter
-     * `!== null && !== []` predicates treat them identically.
+     * Return the attributes every definition's toArray() shares.
      *
      * @return array<string, mixed>
      */

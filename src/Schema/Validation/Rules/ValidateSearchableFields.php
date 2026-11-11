@@ -10,20 +10,7 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 /**
  * Validate that a searchable declaration names a column and a match strategy.
  *
- * A search is emitted as a predicate against the declared column name, so a
- * declaration on a field whose value is produced in the resource rather than
- * read from the table fails at request time with a database error. Two such
- * fields are provable from the schema alone: a computed field, which has no
- * column at all, and a field whose accessor reads a different path from the one
- * it declares. A closure accessor is opaque here, and what it reads is left to
- * the index proof taken against the connection, which resolves no index over a
- * column the table does not carry.
- *
- * A column declared with no strategy is reported for a different reason: the
- * compiled plan drops it, so the resource would present a searchable field that
- * quietly matches nothing. Whether the connection carries an index able to
- * serve the declared strategy is a question only a driver can answer, and is
- * checked where the connection is known rather than here.
+ * Index backing needs the connection, so it is checked elsewhere.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -56,8 +43,7 @@ final class ValidateSearchableFields extends ValidatesEachField
     }
 
     /**
-     * Describe the defect in a searchable declaration, or return null when the
-     * declaration is sound.
+     * Describe the searchable declaration's defect, or null when it is sound.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  string  $column

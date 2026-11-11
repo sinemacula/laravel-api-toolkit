@@ -13,32 +13,14 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 /**
  * Search driver serving a PostgreSQL connection.
  *
- * Both pattern matches are emitted as case-insensitive comparisons served by a
- * trigram index, which answers a wildcard at either end of the term from the
- * index rather than by reading the table. A prefix is matched the same way as
- * an anywhere-match on purpose: an ordinary B-tree serves a pattern only under
- * a pattern operator class, and only case-sensitively, so the same declaration
- * would answer one set of rows here and another on an engine whose collation
- * folds case. One index type per pattern strategy also leaves the operator with
- * one thing to create.
- *
- * Each column carries its own index and each is matched on its own, because
- * this engine combines the bitmaps of several index scans behind a disjunction
- * rather than losing the index to it.
- *
- * An equality match reads the column as it is stored, so it is emitted as a
- * plain comparison and proved against an ordinary index.
- *
- * The trigram operator classes arrive with an extension the application's own
- * migration installs. The driver can only report its absence, which it does
- * rather than let a declaration that cannot be served reach a request.
+ * Prefixes also use trigrams: a B-tree serves patterns only case-sensitively.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class PostgresTrigramSearchDriver extends EngineSearchDriver
 {
-    /** @var string The extension carrying the operator classes a pattern match is served by */
+    /** @var string The extension providing the trigram operator classes */
     public const string EXTENSION = 'pg_trgm';
 
     /**
@@ -74,8 +56,7 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     }
 
     /**
-     * Return what the columns are missing before a prefix match can be served
-     * from an index, keyed by column.
+     * Return, keyed by column, what blocks an index-served prefix match.
      *
      * @param  array<int, string>  $columns
      * @param  string  $table
@@ -89,8 +70,7 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     }
 
     /**
-     * Return what the columns are missing before an anywhere-match can be
-     * served from an index, keyed by column.
+     * Return, keyed by column, what blocks an index-served anywhere-match.
      *
      * @param  array<int, string>  $columns
      * @param  string  $table
@@ -124,8 +104,7 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     }
 
     /**
-     * Return what the columns are missing before a pattern match can be served
-     * from a trigram index, keyed by column.
+     * Return, keyed by column, what blocks a trigram-served pattern match.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @param  array<int, string>  $columns
@@ -167,8 +146,7 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     }
 
     /**
-     * Determine whether the extension carrying the trigram operator classes is
-     * installed on the connection.
+     * Determine whether the trigram extension is installed on the connection.
      *
      * @param  \Illuminate\Database\Connection  $connection
      * @return bool
@@ -179,12 +157,9 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     }
 
     /**
-     * Determine whether one of the given index definitions is built over a
-     * trigram operator class on the column.
+     * Determine whether a definition indexes the column with a trigram opclass.
      *
-     * The statement read back prints a collation between the column and its
-     * operator class only when the two collations differ, so the adjacency the
-     * pattern requires already refuses a key collated apart from its column.
+     * A differently collated key breaks the adjacency, so it never matches.
      *
      * @param  string  $column
      * @param  array<int, string>  $definitions
@@ -205,13 +180,9 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     }
 
     /**
-     * Resolve the namespace and relation name the catalogue holds the table
-     * under.
+     * Resolve the catalogue's schema and prefixed relation name for the table.
      *
-     * A model names its table logically, without the connection's prefix and
-     * with any schema written into the same string, while the catalogue holds
-     * the two apart and stores the prefixed name. Reading it the model's way
-     * finds nothing and refuses a deployment whose index is present.
+     * Models name tables without the prefix and with any schema inline.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection
@@ -229,14 +200,7 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     }
 
     /**
-     * Return the statements that would recreate the table's indexes.
-     *
-     * Only an index the planner may use for an unqualified predicate is read
-     * back: one the engine disregards serves no query, and one restricted to
-     * the rows its own predicate admits serves only a query carrying that
-     * predicate, so neither proves a search is index backed. An index keyed on
-     * an expression is kept, because the statement read back here names the
-     * expression and matching it is the whole point of the read.
+     * Return the definitions of indexes usable by an unqualified predicate.
      *
      * @param  string  $table
      * @param  \Illuminate\Database\Connection  $connection

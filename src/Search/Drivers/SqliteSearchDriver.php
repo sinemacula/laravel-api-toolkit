@@ -14,18 +14,7 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 /**
  * Search driver serving a SQLite connection as a development connection.
  *
- * SQLite carries neither the trigram operator classes nor the n-gram parser the
- * other engines answer a substring from, and it offers no way to prove that a
- * pattern comparison rode an index rather than the table. The driver therefore
- * serves every strategy - so a term behaves the same way locally as it does in
- * front of an engine that indexes it - and claims no proof for any of them.
- *
- * Claiming nothing is what makes the limitation visible: a declaration on this
- * connection is refused unless the connection is listed among the ones where
- * the index proof is waived, and the shipped configuration lists none, so an
- * application developing against SQLite names the connection there itself. A
- * connection serving traffic that is listed there has reinstated the full-table
- * scan the declaration exists to prevent.
+ * Serves every strategy but proves no index, so it needs a waived connection.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -44,8 +33,7 @@ final class SqliteSearchDriver implements SearchDriver
     }
 
     /**
-     * Return why the driver cannot resolve the given strategies from an index
-     * when they are declared together, or null when it can.
+     * Return why the strategies cannot be index-resolved together, or null.
      *
      * @param  array<int, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $strategies
      * @return string|null
@@ -70,8 +58,7 @@ final class SqliteSearchDriver implements SearchDriver
     }
 
     /**
-     * Return what the columns are missing before the strategy can be served
-     * from an index on this connection, keyed by column.
+     * Return, keyed by column, what blocks serving the strategy from an index.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @param  array<int, string>  $columns

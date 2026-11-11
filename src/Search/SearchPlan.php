@@ -9,15 +9,7 @@ use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
- * Per-resource compiled search plan.
- *
- * Holds the columns a resource declared searchable and the match shape each was
- * declared with, so the request path never re-reads a schema to answer what a
- * search may touch. One plan is built per resource class and memoised for the
- * life of the worker process, alongside the other schema-derived caches.
- *
- * A resource that declared nothing yields an empty plan rather than a plan over
- * every column: a search is served only where the schema asked for one.
+ * Per-resource compiled search plan of searchable columns and strategies.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

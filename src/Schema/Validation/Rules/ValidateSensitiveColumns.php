@@ -11,19 +11,14 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 /**
  * Validate that no field declares a sensitive column queryable.
  *
- * The declared surface is the only gate on what a client may filter, sort, or
- * search by, so a credential or verification column reaching it becomes an
- * oracle: the caller never reads the value but narrows on it one comparison at
- * a time. The configured columns are refused where the resource declares them,
- * so the defect is a schema failure rather than a silently exploitable
- * endpoint.
+ * A queryable secret is an oracle even when its value is never returned.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class ValidateSensitiveColumns extends ValidatesEachField
 {
-    /** @var array<int, string> The shipped column names, mirrored by the published config file and used as the fallback whenever that file does not declare its own list */
+    /** @var array<int, string> Shipped defaults, mirrored by the published config */
     public const array DEFAULTS = [
         'password',
         'token',
@@ -67,12 +62,7 @@ final class ValidateSensitiveColumns extends ValidatesEachField
     /**
      * Read the configured sensitive column names.
      *
-     * A published config predating the list, or declaring something other than
-     * a list, falls back to the shipped names rather than leaving the rule
-     * inert: the package config is merged one key deep, so an application that
-     * publishes its own resources block replaces this key wholesale. Entries
-     * that are not strings never match a column name, since the comparison is
-     * strict.
+     * Falls back to the defaults when the published config declares no list.
      *
      * @return array<mixed>
      */

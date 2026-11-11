@@ -5,11 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema;
 
 /**
- * Typed representation of a single compiled aggregate (sum / average)
- * definition.
- *
- * Provides typed access to all resolved aggregate properties stored in the
- * schema cache, alongside the column and metric discriminator.
+ * Typed representation of a single compiled sum or average definition.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

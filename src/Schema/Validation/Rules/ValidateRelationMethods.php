@@ -86,8 +86,7 @@ final class ValidateRelationMethods implements SchemaValidationRule
     }
 
     /**
-     * Validate that a relation method exists and has a return type hinting to a
-     * Relation subclass.
+     * Validate that a relation method exists and returns a Relation subclass.
      *
      * @param  string  $resourceClass
      * @param  string  $fieldKey

@@ -8,12 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 
 /**
- * Derives the per-model safety set of columns a narrowed query must always
- * retain.
- *
- * Composes, at runtime, the union of primary key, soft-delete column, relation
- * parent-side keys, order columns, and append sources, then intersects against
- * the model's real table columns.
+ * Derives the columns a narrowed query must always retain.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -57,8 +52,7 @@ final readonly class SafetySetDeriver
     }
 
     /**
-     * Collect the parent-side key columns for all resolvable eager-loaded
-     * relations.
+     * Collect the parent-side keys of the resolvable eager-loaded relations.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<int, string>  $relationKeys
@@ -82,8 +76,7 @@ final readonly class SafetySetDeriver
     }
 
     /**
-     * Intersect the accumulated column names against the model's real table
-     * columns and de-duplicate, preserving order.
+     * Keep only the model's real table columns, de-duplicated in order.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<int, string>  $columns

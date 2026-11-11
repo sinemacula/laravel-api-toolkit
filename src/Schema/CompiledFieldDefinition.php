@@ -10,9 +10,6 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
 /**
  * Typed representation of a single compiled field definition.
  *
- * Provides typed access to all resolved field properties stored in the schema
- * cache.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

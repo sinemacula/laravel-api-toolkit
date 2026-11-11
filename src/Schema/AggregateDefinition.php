@@ -7,11 +7,7 @@ namespace SineMacula\ApiToolkit\Schema;
 use SineMacula\ApiToolkit\Schema\Concerns\HasMetricModifiers;
 
 /**
- * Abstract base for relation aggregate (sum / average) schema definitions.
- *
- * Holds the common fluent API for building aggregate DSL entries and
- * serialising them to the raw schema array consumed by SchemaCompiler. Concrete
- * subclasses declare their metric identifier via {@see metric()}.
+ * Base for relation aggregate (sum and average) schema definitions.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -51,7 +47,7 @@ abstract class AggregateDefinition extends BaseDefinition
      */
     public static function of(string $relation, string $column, ?string $alias = null): static
     {
-        return new static($relation, $column, $alias); // @phpstan-ignore new.static (Sum and Average never override the constructor)
+        return new static($relation, $column, $alias); // @phpstan-ignore new.static
     }
 
     /**

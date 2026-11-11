@@ -5,10 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema;
 
 /**
- * Discriminated result of a column-narrowing decision.
- *
- * Either narrow (carrying the column projection) or fallback (carrying the
- * optional field key that forced the fall-back, for dev-time diagnostics).
+ * Result of a column-narrowing decision.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -46,8 +43,7 @@ final readonly class NarrowingDecision
     }
 
     /**
-     * Build a fall-back decision carrying the optional reason (the field key
-     * that forced fall-back).
+     * Build a fall-back decision carrying the field key that forced it.
      *
      * @param  string|null  $reason
      * @return self

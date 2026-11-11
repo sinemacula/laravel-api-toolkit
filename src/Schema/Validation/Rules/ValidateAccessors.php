@@ -10,9 +10,6 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 /**
  * Validate that a declared accessor path is not an empty string.
  *
- * A null accessor (none declared) and a callable accessor are both valid; only
- * an empty-string path is a defect.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

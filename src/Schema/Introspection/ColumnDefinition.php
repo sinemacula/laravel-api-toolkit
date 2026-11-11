@@ -7,10 +7,7 @@ namespace SineMacula\ApiToolkit\Schema\Introspection;
 /**
  * Immutable description of a single database column's type and nullability.
  *
- * Returned by the schema introspection port to supply the inference tier of the
- * OpenAPI exporter with a column's driver-normalised base type and whether it
- * admits null. Read only by the emission path; never consulted during runtime
- * serialization.
+ * Feeds the OpenAPI exporter's type inference; never read at runtime.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -37,13 +34,9 @@ final readonly class ColumnDefinition
     ) {}
 
     /**
-     * Build a definition from one catalogue row, or return null when the
-     * connection reported anything but a row carrying a name, a type name, and
-     * a nullability flag.
+     * Build a definition from a catalogue row, or null when it is malformed.
      *
-     * The row is read as unknown rather than as the shape the schema builder
-     * promises, because the same reader rebuilds a definition from its stored
-     * form, which another version of the toolkit may have written.
+     * Cached rows may have been written by another toolkit version.
      *
      * @param  mixed  $entry
      * @return self|null
@@ -66,8 +59,7 @@ final readonly class ColumnDefinition
     }
 
     /**
-     * Return the definition as the catalogue row it is read from, so it can be
-     * cached without its class.
+     * Return the definition as a cacheable catalogue row.
      *
      * @return array{name: string, type_name: string, nullable: bool}
      */

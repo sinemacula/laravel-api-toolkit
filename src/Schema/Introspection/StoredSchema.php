@@ -7,11 +7,6 @@ namespace SineMacula\ApiToolkit\Schema\Introspection;
 /**
  * Converts schema definitions to and from the form the metadata cache holds.
  *
- * The cache holds arrays and scalars only, so a definition is stored as the
- * catalogue entry it is read from and rebuilt through the same reader. A stored
- * value that cannot be rebuilt whole is rejected rather than read in part, so
- * the caller treats it as a miss and reads the schema again.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -29,8 +24,7 @@ final class StoredSchema
     }
 
     /**
-     * Rebuild the column definitions, keyed by column name, from their stored
-     * form, or return null when the stored value cannot be read.
+     * Rebuild the column definitions keyed by name, or null when unreadable.
      *
      * @param  mixed  $stored
      * @return array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>|null
@@ -64,12 +58,9 @@ final class StoredSchema
     }
 
     /**
-     * Rebuild the index definitions from their stored form, or return null when
-     * the stored value cannot be read.
+     * Rebuild the index definitions, or null when unreadable.
      *
-     * A connection may report an index without a kind, but a stored entry
-     * always carries one, null included, so an entry without it is unreadable
-     * rather than an index of no known kind.
+     * A stored entry always carries a type key, null included.
      *
      * @param  mixed  $stored
      * @return array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null
@@ -87,12 +78,9 @@ final class StoredSchema
     }
 
     /**
-     * Rebuild every stored entry with the given reader, or return null when the
-     * stored value is not an array or any entry in it cannot be read.
+     * Rebuild every stored entry, or null when any entry is unreadable.
      *
-     * One unreadable entry rejects the whole value rather than being passed
-     * over, since an index list read short would report an index missing that
-     * the table carries.
+     * A partial index list would report a present index as missing.
      *
      * @template TDefinition of object
      *

@@ -11,12 +11,6 @@ use SineMacula\ApiToolkit\Schema\CompiledSchema;
 /**
  * Base rule for validations that inspect each compiled field independently.
  *
- * Owns the field-key iteration and the null-field guard so a concrete rule only
- * declares its per-field check via {@see checkField()}, accumulating the errors
- * from every field. Rules whose validation spans more than the field set - e.g.
- * an additional pass over count definitions, or a dependency on the model class
- * - implement SchemaValidationRule directly instead.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

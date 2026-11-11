@@ -15,40 +15,9 @@ use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibilityInspector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
- * Validate that an index the connection carries leads with every sortable
- * column.
+ * Validate that an ordered index leads with every sortable column.
  *
- * A sortable declaration is an offer to order the whole table by a column on
- * request, and the offer is only affordable where an index already holds that
- * order. The column has to lead the index rather than merely appear in it: only
- * the leading column is a key prefix, so an index naming a column second is
- * read in an order that column does not decide and cannot answer an ordered
- * read of it alone. Checking membership instead would pass exactly the
- * declaration the database cannot serve.
- *
- * The connection is the authority. Where it names an index kind, only a kind
- * that holds an order counts, so a full-text or trigram index over a column
- * does not make that column sortable. Where it names no kind, every index it
- * reports holds an order, so the absence is read as such rather than as a
- * disqualification.
- *
- * Carrying an index is not the same as the engine being willing to plan against
- * one, and an index it disregards backs no ordered read however it is declared.
- * Where a column is proved by the columns an index reports, the index has to
- * describe itself truthfully too: one restricted to part of the table, or
- * leading with an expression the catalogue cannot report, is passed over, since
- * the reported column list would otherwise be read as naming a leading column
- * the index does not lead with. So is one whose leading key cannot deliver the
- * column's own order. A declaration naming an index outright asserts what that
- * column list was never going to show, so only the engine's refusal defeats it.
- *
- * A connection that cannot be inspected at all is a different answer again, and
- * the rule stays silent for it: a developer booting without a database has
- * proved nothing, while a connection that was read and carries no index has
- * proved the declaration wrong. A resource with no model behind it reads the
- * same way, since there is no table to ask. What a declaration contradicts on
- * its own is reported either way, needing no catalogue to decide. The catalogue
- * is read here, during validation, and never while a request is being served.
+ * The column must lead the index; mere membership cannot serve an ordered read.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -93,7 +62,7 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
 
         $model = $this->resolveModel($modelClass);
 
-        // No model is no catalogue: the unverifiable answer, not an empty one.
+        // Without a model the catalogue is unknown
         $indexes = $model === null ? null : $this->introspector->getIndexes($model);
         $table   = $model?->getTable() ?? '';
         $errors  = [];
@@ -117,8 +86,7 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
     }
 
     /**
-     * Resolve the model behind the resource, or null where the mapped class is
-     * not an Eloquent model and has no table to read.
+     * Resolve the model behind the resource, or null when it is not a model.
      *
      * @param  string|null  $modelClass
      * @return \Illuminate\Database\Eloquent\Model|null
@@ -134,8 +102,7 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
     }
 
     /**
-     * Return the fields carrying a sortable declaration or an override of the
-     * index behind one, keyed by field key.
+     * Return the fields declaring a sort or an index override, by key.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition>
@@ -193,15 +160,14 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
                 : ['Field declares an index exemption but is not declared sortable, so the exemption governs nothing'];
         }
 
-        // A null catalogue is the connection saying nothing, not saying empty.
+        // A null catalogue is unknown, so it proves nothing
         return $field->unindexedReason !== null || $indexes === null
             ? []
             : $this->backingDefects($field->sortable, $field->indexedBy, $indexes, $table, $eligibility);
     }
 
     /**
-     * Describe what the sortable column is missing on the table, or return
-     * nothing when an index the connection carries backs it.
+     * Describe what the sortable column is missing, or nothing when backed.
      *
      * @param  string  $column
      * @param  string|null  $declared
@@ -224,13 +190,7 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
     }
 
     /**
-     * Describe what the index the field names is missing on the table, or
-     * return nothing when it is carried and the connection will plan against
-     * it.
-     *
-     * Not carrying the index at all and carrying one the engine disregards are
-     * reported apart, because telling an author the table carries no index of a
-     * name it demonstrably carries sends them looking for the wrong thing.
+     * Describe what the named index is missing, or nothing when it is usable.
      *
      * @param  string  $declared
      * @param  string  $column
@@ -262,11 +222,7 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
     /**
      * Determine whether the table carries an index of the given name.
      *
-     * The comparison ignores case because an engine may report a name folded to
-     * its own, so a declaration matching the migration that created it is not
-     * refused for the folding. What the index covers is deliberately not
-     * compared: the override exists for an index the catalogue cannot describe
-     * by column, so its name is the whole of what there is to check.
+     * Case-insensitive, since an engine may fold the name it reports.
      *
      * @param  string  $declared
      * @param  array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>  $indexes
@@ -311,8 +267,7 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
     /**
      * Determine whether the index holds the order an ordered read needs.
      *
-     * A connection naming no kind distinguishes none, and everything it reports
-     * holds an order, so silence counts rather than disqualifies.
+     * A connection naming no kind reports only ordered indexes.
      *
      * @param  \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition  $index
      * @return bool

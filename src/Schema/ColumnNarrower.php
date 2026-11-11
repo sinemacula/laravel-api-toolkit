@@ -5,11 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema;
 
 /**
- * Pure domain rule that decides whether to narrow the base-table SELECT.
+ * Decides whether to narrow the base-table select to the columns it needs.
  *
- * Narrows only when every resolved field is provably column-mapped, returning
- * the union of all needed columns and the safety set. Falls back immediately
- * when any field's column reads are unknown.
+ * Narrows only when every resolved field is column-mapped.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -17,8 +15,7 @@ namespace SineMacula\ApiToolkit\Schema;
 final class ColumnNarrower
 {
     /**
-     * Decide whether to narrow the base-table select for the resolved field
-     * set.
+     * Decide whether to narrow the base-table select for the resolved fields.
      *
      * @param  \SineMacula\ApiToolkit\Schema\FieldColumnMap  $map
      * @param  array<int, string>  $resolvedFields

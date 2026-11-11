@@ -5,11 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema\Concerns;
 
 /**
- * Shared fluent modifiers for metric definitions (count, sum, average).
- *
- * Owns the alias, the optional eager-load constraint, and the default-inclusion
- * flag, plus their fluent setters, so a count and an aggregate definition do
- * not each re-implement the identical modifier surface.
+ * Shared fluent modifiers for count, sum and average definitions.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -52,8 +48,7 @@ trait HasMetricModifiers
     }
 
     /**
-     * Mark this metric as a default when metrics are requested without explicit
-     * selections.
+     * Include this metric by default when no metrics are explicitly selected.
      *
      * @return static
      */
