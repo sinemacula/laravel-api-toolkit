@@ -183,7 +183,8 @@ final class Field extends BaseDefinition
     /**
      * Name the index that backs this field's sortable column.
      *
-     * For indexes the catalogue cannot show, such as expression indexes.
+     * For an index whose coverage the catalogue cannot show, such as one over
+     * an expression.
      *
      * @param  string  $index
      * @return self

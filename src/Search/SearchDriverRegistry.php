@@ -65,7 +65,7 @@ final class SearchDriverRegistry
     }
 
     /**
-     * Determine whether a driver is registered for the given connection name.
+     * Determine whether a driver is registered for the given driver name.
      *
      * @param  string  $connection
      * @return bool

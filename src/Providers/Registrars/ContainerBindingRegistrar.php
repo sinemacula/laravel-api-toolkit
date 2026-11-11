@@ -167,8 +167,8 @@ final readonly class ContainerBindingRegistrar
     /**
      * Bind the SearchDriverRegistry to the service container.
      *
-     * Drivers are keyed by connection name; an unregistered connection throws
-     * when searched.
+     * Drivers are keyed by the driver name a connection reports; any other
+     * connection throws when searched.
      *
      * @return void
      */

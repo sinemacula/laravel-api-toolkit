@@ -26,7 +26,7 @@ abstract class ComparisonOperatorTestCase extends TestCase
      */
     public function testApplyAddsBasicWhereClause(): void
     {
-        $this->assertAppliedWhere(FilterContext::root(), 'and');
+        $this->assertAppliedWhere(FilterContext::root(), 10, 'and');
     }
 
     /**
@@ -36,7 +36,7 @@ abstract class ComparisonOperatorTestCase extends TestCase
      */
     public function testApplyInOrContextUsesOrWhere(): void
     {
-        $this->assertAppliedWhere(FilterContext::nested('$or'), 'or');
+        $this->assertAppliedWhere(FilterContext::nested('$or'), 'Alice', 'or');
     }
 
     /**
@@ -58,14 +58,15 @@ abstract class ComparisonOperatorTestCase extends TestCase
      * adds.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @param  int|string  $value
      * @param  string  $boolean
      * @return void
      */
-    private function assertAppliedWhere(FilterContext $context, string $boolean): void
+    private function assertAppliedWhere(FilterContext $context, int|string $value, string $boolean): void
     {
         $query = (new User)->newQuery();
 
-        $this->operator()->apply($query, 'name', 'Alice', $context);
+        $this->operator()->apply($query, 'name', $value, $context);
 
         $wheres = $query->getQuery()->wheres;
 
@@ -73,7 +74,7 @@ abstract class ComparisonOperatorTestCase extends TestCase
         static::assertSame('Basic', $wheres[0]['type']);
         static::assertSame('name', $wheres[0]['column']);
         static::assertSame($this->sqlOperator(), $wheres[0]['operator']);
-        static::assertSame('Alice', $wheres[0]['value']);
+        static::assertSame($value, $wheres[0]['value']);
         static::assertSame($boolean, $wheres[0]['boolean']);
     }
 }

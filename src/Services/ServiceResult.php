@@ -55,8 +55,8 @@ final readonly class ServiceResult
     /**
      * Create a failed service result.
      *
-     * Attached output is reachable only through output(); outputOr() still
-     * returns its default.
+     * Attached output is reachable through the output property or output();
+     * outputOr() still returns its default.
      *
      * @param  \Throwable|null  $exception
      * @param  mixed  $output
