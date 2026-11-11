@@ -173,7 +173,7 @@ final class ExportNegotiatorIntegrationTest extends TestCase
      *
      * @return void
      */
-    public function testCollectionReturnsSixForTabularFormatWithoutTabularSchema(): void
+    public function testCollectionReturns406ForTabularFormatWithoutTabularSchema(): void
     {
         $response = $this->get('/export/basic-users', ['Accept' => 'text/csv']);
 
@@ -221,7 +221,7 @@ final class ExportNegotiatorIntegrationTest extends TestCase
      *
      * @return void
      */
-    public function testItemReturnsSixForTabularFormatWithoutTabularSchema(): void
+    public function testItemReturns406ForTabularFormatWithoutTabularSchema(): void
     {
         $user     = User::query()->firstOrFail();
         $response = $this->get('/export/basic-users/' . $user->id, ['Accept' => 'text/csv']);
