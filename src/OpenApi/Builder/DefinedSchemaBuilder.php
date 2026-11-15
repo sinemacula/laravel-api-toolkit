@@ -19,7 +19,7 @@ final readonly class DefinedSchemaBuilder
     /**
      * Build the schema map for the referenced classes, claiming each name.
      *
-     * A title the fragment declares overrides the component name.
+     * A title the fragment declares replaces the default title.
      *
      * @param  list<class-string<\SineMacula\ApiToolkit\OpenApi\Contracts\DefinesSchema>>  $classes
      * @param  array<string, string>  $claimed

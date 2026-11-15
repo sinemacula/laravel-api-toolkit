@@ -62,8 +62,24 @@ final class DiscriminatorBuilderTest extends TestCase
                 'kind'     => ['enum' => ['card']],
                 'optional' => ['const' => 'x'],
                 'flag'     => true,
+                'object'   => new \stdClass,
             ],
-            'required' => ['version', 'kind', 'flag'],
+            'required' => ['version', 'kind', 'flag', 'object'],
+        ]);
+
+        self::assertSame([], $pins);
+    }
+
+    /**
+     * Test that a required entry pins a property only by its exact name.
+     *
+     * @return void
+     */
+    public function testRequiredEntryMatchesOnlyByExactName(): void
+    {
+        $pins = (new DiscriminatorBuilder)->pinnedValues([
+            'properties' => ['kind' => ['const' => 'a']],
+            'required'   => [true],
         ]);
 
         self::assertSame([], $pins);
@@ -131,6 +147,21 @@ final class DiscriminatorBuilderTest extends TestCase
         ]);
 
         self::assertSame(['propertyName' => 'status', 'mapping' => ['x' => self::FIRST, 'y' => self::SECOND]], $discriminator);
+    }
+
+    /**
+     * Test that an empty-string constant discriminates like any other value.
+     *
+     * @return void
+     */
+    public function testEmptyStringValueDiscriminates(): void
+    {
+        $discriminator = (new DiscriminatorBuilder)->build([
+            self::FIRST  => ['status' => ''],
+            self::SECOND => ['status' => 'x'],
+        ]);
+
+        self::assertSame(['propertyName' => 'status', 'mapping' => ['' => self::FIRST, 'x' => self::SECOND]], $discriminator);
     }
 
     /**

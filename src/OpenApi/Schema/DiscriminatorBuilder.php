@@ -80,7 +80,7 @@ final readonly class DiscriminatorBuilder
 
             $value = $pins[$property] ?? null;
 
-            if ($value === null || array_key_exists($value, $mapping)) {
+            if ($value === null || isset($mapping[$value])) {
                 return null;
             }
 

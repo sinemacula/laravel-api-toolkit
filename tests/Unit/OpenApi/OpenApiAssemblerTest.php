@@ -47,6 +47,7 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\Alternate\SignedInShape as AlternateSignedInShape;
 use Tests\Fixtures\OpenApi\EnvelopeNamedShape;
 use Tests\Fixtures\OpenApi\MfaChallengeShape;
+use Tests\Fixtures\OpenApi\NumericNamedShape;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
@@ -660,6 +661,23 @@ final class OpenApiAssemblerTest extends TestCase
         self::assertSame($reference, $document['paths']['/widget']['get']['responses']['200']['content']['application/json']['schema']['properties']['data']);
         self::assertSame($reference, $document['paths']['/jobs']['post']['responses']['202']['content']['application/json']['schema']['properties']['data']);
         self::assertSame(['title' => 'WidgetShape', ...WidgetShape::schema()], $document['components']['schemas']['WidgetShape']);
+    }
+
+    /**
+     * Test that a shape with a numeric component name keeps the component its
+     * reference resolves to.
+     *
+     * @return void
+     */
+    public function testNumericallyNamedShapeKeepsItsComponent(): void
+    {
+        $this->router()->get('numeric', [PathResponseSchemaController::class, 'numeric']);
+
+        $document = $this->assemble();
+        $response = $document['paths']['/numeric']['get']['responses']['200'];
+
+        self::assertSame(['$ref' => '#/components/schemas/123'], $response['content']['application/json']['schema']['properties']['data']);
+        self::assertSame(['title' => '123', ...NumericNamedShape::schema()], $document['components']['schemas']['123']);
     }
 
     /**

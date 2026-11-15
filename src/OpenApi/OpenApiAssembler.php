@@ -311,7 +311,7 @@ final readonly class OpenApiAssembler
 
         $definedSchemas = $this->definedSchemaBuilder->build($this->definedSchemas->classes(), $reserved);
 
-        $schemas = array_merge(
+        $schemas = array_replace(
             $resourceSchemas,
             $envelopeSchemas,
             $definedSchemas,

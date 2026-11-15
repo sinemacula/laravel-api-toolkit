@@ -7,6 +7,7 @@ namespace Tests\Fixtures\OpenApi;
 use SineMacula\ApiToolkit\OpenApi\Attributes\DocumentedIn;
 use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseSchema;
 use SineMacula\ApiToolkit\OpenApi\Attributes\Undocumented;
+use Tests\Fixtures\Enums\SelfDescribingPlan;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PlainJsonResource;
@@ -18,9 +19,10 @@ use Tests\Fixtures\Resources\UserResource;
  *
  * Carries one action per #[ResponseSchema] resolution branch: a registered
  * resource reference, its collection variant, a self-describing DTO exported as
- * a component, a plain class that resolves to nothing, an unregistered resource
- * whose reference would dangle, and a bare action carrying no directive at all.
- * The union actions name several classes: two discriminated shapes, a resource
+ * a component, one with a numeric component name, a plain class and a
+ * self-describing enum that resolve to nothing, an unregistered resource whose
+ * reference would dangle, and a bare action carrying no directive at all. The
+ * union actions name several classes: two discriminated shapes, a resource
  * beside a shape, a union of collection items, repeated members, distinct
  * classes describing one shape, shapes sharing or lacking a discriminating
  * constant, two resources, a resource that pins no type, an internal-only
@@ -65,6 +67,14 @@ final class PathResponseSchemaController
     public function widgets(): void {}
 
     /**
+     * Respond with a self-describing DTO whose component name is numeric.
+     *
+     * @return void
+     */
+    #[ResponseSchema(NumericNamedShape::class)]
+    public function numeric(): void {}
+
+    /**
      * Respond with a plain class that is neither a resource nor
      * self-describing.
      *
@@ -72,6 +82,14 @@ final class PathResponseSchemaController
      */
     #[ResponseSchema(User::class)]
     public function plain(): void {}
+
+    /**
+     * Respond with an enum that implements DefinesSchema.
+     *
+     * @return void
+     */
+    #[ResponseSchema(SelfDescribingPlan::class)]
+    public function enum(): void {}
 
     /**
      * Respond with a resource absent from the resource map.

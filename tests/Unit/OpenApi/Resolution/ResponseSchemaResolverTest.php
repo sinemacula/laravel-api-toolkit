@@ -110,6 +110,19 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
+     * Test that a declared enum implementing DefinesSchema resolves to null.
+     *
+     * @return void
+     */
+    public function testSelfDescribingEnumResolvesToNull(): void
+    {
+        $registry = new DefinedSchemaRegistry;
+
+        self::assertNull($this->resolver($registry)->resolve(PathResponseSchemaController::class, 'enum'));
+        self::assertSame([], $registry->classes());
+    }
+
+    /**
      * Test that a declared unmapped resource resolves to null.
      *
      * @return void
@@ -159,9 +172,11 @@ final class ResponseSchemaResolverTest extends TestCase
      */
     public function testCollectionUnionResolvesToItemOneOf(): void
     {
-        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'unionList');
+        $registry = new DefinedSchemaRegistry;
+        $schema   = $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'unionList');
 
         self::assertSame((new EnvelopeBuilder)->collectionEnvelopeFor($this->signInUnion()), $schema);
+        self::assertSame([SignedInShape::class, PendingSignInShape::class], $registry->classes());
     }
 
     /**

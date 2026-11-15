@@ -591,8 +591,8 @@ document a response that may be any one of them, exported as a `oneOf` of their 
 item of a collection). Give each member a required property holding its own string `const`, such as a `status`. When
 every member pins the same property to a distinct value, the `oneOf` carries a `discriminator` mapping each value to its
 member. Resources pin `_type`, so a union of resources with distinct types is discriminated on it. If any named class is
-neither a registered resource nor a `DefinesSchema`, the body is left undocumented. `#[SchemaName]` on a resource, enum
-or `DefinesSchema` sets its component name, and two classes deriving one name fail the export.
+neither a registered resource nor a `DefinesSchema`, or is an enum, the body is left undocumented. `#[SchemaName]` on a
+resource, enum or `DefinesSchema` sets its component name, and two classes deriving one name fail the export.
 
 On a resource controller's `index`, `show`, `store`, `update` or `destroy`, declaring the controller's own resource
 (as a collection on `index`, a single item elsewhere) changes nothing: the action keeps its full resource
