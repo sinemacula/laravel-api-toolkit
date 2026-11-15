@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
+use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Database\Eloquent\Castable;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -19,9 +20,9 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * by.
  *
  * A model whose binding lookup is overridden yields no schema, since the column
- * no longer states what the segment accepts. So do an abstract model the
- * container binds to a concrete one, and a key cast to an enum Eloquent does
- * not store by its backing value.
+ * no longer states what the segment accepts. So do an abstract model, a model
+ * bound in the container, and a key cast to an enum Eloquent does not store by
+ * its backing value.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -38,6 +39,7 @@ final readonly class RouteKeySchemaResolver
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver  $fields
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator  $patterns
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
+     * @param  \Illuminate\Contracts\Container\Container  $container
      */
     public function __construct(
 
@@ -52,6 +54,9 @@ final readonly class RouteKeySchemaResolver
 
         /** The registry collecting enum classes referenced by a $ref. */
         private EnumSchemaRegistry $enums,
+
+        /** The container that resolves the bound model's instance. */
+        private Container $container,
     ) {}
 
     /**
@@ -64,7 +69,7 @@ final readonly class RouteKeySchemaResolver
      */
     public function resolve(string $modelClass, ?string $field, bool $withTrashed): ?array
     {
-        if (!(new \ReflectionClass($modelClass))->isInstantiable() || $this->hasCustomLookup($modelClass, $withTrashed)) {
+        if (!$this->isResolvedAsDeclared($modelClass) || $this->hasCustomLookup($modelClass, $withTrashed)) {
             return null;
         }
 
@@ -72,6 +77,17 @@ final readonly class RouteKeySchemaResolver
         $key   = $field ?? $model->getRouteKeyName();
 
         return $this->uniqueIdSchema($model, $key) ?? $this->columnSchema($model, $key);
+    }
+
+    /**
+     * Determine whether binding instantiates the declared class itself.
+     *
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @return bool
+     */
+    private function isResolvedAsDeclared(string $modelClass): bool
+    {
+        return (new \ReflectionClass($modelClass))->isInstantiable() && !$this->container->bound($modelClass);
     }
 
     /**

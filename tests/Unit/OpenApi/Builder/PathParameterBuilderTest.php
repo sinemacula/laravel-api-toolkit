@@ -300,6 +300,8 @@ final class PathParameterBuilderTest extends TestCase
      */
     private function builder(): PathParameterBuilder
     {
+        assert($this->app !== null);
+
         $introspector = self::createStub(SchemaIntrospectionProvider::class);
         $introspector->method('getColumnDefinitions')->willReturn([]);
 
@@ -309,7 +311,7 @@ final class PathParameterBuilderTest extends TestCase
         return new PathParameterBuilder(
             $this->router(),
             new RoutePatternTranslator,
-            new RouteKeySchemaResolver($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper, $this->enums), new RoutePatternTranslator, $this->enums),
+            new RouteKeySchemaResolver($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper, $this->enums), new RoutePatternTranslator, $this->enums, $this->app),
             $this->enums,
         );
     }

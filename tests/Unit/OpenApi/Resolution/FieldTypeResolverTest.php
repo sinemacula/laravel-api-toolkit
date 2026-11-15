@@ -488,6 +488,39 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
+     * Test that a column read through a model accessor has the field's
+     * declaration ignored.
+     *
+     * @return void
+     */
+    public function testColumnIgnoresTheDeclarationOfAnAccessedColumn(): void
+    {
+        $model = new class extends Model {
+            /**
+             * Get the slug's length.
+             *
+             * @param  string  $value
+             * @return int
+             *
+             * @phpstan-ignore sineMaculaLaravel.modelBehaviour
+             */
+            public function getSlugAttribute(string $value): int
+            {
+                return mb_strlen($value);
+            }
+        };
+
+        $declared = new OpenApiFieldSchema(type: 'integer');
+        $resolver = $this->makeResolver([
+            'slug'       => new ColumnDefinition(name: 'slug', typeName: 'varchar', nullable: false),
+            'full_label' => new ColumnDefinition(name: 'full_label', typeName: 'varchar', nullable: false),
+        ]);
+
+        self::assertSame(['type' => 'string'], $resolver->resolveColumn('slug', $model::class, $this->field(openApi: $declared))->toArray());
+        self::assertSame(['type' => 'string'], $resolver->resolveColumn('full_label', User::class, $this->field(openApi: $declared))->toArray());
+    }
+
+    /**
      * Test that an enum-cast column references and registers the enum.
      *
      * @return void

@@ -678,7 +678,7 @@ final class OpenApiAssemblerTest extends TestCase
                 new PathParameterBuilder(
                     $this->router(),
                     new RoutePatternTranslator,
-                    new RouteKeySchemaResolver($catalogue, $this->resolver($enums), new RoutePatternTranslator, $enums),
+                    new RouteKeySchemaResolver($catalogue, $this->resolver($enums), new RoutePatternTranslator, $enums, $this->app),
                     $enums,
                 ),
                 new RouteMiddlewareResolver($this->router()),

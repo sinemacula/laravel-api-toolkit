@@ -124,6 +124,7 @@ final class RoutePatternTranslatorTest extends TestCase
         yield 'escaped dot' => ['\.json', '^\.json$'];
         yield 'lazy group' => ['(?:ab)+?', '^(?:ab)+?$'];
         yield 'negated class' => ['[^/]+', '^[^/]+$'];
+        yield 'negated caret class' => ['[^^]+', '^[^^]+$'];
         yield 'capturing group' => ['(ab)*', '^(ab)*$'];
         yield 'class escapes' => ['[\-\]\\\]', '^[\-\]\\\]$'];
         yield 'escaped slash' => ['a\/b', '^a\/b$'];
@@ -168,6 +169,9 @@ final class RoutePatternTranslatorTest extends TestCase
         yield 'lookahead' => ['(?=a)a'];
         yield 'lookbehind' => ['(?<=/)a'];
         yield 'possessive quantifier' => ['a++'];
+        yield 'possessive star' => ['a*+'];
+        yield 'possessive optional' => ['a?+'];
+        yield 'possessive bound' => ['a{2}+'];
         yield 'posix class' => ['[[:alpha:]]+'];
         yield 'class opening with bracket' => ['[]a]'];
         yield 'negated class opening with bracket' => ['[^]a]'];

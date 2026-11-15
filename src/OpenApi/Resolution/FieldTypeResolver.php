@@ -63,7 +63,8 @@ final readonly class FieldTypeResolver
      * Resolve a column's schema, reusing the declaration of a field that emits
      * the column unchanged.
      *
-     * A guard only hides the value, so a guarded field's declaration is reused.
+     * A guard only hides the value, so a guarded field's declaration is reused;
+     * a model accessor changes it, so an accessed column's declaration is not.
      *
      * @param  string  $column
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
@@ -72,11 +73,26 @@ final readonly class FieldTypeResolver
      */
     public function resolveColumn(string $column, string $modelClass, ?CompiledFieldDefinition $field = null): OpenApiFieldSchema
     {
-        if ($field?->openApi !== null && !$this->hasAlternateSource($field) && $field->transformers === []) {
+        if ($field?->openApi !== null && $this->emitsColumn($field, $column, $modelClass)) {
             return $field->openApi;
         }
 
         return $this->inferScalar($column, $modelClass);
+    }
+
+    /**
+     * Determine whether a field emits its column's stored value.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @param  string  $column
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @return bool
+     */
+    private function emitsColumn(CompiledFieldDefinition $field, string $column, string $modelClass): bool
+    {
+        return !$this->hasAlternateSource($field)
+            && $field->transformers === []
+            && !(new $modelClass)->hasAnyGetMutator($column);
     }
 
     /**

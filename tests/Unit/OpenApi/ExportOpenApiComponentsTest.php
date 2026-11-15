@@ -325,7 +325,7 @@ final class ExportOpenApiComponentsTest extends TestCase
                 new PathParameterBuilder(
                     $router,
                     new RoutePatternTranslator,
-                    new RouteKeySchemaResolver($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums), new RoutePatternTranslator, $enums),
+                    new RouteKeySchemaResolver($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums), new RoutePatternTranslator, $enums, $this->app),
                     $enums,
                 ),
                 new RouteMiddlewareResolver($router),

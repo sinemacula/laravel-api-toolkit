@@ -2213,6 +2213,7 @@ final class PathBuilderTest extends TestCase
                     new FieldTypeResolver($this->app->make(SchemaIntrospectionProvider::class), new ColumnTypeMapper, $enums),
                     new RoutePatternTranslator,
                     $enums,
+                    $this->app,
                 ),
                 $enums,
             ),

@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Resolution;
 
+use Illuminate\Container\Container;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Concerns\HasUniqueStringIds;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -337,6 +338,34 @@ final class RouteKeySchemaResolverTest extends TestCase
     }
 
     /**
+     * Test that a model bound in the container yields nothing.
+     *
+     * @return void
+     */
+    public function testModelBoundInTheContainerYieldsNothing(): void
+    {
+        $container = new Container;
+
+        $container->bind(User::class, static fn (): User => new User);
+
+        self::assertNull($this->resolver(container: $container)->resolve(User::class, null, false));
+    }
+
+    /**
+     * Test that a floating-point key is a number.
+     *
+     * @return void
+     */
+    public function testFloatingPointKeyIsANumber(): void
+    {
+        $resolver = $this->resolver([
+            'weight' => new ColumnDefinition(name: 'weight', typeName: 'double', nullable: false),
+        ]);
+
+        self::assertSame(['type' => 'number'], $resolver->resolve(User::class, 'weight', false));
+    }
+
+    /**
      * Test that a key the schema cannot state as a scalar yields nothing.
      *
      * @return void
@@ -394,15 +423,21 @@ final class RouteKeySchemaResolverTest extends TestCase
     }
 
     /**
-     * Build a resolver over the given columns, resource map and registry.
+     * Build a resolver over the given columns, resource map, registry and
+     * container.
      *
      * @param  array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>  $columns
      * @param  array<class-string, class-string>  $resourceMap
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
+     * @param  \Illuminate\Container\Container  $container
      * @return \SineMacula\ApiToolkit\OpenApi\Resolution\RouteKeySchemaResolver
      */
-    private function resolver(array $columns = [], array $resourceMap = [], EnumSchemaRegistry $enums = new EnumSchemaRegistry): RouteKeySchemaResolver
-    {
+    private function resolver(
+        array $columns = [],
+        array $resourceMap = [],
+        EnumSchemaRegistry $enums = new EnumSchemaRegistry,
+        Container $container = new Container,
+    ): RouteKeySchemaResolver {
         $introspector = self::createStub(SchemaIntrospectionProvider::class);
         $introspector->method('getColumnDefinitions')->willReturn($columns);
 
@@ -414,6 +449,7 @@ final class RouteKeySchemaResolverTest extends TestCase
             new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums),
             new RoutePatternTranslator,
             $enums,
+            $container,
         );
     }
 }
