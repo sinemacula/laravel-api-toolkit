@@ -19,7 +19,6 @@ use Opis\JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
-use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
@@ -31,7 +30,6 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ServerListValidator;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
-use Tests\Fixtures\Enums\AppErrorCode;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
@@ -51,6 +49,7 @@ use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathResponseStatusController;
+use Tests\Fixtures\OpenApi\PathRouteFactsController;
 use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
@@ -243,6 +242,8 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     public function testDocumentDeclaresThreeOneAndPopulatesComponents(): void
     {
+        $this->registerUserRoutes();
+
         $document = $this->export()->document;
 
         self::assertIsString($document['openapi']);
@@ -252,7 +253,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         self::assertNotEmpty($components['schemas']);
         self::assertNotEmpty($components['parameters']);
-        self::assertNotEmpty($components['responses']);
+        self::assertNotEmpty($components['examples']);
     }
 
     /**
@@ -449,29 +450,48 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that one error response is emitted per defined error code.
-     *
-     * Application exceptions discovered outside the toolkit count too.
+     * Test that every error example is referenced, resolves, and validates
+     * against the exported error envelope.
      *
      * @return void
      */
-    public function testOneResponsePerErrorCode(): void
+    public function testErrorExamplesAreReferencedAndValidateAgainstTheEnvelope(): void
     {
-        $document   = $this->export()->document;
-        $responses  = $document['components']['responses'];
-        $errorCodes = ErrorCode::cases();
+        $this->registerUserRoutes();
+        $this->router()->post('sign-in', [PathRouteFactsController::class, 'signIn'])->middleware(['auth', 'throttle:60,1']);
+        $this->router()->post('spend', [PathRouteFactsController::class, 'spend']);
 
-        // The toolkit's codes plus the discovered application exception
-        self::assertIsArray($responses);
-        self::assertCount(count($errorCodes) + 1, $responses);
+        $document = $this->export()->document;
+        $examples = $document['components']['examples'];
 
-        self::assertIsArray($responses);
+        self::assertIsArray($examples);
 
-        foreach ($errorCodes as $code) {
-            self::assertArrayHasKey('ErrorResponse' . $code->getCode(), $responses);
+        $referenced = array_filter(
+            $this->collectReferences($document['paths']),
+            static fn (string $reference): bool => str_starts_with($reference, '#/components/examples/'),
+        );
+
+        sort($referenced);
+
+        self::assertSame(
+            ['Error10001', 'Error10101', 'Error10102', 'Error10103', 'Error10105', 'Error10106', 'Error10107', 'Error10108', 'Error20002'],
+            array_keys($examples),
+        );
+        self::assertSame(array_map(static fn (string $name): string => '#/components/examples/' . $name, array_keys($examples)), $referenced);
+
+        foreach ($examples as $name => $example) {
+
+            self::assertIsArray($example);
+
+            /** @var array<string, mixed> $value */
+            $value  = $example['value'];
+            $result = $this->validateAgainstExported($document, '/components/schemas/ErrorEnvelope', $value);
+
+            self::assertTrue($result->isValid(), sprintf('The %s example must validate against the ErrorEnvelope schema: %s', $name, $this->formatErrors($result)));
         }
 
-        self::assertArrayHasKey('ErrorResponse' . AppErrorCode::WIDGET_FAILURE->getCode(), $responses);
+        $this->assertReferencesResolve($document);
+        self::assertTrue($this->validateAgainstMetaSchema($document)->isValid());
     }
 
     /**
@@ -1293,18 +1313,12 @@ final class OpenApiExporterValidityTest extends TestCase
         $notFound = $paths['/users/{user}']['get']['responses']['404']['content']['application/json'];
 
         self::assertSame('#/components/schemas/ErrorEnvelope', $notFound['schema']['$ref']);
-        self::assertSame(
-            ['NotFoundException' => ['value' => ['error' => ['status' => 404, 'code' => 10103]]]],
-            $notFound['examples'],
-        );
+        self::assertSame(['Error10103' => ['$ref' => '#/components/examples/Error10103']], $notFound['examples']);
 
         $conflict = $paths['/users']['post']['responses']['409']['content']['application/json'];
 
         self::assertSame('#/components/schemas/ErrorEnvelope', $conflict['schema']['$ref']);
-        self::assertSame(
-            ['ConflictException' => ['value' => ['error' => ['status' => 409, 'code' => 10108]]]],
-            $conflict['examples'],
-        );
+        self::assertSame(['Error10108' => ['$ref' => '#/components/examples/Error10108']], $conflict['examples']);
     }
 
     /**

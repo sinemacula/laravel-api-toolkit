@@ -8,8 +8,10 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
@@ -19,7 +21,7 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
-use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
@@ -160,12 +162,14 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Test that the parameter and response counts reflect the components.
+     * Test that the parameter and error example counts reflect the components.
      *
      * @return void
      */
-    public function testSummaryParameterAndResponseCountsReflectComponents(): void
+    public function testSummaryParameterAndErrorExampleCountsReflectComponents(): void
     {
+        $this->router()->get('users/{user}', [PathResponseSchemaController::class, 'single']);
+
         $result = $this->export();
 
         self::assertIsArray($result->document['components']['parameters']);
@@ -173,12 +177,9 @@ final class ExportOpenApiComponentsTest extends TestCase
             count($result->document['components']['parameters']),
             $result->parameterCount,
         );
-        self::assertIsArray($result->document['components']['responses']);
-        self::assertSame(
-            count($result->document['components']['responses']),
-            $result->responseCount,
-        );
-        self::assertSame(1, $result->responseCount);
+        self::assertIsArray($result->document['components']['examples']);
+        self::assertSame(['Error10001', 'Error10103'], array_keys($result->document['components']['examples']));
+        self::assertSame(2, $result->errorExampleCount);
     }
 
     /**
@@ -305,10 +306,18 @@ final class ExportOpenApiComponentsTest extends TestCase
         $router       = $this->router();
         $enums        = new EnumSchemaRegistry;
 
+        $errors = new ErrorResponseBuilder(
+            new RouteMiddlewareResolver($router),
+            new ThrowsErrorResolver(new ClassNameResolver),
+            new ResponseHeaderResolver,
+            new ErrorExampleBuilder($catalogue),
+            ExceptionMap::fromConfig(),
+        );
+
         $assembler = new OpenApiAssembler(
             new ResourceSchemaBuilder($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums), $introspector),
             new QueryParameterBuilder($catalogue),
-            new ErrorResponseBuilder($catalogue),
+            $errors,
             new PathBuilder(
                 $router,
                 $catalogue,
@@ -319,8 +328,7 @@ final class ExportOpenApiComponentsTest extends TestCase
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
                 new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($router)),
                 new QueryParameterBuilder($catalogue),
-                new RouteMiddlewareResolver($router),
-                new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver),
+                $errors,
                 new SuccessResponseBuilder(
                     new EnvelopeBuilder,
                     new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
@@ -332,26 +340,28 @@ final class ExportOpenApiComponentsTest extends TestCase
             new EnumSchemaBuilder,
             $enums,
             new DocManualAssembler,
+            new ErrorExampleBuilder($catalogue),
         );
 
         return (new ExportOpenApiComponents($assembler, $catalogue))->export($audience);
     }
 
     /**
-     * Build a stubbed catalogue exposing the resource map and one error.
+     * Build a stubbed catalogue exposing the resource map and the error
+     * catalogue.
      *
      * @param  array<class-string, class-string>  $resourceMap
      * @return \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue
      */
     private function makeCatalogue(array $resourceMap): MetadataCatalogue
     {
+        assert($this->app !== null);
+
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn($resourceMap);
         $catalogue->method('getOperatorTokens')->willReturn(['$eq', '$neq']);
         $catalogue->method('getStructuralOperators')->willReturn(['$and', '$or']);
-        $catalogue->method('getErrorCatalogue')->willReturn([
-            new ErrorDescriptor(code: 10103, httpStatus: 404, title: 'Not Found', detail: 'Missing.'),
-        ]);
+        $catalogue->method('getErrorCatalogue')->willReturn($this->app->make(ErrorCatalogueReader::class)->read());
 
         return $catalogue;
     }

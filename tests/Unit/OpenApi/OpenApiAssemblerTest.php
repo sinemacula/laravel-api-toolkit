@@ -7,8 +7,10 @@ namespace Tests\Unit\OpenApi;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
@@ -18,7 +20,7 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
-use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
@@ -270,11 +272,15 @@ final class OpenApiAssemblerTest extends TestCase
      */
     public function testComponentsBlockIsPopulated(): void
     {
+        $this->registerUserRoutes();
+
         $components = $this->assemble()['components'];
 
+        self::assertIsArray($components);
         self::assertNotEmpty($components['schemas']);
         self::assertNotEmpty($components['parameters']);
-        self::assertNotEmpty($components['responses']);
+        self::assertNotEmpty($components['examples']);
+        self::assertArrayNotHasKey('responses', $components);
     }
 
     /**
@@ -430,16 +436,36 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that each error code yields a reusable response.
+     * Test that the error examples are pruned to those the paths reference.
      *
      * @return void
      */
-    public function testErrorResponsesArePresent(): void
+    public function testErrorExamplesArePrunedToThoseReferenced(): void
     {
-        $responses = $this->assemble()['components']['responses'];
+        $this->registerUserRoutes();
 
-        self::assertIsArray($responses);
-        self::assertArrayHasKey('ErrorResponse10103', $responses);
+        $examples = $this->assemble()['components']['examples'];
+
+        self::assertIsArray($examples);
+        self::assertSame(['Error10001', 'Error10102', 'Error10103', 'Error10106', 'Error10108'], array_keys($examples));
+        self::assertSame(
+            ['summary' => 'Not Found', 'value' => ['error' => ['status' => 404, 'code' => 10103, 'title' => 'Not Found', 'detail' => 'The requested resource could not be found']]],
+            $examples['Error10103'],
+        );
+    }
+
+    /**
+     * Test that a document without paths carries no error example.
+     *
+     * @return void
+     */
+    public function testDocumentWithoutPathsCarriesNoErrorExample(): void
+    {
+        $components = $this->assemble()['components'];
+
+        self::assertIsArray($components);
+        self::assertArrayNotHasKey('examples', $components);
+        self::assertArrayNotHasKey('responses', $components);
     }
 
     /**
@@ -656,12 +682,19 @@ final class OpenApiAssemblerTest extends TestCase
 
         assert($this->app !== null);
 
-        $enums = new EnumSchemaRegistry;
+        $enums  = new EnumSchemaRegistry;
+        $errors = new ErrorResponseBuilder(
+            new RouteMiddlewareResolver($this->router()),
+            new ThrowsErrorResolver(new ClassNameResolver),
+            new ResponseHeaderResolver,
+            new ErrorExampleBuilder($catalogue),
+            ExceptionMap::fromConfig(),
+        );
 
         return new OpenApiAssembler(
             new ResourceSchemaBuilder($catalogue, $this->resolver($enums), $this->app->make(SchemaIntrospector::class)),
             new QueryParameterBuilder($catalogue),
-            new ErrorResponseBuilder($catalogue),
+            $errors,
             new PathBuilder(
                 $this->router(),
                 $catalogue,
@@ -672,8 +705,7 @@ final class OpenApiAssemblerTest extends TestCase
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
                 new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
                 new QueryParameterBuilder($catalogue),
-                new RouteMiddlewareResolver($this->router()),
-                new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver),
+                $errors,
                 new SuccessResponseBuilder(
                     new EnvelopeBuilder,
                     new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
@@ -685,6 +717,7 @@ final class OpenApiAssemblerTest extends TestCase
             new EnumSchemaBuilder,
             $enums,
             new DocManualAssembler,
+            new ErrorExampleBuilder($catalogue),
         );
     }
 
@@ -752,13 +785,13 @@ final class OpenApiAssemblerTest extends TestCase
      */
     private function makeCatalogue(array $resourceMap): MetadataCatalogue
     {
+        assert($this->app !== null);
+
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn($resourceMap);
         $catalogue->method('getOperatorTokens')->willReturn(['$eq', '$neq']);
         $catalogue->method('getStructuralOperators')->willReturn(['$and', '$or']);
-        $catalogue->method('getErrorCatalogue')->willReturn([
-            new ErrorDescriptor(code: 10103, httpStatus: 404, title: 'Not Found', detail: 'Missing.'),
-        ]);
+        $catalogue->method('getErrorCatalogue')->willReturn($this->app->make(ErrorCatalogueReader::class)->read());
 
         return $catalogue;
     }

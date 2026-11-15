@@ -5,13 +5,26 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi\Resolution;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Exceptions\ConflictException;
+use SineMacula\ApiToolkit\Exceptions\ForbiddenException;
+use SineMacula\ApiToolkit\Exceptions\GoneException;
+use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
+use SineMacula\ApiToolkit\Exceptions\LockedException;
+use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
+use SineMacula\ApiToolkit\Exceptions\NotFoundException;
+use SineMacula\ApiToolkit\Exceptions\PayloadTooLargeException;
+use SineMacula\ApiToolkit\Exceptions\ServiceUnavailableException;
+use SineMacula\ApiToolkit\Exceptions\TokenMismatchException;
+use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
+use SineMacula\ApiToolkit\Exceptions\UnauthenticatedException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
-use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
+use Tests\Fixtures\OpenApi\BurstLimitedException;
 use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathReflectionGapController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathRouteFactsController;
+use Tests\Fixtures\OpenApi\QuotaExceededException;
 use Tests\TestCase;
 
 /**
@@ -29,176 +42,131 @@ final class ThrowsErrorResolverTest extends TestCase
     private const string IMPORTED = 'Tests\Fixtures\OpenApi\ImportedThrowsController';
 
     /**
-     * Test that each named ApiException is described with a code example.
+     * Test that the ApiExceptions reporting a status are listed in tag order.
      *
      * @return void
      */
-    public function testNamedApiExceptionsAreDescribedByStatus(): void
+    public function testApiExceptionsReportingAStatusAreListedInTagOrder(): void
     {
-        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathRouteFactsController::class, 'signIn');
-
-        self::assertSame([401, 429, 403, 419], array_keys($errors));
-        self::assertSame($this->descriptor('Unauthorized.', 'UnauthenticatedException', 401, 10101), $errors[401]);
-        self::assertSame($this->descriptor('Forbidden.', 'ForbiddenException', 403, 10102), $errors[403]);
-        self::assertSame($this->descriptor('Token mismatch.', 'TokenMismatchException', 419, 10105), $errors[419]);
-        self::assertSame('Too many requests.', $errors[429]['phrase']);
-        self::assertSame(['TooManyRequestsException' => ['value' => ['error' => ['status' => 429, 'code' => 10107]]]], $errors[429]['examples']);
-    }
-
-    /**
-     * Test that exception headers, inherited ones too, are carried.
-     *
-     * @return void
-     */
-    public function testDeclaredExceptionHeadersAreCarriedByStatus(): void
-    {
-        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathResponseHeaderController::class, 'signIn');
-
         self::assertSame(
-            ['Retry-After' => ['description' => 'The number of seconds to wait before retrying.', 'schema' => ['type' => 'integer']]],
-            $errors[429]['headers'],
+            [UnauthenticatedException::class, TooManyRequestsException::class, ForbiddenException::class, TokenMismatchException::class],
+            $this->resolve(PathRouteFactsController::class, 'signIn'),
         );
-        self::assertSame([], $errors[409]['headers']);
     }
 
     /**
-     * Test that a shared status merges headers in @throws order.
+     * Test that an exception tagged twice is listed once.
      *
      * @return void
      */
-    public function testExceptionsSharingStatusMergeHeaders(): void
+    public function testExceptionTaggedTwiceIsListedOnce(): void
     {
-        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathResponseHeaderController::class, 'quota');
+        self::assertSame([TooManyRequestsException::class, ConflictException::class], $this->resolve(PathRouteFactsController::class, 'retry'));
+    }
 
-        self::assertSame([429], array_keys($errors));
-        self::assertSame(['QuotaExceededException', 'TooManyRequestsException'], array_keys($errors[429]['examples']));
+    /**
+     * Test that exceptions sharing a status are each listed.
+     *
+     * @return void
+     */
+    public function testExceptionsSharingAStatusAreEachListed(): void
+    {
+        self::assertSame([QuotaExceededException::class, TooManyRequestsException::class], $this->resolve(PathResponseHeaderController::class, 'quota'));
+        self::assertSame([BurstLimitedException::class, ConflictException::class], $this->resolve(PathResponseHeaderController::class, 'signIn'));
         self::assertSame(
-            ['retry-after', 'X-Quota-Reset', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
-            array_keys($errors[429]['headers']),
+            [InvalidInputException::class, ServiceUnavailableException::class, MaintenanceModeException::class],
+            $this->resolve(PathErrorController::class, 'show'),
         );
-        self::assertSame('The number of seconds until the quota resets.', $errors[429]['headers']['retry-after']['description']);
     }
 
     /**
-     * Test that a shared status merges examples under one descriptor.
+     * Test that an action naming only non-ApiException throwables lists none.
      *
      * @return void
      */
-    public function testExceptionsSharingStatusMergeExamples(): void
+    public function testNonApiThrowablesAreNotListed(): void
     {
-        $errors = (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathErrorController::class, 'show');
-
-        self::assertSame([422, 503], array_keys($errors));
-        self::assertSame('Unprocessable content.', $errors[422]['phrase']);
-        self::assertSame('Service unavailable.', $errors[503]['phrase']);
-        self::assertSame(
-            [
-                'ServiceUnavailableException' => ['value' => ['error' => ['status' => 503, 'code' => 10112]]],
-                'MaintenanceModeException'    => ['value' => ['error' => ['status' => 503, 'code' => 10200]]],
-            ],
-            $errors[503]['examples'],
-        );
-        self::assertSame(['Retry-After', 'Refresh'], array_keys($errors[503]['headers']));
+        self::assertSame([], $this->resolve(PathErrorController::class, 'update'));
     }
 
     /**
-     * Test that an action naming only non-ApiException throwables yields none.
+     * Test that an action without a doc comment lists none.
      *
      * @return void
      */
-    public function testNonApiThrowablesYieldNone(): void
+    public function testActionWithoutDocCommentListsNone(): void
     {
-        self::assertSame([], (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathErrorController::class, 'update'));
+        self::assertSame([], $this->resolve(PathReflectionGapController::class, 'index'));
     }
 
     /**
-     * Test that an action without a doc comment yields none.
+     * Test that an undeclared action lists none.
      *
      * @return void
      */
-    public function testActionWithoutDocCommentYieldsNone(): void
+    public function testUndeclaredActionListsNone(): void
     {
-        self::assertSame([], (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathReflectionGapController::class, 'index'));
+        self::assertSame([], $this->resolve(PathReflectionGapController::class, 'destroy'));
     }
 
     /**
-     * Test that an undeclared action yields nothing.
+     * Test that an exception named by its imported short name is listed.
      *
      * @return void
      */
-    public function testUndeclaredActionYieldsNone(): void
+    public function testImportedShortNameIsListed(): void
     {
-        self::assertSame([], (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve(PathReflectionGapController::class, 'destroy'));
+        self::assertSame([ForbiddenException::class], $this->resolve(self::IMPORTED, 'show'));
     }
 
     /**
-     * Test that an exception named by its imported short name is documented.
+     * Test that an exception named by its import alias is listed.
      *
      * @return void
      */
-    public function testImportedShortNameIsDocumented(): void
+    public function testAliasedImportIsListed(): void
     {
-        self::assertSame([403 => $this->descriptor('Forbidden.', 'ForbiddenException', 403, 10102)], $this->resolve(self::IMPORTED, 'show'));
+        self::assertSame([TokenMismatchException::class], $this->resolve(self::IMPORTED, 'store'));
     }
 
     /**
-     * Test that an exception named by its import alias is documented.
+     * Test that exceptions imported by a group use are listed.
      *
      * @return void
      */
-    public function testAliasedImportIsDocumented(): void
+    public function testGroupUseIsListed(): void
     {
-        self::assertSame([419 => $this->descriptor('Token mismatch.', 'TokenMismatchException', 419, 10105)], $this->resolve(self::IMPORTED, 'store'));
+        self::assertSame([ConflictException::class, GoneException::class], $this->resolve(self::IMPORTED, 'update'));
     }
 
     /**
-     * Test that exceptions imported by a group use are documented.
+     * Test that each member of a union is listed.
      *
      * @return void
      */
-    public function testGroupUseIsDocumented(): void
+    public function testUnionMembersAreListed(): void
     {
-        $errors = $this->resolve(self::IMPORTED, 'update');
-
-        self::assertSame([409, 410], array_keys($errors));
-        self::assertSame(['ConflictException'], array_keys($errors[409]['examples']));
-        self::assertSame(['GoneException'], array_keys($errors[410]['examples']));
+        self::assertSame([ForbiddenException::class, UnauthenticatedException::class], $this->resolve(self::IMPORTED, 'restore'));
     }
 
     /**
-     * Test that each member of a union is documented.
+     * Test that a same-namespace exception is listed without an import.
      *
      * @return void
      */
-    public function testUnionMembersAreDocumented(): void
+    public function testSameNamespaceNameIsListed(): void
     {
-        $errors = $this->resolve(self::IMPORTED, 'restore');
-
-        self::assertSame([403, 401], array_keys($errors));
-        self::assertSame(['UnauthenticatedException'], array_keys($errors[401]['examples']));
+        self::assertSame([QuotaExceededException::class], $this->resolve(self::IMPORTED, 'throttle'));
     }
 
     /**
-     * Test that a same-namespace exception is documented without an import.
+     * Test that an exception named fully qualified is listed.
      *
      * @return void
      */
-    public function testSameNamespaceNameIsDocumented(): void
+    public function testFullyQualifiedNameIsListed(): void
     {
-        $errors = $this->resolve(self::IMPORTED, 'throttle');
-
-        self::assertSame([429], array_keys($errors));
-        self::assertSame(['QuotaExceededException'], array_keys($errors[429]['examples']));
-    }
-
-    /**
-     * Test that an exception named fully qualified is still documented.
-     *
-     * @return void
-     */
-    public function testFullyQualifiedNameIsDocumented(): void
-    {
-        self::assertSame([404], array_keys($this->resolve(self::IMPORTED, 'destroy')));
+        self::assertSame([NotFoundException::class], $this->resolve(self::IMPORTED, 'destroy'));
     }
 
     /**
@@ -208,10 +176,7 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testInheritedActionResolvesAgainstParentImports(): void
     {
-        $errors = $this->resolve(self::IMPORTED, 'lock');
-
-        self::assertSame([423], array_keys($errors));
-        self::assertSame(['LockedException'], array_keys($errors[423]['examples']));
+        self::assertSame([LockedException::class], $this->resolve(self::IMPORTED, 'lock'));
     }
 
     /**
@@ -221,7 +186,7 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testTraitActionResolvesAgainstTraitImports(): void
     {
-        self::assertSame([413], array_keys($this->resolve(self::IMPORTED, 'upload')));
+        self::assertSame([PayloadTooLargeException::class], $this->resolve(self::IMPORTED, 'upload'));
     }
 
     /**
@@ -231,39 +196,21 @@ final class ThrowsErrorResolverTest extends TestCase
      */
     public function testUnresolvableNamesAreSkipped(): void
     {
-        self::assertSame([409], array_keys($this->resolve(self::IMPORTED, 'purge')));
+        self::assertSame([ConflictException::class], $this->resolve(self::IMPORTED, 'purge'));
     }
 
     /**
-     * Resolve the error descriptors of the given action.
+     * Resolve the exception classes the given action documents.
      *
      * @param  string  $controllerClass
      * @param  string  $action
-     * @return array<int, array{phrase: string, examples: array<string, array<string, mixed>>, headers: array<string, array<string, mixed>>}>
+     * @return list<class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
      */
     private function resolve(string $controllerClass, string $action): array
     {
         require_once dirname(__DIR__, 3) . '/Fixtures/OpenApi/ImportedThrows/ImportedThrowsController.stub';
 
         /** @var class-string $controllerClass */
-        return (new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver))->resolve($controllerClass, $action);
-    }
-
-    /**
-     * Build the descriptor for a status with one headerless exception.
-     *
-     * @param  string  $phrase
-     * @param  string  $name
-     * @param  int  $status
-     * @param  int  $code
-     * @return array<string, mixed>
-     */
-    private function descriptor(string $phrase, string $name, int $status, int $code): array
-    {
-        return [
-            'phrase'   => $phrase,
-            'examples' => [$name => ['value' => ['error' => ['status' => $status, 'code' => $code]]]],
-            'headers'  => [],
-        ];
+        return (new ThrowsErrorResolver(new ClassNameResolver))->resolve($controllerClass, $action);
     }
 }

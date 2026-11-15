@@ -32,6 +32,8 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Exceptions\GoneException;
+use SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
@@ -50,6 +52,8 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
@@ -77,6 +81,8 @@ use Tests\TestCase;
 #[CoversClass(MorphMapRegistrar::class)]
 final class ApiServiceProviderTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /**
      * Test that the package config is merged.
      *
@@ -650,6 +656,74 @@ final class ApiServiceProviderTest extends TestCase
         $this->expectException(InvalidSchemaException::class);
 
         $provider->boot();
+    }
+
+    /**
+     * Test that an invalid exception map fails the booted application.
+     *
+     * @return void
+     */
+    public function testInvalidExceptionMapFailsOnceBooted(): void
+    {
+        $this->getConfig()->set('api-toolkit.exceptions.map', [\stdClass::class => GoneException::class]);
+
+        $this->expectException(InvalidExceptionMapException::class);
+        $this->expectExceptionMessage('The api-toolkit.exceptions.map key [stdClass] must be a Throwable class or interface that is not an ApiException.');
+
+        (new ApiServiceProvider($this->getApplication()))->boot();
+    }
+
+    /**
+     * Test that the exception map is validated after every provider has booted,
+     * so a map a later provider writes is validated too.
+     *
+     * @return void
+     */
+    public function testExceptionMapWrittenByALaterProviderFailsOnceBooted(): void
+    {
+        $app = $this->getApplication();
+
+        $this->setProperty($app, 'booted', false);
+
+        try {
+            (new ApiServiceProvider($app))->boot();
+
+            $this->getConfig()->set('api-toolkit.exceptions.map', [NotFoundHttpException::class => \RuntimeException::class]);
+
+            /** @var list<callable(\Illuminate\Foundation\Application): void> $callbacks */
+            $callbacks = $this->getProperty($app, 'bootedCallbacks');
+            $validate  = end($callbacks);
+
+            self::assertIsCallable($validate);
+
+            $this->expectException(InvalidExceptionMapException::class);
+            $this->expectExceptionMessage(sprintf(
+                'The api-toolkit.exceptions.map target [RuntimeException] for [%s] must be an instantiable ApiException with a CODE, a 4xx or 5xx status, '
+                . 'and ApiException\'s own constructor and getStatusCode().',
+                NotFoundHttpException::class,
+            ));
+
+            $validate($app);
+        } finally {
+            $this->setProperty($app, 'booted', true);
+        }
+    }
+
+    /**
+     * Test that an absent or empty exception map boots.
+     *
+     * @return void
+     */
+    public function testAbsentOrEmptyExceptionMapBoots(): void
+    {
+        foreach ([null, []] as $map) {
+
+            $this->getConfig()->set('api-toolkit.exceptions.map', $map);
+
+            (new ApiServiceProvider($this->getApplication()))->boot();
+        }
+
+        self::assertSame([], $this->getConfig()->get('api-toolkit.exceptions.map'));
     }
 
     /**

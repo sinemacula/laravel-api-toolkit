@@ -12,6 +12,7 @@ use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\Console\GenerateDocsCommand;
 use SineMacula\ApiToolkit\Console\InvalidateMetadataCommand;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
@@ -51,6 +52,7 @@ final class ApiServiceProvider extends ServiceProvider
         $this->offerPublishing();
         (new MorphMapRegistrar)->register();
         $this->validateSchemas();
+        $this->validateExceptionMap();
 
         (new MiddlewareRegistrar($this->app))->register();
         (new LoggingRegistrar)->register();
@@ -177,6 +179,20 @@ final class ApiServiceProvider extends ServiceProvider
         }
 
         return null;
+    }
+
+    /**
+     * Validate the configured exception map once the application has booted.
+     *
+     * Deferred so a map written by a later provider is validated too.
+     *
+     * @return void
+     */
+    private function validateExceptionMap(): void
+    {
+        $this->app->booted(static function (): void {
+            ExceptionMap::fromConfig();
+        });
     }
 
     /**

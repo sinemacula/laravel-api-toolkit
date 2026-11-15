@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\OpenApi;
 
 use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
@@ -55,6 +56,7 @@ final readonly class OpenApiAssembler
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder  $enumBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler  $manual
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder  $errorExamples
      */
     public function __construct(
 
@@ -64,7 +66,7 @@ final readonly class OpenApiAssembler
         /** The builder for reusable query parameter definitions. */
         private QueryParameterBuilder $parameterBuilder,
 
-        /** The builder for shared error response definitions. */
+        /** The builder of the shared error-envelope schema. */
         private ErrorResponseBuilder $responseBuilder,
 
         /** The builder for the per-audience paths object. */
@@ -81,6 +83,9 @@ final readonly class OpenApiAssembler
 
         /** The assembler of the committed Markdown manual. */
         private DocManualAssembler $manual,
+
+        /** The builder of the error examples the paths reference. */
+        private ErrorExampleBuilder $errorExamples,
     ) {
         $this->envelopeBuilder = new EnvelopeBuilder;
         $this->reachability    = new ReachableSchemaResolver;
@@ -164,7 +169,8 @@ final readonly class OpenApiAssembler
     }
 
     /**
-     * Build the components block, pruning only the schemas by reachability.
+     * Build the components block, pruning the schemas, examples and security
+     * schemes to those the paths reach.
      *
      * @param  array<string, array<string, mixed>>  $paths
      * @return array<string, mixed>
@@ -174,9 +180,15 @@ final readonly class OpenApiAssembler
         $components = [
             'schemas'    => $this->buildSchemas($paths),
             'parameters' => $this->parameterBuilder->build(),
-            'responses'  => $this->responseBuilder->build(),
-            'headers'    => $this->envelopeBuilder->buildHeaders(),
         ];
+
+        $examples = $this->errorExamples->build($paths);
+
+        if ($examples !== []) {
+            $components['examples'] = $examples;
+        }
+
+        $components['headers'] = $this->envelopeBuilder->buildHeaders();
 
         $securitySchemes = $this->buildSecuritySchemes($paths);
 
