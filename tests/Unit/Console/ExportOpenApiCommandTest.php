@@ -12,6 +12,7 @@ use Illuminate\Testing\PendingCommand;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\OperationIdCollisionException;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -20,6 +21,7 @@ use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\InternalOnlyTagController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
+use Tests\Fixtures\OpenApi\PathPlainController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -465,6 +467,41 @@ final class ExportOpenApiCommandTest extends TestCase
         } finally {
             @unlink($public);
             @unlink($internal);
+        }
+    }
+
+    /**
+     * Test that --all writes no document when two operations share an id.
+     *
+     * @return void
+     */
+    public function testCommandAllFlagWritesNothingWhenTwoOperationsShareAnId(): void
+    {
+        $this->getConfig()->set('api-toolkit.openapi.operation_ids', true);
+        $this->getConfig()->set('api-toolkit.openapi.audiences', [
+            'public'   => [],
+            'internal' => [],
+        ]);
+
+        $this->router()->get('reports', [PathPlainController::class, 'report'])->name('reports');
+        $this->router()->get('summaries', [PathPlainController::class, 'index'])->name('reports');
+
+        $base     = sys_get_temp_dir() . '/api-toolkit-all-' . uniqid('', true) . '.json';
+        $public   = substr($base, 0, -strlen('.json')) . '.public.json';
+        $internal = substr($base, 0, -strlen('.json')) . '.internal.json';
+
+        $this->expectException(OperationIdCollisionException::class);
+        $this->expectExceptionMessageMatches('/^' . preg_quote(sprintf(
+            'The operationId "reports" is claimed by both [GET /reports (%1$s::report)] and [GET /summaries (%1$s::index)].'
+                . ' Ids must be unique across every audience: name the routes apart, or give their actions distinct #[Operation] ids.',
+            PathPlainController::class,
+        ), '/') . '$/');
+
+        try {
+            $this->runCommand(['--output' => $base, '--all' => true])->run();
+        } finally {
+            self::assertFileDoesNotExist($public);
+            self::assertFileDoesNotExist($internal);
         }
     }
 

@@ -16,9 +16,11 @@ use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
+use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
@@ -39,11 +41,11 @@ use Tests\Fixtures\OpenApi\PathAttributelessController;
 use Tests\Fixtures\OpenApi\PathDeclaredBodyUserController;
 use Tests\Fixtures\OpenApi\PathDeclaredResourceUserController;
 use Tests\Fixtures\OpenApi\PathErrorController;
-use Tests\Fixtures\OpenApi\PathExcludedController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathHeaderCollisionController;
 use Tests\Fixtures\OpenApi\PathHeaderedUserController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
+use Tests\Fixtures\OpenApi\PathOperationController;
 use Tests\Fixtures\OpenApi\PathPlainController;
 use Tests\Fixtures\OpenApi\PathReflectionGapController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
@@ -53,11 +55,9 @@ use Tests\Fixtures\OpenApi\PathResponseStatusController;
 use Tests\Fixtures\OpenApi\PathRouteFactsController;
 use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
-use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
 use Tests\Fixtures\OpenApi\PendingSignInShape;
 use Tests\Fixtures\OpenApi\SignedInShape;
-use Tests\Fixtures\OpenApi\Vendor\PathVendorController;
 use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -391,6 +391,129 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that an operation carries no documentation keys when nothing is
+     * declared.
+     *
+     * @return void
+     */
+    public function testOperationCarriesNoDocumentationWhenNothingIsDeclared(): void
+    {
+        $this->registerRestRoutes();
+
+        $item = $this->build(['path-fixture.update' => 'Updates a user.']);
+
+        self::assertSame(['tags', 'parameters', 'responses', 'security'], array_keys($this->operationOf($item, '/users/{user}', 'get')));
+        self::assertSame(['tags', 'parameters', 'responses', 'security'], array_keys($this->operationOf($item, '/users/{user}', 'put')));
+    }
+
+    /**
+     * Test that a declared summary is emitted whether ids are off or on.
+     *
+     * @return void
+     */
+    public function testDeclaredSummaryIsEmittedWithIdsOffOrOn(): void
+    {
+        $this->router()->get('widgets/{widget}', [PathOperationController::class, 'show']);
+        $this->router()->get('widgets', [PathOperationController::class, 'index']);
+
+        $off = $this->build();
+
+        self::assertSame('Show a widget', $off['/widgets/{widget}']['get']['summary']);
+        self::assertSame(['tags', 'summary', 'parameters', 'responses', 'security'], array_keys($this->operationOf($off, '/widgets/{widget}', 'get')));
+        self::assertSame(['tags', 'responses', 'security'], array_keys($this->operationOf($off, '/widgets', 'get')));
+
+        config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $on = $this->build();
+
+        self::assertSame('Show a widget', $on['/widgets/{widget}']['get']['summary']);
+        self::assertSame('widgets.showcase', $on['/widgets/{widget}']['get']['operationId']);
+        self::assertSame(['tags', 'operationId', 'responses', 'security'], array_keys($this->operationOf($on, '/widgets', 'get')));
+    }
+
+    /**
+     * Test that each verb carries its own operationId.
+     *
+     * @return void
+     */
+    public function testEachVerbCarriesItsOwnOperationId(): void
+    {
+        config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->registerRestRoutes();
+
+        $paths = $this->build();
+
+        self::assertSame('path-fixture.update', $this->operationOf($paths, '/users/{user}', 'put')['operationId']);
+        self::assertSame('path-fixture.update.patch', $this->operationOf($paths, '/users/{user}', 'patch')['operationId']);
+        self::assertSame('path-fixture.destroy', $this->operationOf($paths, '/users/{user}', 'delete')['operationId']);
+    }
+
+    /**
+     * Test that an operation's description is read from the map by its id, and
+     * absent when the map has none for it.
+     *
+     * @return void
+     */
+    public function testDescriptionIsReadByOperationId(): void
+    {
+        config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->registerRestRoutes();
+
+        $paths = $this->build(['path-fixture.index' => 'Lists the users.', 'path-fixture.destroy' => '']);
+
+        self::assertSame('Lists the users.', $paths['/users']['get']['description']);
+        self::assertArrayNotHasKey('description', $this->operationOf($paths, '/users', 'post'));
+        self::assertArrayNotHasKey('description', $this->operationOf($paths, '/users/{user}', 'delete'));
+    }
+
+    /**
+     * Test that a later verb falls back to the primary description unless it
+     * has its own, an empty one blanking it.
+     *
+     * @return void
+     */
+    public function testLaterVerbFallsBackToThePrimaryDescription(): void
+    {
+        config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->registerRestRoutes();
+
+        $fallback = $this->build(['path-fixture.update' => 'Updates a user.']);
+        $own      = $this->build(['path-fixture.update' => 'Updates a user.', 'path-fixture.update.patch' => 'Patches a user.']);
+        $blank    = $this->build(['path-fixture.update' => 'Updates a user.', 'path-fixture.update.patch' => '']);
+
+        self::assertSame('Updates a user.', $this->operationOf($fallback, '/users/{user}', 'put')['description']);
+        self::assertSame('Updates a user.', $this->operationOf($fallback, '/users/{user}', 'patch')['description']);
+        self::assertSame('Updates a user.', $this->operationOf($own, '/users/{user}', 'put')['description']);
+        self::assertSame('Patches a user.', $this->operationOf($own, '/users/{user}', 'patch')['description']);
+        self::assertSame('Updates a user.', $this->operationOf($blank, '/users/{user}', 'put')['description']);
+        self::assertArrayNotHasKey('description', $this->operationOf($blank, '/users/{user}', 'patch'));
+    }
+
+    /**
+     * Test that every documentation key sits between the tags and the
+     * parameters.
+     *
+     * @return void
+     */
+    public function testDocumentationKeysSitBetweenTheTagsAndTheParameters(): void
+    {
+        config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->router()->match(['PUT', 'PATCH'], 'widgets/{widget}', [PathOperationController::class, 'update']);
+
+        $operation = $this->operationOf($this->build(['path-operation.update' => 'Updates a widget.']), '/widgets/{widget}', 'patch');
+
+        self::assertSame(['tags', 'summary', 'description', 'operationId', 'parameters', 'requestBody', 'responses', 'security'], array_keys($operation));
+        self::assertSame(['PathOperation'], $operation['tags']);
+        self::assertSame('Update a widget', $operation['summary']);
+        self::assertSame('Updates a widget.', $operation['description']);
+        self::assertSame('path-operation.update.patch', $operation['operationId']);
+    }
+
+    /**
      * Test that path parameters lead the parameter list.
      *
      * @return void
@@ -605,85 +728,6 @@ final class PathBuilderTest extends TestCase
             $this->undocumentedEnvelope(),
             $operation['responses']['200']['content']['application/json']['schema'],
         );
-    }
-
-    /**
-     * Test that a closure scoped out with the macro is omitted.
-     *
-     * @return void
-     */
-    public function testClosureExcludedViaMacroIsOmitted(): void
-    {
-        $this->router()->get('secret', static fn (): null => null)->undocumented(); // @phpstan-ignore method.notFound
-
-        self::assertArrayNotHasKey('/secret', $this->build());
-    }
-
-    /**
-     * Test that a method-level #[Tag] beats the class-level one.
-     *
-     * @return void
-     */
-    public function testExplicitTagOverridesDerivedTag(): void
-    {
-        $this->router()->get('widgets', [PathTaggedController::class, 'index']);
-        $this->router()->get('reports', [PathTaggedController::class, 'report']);
-
-        $paths = $this->build();
-
-        self::assertSame(['Widgets'], $paths['/widgets']['get']['tags']);
-        self::assertSame(['Reports'], $paths['/reports']['get']['tags']);
-    }
-
-    /**
-     * Test that a route excluded from one audience stays in another.
-     *
-     * @return void
-     */
-    public function testRouteExcludedFromAudienceIsOmitted(): void
-    {
-        $this->router()->get('excluded', [PathExcludedController::class, 'index']);
-
-        self::assertArrayNotHasKey('/excluded', $this->build('public'));
-        self::assertArrayHasKey('/excluded', $this->build('internal'));
-    }
-
-    /**
-     * Test that a blocklisted controller namespace contributes no path.
-     *
-     * @return void
-     */
-    public function testBlocklistedNamespaceContributesNoPath(): void
-    {
-        assert($this->app !== null);
-
-        /** @var \Illuminate\Config\Repository $config */
-        $config = $this->app->make('config');
-
-        $config->set(
-            'api-toolkit.openapi.exclude.namespaces',
-            ['Tests\Fixtures\OpenApi\Vendor'],
-        );
-
-        $this->router()->get('vendor', [PathVendorController::class, 'index']);
-        $this->router()->get('plain', [PathPlainController::class, 'index']);
-
-        $paths = $this->build();
-
-        self::assertArrayNotHasKey('/vendor', $paths);
-        self::assertArrayHasKey('/plain', $paths);
-    }
-
-    /**
-     * Test that an allowlist audience excludes routes that opt into nothing.
-     *
-     * @return void
-     */
-    public function testAllowlistPostureExcludesUndeclaredRoutes(): void
-    {
-        $this->registerRestRoutes();
-
-        self::assertSame([], $this->build('partner', AudienceResolver::POSTURE_ALLOWLIST));
     }
 
     /**
@@ -1282,8 +1326,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testNoDocumentedRoutesYieldsEmptyPaths(): void
     {
-        // No route opts in, so even the framework's default routes are excluded
-        self::assertSame([], $this->build('partner', AudienceResolver::POSTURE_ALLOWLIST));
+        self::assertSame([], $this->builder()->build([], ['path-fixture.index' => 'Lists the users.']));
     }
 
     /**
@@ -1402,21 +1445,6 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an excluded verb does not stop a later documentable one.
-     *
-     * @return void
-     */
-    public function testExcludedVerbBeforeDocumentableStillEmits(): void
-    {
-        $this->router()->match(['HEAD', 'GET'], 'ping', [PathPlainController::class, 'report']);
-
-        $paths = $this->build();
-
-        self::assertArrayHasKey('/ping', $paths);
-        self::assertSame(['get'], array_keys($paths['/ping']));
-    }
-
-    /**
      * Test that each path segment emits its own parameter.
      *
      * @return void
@@ -1429,28 +1457,6 @@ final class PathBuilderTest extends TestCase
 
         self::assertIsArray($parameters);
         self::assertSame(['team', 'member'], array_column($parameters, 'name'));
-    }
-
-    /**
-     * Test that a leading namespace separator still matches the blocklist.
-     *
-     * @return void
-     */
-    public function testLeadingSeparatorControllerIsStillExcluded(): void
-    {
-        assert($this->app !== null);
-
-        /** @var \Illuminate\Config\Repository $config */
-        $config = $this->app->make('config');
-
-        $config->set(
-            'api-toolkit.openapi.exclude.namespaces',
-            ['Tests\Fixtures\OpenApi\Vendor'],
-        );
-
-        $this->router()->get('vendor', ['\\' . PathVendorController::class, 'index']);
-
-        self::assertArrayNotHasKey('/vendor', $this->build());
     }
 
     /**
@@ -2065,15 +2071,14 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Build the paths object for the given audience and posture.
+     * Build the paths object from the public audience's collected routes.
      *
-     * @param  string  $audience
-     * @param  string  $posture
+     * @param  array<string, string>  $descriptions
      * @return array<string, array<string, mixed>>
      */
-    private function build(string $audience = 'public', string $posture = AudienceResolver::POSTURE_BLOCKLIST): array
+    private function build(array $descriptions = []): array
     {
-        return $this->builder()->build($audience, $posture);
+        return $this->builder()->build($this->collector()->collect(['public'])->in('public'), $descriptions);
     }
 
     /**
@@ -2132,7 +2137,20 @@ final class PathBuilderTest extends TestCase
      */
     private function operation(string $path, string $method): array
     {
-        $operation = $this->build()[$path][$method] ?? null;
+        return $this->operationOf($this->build(), $path, $method);
+    }
+
+    /**
+     * Read one operation from a built paths object.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @param  string  $path
+     * @param  string  $method
+     * @return array<array-key, mixed>
+     */
+    private function operationOf(array $paths, string $path, string $method): array
+    {
+        $operation = $paths[$path][$method] ?? null;
 
         self::assertIsArray($operation);
 
@@ -2156,25 +2174,16 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Build a path builder whose catalogue maps the user model to its resource.
+     * Build a path builder over the catalogue.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder
      */
     private function builder(): PathBuilder
     {
-        $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getResourceMap')->willReturn([
-            User::class    => UserResource::class,
-            Article::class => ArticleResource::class,
-        ]);
+        $catalogue = $this->catalogue();
 
         return new PathBuilder(
-            $this->router(),
-            $catalogue,
-            new AudienceResolver,
-            new DocumentableRouteFilter,
             new EnvelopeBuilder,
-            new TagResolver,
             new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
             new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
             new QueryParameterBuilder($catalogue),
@@ -2187,6 +2196,39 @@ final class PathBuilderTest extends TestCase
                 new ResponseStatusResolver,
             ),
         );
+    }
+
+    /**
+     * Build a route collector over the catalogue.
+     *
+     * @return \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector
+     */
+    private function collector(): DocumentedRouteCollector
+    {
+        return new DocumentedRouteCollector(
+            $this->router(),
+            $this->catalogue(),
+            new AudienceResolver,
+            new AudienceConfiguration,
+            new DocumentableRouteFilter,
+            new TagResolver,
+        );
+    }
+
+    /**
+     * Build a catalogue mapping the user and article models to their resources.
+     *
+     * @return \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue
+     */
+    private function catalogue(): MetadataCatalogue
+    {
+        $catalogue = self::createStub(MetadataCatalogue::class);
+        $catalogue->method('getResourceMap')->willReturn([
+            User::class    => UserResource::class,
+            Article::class => ArticleResource::class,
+        ]);
+
+        return $catalogue;
     }
 
     /**

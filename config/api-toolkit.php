@@ -110,7 +110,9 @@ return [
     | `docs_path` is the directory of Markdown section files assembled, in
     | filename order, into every audience's info.description. It is where the
     | `api-toolkit-docs` publish tag and `api-toolkit:docs:generate` write to;
-    | while it does not exist no description is added.
+    | while it does not exist no description is added. Its `operations/` and
+    | `tags/` subdirectories, and their `audiences/<name>/` counterparts,
+    | describe operations and tags and never join info.description.
     */
 
     'openapi' => [
@@ -131,6 +133,17 @@ return [
         // ['url' => 'https://api.example.com', 'description' => 'Production'].
         // An audience's own `servers` list replaces this one
         'servers' => [],
+
+        // Export an operationId on every operation: the route name, else the
+        // controller and action, else the method and path. Ids must be unique
+        // across every audience; <docs_path>/operations/<id>.md becomes the
+        // operation's description
+        'operation_ids' => false,
+
+        // The order of the top-level tags list; tags not named follow
+        // alphabetically. Each must be a tag some audience uses. The list is
+        // exported once this is set or <docs_path>/tags/ holds a file
+        'tags' => [],
 
         // The documents the exporter can produce, keyed by audience name. A
         // `blocklist` posture (the default) documents every route not excluded

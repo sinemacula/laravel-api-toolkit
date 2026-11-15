@@ -17,14 +17,18 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Docs\OperationDescriptions;
+use SineMacula\ApiToolkit\OpenApi\Docs\TagList;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
+use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
@@ -310,12 +314,7 @@ final class ExportOpenApiComponentsTest extends TestCase
             new QueryParameterBuilder($catalogue),
             new ErrorResponseBuilder($catalogue),
             new PathBuilder(
-                $router,
-                $catalogue,
-                new AudienceResolver,
-                new DocumentableRouteFilter,
                 new EnvelopeBuilder,
-                new TagResolver,
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
                 new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($router)),
                 new QueryParameterBuilder($catalogue),
@@ -332,6 +331,9 @@ final class ExportOpenApiComponentsTest extends TestCase
             new EnumSchemaBuilder,
             $enums,
             new DocManualAssembler,
+            new DocumentedRouteCollector($router, $catalogue, new AudienceResolver, new AudienceConfiguration, new DocumentableRouteFilter, new TagResolver),
+            new OperationDescriptions,
+            new TagList,
         );
 
         return (new ExportOpenApiComponents($assembler, $catalogue))->export($audience);
