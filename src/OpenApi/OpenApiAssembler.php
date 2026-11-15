@@ -309,7 +309,7 @@ final readonly class OpenApiAssembler
             $guard->claim($reserved, $name, EnvelopeBuilder::class);
         }
 
-        $definedSchemas = $this->definedSchemaBuilder->build($this->definedSchemas->classes(), $reserved);
+        $definedSchemas = $this->definedSchemaBuilder->build($this->definedSchemas->classes(), $this->enums->classes(), $reserved);
 
         $schemas = array_replace(
             $resourceSchemas,

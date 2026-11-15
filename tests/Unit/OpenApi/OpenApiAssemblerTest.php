@@ -41,6 +41,7 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
+use Tests\Fixtures\Enums\SelfDescribingPlan;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
@@ -733,6 +734,42 @@ final class OpenApiAssemblerTest extends TestCase
         $this->router()->get('status', [PathSchemaNameCollisionController::class, 'status']);
 
         $this->expectCollision('UserStatus', StatusNamedShape::class, UserStatus::class);
+
+        $this->assemble();
+    }
+
+    /**
+     * Test that an enum shape no enum reference claims is exported as a
+     * component.
+     *
+     * @return void
+     */
+    public function testEnumShapeIsExportedAsATitledComponent(): void
+    {
+        $this->router()->get('plan', [PathResponseSchemaController::class, 'enum']);
+
+        $schemas = $this->assemble()['components']['schemas'];
+
+        self::assertIsArray($schemas);
+        self::assertSame(['title' => 'SelfDescribingPlan', ...SelfDescribingPlan::schema()], $schemas['SelfDescribingPlan']);
+    }
+
+    /**
+     * Test that an enum named as a shape and referenced as an enum fails the
+     * export.
+     *
+     * @return void
+     */
+    public function testEnumShapeReferencedAsAnEnumFailsTheExport(): void
+    {
+        $this->router()->post('plan', [PathSchemaNameCollisionController::class, 'plan']);
+
+        $this->expectException(SchemaNameCollisionException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The OpenAPI component schema name "SelfDescribingPlan" is derived by [%s] both as an enum and as a'
+                . ' #[ResponseSchema] shape. Declare the response shape on a class that is not an enum.',
+            SelfDescribingPlan::class,
+        ));
 
         $this->assemble();
     }

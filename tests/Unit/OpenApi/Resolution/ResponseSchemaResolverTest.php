@@ -9,13 +9,16 @@ use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry;
+use Tests\Fixtures\Enums\SelfDescribingPlan;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\IntegerVersionShape;
 use Tests\Fixtures\OpenApi\MfaChallengeShape;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PendingSignInShape;
 use Tests\Fixtures\OpenApi\SignedInShape;
+use Tests\Fixtures\OpenApi\StringVersionShape;
 use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -110,16 +113,20 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that a declared enum implementing DefinesSchema resolves to null.
+     * Test that a declared enum implementing DefinesSchema references its
+     * component.
      *
      * @return void
      */
-    public function testSelfDescribingEnumResolvesToNull(): void
+    public function testSelfDescribingEnumResolvesToComponentReference(): void
     {
         $registry = new DefinedSchemaRegistry;
 
-        self::assertNull($this->resolver($registry)->resolve(PathResponseSchemaController::class, 'enum'));
-        self::assertSame([], $registry->classes());
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelope(self::PREFIX . 'SelfDescribingPlan'),
+            $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'enum'),
+        );
+        self::assertSame([SelfDescribingPlan::class], $registry->classes());
     }
 
     /**
@@ -235,6 +242,24 @@ final class ResponseSchemaResolverTest extends TestCase
 
         self::assertSame((new EnvelopeBuilder)->singleEnvelope(self::PREFIX . 'SignedInShape'), $schema);
         self::assertSame([SignedInShape::class], $registry->classes());
+    }
+
+    /**
+     * Test that fragments differing only in a constant's type stay distinct
+     * members.
+     *
+     * @return void
+     */
+    public function testLooselyEqualFragmentsStayDistinctMembers(): void
+    {
+        $registry = new DefinedSchemaRegistry;
+        $schema   = $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'looselyEqual');
+
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelopeFor($this->union(['IntegerVersionShape', 'StringVersionShape'])),
+            $schema,
+        );
+        self::assertSame([IntegerVersionShape::class, StringVersionShape::class], $registry->classes());
     }
 
     /**

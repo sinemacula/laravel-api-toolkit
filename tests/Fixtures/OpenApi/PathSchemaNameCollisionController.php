@@ -5,16 +5,14 @@ declare(strict_types = 1);
 namespace Tests\Fixtures\OpenApi;
 
 use SineMacula\ApiToolkit\OpenApi\Attributes\DocumentedIn;
+use SineMacula\ApiToolkit\OpenApi\Attributes\RequestSchema;
 use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseSchema;
 use SineMacula\ApiToolkit\OpenApi\Attributes\Undocumented;
+use Tests\Fixtures\Enums\SelfDescribingPlan;
 
 /**
  * Fixture non-resource controller declaring shapes whose component names
  * collide.
- *
- * Each action names one shape whose component name is already derived by a
- * resource, a shared envelope, an enum or another shape. The alternate union is
- * documented only in the internal audience.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -52,6 +50,15 @@ final class PathSchemaNameCollisionController
      */
     #[ResponseSchema(Alternate\SignedInShape::class)]
     public function alternate(): void {}
+
+    /**
+     * Accept a plan and respond with the plan enum as a shape.
+     *
+     * @return void
+     */
+    #[RequestSchema(PlanRequestInput::class)]
+    #[ResponseSchema(SelfDescribingPlan::class)]
+    public function plan(): void {}
 
     /**
      * Respond, in the internal audience only, with either the alternate

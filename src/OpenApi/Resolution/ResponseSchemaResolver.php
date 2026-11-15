@@ -19,8 +19,7 @@ use SineMacula\ApiToolkit\OpenApi\Schema\DiscriminatorBuilder;
  * Resolves the declared success body of an action.
  *
  * All or nothing: one indescribable class in a union resolves the whole body to
- * null. An enum is indescribable even when it implements DefinesSchema. Each
- * other DefinesSchema member is registered for export as a component.
+ * null. Each DefinesSchema member is registered for export as a component.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -177,7 +176,7 @@ final readonly class ResponseSchemaResolver
             return ['$ref' => $this->resourceReference($class)];
         }
 
-        if (is_subclass_of($class, DefinesSchema::class) && !enum_exists($class)) {
+        if (is_subclass_of($class, DefinesSchema::class)) {
             return $class::schema();
         }
 

@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
+use Tests\Fixtures\Enums\SelfDescribingPlan;
+use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\OpenApi\Alternate\SignedInShape as AlternateSignedInShape;
 use Tests\Fixtures\OpenApi\MfaChallengeShape;
 use Tests\Fixtures\OpenApi\SignedInShape;
@@ -36,7 +38,7 @@ final class DefinedSchemaBuilderTest extends TestCase
     {
         $claimed = [];
 
-        $schemas = (new DefinedSchemaBuilder)->build([WidgetShape::class, SignedInShape::class], $claimed);
+        $schemas = (new DefinedSchemaBuilder)->build([WidgetShape::class, SignedInShape::class], [], $claimed);
 
         self::assertSame([
             'WidgetShape'   => ['title' => 'WidgetShape', ...WidgetShape::schema()],
@@ -54,7 +56,7 @@ final class DefinedSchemaBuilderTest extends TestCase
     {
         $claimed = [];
 
-        $schemas = (new DefinedSchemaBuilder)->build([MfaChallengeShape::class], $claimed);
+        $schemas = (new DefinedSchemaBuilder)->build([MfaChallengeShape::class], [], $claimed);
 
         self::assertSame(['MfaChallenge' => ['title' => 'MfaChallenge', ...MfaChallengeShape::schema()]], $schemas);
     }
@@ -68,7 +70,7 @@ final class DefinedSchemaBuilderTest extends TestCase
     {
         $claimed = [];
 
-        $schemas = (new DefinedSchemaBuilder)->build([TitledShape::class], $claimed);
+        $schemas = (new DefinedSchemaBuilder)->build([TitledShape::class], [], $claimed);
 
         self::assertSame(['TitledShape' => ['title' => 'Titled shape', 'type' => 'object']], $schemas);
     }
@@ -82,7 +84,7 @@ final class DefinedSchemaBuilderTest extends TestCase
     {
         $claimed = ['User' => UserResource::class];
 
-        (new DefinedSchemaBuilder)->build([WidgetShape::class, MfaChallengeShape::class], $claimed);
+        (new DefinedSchemaBuilder)->build([WidgetShape::class, MfaChallengeShape::class], [], $claimed);
 
         self::assertSame([
             'User'         => UserResource::class,
@@ -108,7 +110,7 @@ final class DefinedSchemaBuilderTest extends TestCase
             UserNamedShape::class,
         ));
 
-        (new DefinedSchemaBuilder)->build([UserNamedShape::class], $claimed);
+        (new DefinedSchemaBuilder)->build([UserNamedShape::class], [], $claimed);
     }
 
     /**
@@ -128,6 +130,40 @@ final class DefinedSchemaBuilderTest extends TestCase
             AlternateSignedInShape::class,
         ));
 
-        (new DefinedSchemaBuilder)->build([SignedInShape::class, AlternateSignedInShape::class], $claimed);
+        (new DefinedSchemaBuilder)->build([SignedInShape::class, AlternateSignedInShape::class], [], $claimed);
+    }
+
+    /**
+     * Test that an enum shape no enum reference claims is built as a component.
+     *
+     * @return void
+     */
+    public function testEnumShapeIsBuiltWhenNotReferencedAsAnEnum(): void
+    {
+        $claimed = [];
+
+        $schemas = (new DefinedSchemaBuilder)->build([SelfDescribingPlan::class], [UserStatus::class], $claimed);
+
+        self::assertSame(['SelfDescribingPlan' => ['title' => 'SelfDescribingPlan', ...SelfDescribingPlan::schema()]], $schemas);
+        self::assertSame(['SelfDescribingPlan' => SelfDescribingPlan::class], $claimed);
+    }
+
+    /**
+     * Test that an enum shape also referenced as an enum fails loud.
+     *
+     * @return void
+     */
+    public function testEnumShapeReferencedAsAnEnumFailsLoud(): void
+    {
+        $claimed = [];
+
+        $this->expectException(SchemaNameCollisionException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The OpenAPI component schema name "SelfDescribingPlan" is derived by [%s] both as an enum and as a'
+                . ' #[ResponseSchema] shape. Declare the response shape on a class that is not an enum.',
+            SelfDescribingPlan::class,
+        ));
+
+        (new DefinedSchemaBuilder)->build([WidgetShape::class, SelfDescribingPlan::class], [UserStatus::class, SelfDescribingPlan::class], $claimed);
     }
 }

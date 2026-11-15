@@ -9,7 +9,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Contracts;
  *
  * Exported as a named component, referenced wherever a #[ResponseSchema] names
  * the class. As one member of a union, a required string `const`, under the
- * same name and distinct in each member, adds a discriminator.
+ * same name and distinct in each member, adds a discriminator. An enum shape
+ * fails the export when the document also references the enum's values.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -17,18 +17,6 @@ use Tests\Fixtures\Resources\UserResource;
 /**
  * Fixture non-resource controller declaring response bodies.
  *
- * Carries one action per #[ResponseSchema] resolution branch: a registered
- * resource reference, its collection variant, a self-describing DTO exported as
- * a component, one with a numeric component name, a plain class and a
- * self-describing enum that resolve to nothing, an unregistered resource whose
- * reference would dangle, and a bare action carrying no directive at all. The
- * union actions name several classes: two discriminated shapes, a resource
- * beside a shape, a union of collection items, repeated members, distinct
- * classes describing one shape, shapes sharing or lacking a discriminating
- * constant, two resources, a resource that pins no type, an internal-only
- * union, and unions holding a plain class or an unregistered resource that
- * leave the body undocumented.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -154,6 +142,14 @@ final class PathResponseSchemaController
      */
     #[ResponseSchema([SignedInShape::class, SessionStartedShape::class])]
     public function equivalent(): void {}
+
+    /**
+     * Respond with either of two shapes pinning loosely equal constants.
+     *
+     * @return void
+     */
+    #[ResponseSchema([IntegerVersionShape::class, StringVersionShape::class])]
+    public function looselyEqual(): void {}
 
     /**
      * Respond with either a shape or a shape named by #[SchemaName].
