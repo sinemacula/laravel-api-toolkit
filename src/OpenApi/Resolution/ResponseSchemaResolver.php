@@ -21,6 +21,12 @@ use SineMacula\ApiToolkit\OpenApi\Schema\DiscriminatorBuilder;
  * All or nothing: one indescribable class in a union resolves the whole body to
  * null. Each DefinesSchema member is registered for export as a component.
  *
+ * @phpstan-type Member array{
+ *     node: array<string, mixed>,
+ *     reference: string,
+ *     defined: class-string<\SineMacula\ApiToolkit\OpenApi\Contracts\DefinesSchema>|null,
+ * }
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -129,95 +135,77 @@ final readonly class ResponseSchemaResolver
     }
 
     /**
-     * Resolve the data schema node for the declared classes, a discriminated
-     * `oneOf` of references for several shapes.
+     * Resolve the data schema node for the declared classes, a `oneOf` of
+     * references for several shapes, discriminated when the members allow it.
      *
      * @param  non-empty-list<class-string>  $classes
      * @return array<string, mixed>|null
      */
     private function dataSchema(array $classes): ?array
     {
-        $nodes = [];
+        $members = [];
 
         foreach ($classes as $class) {
-            $node = $this->itemSchema($class);
+            $member = $this->member($class);
 
-            if ($node === null) {
+            if ($member === null) {
                 return null;
             }
 
-            if (in_array($node, $nodes, true)) {
+            if (in_array($member['node'], array_column($members, 'node'), true)) {
                 continue;
             }
 
-            $nodes[$class] = $node;
+            $members[$class] = $member;
         }
 
-        $alternatives = [];
-
-        foreach ($nodes as $class => $node) {
-            [$reference, $pins] = $this->alternative($class, $node);
-
-            $alternatives[$reference] = $pins;
+        foreach (array_filter(array_column($members, 'defined'), is_string(...)) as $defined) {
+            $this->definedSchemas->register($defined);
         }
 
-        return count($alternatives) === 1 ? ['$ref' => array_key_first($alternatives)] : $this->union($alternatives);
+        return count($members) === 1 ? ['$ref' => reset($members)['reference']] : $this->union($members);
     }
 
     /**
-     * Resolve the inner data schema node for the named class.
+     * Resolve the schema node and component reference of the named class.
      *
      * @param  string  $class
-     * @return array<string, mixed>|null
+     * @return Member|null
      */
-    private function itemSchema(string $class): ?array
+    private function member(string $class): ?array
     {
         if ($this->isRegisteredResource($class)) {
-            return ['$ref' => $this->resourceReference($class)];
+            $reference = $this->resourceReference($class);
+
+            return ['node' => ['$ref' => $reference], 'reference' => $reference, 'defined' => null];
         }
 
         if (is_subclass_of($class, DefinesSchema::class)) {
-            return $class::schema();
+            return [
+                'node'      => $class::schema(),
+                'reference' => self::SCHEMA_REF_PREFIX . SchemaComponentName::fromClass($class),
+                'defined'   => $class,
+            ];
         }
 
         return null;
     }
 
     /**
-     * Resolve the component reference and discriminator pins of a member,
-     * registering a DefinesSchema member for export.
-     *
-     * @param  class-string  $class
-     * @param  array<string, mixed>  $node
-     * @return array{string, array<string, string>}
-     */
-    private function alternative(string $class, array $node): array
-    {
-        if ($this->isRegisteredResource($class)) {
-            $pins = is_a($class, ApiResourceInterface::class, true)
-                ? [ResourceSchemaBuilder::TYPE_PROPERTY => $class::getResourceType()]
-                : [];
-
-            return [$this->resourceReference($class), $pins];
-        }
-
-        /** @var class-string<\SineMacula\ApiToolkit\OpenApi\Contracts\DefinesSchema> $defined */
-        $defined = $class;
-
-        $this->definedSchemas->register($defined);
-
-        return [self::SCHEMA_REF_PREFIX . SchemaComponentName::fromClass($defined), $this->discriminator->pinnedValues($node)];
-    }
-
-    /**
      * Build the `oneOf` of the member references, discriminated when the
      * members allow it.
      *
-     * @param  array<string, array<string, string>>  $alternatives
+     * @param  array<class-string, Member>  $members
      * @return array<string, mixed>
      */
-    private function union(array $alternatives): array
+    private function union(array $members): array
     {
+        $alternatives = [];
+
+        foreach ($members as $class => $member) {
+            $alternatives[$member['reference']] = $this->pins($class, $member);
+        }
+
         $union = [
             'oneOf' => array_map(static fn (string $reference): array => ['$ref' => $reference], array_keys($alternatives)),
         ];
@@ -229,6 +217,25 @@ final readonly class ResponseSchemaResolver
         }
 
         return $union;
+    }
+
+    /**
+     * Resolve the discriminator pins of a member: a resource pins its type, a
+     * DefinesSchema the required string constants of its schema.
+     *
+     * @param  class-string  $class
+     * @param  Member  $member
+     * @return array<string, string>
+     */
+    private function pins(string $class, array $member): array
+    {
+        if ($member['defined'] !== null) {
+            return $this->discriminator->pinnedValues($member['node']);
+        }
+
+        return is_a($class, ApiResourceInterface::class, true)
+            ? [ResourceSchemaBuilder::TYPE_PROPERTY => $class::getResourceType()]
+            : [];
     }
 
     /**

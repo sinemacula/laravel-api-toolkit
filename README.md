@@ -588,12 +588,13 @@ registered resource to reference its component, or a class implementing `Defines
 `schema()` returns as a component named after the class, or after its `#[SchemaName]`. The class is defined once and
 referenced wherever it is named. `collection: true` wraps the shape in the collection envelope. Name several classes to
 document a response that may be any one of them, exported as a `oneOf` of their references under `data` (or under each
-item of a collection). Give each member a required property holding its own string `const`, such as a `status`. When
-every member pins the same property to a distinct value, the `oneOf` carries a `discriminator` mapping each value to its
-member. Resources pin `_type`, so a union of resources with distinct types is discriminated on it. If any named class is
-neither a registered resource nor a `DefinesSchema`, the body is left undocumented. `#[SchemaName]` on a resource, enum
-or `DefinesSchema` sets its component name, and two classes deriving one name fail the export. An enum named as a shape
-fails the export when the document also references the enum's values.
+item of a collection). Give each member an object schema (`type` exactly `object`) with a required property holding its
+own string `const`, such as a `status`. When every member pins the same property to a distinct value, the `oneOf`
+carries a `discriminator` mapping each value to its member. Resources pin `_type`, so a union of resources with distinct
+types is discriminated on it. If any named class is neither a registered resource nor a `DefinesSchema`, the body is
+left undocumented. `#[SchemaName]` on a resource, enum or `DefinesSchema` sets its component name, and two classes
+deriving one name fail the export. An enum named as a shape fails the export when a registered resource's field or a
+documented request rule also uses the enum.
 
 On a resource controller's `index`, `show`, `store`, `update` or `destroy`, declaring the controller's own resource
 (as a collection on `index`, a single item elsewhere) changes nothing: the action keeps its full resource

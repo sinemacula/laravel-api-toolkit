@@ -57,6 +57,7 @@ final class DiscriminatorBuilderTest extends TestCase
     public function testSkipsNonStringEnumeratedAndOptionalConstants(): void
     {
         $pins = (new DiscriminatorBuilder)->pinnedValues([
+            'type'       => 'object',
             'properties' => [
                 'version'  => ['const' => 2],
                 'kind'     => ['enum' => ['card']],
@@ -78,6 +79,7 @@ final class DiscriminatorBuilderTest extends TestCase
     public function testRequiredEntryMatchesOnlyByExactName(): void
     {
         $pins = (new DiscriminatorBuilder)->pinnedValues([
+            'type'       => 'object',
             'properties' => ['kind' => ['const' => 'a']],
             'required'   => [true],
         ]);
@@ -94,9 +96,30 @@ final class DiscriminatorBuilderTest extends TestCase
     {
         $builder = new DiscriminatorBuilder;
 
-        self::assertSame([], $builder->pinnedValues(['required' => ['status']]));
-        self::assertSame([], $builder->pinnedValues(['properties' => ['status' => ['const' => 'x']]]));
-        self::assertSame([], $builder->pinnedValues(['properties' => 'status', 'required' => 'status']));
+        self::assertSame([], $builder->pinnedValues(['type' => 'object', 'required' => ['status']]));
+        self::assertSame([], $builder->pinnedValues(['type' => 'object', 'properties' => ['status' => ['const' => 'x']]]));
+        self::assertSame([], $builder->pinnedValues(['type' => 'object', 'properties' => 'status', 'required' => 'status']));
+    }
+
+    /**
+     * Test that a member accepting anything but an object pins nothing, so the
+     * union carries no discriminator.
+     *
+     * @return void
+     */
+    public function testMemberAcceptingNonObjectsPinsNothing(): void
+    {
+        $builder = new DiscriminatorBuilder;
+        $pinned  = ['properties' => ['kind' => ['const' => 'a']], 'required' => ['kind']];
+
+        self::assertSame(['kind' => 'a'], $builder->pinnedValues(['type' => 'object', ...$pinned]));
+        self::assertSame([], $builder->pinnedValues(['type' => ['object', 'null'], ...$pinned]));
+        self::assertSame([], $builder->pinnedValues($pinned));
+
+        self::assertNull($builder->build([
+            self::FIRST  => $builder->pinnedValues(['type' => ['object', 'null'], ...$pinned]),
+            self::SECOND => $builder->pinnedValues(['type' => 'object', 'properties' => ['kind' => ['const' => 'b']], 'required' => ['kind']]),
+        ]));
     }
 
     /**
@@ -174,8 +197,8 @@ final class DiscriminatorBuilderTest extends TestCase
         $builder = new DiscriminatorBuilder;
 
         $discriminator = $builder->build([
-            self::FIRST  => $builder->pinnedValues(['properties' => ['0' => ['const' => 'a']], 'required' => ['0']]),
-            self::SECOND => $builder->pinnedValues(['properties' => ['0' => ['const' => 'b']], 'required' => ['0']]),
+            self::FIRST  => $builder->pinnedValues(['type' => 'object', 'properties' => ['0' => ['const' => 'a']], 'required' => ['0']]),
+            self::SECOND => $builder->pinnedValues(['type' => 'object', 'properties' => ['0' => ['const' => 'b']], 'required' => ['0']]),
         ]);
 
         self::assertSame(['propertyName' => '0', 'mapping' => ['a' => self::FIRST, 'b' => self::SECOND]], $discriminator);

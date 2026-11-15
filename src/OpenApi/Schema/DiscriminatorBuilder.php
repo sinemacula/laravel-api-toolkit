@@ -7,10 +7,6 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
 /**
  * Derives a `oneOf` discriminator from the properties its members pin.
  *
- * A member pins a property it requires to a string `const`. The discriminator
- * uses the first property the first member pins that every member pins to a
- * value no other member shares.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
@@ -18,13 +14,17 @@ final readonly class DiscriminatorBuilder
 {
     /**
      * List the required top-level properties pinned to a string `const`, in
-     * property order.
+     * property order, or none unless the schema accepts only objects.
      *
      * @param  array<array-key, mixed>  $schema
      * @return array<string, string>
      */
     public function pinnedValues(array $schema): array
     {
+        if (($schema['type'] ?? null) !== 'object') {
+            return [];
+        }
+
         $properties = is_array($schema['properties'] ?? null) ? $schema['properties'] : [];
         $required   = is_array($schema['required'] ?? null) ? $schema['required'] : [];
         $pins       = [];
