@@ -99,7 +99,7 @@ final class OpenApiErrorExampleParityTest extends TestCase
     #[DataProvider('failingRequestProvider')]
     public function testFailingRequestAnswersAsDocumented(string $method, string $uri, string $path, int $status): void
     {
-        $this->assertAnswersAsDocumented($this->sendUntilItFails($method, $uri), $method, $path, $status);
+        $this->assertAnswersAsDocumented($this->sendFailing($method, $uri), $method, $path, $status);
     }
 
     /**
@@ -112,7 +112,7 @@ final class OpenApiErrorExampleParityTest extends TestCase
     {
         config()->set('api-toolkit.exceptions.map', [ThrottleRequestsException::class => SlowDownException::class]);
 
-        $response = $this->sendUntilItFails('GET', '/limited');
+        $response = $this->sendFailing('GET', '/limited');
 
         $response->assertJsonPath('error.code', 20002);
 
@@ -164,19 +164,20 @@ final class OpenApiErrorExampleParityTest extends TestCase
     }
 
     /**
-     * Send the request until it fails.
+     * Send the request, first spending the one request the throttled route
+     * allows.
      *
      * @param  string  $method
      * @param  string  $uri
      * @return \Illuminate\Testing\TestResponse<\Symfony\Component\HttpFoundation\Response>
      */
-    private function sendUntilItFails(string $method, string $uri): TestResponse
+    private function sendFailing(string $method, string $uri): TestResponse
     {
-        do {
-            $response = $this->json($method, $uri);
-        } while ($response->baseResponse->getStatusCode() < 400);
+        if ($uri === '/limited') {
+            $this->json($method, $uri)->assertSuccessful();
+        }
 
-        return $response;
+        return $this->json($method, $uri);
     }
 
     /**

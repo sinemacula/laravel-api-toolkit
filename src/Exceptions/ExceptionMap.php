@@ -29,9 +29,10 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 /**
  * The ordered map of exceptions to the ApiException each renders as.
  *
- * A configured entry is matched just before the first built-in whose key it is
- * or extends, else after every built-in, so it replaces a built-in of the same
- * key and never shadows a more specific one. The first matching entry wins.
+ * A configured entry naming a built-in key replaces it, one extending a
+ * built-in key is matched just before the first built-in it extends and any
+ * replacement of it, and any other after every built-in, so no entry shadows a
+ * more specific built-in. The first matching entry wins.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -130,6 +131,7 @@ final readonly class ExceptionMap
     private static function place(array $configured): array
     {
         $preceding = [];
+        $replacing = [];
         $trailing  = [];
 
         foreach ($configured as $source => $target) {
@@ -138,16 +140,17 @@ final readonly class ExceptionMap
 
             if ($slot === null) {
                 $trailing[] = [$source, $target];
-                continue;
+            } elseif (is_a($slot, $source, true)) {
+                $replacing[$slot][] = [$source, $target];
+            } else {
+                $preceding[$slot][] = [$source, $target];
             }
-
-            $preceding[$slot][] = [$source, $target];
         }
 
         $entries = [];
 
         foreach (self::DEFAULTS as $key => $target) {
-            $entries = [...$entries, ...$preceding[$key] ?? [], [$key, $target]];
+            $entries = [...$entries, ...$preceding[$key] ?? [], ...$replacing[$key] ?? [], [$key, $target]];
         }
 
         return [...$entries, ...$trailing];
@@ -191,8 +194,9 @@ final readonly class ExceptionMap
 
         $entries = [];
 
-        foreach ($map as $source => $target) {
-            $entries[self::validSource($source)] = self::validTarget($source, $target);
+        foreach ($map as $key => $target) {
+            $source           = self::validSource($key);
+            $entries[$source] = self::validTarget($source, $target);
         }
 
         return $entries;
@@ -208,8 +212,16 @@ final readonly class ExceptionMap
      */
     private static function validSource(int|string $source): string
     {
-        if (!is_string($source) || !(interface_exists($source) || is_a($source, \Throwable::class, true)) || is_a($source, ApiException::class, true)) {
-            throw new InvalidExceptionMapException(sprintf(self::KEY_MESSAGE, $source));
+        $failure = null;
+
+        try {
+            $valid = is_string($source) && (interface_exists($source) || is_a($source, \Throwable::class, true)) && !is_a($source, ApiException::class, true);
+        } catch (\Throwable $failure) {
+            $valid = false;
+        }
+
+        if (!$valid) {
+            throw new InvalidExceptionMapException(sprintf(self::KEY_MESSAGE, $source), previous: $failure);
         }
 
         return $source;
@@ -218,16 +230,24 @@ final readonly class ExceptionMap
     /**
      * Validate a configured target.
      *
-     * @param  int|string  $source
+     * @param  string  $source
      * @param  mixed  $target
      * @return class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException
      */
-    private static function validTarget(int|string $source, mixed $target): string
+    private static function validTarget(string $source, mixed $target): string
     {
-        if (!is_string($target) || !is_subclass_of($target, ApiException::class) || !self::isRenderable($target)) {
-            throw new InvalidExceptionMapException(sprintf(self::TARGET_MESSAGE, is_string($target) ? $target : get_debug_type($target), $source));
+        $failure = null;
+
+        try {
+            $valid = is_string($target) && is_subclass_of($target, ApiException::class) && self::isRenderable($target);
+        } catch (\Throwable $failure) {
+            $valid = false;
+        }
+
+        if (!$valid) {
+            throw new InvalidExceptionMapException(sprintf(self::TARGET_MESSAGE, is_string($target) ? $target : get_debug_type($target), $source), previous: $failure);
         }
 
         return $target;
@@ -276,19 +296,20 @@ final readonly class ExceptionMap
      *
      * @param  class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>  $target
      * @return bool
+     *
+     * @throws \LogicException
+     *
+     * @SuppressWarnings("php:S3011")
      */
     private static function answersWithError(string $target): bool
     {
-        if (defined($target . '::HTTP_STATUS') && !constant($target . '::HTTP_STATUS') instanceof HttpStatus) {
+        $constant = (new \ReflectionClass($target))->getReflectionConstant('HTTP_STATUS');
+
+        // Rendering reads the constant despite a static status override
+        if ($constant !== false && !$constant->getValue() instanceof HttpStatus) {
             return false;
         }
 
-        try {
-            $status = $target::getHttpStatusCode();
-        } catch (\LogicException) {
-            return false;
-        }
-
-        return in_array(intdiv($status, 100), [4, 5], true);
+        return in_array(intdiv($target::getHttpStatusCode(), 100), [4, 5], true);
     }
 }

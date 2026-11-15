@@ -69,6 +69,9 @@ final class ExceptionMapTest extends TestCase
     /** @var string A subtype of MISSING_WIDGET */
     private const string MISSING_GADGET = 'Tests\Fixtures\Exceptions\ExceptionMap\MissingGadgetHttpException';
 
+    /** @var string A class whose autoloading raises an error */
+    private const string EXPLODING = 'App\Exceptions\ExplodingException';
+
     /** @var string The namespace of the stubbed target fixtures */
     private const string FIXTURES = 'Tests\Fixtures\Exceptions\ExceptionMap\\';
 
@@ -186,6 +189,22 @@ final class ExceptionMapTest extends TestCase
 
         self::assertSame(GoneException::class, $map->targetFor(self::MISSING_WIDGET));
         self::assertSame(NotFoundException::class, $map->targetFor(NotFoundHttpException::class));
+    }
+
+    /**
+     * Test that a subtype of a replaced built-in key precedes the replacement,
+     * whatever the declared order.
+     *
+     * @return void
+     */
+    public function testSubtypeOfAReplacedBuiltInKeyPrecedesTheReplacement(): void
+    {
+        config()->set('api-toolkit.exceptions.map', [NotFoundHttpException::class => GoneException::class, self::MISSING_WIDGET => ConflictException::class]);
+
+        $map = ExceptionMap::fromConfig();
+
+        self::assertSame(ConflictException::class, $map->targetFor(self::MISSING_WIDGET));
+        self::assertSame(GoneException::class, $map->targetFor(NotFoundHttpException::class));
     }
 
     /**
@@ -405,6 +424,7 @@ final class ExceptionMapTest extends TestCase
         yield 'without a code' => [CodelessApiException::class, CodelessApiException::class];
         yield 'code that is not an error code' => [self::FIXTURES . 'InvalidCodeException', self::FIXTURES . 'InvalidCodeException'];
         yield 'status that is not an http status' => [self::FIXTURES . 'IntegerStatusException', self::FIXTURES . 'IntegerStatusException'];
+        yield 'non-public status that is not an http status' => [self::FIXTURES . 'HiddenIntegerStatusException', self::FIXTURES . 'HiddenIntegerStatusException'];
         yield 'success status' => [self::FIXTURES . 'AcceptedException', self::FIXTURES . 'AcceptedException'];
         yield 'own constructor' => [self::FIXTURES . 'ConstructedException', self::FIXTURES . 'ConstructedException'];
         yield 'own instance status' => [self::FIXTURES . 'RestatedException', self::FIXTURES . 'RestatedException'];
@@ -426,6 +446,53 @@ final class ExceptionMapTest extends TestCase
         $this->expectExceptionMessage(sprintf(self::TARGET_MESSAGE, $named, NotFoundHttpException::class));
 
         ExceptionMap::fromConfig();
+    }
+
+    /**
+     * Provide entries whose check raises an error, with the message each fails
+     * with.
+     *
+     * @return iterable<string, array{array<string, string>, string}>
+     */
+    public static function erroringEntryProvider(): iterable
+    {
+        yield 'key' => [[self::EXPLODING => GoneException::class], sprintf(self::KEY_MESSAGE, self::EXPLODING)];
+        yield 'target' => [[NotFoundHttpException::class => self::EXPLODING], sprintf(self::TARGET_MESSAGE, self::EXPLODING, NotFoundHttpException::class)];
+        yield 'target status' => [
+            [NotFoundHttpException::class => self::FIXTURES . 'UnknownStatusException'],
+            sprintf(self::TARGET_MESSAGE, self::FIXTURES . 'UnknownStatusException', NotFoundHttpException::class),
+        ];
+    }
+
+    /**
+     * Test that an entry whose check raises an error fails as invalid, with the
+     * error as its previous.
+     *
+     * @param  array<string, string>  $setting
+     * @param  string  $message
+     * @return void
+     */
+    #[DataProvider('erroringEntryProvider')]
+    public function testEntryWhoseCheckRaisesAnErrorFails(array $setting, string $message): void
+    {
+        $autoloader = static function (string $class): void {
+            if ($class === self::EXPLODING) {
+                throw new \Error('The class could not be loaded.');
+            }
+        };
+
+        spl_autoload_register($autoloader);
+        config()->set('api-toolkit.exceptions.map', $setting);
+
+        try {
+            ExceptionMap::fromConfig();
+            self::fail('The map was built.');
+        } catch (InvalidExceptionMapException $exception) {
+            self::assertSame($message, $exception->getMessage());
+            self::assertInstanceOf(\Error::class, $exception->getPrevious());
+        } finally {
+            spl_autoload_unregister($autoloader);
+        }
     }
 
     /**

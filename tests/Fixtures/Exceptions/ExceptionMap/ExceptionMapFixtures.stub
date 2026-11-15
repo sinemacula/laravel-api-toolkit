@@ -52,6 +52,50 @@ final class IntegerStatusException extends ApiException
 }
 
 /**
+ * A target whose non-public HTTP_STATUS is not an HttpStatus case, behind a
+ * static status that is.
+ */
+final class HiddenIntegerStatusException extends ApiException
+{
+    /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::CONFLICT;
+
+    /** @var int The HTTP status code */
+    protected const int HTTP_STATUS = 409;
+
+    /**
+     * Get HTTP status code.
+     *
+     * @return int
+     */
+    #[\Override]
+    public static function getHttpStatusCode(): int
+    {
+        return 409;
+    }
+}
+
+/**
+ * A target whose static status raises an error.
+ */
+final class UnknownStatusException extends ApiException
+{
+    /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::CONFLICT;
+
+    /**
+     * Get HTTP status code.
+     *
+     * @return int
+     */
+    #[\Override]
+    public static function getHttpStatusCode(): int
+    {
+        return HttpStatus::from(599)->getCode();
+    }
+}
+
+/**
  * A target answering with a success status.
  */
 final class AcceptedException extends ApiException

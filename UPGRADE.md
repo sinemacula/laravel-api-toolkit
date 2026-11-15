@@ -1077,7 +1077,7 @@ resource opts in by overriding `allowsTrashed()`. A resource that has not opted 
 - The new `api-toolkit.exceptions` config section controls rendering (`render_strategy`) and debug metadata
   (`include_debug_info`). The defaults match 1.x.
 - `api-toolkit.exceptions.map` renders an exception as an `ApiException` of your own; a key naming a built-in mapping
-  replaces it. It is empty by default, so every 1.x mapping is unchanged.
+  replaces it. It is empty by default, so only the built-in mappings apply.
 - `ApiException` has a new instance-level `getStatusCode()`, which the handler uses when rendering; the static
   `getHttpStatusCode()` remains.
 
