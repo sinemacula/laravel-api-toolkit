@@ -10,7 +10,6 @@ use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Reflector;
 use Illuminate\Support\Str;
-use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteKeySchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
@@ -28,9 +27,6 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
  */
 final readonly class PathParameterBuilder
 {
-    /** The path prefix under which component schemas are referenced */
-    private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
-
     /** The schema of a segment nothing narrows */
     private const array STRING_SCHEMA = ['type' => 'string'];
 
@@ -166,10 +162,7 @@ final readonly class PathParameterBuilder
     private function bindingSchema(Route $route, string $name, string $class): ?array
     {
         if (enum_exists($class)) {
-
-            $this->enums->register($class);
-
-            return ['$ref' => self::SCHEMA_REF_PREFIX . SchemaComponentName::fromEnum($class)];
+            return ['$ref' => $this->enums->reference($class)];
         }
 
         if (!is_subclass_of($class, Model::class)) {

@@ -6,7 +6,6 @@ namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 use Illuminate\Database\Eloquent\Model;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
-use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
@@ -19,9 +18,6 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
  */
 final readonly class FieldTypeResolver
 {
-    /** The path prefix under which component schemas are referenced */
-    private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
-
     /**
      * Constructor.
      *
@@ -135,7 +131,7 @@ final readonly class FieldTypeResolver
         $cast   = $this->resolveCast($model, $fieldKey);
 
         if ($cast !== null && enum_exists($cast)) {
-            return $this->enumReference($cast, $column !== null && $column->nullable);
+            return OpenApiFieldSchema::reference($this->enums->reference($cast), $column !== null && $column->nullable);
         }
 
         if ($column === null && $cast === null) {
@@ -143,20 +139,6 @@ final readonly class FieldTypeResolver
         }
 
         return $this->mapper->map($column, $cast);
-    }
-
-    /**
-     * Build a reference to the enum's component schema, registering the enum.
-     *
-     * @param  class-string  $cast
-     * @param  bool  $nullable
-     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
-     */
-    private function enumReference(string $cast, bool $nullable): OpenApiFieldSchema
-    {
-        $this->enums->register($cast);
-
-        return OpenApiFieldSchema::reference(self::SCHEMA_REF_PREFIX . SchemaComponentName::fromEnum($cast), $nullable);
     }
 
     /**

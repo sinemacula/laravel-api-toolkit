@@ -18,6 +18,7 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Enums\TicketPriority;
+use Tests\Fixtures\Models\Account;
 use Tests\Fixtures\Models\Invoice;
 use Tests\Fixtures\Models\Shipment;
 use Tests\Fixtures\Models\Ticket;
@@ -195,18 +196,42 @@ final class RouteKeySchemaResolverTest extends TestCase
     }
 
     /**
-     * Test that a declared reference to a component that is not an enum yields
-     * nothing.
+     * Test that a declared reference on an enum-cast key yields the cast enum.
      *
      * @return void
      */
-    public function testDeclaredReferenceToANonEnumYieldsNothing(): void
+    public function testDeclaredReferenceOnAnEnumCastKeyYieldsTheCastEnum(): void
+    {
+        $enums    = new EnumSchemaRegistry;
+        $resolver = $this->resolver([], [Ticket::class => TicketResource::class], $enums);
+
+        self::assertSame(['$ref' => '#/components/schemas/TicketPriority'], $resolver->resolve(Ticket::class, 'priority', false));
+        self::assertSame([TicketPriority::class], $enums->classes());
+    }
+
+    /**
+     * Test that a declared reference on a key without an enum cast yields
+     * nothing, even to an enum the export registers.
+     *
+     * @return void
+     */
+    public function testDeclaredReferenceWithoutAnEnumCastYieldsNothing(): void
     {
         $enums = new EnumSchemaRegistry;
 
         $enums->register(TicketPriority::class);
 
-        self::assertNull($this->resolver([], [Ticket::class => TicketResource::class], $enums)->resolve(Ticket::class, 'widget', false));
+        self::assertNull($this->resolver([], [Ticket::class => TicketResource::class], $enums)->resolve(Ticket::class, 'rank', false));
+    }
+
+    /**
+     * Test that an abstract model yields nothing.
+     *
+     * @return void
+     */
+    public function testAbstractModelYieldsNothing(): void
+    {
+        self::assertNull($this->resolver()->resolve(Account::class, null, false));
     }
 
     /**

@@ -171,6 +171,7 @@ final class RoutePatternTranslatorTest extends TestCase
         yield 'posix class' => ['[[:alpha:]]+'];
         yield 'class opening with bracket' => ['[]a]'];
         yield 'negated class opening with bracket' => ['[^]a]'];
+        yield 'negated class holding only a bracket' => ['[^]a[b]'];
         yield 'spaced quantifier' => ['a{ 2}'];
         yield 'non-numeric quantifier' => ['a{x}'];
         yield 'inner anchor' => ['a^b'];

@@ -10,8 +10,9 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 /**
  * Maps a column definition and optional model cast to an OpenAPI field schema.
  *
- * A cast wins over the column type; an unresolved type is flagged undocumented,
- * never guessed.
+ * A cast wins over the column type, except where the column adds a format to a
+ * cast of the same type; an unresolved type is flagged undocumented, never
+ * guessed.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -54,8 +55,9 @@ final class ColumnTypeMapper
      */
     public function map(?ColumnDefinition $column, ?string $cast = null): OpenApiFieldSchema
     {
-        $resolved = $this->resolveFromCast($cast)
-            ?? ($column !== null ? $this->resolveFromTypeName($column->typeName) : null);
+        $fromCast   = $this->resolveFromCast($cast);
+        $fromColumn = $column !== null ? $this->resolveFromTypeName($column->typeName) : null;
+        $resolved   = $this->refines($fromColumn, $fromCast) ? $fromColumn : $fromCast ?? $fromColumn;
 
         if ($resolved === null) {
             return OpenApiFieldSchema::undocumented();
@@ -66,6 +68,22 @@ final class ColumnTypeMapper
             format  : $resolved['format'] ?? null,
             nullable: $column->nullable   ?? false,
         );
+    }
+
+    /**
+     * Determine whether the column's shape refines a formatless cast of the
+     * same type, as a uuid column does a string cast.
+     *
+     * @param  array{type: string, format?: string}|null  $column
+     * @param  array{type: string, format?: string}|null  $cast
+     * @return bool
+     */
+    private function refines(?array $column, ?array $cast): bool
+    {
+        return $column !== null
+            && $cast   !== null
+            && !isset($cast['format'])
+            && $column['type'] === $cast['type'];
     }
 
     /**

@@ -30,8 +30,10 @@ use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ServerListValidator;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Enums\AppErrorCode;
+use Tests\Fixtures\Enums\TicketPriority;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
@@ -441,26 +443,26 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that audiences exported in turn keep their path enums apart.
+     * Test that a path enum registered by one audience's export does not carry
+     * into the next.
      *
      * @return void
      */
-    public function testAudiencesKeepTheirPathEnumsApart(): void
+    public function testPathEnumDoesNotCarryIntoTheNextAudience(): void
     {
         $this->registerTwoAudiences();
 
-        $this->router()->get('statuses/{status}', [PathBindingController::class, 'status'])->notDocumentedIn('internal'); // @phpstan-ignore method.notFound
         $this->router()->get('priorities/{ticket:priority}', [PathBindingController::class, 'ticket'])->notDocumentedIn('public'); // @phpstan-ignore method.notFound
 
-        $public   = $this->export('public')->document['components']['schemas'];
-        $internal = $this->export('internal')->document['components']['schemas'];
+        $enums = $this->makeApplication()->make(EnumSchemaRegistry::class);
 
-        self::assertIsArray($public);
-        self::assertIsArray($internal);
-        self::assertArrayHasKey('UserStatus', $public);
-        self::assertArrayNotHasKey('TicketPriority', $public);
-        self::assertArrayHasKey('TicketPriority', $internal);
-        self::assertArrayNotHasKey('UserStatus', $internal);
+        $this->export('internal');
+
+        self::assertContains(TicketPriority::class, $enums->classes());
+
+        $this->export('public');
+
+        self::assertNotContains(TicketPriority::class, $enums->classes());
     }
 
     /**

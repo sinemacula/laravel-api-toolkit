@@ -4,8 +4,6 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Schema;
 
-use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
-
 /**
  * Builds a single field's JSON-Schema fragment from its normalised tokens.
  *
@@ -17,9 +15,6 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
  */
 final readonly class FieldSchemaBuilder
 {
-    /** The path prefix under which component schemas are referenced */
-    private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
-
     /** The scalar rule tokens mapped to their JSON-Schema type */
     private const array TYPE_MAP = [
         'string'  => 'string',
@@ -112,9 +107,7 @@ final readonly class FieldSchemaBuilder
             return [];
         }
 
-        $this->enums->register($enumClass);
-
-        $reference = ['$ref' => self::SCHEMA_REF_PREFIX . SchemaComponentName::fromEnum($enumClass)];
+        $reference = ['$ref' => $this->enums->reference($enumClass)];
 
         return $this->presence->acceptsNull($tokens)
             ? ['anyOf' => [$reference, ['type' => 'null']]]

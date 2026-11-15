@@ -16,6 +16,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\RouteKeySchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
 use Tests\Fixtures\Enums\UserStatus;
+use Tests\Fixtures\Models\Account;
 use Tests\Fixtures\Models\Shipment;
 use Tests\Fixtures\Models\Ticket;
 use Tests\Fixtures\Models\User;
@@ -252,6 +253,7 @@ final class PathParameterBuilderTest extends TestCase
     public function testUnstatableRouteKeyIsAString(): void
     {
         self::assertSame(self::STRING, $this->schemaOf($this->router()->get('invoices/{invoice}', [PathBindingController::class, 'invoice'])));
+        self::assertSame(self::STRING, $this->schemaOf($this->router()->get('accounts/{account}', static fn (Account $account): Account => $account)));
     }
 
     /**

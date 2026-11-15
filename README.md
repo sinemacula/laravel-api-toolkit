@@ -574,8 +574,9 @@ Each path parameter is typed from what the router enforces on its segment. A `wh
 string-backed enum or Eloquent model the action binds: the enum's component, or the type of the column the model is
 looked up by, which is its route key or the field a `{post:slug}` segment names. A `HasUuids` or `HasUlids` key is typed
 without a database. An explicit `Route::bind()` binder or an overridden `resolveRouteBinding()` leaves the parameter a
-string, and so does a constraint outside the syntax PHP and JavaScript read alike: `\d`, `\w` and an unescaped `.` match
-more characters in PHP, so write `[0-9]` or `whereNumber()` to export the constraint.
+string. A constraint outside the syntax PHP and JavaScript read alike is not exported, so the binding types the
+parameter, or it stays a string: `\d`, `\w` and an unescaped `.` match more characters in PHP, so write `[0-9]` or
+`whereNumber()` to export the constraint.
 
 Every enum the document references, through a model cast, a request field validated by `Rule::enum()` or `PureEnum`, or
 a string-backed enum bound to a route parameter, becomes one named component listing its values under `enum`: the

@@ -8,11 +8,9 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
-use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
@@ -20,16 +18,14 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * by.
  *
  * A model whose binding lookup is overridden yields no schema, since the column
- * no longer states what the segment accepts.
+ * no longer states what the segment accepts, and so does an abstract model the
+ * container binds to a concrete one.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class RouteKeySchemaResolver
 {
-    /** The path prefix under which component schemas are referenced */
-    private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
-
     /** The schema types a route key segment can carry */
     private const array SCALAR_TYPES = ['string', 'integer', 'number'];
 
@@ -66,14 +62,14 @@ final readonly class RouteKeySchemaResolver
      */
     public function resolve(string $modelClass, ?string $field, bool $withTrashed): ?array
     {
-        if ($this->hasCustomLookup($modelClass, $withTrashed)) {
+        if (!(new \ReflectionClass($modelClass))->isInstantiable() || $this->hasCustomLookup($modelClass, $withTrashed)) {
             return null;
         }
 
         $model = new $modelClass;
         $key   = $field ?? $model->getRouteKeyName();
 
-        return $this->uniqueIdSchema($model, $key) ?? $this->columnSchema($modelClass, $key);
+        return $this->uniqueIdSchema($model, $key) ?? $this->columnSchema($model, $key);
     }
 
     /**
@@ -115,17 +111,24 @@ final readonly class RouteKeySchemaResolver
     }
 
     /**
-     * Resolve the schema of a key from its column, without null.
+     * Resolve the schema of a key from its column: a scalar without null, else
+     * a reference to the enum the key is cast to.
      *
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $key
      * @return array<string, mixed>|null
      */
-    private function columnSchema(string $modelClass, string $key): ?array
+    private function columnSchema(Model $model, string $key): ?array
     {
-        $schema = $this->fields->resolveColumn($key, $modelClass, $this->resourceField($modelClass, $key));
+        $schema = $this->fields->resolveColumn($key, $model::class, $this->resourceField($model::class, $key));
 
-        return $this->isRouteKeySchema($schema) ? $schema->withoutNull()->toArray() : null;
+        if ($schema->ref === null && in_array($schema->type, self::SCALAR_TYPES, true)) {
+            return $schema->withoutNull()->toArray();
+        }
+
+        $cast = $model->getCasts()[$key] ?? null;
+
+        return is_string($cast) && enum_exists($cast) ? ['$ref' => $this->enums->reference($cast)] : null;
     }
 
     /**
@@ -140,26 +143,5 @@ final readonly class RouteKeySchemaResolver
         $resourceClass = $this->catalogue->getResourceMap()[$modelClass] ?? null;
 
         return $resourceClass === null ? null : SchemaCompiler::compile($resourceClass)->getField($key);
-    }
-
-    /**
-     * Determine whether a schema is a scalar or a registered enum reference.
-     *
-     * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema  $schema
-     * @return bool
-     */
-    private function isRouteKeySchema(OpenApiFieldSchema $schema): bool
-    {
-        if ($schema->ref === null) {
-            return in_array($schema->type, self::SCALAR_TYPES, true);
-        }
-
-        foreach ($this->enums->classes() as $enum) {
-            if ($schema->ref === self::SCHEMA_REF_PREFIX . SchemaComponentName::fromEnum($enum)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

@@ -19,7 +19,7 @@ final readonly class RoutePatternTranslator
 {
     /** One token of the portable subset: class, escape, group, alternation, quantifier or literal */
     private const string PORTABLE_TOKEN = '/\G(?:'
-        . '\[\^?(?!\])(?:[^\\\\\[\]]|\\\[\^$\\\.*+?()\[\]{}|\/-])+\]'
+        . '\[(?!\^?\])\^?(?:[^\\\\\[\]]|\\\[\^$\\\.*+?()\[\]{}|\/-])+\]'
         . '|\\\[\^$\\\.*+?()\[\]{}|\/]'
         . '|\((?:\?:)?|\)|\|'
         . '|(?:[*+?]|\{[0-9]+(?:,[0-9]*)?\})\??'

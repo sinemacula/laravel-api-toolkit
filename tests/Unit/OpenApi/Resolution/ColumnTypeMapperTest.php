@@ -384,6 +384,8 @@ final class ColumnTypeMapperTest extends TestCase
      */
     public static function scalarCastProvider(): iterable
     {
+        yield 'bool' => ['bool', 'boolean'];
+        yield 'boolean' => ['boolean', 'boolean'];
         yield 'int' => ['int', 'integer'];
         yield 'integer' => ['integer', 'integer'];
         yield 'uppercase integer' => ['INTEGER', 'integer'];
@@ -419,6 +421,30 @@ final class ColumnTypeMapperTest extends TestCase
         $column = new ColumnDefinition(name: 'code', typeName: 'varchar', nullable: true);
 
         self::assertSame(['type' => ['integer', 'null']], (new ColumnTypeMapper)->map($column, 'int')->toArray());
+    }
+
+    /**
+     * Test that a column keeps its format under a formatless cast of its type.
+     *
+     * @return void
+     */
+    public function testColumnFormatRefinesAFormatlessCastOfItsType(): void
+    {
+        $column = new ColumnDefinition(name: 'id', typeName: 'uuid', nullable: true);
+
+        self::assertSame(['type' => ['string', 'null'], 'format' => 'uuid'], (new ColumnTypeMapper)->map($column, 'string')->toArray());
+    }
+
+    /**
+     * Test that a cast's own format wins over a column of the same type.
+     *
+     * @return void
+     */
+    public function testCastFormatWinsOverAColumnOfTheSameType(): void
+    {
+        $column = new ColumnDefinition(name: 'born_on', typeName: 'datetime', nullable: false);
+
+        self::assertSame(['type' => 'string', 'format' => 'date'], (new ColumnTypeMapper)->map($column, 'date')->toArray());
     }
 
     /**
