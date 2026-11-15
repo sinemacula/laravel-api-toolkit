@@ -267,6 +267,22 @@ final class KeyedDocFilesTest extends TestCase
     }
 
     /**
+     * Test that a hidden audience's directory is neither read nor audited.
+     *
+     * @return void
+     */
+    public function testHiddenAudienceDirectoryIsIgnored(): void
+    {
+        $this->useDocsDirectory([
+            'tags/User.md'                  => 'Accounts.',
+            'audiences/.beta/tags/User.md'  => 'Beta accounts.',
+            'audiences/.beta/tags/Ghost.md' => 'Ghost.',
+        ]);
+
+        self::assertSame(['User' => 'Accounts.'], (new KeyedDocFiles)->resolve(DocKind::TAG, ['public' => ['User'], '.beta' => ['User']], '.beta'));
+    }
+
+    /**
      * Test that orphans fail the resolution of an audience that has no keys.
      *
      * @return void

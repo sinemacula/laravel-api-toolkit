@@ -24,7 +24,6 @@ use Tests\Fixtures\OpenApi\PathInvalidOperationController;
 use Tests\Fixtures\OpenApi\PathOperationController;
 use Tests\Fixtures\OpenApi\PathPlainController;
 use Tests\Fixtures\OpenApi\PathReflectionGapController;
-use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
 use Tests\Fixtures\OpenApi\Vendor\PathVendorController;
@@ -226,7 +225,7 @@ final class DocumentedRouteCollectorTest extends TestCase
     public function testRouteWithoutADocumentableVerbIsDropped(): void
     {
         $this->router()->match(['HEAD'], 'ping', [PathPlainController::class, 'report']);
-        $this->router()->options('conflict', [PathStatusConflictController::class, 'update']);
+        $this->router()->options('preflight', [PathPlainController::class, 'index']);
         $this->router()->match(['HEAD', 'GET'], 'pong', [PathPlainController::class, 'report']);
 
         $routes = $this->collect(['public'])->in('public');
@@ -316,7 +315,8 @@ final class DocumentedRouteCollectorTest extends TestCase
     }
 
     /**
-     * Test that the declared id and summary are read from the method.
+     * Test that the declared id and summary, and whether an id is declared, are
+     * read from the method.
      *
      * @return void
      */
@@ -332,8 +332,10 @@ final class DocumentedRouteCollectorTest extends TestCase
 
         self::assertSame(['get' => 'widgets.showcase'], $show->operationIds);
         self::assertSame('Show a widget', $show->summary);
+        self::assertTrue($show->operationIdDeclared);
         self::assertSame(['put' => 'path-operation.update', 'patch' => 'path-operation.update.patch'], $update->operationIds);
         self::assertSame('Update a widget', $update->summary);
+        self::assertFalse($update->operationIdDeclared);
     }
 
     /**
@@ -396,7 +398,7 @@ final class DocumentedRouteCollectorTest extends TestCase
         $this->expectException(OperationIdCollisionException::class);
         $this->expectExceptionMessageMatches('/^' . preg_quote(
             'The operationId "duplicate" is claimed by both [GET /a (Closure)] and [GET /b (Closure)].'
-                . ' Ids must be unique across every audience: name the routes apart, or give their actions distinct #[Operation] ids.',
+                . ' Ids must be unique across every audience: name the routes apart, or declare distinct #[Operation] ids on separate controller actions.',
             '/',
         ) . '$/');
 

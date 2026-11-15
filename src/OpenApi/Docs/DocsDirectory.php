@@ -85,6 +85,17 @@ final readonly class DocsDirectory
     }
 
     /**
+     * Determine whether the entry name is hidden, starting with a dot.
+     *
+     * @param  string  $name
+     * @return bool
+     */
+    public static function isHidden(string $name): bool
+    {
+        return str_starts_with($name, '.');
+    }
+
+    /**
      * Read a file's trimmed contents, or an empty string when it cannot be
      * read.
      *
@@ -116,7 +127,7 @@ final readonly class DocsDirectory
             $entries = false; // @codeCoverageIgnore
         }
 
-        return array_filter($entries ?: [], static fn (string $entry): bool => !str_starts_with($entry, '.'));
+        return array_filter($entries ?: [], static fn (string $entry): bool => !self::isHidden($entry));
     }
 
     /**

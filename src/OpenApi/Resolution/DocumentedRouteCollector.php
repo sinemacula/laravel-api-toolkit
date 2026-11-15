@@ -183,6 +183,7 @@ final readonly class DocumentedRouteCollector
             $this->tags->resolve($controllerClass, $action, $route, $resource['schema'] ?? null),
             $idsEnabled ? OperationIds::derive($route, $controllerClass, $action, $verbs, $path, $operation?->id) : [],
             $operation?->summary,
+            $operation?->id !== null,
         );
     }
 

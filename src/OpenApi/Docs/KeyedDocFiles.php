@@ -85,12 +85,12 @@ final readonly class KeyedDocFiles
         $this->assertMatched($kind, $shared, array_merge(...array_values($keysByAudience)), null);
 
         foreach ($audiences as $name) {
-            $this->assertMatched($kind, $this->filesByName($this->directory->audienceRoot($name), $kind), $keysByAudience[$name], $name);
+            $this->assertMatched($kind, $this->audienceFiles($name, $kind), $keysByAudience[$name], $name);
         }
 
         $this->assertNoUnknownAudience($kind, $audiences);
 
-        return $this->read($keysByAudience[$audience] ?? [], $this->filesByName($this->directory->audienceRoot($audience), $kind) + $shared);
+        return $this->read($keysByAudience[$audience] ?? [], $this->audienceFiles($audience, $kind) + $shared);
     }
 
     /**
@@ -172,6 +172,19 @@ final readonly class KeyedDocFiles
     }
 
     /**
+     * Map each file of the kind under the audience's directory by its encoded
+     * key, or none when the directory is hidden.
+     *
+     * @param  string  $audience
+     * @param  \SineMacula\ApiToolkit\OpenApi\Docs\Enums\DocKind  $kind
+     * @return array<string, string>
+     */
+    private function audienceFiles(string $audience, DocKind $kind): array
+    {
+        return DocsDirectory::isHidden($audience) ? [] : $this->filesByName($this->directory->audienceRoot($audience), $kind);
+    }
+
+    /**
      * Map each file of the kind under the directory by its encoded key.
      *
      * @param  string  $directory
@@ -210,11 +223,11 @@ final readonly class KeyedDocFiles
      */
     private function encode(string $key): string
     {
-        $encoded = preg_replace_callback(
+        $encoded = (string) preg_replace_callback(
             self::RESERVED_BYTES,
             static fn (array $match): string => sprintf('%%%02X', ord($match[0])),
             $key,
-        ) ?? $key;
+        );
 
         return str_starts_with($encoded, '.') ? '%2E' . substr($encoded, 1) : $encoded;
     }

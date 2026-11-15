@@ -12,6 +12,7 @@ use Illuminate\Testing\PendingCommand;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\OperationIdCollisionException;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -549,6 +550,44 @@ final class ExportOpenApiCommandTest extends TestCase
             self::assertSame([], $this->decodePaths($internal));
 
         } finally {
+            @unlink($public);
+            @unlink($internal);
+        }
+    }
+
+    /**
+     * Test that --all fails on an operationId claimed in two audiences, writing
+     * no document.
+     *
+     * @return void
+     */
+    public function testCommandAllFlagFailsOnAnOperationIdCollisionAndWritesNothing(): void
+    {
+        $this->getConfig()->set('api-toolkit.openapi.operation_ids', true);
+        $this->getConfig()->set('api-toolkit.openapi.audiences', [
+            'public'   => [],
+            'internal' => [],
+        ]);
+
+        $this->router()->get('a', static fn (): null => null)->name('duplicate')->notDocumentedIn('internal'); // @phpstan-ignore method.notFound
+        $this->router()->get('b', static fn (): null => null)->name('duplicate')->notDocumentedIn('public'); // @phpstan-ignore method.notFound
+
+        $base     = sys_get_temp_dir() . '/api-toolkit-all-' . uniqid('', true) . '.json';
+        $public   = substr($base, 0, -strlen('.json')) . '.public.json';
+        $internal = substr($base, 0, -strlen('.json')) . '.internal.json';
+
+        $this->expectException(OperationIdCollisionException::class);
+        $this->expectExceptionMessageMatches('/^' . preg_quote(
+            'The operationId "duplicate" is claimed by both [GET /a (Closure)] and [GET /b (Closure)].'
+                . ' Ids must be unique across every audience: name the routes apart, or declare distinct #[Operation] ids on separate controller actions.',
+            '/',
+        ) . '$/');
+
+        try {
+            $this->runCommand(['--output' => $base, '--all' => true])->run();
+        } finally {
+            self::assertFileDoesNotExist($public);
+            self::assertFileDoesNotExist($internal);
             @unlink($public);
             @unlink($internal);
         }

@@ -19,8 +19,14 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute;
 final readonly class OperationIdCollisionGuard
 {
     /** The message describing an operationId collision */
-    private const string COLLISION_MESSAGE = 'The operationId "%s" is claimed by both [%s] and [%s].'
-        . ' Ids must be unique across every audience: name the routes apart, or give their actions distinct #[Operation] ids.';
+    private const string COLLISION_MESSAGE = 'The operationId "%s" is claimed by both [%s] and [%s]. Ids must be unique across every audience: %s.';
+
+    /** The remedy for a collision between derived ids */
+    private const string DERIVED_REMEDY = 'name the routes apart, or declare distinct #[Operation] ids on separate controller actions';
+
+    /** The remedy for a collision involving a declared id */
+    private const string DECLARED_REMEDY = 'a declared #[Operation] id overrides the route name,'
+        . ' so drop it and name the routes apart, or declare distinct ids on separate controller actions';
 
     /**
      * Assert that no two operations claim one id.
@@ -39,20 +45,36 @@ final readonly class OperationIdCollisionGuard
     {
         $claims = [];
 
-        foreach ($this->claimsOf($operations) as [$verb, $route]) {
+        foreach ($this->claimsOf($operations) as [$claimed, $exported, $route]) {
 
-            $id = $route->operationIds[$verb] ?? null;
+            $id = $route->operationIds[$claimed] ?? null;
 
             if ($id === null) {
                 continue;
             }
 
-            $claims[$id][$this->operationOf($verb, $route)] ??= $route->label($verb);
+            $claims[$id][$this->operationOf($claimed, $route)] ??= [$route->label($exported), $route->operationIdDeclared];
 
             if (count($claims[$id]) > 1) {
-                throw new OperationIdCollisionException(sprintf(self::COLLISION_MESSAGE, $id, ...array_values($claims[$id])));
+                throw $this->collision($id, ...array_values($claims[$id]));
             }
         }
+    }
+
+    /**
+     * Describe the collision of the two claims, each a label and whether its id
+     * is declared, with the remedy its cause calls for.
+     *
+     * @param  string  $id
+     * @param  array{string, bool}  $first
+     * @param  array{string, bool}  $second
+     * @return \SineMacula\ApiToolkit\OpenApi\Exceptions\OperationIdCollisionException
+     */
+    private function collision(string $id, array $first, array $second): OperationIdCollisionException
+    {
+        $remedy = $first[1] || $second[1] ? self::DECLARED_REMEDY : self::DERIVED_REMEDY;
+
+        return new OperationIdCollisionException(sprintf(self::COLLISION_MESSAGE, $id, $first[0], $second[0], $remedy));
     }
 
     /**
@@ -72,19 +94,20 @@ final readonly class OperationIdCollisionGuard
     }
 
     /**
-     * Yield the verb of each id an operation claims, with the owning route: the
-     * operation's own verb, then its route's primary verb.
+     * Yield the verb of each id an operation claims, the exported verb claiming
+     * it, and the owning route: the operation's own verb, then its route's
+     * primary verb, which its description falls back to.
      *
      * @param  array<string, array<string, array<string, \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute>>>  $operations
-     * @return iterable<array{string, \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute}>
+     * @return iterable<array{string, string, \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute}>
      */
     private function claimsOf(array $operations): iterable
     {
         foreach ($operations as $paths) {
             foreach ($paths as $verbs) {
                 foreach ($verbs as $verb => $route) {
-                    yield [$verb, $route];
-                    yield [$route->verbs[0], $route];
+                    yield [$verb, $verb, $route];
+                    yield [$route->verbs[0], $verb, $route];
                 }
             }
         }

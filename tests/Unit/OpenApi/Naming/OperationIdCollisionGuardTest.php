@@ -186,13 +186,14 @@ final class OperationIdCollisionGuardTest extends TestCase
 
     /**
      * Test that a shadowed primary verb's id, which an exported later verb
-     * falls back to, clashing with another operation's id fails.
+     * falls back to, clashing with another operation's id fails, naming the
+     * later verb.
      *
      * @return void
      */
     public function testShadowedPrimaryIdClashingWithAnotherOperationThrows(): void
     {
-        $this->expectCollision('users.index', 'GET /users', 'GET /members');
+        $this->expectCollision('users.index', 'POST /users', 'GET /members');
 
         (new OperationIdCollisionGuard)->assertUnique([
             'public' => $this->operations(
@@ -222,6 +223,87 @@ final class OperationIdCollisionGuardTest extends TestCase
     }
 
     /**
+     * Test that a closure's later verb falling back to its shadowed primary id
+     * claimed by another closure fails, naming the later verb.
+     *
+     * @return void
+     */
+    public function testShadowedPrimaryIdOfAClosureNamesTheVerbFallingBackToIt(): void
+    {
+        $this->expectException(OperationIdCollisionException::class);
+        $this->expectExceptionMessageMatches('/^' . preg_quote(
+            'The operationId "get.a" is claimed by both [GET /a (Closure)] and [POST /a (Closure)].'
+                . ' Ids must be unique across every audience: name the routes apart, or declare distinct #[Operation] ids on separate controller actions.',
+            '/',
+        ) . '$/');
+
+        (new OperationIdCollisionGuard)->assertUnique([
+            'public' => $this->operations(
+                self::handledBy(null, \Closure::class, ['get' => 'get.a', 'post' => 'post.a'], '/a'),
+                self::handledBy(null, \Closure::class, ['get' => 'get.a'], '/a'),
+            ),
+        ]);
+    }
+
+    /**
+     * Test that one action declaring an id, reached by two routes, fails with
+     * the remedy for a declared id.
+     *
+     * @return void
+     */
+    public function testOneActionDeclaringAnIdOnTwoRoutesThrows(): void
+    {
+        $this->expectDeclaredCollision(
+            sprintf('[GET /widgets (%1$s::index)] and [GET /listings (%1$s::index)]', PathOperationController::class),
+        );
+
+        (new OperationIdCollisionGuard)->assertUnique([
+            'public' => $this->operations(
+                self::handledBy(PathOperationController::class, 'index', ['get' => 'widgets.listing'], '/widgets', true),
+                self::handledBy(PathOperationController::class, 'index', ['get' => 'widgets.listing'], '/listings', true),
+            ),
+        ]);
+    }
+
+    /**
+     * Test that a declared id clashing with an earlier route's name fails with
+     * the remedy for a declared id.
+     *
+     * @return void
+     */
+    public function testDeclaredIdClashingWithARouteNameThrows(): void
+    {
+        $this->expectDeclaredCollision(
+            sprintf('[GET /listings (%s::report)] and [GET /widgets (%s::index)]', PathPlainController::class, PathOperationController::class),
+        );
+
+        (new OperationIdCollisionGuard)->assertUnique([
+            'public' => $this->operations(
+                self::documentedRoute('/listings', operationIds: ['get' => 'widgets.listing']),
+                self::handledBy(PathOperationController::class, 'index', ['get' => 'widgets.listing'], '/widgets', true),
+            ),
+        ]);
+    }
+
+    /**
+     * Expect a collision on the declared widgets.listing id between the
+     * labelled operations.
+     *
+     * @param  string  $labels
+     * @return void
+     */
+    private function expectDeclaredCollision(string $labels): void
+    {
+        $this->expectException(OperationIdCollisionException::class);
+        $this->expectExceptionMessageMatches('/^' . preg_quote(
+            sprintf('The operationId "widgets.listing" is claimed by both %s.', $labels)
+                . ' Ids must be unique across every audience: a declared #[Operation] id overrides the route name,'
+                . ' so drop it and name the routes apart, or declare distinct ids on separate controller actions.',
+            '/',
+        ) . '$/');
+    }
+
+    /**
      * Expect a collision on the id between the two labelled operations.
      *
      * @param  string  $id
@@ -234,7 +316,7 @@ final class OperationIdCollisionGuardTest extends TestCase
         $this->expectException(OperationIdCollisionException::class);
         $this->expectExceptionMessageMatches('/^' . preg_quote(sprintf(
             'The operationId "%s" is claimed by both [%s (%s::report)] and [%s (%s::report)].'
-                . ' Ids must be unique across every audience: name the routes apart, or give their actions distinct #[Operation] ids.',
+                . ' Ids must be unique across every audience: name the routes apart, or declare distinct #[Operation] ids on separate controller actions.',
             $id,
             $first,
             PathPlainController::class,
@@ -244,20 +326,23 @@ final class OperationIdCollisionGuardTest extends TestCase
     }
 
     /**
-     * Build a GET route documented as handled by the controller action, or by a
-     * closure when the controller is null.
+     * Build a route documented as handled by the controller action, or by a
+     * closure when the controller is null, under the verbs its ids are keyed
+     * by.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
-     * @param  array<string, string>  $operationIds
+     * @param  non-empty-array<string, string>  $operationIds
      * @param  string  $path
+     * @param  bool  $declared
      * @return \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute
      */
-    private static function handledBy(?string $controllerClass, string $action, array $operationIds, string $path = '/users'): DocumentedRoute
+    private static function handledBy(?string $controllerClass, string $action, array $operationIds, string $path = '/users', bool $declared = false): DocumentedRoute
     {
-        $route = new Route(['GET'], ltrim($path, '/'), $controllerClass === null ? static fn (): null => null : [$controllerClass, $action]);
+        $verbs = array_keys($operationIds);
+        $route = new Route(array_map(strtoupper(...), $verbs), ltrim($path, '/'), $controllerClass === null ? static fn (): null => null : [$controllerClass, $action]);
 
-        return new DocumentedRoute($route, $controllerClass, $action, $path, ['get'], null, 'Widget', $operationIds, null);
+        return new DocumentedRoute($route, $controllerClass, $action, $path, $verbs, null, 'Widget', $operationIds, null, $declared);
     }
 
     /**

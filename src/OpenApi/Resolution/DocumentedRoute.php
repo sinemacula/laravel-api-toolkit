@@ -26,6 +26,7 @@ final readonly class DocumentedRoute
      * @param  string  $tag
      * @param  array<string, string>  $operationIds
      * @param  string|null  $summary
+     * @param  bool  $operationIdDeclared
      */
     public function __construct(
 
@@ -55,6 +56,9 @@ final readonly class DocumentedRoute
 
         /** The summary the action declares, if any. */
         public ?string $summary,
+
+        /** Whether the action declares its operationId through #[Operation]. */
+        public bool $operationIdDeclared,
     ) {}
 
     /**

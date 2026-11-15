@@ -81,6 +81,17 @@ final class DocsDirectoryTest extends TestCase
     }
 
     /**
+     * Test that a name is hidden only when it starts with a dot.
+     *
+     * @return void
+     */
+    public function testNamesStartingWithADotAreHidden(): void
+    {
+        self::assertTrue(DocsDirectory::isHidden('.beta'));
+        self::assertFalse(DocsDirectory::isHidden('beta.'));
+    }
+
+    /**
      * Test that a directory is listed literally, never read as a pattern.
      *
      * @return void

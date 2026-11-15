@@ -44,7 +44,7 @@ final class DocumentedRouteTest extends TestCase
      */
     public function testLabelsAClosureRoute(): void
     {
-        $route = new DocumentedRoute(new Route(['GET'], 'health', static fn (): null => null), null, \Closure::class, '/health', ['get'], null, 'health', [], null);
+        $route = new DocumentedRoute(new Route(['GET'], 'health', static fn (): null => null), null, \Closure::class, '/health', ['get'], null, 'health', [], null, false);
 
         self::assertSame('GET /health (Closure)', $route->label('get'));
     }

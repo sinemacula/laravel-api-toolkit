@@ -2027,6 +2027,20 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that a route answering only HEAD or OPTIONS is not built, so its
+     * action's status conflict cannot fail the build.
+     *
+     * @return void
+     */
+    public function testRouteWithoutADocumentableVerbIsNotBuilt(): void
+    {
+        $this->router()->match(['HEAD'], 'users/{user}', [PathStatusConflictController::class, 'update']);
+        $this->router()->options('users/{user}/reset', [PathStatusConflictController::class, 'reset']);
+
+        self::assertSame([], $this->build());
+    }
+
+    /**
      * The expected shared data envelope wrapping the x-undocumented marker.
      *
      * @return array<string, mixed>

@@ -30,6 +30,6 @@ trait BuildsDocumentedRoutes
     {
         $route = new Route(array_map(strtoupper(...), $verbs), ltrim($path, '/'), [PathPlainController::class, 'report']);
 
-        return new DocumentedRoute($route, PathPlainController::class, 'report', $path, $verbs, null, $tag, $operationIds, $summary);
+        return new DocumentedRoute($route, PathPlainController::class, 'report', $path, $verbs, null, $tag, $operationIds, $summary, false);
     }
 }
