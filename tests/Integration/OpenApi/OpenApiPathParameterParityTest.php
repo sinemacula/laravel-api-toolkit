@@ -18,6 +18,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteKeySchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
+use Tests\Fixtures\Enums\DocumentFormat;
 use Tests\Fixtures\Models\Ticket;
 use Tests\Fixtures\OpenApi\PathBindingController;
 use Tests\TestCase;
@@ -59,6 +60,7 @@ final class OpenApiPathParameterParityTest extends TestCase
             $router->get('codes/{value}', [PathBindingController::class, 'value'])->whereAlpha('value');
             $router->get('statuses/{status}', [PathBindingController::class, 'status']);
             $router->get('tickets/{ticket}', [PathBindingController::class, 'ticket']);
+            $router->get('formats/{ticket:format}', [PathBindingController::class, 'ticket']);
         });
     }
 
@@ -126,6 +128,20 @@ final class OpenApiPathParameterParityTest extends TestCase
     }
 
     /**
+     * Test that a key cast to a pure enum accepts the stored case name the
+     * binding query matches.
+     *
+     * @return void
+     */
+    public function testPureEnumKeyAcceptsTheStoredCaseName(): void
+    {
+        $ticket = Ticket::create(['code' => 'A1', 'format' => DocumentFormat::PDF]);
+
+        self::assertTrue($this->isAcceptedBySchema('/formats/{ticket}', 'PDF'));
+        $this->get('/formats/PDF')->assertOk()->assertContent($ticket->id);
+    }
+
+    /**
      * Define the database migrations, adding the tickets table.
      *
      * @return void
@@ -140,6 +156,7 @@ final class OpenApiPathParameterParityTest extends TestCase
             $table->uuid('id')->primary();
             $table->string('code');
             $table->string('priority')->nullable();
+            $table->string('format')->nullable();
             $table->timestamps();
         });
     }

@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
+use Illuminate\Contracts\Database\Eloquent\Castable;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -18,8 +19,9 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  * by.
  *
  * A model whose binding lookup is overridden yields no schema, since the column
- * no longer states what the segment accepts, and so does an abstract model the
- * container binds to a concrete one.
+ * no longer states what the segment accepts. So do an abstract model the
+ * container binds to a concrete one, and a key cast to an enum Eloquent does
+ * not store by its backing value.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -89,7 +91,10 @@ final readonly class RouteKeySchemaResolver
     }
 
     /**
-     * Resolve the schema of a key the model's unique id trait validates.
+     * Resolve the schema of a key the stock UUID or ULID validator checks.
+     *
+     * The validator is told apart by its file, since a trait method reports the
+     * using class as its declaring class.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $key
@@ -97,22 +102,20 @@ final readonly class RouteKeySchemaResolver
      */
     private function uniqueIdSchema(Model $model, string $key): ?array
     {
-        if (!in_array($key, $model->uniqueIds(), true)) {
+        if (!in_array($key, $model->uniqueIds(), true) || !method_exists($model, 'isValidUniqueId')) {
             return null;
         }
 
-        $traits = class_uses_recursive($model);
-
-        return match (true) {
-            isset($traits[HasUuids::class]) => $this->patterns->uuidSchema(),
-            isset($traits[HasUlids::class]) => $this->patterns->ulidSchema(),
-            default                         => null,
+        return match ((new \ReflectionMethod($model, 'isValidUniqueId'))->getFileName()) {
+            (new \ReflectionClass(HasUuids::class))->getFileName() => $this->patterns->uuidSchema(),
+            (new \ReflectionClass(HasUlids::class))->getFileName() => $this->patterns->ulidSchema(),
+            default                                                => null,
         };
     }
 
     /**
      * Resolve the schema of a key from its column: a scalar without null, else
-     * a reference to the enum the key is cast to.
+     * a reference to the backed enum the key is cast to.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $key
@@ -120,15 +123,32 @@ final readonly class RouteKeySchemaResolver
      */
     private function columnSchema(Model $model, string $key): ?array
     {
+        $cast = $model->getCasts()[$key] ?? null;
+        $enum = is_string($cast) && enum_exists($cast) ? $cast : null;
+
+        if ($enum !== null && !self::isStoredByValue($enum)) {
+            return null;
+        }
+
         $schema = $this->fields->resolveColumn($key, $model::class, $this->resourceField($model::class, $key));
 
         if ($schema->ref === null && in_array($schema->type, self::SCALAR_TYPES, true)) {
             return $schema->withoutNull()->toArray();
         }
 
-        $cast = $model->getCasts()[$key] ?? null;
+        return $enum === null ? null : ['$ref' => $this->enums->reference($enum)];
+    }
 
-        return is_string($cast) && enum_exists($cast) ? ['$ref' => $this->enums->reference($cast)] : null;
+    /**
+     * Determine whether Eloquent stores the enum by its backing value, the
+     * value the binding query compares the segment with.
+     *
+     * @param  class-string<\UnitEnum>  $enum
+     * @return bool
+     */
+    private static function isStoredByValue(string $enum): bool
+    {
+        return is_subclass_of($enum, \BackedEnum::class) && !is_subclass_of($enum, Castable::class);
     }
 
     /**

@@ -26,8 +26,8 @@ final readonly class RoutePatternTranslator
         . '|[^\\\\\^$.|?*+()\[\]{}]'
         . ')/u';
 
-    /** The characters that make an alternative more than a literal value */
-    private const string METACHARACTERS = '\^$.|?*+()[]{}';
+    /** The characters that stop an alternative being a literal value */
+    private const string METACHARACTERS = '\^$.?*+()[]{}';
 
     /** The characters a quantifier token starts with */
     private const string QUANTIFIERS = '*+?{';

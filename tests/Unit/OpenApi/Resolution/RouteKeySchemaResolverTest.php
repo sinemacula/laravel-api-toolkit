@@ -4,7 +4,9 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Resolution;
 
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Concerns\HasUniqueStringIds;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -140,6 +142,77 @@ final class RouteKeySchemaResolverTest extends TestCase
     }
 
     /**
+     * Test that a UUID key whose validator is overridden reads its column.
+     *
+     * @return void
+     */
+    public function testUuidKeyWithAnOverriddenValidatorReadsItsColumn(): void
+    {
+        $model = new class extends Model {
+            use HasUuids;
+
+            /**
+             * Determine if the given key is valid.
+             *
+             * @param  mixed  $value
+             * @return bool
+             *
+             * @phpstan-ignore method.missingOverride
+             */
+            protected function isValidUniqueId(mixed $value): bool
+            {
+                return is_string($value) && str_starts_with($value, 'cus_');
+            }
+        };
+
+        $resolver = $this->resolver([
+            'id' => new ColumnDefinition(name: 'id', typeName: 'varchar', nullable: false),
+        ]);
+
+        self::assertSame(['type' => 'string'], $resolver->resolve($model::class, null, false));
+    }
+
+    /**
+     * Test that the validator a trait conflict selects decides the scheme.
+     *
+     * @return void
+     */
+    public function testValidatorSelectedByATraitConflictDecidesTheScheme(): void
+    {
+        $model = new class extends Model {
+            use HasUlids, HasUuids {
+                HasUlids::isValidUniqueId insteadof HasUuids;
+                HasUlids::newUniqueId insteadof HasUuids;
+            }
+        };
+
+        self::assertSame((new RoutePatternTranslator)->ulidSchema(), $this->resolver()->resolve($model::class, null, false));
+    }
+
+    /**
+     * Test that a unique id key without a validator reads its column.
+     *
+     * @return void
+     */
+    public function testUniqueIdKeyWithoutAValidatorReadsItsColumn(): void
+    {
+        $model = new class extends Model {
+            /**
+             * Get the columns that should receive a unique identifier.
+             *
+             * @return array<int, string>
+             */
+            #[\Override]
+            public function uniqueIds(): array
+            {
+                return ['id'];
+            }
+        };
+
+        self::assertSame(['type' => 'integer'], $this->resolver()->resolve($model::class, 'id', false));
+    }
+
+    /**
      * Test that a direct resource field's declaration wins over the column,
      * without null.
      *
@@ -193,6 +266,25 @@ final class RouteKeySchemaResolverTest extends TestCase
 
         self::assertSame(['$ref' => '#/components/schemas/TicketPriority'], $this->resolver(enums: $enums)->resolve(Ticket::class, 'priority', false));
         self::assertSame([TicketPriority::class], $enums->classes());
+    }
+
+    /**
+     * Test that a key cast to an enum Eloquent does not store by its backing
+     * value yields nothing and registers nothing.
+     *
+     * @return void
+     */
+    public function testKeyCastToAnEnumNotStoredByValueYieldsNothing(): void
+    {
+        $enums    = new EnumSchemaRegistry;
+        $resolver = $this->resolver([
+            'format'  => new ColumnDefinition(name: 'format', typeName: 'varchar', nullable: false),
+            'channel' => new ColumnDefinition(name: 'channel', typeName: 'varchar', nullable: false),
+        ], enums: $enums);
+
+        self::assertNull($resolver->resolve(Ticket::class, 'format', false));
+        self::assertNull($resolver->resolve(Ticket::class, 'channel', false));
+        self::assertSame([], $enums->classes());
     }
 
     /**

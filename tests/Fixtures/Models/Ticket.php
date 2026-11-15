@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Tests\Fixtures\Enums\CastableTicketChannel;
+use Tests\Fixtures\Enums\DocumentFormat;
 use Tests\Fixtures\Enums\TicketPriority;
 
 /**
@@ -16,6 +18,8 @@ use Tests\Fixtures\Enums\TicketPriority;
  * @property string $id
  * @property string $code
  * @property \Tests\Fixtures\Enums\TicketPriority $priority
+ * @property \Tests\Fixtures\Enums\DocumentFormat|null $format
+ * @property \Illuminate\Support\Stringable|null $channel
  * @property array<string, mixed>|null $meta
  *
  * @method static static create(array<string, mixed> $attributes = [])
@@ -23,7 +27,7 @@ use Tests\Fixtures\Enums\TicketPriority;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-#[Fillable(['code', 'priority'])]
+#[Fillable(['code', 'priority', 'format'])]
 #[Table('tickets')]
 final class Ticket extends Model
 {
@@ -39,6 +43,8 @@ final class Ticket extends Model
     {
         return [
             'priority' => TicketPriority::class,
+            'format'   => DocumentFormat::class,
+            'channel'  => CastableTicketChannel::class,
             'meta'     => 'array',
         ];
     }
