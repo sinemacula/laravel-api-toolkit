@@ -25,8 +25,10 @@ final readonly class OperationIdCollisionGuard
     /**
      * Assert that no two operations claim one id.
      *
-     * A controller action under one verb and path is one operation, however
-     * many routes and audiences export it; a closure route is its own.
+     * Each exported verb claims its own id and its route's primary id, which
+     * its description falls back to. An operation is its verb, path and
+     * handler: a controller action is one handler however many routes and
+     * audiences export it, and a closure is a handler of its route alone.
      *
      * @param  array<string, array<string, array<string, \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute>>>  $operations
      * @return void
@@ -37,7 +39,7 @@ final readonly class OperationIdCollisionGuard
     {
         $claims = [];
 
-        foreach ($this->verbsOf($operations) as [$verb, $route]) {
+        foreach ($this->claimsOf($operations) as [$verb, $route]) {
 
             $id = $route->operationIds[$verb] ?? null;
 
@@ -70,17 +72,19 @@ final readonly class OperationIdCollisionGuard
     }
 
     /**
-     * Yield each operation's verb and owning route, audience by audience.
+     * Yield the verb of each id an operation claims, with the owning route: the
+     * operation's own verb, then its route's primary verb.
      *
      * @param  array<string, array<string, array<string, \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute>>>  $operations
      * @return iterable<array{string, \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute}>
      */
-    private function verbsOf(array $operations): iterable
+    private function claimsOf(array $operations): iterable
     {
         foreach ($operations as $paths) {
             foreach ($paths as $verbs) {
                 foreach ($verbs as $verb => $route) {
                     yield [$verb, $route];
+                    yield [$route->verbs[0], $route];
                 }
             }
         }

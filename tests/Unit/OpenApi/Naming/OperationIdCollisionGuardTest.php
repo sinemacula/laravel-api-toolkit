@@ -185,6 +185,43 @@ final class OperationIdCollisionGuardTest extends TestCase
     }
 
     /**
+     * Test that a shadowed primary verb's id, which an exported later verb
+     * falls back to, clashing with another operation's id fails.
+     *
+     * @return void
+     */
+    public function testShadowedPrimaryIdClashingWithAnotherOperationThrows(): void
+    {
+        $this->expectCollision('users.index', 'GET /users', 'GET /members');
+
+        (new OperationIdCollisionGuard)->assertUnique([
+            'public' => $this->operations(
+                self::documentedRoute('/users', ['get', 'post'], ['get' => 'users.index', 'post' => 'users.index.post']),
+                self::handledBy(PathPlainController::class, 'index', ['get' => 'users.list']),
+                self::documentedRoute('/members', operationIds: ['get' => 'users.index']),
+            ),
+        ]);
+    }
+
+    /**
+     * Test that a shadowed primary verb's id claimed by the same action on
+     * another domain passes.
+     *
+     * @return void
+     */
+    public function testShadowedPrimaryIdOfTheSameActionOnAnotherDomainPasses(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        (new OperationIdCollisionGuard)->assertUnique([
+            'public' => $this->operations(
+                self::onDomain(self::documentedRoute('/users', ['get', 'post'], ['get' => 'users.index', 'post' => 'users.index.post']), 'a.example.com'),
+                self::onDomain(self::documentedRoute('/users', operationIds: ['get' => 'users.index']), 'b.example.com'),
+            ),
+        ]);
+    }
+
+    /**
      * Expect a collision on the id between the two labelled operations.
      *
      * @param  string  $id

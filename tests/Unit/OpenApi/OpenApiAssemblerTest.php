@@ -73,9 +73,6 @@ final class OpenApiAssemblerTest extends TestCase
         Organization::class => OrganizationResource::class,
     ];
 
-    /** @var list<string> The temporary docs directories to clean up. */
-    private array $docsDirs = [];
-
     /**
      * Point the docs directory somewhere absent so no manual leaks in.
      *
@@ -87,24 +84,6 @@ final class OpenApiAssemblerTest extends TestCase
         parent::setUp();
 
         $this->config()->set('api-toolkit.openapi.docs_path', sys_get_temp_dir() . '/api-toolkit-absent-' . uniqid('', true));
-    }
-
-    /**
-     * Tear down each test, removing any temporary docs directories.
-     *
-     * @return void
-     */
-    #[\Override]
-    protected function tearDown(): void
-    {
-        foreach ($this->docsDirs as $dir) {
-            array_map('unlink', glob($dir . '/*') ?: []);
-            @rmdir($dir);
-        }
-
-        $this->docsDirs = [];
-
-        parent::tearDown();
     }
 
     /**
@@ -188,9 +167,7 @@ final class OpenApiAssemblerTest extends TestCase
      */
     public function testManualIsAppendedAfterConfiguredDescription(): void
     {
-        $dir = $this->makeDocsDir(['10-intro.md' => "# Intro\n\nWelcome."]);
-
-        $this->config()->set('api-toolkit.openapi.docs_path', $dir);
+        $this->useDocsDirectory(['10-intro.md' => "# Intro\n\nWelcome."]);
         $this->config()->set('api-toolkit.openapi.audiences', [
             'public' => ['info' => ['description' => 'Preface.']],
         ]);
@@ -207,9 +184,7 @@ final class OpenApiAssemblerTest extends TestCase
      */
     public function testManualBecomesDescriptionWhenNoneConfigured(): void
     {
-        $dir = $this->makeDocsDir(['20-body.md' => "# Body\n\nContent."]);
-
-        $this->config()->set('api-toolkit.openapi.docs_path', $dir);
+        $this->useDocsDirectory(['20-body.md' => "# Body\n\nContent."]);
 
         $info = $this->assemble()['info'];
 
@@ -685,27 +660,6 @@ final class OpenApiAssemblerTest extends TestCase
 
         self::assertSame([['name' => 'User']], $this->makeAssembler()->assemble('internal')['tags']);
         self::assertSame([['name' => 'User', 'description' => 'Accounts.']], $this->makeAssembler()->assemble()['tags']);
-    }
-
-    /**
-     * Create a temporary docs directory seeded with the given files.
-     *
-     * @param  array<string, string>  $files
-     * @return string
-     */
-    private function makeDocsDir(array $files): string
-    {
-        $dir = sys_get_temp_dir() . '/api-toolkit-docs-' . uniqid('', true);
-
-        mkdir($dir);
-
-        foreach ($files as $name => $contents) {
-            file_put_contents($dir . '/' . $name, $contents);
-        }
-
-        $this->docsDirs[] = $dir;
-
-        return $dir;
     }
 
     /**

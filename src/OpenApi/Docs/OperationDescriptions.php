@@ -51,8 +51,6 @@ final readonly class OperationDescriptions
             if ($files !== []) {
                 throw new OrphanedDocumentationException(sprintf(self::IDS_OFF_MESSAGE, $files[0]));
             }
-
-            return [];
         }
 
         $keys = [];
