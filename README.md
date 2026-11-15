@@ -792,6 +792,51 @@ captured exception, so the worker retries it per `--tries` and `--backoff` and f
 store. Each attempt runs the whole lifecycle, firing `onFailure()` and `ServiceFailed` every time it fails. On the
 `sync` connection there is no worker to retry, so the failure is thrown to the dispatching code.
 
+#### Transactions
+
+`$transactional` (default `true`) wraps the concerns, `prepare()` and `handle()` in a database transaction, and
+`afterCommit()` runs once the service's own transaction has committed. The transaction runs once: a deadlock or other
+concurrency error rolls it back and fails the run, firing `onFailure()` and `ServiceFailed`.
+
+`$transactionAttempts` (default `1`) lets a top-level run retry a concurrency error. Each retry re-runs the concerns,
+`prepare()` and `handle()` in full, but the rollback resets only the database: a model saved by the failed attempt still
+looks saved, so the retry can skip its write and report success. A service nested in another transaction never retries;
+it fails with a `DeadlockException`. A value below `1` fails the run with a `LogicException`. A service that raises it
+must:
+
+1. Load every model it writes inside the transaction, in `prepare()` or `handle()`, from keys in the input
+   (`Order::query()->lockForUpdate()->findOrFail($this->input->orderId)`). Never write a model carried by the input or
+   loaded in `authorize()` or `validate()`.
+2. Keep no attempt-local state on the service, its concerns (which may be container singletons) or stateful observers,
+   or reset it before its first use in each attempt. Concerns run before `prepare()`, so resetting in `prepare()` only
+   covers state first used there or in `handle()`.
+3. Do non-database work in `afterCommit()`, or register it inside the attempt with `DB::afterCommit()` or an
+   after-commit job. Laravel discards the callbacks a rolled-back attempt registered, so never guard registration with a
+   flag that outlives the attempt.
+
+```php
+final class ShipOrder extends Service
+{
+    protected int $transactionAttempts = 3;
+
+    protected function handle(): mixed
+    {
+        $order = Order::query()->lockForUpdate()->findOrFail($this->input->orderId);
+
+        $order->update(['status' => 'shipped']);
+
+        DB::afterCommit(fn () => OrderShipped::dispatch($order));
+
+        return $order;
+    }
+}
+```
+
+For any other service, retry the call rather than the transaction: run `Service::make(...)->run()` again with fresh
+input, or `dispatch()` it and let the worker retry per `--tries`. Each worker attempt starts from the dispatch-time
+input rather than the previous attempt's models, but models nested in an `ArrayInput` or `Payload` are not re-fetched,
+so pass keys and keep external effects idempotent.
+
 #### Reading the Run Context
 
 During a run, `$this->context()` returns the `ServiceContext` in use: the one given through `withContext()`, the
