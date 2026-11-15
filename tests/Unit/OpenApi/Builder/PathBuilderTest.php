@@ -8,9 +8,11 @@ use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -18,15 +20,20 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
+use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RouteKeySchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
@@ -36,6 +43,7 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
 use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathAttributelessController;
+use Tests\Fixtures\OpenApi\PathBindingController;
 use Tests\Fixtures\OpenApi\PathDeclaredBodyUserController;
 use Tests\Fixtures\OpenApi\PathDeclaredResourceUserController;
 use Tests\Fixtures\OpenApi\PathErrorController;
@@ -409,6 +417,21 @@ final class PathBuilderTest extends TestCase
         ], $parameters[0]);
         self::assertIsArray($parameters);
         self::assertSame([], $this->pathParametersIn(array_slice($parameters, 1)));
+    }
+
+    /**
+     * Test that a typed, constrained route's parameters reach the operation.
+     *
+     * @return void
+     */
+    public function testTypedPathParametersReachTheOperation(): void
+    {
+        $this->router()->get('users/{user}/tickets/{ticket}', [PathBindingController::class, 'userTicket'])->whereUuid('ticket');
+
+        self::assertSame([
+            ['name' => 'user', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
+            ['name' => 'ticket', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid']],
+        ], $this->operation('/users/{user}/tickets/{ticket}', 'get')['parameters']);
     }
 
     /**
@@ -2168,6 +2191,10 @@ final class PathBuilderTest extends TestCase
             Article::class => ArticleResource::class,
         ]);
 
+        assert($this->app !== null);
+
+        $enums = new EnumSchemaRegistry;
+
         return new PathBuilder(
             $this->router(),
             $catalogue,
@@ -2178,6 +2205,17 @@ final class PathBuilderTest extends TestCase
             new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
             new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
             new QueryParameterBuilder($catalogue),
+            new PathParameterBuilder(
+                $this->router(),
+                new RoutePatternTranslator,
+                new RouteKeySchemaResolver(
+                    $catalogue,
+                    new FieldTypeResolver($this->app->make(SchemaIntrospectionProvider::class), new ColumnTypeMapper, $enums),
+                    new RoutePatternTranslator,
+                    $enums,
+                ),
+                $enums,
+            ),
             new RouteMiddlewareResolver($this->router()),
             new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver),
             new SuccessResponseBuilder(

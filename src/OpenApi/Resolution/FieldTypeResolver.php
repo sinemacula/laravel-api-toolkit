@@ -64,6 +64,26 @@ final readonly class FieldTypeResolver
     }
 
     /**
+     * Resolve a column's schema, reusing the declaration of a field that emits
+     * the column unchanged.
+     *
+     * A guard only hides the value, so a guarded field's declaration is reused.
+     *
+     * @param  string  $column
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition|null  $field
+     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
+     */
+    public function resolveColumn(string $column, string $modelClass, ?CompiledFieldDefinition $field = null): OpenApiFieldSchema
+    {
+        if ($field?->openApi !== null && !$this->hasAlternateSource($field) && $field->transformers === []) {
+            return $field->openApi;
+        }
+
+        return $this->inferScalar($column, $modelClass);
+    }
+
+    /**
      * Determine whether a field's value cannot be inferred from its column.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field

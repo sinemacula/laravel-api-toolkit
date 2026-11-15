@@ -376,4 +376,72 @@ final class ColumnTypeMapperTest extends TestCase
         self::assertTrue($schema->undocumented);
         self::assertNull($schema->type);
     }
+
+    /**
+     * Provide each scalar cast and the type it maps to.
+     *
+     * @return iterable<string, array{0: string, 1: string}>
+     */
+    public static function scalarCastProvider(): iterable
+    {
+        yield 'int' => ['int', 'integer'];
+        yield 'integer' => ['integer', 'integer'];
+        yield 'uppercase integer' => ['INTEGER', 'integer'];
+        yield 'float' => ['float', 'number'];
+        yield 'double' => ['double', 'number'];
+        yield 'real' => ['real', 'number'];
+        yield 'string' => ['string', 'string'];
+    }
+
+    /**
+     * Test that a scalar cast maps without a column, non-nullable.
+     *
+     * @param  string  $cast
+     * @param  string  $type
+     * @return void
+     */
+    #[DataProvider('scalarCastProvider')]
+    public function testScalarCastMapsWithoutAColumn(string $cast, string $type): void
+    {
+        $schema = (new ColumnTypeMapper)->map(null, $cast);
+
+        self::assertSame(['type' => $type], $schema->toArray());
+    }
+
+    /**
+     * Test that a scalar cast wins over a contrary column type, keeping the
+     * column's nullability.
+     *
+     * @return void
+     */
+    public function testScalarCastWinsOverAContraryColumn(): void
+    {
+        $column = new ColumnDefinition(name: 'code', typeName: 'varchar', nullable: true);
+
+        self::assertSame(['type' => ['integer', 'null']], (new ColumnTypeMapper)->map($column, 'int')->toArray());
+    }
+
+    /**
+     * Test that a decimal cast is still read from the column.
+     *
+     * @return void
+     */
+    public function testDecimalCastIsReadFromTheColumn(): void
+    {
+        $column = new ColumnDefinition(name: 'price', typeName: 'decimal', nullable: false);
+
+        self::assertSame(['type' => 'number'], (new ColumnTypeMapper)->map($column, 'decimal:2')->toArray());
+        self::assertTrue((new ColumnTypeMapper)->map(null, 'decimal:2')->undocumented);
+    }
+
+    /**
+     * Test that a parameterised cast named like a scalar cast is not mapped.
+     *
+     * @return void
+     */
+    public function testParameterisedScalarLookalikeIsNotMapped(): void
+    {
+        self::assertTrue((new ColumnTypeMapper)->map(null, 'integer:strict')->undocumented);
+        self::assertTrue((new ColumnTypeMapper)->map(null, 'string:trimmed')->undocumented);
+    }
 }

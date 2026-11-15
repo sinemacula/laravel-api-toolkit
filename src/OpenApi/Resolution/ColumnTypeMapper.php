@@ -18,8 +18,17 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
  */
 final class ColumnTypeMapper
 {
-    /** Cast names that resolve to a boolean schema */
-    private const array BOOLEAN_CASTS = ['bool', 'boolean'];
+    /** Scalar cast names and the schema type each resolves to */
+    private const array SCALAR_CASTS = [
+        'bool'    => 'boolean',
+        'boolean' => 'boolean',
+        'int'     => 'integer',
+        'integer' => 'integer',
+        'float'   => 'number',
+        'double'  => 'number',
+        'real'    => 'number',
+        'string'  => 'string',
+    ];
 
     /** Cast names that resolve to a date-time schema */
     private const array DATE_TIME_CASTS = ['datetime', 'immutable_datetime', 'timestamp'];
@@ -75,9 +84,9 @@ final class ColumnTypeMapper
         $base       = strtok($normalised, ':') ?: $normalised;
 
         return match (true) {
-            in_array($normalised, self::BOOLEAN_CASTS, true) => ['type' => 'boolean'],
-            in_array($base, self::DATE_TIME_CASTS, true)     => ['type' => 'string', 'format' => 'date-time'],
-            in_array($base, self::DATE_CASTS, true)          => ['type' => 'string', 'format' => 'date'],
+            isset(self::SCALAR_CASTS[$normalised])       => ['type' => self::SCALAR_CASTS[$normalised]],
+            in_array($base, self::DATE_TIME_CASTS, true) => ['type' => 'string', 'format' => 'date-time'],
+            in_array($base, self::DATE_CASTS, true)      => ['type' => 'string', 'format' => 'date'],
             in_array($normalised, self::ARRAY_CASTS, true)
                 || in_array($base, self::ARRAY_CASTS, true) => ['type' => 'array'],
             in_array($base, self::OBJECT_CASTS, true)       => ['type' => 'object'],

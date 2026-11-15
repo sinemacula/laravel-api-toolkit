@@ -41,6 +41,7 @@ use Tests\Fixtures\OpenApi\ColumnlessIntrospectionProvider;
 use Tests\Fixtures\OpenApi\KeyedArrayRequestInput;
 use Tests\Fixtures\OpenApi\NumericKeyRequestInput;
 use Tests\Fixtures\OpenApi\PathArticleController;
+use Tests\Fixtures\OpenApi\PathBindingController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathHeaderedUserController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
@@ -399,6 +400,67 @@ final class OpenApiExporterValidityTest extends TestCase
         }
 
         self::assertGreaterThan(0, $seen);
+    }
+
+    /**
+     * Test that every path parameter derivation validates as OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testTypedPathParametersValidateAsOpenApiThreeOne(): void
+    {
+        $this->registerPathParameterRoutes();
+
+        $document = $this->export()->document;
+        $result   = $this->validateAgainstMetaSchema($document);
+
+        self::assertSame(['type' => 'string', 'format' => 'uuid'], $document['paths']['/tickets/{ticket}']['get']['parameters'][0]['schema']);
+        self::assertSame(['type' => 'integer'], $document['paths']['/users/{user}']['get']['parameters'][0]['schema']);
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $document['paths']['/statuses/{status}']['get']['parameters'][0]['schema']);
+        self::assertSame(['type' => 'string'], $document['paths']['/posts/{blog_post}']['get']['parameters'][0]['schema']);
+        self::assertTrue($result->isValid(), 'Typed path parameters must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
+
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that an enum only a route key references resolves to its component.
+     *
+     * @return void
+     */
+    public function testPathOnlyEnumReferenceResolves(): void
+    {
+        $this->router()->get('priorities/{ticket:priority}', [PathBindingController::class, 'ticket']);
+
+        $document = $this->export()->document;
+
+        self::assertSame(['$ref' => '#/components/schemas/TicketPriority'], $document['paths']['/priorities/{ticket}']['get']['parameters'][0]['schema']);
+        self::assertSame(['type' => 'string', 'enum' => ['low', 'high']], $document['components']['schemas']['TicketPriority']);
+
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that audiences exported in turn keep their path enums apart.
+     *
+     * @return void
+     */
+    public function testAudiencesKeepTheirPathEnumsApart(): void
+    {
+        $this->registerTwoAudiences();
+
+        $this->router()->get('statuses/{status}', [PathBindingController::class, 'status'])->notDocumentedIn('internal'); // @phpstan-ignore method.notFound
+        $this->router()->get('priorities/{ticket:priority}', [PathBindingController::class, 'ticket'])->notDocumentedIn('public'); // @phpstan-ignore method.notFound
+
+        $public   = $this->export('public')->document['components']['schemas'];
+        $internal = $this->export('internal')->document['components']['schemas'];
+
+        self::assertIsArray($public);
+        self::assertIsArray($internal);
+        self::assertArrayHasKey('UserStatus', $public);
+        self::assertArrayNotHasKey('TicketPriority', $public);
+        self::assertArrayHasKey('TicketPriority', $internal);
+        self::assertArrayNotHasKey('UserStatus', $internal);
     }
 
     /**
@@ -1873,6 +1935,32 @@ final class OpenApiExporterValidityTest extends TestCase
         $router->get('users/{user}', [PathFixtureController::class, 'show']);
         $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update']);
         $router->delete('users/{user}', [PathFixtureController::class, 'destroy']);
+    }
+
+    /**
+     * Register one route per path parameter derivation.
+     *
+     * @return void
+     */
+    private function registerPathParameterRoutes(): void
+    {
+        $router = $this->router();
+
+        $router->get('uuids/{value}', [PathBindingController::class, 'value'])->whereUuid('value');
+        $router->get('numbers/{value}', [PathBindingController::class, 'value'])->whereNumber('value');
+        $router->get('states/{value}', [PathBindingController::class, 'value'])->whereIn('value', ['draft', 'published']);
+        $router->get('codes/{value}', [PathBindingController::class, 'value'])->whereAlpha('value');
+        $router->get('ulids/{value}', [PathBindingController::class, 'value'])->whereUlid('value');
+        $router->get('versions/{value}', [PathBindingController::class, 'value'])->where('value', 'v[0-9]+|latest');
+        $router->get('slugs/{value}', [PathBindingController::class, 'value'])->where('value', '\w+');
+        $router->get('statuses/{status}', [PathBindingController::class, 'status']);
+        $router->get('tickets/{ticket}', [PathBindingController::class, 'ticket']);
+        $router->get('users/{user}', [PathBindingController::class, 'user']);
+        $router->get('emails/{user:email}', [PathBindingController::class, 'user']);
+        $router->get('numbered/{ticket}', [PathBindingController::class, 'ticket'])->whereNumber('ticket');
+        $router->get('invoices/{invoice}', [PathBindingController::class, 'invoice']);
+        $router->bind('blog_post', static fn (string $value): ?Post => Post::query()->find($value));
+        $router->get('posts/{blog_post}', [PathBindingController::class, 'blogPost']);
     }
 
     /**
