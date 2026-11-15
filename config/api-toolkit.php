@@ -39,8 +39,8 @@ return [
     | it extends, else after every built-in, and the first match wins. Laravel
     | converts some exceptions before rendering, so map the converted type, such
     | as NotFoundHttpException for ModelNotFoundException. The map is validated
-    | once the application has booted and drives the OpenAPI error responses
-    | too. It does not affect reporting.
+    | once an application serving requests has booted, and drives the OpenAPI
+    | error responses too. It does not affect reporting.
     */
 
     'exceptions' => [

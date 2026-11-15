@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\UnauthorizedException as LaravelUnauthorizedException;
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
+use SineMacula\Http\Enums\HttpStatus;
 use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -64,7 +65,7 @@ final readonly class ExceptionMap
     private const string SETTING_MESSAGE = 'The api-toolkit.exceptions.map setting must be an array of ApiException classes keyed by the exception class they replace.';
 
     /** The message for a key that cannot be mapped */
-    private const string KEY_MESSAGE = 'The api-toolkit.exceptions.map key [%s] must be a Throwable class or interface that is not an ApiException.';
+    private const string KEY_MESSAGE = 'The api-toolkit.exceptions.map key [%s] must be an interface or a Throwable class, and not an ApiException.';
 
     /** The message for a target the handler cannot render */
     private const string TARGET_MESSAGE = 'The api-toolkit.exceptions.map target [%s] for [%s] must be an instantiable ApiException with a CODE, a 4xx or 5xx status, '
@@ -207,7 +208,7 @@ final readonly class ExceptionMap
      */
     private static function validSource(int|string $source): string
     {
-        if (!is_string($source) || !is_a($source, \Throwable::class, true) || is_a($source, ApiException::class, true)) {
+        if (!is_string($source) || !(interface_exists($source) || is_a($source, \Throwable::class, true)) || is_a($source, ApiException::class, true)) {
             throw new InvalidExceptionMapException(sprintf(self::KEY_MESSAGE, $source));
         }
 
@@ -278,6 +279,10 @@ final readonly class ExceptionMap
      */
     private static function answersWithError(string $target): bool
     {
+        if (defined($target . '::HTTP_STATUS') && !constant($target . '::HTTP_STATUS') instanceof HttpStatus) {
+            return false;
+        }
+
         try {
             $status = $target::getHttpStatusCode();
         } catch (\LogicException) {

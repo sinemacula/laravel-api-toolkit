@@ -37,6 +37,7 @@ use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Exceptions\UnauthenticatedException;
 use SineMacula\ApiToolkit\Exceptions\UnhandledException;
 use Symfony\Component\HttpFoundation\Exception\BadRequestException as SymfonyBadRequestException;
+use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -75,7 +76,7 @@ final class ExceptionMapTest extends TestCase
     private const string SETTING_MESSAGE = 'The api-toolkit.exceptions.map setting must be an array of ApiException classes keyed by the exception class they replace.';
 
     /** @var string The message for a key that cannot be mapped */
-    private const string KEY_MESSAGE = 'The api-toolkit.exceptions.map key [%s] must be a Throwable class or interface that is not an ApiException.';
+    private const string KEY_MESSAGE = 'The api-toolkit.exceptions.map key [%s] must be an interface or a Throwable class, and not an ApiException.';
 
     /** @var string The message for a target the handler cannot render */
     private const string TARGET_MESSAGE = 'The api-toolkit.exceptions.map target [%s] for [%s] must be an instantiable ApiException with a CODE, a 4xx or 5xx status, '
@@ -270,6 +271,22 @@ final class ExceptionMapTest extends TestCase
     }
 
     /**
+     * Test that a built-in interface key that is not a Throwable replaces the
+     * built-in.
+     *
+     * @return void
+     */
+    public function testNonThrowableInterfaceKeyReplacesTheBuiltIn(): void
+    {
+        config()->set('api-toolkit.exceptions.map', [RequestExceptionInterface::class => ConflictException::class]);
+
+        $map = ExceptionMap::fromConfig();
+
+        self::assertSame(ConflictException::class, $map->targetFor(SymfonyBadRequestException::class));
+        self::assertSame(NotFoundException::class, $map->targetFor(SuspiciousOperationException::class));
+    }
+
+    /**
      * Test that the built-ins alone ignore the configured entries.
      *
      * @return void
@@ -387,6 +404,7 @@ final class ExceptionMapTest extends TestCase
         yield 'without a status' => [StatuslessApiException::class, StatuslessApiException::class];
         yield 'without a code' => [CodelessApiException::class, CodelessApiException::class];
         yield 'code that is not an error code' => [self::FIXTURES . 'InvalidCodeException', self::FIXTURES . 'InvalidCodeException'];
+        yield 'status that is not an http status' => [self::FIXTURES . 'IntegerStatusException', self::FIXTURES . 'IntegerStatusException'];
         yield 'success status' => [self::FIXTURES . 'AcceptedException', self::FIXTURES . 'AcceptedException'];
         yield 'own constructor' => [self::FIXTURES . 'ConstructedException', self::FIXTURES . 'ConstructedException'];
         yield 'own instance status' => [self::FIXTURES . 'RestatedException', self::FIXTURES . 'RestatedException'];

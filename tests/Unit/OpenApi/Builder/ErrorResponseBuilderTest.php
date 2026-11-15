@@ -267,8 +267,8 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that a thrown exception without an error code keeps its status but
-     * lists no example.
+     * Test that a thrown exception without an error code keeps its status and
+     * headers but lists no example.
      *
      * @return void
      */
@@ -277,7 +277,9 @@ final class ErrorResponseBuilderTest extends TestCase
         $responses = $this->build($this->router()->post('release', [PathRouteFactsController::class, 'release']));
 
         self::assertSame([409, 500], array_keys($responses));
-        self::assertSame(['description' => 'Conflict.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/ErrorEnvelope']]]], $responses[409]);
+        self::assertSame($this->response('Conflict.', [], [
+            'X-Hold-Id' => ['description' => 'The identifier of the hold that blocked the release.', 'schema' => ['type' => 'string']],
+        ]), $responses[409]);
     }
 
     /**
@@ -307,6 +309,21 @@ final class ErrorResponseBuilderTest extends TestCase
         config()->set('api-toolkit.exceptions.map', [ThrottleRequestsException::class => SlowDownException::class]);
 
         $responses = $this->build($this->router()->get('limited', [PathPlainController::class, 'report'])->middleware('throttle:60,1'));
+
+        self::assertSame($this->response('Too many requests.', ['Error20002'], self::RATE_LIMIT_HEADERS), $responses[429]);
+    }
+
+    /**
+     * Test that a remapped throttle keeps the forwarded headers when the
+     * action's throws tags name its target too.
+     *
+     * @return void
+     */
+    public function testRemappedThrottleThrownByTheActionKeepsTheForwardedHeaders(): void
+    {
+        config()->set('api-toolkit.exceptions.map', [ThrottleRequestsException::class => SlowDownException::class]);
+
+        $responses = $this->build($this->router()->post('spend', [PathRouteFactsController::class, 'spend'])->middleware('throttle:60,1'));
 
         self::assertSame($this->response('Too many requests.', ['Error20002'], self::RATE_LIMIT_HEADERS), $responses[429]);
     }

@@ -105,6 +105,11 @@ final class ApiExceptionHandler
      */
     private static function mapOrReport(\Throwable $exception): ?ApiException
     {
+        // Mapping it would rebuild the invalid map and report it twice
+        if ($exception instanceof InvalidExceptionMapException) {
+            return null;
+        }
+
         try {
             return self::mapApiException($exception);
         } catch (InvalidExceptionMapException $invalid) {

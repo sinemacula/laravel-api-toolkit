@@ -184,12 +184,18 @@ final class ApiServiceProvider extends ServiceProvider
     /**
      * Validate the configured exception map once the application has booted.
      *
-     * Deferred so a map written by a later provider is validated too.
+     * Deferred so a map written by a later provider is validated too. Skipped
+     * in the console, where the map renders nothing and a broken one must not
+     * block the commands that repair it.
      *
      * @return void
      */
     private function validateExceptionMap(): void
     {
+        if ($this->app->runningInConsole()) {
+            return;
+        }
+
         $this->app->booted(static function (): void {
             ExceptionMap::fromConfig();
         });

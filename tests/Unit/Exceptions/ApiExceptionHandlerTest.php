@@ -962,7 +962,27 @@ final class ApiExceptionHandlerTest extends TestCase
 
         ExceptionsFacade::assertReportedCount(1);
         ExceptionsFacade::assertReported(static fn (InvalidExceptionMapException $exception): bool => $exception->getMessage()
-            === 'The api-toolkit.exceptions.map key [stdClass] must be a Throwable class or interface that is not an ApiException.');
+            === 'The api-toolkit.exceptions.map key [stdClass] must be an interface or a Throwable class, and not an ApiException.');
+    }
+
+    /**
+     * Test that rendering an invalid map failure leaves it to Laravel without
+     * reporting it again.
+     *
+     * @return void
+     */
+    public function testInvalidMapFailureIsLeftToLaravelUnreported(): void
+    {
+        ExceptionsFacade::fake();
+
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        config()->set('api-toolkit.exceptions.map', [\stdClass::class => ConflictException::class]);
+
+        self::assertNull((new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new InvalidExceptionMapException('Invalid.'), $request));
+
+        ExceptionsFacade::assertNothingReported();
     }
 
     /**

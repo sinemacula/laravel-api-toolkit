@@ -40,6 +40,18 @@ final class InvalidCodeException extends ApiException
 }
 
 /**
+ * A target whose HTTP_STATUS is not an HttpStatus case.
+ */
+final class IntegerStatusException extends ApiException
+{
+    /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::CONFLICT;
+
+    /** @var int The HTTP status code */
+    public const int HTTP_STATUS = 409;
+}
+
+/**
  * A target answering with a success status.
  */
 final class AcceptedException extends ApiException
