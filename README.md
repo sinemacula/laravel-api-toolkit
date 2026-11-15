@@ -952,8 +952,8 @@ NOTIFICATION_LOG_CHANNEL=notifications
 ## Requirements
 
 - PHP ^8.3
-- Laravel 13.2+
-- MySQL 8.0+, where the search layer is used
+- Laravel 13.39+
+- MySQL 8.4+, where the search layer is used
 
 ## Testing
 

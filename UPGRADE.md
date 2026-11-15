@@ -42,9 +42,9 @@ $repository->usingResource(ArticleResource::class)->withApiCriteria()->paginate(
 The three composition methods are marked `@phpstan-pure`, so PHPStan (level 4 and up) reports a discarded result as
 `method.resultUnused`. Mark your own repository scope methods the same way to extend the check to their call sites.
 
-### Raised: Laravel 13.2 is now the floor
+### Raised: Laravel 13.39 is now the floor
 
-`illuminate/*` now requires `^13.2`. Laravel 12 is no longer supported; stay on 1.x if you need it.
+`illuminate/*` now requires `^13.39`. Laravel 12 is no longer supported; stay on 1.x if you need it.
 
 13.2 adds the `#[Table]` and `#[Fillable]` model attributes, which a model may use in place of the properties:
 
