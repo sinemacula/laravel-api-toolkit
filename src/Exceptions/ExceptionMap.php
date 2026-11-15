@@ -305,8 +305,8 @@ final readonly class ExceptionMap
     {
         $constant = (new \ReflectionClass($target))->getReflectionConstant('HTTP_STATUS');
 
-        // Rendering reads the constant despite a static status override
-        if ($constant !== false && !$constant->getValue() instanceof HttpStatus) {
+        // Rendering reads a non-private constant even with a static override
+        if ($constant !== false && !$constant->isPrivate() && !$constant->getValue() instanceof HttpStatus) {
             return false;
         }
 

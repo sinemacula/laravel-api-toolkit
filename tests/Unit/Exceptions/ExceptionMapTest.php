@@ -161,11 +161,12 @@ final class ExceptionMapTest extends TestCase
     }
 
     /**
-     * Test that replacing the last built-in keeps the earlier ones first.
+     * Test that a subtype of the last built-in key leaves the earlier built-ins
+     * first.
      *
      * @return void
      */
-    public function testReplacingTheCatchAllBuiltInKeepsItsSlot(): void
+    public function testSubtypeOfTheCatchAllBuiltInLeavesEarlierBuiltInsFirst(): void
     {
         config()->set('api-toolkit.exceptions.map', [SymfonyHttpException::class => ConflictException::class]);
 
@@ -370,10 +371,7 @@ final class ExceptionMapTest extends TestCase
     {
         config()->set('api-toolkit.exceptions.map', $setting);
 
-        $this->expectException(InvalidExceptionMapException::class);
-        $this->expectExceptionMessage(self::SETTING_MESSAGE);
-
-        ExceptionMap::fromConfig();
+        self::assertMapFails(self::SETTING_MESSAGE);
     }
 
     /**
@@ -401,17 +399,14 @@ final class ExceptionMapTest extends TestCase
     {
         config()->set('api-toolkit.exceptions.map', [$key => GoneException::class]);
 
-        $this->expectException(InvalidExceptionMapException::class);
-        $this->expectExceptionMessage(sprintf(self::KEY_MESSAGE, $named));
-
-        ExceptionMap::fromConfig();
+        self::assertMapFails(sprintf(self::KEY_MESSAGE, $named));
     }
 
     /**
      * Provide targets the handler cannot render, with how the message names
-     * each.
+     * each and the error the check raised, if any.
      *
-     * @return iterable<string, array{mixed, string}>
+     * @return iterable<string, array{0: mixed, 1: string, 2?: class-string<\Throwable>}>
      */
     public static function invalidTargetProvider(): iterable
     {
@@ -420,12 +415,13 @@ final class ExceptionMapTest extends TestCase
         yield 'not an api exception' => [\RuntimeException::class, \RuntimeException::class];
         yield 'abstract' => [RateLimitedException::class, RateLimitedException::class];
         yield 'runtime status' => [HttpException::class, HttpException::class];
-        yield 'without a status' => [StatuslessApiException::class, StatuslessApiException::class];
+        yield 'without a status' => [StatuslessApiException::class, StatuslessApiException::class, \LogicException::class];
         yield 'without a code' => [CodelessApiException::class, CodelessApiException::class];
         yield 'code that is not an error code' => [self::FIXTURES . 'InvalidCodeException', self::FIXTURES . 'InvalidCodeException'];
         yield 'status that is not an http status' => [self::FIXTURES . 'IntegerStatusException', self::FIXTURES . 'IntegerStatusException'];
-        yield 'non-public status that is not an http status' => [self::FIXTURES . 'HiddenIntegerStatusException', self::FIXTURES . 'HiddenIntegerStatusException'];
+        yield 'protected status that is not an http status' => [self::FIXTURES . 'HiddenIntegerStatusException', self::FIXTURES . 'HiddenIntegerStatusException'];
         yield 'success status' => [self::FIXTURES . 'AcceptedException', self::FIXTURES . 'AcceptedException'];
+        yield 'redirection status' => [self::FIXTURES . 'FoundException', self::FIXTURES . 'FoundException'];
         yield 'own constructor' => [self::FIXTURES . 'ConstructedException', self::FIXTURES . 'ConstructedException'];
         yield 'own instance status' => [self::FIXTURES . 'RestatedException', self::FIXTURES . 'RestatedException'];
     }
@@ -435,32 +431,31 @@ final class ExceptionMapTest extends TestCase
      *
      * @param  mixed  $target
      * @param  string  $named
+     * @param  class-string<\Throwable>|null  $previous
      * @return void
      */
     #[DataProvider('invalidTargetProvider')]
-    public function testTargetTheHandlerCannotRenderFails(mixed $target, string $named): void
+    public function testTargetTheHandlerCannotRenderFails(mixed $target, string $named, ?string $previous = null): void
     {
         config()->set('api-toolkit.exceptions.map', [NotFoundHttpException::class => $target]);
 
-        $this->expectException(InvalidExceptionMapException::class);
-        $this->expectExceptionMessage(sprintf(self::TARGET_MESSAGE, $named, NotFoundHttpException::class));
-
-        ExceptionMap::fromConfig();
+        self::assertMapFails(sprintf(self::TARGET_MESSAGE, $named, NotFoundHttpException::class), $previous);
     }
 
     /**
      * Provide entries whose check raises an error, with the message each fails
-     * with.
+     * with and the error raised.
      *
-     * @return iterable<string, array{array<string, string>, string}>
+     * @return iterable<string, array{array<string, string>, string, class-string<\Throwable>}>
      */
     public static function erroringEntryProvider(): iterable
     {
-        yield 'key' => [[self::EXPLODING => GoneException::class], sprintf(self::KEY_MESSAGE, self::EXPLODING)];
-        yield 'target' => [[NotFoundHttpException::class => self::EXPLODING], sprintf(self::TARGET_MESSAGE, self::EXPLODING, NotFoundHttpException::class)];
+        yield 'key' => [[self::EXPLODING => GoneException::class], sprintf(self::KEY_MESSAGE, self::EXPLODING), \Error::class];
+        yield 'target' => [[NotFoundHttpException::class => self::EXPLODING], sprintf(self::TARGET_MESSAGE, self::EXPLODING, NotFoundHttpException::class), \Error::class];
         yield 'target status' => [
             [NotFoundHttpException::class => self::FIXTURES . 'UnknownStatusException'],
             sprintf(self::TARGET_MESSAGE, self::FIXTURES . 'UnknownStatusException', NotFoundHttpException::class),
+            \ValueError::class,
         ];
     }
 
@@ -470,10 +465,11 @@ final class ExceptionMapTest extends TestCase
      *
      * @param  array<string, string>  $setting
      * @param  string  $message
+     * @param  class-string<\Throwable>  $previous
      * @return void
      */
     #[DataProvider('erroringEntryProvider')]
-    public function testEntryWhoseCheckRaisesAnErrorFails(array $setting, string $message): void
+    public function testEntryWhoseCheckRaisesAnErrorFails(array $setting, string $message, string $previous): void
     {
         $autoloader = static function (string $class): void {
             if ($class === self::EXPLODING) {
@@ -485,18 +481,15 @@ final class ExceptionMapTest extends TestCase
         config()->set('api-toolkit.exceptions.map', $setting);
 
         try {
-            ExceptionMap::fromConfig();
-            self::fail('The map was built.');
-        } catch (InvalidExceptionMapException $exception) {
-            self::assertSame($message, $exception->getMessage());
-            self::assertInstanceOf(\Error::class, $exception->getPrevious());
+            self::assertMapFails($message, $previous);
         } finally {
             spl_autoload_unregister($autoloader);
         }
     }
 
     /**
-     * Test that 4xx and 5xx targets pass, a statically overridden status too.
+     * Test that 4xx and 5xx targets pass, also behind a static status override
+     * that hides a private status constant.
      *
      * @return void
      */
@@ -507,6 +500,7 @@ final class ExceptionMapTest extends TestCase
             ModelNotFoundException::class  => TokenMismatchException::class,
             AuthenticationException::class => ServiceUnavailableException::class,
             ValidationException::class     => self::FIXTURES . 'NetworkTimeoutException',
+            AuthorizationException::class  => self::FIXTURES . 'PrivateIntegerStatusException',
         ]);
 
         $map = ExceptionMap::fromConfig();
@@ -515,5 +509,30 @@ final class ExceptionMapTest extends TestCase
         self::assertSame(TokenMismatchException::class, $map->targetFor(ModelNotFoundException::class));
         self::assertSame(ServiceUnavailableException::class, $map->targetFor(AuthenticationException::class));
         self::assertSame(self::FIXTURES . 'NetworkTimeoutException', $map->targetFor(ValidationException::class));
+        self::assertSame(self::FIXTURES . 'PrivateIntegerStatusException', $map->targetFor(AuthorizationException::class));
+    }
+
+    /**
+     * Assert that building the map fails with the given message, and with the
+     * given error as its previous or none.
+     *
+     * @param  string  $message
+     * @param  class-string<\Throwable>|null  $previous
+     * @return void
+     */
+    private static function assertMapFails(string $message, ?string $previous = null): void
+    {
+        try {
+            ExceptionMap::fromConfig();
+        } catch (InvalidExceptionMapException $exception) {
+            $failure = $exception->getPrevious();
+
+            self::assertSame($message, $exception->getMessage());
+            self::assertSame($previous, $failure === null ? null : $failure::class);
+
+            return;
+        }
+
+        self::fail('The map was built.');
     }
 }

@@ -43,6 +43,12 @@ final class OpenApiErrorExampleParityTest extends TestCase
 {
     use RegistersApiExceptionHandler;
 
+    /** @var string The prefix of a reference to an example component */
+    private const string EXAMPLE_PREFIX = '#/components/examples/';
+
+    /** @var list<string> The headers the handler forwards from a throttled request */
+    private const array THROTTLE_HEADERS = ['Retry-After', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'];
+
     /**
      * Set up each test.
      *
@@ -73,9 +79,10 @@ final class OpenApiErrorExampleParityTest extends TestCase
     }
 
     /**
-     * Provide a failing request per route fact, with the status it answers.
+     * Provide a failing request per route fact, with the status it answers and
+     * the headers the handler forwards with it.
      *
-     * @return iterable<string, array{string, string, string, int}>
+     * @return iterable<string, array{0: string, 1: string, 2: string, 3: int, 4?: list<string>}>
      */
     public static function failingRequestProvider(): iterable
     {
@@ -83,7 +90,7 @@ final class OpenApiErrorExampleParityTest extends TestCase
         yield 'forbidden' => ['GET', '/report', '/report', 403];
         yield 'not found' => ['GET', '/users/999', '/users/{user}', 404];
         yield 'invalid input' => ['POST', '/articles', '/articles', 422];
-        yield 'too many requests' => ['GET', '/limited', '/limited', 429];
+        yield 'too many requests' => ['GET', '/limited', '/limited', 429, self::THROTTLE_HEADERS];
         yield 'unhandled' => ['GET', '/fail', '/fail', 500];
     }
 
@@ -94,12 +101,13 @@ final class OpenApiErrorExampleParityTest extends TestCase
      * @param  string  $uri
      * @param  string  $path
      * @param  int  $status
+     * @param  list<string>  $forwarded
      * @return void
      */
     #[DataProvider('failingRequestProvider')]
-    public function testFailingRequestAnswersAsDocumented(string $method, string $uri, string $path, int $status): void
+    public function testFailingRequestAnswersAsDocumented(string $method, string $uri, string $path, int $status, array $forwarded = []): void
     {
-        $this->assertAnswersAsDocumented($this->sendFailing($method, $uri), $method, $path, $status);
+        $this->assertAnswersAsDocumented($this->sendFailing($method, $uri), $method, $path, $status, $forwarded);
     }
 
     /**
@@ -116,20 +124,21 @@ final class OpenApiErrorExampleParityTest extends TestCase
 
         $response->assertJsonPath('error.code', 20002);
 
-        $this->assertAnswersAsDocumented($response, 'GET', '/limited', 429);
+        $this->assertAnswersAsDocumented($response, 'GET', '/limited', 429, self::THROTTLE_HEADERS);
     }
 
     /**
      * Assert the response carries the status, headers and error the document
-     * gives for the operation.
+     * gives for the operation, and the document lists the forwarded headers.
      *
      * @param  \Illuminate\Testing\TestResponse<\Symfony\Component\HttpFoundation\Response>  $response
      * @param  string  $method
      * @param  string  $path
      * @param  int  $status
+     * @param  list<string>  $forwarded
      * @return void
      */
-    private function assertAnswersAsDocumented(TestResponse $response, string $method, string $path, int $status): void
+    private function assertAnswersAsDocumented(TestResponse $response, string $method, string $path, int $status, array $forwarded): void
     {
         assert($this->app !== null);
 
@@ -150,15 +159,25 @@ final class OpenApiErrorExampleParityTest extends TestCase
             self::assertTrue($response->headers->has((string) $header), sprintf('The %d response is missing the documented %s header.', $status, $header));
         }
 
+        $documented = array_map(strtolower(...), array_map(strval(...), array_keys($headers)));
+
+        foreach ($forwarded as $header) {
+            self::assertTrue($response->headers->has($header), sprintf('The %d response is missing the forwarded %s header.', $status, $header));
+            self::assertContains(strtolower($header), $documented, sprintf('The %d response documents no %s header.', $status, $header));
+        }
+
         $examples = $error['content']['application/json']['examples'] ?? [];
 
         self::assertIsArray($examples);
         self::assertCount(1, $examples);
 
-        $name = (string) array_key_first($examples);
+        $reference = $examples[array_key_first($examples)]['$ref'] ?? null;
+
+        self::assertIsString($reference);
+        self::assertStringStartsWith(self::EXAMPLE_PREFIX, $reference);
 
         self::assertSame(
-            $document['components']['examples'][$name]['value']['error'],
+            $document['components']['examples'][substr($reference, strlen(self::EXAMPLE_PREFIX))]['value']['error'],
             Arr::only((array) $response->json('error'), ['status', 'code', 'title', 'detail']),
         );
     }
