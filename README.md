@@ -29,6 +29,9 @@ php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider"
 `config/api-toolkit.php` is documented inline. Per-query repository caching is configured separately, in the
 `sinemacula/laravel-repositories` package under `repositories.cache`.
 
+Each setting read from the environment is named `API_TOOLKIT_` followed by its key, upper-cased with dots as
+underscores: `deferred_writes.on_failure` is `API_TOOLKIT_DEFERRED_WRITES_ON_FAILURE`.
+
 The Markdown templates for the generated API manual are published with `--tag=api-toolkit-docs`.
 
 ## Usage
@@ -119,7 +122,7 @@ so a SQLite development connection must be listed before a searchable field is s
 
 With `validate_schemas` on (the default outside production), an unlisted connection fails application boot, not just
 the search request: every route and every Artisan command, including `php artisan migrate` on a fresh checkout with
-no database file yet. List the connection, or set `VALIDATE_SCHEMAS=false` until you do.
+no database file yet. List the connection, or set `API_TOOLKIT_RESOURCES_VALIDATE_SCHEMAS=false` until you do.
 
 Entries are connection names as `config/database.php` keys them, not engines. A stock application names each
 connection after its engine, so listing `mysql` waives the connection that usually serves production. A listed
@@ -261,7 +264,7 @@ new UserResource($user, excluded: ['email']);          // field set minus exclus
 ```
 
 **Schema validation** - `api-toolkit.resources.validate_schemas` validates every registered schema at boot. It is on
-by default outside production (`VALIDATE_SCHEMAS=false` turns it off) and off in production. The
+by default outside production (`API_TOOLKIT_RESOURCES_VALIDATE_SCHEMAS=false` turns it off) and off in production. The
 `api-toolkit:validate-schemas` Artisan command runs the same validation regardless of the flag, so it can gate CI.
 
 Validation checks that:
@@ -338,8 +341,8 @@ Two overrides cover what the catalogue cannot show:
 - `unindexed('the table is bounded at a few hundred rows')` records a deliberate exemption. The reason is required.
 
 **Random ordering** - `?order=random` is disabled by default. Enable it with
-`api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_ALLOW_RANDOM_ORDER=true`); while disabled, `random` is
-treated as an ordinary sort key and rejected like any undeclared column.
+`api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_REPOSITORIES_ALLOW_RANDOM_ORDER=true`); while disabled,
+`random` is treated as an ordinary sort key and rejected like any undeclared column.
 
 **Query cost caps** - `api-toolkit.query_cost` bounds the filter document's size and nesting, the keys and value-list
 items it dispatches, the sort keys and relation aggregates requested, and how deep a request pages. A request over a
@@ -946,7 +949,7 @@ level. For a dedicated destination, define a channel in `config/logging.php`:
 Then point `api-toolkit.notifications.log_channel` at it:
 
 ```dotenv
-NOTIFICATION_LOG_CHANNEL=notifications
+API_TOOLKIT_NOTIFICATIONS_LOG_CHANNEL=notifications
 ```
 
 ## Requirements
