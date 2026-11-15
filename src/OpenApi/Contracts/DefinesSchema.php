@@ -7,8 +7,9 @@ namespace SineMacula\ApiToolkit\OpenApi\Contracts;
 /**
  * Contract for a class that describes its own OpenAPI schema.
  *
- * As one member of a union, declare a required `const` property so clients can
- * tell the shapes apart.
+ * Exported as a named component, referenced wherever a #[ResponseSchema] names
+ * the class. As one member of a union, a required string `const`, under the
+ * same name and distinct in each member, adds a discriminator.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

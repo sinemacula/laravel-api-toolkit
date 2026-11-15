@@ -136,7 +136,7 @@ final readonly class FieldTypeResolver
     {
         $this->enums->register($cast);
 
-        return OpenApiFieldSchema::reference(self::SCHEMA_REF_PREFIX . SchemaComponentName::fromEnum($cast), $nullable);
+        return OpenApiFieldSchema::reference(self::SCHEMA_REF_PREFIX . SchemaComponentName::fromClass($cast), $nullable);
     }
 
     /**

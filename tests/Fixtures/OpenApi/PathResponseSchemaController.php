@@ -4,8 +4,12 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\OpenApi;
 
+use SineMacula\ApiToolkit\OpenApi\Attributes\DocumentedIn;
 use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseSchema;
+use SineMacula\ApiToolkit\OpenApi\Attributes\Undocumented;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PlainJsonResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 
@@ -13,13 +17,15 @@ use Tests\Fixtures\Resources\UserResource;
  * Fixture non-resource controller declaring response bodies.
  *
  * Carries one action per #[ResponseSchema] resolution branch: a registered
- * resource reference, its collection variant, an inlined self-describing DTO, a
- * plain class that resolves to nothing, an unregistered resource whose
- * reference would dangle, and a bare action carrying no directive at all. The
- * union actions name several classes: two fragments, a resource beside a
- * fragment, a union of collection items, repeated members, distinct classes
- * describing one shape, and unions holding a plain class or an unregistered
- * resource that leave the body undocumented.
+ * resource reference, its collection variant, a self-describing DTO exported as
+ * a component, a plain class that resolves to nothing, an unregistered resource
+ * whose reference would dangle, and a bare action carrying no directive at all.
+ * The union actions name several classes: two discriminated shapes, a resource
+ * beside a shape, a union of collection items, repeated members, distinct
+ * classes describing one shape, shapes sharing or lacking a discriminating
+ * constant, two resources, a resource that pins no type, an internal-only
+ * union, and unions holding a plain class or an unregistered resource that
+ * leave the body undocumented.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -43,7 +49,7 @@ final class PathResponseSchemaController
     public function list(): void {}
 
     /**
-     * Respond with an inlined self-describing DTO.
+     * Respond with a self-describing DTO.
      *
      * @return void
      */
@@ -51,7 +57,7 @@ final class PathResponseSchemaController
     public function widget(): void {}
 
     /**
-     * Respond with a collection of an inlined self-describing DTO.
+     * Respond with a collection of a self-describing DTO.
      *
      * @return void
      */
@@ -130,6 +136,57 @@ final class PathResponseSchemaController
      */
     #[ResponseSchema([SignedInShape::class, SessionStartedShape::class])]
     public function equivalent(): void {}
+
+    /**
+     * Respond with either a shape or a shape named by #[SchemaName].
+     *
+     * @return void
+     */
+    #[ResponseSchema([SignedInShape::class, MfaChallengeShape::class])]
+    public function named(): void {}
+
+    /**
+     * Respond with either of two shapes pinning one status constant.
+     *
+     * @return void
+     */
+    #[ResponseSchema([SignedInShape::class, TokenRefreshedShape::class])]
+    public function clashing(): void {}
+
+    /**
+     * Respond with either of two registered resources.
+     *
+     * @return void
+     */
+    #[ResponseSchema([UserResource::class, OrganizationResource::class])]
+    public function resources(): void {}
+
+    /**
+     * Respond with either a shape pinning no constant or a pinned shape.
+     *
+     * @return void
+     */
+    #[ResponseSchema([WidgetShape::class, SignedInShape::class])]
+    public function unpinned(): void {}
+
+    /**
+     * Respond with either a registered resource or a plain registered JSON
+     * resource.
+     *
+     * @return void
+     */
+    #[ResponseSchema([UserResource::class, PlainJsonResource::class])]
+    public function plainResource(): void {}
+
+    /**
+     * Respond, in the internal audience only, with either of two shapes.
+     *
+     * @return void
+     */
+    #[DocumentedIn('internal')]
+    #[ResponseSchema([SignedInShape::class, MfaChallengeShape::class])]
+    #[Undocumented]
+    public function internalUnion(): void {}
 
     /**
      * Respond with a union whose second member is a plain class.

@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi;
 
+use SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
@@ -14,6 +15,7 @@ use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaNameCollisionGuard;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\SchemaObjectNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
@@ -55,6 +57,8 @@ final readonly class OpenApiAssembler
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder  $enumBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler  $manual
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry  $definedSchemas
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder  $definedSchemaBuilder
      */
     public function __construct(
 
@@ -81,6 +85,12 @@ final readonly class OpenApiAssembler
 
         /** The assembler of the committed Markdown manual. */
         private DocManualAssembler $manual,
+
+        /** The registry collecting DefinesSchema classes referenced by a $ref. */
+        private DefinedSchemaRegistry $definedSchemas,
+
+        /** The builder for referenced DefinesSchema component schemas. */
+        private DefinedSchemaBuilder $definedSchemaBuilder,
     ) {
         $this->envelopeBuilder = new EnvelopeBuilder;
         $this->reachability    = new ReachableSchemaResolver;
@@ -97,6 +107,7 @@ final readonly class OpenApiAssembler
     public function assemble(?string $audience = null): array
     {
         $this->enums->reset();
+        $this->definedSchemas->reset();
 
         $audience = $audience === null || $audience === '' ? $this->audiences->defaultAudience() : $audience;
         $posture  = $this->audiences->postureFor($audience);
@@ -298,9 +309,12 @@ final readonly class OpenApiAssembler
             $guard->claim($reserved, $name, EnvelopeBuilder::class);
         }
 
+        $definedSchemas = $this->definedSchemaBuilder->build($this->definedSchemas->classes(), $reserved);
+
         $schemas = array_merge(
             $resourceSchemas,
             $envelopeSchemas,
+            $definedSchemas,
             $this->enumBuilder->build($this->enums->classes(), $reserved),
         );
 

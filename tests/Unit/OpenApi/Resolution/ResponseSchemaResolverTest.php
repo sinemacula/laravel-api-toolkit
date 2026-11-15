@@ -8,12 +8,18 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry;
+use Tests\Fixtures\Models\Organization;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\MfaChallengeShape;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PendingSignInShape;
 use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PlainJsonResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -28,6 +34,9 @@ use Tests\TestCase;
 #[CoversClass(ResponseSchemaResolver::class)]
 final class ResponseSchemaResolverTest extends TestCase
 {
+    /** The path prefix under which component schemas are referenced */
+    private const string PREFIX = '#/components/schemas/';
+
     /**
      * Test that a declared registered resource resolves to its envelope.
      *
@@ -38,7 +47,7 @@ final class ResponseSchemaResolverTest extends TestCase
         $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'single');
 
         self::assertSame(
-            (new EnvelopeBuilder)->singleEnvelope('#/components/schemas/User'),
+            (new EnvelopeBuilder)->singleEnvelope(self::PREFIX . 'User'),
             $schema,
         );
     }
@@ -53,22 +62,38 @@ final class ResponseSchemaResolverTest extends TestCase
         $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'list');
 
         self::assertSame(
-            (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
+            (new EnvelopeBuilder)->collectionEnvelope(self::PREFIX . 'User'),
             $schema,
         );
     }
 
     /**
-     * Test that a declared DTO inlines its schema under data.
+     * Test that a declared DTO references its component under data.
      *
      * @return void
      */
-    public function testSelfDescribingClassInlinesFragment(): void
+    public function testSelfDescribingClassResolvesToComponentReference(): void
     {
-        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'widget');
+        $registry = new DefinedSchemaRegistry;
+        $schema   = $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'widget');
 
         self::assertNotNull($schema);
-        self::assertSame(WidgetShape::schema(), $schema['properties']['data']);
+        self::assertSame(['$ref' => self::PREFIX . 'WidgetShape'], $schema['properties']['data']);
+        self::assertSame([WidgetShape::class], $registry->classes());
+    }
+
+    /**
+     * Test that a declared DTO collection references its component per item.
+     *
+     * @return void
+     */
+    public function testSelfDescribingCollectionReferencesComponentPerItem(): void
+    {
+        $registry = new DefinedSchemaRegistry;
+        $schema   = $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'widgets');
+
+        self::assertSame((new EnvelopeBuilder)->collectionEnvelope(self::PREFIX . 'WidgetShape'), $schema);
+        self::assertSame([WidgetShape::class], $registry->classes());
     }
 
     /**
@@ -78,7 +103,10 @@ final class ResponseSchemaResolverTest extends TestCase
      */
     public function testPlainClassResolvesToNull(): void
     {
-        self::assertNull($this->resolver()->resolve(PathResponseSchemaController::class, 'plain'));
+        $registry = new DefinedSchemaRegistry;
+
+        self::assertNull($this->resolver($registry)->resolve(PathResponseSchemaController::class, 'plain'));
+        self::assertSame([], $registry->classes());
     }
 
     /**
@@ -88,37 +116,40 @@ final class ResponseSchemaResolverTest extends TestCase
      */
     public function testUnregisteredResourceResolvesToNull(): void
     {
-        self::assertNull($this->resolver()->resolve(PathResponseSchemaController::class, 'unregistered'));
+        $registry = new DefinedSchemaRegistry;
+
+        self::assertNull($this->resolver($registry)->resolve(PathResponseSchemaController::class, 'unregistered'));
+        self::assertSame([], $registry->classes());
     }
 
     /**
-     * Test that two declared DTOs inline as a oneOf in declared order.
+     * Test that two declared DTOs resolve to a discriminated oneOf of their
+     * references in declared order.
      *
      * @return void
      */
-    public function testUnionOfFragmentsResolvesToOneOfInDeclaredOrder(): void
+    public function testUnionOfShapesResolvesToDiscriminatedOneOfInDeclaredOrder(): void
     {
-        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'union');
+        $registry = new DefinedSchemaRegistry;
+        $schema   = $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'union');
 
-        self::assertSame(
-            (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]]),
-            $schema,
-        );
+        self::assertSame((new EnvelopeBuilder)->singleEnvelopeFor($this->signInUnion()), $schema);
+        self::assertSame([SignedInShape::class, PendingSignInShape::class], $registry->classes());
     }
 
     /**
-     * Test that a resource and DTO union references the resource component.
+     * Test that a resource and DTO union references both components, with no
+     * discriminator.
      *
      * @return void
      */
-    public function testUnionOfResourceAndFragmentMixesReferenceAndInlineSchema(): void
+    public function testUnionOfResourceAndShapeReferencesBothComponents(): void
     {
-        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'mixed');
+        $registry = new DefinedSchemaRegistry;
+        $schema   = $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'mixed');
 
-        self::assertSame(
-            (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [['$ref' => '#/components/schemas/User'], SignedInShape::schema()]]),
-            $schema,
-        );
+        self::assertSame((new EnvelopeBuilder)->singleEnvelopeFor($this->union(['User', 'SignedInShape'])), $schema);
+        self::assertSame([SignedInShape::class], $registry->classes());
     }
 
     /**
@@ -130,10 +161,7 @@ final class ResponseSchemaResolverTest extends TestCase
     {
         $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'unionList');
 
-        self::assertSame(
-            (new EnvelopeBuilder)->collectionEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]]),
-            $schema,
-        );
+        self::assertSame((new EnvelopeBuilder)->collectionEnvelopeFor($this->signInUnion()), $schema);
     }
 
     /**
@@ -146,7 +174,7 @@ final class ResponseSchemaResolverTest extends TestCase
         $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'duplicated');
 
         self::assertSame(
-            (new EnvelopeBuilder)->singleEnvelope('#/components/schemas/User'),
+            (new EnvelopeBuilder)->singleEnvelope(self::PREFIX . 'User'),
             $schema,
         );
     }
@@ -158,12 +186,11 @@ final class ResponseSchemaResolverTest extends TestCase
      */
     public function testRepeatedMemberKeepsItsFirstPosition(): void
     {
-        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'repeated');
+        $registry = new DefinedSchemaRegistry;
+        $schema   = $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'repeated');
 
-        self::assertSame(
-            (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]]),
-            $schema,
-        );
+        self::assertSame((new EnvelopeBuilder)->singleEnvelopeFor($this->signInUnion()), $schema);
+        self::assertSame([SignedInShape::class, PendingSignInShape::class], $registry->classes());
     }
 
     /**
@@ -173,27 +200,110 @@ final class ResponseSchemaResolverTest extends TestCase
      */
     public function testRepeatedMemberStillDocumentsTheMembersAfterIt(): void
     {
-        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'repeatedBeforeAnother');
+        $registry = new DefinedSchemaRegistry;
+        $schema   = $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'repeatedBeforeAnother');
 
-        self::assertSame(
-            (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]]),
-            $schema,
-        );
+        self::assertSame((new EnvelopeBuilder)->singleEnvelopeFor($this->signInUnion()), $schema);
+        self::assertSame([SignedInShape::class, PendingSignInShape::class], $registry->classes());
     }
 
     /**
-     * Test that classes resolving to one fragment collapse to the bare node.
+     * Test that classes resolving to one fragment collapse to the first class's
+     * reference.
      *
      * @return void
      */
     public function testDistinctClassesWithEqualFragmentsCollapseToBareNode(): void
     {
-        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'equivalent');
+        $registry = new DefinedSchemaRegistry;
+        $schema   = $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'equivalent');
+
+        self::assertSame((new EnvelopeBuilder)->singleEnvelope(self::PREFIX . 'SignedInShape'), $schema);
+        self::assertSame([SignedInShape::class], $registry->classes());
+    }
+
+    /**
+     * Test that a #[SchemaName] override names the member's reference and
+     * mapping.
+     *
+     * @return void
+     */
+    public function testSchemaNameOverrideNamesTheMemberReference(): void
+    {
+        $registry = new DefinedSchemaRegistry;
+        $schema   = $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'named');
 
         self::assertSame(
-            (new EnvelopeBuilder)->singleEnvelopeFor(SignedInShape::schema()),
+            (new EnvelopeBuilder)->singleEnvelopeFor($this->union(['SignedInShape', 'MfaChallenge'], 'status', [
+                'signed_in'    => 'SignedInShape',
+                'mfa_required' => 'MfaChallenge',
+            ])),
             $schema,
         );
+        self::assertSame([SignedInShape::class, MfaChallengeShape::class], $registry->classes());
+    }
+
+    /**
+     * Test that members pinning one value leave the union undiscriminated.
+     *
+     * @return void
+     */
+    public function testMembersSharingTheirConstantAreNotDiscriminated(): void
+    {
+        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'clashing');
+
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelopeFor($this->union(['SignedInShape', 'TokenRefreshedShape'])),
+            $schema,
+        );
+    }
+
+    /**
+     * Test that a first member pinning nothing leaves the union
+     * undiscriminated.
+     *
+     * @return void
+     */
+    public function testUnpinnedFirstMemberIsNotDiscriminated(): void
+    {
+        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'unpinned');
+
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelopeFor($this->union(['WidgetShape', 'SignedInShape'])),
+            $schema,
+        );
+    }
+
+    /**
+     * Test that a union of API resources is discriminated on their type.
+     *
+     * @return void
+     */
+    public function testResourceUnionIsDiscriminatedOnTheResourceType(): void
+    {
+        $registry = new DefinedSchemaRegistry;
+        $schema   = $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'resources');
+
+        self::assertSame(
+            (new EnvelopeBuilder)->singleEnvelopeFor($this->union(['User', 'Organization'], '_type', [
+                'users'         => 'User',
+                'organizations' => 'Organization',
+            ])),
+            $schema,
+        );
+        self::assertSame([], $registry->classes());
+    }
+
+    /**
+     * Test that a registered resource declaring no type is not discriminated.
+     *
+     * @return void
+     */
+    public function testResourceDeclaringNoTypeIsNotDiscriminated(): void
+    {
+        $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'plainResource');
+
+        self::assertSame((new EnvelopeBuilder)->singleEnvelopeFor($this->union(['User', 'PlainJson'])), $schema);
     }
 
     /**
@@ -203,7 +313,10 @@ final class ResponseSchemaResolverTest extends TestCase
      */
     public function testUnionHoldingPlainClassResolvesToNull(): void
     {
-        self::assertNull($this->resolver()->resolve(PathResponseSchemaController::class, 'partlyPlain'));
+        $registry = new DefinedSchemaRegistry;
+
+        self::assertNull($this->resolver($registry)->resolve(PathResponseSchemaController::class, 'partlyPlain'));
+        self::assertSame([], $registry->classes());
     }
 
     /**
@@ -213,7 +326,10 @@ final class ResponseSchemaResolverTest extends TestCase
      */
     public function testUnionHoldingUnregisteredResourceResolvesToNull(): void
     {
-        self::assertNull($this->resolver()->resolve(PathResponseSchemaController::class, 'partlyUnregistered'));
+        $registry = new DefinedSchemaRegistry;
+
+        self::assertNull($this->resolver($registry)->resolve(PathResponseSchemaController::class, 'partlyUnregistered'));
+        self::assertSame([], $registry->classes());
     }
 
     /**
@@ -290,15 +406,57 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
-     * Build a resolver whose catalogue maps the user model to its resource.
+     * Build the discriminated union of the signed-in and pending shapes.
      *
+     * @return array<string, mixed>
+     */
+    private function signInUnion(): array
+    {
+        return $this->union(['SignedInShape', 'PendingSignInShape'], 'status', [
+            'signed_in' => 'SignedInShape',
+            'pending'   => 'PendingSignInShape',
+        ]);
+    }
+
+    /**
+     * Build the expected `oneOf` of the named components, discriminated when a
+     * property is given.
+     *
+     * @param  list<string>  $names
+     * @param  string|null  $property
+     * @param  array<string, string>  $mapping
+     * @return array<string, mixed>
+     */
+    private function union(array $names, ?string $property = null, array $mapping = []): array
+    {
+        $union = ['oneOf' => array_map(static fn (string $name): array => ['$ref' => self::PREFIX . $name], $names)];
+
+        if ($property !== null) {
+            $union['discriminator'] = [
+                'propertyName' => $property,
+                'mapping'      => array_map(static fn (string $name): string => self::PREFIX . $name, $mapping),
+            ];
+        }
+
+        return $union;
+    }
+
+    /**
+     * Build a resolver whose catalogue maps the user, organization and tag
+     * models to their resources.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry  $registry
      * @return \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver
      */
-    private function resolver(): ResponseSchemaResolver
+    private function resolver(DefinedSchemaRegistry $registry = new DefinedSchemaRegistry): ResponseSchemaResolver
     {
         $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getResourceMap')->willReturn([User::class => UserResource::class]);
+        $catalogue->method('getResourceMap')->willReturn([
+            User::class         => UserResource::class,
+            Organization::class => OrganizationResource::class,
+            Tag::class          => PlainJsonResource::class,
+        ]);
 
-        return new ResponseSchemaResolver($catalogue, new EnvelopeBuilder);
+        return new ResponseSchemaResolver($catalogue, new EnvelopeBuilder, $registry);
     }
 }
