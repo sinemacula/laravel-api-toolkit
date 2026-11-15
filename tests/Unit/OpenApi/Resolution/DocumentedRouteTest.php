@@ -50,6 +50,20 @@ final class DocumentedRouteTest extends TestCase
     }
 
     /**
+     * Test that a route served on a domain is labelled with its domain.
+     *
+     * @return void
+     */
+    public function testLabelsADomainRouteWithItsDomain(): void
+    {
+        $route = self::documentedRoute('/users');
+
+        $route->route->domain('https://api.example.com');
+
+        self::assertSame(sprintf('GET api.example.com/users (%s::report)', PathPlainController::class), $route->label('get'));
+    }
+
+    /**
      * Test that the primary id is the first verb's, and null while ids are off.
      *
      * @return void

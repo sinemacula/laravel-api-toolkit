@@ -46,26 +46,42 @@ final readonly class DocsDirectory
     }
 
     /**
-     * List the Markdown files directly within the directory, in filename order.
+     * List the Markdown files directly within the directory, in filename order,
+     * ignoring hidden ones.
      *
      * @param  string  $directory
      * @return list<string>
      */
     public function markdownIn(string $directory): array
     {
-        return glob(rtrim($directory, '/') . '/*.md') ?: [];
+        $directory = rtrim($directory, '/');
+        $files     = [];
+
+        foreach ($this->entries($directory) as $entry) {
+
+            $file = $directory . '/' . $entry;
+
+            if (!str_ends_with($entry, '.md') || !is_file($file)) {
+                continue;
+            }
+
+            $files[] = $file;
+        }
+
+        return $files;
     }
 
     /**
-     * List the names of the audience directories, in name order.
+     * List the names of the audience directories, in name order, ignoring
+     * hidden ones.
      *
      * @return list<string>
      */
     public function audienceDirectories(): array
     {
-        $directories = glob($this->audiencesRoot() . '/*', GLOB_ONLYDIR) ?: [];
+        $root = $this->audiencesRoot();
 
-        return array_map(basename(...), $directories);
+        return array_values(array_filter($this->entries($root), static fn (string $entry): bool => is_dir($root . '/' . $entry)));
     }
 
     /**
@@ -84,6 +100,23 @@ final readonly class DocsDirectory
         }
 
         return trim((string) $contents);
+    }
+
+    /**
+     * List the names of the visible entries of the directory, in name order.
+     *
+     * @param  string  $directory
+     * @return array<int, string>
+     */
+    private function entries(string $directory): array
+    {
+        try {
+            $entries = is_dir($directory) ? scandir($directory) : [];
+        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
+            $entries = false; // @codeCoverageIgnore
+        }
+
+        return array_filter($entries ?: [], static fn (string $entry): bool => !str_starts_with($entry, '.'));
     }
 
     /**

@@ -210,13 +210,19 @@ final class KeyedDocFilesTest extends TestCase
     }
 
     /**
-     * Test that only the files directly within a kind's directory count.
+     * Test that only the visible files directly within a kind's directory
+     * count.
      *
      * @return void
      */
     public function testOnlyTopLevelFilesCount(): void
     {
-        $this->useDocsDirectory(['tags/nested/User.md' => 'Nested.', 'tags/User.txt' => 'Text.']);
+        $this->useDocsDirectory([
+            'tags/nested/User.md'              => 'Nested.',
+            'tags/User.txt'                    => 'Text.',
+            'tags/._User.md'                   => 'Resource fork.',
+            'audiences/.retired/tags/Staff.md' => 'Retired.',
+        ]);
 
         self::assertSame([], (new KeyedDocFiles)->resolve(DocKind::TAG, ['public' => ['User']], 'public'));
     }

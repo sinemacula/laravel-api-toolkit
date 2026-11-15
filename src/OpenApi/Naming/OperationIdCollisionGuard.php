@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Naming;
 
 use SineMacula\ApiToolkit\OpenApi\Exceptions\OperationIdCollisionException;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute;
 
 /**
  * Guards the exported operations against two of them sharing an operationId.
@@ -24,7 +25,8 @@ final readonly class OperationIdCollisionGuard
     /**
      * Assert that no two operations claim one id.
      *
-     * One route exported to several audiences claims each of its ids once.
+     * A controller action under one verb and path is one operation, however
+     * many routes and audiences export it; a closure route is its own.
      *
      * @param  array<string, array<string, array<string, \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute>>>  $operations
      * @return void
@@ -43,14 +45,28 @@ final readonly class OperationIdCollisionGuard
                 continue;
             }
 
-            $existing = $claims[$id] ?? null;
+            $claims[$id][$this->operationOf($verb, $route)] ??= $route->label($verb);
 
-            if ($existing !== null && $existing['route'] !== $route->route) {
-                throw new OperationIdCollisionException(sprintf(self::COLLISION_MESSAGE, $id, $existing['label'], $route->label($verb)));
+            if (count($claims[$id]) > 1) {
+                throw new OperationIdCollisionException(sprintf(self::COLLISION_MESSAGE, $id, ...array_values($claims[$id])));
             }
-
-            $claims[$id] = ['route' => $route->route, 'label' => $route->label($verb)];
         }
+    }
+
+    /**
+     * Identify the operation the route exports under the verb.
+     *
+     * @param  string  $verb
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
+     * @return string
+     */
+    private function operationOf(string $verb, DocumentedRoute $route): string
+    {
+        $handler = $route->controllerClass === null
+            ? [spl_object_id($route->route)]
+            : [$route->controllerClass, $route->action];
+
+        return implode(' ', [$verb, $route->path, ...$handler]);
     }
 
     /**

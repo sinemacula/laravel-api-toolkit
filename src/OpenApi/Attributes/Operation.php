@@ -28,7 +28,7 @@ final readonly class Operation
         /** The operationId replacing the derived one. */
         public ?string $id = null,
 
-        /** The one-line title of the operation. */
+        /** The title of the operation. */
         public ?string $summary = null,
     ) {
         if ($id === null && $summary === null) {

@@ -699,8 +699,8 @@ of:
 
 A route with several methods keeps the id on its first method and appends each later method to it, in the order the
 route declares them: a `PUT|PATCH` route named `users.update` exports `users.update` and `users.update.patch`, so
-reordering a `match()` changes its ids. Ids must be unique across every audience; two operations claiming one id fail
-the export, naming both.
+reordering a `match()` changes its ids. An id taken from the method and path already starts with its method, and is not
+suffixed. Ids must be unique across every audience; two operations claiming one id fail the export, naming both.
 
 `#[Operation]` declares an action's `id`, its `summary`, or both. The summary is exported whether or not ids are on:
 
@@ -712,20 +712,21 @@ public function update(UpdateUserRequest $request): JsonResponse {}
 ```
 
 An operation's description is read from `<docs_path>/operations/<id>.md`, and `audiences/<name>/operations/<id>.md`
-replaces it for that audience; an empty file blanks it. A later method without its own file takes the first method's,
-so `users.update.md` describes both methods unless `users.update.patch.md` exists. Filenames are matched byte for
-byte, so ids differing only in case cannot share a case-insensitive filesystem. Every export checks the files of every
-audience, and fails on an operation file while ids are off, on one matching no exported operation, and on one under the
-directory of an audience that is not configured.
+replaces it for that audience; an empty file blanks it. A later method without its own file takes the first method's, so
+`users.update.md` describes both methods unless `users.update.patch.md` exists. Filenames are matched byte for byte, so
+ids differing only in case cannot share a case-insensitive filesystem. Files and directories whose names start with `.`
+are ignored. Every export checks the files of every audience, and fails on an operation file while ids are off, on one
+matching no exported operation, and on one under the directory of an audience that is not configured.
 
 #### Tags
 
-An operation's tag is the action's `#[Tag]`, else its controller's, else the resource's schema name, else the
-controller basename without `Controller`, else the first URI segment that is not a parameter.
+An operation's tag is the action's `#[Tag]`, else its controller's, else the resource's schema name. Failing those, a
+controller route takes the controller basename without `Controller`, and a closure the first URI segment that is not a
+parameter, else `default`.
 
-The document carries a top-level `tags` list once `api-toolkit.openapi.tags` names a tag or a `tags/` directory holds a
-file. It lists the tags the audience's operations use: those named in `api-toolkit.openapi.tags` first, in that order,
-then the rest in natural, case-insensitive order:
+The document carries a top-level `tags` list once `api-toolkit.openapi.tags` names a tag or a `tags/` directory, shared
+or an audience's, holds a file. It lists the tags the audience's operations use: those named in
+`api-toolkit.openapi.tags` first, in that order, then the rest in natural, case-insensitive order:
 
 ```php
 'tags' => ['User', 'Article'],

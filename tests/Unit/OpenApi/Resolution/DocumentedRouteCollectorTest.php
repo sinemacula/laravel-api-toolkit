@@ -359,6 +359,28 @@ final class DocumentedRouteCollectorTest extends TestCase
     }
 
     /**
+     * Test that an unnamed controller served on two domains, each in its own
+     * audience, does not collide with itself.
+     *
+     * @return void
+     */
+    public function testUnnamedControllerOnTwoDomainsInSeparateAudiencesDoesNotCollide(): void
+    {
+        $this->config()->set('api-toolkit.openapi.operation_ids', true);
+
+        foreach (['a.example.com' => ['public', 'internal'], 'b.example.com' => ['internal', 'public']] as $domain => [$in, $out]) {
+            $this->router()->group(['domain' => $domain], static function (Router $router) use ($in, $out): void {
+                $router->get('users', [PathPlainController::class, 'index'])->documentedIn($in)->notDocumentedIn($out); // @phpstan-ignore method.notFound
+            });
+        }
+
+        $routes = $this->collect(['public', 'internal']);
+
+        self::assertSame('a.example.com', $routes->operations('public')['/users']['get']->route->getDomain());
+        self::assertSame('b.example.com', $routes->operations('internal')['/users']['get']->route->getDomain());
+    }
+
+    /**
      * Test that routes in different audiences claiming one id fail the
      * collection.
      *

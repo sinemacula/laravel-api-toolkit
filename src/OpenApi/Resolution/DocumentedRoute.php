@@ -69,7 +69,8 @@ final readonly class DocumentedRoute
     }
 
     /**
-     * Describe the operation under the verb for a failure message.
+     * Describe the operation under the verb for a failure message, prefixing
+     * the path with the route's domain, if any.
      *
      * @param  string  $verb
      * @return string
@@ -80,6 +81,6 @@ final readonly class DocumentedRoute
             ? $this->route->getActionName()
             : $this->controllerClass . '::' . $this->action;
 
-        return sprintf('%s %s (%s)', strtoupper($verb), $this->path, $handler);
+        return sprintf('%s %s%s (%s)', strtoupper($verb), $this->route->getDomain(), $this->path, $handler);
     }
 }

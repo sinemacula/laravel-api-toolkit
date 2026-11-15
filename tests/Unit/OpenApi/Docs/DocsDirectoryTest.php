@@ -56,8 +56,8 @@ final class DocsDirectoryTest extends TestCase
     }
 
     /**
-     * Test that only the Markdown files directly within are listed, in filename
-     * order.
+     * Test that only the visible Markdown files directly within are listed, in
+     * filename order.
      *
      * @return void
      */
@@ -67,18 +67,37 @@ final class DocsDirectoryTest extends TestCase
             'b.md'        => 'B.',
             'a.md'        => 'A.',
             'c.txt'       => 'C.',
-            'nested/d.md' => 'D.',
+            'd.md'        => 'D.',
+            '.hidden.md'  => 'Hidden.',
+            'folder.md/'  => '',
+            'nested/e.md' => 'E.',
         ]);
 
         $directory = new DocsDirectory;
 
-        self::assertSame([$dir . '/a.md', $dir . '/b.md'], $directory->markdownIn($dir));
-        self::assertSame([$dir . '/a.md', $dir . '/b.md'], $directory->markdownIn($dir . '/'));
+        self::assertSame([$dir . '/a.md', $dir . '/b.md', $dir . '/d.md'], $directory->markdownIn($dir));
+        self::assertSame([$dir . '/a.md', $dir . '/b.md', $dir . '/d.md'], $directory->markdownIn($dir . '/'));
         self::assertSame([], $directory->markdownIn($dir . '/absent'));
     }
 
     /**
-     * Test that the audience directories are listed by name, ignoring files.
+     * Test that a directory is listed literally, never read as a pattern.
+     *
+     * @return void
+     */
+    public function testListsADirectoryLiterally(): void
+    {
+        $dir = $this->writeDocsDirectory(['docs/a.md' => 'A.', 'do[c]s/b.md' => 'B.']);
+
+        $directory = new DocsDirectory;
+
+        self::assertSame([$dir . '/do[c]s/b.md'], $directory->markdownIn($dir . '/do[c]s'));
+        self::assertSame([], $directory->markdownIn($dir . '/doc*'));
+    }
+
+    /**
+     * Test that the audience directories are listed by name, ignoring files and
+     * hidden directories.
      *
      * @return void
      */
@@ -93,6 +112,7 @@ final class DocsDirectoryTest extends TestCase
         $this->config()->set('api-toolkit.openapi.docs_path', $this->writeDocsDirectory([
             'audiences/public/'   => '',
             'audiences/internal/' => '',
+            'audiences/.retired/' => '',
             'audiences/stray.md'  => 'Stray.',
         ]));
 

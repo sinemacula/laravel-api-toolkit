@@ -134,15 +134,16 @@ return [
         // An audience's own `servers` list replaces this one
         'servers' => [],
 
-        // Export an operationId on every operation: the route name, else the
-        // controller and action, else the method and path. Ids must be unique
-        // across every audience; <docs_path>/operations/<id>.md becomes the
-        // operation's description
+        // Export an operationId on every operation: the action's #[Operation]
+        // id, else the route name, else the controller and action, else the
+        // method and path. Ids must be unique across every audience;
+        // <docs_path>/operations/<id>.md becomes the operation's description
         'operation_ids' => false,
 
-        // The order of the top-level tags list; tags not named follow
-        // alphabetically. Each must be a tag some audience uses. The list is
-        // exported once this is set or <docs_path>/tags/ holds a file
+        // The order of the top-level tags list; tags not named follow in
+        // natural, case-insensitive order. Each must be a tag some audience
+        // uses. The list is exported once this is set or a tags/ directory
+        // under <docs_path> holds a file
         'tags' => [],
 
         // The documents the exporter can produce, keyed by audience name. A
