@@ -5,9 +5,12 @@ declare(strict_types = 1);
 namespace Tests\Unit\Services\Input;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Lang;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\DataProviderExternal;
 use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Input\Payload;
 use Tests\Fixtures\Enums\Magnitude;
@@ -21,6 +24,7 @@ use Tests\Fixtures\Services\Input\PlatformInput;
 use Tests\Fixtures\Services\Input\SensitiveBaseInput;
 use Tests\Fixtures\Services\Input\SensitiveInput;
 use Tests\TestCase;
+use Tests\Unit\Services\Input\Rules\EnumTest;
 
 /**
  * Tests for the Payload abstract base.
@@ -257,55 +261,16 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Provide the canonical forms of an int-backed enum value.
-     *
-     * @return iterable<string, array{mixed, \Tests\Fixtures\Enums\Magnitude}>
-     */
-    public static function canonicalIntBackingProvider(): iterable
-    {
-        yield 'integer' => [1, Magnitude::ONE];
-        yield 'zero' => [0, Magnitude::ZERO];
-        yield 'integer string' => ['1', Magnitude::ONE];
-        yield 'zero string' => ['0', Magnitude::ZERO];
-        yield 'negative integer string' => ['-3', Magnitude::NEGATIVE];
-    }
-
-    /**
      * Test that an int-backed enum hydrates from an integer or decimal string.
      *
      * @param  mixed  $value
      * @param  \Tests\Fixtures\Enums\Magnitude  $expected
      * @return void
      */
-    #[DataProvider('canonicalIntBackingProvider')]
+    #[DataProviderExternal(EnumTest::class, 'canonicalIntBackingProvider')]
     public function testFromHydratesIntBackedEnumFromCanonicalForm(mixed $value, Magnitude $expected): void
     {
         self::assertSame($expected, BackedEnumInput::from(['magnitude' => $value])->magnitude);
-    }
-
-    /**
-     * Provide values that are not the canonical form of an int-backed enum.
-     *
-     * @return iterable<string, array{mixed}>
-     */
-    public static function nonCanonicalIntBackingProvider(): iterable
-    {
-        yield 'zero-padded string' => ['01'];
-        yield 'leading whitespace' => [' 1'];
-        yield 'trailing whitespace' => ['1 '];
-        yield 'integral decimal string' => ['1.0'];
-        yield 'fractional decimal string' => ['1.9'];
-        yield 'exponent string' => ['1e0'];
-        yield 'explicit plus sign' => ['+1'];
-        yield 'negative zero string' => ['-0'];
-        yield 'empty string' => [''];
-        yield 'word' => ['one'];
-        yield 'integer string above the range' => ['9223372036854775808'];
-        yield 'true' => [true];
-        yield 'false' => [false];
-        yield 'integral float' => [1.0];
-        yield 'fractional float' => [1.5];
-        yield 'unknown integer' => [2];
     }
 
     /**
@@ -316,7 +281,7 @@ final class PayloadTest extends TestCase
      * @param  mixed  $value
      * @return void
      */
-    #[DataProvider('nonCanonicalIntBackingProvider')]
+    #[DataProviderExternal(EnumTest::class, 'nonCanonicalIntBackingProvider')]
     public function testFromRefusesNonCanonicalIntBackedEnumValue(mixed $value): void
     {
         try {
@@ -346,6 +311,193 @@ final class PayloadTest extends TestCase
                 self::assertSame(['status' => ['The selected status is invalid.']], $exception->errors());
             }
         }
+    }
+
+    /**
+     * Test that an enum failure is reported with the other failed fields.
+     *
+     * @return void
+     */
+    public function testEnumFailureIsReportedWithTheOtherFailedFields(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with a required name and an enum.
+             *
+             * @param  string  $name
+             * @param  \Tests\Fixtures\Enums\Magnitude|null  $magnitude
+             */
+            public function __construct(
+
+                /** A required name. */
+                public readonly string $name = '',
+
+                /** An int-backed enum checked by Laravel's enum rule. */
+                public readonly ?Magnitude $magnitude = null,
+            ) {}
+
+            /**
+             * Require the name and validate the magnitude with the enum rule.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['name' => ['required', 'string'], 'magnitude' => [Rule::enum(Magnitude::class)]];
+            }
+        };
+
+        try {
+            $definition::from(['magnitude' => '01']);
+
+            self::fail('Expected a ValidationException for every failed field.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['name' => ['The name field is required.'], 'magnitude' => ['The selected magnitude is invalid.']],
+                $exception->errors(),
+            );
+        }
+
+        try {
+            BackedEnumInput::from(['magnitude' => '01', 'status' => 'archived']);
+
+            self::fail('Expected a ValidationException for both enum fields.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['magnitude' => ['The selected magnitude is invalid.'], 'status' => ['The selected status is invalid.']],
+                $exception->errors(),
+            );
+        }
+    }
+
+    /**
+     * Test that a declared enum rule and the cast report one message.
+     *
+     * @return void
+     */
+    public function testDeclaredEnumRuleAndTheCastReportOneMessage(): void
+    {
+        try {
+            SampleInput::from(['city' => 'Paris', 'status' => 'archived']);
+
+            self::fail('Expected a ValidationException for the unknown status.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['status' => ['The selected status is invalid.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that an enum failure follows the attribute names and the locale.
+     *
+     * @return void
+     */
+    public function testEnumFailureFollowsTheAttributeNamesAndTheLocale(): void
+    {
+        Lang::addLines(['validation.enum' => 'Der Wert für :attribute ist ungültig.', 'validation.attributes.magnitude' => 'Größe'], 'de');
+        App::setLocale('de');
+
+        try {
+            BackedEnumInput::from(['magnitude' => '01']);
+
+            self::fail('Expected a ValidationException for the non-canonical magnitude.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['magnitude' => ['Der Wert für Größe ist ungültig.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that an enum parameter without a rule key is never hydrated.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function testEnumParameterWithoutARuleKeyIsNeverHydrated(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with an enum property no rule names.
+             *
+             * @param  \Tests\Fixtures\Enums\Magnitude  $magnitude
+             */
+            public function __construct(
+
+                /** An enum property absent from the rules. */
+                public readonly Magnitude $magnitude = Magnitude::ZERO,
+            ) {}
+
+            /**
+             * Validate an unrelated field only.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['name' => ['sometimes', 'string']];
+            }
+        };
+
+        self::assertSame(Magnitude::ZERO, $definition::from(['magnitude' => '01'])->magnitude);
+    }
+
+    /**
+     * Test that a mapped body key carries the enum rule.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function testMappedBodyKeyCarriesTheEnumRule(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with a camelCase enum property.
+             *
+             * @param  \Tests\Fixtures\Enums\Magnitude|null  $clientMagnitude
+             */
+            public function __construct(
+
+                /** The magnitude read from the client_magnitude body key. */
+                public readonly ?Magnitude $clientMagnitude = null,
+            ) {}
+
+            /**
+             * Accept the snake_case body key.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['client_magnitude' => ['sometimes']];
+            }
+        };
+
+        self::assertSame(Magnitude::NEGATIVE, $definition::from(['client_magnitude' => '-3'])->clientMagnitude);
+
+        try {
+            $definition::from(['client_magnitude' => '01']);
+
+            self::fail('Expected a ValidationException for the non-canonical magnitude.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['client_magnitude' => ['The selected client magnitude is invalid.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that a payload without a constructor hydrates to an empty instance.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function testPayloadWithoutAConstructorHydratesToAnEmptyInstance(): void
+    {
+        $definition = new class extends Payload {};
+
+        self::assertSame([], $definition::from(['status' => 'active'])->toArray());
     }
 
     /**

@@ -51,6 +51,9 @@ operator is rejected later, in the controller. An application that sets the loca
 from the authenticated user, sets `api-toolkit.parser.register_middleware` to `false` and adds `ParseApiQuery` to its
 routes after its locale middleware.
 
+A Payload enum value is checked with the other rules and fails with Laravel's `validation.enum` line, so it honours
+`validation.attributes` and the locale like any other field.
+
 ## Usage
 
 ### API Query Parser
