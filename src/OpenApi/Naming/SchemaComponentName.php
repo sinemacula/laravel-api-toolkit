@@ -7,7 +7,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Naming;
 use SineMacula\ApiToolkit\OpenApi\Attributes\SchemaName;
 
 /**
- * Derives the OpenAPI component schema name for a resource or enum class.
+ * Derives the OpenAPI component schema name for a resource, enum or
+ * DefinesSchema class.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -26,14 +27,15 @@ final readonly class SchemaComponentName
     }
 
     /**
-     * Derive the PascalCase component schema name from an enum class.
+     * Derive the component schema name from an enum or DefinesSchema class, its
+     * verbatim short name unless overridden.
      *
-     * @param  class-string  $enumClass
+     * @param  class-string  $class
      * @return string
      */
-    public static function fromEnum(string $enumClass): string
+    public static function fromClass(string $class): string
     {
-        return self::override($enumClass) ?? self::basename($enumClass);
+        return self::override($class) ?? self::basename($class);
     }
 
     /**

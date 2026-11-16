@@ -14,13 +14,13 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry;
 use Tests\Fixtures\OpenApi\PathHeaderCollisionController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathResponseStatusController;
 use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
-use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\UserResource;
 
 /**
@@ -40,6 +40,9 @@ final class SuccessResponseBuilderTest extends TestCase
     /** The total-count header the exporter emits on a collection */
     private const array TOTAL_COUNT_HEADER = ['Total-Count' => ['$ref' => '#/components/headers/Total-Count']];
 
+    /** The reference to the widget shape's component */
+    private const string WIDGET_REF = '#/components/schemas/WidgetShape';
+
     /** A body standing in for the one the exporter derives */
     private const array CONTENT = ['application/json' => ['schema' => ['type' => 'object']]];
 
@@ -51,7 +54,7 @@ final class SuccessResponseBuilderTest extends TestCase
     public function testBodyIsTheDeclaredSchema(): void
     {
         self::assertSame(
-            ['content' => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelopeFor(WidgetShape::schema())]]],
+            ['content' => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelope(self::WIDGET_REF)]]],
             $this->builder()->body(PathResponseStatusController::class, 'queue'),
         );
     }
@@ -151,7 +154,7 @@ final class SuccessResponseBuilderTest extends TestCase
             [200 => [
                 'description' => 'OK.',
                 'headers'     => self::REQUEST_ID_HEADER,
-                'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelopeFor(WidgetShape::schema())]],
+                'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelope(self::WIDGET_REF)]],
             ]],
             $this->builder()->declare(['204' => ['description' => 'Deleted.']], PathResponseStatusController::class, 'destroy'),
         );
@@ -197,7 +200,7 @@ final class SuccessResponseBuilderTest extends TestCase
 
         return new SuccessResponseBuilder(
             new EnvelopeBuilder,
-            new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
+            new ResponseSchemaResolver($catalogue, new EnvelopeBuilder, new DefinedSchemaRegistry),
             new ResponseHeaderResolver,
             new ResponseStatusResolver,
         );
