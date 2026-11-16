@@ -11,7 +11,6 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
-use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Enums\UserStatus;
@@ -74,30 +73,32 @@ final class ApiRepositoryIntegrationTest extends TestCase
     }
 
     /**
-     * Test that persist saves model changes to the database.
-     *
-     * @SuppressWarnings("php:S3011")
+     * Test that persist writes uncast columns on an existing model.
      *
      * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
-    public function testPersistSavesModelChanges(): void
+    public function testPersistWritesUncastColumnsOnUpdate(): void
     {
         /** @var \Tests\Fixtures\Models\User $user */
         $user = User::where('name', 'Alice')->first();
 
-        $reflection      = new \ReflectionClass(ApiRepository::class);
-        $attributeSetter = $reflection->getProperty('attributeSetter')->getValue($this->repository);
+        self::assertTrue($this->repository->persist($user, ['name' => 'Alice Updated', 'email' => 'alice.updated@example.com']));
 
-        self::assertInstanceOf(AttributeSetter::class, $attributeSetter);
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Alice Updated', 'email' => 'alice.updated@example.com']);
+    }
 
-        (new \ReflectionProperty($attributeSetter, 'casts'))->setValue($attributeSetter, ['name' => 'string']);
+    /**
+     * Test that persist writes uncast columns when creating a model.
+     *
+     * @return void
+     */
+    public function testPersistWritesUncastColumnsOnCreate(): void
+    {
+        $user = new User;
 
-        $result = $this->repository->persist($user, ['name' => 'Alice Updated']);
+        self::assertTrue($this->repository->persist($user, ['name' => 'Carol', 'email' => 'carol@example.com']));
 
-        self::assertTrue($result);
-        $this->assertDatabaseHas('users', ['name' => 'Alice Updated']);
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Carol', 'email' => 'carol@example.com']);
     }
 
     /**

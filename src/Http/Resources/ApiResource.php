@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\GatesTrashedVisibility;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
@@ -101,6 +102,8 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
             $this->fixed,
         );
 
+        $truncated = [];
+
         foreach ($fields as $field) {
 
             $definition = $schema->getField($field);
@@ -116,9 +119,19 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
             }
 
             $data[$field] = $value;
+
+            if (!$this->valueResolver->wasTruncated()) {
+                continue;
+            }
+
+            $truncated[] = $field;
         }
 
-        $this->appendMetricPayloads($data, $schema, $request);
+        if ($truncated !== []) {
+            $data[RelationLimit::TRUNCATED_KEY] = $truncated;
+        }
+
+        $this->appendAggregatesPayload($data, $schema, $request);
 
         return $this->orderResolvedFields($data);
     }
@@ -136,39 +149,15 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     }
 
     /**
-     * Build a withCount-ready array for this resource.
+     * Build a withAggregate-ready entry list for this resource.
      *
-     * @param  array<int, string>|null  $requestedAliases
-     * @return array<int|string, mixed>
-     */
-    #[\Override]
-    public static function eagerLoadCountsFor(?array $requestedAliases = null): array
-    {
-        return EagerLoadPlanner::buildCountMap(static::class, $requestedAliases);
-    }
-
-    /**
-     * Build a withSum-ready entry list for this resource.
-     *
-     * @param  array<string, mixed>|null  $requestedSums
+     * @param  array<int, string>|null  $requested
      * @return list<AggregateLoad>
      */
     #[\Override]
-    public static function eagerLoadSumsFor(?array $requestedSums = null): array
+    public static function eagerLoadAggregatesFor(?array $requested = null): array
     {
-        return EagerLoadPlanner::buildSumMap(static::class, $requestedSums);
-    }
-
-    /**
-     * Build a withAvg-ready entry list for this resource.
-     *
-     * @param  array<string, mixed>|null  $requestedAverages
-     * @return list<AggregateLoad>
-     */
-    #[\Override]
-    public static function eagerLoadAveragesFor(?array $requestedAverages = null): array
-    {
-        return EagerLoadPlanner::buildAvgMap(static::class, $requestedAverages);
+        return EagerLoadPlanner::buildAggregateMap(static::class, $requested);
     }
 
     /**
@@ -297,7 +286,7 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     }
 
     /**
-     * Load missing relations and counts on the underlying resource.
+     * Load missing relations and aggregates on the underlying resource.
      *
      * @param  object  $resource
      * @return void
@@ -317,113 +306,64 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
             }
         }
 
-        $requestedCounts = ApiQuery::getCounts(static::getResourceType()) ?? [];
-
-        if (method_exists($resource, 'loadCount') && $this->fieldResolver->shouldIncludeCountsField(static::getResourceType(), static::getDefaultFields())) {
-            $withCounts = $this->rejectLoadedAggregates(
-                $resource,
-                EagerLoadPlanner::buildCountMap(static::class, $requestedCounts),
-            );
-
-            if ($withCounts !== []) {
-                $resource->loadCount($withCounts);
-            }
-        }
-
         $this->loadMissingAggregates($resource);
     }
 
     /**
-     * Append counts, sums, and averages payloads to the resolved data array.
+     * Append the aggregates payload to the resolved data array.
      *
      * @param  array<string, mixed>  $data
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @param  \Illuminate\Http\Request|null  $request
      * @return void
      */
-    private function appendMetricPayloads(array &$data, CompiledSchema $schema, ?Request $request): void
+    private function appendAggregatesPayload(array &$data, CompiledSchema $schema, ?Request $request): void
     {
-        if ($this->fieldResolver->shouldIncludeCountsField(static::getResourceType(), static::getDefaultFields())) {
-            $counts = $this->valueResolver->resolveCountsPayload($this, $schema, static::getResourceType(), $request);
-
-            if ($counts !== []) {
-                $data['counts'] = $counts;
-            }
-        }
-
-        if ($this->fieldResolver->shouldIncludeSumsField(static::getResourceType(), static::getDefaultFields())) {
-            $sums = $this->valueResolver->resolveAggregatesPayload('sum', $this, $schema, static::getResourceType(), $request);
-
-            if ($sums !== []) {
-                $data['sums'] = $sums;
-            }
-        }
-
-        if (!$this->fieldResolver->shouldIncludeAveragesField(static::getResourceType(), static::getDefaultFields())) {
+        if (!$this->fieldResolver->shouldIncludeAggregatesField(static::getResourceType(), static::getDefaultFields())) {
             return;
         }
 
-        $averages = $this->valueResolver->resolveAggregatesPayload('avg', $this, $schema, static::getResourceType(), $request);
+        $aggregates = $this->valueResolver->resolveAggregatesPayload($this, $schema, static::getResourceType(), $request);
 
-        if ($averages === []) {
+        if ($aggregates === []) {
             return;
         }
 
-        $data['averages'] = $averages;
+        $data['aggregates'] = $aggregates;
     }
 
     /**
-     * Load missing sum and average aggregates on the resource.
+     * Load the selected aggregates the resource does not carry yet.
+     *
+     * The loadAggregate() helper is not idempotent, unlike loadMissing(). The
+     * aggregates sharing a function and a column load in one query.
      *
      * @param  object  $resource
      * @return void
      */
     private function loadMissingAggregates(object $resource): void
     {
-        $resourceType  = static::getResourceType();
-        $defaultFields = static::getDefaultFields();
+        $resourceType = static::getResourceType();
 
-        if (method_exists($resource, 'loadSum') && $this->fieldResolver->shouldIncludeSumsField($resourceType, $defaultFields)) {
-            $sums = $this->rejectLoadedAggregates($resource, EagerLoadPlanner::buildSumMap(static::class, ApiQuery::getSums($resourceType) ?? []));
-
-            foreach ($sums as $entry) {
-                $resource->loadSum($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
-            }
-        }
-
-        if (!method_exists($resource, 'loadAvg') || !$this->fieldResolver->shouldIncludeAveragesField($resourceType, $defaultFields)) {
+        if (!method_exists($resource, 'loadAggregate') || !$this->fieldResolver->shouldIncludeAggregatesField($resourceType, static::getDefaultFields())) {
             return;
         }
 
-        $averages = $this->rejectLoadedAggregates($resource, EagerLoadPlanner::buildAvgMap(static::class, ApiQuery::getAverages($resourceType) ?? []));
+        $groups = [];
 
-        foreach ($averages as $entry) {
-            $resource->loadAvg($entry['relation'], $entry['column']); // @phpstan-ignore argument.type
-        }
-    }
+        foreach (EagerLoadPlanner::buildAggregateMap(static::class, ApiQuery::getAggregates($resourceType) ?? []) as $entry) {
 
-    /**
-     * Reject aggregate specifications already loaded on the resource.
-     *
-     * The load{Count,Sum,Avg} helpers are not idempotent, unlike loadMissing().
-     *
-     * @param  object  $resource
-     * @param  array<int|string, mixed>  $specifications
-     * @return array<int|string, mixed>
-     */
-    private function rejectLoadedAggregates(object $resource, array $specifications): array
-    {
-        return array_filter($specifications, static function ($value, $key) use ($resource): bool {
-
-            $spec = $value;
-
-            if (is_array($value) && isset($value['relation'])) {
-                $spec = $value['relation'];
-            } elseif (is_string($key)) {
-                $spec = $key;
+            if (EagerLoadPlanner::isAggregateAttributeLoaded($resource, $entry['relation'])) {
+                continue;
             }
 
-            return !EagerLoadPlanner::isAggregateAttributeLoaded($resource, $spec);
-        }, ARRAY_FILTER_USE_BOTH);
+            $groups[$entry['function']][$entry['column']] = [...$groups[$entry['function']][$entry['column']] ?? [], ...(array) $entry['relation']];
+        }
+
+        foreach ($groups as $function => $columns) {
+            foreach ($columns as $column => $relations) {
+                $resource->loadAggregate($relations, $column, $function);
+            }
+        }
     }
 }

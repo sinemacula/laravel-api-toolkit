@@ -4,22 +4,24 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
+
 /**
- * Relation aggregate definition that loads a withAvg() aggregate.
+ * Relation aggregate that loads the average of a related column.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class Average extends AggregateDefinition
+final class Average extends ColumnAggregate
 {
     /**
-     * Return the metric identifier for average aggregates.
+     * Return the SQL function this aggregate applies.
      *
-     * @return string
+     * @return \SineMacula\ApiToolkit\Enums\AggregateFunction
      */
     #[\Override]
-    protected static function metric(): string
+    public function function(): AggregateFunction
     {
-        return 'avg';
+        return AggregateFunction::AVG;
     }
 }

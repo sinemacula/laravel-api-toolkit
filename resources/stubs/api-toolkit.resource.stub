@@ -1,0 +1,21 @@
+<?php
+
+namespace {{ namespace }};
+
+use {{ namespacedModel }};
+use SineMacula\ApiToolkit\Attributes\ForModel;
+use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Schema\Field;
+
+#[ForModel({{ model }}::class)]
+class {{ class }} extends ApiResource
+{
+    public const string RESOURCE_TYPE = {{ type }};
+
+    protected static array $default = {{ default }};
+
+    public static function schema(): array
+    {
+        return Field::set({{ fields }});
+    }
+}

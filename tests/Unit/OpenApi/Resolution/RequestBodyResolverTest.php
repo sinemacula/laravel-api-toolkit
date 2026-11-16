@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use Tests\Fixtures\OpenApi\ParityRequestBodyController;
 use Tests\Fixtures\OpenApi\PathBodylessRequestController;
+use Tests\Fixtures\OpenApi\PathBodyPresenceController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\TopLevelListRequestInput;
 use Tests\TestCase;
@@ -110,6 +111,67 @@ final class RequestBodyResolverTest extends TestCase
         self::assertNotNull($body);
         self::assertIsArray($body['content']);
         self::assertArrayHasKey('multipart/form-data', $body['content']);
+    }
+
+    /**
+     * Test that a file rule object serves the body as multipart.
+     *
+     * @return void
+     */
+    public function testFileRuleObjectForcesMultipart(): void
+    {
+        self::assertSame([
+            'content' => [
+                'multipart/form-data' => [
+                    'schema' => [
+                        'type'       => 'object',
+                        'properties' => ['document' => ['type' => 'string', 'format' => 'binary']],
+                    ],
+                ],
+            ],
+        ], $this->resolver()->resolve(PathBodyPresenceController::class, 'upload'));
+    }
+
+    /**
+     * Test that a body of optional fields is not required.
+     *
+     * @return void
+     */
+    public function testBodyOfOptionalFieldsIsNotRequired(): void
+    {
+        $body = $this->resolver()->resolve(PathBodyPresenceController::class, 'optional');
+
+        self::assertNotNull($body);
+        self::assertArrayNotHasKey('required', $body);
+        self::assertIsArray($body['content']);
+        self::assertArrayHasKey('application/json', $body['content']);
+    }
+
+    /**
+     * Test that a body needing one of two fields is required.
+     *
+     * @return void
+     */
+    public function testBodyNeedingEitherOfTwoFieldsIsRequired(): void
+    {
+        $resolver = $this->resolver();
+
+        self::assertTrue($resolver->resolve(PathBodyPresenceController::class, 'either')['required'] ?? false);
+        self::assertTrue($resolver->resolve(PathBodyPresenceController::class, 'eitherPairs')['required'] ?? false);
+    }
+
+    /**
+     * Test that a body whose fields are required only alongside others is not
+     * required.
+     *
+     * @return void
+     */
+    public function testBodyOfConditionallyRequiredFieldsIsNotRequired(): void
+    {
+        $body = $this->resolver()->resolve(PathBodyPresenceController::class, 'conditional');
+
+        self::assertNotNull($body);
+        self::assertArrayNotHasKey('required', $body);
     }
 
     /**

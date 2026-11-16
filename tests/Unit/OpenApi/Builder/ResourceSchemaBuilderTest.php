@@ -4,7 +4,9 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Builder;
 
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
@@ -12,6 +14,7 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
@@ -149,16 +152,23 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a non-colliding count key becomes a schema property.
+     * Test that relation aggregates are emitted under one aggregates object,
+     * never as top-level properties.
      *
      * @return void
      */
-    public function testCountKeyBecomesAProperty(): void
+    public function testAggregatesAreNestedUnderOneProperty(): void
     {
         $schemas = $this->makeBuilder($this->fullResourceMap())->build();
 
         self::assertIsArray($schemas['Organization']['properties']);
-        self::assertArrayHasKey('users', $schemas['Organization']['properties']);
+        self::assertArrayNotHasKey('users_count', $schemas['Organization']['properties']);
+        self::assertSame(
+            ['type' => 'object', 'properties' => ['users_count' => ['type' => 'integer', 'minimum' => 0]]],
+            $schemas['Organization']['properties']['aggregates'],
+        );
+        self::assertIsArray($schemas['Tag']['properties']);
+        self::assertArrayNotHasKey('aggregates', $schemas['Tag']['properties']);
     }
 
     /**
@@ -302,25 +312,65 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a count key emits a non-negative integer property.
+     * Test that each function emits its own inner type, a minimum and maximum
+     * taking the related column's type as nullable, and that the aggregates
+     * object is never required.
      *
      * @return void
      */
-    public function testCountKeyEmitsNonNegativeInteger(): void
+    public function testAggregatesCarryThePerFunctionInnerTypes(): void
     {
-        $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
-        $property = $schemas['Organization']['properties']['users'];
+        $schema = new CompiledSchema([], [
+            'posts_count'          => $this->aggregate('posts_count', AggregateFunction::COUNT),
+            'posts_exists'         => $this->aggregate('posts_exists', AggregateFunction::EXISTS),
+            'posts_sum_id'         => $this->aggregate('posts_sum_id', AggregateFunction::SUM, 'id'),
+            'posts_avg_id'         => $this->aggregate('posts_avg_id', AggregateFunction::AVG, 'id'),
+            'posts_min_title'      => $this->aggregate('posts_min_title', AggregateFunction::MIN, 'title'),
+            'posts_max_created_at' => $this->aggregate('posts_max_created_at', AggregateFunction::MAX, 'created_at'),
+            'posts_max_published'  => $this->aggregate('posts_max_published', AggregateFunction::MAX, 'published'),
+            'gone_max_id'          => $this->aggregate('gone_max_id', AggregateFunction::MAX, 'id', 'missing'),
+        ]);
 
-        self::assertSame('integer', $property['type']);
-        self::assertSame(0, $property['minimum']);
+        $built = $this->buildGhost($schema);
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [
+                'posts_count'          => ['type' => 'integer', 'minimum' => 0],
+                'posts_exists'         => ['type' => 'boolean'],
+                'posts_sum_id'         => ['type' => ['number', 'null']],
+                'posts_avg_id'         => ['type' => ['number', 'null']],
+                'posts_min_title'      => ['type' => ['string', 'null']],
+                'posts_max_created_at' => ['type' => ['string', 'null'], 'format' => 'date-time'],
+                'posts_max_published'  => ['type' => ['boolean', 'null']],
+                'gone_max_id'          => ['x-undocumented' => true],
+            ],
+        ], $built['properties']['aggregates']);
+        self::assertArrayNotHasKey('required', $built);
     }
 
     /**
-     * Test that a count never overwrites a colliding relation property.
+     * Test that a field named aggregates keeps its own property.
      *
      * @return void
      */
-    public function testCountDoesNotOverwriteCollidingRelation(): void
+    public function testAFieldNamedAggregatesKeepsItsProperty(): void
+    {
+        $built = $this->buildGhost(new CompiledSchema(
+            ['aggregates' => $this->queryableField()],
+            ['posts_count' => $this->aggregate('posts_count', AggregateFunction::COUNT)],
+        ));
+
+        self::assertIsArray($built['properties']['aggregates']);
+        self::assertArrayNotHasKey('properties', $built['properties']['aggregates']);
+    }
+
+    /**
+     * Test that an aggregate never overwrites a relation sharing its name.
+     *
+     * @return void
+     */
+    public function testAggregateDoesNotOverwriteCollidingRelation(): void
     {
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['User']['properties']['posts'];
@@ -330,11 +380,12 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that unguarded scalars are required but relations and counts not.
+     * Test that unguarded scalars are required but relations and aggregates
+     * not.
      *
      * @return void
      */
-    public function testRequiredListsScalarKeysButNotRelationsOrCounts(): void
+    public function testRequiredListsScalarKeysButNotRelationsOrAggregates(): void
     {
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $required = $schemas['User']['required'];
@@ -346,6 +397,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         self::assertNotContains('organization', $required);
         self::assertNotContains('posts', $required);
         self::assertNotContains('profile_bio', $required);
+        self::assertNotContains('aggregates', $required);
     }
 
     /**
@@ -520,8 +572,9 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         self::assertSame(['$ref' => '#/components/schemas/Organization'], $properties['organization']);
         self::assertSame([
-            'type'  => 'array',
-            'items' => ['$ref' => '#/components/schemas/Post'],
+            'type'     => 'array',
+            'items'    => ['$ref' => '#/components/schemas/Post'],
+            'maxItems' => 25,
         ], $properties['posts']);
     }
 
@@ -598,7 +651,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     {
         $field = $this->queryableField(sortable: 'name', unindexedReason: 'The table holds a fixed handful of rows');
 
-        $properties = $this->buildGhost(new CompiledSchema(['name' => $field], [], [], [], ['name']))['properties'];
+        $properties = $this->buildGhost(new CompiledSchema(['name' => $field], [], [], ['name']))['properties'];
 
         self::assertSame(
             ['sort' => ['key' => 'name', 'indexed' => false, 'reason' => 'The table holds a fixed handful of rows']],
@@ -652,7 +705,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     {
         $field = $this->queryableField(filterable: 'email', capability: Capability::EXACT);
 
-        $schema = new CompiledSchema(['email_address' => $field], [], [], ['email' => Capability::EXACT]);
+        $schema = new CompiledSchema(['email_address' => $field], [], ['email' => Capability::EXACT]);
 
         $properties = $this->buildGhost($schema)['properties'];
 
@@ -667,7 +720,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     public function testAnOperatorTheVocabularyNoLongerHoldsIsNotDocumented(): void
     {
         $field  = $this->queryableField(filterable: 'id', capability: Capability::RANGE);
-        $schema = new CompiledSchema(['id' => $field], [], [], ['id' => Capability::RANGE]);
+        $schema = new CompiledSchema(['id' => $field], [], ['id' => Capability::RANGE]);
 
         $vocabulary = array_values(array_diff($this->vocabulary(), ['$in', '$between']));
         $properties = $this->buildGhost($schema, $vocabulary)['properties'];
@@ -689,7 +742,6 @@ final class ResourceSchemaBuilderTest extends TestCase
         $field  = $this->queryableField(filterable: 'payload', capability: Capability::DOCUMENT, sortable: 'payload');
         $schema = new CompiledSchema(
             ['payload' => $field],
-            [],
             [],
             ['payload' => Capability::DOCUMENT],
             ['payload'],
@@ -714,7 +766,7 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         self::assertSame(['type' => 'object', 'x-undocumented' => true], $properties['organization']);
         self::assertSame(
-            ['type' => 'array', 'items' => ['type' => 'object', 'x-undocumented' => true]],
+            ['type' => 'array', 'items' => ['type' => 'object', 'x-undocumented' => true], 'maxItems' => 25],
             $properties['posts'],
         );
     }
@@ -729,7 +781,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $properties = $this->makeBuilder($this->fullResourceMap())->build()['User']['properties'];
 
         self::assertSame(['$ref' => '#/components/schemas/Organization'], $properties['organization']);
-        self::assertSame(['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Post']], $properties['posts']);
+        self::assertSame(['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Post'], 'maxItems' => 25], $properties['posts']);
     }
 
     /**
@@ -809,6 +861,92 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
+     * Test that a declared limit bounds the array property of a to-many.
+     *
+     * @return void
+     */
+    public function testDeclaredLimitBoundsTheToManyArray(): void
+    {
+        $properties = $this->buildGhost(new CompiledSchema(['posts' => $this->relationField(5)], []))['properties'];
+
+        self::assertIsArray($properties);
+        self::assertSame(['type' => 'array', 'items' => ['type' => 'object', 'x-undocumented' => true], 'maxItems' => 5], $properties['posts']);
+    }
+
+    /**
+     * Test that a limit bounds the array member of an unknown cardinality.
+     *
+     * @return void
+     */
+    public function testLimitBoundsTheConservativeArrayMember(): void
+    {
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => new CompiledSchema(['posts' => $this->relationField(5)], [])]);
+
+        $schema = $this->makeGhostBuilder(['GhostModel' => 'GhostResource', Post::class => PostResource::class])->build()['Ghost'];
+
+        self::assertSame(
+            ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Post'], 'maxItems' => 5],
+            $schema['properties']['posts']['oneOf'][1],
+        );
+        self::assertSame(['posts'], $schema['properties']['_truncated']['items']['enum']);
+    }
+
+    /**
+     * Test that a to-one relation carries no bound however it is limited.
+     *
+     * @return void
+     */
+    public function testToOneRelationCarriesNoBound(): void
+    {
+        $properties = $this->buildGhost(new CompiledSchema(['organization' => $this->relationField(5, 'organization', OrganizationResource::class)], []))['properties'];
+
+        self::assertIsArray($properties);
+        self::assertSame(['type' => 'object', 'x-undocumented' => true], $properties['organization']);
+        self::assertArrayNotHasKey('_truncated', $properties);
+    }
+
+    /**
+     * Test that a resource with a limited relation documents the optional
+     * truncation list of its limited keys.
+     *
+     * @return void
+     */
+    public function testLimitedRelationsAreDocumentedAsAnOptionalTruncationList(): void
+    {
+        $schema = $this->makeBuilder($this->fullResourceMap())->build()['User'];
+
+        self::assertSame([
+            'type'        => 'array',
+            'items'       => ['type' => 'string', 'enum' => ['posts']],
+            'uniqueItems' => true,
+            'minItems'    => 1,
+        ], $schema['properties']['_truncated']);
+        self::assertIsArray($schema['required']);
+        self::assertNotContains('_truncated', $schema['required']);
+    }
+
+    /**
+     * Test that no truncation list is documented when nothing is limited.
+     *
+     * @return void
+     */
+    public function testNoTruncationListWhenNothingIsLimited(): void
+    {
+        Config::set('api-toolkit.resources.relation_limit', 0);
+
+        $schemas = $this->makeBuilder($this->fullResourceMap())->build();
+
+        $user = $schemas['User']['properties'];
+        $tag  = $schemas['Tag']['properties'];
+
+        self::assertIsArray($user);
+        self::assertIsArray($tag);
+        self::assertSame(['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Post']], $user['posts']);
+        self::assertArrayNotHasKey('_truncated', $user);
+        self::assertArrayNotHasKey('_truncated', $tag);
+    }
+
+    /**
      * Build the schema of a synthetic resource compiled from the given schema.
      *
      * The user model backs it so scalar properties resolve against a table.
@@ -861,6 +999,45 @@ final class ResourceSchemaBuilderTest extends TestCase
             unindexedReason: $unindexedReason,
             searchable: $searchable,
             searchStrategy: $strategy,
+        );
+    }
+
+    /**
+     * Build a compiled aggregate definition over the given relation.
+     *
+     * @param  string  $key
+     * @param  \SineMacula\ApiToolkit\Enums\AggregateFunction  $function
+     * @param  string|null  $column
+     * @param  string  $relation
+     * @return \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition
+     */
+    private function aggregate(string $key, AggregateFunction $function, ?string $column = null, string $relation = 'posts'): CompiledAggregateDefinition
+    {
+        return new CompiledAggregateDefinition($key, $relation, $function, $column, null, false, []);
+    }
+
+    /**
+     * Build a compiled relation field rendered through a child resource.
+     *
+     * @param  int|null  $limit
+     * @param  string  $relation
+     * @param  string  $resource
+     * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
+     */
+    private function relationField(?int $limit, string $relation = 'posts', string $resource = PostResource::class): CompiledFieldDefinition
+    {
+        return new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: $relation,
+            resource: $resource,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+            limit: $limit,
         );
     }
 

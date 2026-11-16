@@ -14,9 +14,6 @@ use Illuminate\Support\Facades\Config;
  */
 enum CacheKeys: string
 {
-    // Store the casts for each model used in the repositories
-    case REPOSITORY_MODEL_CASTS = 'repository-model-casts:%s';
-
     // Store the columns associated with each model, per schema identity
     case MODEL_SCHEMA_COLUMNS = 'model-schema-columns:%s:%s';
 

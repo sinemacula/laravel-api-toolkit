@@ -113,7 +113,7 @@ final class EagerLoadApplierTest extends TestCase
         $provider->method('eagerLoadMapFor')
             ->willReturn(['organization' => fn () => null]);
 
-        $provider->method('eagerLoadCountsFor')
+        $provider->method('eagerLoadAggregatesFor')
             ->willReturn([]);
 
         $query = (new User)->newQuery();
@@ -146,7 +146,7 @@ final class EagerLoadApplierTest extends TestCase
         $provider->method('eagerLoadMapFor')
             ->willReturn([]);
 
-        $provider->method('eagerLoadCountsFor')
+        $provider->method('eagerLoadAggregatesFor')
             ->willReturn([]);
 
         $query = (new User)->newQuery();
@@ -175,7 +175,7 @@ final class EagerLoadApplierTest extends TestCase
             ->method('eagerLoadMapFor');
 
         $provider->expects(self::never())
-            ->method('eagerLoadCountsFor');
+            ->method('eagerLoadAggregatesFor');
 
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
@@ -204,7 +204,7 @@ final class EagerLoadApplierTest extends TestCase
         $provider->method('eagerLoadMapFor')
             ->willReturn(['organization' => fn () => null]);
 
-        $provider->method('eagerLoadCountsFor')
+        $provider->method('eagerLoadAggregatesFor')
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
@@ -234,7 +234,7 @@ final class EagerLoadApplierTest extends TestCase
         $provider->method('eagerLoadMapFor')
             ->willReturn([]);
 
-        $provider->method('eagerLoadCountsFor')
+        $provider->method('eagerLoadAggregatesFor')
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
@@ -244,124 +244,25 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply calls withCount() when the count map is not empty.
+     * Test that apply passes the requested aggregate keys to the provider and
+     * selects every entry through withAggregate(), constrained or not.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyAddsEagerLoadCountsWhenCountMapIsNotEmpty(): void
+    public function testApplySelectsEveryAggregateEntry(): void
     {
         $this->parseRequest(new Request([
-            'fields' => ['users' => self::STUB_USER_FIELDS],
-            'counts' => ['users' => 'posts'],
-        ]));
-
-        $provider = $this->createMock(ResourceMetadataProvider::class);
-
-        $provider->method('resolveFields')
-            ->willReturn(['id', 'name']);
-
-        $provider->method('eagerLoadMapFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadCountsFor')
-            ->with(UserResource::class, ['posts'])
-            ->willReturn(['posts']);
-
-        $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
-
-        $columns = $result->getQuery()->columns ?? [];
-
-        self::assertNotEmpty($columns);
-    }
-
-    /**
-     * Test that apply does not call withCount() when the count map is empty.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testApplySkipsEagerLoadCountsWhenCountMapIsEmpty(): void
-    {
-        $this->parseRequest(new Request([
-            'fields' => ['users' => self::STUB_USER_FIELDS],
-        ]));
-
-        $provider = self::createStub(ResourceMetadataProvider::class);
-
-        $provider->method('resolveFields')
-            ->willReturn(['id', 'name']);
-
-        $provider->method('eagerLoadMapFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadCountsFor')
-            ->willReturn([]);
-
-        $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
-
-        self::assertEmpty($result->getQuery()->columns ?? []);
-    }
-
-    /**
-     * Test that apply calls withSum() for each entry of the sum map.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testApplyAddsWithSumWhenSumEntriesExist(): void
-    {
-        $this->parseRequest(new Request([
-            'fields' => ['users' => self::STUB_USER_FIELDS],
-            'sums'   => ['users' => ['posts' => 'id']],
-        ]));
-
-        $provider = self::createStub(ResourceMetadataProvider::class);
-
-        $provider->method('resolveFields')
-            ->willReturn(['id', 'name']);
-
-        $provider->method('eagerLoadMapFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadCountsFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadSumsFor')
-            ->willReturn([['relation' => 'posts as posts_id', 'column' => 'id']]);
-
-        $provider->method('eagerLoadAveragesFor')
-            ->willReturn([]);
-
-        $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
-
-        self::assertNotNull($result->getQuery()->columns);
-    }
-
-    /**
-     * Test that a constrained sum or average is loaded through its constraint.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testApplyLoadsConstrainedSumsAndAverages(): void
-    {
-        $this->parseRequest(new Request([
-            'fields' => ['users' => self::STUB_USER_FIELDS],
+            'fields'     => ['users' => self::STUB_USER_FIELDS],
+            'aggregates' => ['users' => 'posts_count,published_posts'],
         ]));
 
         $constraint = static function (Builder $query): void {
             $query->where('published', true);
         };
 
-        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider = $this->createMock(ResourceMetadataProvider::class);
 
         $provider->method('resolveFields')
             ->willReturn(['id', 'name']);
@@ -369,39 +270,42 @@ final class EagerLoadApplierTest extends TestCase
         $provider->method('eagerLoadMapFor')
             ->willReturn([]);
 
-        $provider->method('eagerLoadCountsFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadSumsFor')
-            ->willReturn([['relation' => ['posts as posts_sum_id' => $constraint], 'column' => 'id']]);
-
-        $provider->method('eagerLoadAveragesFor')
-            ->willReturn([['relation' => ['posts as posts_avg_id' => $constraint], 'column' => 'id']]);
+        $provider->expects(self::once())
+            ->method('eagerLoadAggregatesFor')
+            ->with(UserResource::class, ['posts_count', 'published_posts'])
+            ->willReturn([
+                ['relation' => 'posts as aggregate_posts_count', 'column' => '*', 'function' => 'count'],
+                ['relation' => ['posts as aggregate_published_posts' => $constraint], 'column' => '*', 'function' => 'exists'],
+                ['relation' => 'posts as aggregate_posts_max_created_at', 'column' => 'created_at', 'function' => 'max'],
+            ]);
 
         $query = (new User)->newQuery();
         $sql   = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate())->toSql();
 
-        self::assertStringContainsString('sum("posts"."id")', $sql);
-        self::assertStringContainsString('avg("posts"."id")', $sql);
-        self::assertStringContainsString('"posts_sum_id"', $sql);
-        self::assertStringContainsString('"posts_avg_id"', $sql);
-        self::assertSame(2, substr_count($sql, '"published" = ?'));
+        self::assertStringContainsString('count(*)', $sql);
+        self::assertStringContainsString('"aggregate_posts_count"', $sql);
+        self::assertStringContainsString('exists(select', $sql);
+        self::assertStringContainsString('"aggregate_published_posts"', $sql);
+        self::assertStringContainsString('max("posts"."created_at")', $sql);
+        self::assertStringContainsString('"aggregate_posts_max_created_at"', $sql);
+        self::assertSame(1, substr_count($sql, '"published" = ?'));
     }
 
     /**
-     * Test that apply skips withSum() when the sum entry list is empty.
+     * Test that apply passes an empty request to the provider and leaves the
+     * select untouched when no aggregate is planned.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplySkipsWithSumWhenSumEntriesEmpty(): void
+    public function testApplySelectsNothingWithoutAggregateEntries(): void
     {
         $this->parseRequest(new Request([
             'fields' => ['users' => self::STUB_USER_FIELDS],
         ]));
 
-        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider = $this->createMock(ResourceMetadataProvider::class);
 
         $provider->method('resolveFields')
             ->willReturn(['id', 'name']);
@@ -409,130 +313,15 @@ final class EagerLoadApplierTest extends TestCase
         $provider->method('eagerLoadMapFor')
             ->willReturn([]);
 
-        $provider->method('eagerLoadCountsFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadSumsFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadAveragesFor')
+        $provider->expects(self::once())
+            ->method('eagerLoadAggregatesFor')
+            ->with(UserResource::class, [])
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
 
         self::assertEmpty($result->getQuery()->columns ?? []);
-    }
-
-    /**
-     * Test that apply passes the requested sums to eagerLoadSumsFor.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testApplyPassesActualRequestedSumsToEagerLoadSumsFor(): void
-    {
-        $this->parseRequest(new Request([
-            'fields' => ['users' => self::STUB_USER_FIELDS],
-            'sums'   => ['users' => ['posts' => 'id']],
-        ]));
-
-        $provider = $this->createMock(ResourceMetadataProvider::class);
-
-        $provider->method('resolveFields')
-            ->willReturn(['id', 'name']);
-
-        $provider->method('eagerLoadMapFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadCountsFor')
-            ->willReturn([]);
-
-        $provider->expects(self::once())
-            ->method('eagerLoadSumsFor')
-            ->with(UserResource::class, ['posts' => ['id']])
-            ->willReturn([]);
-
-        $provider->method('eagerLoadAveragesFor')
-            ->willReturn([]);
-
-        $query = (new User)->newQuery();
-        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
-    }
-
-    /**
-     * Test that apply passes the requested averages to eagerLoadAveragesFor.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testApplyPassesActualRequestedAveragesToEagerLoadAveragesFor(): void
-    {
-        $this->parseRequest(new Request([
-            'fields'   => ['users' => self::STUB_USER_FIELDS],
-            'averages' => ['users' => ['posts' => 'id']],
-        ]));
-
-        $provider = $this->createMock(ResourceMetadataProvider::class);
-
-        $provider->method('resolveFields')
-            ->willReturn(['id', 'name']);
-
-        $provider->method('eagerLoadMapFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadCountsFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadSumsFor')
-            ->willReturn([]);
-
-        $provider->expects(self::once())
-            ->method('eagerLoadAveragesFor')
-            ->with(UserResource::class, ['posts' => ['id']])
-            ->willReturn([]);
-
-        $query = (new User)->newQuery();
-        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
-    }
-
-    /**
-     * Test that apply calls withAvg() for each entry of the average map.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testApplyAddsWithAvgWhenAvgEntriesExist(): void
-    {
-        $this->parseRequest(new Request([
-            'fields'   => ['users' => self::STUB_USER_FIELDS],
-            'averages' => ['users' => ['posts' => 'id']],
-        ]));
-
-        $provider = self::createStub(ResourceMetadataProvider::class);
-
-        $provider->method('resolveFields')
-            ->willReturn(['id', 'name']);
-
-        $provider->method('eagerLoadMapFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadCountsFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadSumsFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadAveragesFor')
-            ->willReturn([['relation' => 'posts as posts_id', 'column' => 'id']]);
-
-        $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
-
-        self::assertNotNull($result->getQuery()->columns, 'withAvg must be applied when avg entries are returned');
     }
 
     /**

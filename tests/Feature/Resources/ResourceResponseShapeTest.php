@@ -125,32 +125,30 @@ final class ResourceResponseShapeTest extends TestCase
     }
 
     /**
-     * Test that count, sum, and average aggregates surface under an item.
+     * Test that count, sum, and average aggregates surface under one aggregates
+     * object on an item.
      *
      * @return void
      */
     public function testAggregatesSurfaceInThePayload(): void
     {
         $response = $this->getJson('/users?' . http_build_query([
-            'fields'   => ['users' => 'name,counts,sums,averages'],
-            'counts'   => ['users' => 'posts'],
-            'sums'     => ['users' => ['posts' => 'id']],
-            'averages' => ['users' => ['posts' => 'id']],
+            'fields'     => ['users' => 'name,aggregates'],
+            'aggregates' => ['users' => 'posts_count,posts_sum_id,posts_avg_id'],
         ]));
 
         $response->assertOk();
-        $response->assertJsonPath('data.0.counts.posts', 2);
+        $response->assertJsonPath('data.0.aggregates.posts_count', 2);
 
         /** @var array<string, mixed> $item */
         $item = $response->json('data.0');
 
-        self::assertArrayHasKey('posts_id', (array) $item['sums']);
-        self::assertArrayHasKey('posts_id', (array) $item['averages']);
+        self::assertSame(['posts_count', 'posts_sum_id', 'posts_avg_id'], array_keys((array) $item['aggregates']));
+        self::assertArrayNotHasKey('counts', $item);
     }
 
     /**
-     * Test that undeclared and non-existent aggregate relations are omitted
-     * without a database error.
+     * Test that undeclared aggregate keys are omitted without a database error.
      *
      * @return void
      */
@@ -160,25 +158,17 @@ final class ResourceResponseShapeTest extends TestCase
         Config::set('api-toolkit.query_cost.max_aggregates', 0);
 
         $response = $this->getJson('/users?' . http_build_query([
-            'fields'   => ['users' => 'name,counts,sums,averages'],
-            'counts'   => ['users' => 'posts,organization,comments'],
-            'sums'     => ['users' => ['posts' => 'id', 'organization' => 'id', 'comments' => 'id']],
-            'averages' => ['users' => ['posts' => 'id', 'comments' => 'id']],
+            'fields'     => ['users' => 'name,aggregates'],
+            'aggregates' => ['users' => 'posts_count,organization_count,comments_count,posts,posts_id'],
         ]));
 
         $response->assertOk();
 
-        // Undeclared and non-existent relations are dropped, not queried
-        $response->assertJsonPath('data.0.counts.posts', 2);
-
         /** @var array<string, mixed> $item */
         $item = $response->json('data.0');
 
-        self::assertArrayNotHasKey('organization', (array) $item['counts']);
-        self::assertArrayNotHasKey('comments', (array) $item['counts']);
-        self::assertSame(['posts'], array_keys((array) $item['counts']));
-        self::assertSame(['posts_id'], array_keys((array) $item['sums']));
-        self::assertSame(['posts_id'], array_keys((array) $item['averages']));
+        // Undeclared keys are dropped, not queried
+        self::assertSame(['posts_count' => 2], $item['aggregates']);
     }
 
     /**
@@ -190,20 +180,38 @@ final class ResourceResponseShapeTest extends TestCase
     public function testDefaultAggregatesSurfaceWhileNonDefaultsAreOmitted(): void
     {
         $response = $this->getJson('/users?' . http_build_query([
-            'fields' => ['users' => 'name,counts,sums,averages'],
+            'fields' => ['users' => 'name,aggregates'],
         ]));
 
         $response->assertOk();
 
-        $response->assertJsonPath('data.0.counts.posts', 2);
+        $response->assertJsonPath('data.0.aggregates.posts_count', 2);
 
         /** @var array<string, mixed> $item */
         $item = $response->json('data.0');
 
-        self::assertArrayHasKey('posts_id', (array) $item['sums']);
-
         // The average is declared but not default
-        self::assertArrayNotHasKey('averages', $item);
+        self::assertSame(['posts_count', 'posts_sum_id'], array_keys((array) $item['aggregates']));
+    }
+
+    /**
+     * Test that requesting one aggregate drops every default of the type.
+     *
+     * @return void
+     */
+    public function testARequestedAggregateDropsTheDefaults(): void
+    {
+        $response = $this->getJson('/users?' . http_build_query([
+            'fields'     => ['users' => 'name,aggregates'],
+            'aggregates' => ['users' => 'posts_count'],
+        ]));
+
+        $response->assertOk();
+
+        /** @var array<string, mixed> $item */
+        $item = $response->json('data.0');
+
+        self::assertSame(['posts_count' => 2], $item['aggregates']);
     }
 
     /**
@@ -220,14 +228,13 @@ final class ResourceResponseShapeTest extends TestCase
         $expectedAvg = $expectedSum / count($postIds);
 
         $response = $this->getJson('/users?' . http_build_query([
-            'fields'   => ['users' => 'name,sums,averages'],
-            'sums'     => ['users' => ['posts' => 'id']],
-            'averages' => ['users' => ['posts' => 'id']],
+            'fields'     => ['users' => 'name,aggregates'],
+            'aggregates' => ['users' => 'posts_sum_id,posts_avg_id'],
         ]));
 
         $response->assertOk();
-        $response->assertJsonPath('data.0.sums.posts_id', $expectedSum);
-        $response->assertJsonPath('data.0.averages.posts_id', $expectedAvg);
+        $response->assertJsonPath('data.0.aggregates.posts_sum_id', $expectedSum);
+        $response->assertJsonPath('data.0.aggregates.posts_avg_id', $expectedAvg);
     }
 
     /**
@@ -246,8 +253,8 @@ final class ResourceResponseShapeTest extends TestCase
         $filters = json_encode(['name' => 'Bob']);
 
         $response = $this->getJson('/users?' . http_build_query([
-            'fields' => ['users' => 'name,counts'],
-            'counts' => ['users' => 'posts'],
+            'fields'     => ['users' => 'name,aggregates'],
+            'aggregates' => ['users' => 'posts_count'],
         ]) . '&filters=' . urlencode((string) $filters));
 
         $response->assertOk();
@@ -256,6 +263,6 @@ final class ResourceResponseShapeTest extends TestCase
 
         // Bob's count excludes Alice's two posts
         $response->assertJsonPath('data.0.name', 'Bob');
-        $response->assertJsonPath('data.0.counts.posts', 3);
+        $response->assertJsonPath('data.0.aggregates.posts_count', 3);
     }
 }

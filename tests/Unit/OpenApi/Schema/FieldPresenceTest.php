@@ -41,7 +41,11 @@ final class FieldPresenceTest extends TestCase
             'excludable present'   => [['present', 'exclude_unless:kind,a'], false, false, false],
             'excludable filled'    => [['filled', 'exclude_with:kind'], false, false, false],
             'required with'        => [['required_with:a', 'nullable'], false, false, true],
-            'untranslatable rules' => [['accepted', 'starts_with:a'], false, false, false],
+            'accepted'             => [['accepted'], true, true, false],
+            'nullable declined'    => [['nullable', 'declined'], true, true, false],
+            'sometimes accepted'   => [['sometimes', 'accepted', 'nullable'], false, true, false],
+            'sometimes declined'   => [['declined', 'sometimes'], false, true, false],
+            'untranslatable rules' => [['timezone', 'starts_with:a'], false, false, false],
         ];
     }
 
@@ -75,6 +79,9 @@ final class FieldPresenceTest extends TestCase
             'required'                      => [['required', 'string'], true, true],
             'nullable required'             => [['nullable', 'required'], true, true],
             'present'                       => [['present'], true, true],
+            'accepted'                      => [['accepted'], true, true],
+            'declined'                      => [['declined'], true, true],
+            'sometimes accepted'            => [['sometimes', 'accepted'], false, false],
             'sometimes required'            => [['sometimes', 'required'], false, false],
             'excludable required'           => [['required', 'exclude_if:a,x'], false, false],
             'optional'                      => [['nullable', 'string'], false, false],

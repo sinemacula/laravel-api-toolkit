@@ -29,17 +29,15 @@ final class QueryParameterExtractor
         $parameters = [];
 
         $parsers = [
-            'page'     => fn ($value) => trim($value),
-            'limit'    => fn ($value) => trim($value),
-            'cursor'   => fn ($value) => $value,
-            'fields'   => fn ($value) => $this->parseFields($value),
-            'counts'   => fn ($value) => $this->parseCounts($value),
-            'sums'     => fn ($value) => $this->parseSums($value),
-            'averages' => fn ($value) => $this->parseAverages($value),
-            'filters'  => fn ($value) => $this->parseFilters($value),
-            'search'   => fn ($value) => SearchTerm::from(is_string($value) ? $value : ''),
-            'order'    => fn ($value) => $this->parseOrder($value),
-            'trashed'  => fn ($value) => is_string($value) ? strtolower(trim($value)) : '',
+            'page'       => fn ($value) => trim($value),
+            'limit'      => fn ($value) => trim($value),
+            'cursor'     => fn ($value) => $value,
+            'fields'     => fn ($value) => $this->parseFields($value),
+            'aggregates' => fn ($value) => $this->parseAggregates($value),
+            'filters'    => fn ($value) => $this->parseFilters($value),
+            'search'     => fn ($value) => SearchTerm::from(is_string($value) ? $value : ''),
+            'order'      => fn ($value) => $this->parseOrder($value),
+            'trashed'    => fn ($value) => is_string($value) ? strtolower(trim($value)) : '',
         ];
 
         foreach ($parsers as $key => $parser) {
@@ -65,12 +63,12 @@ final class QueryParameterExtractor
     }
 
     /**
-     * Extract the count parameters from the query string.
+     * Extract the aggregate parameters from the query string.
      *
      * @param  array<string, string>|string  $query
      * @return array<int, string>|array<string, array<int, string>>
      */
-    private function parseCounts(array|string $query): array
+    private function parseAggregates(array|string $query): array
     {
         return $this->parseCommaSeparatedValues($query);
     }
@@ -99,79 +97,6 @@ final class QueryParameterExtractor
     private function splitAndTrim(string $value): array
     {
         return array_map('trim', explode(',', $value));
-    }
-
-    /**
-     * Extract the sum parameters from the query string.
-     *
-     * @param  array<string, mixed>  $query
-     * @return array<string, mixed>
-     */
-    private function parseSums(array $query): array
-    {
-        return $this->parseAggregations($query);
-    }
-
-    /**
-     * Extract the average parameters from the query string.
-     *
-     * @param  array<string, mixed>  $query
-     * @return array<string, mixed>
-     */
-    private function parseAverages(array $query): array
-    {
-        return $this->parseAggregations($query);
-    }
-
-    /**
-     * Parse aggregation parameters (sums, averages) from the query string.
-     *
-     * @param  array<string, mixed>  $query
-     * @return array<string, mixed>
-     */
-    private function parseAggregations(array $query): array
-    {
-        $aggregations = [];
-
-        foreach ($query as $resource => $relations) {
-            if (!is_array($relations)) {
-                continue;
-            }
-
-            $aggregations[$resource] = $this->parseRelationFields($relations);
-        }
-
-        return $aggregations;
-    }
-
-    /**
-     * Parse relation fields for aggregations.
-     *
-     * @param  array<mixed>  $relations
-     * @return array<array<mixed>>
-     */
-    private function parseRelationFields(array $relations): array
-    {
-        return array_map(fn ($fields) => $this->normalizeFields($fields), $relations);
-    }
-
-    /**
-     * Normalize field values into an array format.
-     *
-     * @param  mixed  $fields
-     * @return array<mixed>
-     */
-    private function normalizeFields(mixed $fields): array
-    {
-        if (is_string($fields)) {
-            return $this->splitAndTrim($fields);
-        }
-
-        if (is_array($fields)) {
-            return $fields;
-        }
-
-        return [$fields];
     }
 
     /**

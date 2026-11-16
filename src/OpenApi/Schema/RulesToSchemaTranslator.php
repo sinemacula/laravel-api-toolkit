@@ -22,6 +22,7 @@ final readonly class RulesToSchemaTranslator
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder  $builder
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\PresenceConstraintBuilder  $presence
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\FieldPresence  $fields
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\DistinctItems  $distinct
      */
     public function __construct(
 
@@ -36,6 +37,9 @@ final readonly class RulesToSchemaTranslator
 
         /** The reader of how a field's rules govern its presence. */
         private FieldPresence $fields = new FieldPresence,
+
+        /** The reader of whether a list's item rules make its items unique. */
+        private DistinctItems $distinct = new DistinctItems,
     ) {}
 
     /**
@@ -468,6 +472,10 @@ final readonly class RulesToSchemaTranslator
             $items === []   => $own,
             default         => ['allOf' => [$own, $items]],
         };
+
+        if ($this->distinct->areUnique($starMap[''] ?? [], $items)) {
+            $schema['uniqueItems'] = true;
+        }
 
         return $schema;
     }

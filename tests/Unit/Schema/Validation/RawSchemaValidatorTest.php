@@ -78,6 +78,120 @@ final class RawSchemaValidatorTest extends TestCase
     }
 
     /**
+     * Test that a prefixed aggregate entry naming no recognised metric is
+     * rejected, while an unprefixed one is left to compile as a field.
+     *
+     * @return void
+     */
+    public function testRejectsAnUnknownMetricOnAPrefixedAggregate(): void
+    {
+        $errors = $this->collectErrors([
+            '__aggregate__:posts_median' => ['metric' => 'median', 'relation' => 'posts'],
+            '__aggregate__:posts_bare'   => ['relation' => 'posts'],
+            'score'                      => ['metric' => 'median'],
+        ]);
+
+        $defect = 'Aggregate metric must be one of count, exists, sum, avg, min, max';
+
+        self::assertSame([
+            [self::RESOURCE, '__aggregate__:posts_median', $defect],
+            [self::RESOURCE, '__aggregate__:posts_bare', $defect],
+        ], $errors);
+    }
+
+    /**
+     * Test that a column function without a column and a columnless function
+     * with one are both rejected.
+     *
+     * @return void
+     */
+    public function testRejectsAColumnMissingOrPresentAgainstTheFunction(): void
+    {
+        $errors = $this->collectErrors([
+            '__aggregate__:orders_sum' => ['metric' => 'sum', 'relation' => 'orders'],
+            '__aggregate__:orders_max' => ['metric' => 'max', 'relation' => 'orders', 'column' => ''],
+            '__aggregate__:orders_min' => ['metric' => 'min', 'relation' => 'orders', 'column' => 'total'],
+            '__aggregate__:posts_any'  => ['metric' => 'exists', 'relation' => 'posts', 'column' => 'id'],
+            '__aggregate__:posts_n'    => ['metric' => 'count', 'relation' => 'posts'],
+        ]);
+
+        self::assertSame([
+            [self::RESOURCE, '__aggregate__:orders_sum', 'The sum aggregate must name a related column'],
+            [self::RESOURCE, '__aggregate__:orders_max', 'The max aggregate must name a related column'],
+            [self::RESOURCE, '__aggregate__:posts_any', 'The exists aggregate takes no column'],
+        ], $errors);
+    }
+
+    /**
+     * Test that two raw entries resolving to one present key are rejected
+     * whatever their functions.
+     *
+     * @return void
+     */
+    public function testRejectsTwoAggregatesWithOneEffectiveKey(): void
+    {
+        $errors = $this->collectErrors([
+            '__aggregate__:posts' => ['metric' => 'count', 'relation' => 'posts'],
+            'published'           => ['metric' => 'exists', 'relation' => 'posts', 'key' => 'posts'],
+            'drafts'              => ['metric' => 'count', 'relation' => 'posts', 'key' => 'posts'],
+        ]);
+
+        self::assertSame([
+            [self::RESOURCE, 'published', 'Aggregate key "posts" is already declared by "__aggregate__:posts"'],
+            [self::RESOURCE, 'drafts', 'Aggregate key "posts" is already declared by "__aggregate__:posts"'],
+        ], $errors);
+    }
+
+    /**
+     * Test that an attribute PostgreSQL would truncate is rejected, while one
+     * at the limit passes.
+     *
+     * @return void
+     */
+    public function testRejectsAnAttributeLongerThanSixtyThreeBytes(): void
+    {
+        $fits     = str_repeat('a', 53);
+        $overflow = str_repeat('b', 54);
+
+        $errors = $this->collectErrors([
+            $fits     => ['metric' => 'count', 'relation' => 'posts'],
+            $overflow => ['metric' => 'count', 'relation' => 'posts'],
+        ]);
+
+        self::assertSame([
+            [self::RESOURCE, $overflow, sprintf('Aggregate attribute "aggregate_%s" is longer than 63 bytes, which PostgreSQL truncates', $overflow)],
+        ], $errors);
+    }
+
+    /**
+     * Test that a key breaking the relation alias or the SQL alias is rejected,
+     * while a word key in any script, combining marks included, passes.
+     *
+     * @return void
+     */
+    public function testRejectsAKeyHoldingAnythingButWordCharacters(): void
+    {
+        $errors = $this->collectErrors([
+            'posts_count_2'         => ['metric' => 'count', 'relation' => 'posts'],
+            'beiträge'              => ['metric' => 'count', 'relation' => 'posts'],
+            "i\u{0307}posts_count"  => ['metric' => 'count', 'relation' => 'posts'],
+            "trailing\n"            => ['metric' => 'count', 'relation' => 'posts'],
+            'post count'            => ['metric' => 'count', 'relation' => 'posts'],
+            'post.count'            => ['metric' => 'count', 'relation' => 'posts'],
+            '__aggregate__:aliased' => ['metric' => 'count', 'relation' => 'posts', 'key' => 'post:count'],
+            "bad\xff"               => ['metric' => 'count', 'relation' => 'posts'],
+        ]);
+
+        self::assertSame([
+            [self::RESOURCE, "trailing\n", "Aggregate key \"trailing\n\" may hold only letters, digits and underscores"],
+            [self::RESOURCE, 'post count', 'Aggregate key "post count" may hold only letters, digits and underscores'],
+            [self::RESOURCE, 'post.count', 'Aggregate key "post.count" may hold only letters, digits and underscores'],
+            [self::RESOURCE, '__aggregate__:aliased', 'Aggregate key "post:count" may hold only letters, digits and underscores'],
+            [self::RESOURCE, "bad\xff", "Aggregate key \"bad\xff\" may hold only letters, digits and underscores"],
+        ], $errors);
+    }
+
+    /**
      * Test that guards or transformers declared as anything other than a list
      * are reported, while the other list is still checked.
      *
@@ -101,6 +215,54 @@ final class RawSchemaValidatorTest extends TestCase
             [self::RESOURCE, 'name', 'Guards must be a list of callables'],
             [self::RESOURCE, 'name', 'Transformer at index 0 is not callable'],
             [self::RESOURCE, 'email', 'Transformers must be a list of callables'],
+        ], $errors);
+    }
+
+    /**
+     * Test that every defect of one aggregate entry is reported.
+     *
+     * @return void
+     */
+    public function testReportsEveryDefectOfOneAggregate(): void
+    {
+        $key = str_repeat('c', 54);
+
+        $errors = $this->collectErrors([
+            $key                       => ['metric' => 'count', 'relation' => 'posts'],
+            '__aggregate__:duplicated' => ['metric' => 'sum', 'relation' => 'orders', 'key' => $key, 'constraint' => 'not-a-closure'],
+        ]);
+
+        $overflow = sprintf('Aggregate attribute "aggregate_%s" is longer than 63 bytes, which PostgreSQL truncates', $key);
+
+        self::assertSame([
+            [self::RESOURCE, $key, $overflow],
+            [self::RESOURCE, '__aggregate__:duplicated', 'Constraint must be a Closure'],
+            [self::RESOURCE, '__aggregate__:duplicated', 'The sum aggregate must name a related column'],
+            [self::RESOURCE, '__aggregate__:duplicated', sprintf('Aggregate key "%s" is already declared by "%s"', $key, $key)],
+            [self::RESOURCE, '__aggregate__:duplicated', $overflow],
+        ], $errors);
+    }
+
+    /**
+     * Test that a relation limit below 1 or not an integer is reported, while a
+     * positive or absent one passes.
+     *
+     * @return void
+     */
+    public function testReportsEveryLimitThatIsNotAPositiveInteger(): void
+    {
+        $errors = $this->collectErrors([
+            'posts'    => ['relation' => 'posts', 'limit' => 1],
+            'comments' => ['relation' => 'comments', 'limit' => null],
+            'tags'     => ['relation' => 'tags', 'limit' => 0],
+            'articles' => ['relation' => 'articles', 'limit' => -1],
+            'reviews'  => ['relation' => 'reviews', 'limit' => '5'],
+        ]);
+
+        self::assertSame([
+            [self::RESOURCE, 'tags', 'Limit must be an integer of at least 1'],
+            [self::RESOURCE, 'articles', 'Limit must be an integer of at least 1'],
+            [self::RESOURCE, 'reviews', 'Limit must be an integer of at least 1'],
         ], $errors);
     }
 

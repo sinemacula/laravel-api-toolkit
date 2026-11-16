@@ -158,15 +158,15 @@ final class ResourceMetadataProviderTest extends TestCase
     }
 
     /**
-     * Test that eagerLoadCountsFor is declared with string and nullable array
-     * parameters.
+     * Test that eagerLoadAggregatesFor is declared with string and nullable
+     * array parameters.
      *
      * @return void
      */
-    public function testResourceMetadataProviderDeclaresEagerLoadCountsFor(): void
+    public function testResourceMetadataProviderDeclaresEagerLoadAggregatesFor(): void
     {
         $reflection = new \ReflectionClass(ResourceMetadataProvider::class);
-        $method     = $reflection->getMethod('eagerLoadCountsFor');
+        $method     = $reflection->getMethod('eagerLoadAggregatesFor');
 
         self::assertTrue($method->isPublic());
         self::assertFalse($method->isStatic());
@@ -180,70 +180,12 @@ final class ResourceMetadataProviderTest extends TestCase
 
         self::assertInstanceOf(\ReflectionNamedType::class, $firstParamType);
         self::assertSame('string', $firstParamType->getName());
-        self::assertSame('requestedAliases', $parameters[1]->getName());
+        self::assertSame('requested', $parameters[1]->getName());
 
         $secondParamType = $parameters[1]->getType();
 
         self::assertInstanceOf(\ReflectionNamedType::class, $secondParamType);
         self::assertSame('array', $secondParamType->getName());
-        self::assertTrue($parameters[1]->allowsNull());
-        self::assertTrue($parameters[1]->isDefaultValueAvailable());
-        self::assertNull($parameters[1]->getDefaultValue());
-
-        $returnType = $method->getReturnType();
-
-        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        self::assertSame('array', $returnType->getName());
-    }
-
-    /**
-     * Test that eagerLoadSumsFor is declared with string and nullable array
-     * parameters.
-     *
-     * @return void
-     */
-    public function testResourceMetadataProviderDeclaresEagerLoadSumsFor(): void
-    {
-        $reflection = new \ReflectionClass(ResourceMetadataProvider::class);
-        $method     = $reflection->getMethod('eagerLoadSumsFor');
-
-        self::assertTrue($method->isPublic());
-        self::assertFalse($method->isStatic());
-
-        $parameters = $method->getParameters();
-
-        self::assertCount(2, $parameters);
-        self::assertSame('resourceClass', $parameters[0]->getName());
-        self::assertSame('requestedSums', $parameters[1]->getName());
-        self::assertTrue($parameters[1]->allowsNull());
-        self::assertTrue($parameters[1]->isDefaultValueAvailable());
-        self::assertNull($parameters[1]->getDefaultValue());
-
-        $returnType = $method->getReturnType();
-
-        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        self::assertSame('array', $returnType->getName());
-    }
-
-    /**
-     * Test that eagerLoadAveragesFor is declared with string and nullable array
-     * parameters.
-     *
-     * @return void
-     */
-    public function testResourceMetadataProviderDeclaresEagerLoadAveragesFor(): void
-    {
-        $reflection = new \ReflectionClass(ResourceMetadataProvider::class);
-        $method     = $reflection->getMethod('eagerLoadAveragesFor');
-
-        self::assertTrue($method->isPublic());
-        self::assertFalse($method->isStatic());
-
-        $parameters = $method->getParameters();
-
-        self::assertCount(2, $parameters);
-        self::assertSame('resourceClass', $parameters[0]->getName());
-        self::assertSame('requestedAverages', $parameters[1]->getName());
         self::assertTrue($parameters[1]->allowsNull());
         self::assertTrue($parameters[1]->isDefaultValueAvailable());
         self::assertNull($parameters[1]->getDefaultValue());

@@ -36,6 +36,7 @@ final readonly class CompiledFieldDefinition
      * @param  string|null  $unindexedReason
      * @param  string|null  $searchable
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy|null  $searchStrategy
+     * @param  int|null  $limit
      */
     public function __construct(
 
@@ -92,5 +93,8 @@ final readonly class CompiledFieldDefinition
 
         /** Match strategy the searchable column was declared with */
         public ?SearchStrategy $searchStrategy = null,
+
+        /** Most related records rendered per parent, or null when undeclared */
+        public ?int $limit = null,
     ) {}
 }

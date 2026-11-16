@@ -68,41 +68,15 @@ final class ResourceMetadataService implements ResourceMetadataProvider
     }
 
     /**
-     * Build the eager-load counts map for the given resource class.
+     * Build the eager-load aggregate list for the given resource class.
      *
      * @param  string  $resourceClass
-     * @param  array<int, string>|null  $requestedAliases
-     * @return array<int|string, mixed>
-     */
-    #[\Override]
-    public function eagerLoadCountsFor(string $resourceClass, ?array $requestedAliases = null): array
-    {
-        return $resourceClass::eagerLoadCountsFor($requestedAliases);
-    }
-
-    /**
-     * Build the eager-load sums list for the given resource class.
-     *
-     * @param  string  $resourceClass
-     * @param  array<string, mixed>|null  $requestedSums
+     * @param  array<int, string>|null  $requested
      * @return list<AggregateLoad>
      */
     #[\Override]
-    public function eagerLoadSumsFor(string $resourceClass, ?array $requestedSums = null): array
+    public function eagerLoadAggregatesFor(string $resourceClass, ?array $requested = null): array
     {
-        return $resourceClass::eagerLoadSumsFor($requestedSums);
-    }
-
-    /**
-     * Build the eager-load averages list for the given resource class.
-     *
-     * @param  string  $resourceClass
-     * @param  array<string, mixed>|null  $requestedAverages
-     * @return list<AggregateLoad>
-     */
-    #[\Override]
-    public function eagerLoadAveragesFor(string $resourceClass, ?array $requestedAverages = null): array
-    {
-        return $resourceClass::eagerLoadAveragesFor($requestedAverages);
+        return $resourceClass::eagerLoadAggregatesFor($requested);
     }
 }

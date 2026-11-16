@@ -139,14 +139,14 @@ abstract class ApiRepository extends Repository
      * @param  array<string, mixed>|\Illuminate\Support\Collection<string, mixed>  $attributes
      * @return bool
      *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     * @throws \InvalidArgumentException
      * @throws \ValueError
      */
     public function persist(Model $model, array|Collection $attributes): bool
     {
         $attributes = $attributes instanceof Collection ? $attributes->all() : $attributes;
 
-        return $this->attributeSetter->persist($model, $attributes, $this->model());
+        return $this->attributeSetter->persist($model, $attributes);
     }
 
     /**
@@ -183,17 +183,12 @@ abstract class ApiRepository extends Repository
      * Boot the repository instance.
      *
      * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     #[\Override]
     protected function boot(): void
     {
-        $schemaIntrospector = $this->app->make(SchemaIntrospectionProvider::class);
-
         $this->pageOrder       = new PageOrder;
-        $this->attributeSetter = new AttributeSetter($schemaIntrospector, $this->app->make(MetadataCacheWriter::class));
-        $this->attributeSetter->resolveAttributeCasts($this->getModel(), $this->model());
+        $this->attributeSetter = new AttributeSetter($this->app->make(SchemaIntrospectionProvider::class));
     }
 
     /**

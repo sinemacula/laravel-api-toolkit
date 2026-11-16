@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Providers\Registrars;
 
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\ApiQueryParser;
@@ -14,6 +15,7 @@ use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -42,11 +44,14 @@ use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibilityInspector;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateAccessors;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateAggregateColumns;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateComputedFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateIndexBacking;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateNeedsColumns;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateQueryableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationInterfaces;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationLimits;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchIndexes;
@@ -199,9 +204,12 @@ final readonly class ContainerBindingRegistrar
             new ValidateRelationClasses,
             new ValidateRelationInterfaces,
             new ValidateRelationMethods,
+            new ValidateRelationLimits,
             new ValidateComputedFields,
             new ValidateAccessors,
             new ValidateQueryableFields($app->make(SchemaIntrospectionProvider::class)),
+            new ValidateAggregateColumns($app->make(SchemaIntrospectionProvider::class)),
+            new ValidateNeedsColumns($app->make(SchemaIntrospectionProvider::class)),
             new ValidateIndexBacking($app->make(SchemaIntrospectionProvider::class), $app->make(IndexEligibilityInspector::class)),
             new ValidateSearchableFields,
             new ValidateSearchIndexes($app->make(SearchDriverRegistry::class), $app->make(SchemaIntrospectionProvider::class)),
@@ -228,8 +236,22 @@ final readonly class ContainerBindingRegistrar
                 is_numeric($poolLimit) ? (int) $poolLimit : 10000,
                 FlushStrategy::from(is_string($onFailure) ? $onFailure : 'collect'),
                 (bool) $transactional,
+                $this->transactionTracker(...),
             );
         });
+    }
+
+    /**
+     * Resolve the transaction tracker bound now, since test helpers rebind it
+     * after the write pool is built.
+     *
+     * @return \Illuminate\Database\DatabaseTransactionsManager|null
+     */
+    private function transactionTracker(): ?DatabaseTransactionsManager
+    {
+        $transactions = $this->container->bound('db.transactions') ? $this->container->make('db.transactions') : null;
+
+        return $transactions instanceof DatabaseTransactionsManager ? $transactions : null;
     }
 
     /**
@@ -260,12 +282,14 @@ final readonly class ContainerBindingRegistrar
      * Bind the OpenAPI exporter ports to their default adapters.
      *
      * The enum and defined schema registries are singletons so every resolver
-     * shares one collected set per document.
+     * shares one collected set per document. The exception map is read from the
+     * config on every resolution.
      *
      * @return void
      */
     private function registerOpenApiExporter(): void
     {
+        $this->container->bind(ExceptionMap::class, static fn (): ExceptionMap => ExceptionMap::fromConfig());
         $this->container->singleton(MetadataCatalogue::class, ConfigMetadataCatalogue::class);
         $this->container->singleton(DocumentWriter::class, FilesystemDocumentWriter::class);
         $this->container->singleton(ApiExceptionDiscoverer::class, static fn (): ApiExceptionDiscoverer => ApiExceptionDiscoverer::fromComposer());

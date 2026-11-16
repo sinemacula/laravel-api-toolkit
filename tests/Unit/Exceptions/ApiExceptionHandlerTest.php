@@ -18,6 +18,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Illuminate\Session\TokenMismatchException as LaravelTokenMismatchException;
+use Illuminate\Support\Facades\Exceptions as ExceptionsFacade;
 use Illuminate\Validation\UnauthorizedException as LaravelUnauthorizedException;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Validator;
@@ -28,6 +29,8 @@ use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use SineMacula\ApiToolkit\Exceptions\ConflictException;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
+use SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException;
 use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use SineMacula\ApiToolkit\Exceptions\TokenMismatchException;
@@ -915,13 +918,97 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
+     * Test that a configured mapping renders as the configured exception, with
+     * the headers of the exception it replaces.
+     *
+     * @return void
+     */
+    public function testConfiguredMappingRendersTheConfiguredException(): void
+    {
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        config()->set('app.debug', false);
+        config()->set('api-toolkit.exceptions.map', [TooManyRequestsHttpException::class => ConflictException::class]);
+
+        $response = (new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new TooManyRequestsHttpException(30), $request);
+
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('30', $response->headers->get('Retry-After'));
+
+        $data = $response->getData(true);
+
+        self::assertIsArray($data);
+        self::assertSame(10108, $data['error']['code']);
+    }
+
+    /**
+     * Test that an invalid map is reported once and leaves the rendering to
+     * Laravel.
+     *
+     * @return void
+     */
+    public function testInvalidMapIsReportedAndLeavesRenderingToLaravel(): void
+    {
+        ExceptionsFacade::fake();
+
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        config()->set('api-toolkit.exceptions.map', [\stdClass::class => ConflictException::class]);
+
+        self::assertNull((new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new \RuntimeException, $request));
+
+        ExceptionsFacade::assertReportedCount(1);
+        ExceptionsFacade::assertReported(static fn (InvalidExceptionMapException $exception): bool => $exception->getMessage()
+            === 'The api-toolkit.exceptions.map key [stdClass] must be an interface or a Throwable class, and not an ApiException.');
+    }
+
+    /**
+     * Test that rendering an invalid map failure leaves it to Laravel without
+     * reporting it again.
+     *
+     * @return void
+     */
+    public function testInvalidMapFailureIsLeftToLaravelUnreported(): void
+    {
+        ExceptionsFacade::fake();
+
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        config()->set('api-toolkit.exceptions.map', [\stdClass::class => ConflictException::class]);
+
+        self::assertNull((new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new InvalidExceptionMapException('Invalid.'), $request));
+
+        ExceptionsFacade::assertNothingReported();
+    }
+
+    /**
+     * Test that a configured mapping leaves the reporting decision unchanged.
+     *
+     * @return void
+     */
+    public function testConfiguredMappingLeavesReportingUnchanged(): void
+    {
+        config()->set('api-toolkit.exceptions.map', [\RuntimeException::class => ConflictException::class]);
+
+        [$handler, $exceptions] = $this->exceptionHandler();
+
+        ApiExceptionHandler::handles($exceptions);
+
+        self::assertTrue($handler->shouldReport(new \RuntimeException));
+    }
+
+    /**
      * Test that the reporting samples cover every entry of the exception map.
      *
      * @return void
      */
     public function testReportingSamplesCoverEveryExceptionMapEntry(): void
     {
-        $map = (new \ReflectionMethod(ApiExceptionHandler::class, 'exceptionMap'))->invoke(null);
+        $map = (new \ReflectionClassConstant(ExceptionMap::class, 'DEFAULTS'))->getValue();
 
         self::assertIsArray($map);
 

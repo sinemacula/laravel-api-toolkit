@@ -23,6 +23,83 @@ use Tests\TestCase;
 final class FieldSchemaBuilderTest extends TestCase
 {
     /**
+     * Provide the comparison and digit rules with the bounds they export.
+     *
+     * @return iterable<string, array{0: list<string>, 1: array<string, mixed>}>
+     */
+    public static function boundsProvider(): iterable
+    {
+        yield from [
+            'exclusive and inclusive' => [['numeric', 'gt:0', 'lte:100'], ['type' => 'number', 'maximum' => 100, 'exclusiveMinimum' => 0]],
+            'tightest lower'          => [['integer', 'min:1', 'gte:5'], ['type' => 'integer', 'minimum' => 5]],
+            'string comparison'       => [['string', 'gt:3', 'gte:1', 'lt:9', 'lte:8'], ['type' => 'string']],
+            'multiple of fraction'    => [['numeric', 'multiple_of:0.5'], ['type' => 'number', 'multipleOf' => 0.5]],
+            'multiple of zero'        => [['integer', 'multiple_of:0'], ['type' => 'integer']],
+            'untyped multiple of'     => [['multiple_of:2'], []],
+            'integer digits'          => [['integer', 'digits:4'], ['type' => 'integer', 'minimum' => 1000, 'maximum' => 9999]],
+            'twenty digits'           => [['integer', 'digits:20'], ['type' => 'integer']],
+            'string digits'           => [['digits:4'], ['pattern' => '^[0-9]{4}$']],
+        ];
+    }
+
+    /**
+     * Test that the comparison and digit rules export the bounds they apply.
+     *
+     * @param  list<string>  $tokens
+     * @param  array<string, mixed>  $expected
+     * @return void
+     */
+    #[DataProvider('boundsProvider')]
+    public function testComparisonAndDigitRulesBoundTheField(array $tokens, array $expected): void
+    {
+        self::assertSame($expected, (new FieldSchemaBuilder)->build($tokens)['schema']);
+    }
+
+    /**
+     * Provide the value-shaping rules with the keywords they export.
+     *
+     * @return iterable<string, array{0: list<string>, 1: array<string, mixed>}>
+     */
+    public static function valueRuleProvider(): iterable
+    {
+        yield from [
+            'accepted'              => [['accepted'], ['enum' => ['yes', 'on', '1', 1, true, 'true']]],
+            'boolean accepted'      => [['boolean', 'accepted'], ['type' => 'boolean', 'enum' => [true]]],
+            'string accepted'       => [['string', 'accepted'], ['type' => 'string', 'enum' => ['yes', 'on', '1', 'true']]],
+            'integer accepted'      => [['integer', 'accepted'], ['type' => 'integer', 'enum' => [1]]],
+            'number accepted'       => [['numeric', 'accepted'], ['type' => 'number', 'enum' => [1]]],
+            'array accepted'        => [['array', 'accepted'], ['type' => 'array', 'enum' => [], 'minItems' => 1]],
+            'nullable accepted'     => [['nullable', 'accepted'], ['enum' => ['yes', 'on', '1', 1, true, 'true']]],
+            'declined'              => [['declined'], ['enum' => ['no', 'off', '0', 0, false, 'false']]],
+            'boolean declined'      => [['boolean', 'declined'], ['type' => 'boolean', 'enum' => [false]]],
+            'in and accepted'       => [['in:no,maybe,yes', 'accepted'], ['enum' => ['yes']]],
+            'accepted and declined' => [['accepted', 'declined'], ['enum' => []]],
+            'integer not in'        => [['integer', 'not_in:1,2'], ['type' => 'integer', 'not' => ['enum' => [1, 2]]]],
+            'untyped not in'        => [['not_in:"a","b,c"'], ['not' => ['enum' => ['a', 'b,c']]]],
+            'array not in'          => [['array', 'not_in:a'], ['type' => 'array']],
+            'empty not in'          => [['string', 'not_in:'], ['type' => 'string']],
+            'integer not in zero'   => [['integer', 'not_in:0'], ['type' => 'integer']],
+            'starts with'           => [['starts_with:a.b,c'], ['pattern' => '^(?:a\.b|c)']],
+            'alpha ascii'           => [['alpha:ascii'], ['pattern' => '^[a-zA-Z]+$']],
+            'json'                  => [['json'], ['contentMediaType' => 'application/json']],
+            'string json'           => [['string', 'json'], ['type' => 'string', 'contentMediaType' => 'application/json']],
+        ];
+    }
+
+    /**
+     * Test that the value-shaping rules export the keywords they apply.
+     *
+     * @param  list<string>  $tokens
+     * @param  array<string, mixed>  $expected
+     * @return void
+     */
+    #[DataProvider('valueRuleProvider')]
+    public function testValueRulesShapeTheField(array $tokens, array $expected): void
+    {
+        self::assertSame($expected, (new FieldSchemaBuilder)->build($tokens)['schema']);
+    }
+
+    /**
      * Provide the rule-token to schema-fragment mapping table.
      *
      * @return iterable<string, array{0: list<string>, 1: array<string, mixed>}>
@@ -41,8 +118,10 @@ final class FieldSchemaBuilderTest extends TestCase
             'uuid format'          => [['uuid'], ['type' => 'string', 'format' => 'uuid']],
             'ulid format'          => [['ulid'], ['type' => 'string', 'format' => 'ulid']],
             'url format'           => [['url'], ['type' => 'string', 'format' => 'uri']],
-            'ip format'            => [['ip'], ['type' => 'string', 'format' => 'ipv4']],
-            'date format'          => [['date'], ['type' => 'string', 'format' => 'date']],
+            'ip either family'     => [['ip'], ['type' => 'string', 'anyOf' => [['format' => 'ipv4'], ['format' => 'ipv6']]]],
+            'ipv4 format'          => [['ipv4'], ['type' => 'string', 'format' => 'ipv4']],
+            'ipv6 format'          => [['ipv6'], ['type' => 'string', 'format' => 'ipv6']],
+            'date any string'      => [['date'], ['type' => 'string']],
             'date_format format'   => [['date_format:Y-m-d H:i'], ['type' => 'string', 'format' => 'date-time']],
             'regex pattern'        => [['regex:/^a$/'], ['pattern' => '^a$']],
             'in enum'              => [['in:a,b,c'], ['enum' => ['a', 'b', 'c']]],
@@ -79,10 +158,12 @@ final class FieldSchemaBuilderTest extends TestCase
             'nullable email'       => [['nullable', 'string', 'email'], ['type' => ['string', 'null'], 'format' => 'email']],
             'nullable enum'        => [['nullable', 'in:a,b'], ['enum' => ['a', 'b', null]]],
             'nullable typed enum'  => [['nullable', 'string', 'in:a,b'], ['type' => ['string', 'null'], 'enum' => ['a', 'b', null]]],
-            'nullable date'        => [['nullable', 'date'], ['type' => ['string', 'null'], 'format' => 'date']],
+            'nullable date'        => [['nullable', 'date'], ['type' => ['string', 'null']]],
             'file binary'          => [['file'], ['type' => 'string', 'format' => 'binary']],
             'image binary'         => [['image'], ['type' => 'string', 'format' => 'binary']],
-            'unknown rule skipped' => [['string', 'starts_with:foo'], ['type' => 'string']],
+            'file size skipped'    => [['file', 'max:2048'], ['type' => 'string', 'format' => 'binary']],
+            'image size skipped'   => [['image', 'min:1'], ['type' => 'string', 'format' => 'binary']],
+            'unknown rule skipped' => [['string', 'foobar:foo'], ['type' => 'string']],
             'boolean size skipped' => [['boolean', 'min:1'], ['type' => 'boolean']],
             'array keys arguments' => [['array:name,email'], ['type' => 'array']],
             'regex two char pairs' => [['regex://'], ['pattern' => '']],
@@ -90,6 +171,9 @@ final class FieldSchemaBuilderTest extends TestCase
             'regex caret anchored' => [['regex:a/b/'], ['pattern' => 'a/b/']],
             'regex dollar trailer' => [['regex:/abc/;'], ['pattern' => '/abc/;']],
             'regex colon argument' => [['regex:/^a:b$/'], ['pattern' => '^a:b$']],
+            'regex modifier drops' => [['regex:/x/i'], []],
+            'regex unicode kept'   => [['regex:/x/u'], ['pattern' => 'x']],
+            'regex and affix'      => [['regex:/^a/', 'starts_with:b'], ['allOf' => [['pattern' => '^a'], ['pattern' => '^(?:b)']]]],
         ];
     }
 
@@ -128,6 +212,7 @@ final class FieldSchemaBuilderTest extends TestCase
     public function testRequiredTokenMarksFieldRequired(): void
     {
         self::assertTrue((new FieldSchemaBuilder)->build(['required', 'string'])['required']);
+        self::assertTrue((new FieldSchemaBuilder)->build(['accepted'])['required']);
     }
 
     /**
@@ -288,6 +373,6 @@ final class FieldSchemaBuilderTest extends TestCase
      */
     public function testAFieldWithOnlyUntranslatableRulesBuildsAnEmptySchema(): void
     {
-        self::assertSame(['schema' => [], 'required' => false], (new FieldSchemaBuilder)->build(['sometimes', 'nullable', 'accepted']));
+        self::assertSame(['schema' => [], 'required' => false], (new FieldSchemaBuilder)->build(['sometimes', 'nullable', 'timezone']));
     }
 }

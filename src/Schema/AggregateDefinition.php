@@ -4,10 +4,11 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Schema\Concerns\HasMetricModifiers;
 
 /**
- * Base for relation aggregate (sum and average) schema definitions.
+ * Base for every relation aggregate schema definition.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -16,38 +17,28 @@ abstract class AggregateDefinition extends BaseDefinition
 {
     use HasMetricModifiers;
 
+    /** @var string The prefix every aggregate's raw schema key carries */
+    public const string KEY_PREFIX = '__aggregate__:';
+
     /**
      * Prevent direct instantiation; use of() on the concrete subclass.
      *
      * @param  string  $relation
-     * @param  string  $column
+     * @param  string|null  $column
      * @param  string|null  $alias
      */
-    protected function __construct(
+    final protected function __construct(
 
         /** The Eloquent relation to aggregate */
         private readonly string $relation,
 
-        /** The database column to aggregate */
-        private readonly string $column,
+        /** The related column to aggregate, or null for count and exists */
+        private readonly ?string $column = null,
 
-        // Optional alias to expose this metric under
+        // Optional alias to expose this aggregate under
         ?string $alias = null,
     ) {
         $this->alias = $alias;
-    }
-
-    /**
-     * Define an aggregate metric by relation and column.
-     *
-     * @param  string  $relation
-     * @param  string  $column
-     * @param  string|null  $alias
-     * @return static
-     */
-    public static function of(string $relation, string $column, ?string $alias = null): static
-    {
-        return new static($relation, $column, $alias); // @phpstan-ignore new.static
     }
 
     /**
@@ -58,13 +49,13 @@ abstract class AggregateDefinition extends BaseDefinition
     #[\Override]
     public function toArray(): array
     {
-        $present = $this->alias ?? ($this->relation . '_' . $this->column);
-        $key     = '__' . static::metric() . '__:' . $present;
+        $function = $this->function();
+        $present  = $this->alias ?? $function->defaultKey($this->relation, $this->column);
 
         return [
-            $key => array_filter([
+            self::KEY_PREFIX . $present => array_filter([
                 'key'        => $present,
-                'metric'     => static::metric(),
+                'metric'     => $function->value,
                 'relation'   => $this->relation,
                 'column'     => $this->column,
                 'constraint' => $this->constraint,
@@ -76,9 +67,9 @@ abstract class AggregateDefinition extends BaseDefinition
     }
 
     /**
-     * Return the metric identifier for this aggregate type.
+     * Return the SQL function this aggregate applies.
      *
-     * @return string
+     * @return \SineMacula\ApiToolkit\Enums\AggregateFunction
      */
-    abstract protected static function metric(): string;
+    abstract public function function(): AggregateFunction;
 }

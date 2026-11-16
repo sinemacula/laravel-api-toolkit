@@ -12,6 +12,8 @@ use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibilityInspector;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateIndexBacking;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Search\StubIndexEligibilityInspector;
@@ -41,7 +43,7 @@ final class ValidateIndexBackingTest extends TestCase
 
         $introspector->expects(self::never())->method('getIndexes');
 
-        $schema = new CompiledSchema(fields: ['name' => $this->makeField()], counts: []);
+        $schema = new CompiledSchema(fields: ['name' => $this->makeField()]);
 
         self::assertSame([], (new ValidateIndexBacking($introspector))->validate(UserResource::class, User::class, $schema));
     }
@@ -75,7 +77,7 @@ final class ValidateIndexBackingTest extends TestCase
     {
         $schema = $this->schema('name', indexedBy: 'users_lower_name_index', unindexedReason: 'Bounded table');
 
-        $errors = $this->rule([])->validate(UserResource::class, null, $schema);
+        $errors = self::defects($this->rule([])->validate(UserResource::class, null, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -119,7 +121,7 @@ final class ValidateIndexBackingTest extends TestCase
     {
         $rule = $this->rule([new IndexDefinition('users_status_name_index', ['status', 'name'], 'btree')]);
 
-        $errors = $rule->validate(UserResource::class, User::class, $this->schema('name'));
+        $errors = self::defects($rule->validate(UserResource::class, User::class, $this->schema('name')));
 
         self::assertCount(1, $errors);
         self::assertSame(UserResource::class, $errors[0]->resourceClass);
@@ -139,7 +141,7 @@ final class ValidateIndexBackingTest extends TestCase
     {
         $rule = $this->rule([new IndexDefinition('users_email_unique', ['email'], 'btree')]);
 
-        $errors = $rule->validate(UserResource::class, User::class, $this->schema('name'));
+        $errors = self::defects($rule->validate(UserResource::class, User::class, $this->schema('name')));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -155,7 +157,7 @@ final class ValidateIndexBackingTest extends TestCase
      */
     public function testRefusesASortableColumnAgainstAVerifiedEmptyCatalogue(): void
     {
-        $errors = $this->rule([])->validate(UserResource::class, User::class, $this->schema('name'));
+        $errors = self::defects($this->rule([])->validate(UserResource::class, User::class, $this->schema('name')));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -165,13 +167,75 @@ final class ValidateIndexBackingTest extends TestCase
     }
 
     /**
-     * Test that a catalogue that could not be inspected is passed over.
+     * Test that a sort the catalogue could not be read to prove is unverified.
      *
      * @return void
      */
-    public function testPassesOverAnUnverifiableCatalogueRatherThanRefusingIt(): void
+    public function testLeavesASortUnverifiedAgainstAnUnreadableCatalogue(): void
     {
-        self::assertSame([], $this->rule(null)->validate(UserResource::class, User::class, $this->schema('name')));
+        self::assertEquals(
+            [new UnverifiedDeclaration(UserResource::class, 'name', 'an ordered index on table "users" leads with "name"', User::class)],
+            $this->rule(null)->validate(UserResource::class, User::class, $this->schema('name')),
+        );
+    }
+
+    /**
+     * Test that a named index the catalogue could not be read to prove is
+     * unverified under its own name.
+     *
+     * @return void
+     */
+    public function testLeavesANamedIndexUnverifiedAgainstAnUnreadableCatalogue(): void
+    {
+        $schema = $this->schema('name', indexedBy: 'users_missing_index');
+
+        self::assertEquals(
+            [new UnverifiedDeclaration(UserResource::class, 'name', 'table "users" carries the "users_missing_index" index behind sortable column "name"', User::class)],
+            $this->rule(null)->validate(UserResource::class, User::class, $schema),
+        );
+    }
+
+    /**
+     * Test that an exempt sort needs no catalogue, while every other sort after
+     * it is left unverified.
+     *
+     * @return void
+     */
+    public function testLeavesOnlyTheSortsNeedingAnIndexUnverified(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'status' => $this->makeField('status', unindexedReason: 'Bounded table'),
+                'name'   => $this->makeField('name'),
+                'email'  => $this->makeField('email'),
+            ],
+            aggregates: [],
+            sortableColumns: ['status', 'name', 'email'],
+        );
+
+        self::assertEquals([
+            new UnverifiedDeclaration(UserResource::class, 'name', 'an ordered index on table "users" leads with "name"', User::class),
+            new UnverifiedDeclaration(UserResource::class, 'email', 'an ordered index on table "users" leads with "email"', User::class),
+        ], $this->rule(null)->validate(UserResource::class, User::class, $schema));
+    }
+
+    /**
+     * Test that an override on a field that is not sortable stays an error
+     * against an unreadable catalogue, leaving nothing unverified.
+     *
+     * @return void
+     */
+    public function testKeepsAnOverrideDefectAsAnErrorAgainstAnUnreadableCatalogue(): void
+    {
+        $schema = new CompiledSchema(
+            fields: ['name' => $this->makeField(indexedBy: 'users_name_index')],
+            aggregates: [],
+        );
+
+        self::assertEquals(
+            [new SchemaValidationError(UserResource::class, 'name', 'Field declares index backing but is not declared sortable, so the declaration governs nothing')],
+            $this->rule(null)->validate(UserResource::class, User::class, $schema),
+        );
     }
 
     /**
@@ -183,7 +247,7 @@ final class ValidateIndexBackingTest extends TestCase
     {
         $rule = $this->rule([new IndexDefinition('users_name_trgm', ['name'], 'gin')]);
 
-        $errors = $rule->validate(UserResource::class, User::class, $this->schema('name'));
+        $errors = self::defects($rule->validate(UserResource::class, User::class, $this->schema('name')));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -232,11 +296,10 @@ final class ValidateIndexBackingTest extends TestCase
                 'name'       => $this->makeField('name'),
                 'created_at' => $this->makeField('created_at'),
             ],
-            counts: [],
             sortableColumns: ['name', 'created_at'],
         );
 
-        $errors = $this->rule([])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule([])->validate(UserResource::class, User::class, $schema));
 
         self::assertSame(['name', 'created_at'], array_map(static fn ($error): string => $error->fieldKey, $errors));
     }
@@ -278,7 +341,7 @@ final class ValidateIndexBackingTest extends TestCase
     {
         $rule = $this->rule([new IndexDefinition('users_name_index', ['name'], 'btree')]);
 
-        $errors = $rule->validate(UserResource::class, User::class, $this->schema('name', indexedBy: 'users_lower_name_index'));
+        $errors = self::defects($rule->validate(UserResource::class, User::class, $this->schema('name', indexedBy: 'users_lower_name_index')));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -308,7 +371,7 @@ final class ValidateIndexBackingTest extends TestCase
     {
         $schema = $this->schema('name', indexedBy: 'users_lower_name_index', unindexedReason: 'Bounded table');
 
-        $errors = $this->rule([])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule([])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -326,10 +389,9 @@ final class ValidateIndexBackingTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField(indexedBy: 'users_name_index')],
-            counts: [],
         );
 
-        $errors = $this->rule([])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule([])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame('name', $errors[0]->fieldKey);
@@ -348,10 +410,9 @@ final class ValidateIndexBackingTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField(unindexedReason: 'Bounded table')],
-            counts: [],
         );
 
-        $errors = $this->rule([])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule([])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -369,7 +430,7 @@ final class ValidateIndexBackingTest extends TestCase
     {
         $schema = $this->schema('name', indexedBy: 'users_lower_name_index', unindexedReason: 'Bounded table');
 
-        $errors = $this->rule(null)->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(null)->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -393,7 +454,7 @@ final class ValidateIndexBackingTest extends TestCase
 
         self::assertSame(
             ['Field is declared sortable against "name", and no ordered index on table "users" leads with that column'],
-            array_map(static fn ($error): string => $error->defect, $rule->validate(UserResource::class, User::class, $this->schema('name'))),
+            array_map(static fn (SchemaValidationError $error): string => $error->defect, self::defects($rule->validate(UserResource::class, User::class, $this->schema('name')))),
         );
 
         // Without the report the same catalogue proves the column.
@@ -449,7 +510,7 @@ final class ValidateIndexBackingTest extends TestCase
 
         self::assertSame(
             ['Field is declared sortable against "name", and no ordered index on table "users" leads with that column'],
-            array_map(static fn ($error): string => $error->defect, $rule->validate(UserResource::class, User::class, $this->schema('name'))),
+            array_map(static fn (SchemaValidationError $error): string => $error->defect, self::defects($rule->validate(UserResource::class, User::class, $this->schema('name')))),
         );
     }
 
@@ -501,7 +562,7 @@ final class ValidateIndexBackingTest extends TestCase
 
         self::assertSame(
             ['Field is declared sortable against "name", and no ordered index on table "users" leads with that column'],
-            array_map(static fn ($error): string => $error->defect, $rule->validate(UserResource::class, User::class, $this->schema('name'))),
+            array_map(static fn (SchemaValidationError $error): string => $error->defect, self::defects($rule->validate(UserResource::class, User::class, $this->schema('name')))),
         );
 
         $schema = $this->schema('name', indexedBy: 'users_name_c_index');
@@ -565,7 +626,10 @@ final class ValidateIndexBackingTest extends TestCase
 
         $rule = new ValidateIndexBacking($introspector, $inspector);
 
-        self::assertSame([], $rule->validate(UserResource::class, User::class, $this->schema('name')));
+        self::assertEquals(
+            [new UnverifiedDeclaration(UserResource::class, 'name', 'an ordered index on table "users" leads with "name"', User::class)],
+            $rule->validate(UserResource::class, User::class, $this->schema('name')),
+        );
     }
 
     /**
@@ -580,11 +644,11 @@ final class ValidateIndexBackingTest extends TestCase
             new IndexEligibility(['users_name_index']),
         );
 
-        $errors = $rule->validate(UserResource::class, User::class, $this->schema('name', indexedBy: 'users_name_index'));
+        $errors = self::defects($rule->validate(UserResource::class, User::class, $this->schema('name', indexedBy: 'users_name_index')));
 
         self::assertSame(
             ['Field declares the "users_name_index" index behind sortable column "name", and table "users" carries it, but the connection will not plan against it'],
-            array_map(static fn ($error): string => $error->defect, $errors),
+            array_map(static fn (SchemaValidationError $error): string => $error->defect, $errors),
         );
     }
 
@@ -633,7 +697,6 @@ final class ValidateIndexBackingTest extends TestCase
     {
         return new CompiledSchema(
             fields: [$column => $this->makeField($column, $indexedBy, $unindexedReason)],
-            counts: [],
             sortableColumns: [$column],
         );
     }
@@ -663,5 +726,27 @@ final class ValidateIndexBackingTest extends TestCase
             indexedBy      : $indexedBy,
             unindexedReason: $unindexedReason,
         );
+    }
+
+    /**
+     * Narrow the findings to defects, failing on anything left unverified.
+     *
+     * @param  array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|\SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>  $findings
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     */
+    private static function defects(array $findings): array
+    {
+        $defects = [];
+
+        foreach ($findings as $finding) {
+
+            if (!$finding instanceof SchemaValidationError) {
+                self::fail(sprintf('Expected only defects, found: %s', $finding));
+            }
+
+            $defects[] = $finding;
+        }
+
+        return $defects;
     }
 }

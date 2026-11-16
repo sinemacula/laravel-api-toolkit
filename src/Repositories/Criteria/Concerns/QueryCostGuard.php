@@ -73,25 +73,6 @@ final class QueryCostGuard
      */
     private function countAggregates(?string $resourceType): int
     {
-        return count(ApiQuery::getCounts($resourceType) ?? [])
-            + $this->countExpressions(ApiQuery::getSums($resourceType))
-            + $this->countExpressions(ApiQuery::getAverages($resourceType));
-    }
-
-    /**
-     * Count the aggregate expressions across a relation-keyed column map.
-     *
-     * @param  array<string, mixed>|null  $aggregates
-     * @return int
-     */
-    private function countExpressions(?array $aggregates): int
-    {
-        $total = 0;
-
-        foreach ($aggregates ?? [] as $columns) {
-            $total += is_array($columns) ? count($columns) : 1;
-        }
-
-        return $total;
+        return count(ApiQuery::getAggregates($resourceType) ?? []);
     }
 }

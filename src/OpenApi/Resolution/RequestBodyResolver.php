@@ -56,11 +56,32 @@ final readonly class RequestBodyResolver
         }
 
         $media = $this->isBinary($schema) ? self::MEDIA_MULTIPART : self::MEDIA_JSON;
+        $body  = ['content' => [$media => ['schema' => $schema]]];
 
-        return [
-            'required' => true,
-            'content'  => [$media => ['schema' => $schema]],
-        ];
+        return $this->demandsBody($schema) ? ['required' => true, ...$body] : $body;
+    }
+
+    /**
+     * Determine whether the schema refuses an empty body.
+     *
+     * @param  mixed  $schema
+     * @return bool
+     */
+    private function demandsBody(mixed $schema): bool
+    {
+        if (!is_array($schema)) {
+            return false;
+        }
+
+        if (($schema['required'] ?? []) !== []) {
+            return true;
+        }
+
+        $anyOf = is_array($schema['anyOf'] ?? null) ? $schema['anyOf'] : [];
+        $allOf = is_array($schema['allOf'] ?? null) ? $schema['allOf'] : [];
+
+        return ($anyOf !== [] && array_filter($anyOf, fn (mixed $branch): bool => !$this->demandsBody($branch)) === [])
+            || array_filter($allOf, $this->demandsBody(...)) !== [];
     }
 
     /**

@@ -48,32 +48,12 @@ interface ResourceMetadataProvider
     public function eagerLoadMapFor(string $resourceClass, array $fields): array;
 
     /**
-     * Build the eager-load counts map for the given resource class and
-     * requested aliases.
+     * Build the eager-load aggregate entry list for the given resource class
+     * and requested aggregate keys.
      *
      * @param  string  $resourceClass
-     * @param  array<int, string>|null  $requestedAliases
-     * @return array<int|string, mixed>
-     */
-    public function eagerLoadCountsFor(string $resourceClass, ?array $requestedAliases = null): array;
-
-    /**
-     * Build the eager-load sums entry list for the given resource class and
-     * requested relation-column map.
-     *
-     * @param  string  $resourceClass
-     * @param  array<string, mixed>|null  $requestedSums
+     * @param  array<int, string>|null  $requested
      * @return list<AggregateLoad>
      */
-    public function eagerLoadSumsFor(string $resourceClass, ?array $requestedSums = null): array;
-
-    /**
-     * Build the eager-load averages entry list for the given resource class and
-     * requested relation-column map.
-     *
-     * @param  string  $resourceClass
-     * @param  array<string, mixed>|null  $requestedAverages
-     * @return list<AggregateLoad>
-     */
-    public function eagerLoadAveragesFor(string $resourceClass, ?array $requestedAverages = null): array;
+    public function eagerLoadAggregatesFor(string $resourceClass, ?array $requested = null): array;
 }

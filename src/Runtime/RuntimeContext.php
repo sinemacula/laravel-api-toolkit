@@ -28,42 +28,24 @@ final class RuntimeContext
     }
 
     /**
-     * Determine whether the current process is serving as a real queue worker.
+     * Determine whether a job on the given connection runs in a real queue
+     * worker, which is any connection with a non-sync driver.
      *
-     * Without a connection this checks for a queue:work or queue:listen
-     * command; with a job's connection it checks for a non-sync driver.
+     * A worker started without a connection name runs the default one.
      *
      * @param  string|null  $connection
      * @return bool
      */
-    public function isServingAsQueueWorker(?string $connection = null): bool
+    public function isServingAsQueueWorker(?string $connection): bool
     {
-        if ($connection === null) {
-            return $this->isRunningQueueWorkerCommand();
-        }
+        $connection ??= Config::get('queue.default');
 
-        $driver = Config::get("queue.connections.{$connection}.driver");
+        $driver = is_string($connection) ? Config::get("queue.connections.{$connection}.driver") : null;
 
         if (!is_string($driver) || $driver === '') {
             return false;
         }
 
         return $driver !== 'sync';
-    }
-
-    /**
-     * Determine whether the current process is running a queue worker command.
-     *
-     * @return bool
-     */
-    private function isRunningQueueWorkerCommand(): bool
-    {
-        $argv = $_SERVER['argv'] ?? null;
-
-        if (!is_array($argv)) {
-            return false;
-        }
-
-        return in_array('queue:work', $argv, true) || in_array('queue:listen', $argv, true);
     }
 }

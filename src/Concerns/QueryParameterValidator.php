@@ -186,15 +186,7 @@ final class QueryParameterValidator
         $rules = $this->getBaseValidationRules();
 
         $this->applyArrayValidationRules($rules, $parameters, 'fields', ['fields.*' => 'string']);
-        $this->applyArrayValidationRules($rules, $parameters, 'counts', ['counts.*' => 'string']);
-        $this->applyArrayValidationRules($rules, $parameters, 'sums', [
-            'sums.*'   => 'array',
-            'sums.*.*' => 'string',
-        ]);
-        $this->applyArrayValidationRules($rules, $parameters, 'averages', [
-            'averages.*'   => 'array',
-            'averages.*.*' => 'string',
-        ]);
+        $this->applyArrayValidationRules($rules, $parameters, 'aggregates', ['aggregates.*' => 'string']);
 
         return $rules;
     }
