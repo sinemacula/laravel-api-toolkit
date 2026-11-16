@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Pagination\Cursor;
+use Illuminate\Support\Str;
 use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
@@ -83,17 +84,28 @@ final class PageOrder
     /**
      * Resolve the columns to append, or none where no safe tiebreaker exists.
      *
+     * A DISTINCT ON query must lead its order with the distinct columns, and a
+     * SELECT DISTINCT may only be ordered by columns it selects.
+     *
      * @param  \Illuminate\Database\Query\Builder  $base
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return array<int, string>
      */
     private function tiebreakers(QueryBuilder $base, Model $model): array
     {
-        if (!empty($base->unions)) {
+        if (!empty($base->unions) || is_array($base->distinct)) {
             return [];
         }
 
-        return empty($base->groups) ? $this->keyTiebreaker($base, $model) : $this->groupTiebreakers($base);
+        $columns = empty($base->groups) ? $this->keyTiebreaker($base, $model) : $this->groupTiebreakers($base);
+
+        foreach ($columns as $column) {
+            if (!$this->projects($base, $model, $column)) {
+                return [];
+            }
+        }
+
+        return $columns;
     }
 
     /**
@@ -108,7 +120,7 @@ final class PageOrder
         $ordered = $this->columnsOf($base->orders ?? []);
         $keyed   = in_array($model->getKeyName(), $ordered, true) || in_array($model->getQualifiedKeyName(), $ordered, true);
 
-        if ($keyed || !empty($base->havings) || !$this->projectsKey($base, $model)) {
+        if ($keyed || !empty($base->havings)) {
             return [];
         }
 
@@ -133,23 +145,23 @@ final class PageOrder
     }
 
     /**
-     * Determine whether a distinct query selects the key to be ordered by.
-     *
-     * A SELECT DISTINCT may only be ordered by columns it selects.
+     * Determine whether the query selects the column, as a distinct query must.
      *
      * @param  \Illuminate\Database\Query\Builder  $base
      * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $column
      * @return bool
      */
-    private function projectsKey(QueryBuilder $base, Model $model): bool
+    private function projects(QueryBuilder $base, Model $model, string $column): bool
     {
         if ($base->distinct === false || $base->columns === null) {
             return true;
         }
 
-        $keys = ['*', $model->getTable() . '.*', $model->getKeyName(), $model->getQualifiedKeyName()];
+        $qualified = $model->qualifyColumn($column);
+        $names     = ['*', $model->getTable() . '.*', $qualified, Str::after($qualified, $model->getTable() . '.')];
 
-        return array_filter($base->columns, static fn (mixed $column): bool => in_array($column, $keys, true)) !== [];
+        return array_filter($base->columns, static fn (mixed $selected): bool => in_array($selected, $names, true)) !== [];
     }
 
     /**

@@ -189,6 +189,18 @@ final class PageOrderTest extends TestCase
     }
 
     /**
+     * Test that a distinct grouped query takes the group columns it selects.
+     *
+     * @return void
+     */
+    public function testDistinctGroupedQueryTakesTheGroupColumnsItSelects(): void
+    {
+        $query = $this->users(static fn (QueryBuilder $query) => $query->distinct()->select(['status', 'users.name'])->groupBy('status', 'name'));
+
+        self::assertSame([['status', 'asc'], ['name', 'asc']], $this->orders($this->pageOrder->complete($query)));
+    }
+
+    /**
      * Provide grouped or aggregated queries no tiebreaker can be appended to.
      *
      * @return iterable<string, array{\Closure(\Illuminate\Database\Query\Builder): mixed}>
@@ -200,6 +212,8 @@ final class PageOrderTest extends TestCase
         yield 'having without groups' => [static fn (QueryBuilder $query) => $query->havingRaw('count(*) > 0')];
         yield 'distinct without the key' => [static fn (QueryBuilder $query) => $query->distinct()->select(['name'])];
         yield 'distinct over an expression' => [static fn (QueryBuilder $query) => $query->distinct()->select([new Expression('id')])];
+        yield 'distinct on columns' => [static fn (QueryBuilder $query) => $query->distinct(['name'])->select(['id', 'name'])];
+        yield 'distinct without a group column' => [static fn (QueryBuilder $query) => $query->distinct()->select(['name'])->groupBy('name', 'id')];
     }
 
     /**

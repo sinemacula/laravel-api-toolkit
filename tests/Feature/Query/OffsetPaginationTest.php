@@ -153,6 +153,20 @@ final class OffsetPaginationTest extends TestCase
     }
 
     /**
+     * Test that rows tied on a descending order are paged by descending key.
+     *
+     * @return void
+     */
+    public function testTiedRowsOnADescendingOrderArePagedByDescendingKey(): void
+    {
+        User::query()->update(['name' => 'Same']);
+
+        $pages = array_map(fn (int $page): array => $this->emails($this->getJson('/users?order=name:desc&limit=2&page=' . $page)), [1, 2, 3]);
+
+        self::assertSame([['evan', 'dan'], ['cara', 'ben'], ['anna']], $pages);
+    }
+
+    /**
      * Test that a read with no order pages in key order, whatever order the
      * engine stores the rows in.
      *
