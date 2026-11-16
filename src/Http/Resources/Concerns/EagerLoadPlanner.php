@@ -81,7 +81,7 @@ final class EagerLoadPlanner
     public static function buildAggregateMap(string $resourceClass, ?array $requested = null): array
     {
         $requested = $requested ?: null;
-        $cacheKey  = $resourceClass . '|' . ($requested === null ? '*' : implode("\0", $requested));
+        $cacheKey  = $resourceClass . '|' . ($requested === null ? '*' : serialize($requested));
 
         if (isset(self::$aggregateCache[$cacheKey])) {
             return self::$aggregateCache[$cacheKey];

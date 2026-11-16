@@ -1563,14 +1563,14 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that load_missing triggers loadAggregate when 'aggregates' is in the
-     * included fields.
+     * Test that load_missing over a model without related rows renders the
+     * count as zero and omits the null sum.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testConstructorWithLoadMissingAndCountsField(): void
+    public function testConstructorWithLoadMissingRendersAZeroCountAndOmitsANullSum(): void
     {
         $user = User::create([
             'name'  => 'CountLoad',
@@ -1581,13 +1581,15 @@ final class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', HttpMethod::GET->getVerb());
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['users' => self::AGGREGATES_FIELDS],
+        ]);
         $parser->parse($request);
 
-        $resource = new UserResource($user, true, ['id', 'aggregates']);
-        $result   = $resource->resolve();
+        $result = (new UserResource($user, true))->resolve();
 
-        self::assertArrayHasKey('_type', $result);
+        self::assertSame(['posts_count' => 0], $result['aggregates']);
+        self::assertArrayHasKey('aggregate_posts_sum_id', $user->getAttributes());
     }
 
     /**
@@ -2533,8 +2535,8 @@ final class ApiResourceTest extends TestCase
         $result   = $resource->resolve();
 
         self::assertSame([
-            ['posts as aggregate_posts_count', '*', 'count'],
-            ['posts as aggregate_posts_sum_id', 'id', 'sum'],
+            [['posts as aggregate_posts_count'], '*', 'count'],
+            [['posts as aggregate_posts_sum_id'], 'id', 'sum'],
         ], $model->calls);
         self::assertSame(['posts_count' => 2, 'posts_sum_id' => 42.0], $result['aggregates']);
     }
@@ -2597,7 +2599,7 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($model, true);
         $result   = $resource->resolve();
 
-        self::assertSame([['posts as aggregate_posts_avg_id', 'id', 'avg']], $model->calls);
+        self::assertSame([[['posts as aggregate_posts_avg_id'], 'id', 'avg']], $model->calls);
         self::assertSame(['posts_avg_id' => 3.5], $result['aggregates']);
     }
 
@@ -2820,8 +2822,130 @@ final class ApiResourceTest extends TestCase
 
         $result = (new UserResource($model, true))->resolve();
 
-        self::assertSame([['posts as aggregate_posts_sum_id', 'id', 'sum']], $model->calls);
+        self::assertSame([[['posts as aggregate_posts_sum_id'], 'id', 'sum']], $model->calls);
         self::assertSame(['posts_count' => 5, 'posts_sum_id' => 42.0], $result['aggregates']);
+    }
+
+    /**
+     * Test that load_missing loads the aggregates sharing a function and a
+     * column in one call, constrained or not.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testLoadMissingLoadsAggregatesSharingAFunctionInOneCall(): void
+    {
+        $this->clearSchemaCache();
+
+        $published = static function (Builder $query): void {
+            $query->where('published', true);
+        };
+
+        $resourceClass = $this->groupedCountsResource($published);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+        $parser->parse(Request::create('/', HttpMethod::GET->getVerb()));
+
+        $model  = new AggregateCapturingModel;
+        $result = (new $resourceClass($model, true))->resolve();
+
+        self::assertSame([
+            [['posts as aggregate_posts_count', 'posts as aggregate_published_posts' => $published], '*', 'count'],
+            [['posts as aggregate_posts_sum_id'], 'id', 'sum'],
+        ], $model->calls);
+        self::assertSame(['posts_count' => 2, 'published_posts' => 2, 'posts_sum_id' => 42.0], $result['aggregates']);
+
+        $this->clearSchemaCache();
+    }
+
+    /**
+     * Test that a grouped load reads each aggregate of a real model correctly
+     * in one query per function and column.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testLoadMissingGroupedCountsReadEachConstraintFromTheDatabase(): void
+    {
+        $this->clearSchemaCache();
+
+        $resourceClass = $this->groupedCountsResource(static function (Builder $query): void {
+            $query->where('published', true);
+        });
+
+        $user = User::create(['name' => 'Grouped', 'email' => 'grouped@example.com']);
+
+        Post::create(['user_id' => $user->id, 'title' => 'One', 'body' => 'Body', 'published' => true]);
+        Post::create(['user_id' => $user->id, 'title' => 'Two', 'body' => 'Body', 'published' => false]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+        $parser->parse(Request::create('/', HttpMethod::GET->getVerb()));
+
+        $connection = $user->getConnection();
+        $connection->flushQueryLog();
+        $connection->enableQueryLog();
+
+        $resource = new $resourceClass($user, true);
+        $queries  = count($connection->getQueryLog());
+
+        $connection->disableQueryLog();
+
+        self::assertSame(2, $queries);
+        self::assertSame(
+            ['posts_count' => 2, 'published_posts' => 1, 'posts_sum_id' => (float) $user->posts()->sum('id')], // @phpstan-ignore cast.double
+            $resource->resolve()['aggregates'],
+        );
+
+        $this->clearSchemaCache();
+    }
+
+    /**
+     * Build a resource declaring two counts over one relation, one of them
+     * constrained, and a sum.
+     *
+     * @param  \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void  $constraint
+     * @return class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>
+     */
+    private function groupedCountsResource(\Closure $constraint): string
+    {
+        $resource = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'grouped_counts_rt';
+
+            /** @var (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null The constraint the published count applies */
+            public static ?\Closure $constraint = null;
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'aggregates'];
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return [
+                    'id'                            => [],
+                    '__aggregate__:posts_count'     => ['metric' => 'count', 'relation' => 'posts', 'default' => true],
+                    '__aggregate__:published_posts' => ['metric' => 'count', 'relation' => 'posts', 'constraint' => self::$constraint, 'default' => true],
+                    '__aggregate__:posts_sum_id'    => ['metric' => 'sum', 'relation' => 'posts', 'column' => 'id', 'default' => true],
+                ];
+            }
+        };
+
+        $resource::$constraint = $constraint;
+
+        return $resource::class;
     }
 
     /**

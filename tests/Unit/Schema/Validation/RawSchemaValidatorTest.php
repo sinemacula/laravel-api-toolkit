@@ -164,6 +164,31 @@ final class RawSchemaValidatorTest extends TestCase
     }
 
     /**
+     * Test that a key breaking the relation alias or the SQL alias is rejected,
+     * while a word key in any script passes.
+     *
+     * @return void
+     */
+    public function testRejectsAKeyHoldingAnythingButWordCharacters(): void
+    {
+        $errors = $this->collectErrors([
+            'posts_count_2'         => ['metric' => 'count', 'relation' => 'posts'],
+            'beiträge'              => ['metric' => 'count', 'relation' => 'posts'],
+            'post count'            => ['metric' => 'count', 'relation' => 'posts'],
+            'post.count'            => ['metric' => 'count', 'relation' => 'posts'],
+            '__aggregate__:aliased' => ['metric' => 'count', 'relation' => 'posts', 'key' => 'post:count'],
+            "bad\xff"               => ['metric' => 'count', 'relation' => 'posts'],
+        ]);
+
+        self::assertSame([
+            [self::RESOURCE, 'post count', 'Aggregate key "post count" may hold only letters, digits and underscores'],
+            [self::RESOURCE, 'post.count', 'Aggregate key "post.count" may hold only letters, digits and underscores'],
+            [self::RESOURCE, '__aggregate__:aliased', 'Aggregate key "post:count" may hold only letters, digits and underscores'],
+            [self::RESOURCE, "bad\xff", "Aggregate key \"bad\xff\" may hold only letters, digits and underscores"],
+        ], $errors);
+    }
+
+    /**
      * Test that guards or transformers declared as anything other than a list
      * are reported, while the other list is still checked.
      *

@@ -59,7 +59,9 @@ final class AggregateCapturingModel
     {
         $this->calls[] = [$relations, $column, $function];
 
-        $this->attributes[$this->resolveAlias($relations)] = self::SENTINELS[$function] ?? 1;
+        foreach ((array) $relations as $key => $relation) {
+            $this->attributes[$this->resolveAlias(is_string($key) ? $key : $relation)] = self::SENTINELS[$function] ?? 1;
+        }
 
         return $this;
     }
@@ -75,14 +77,14 @@ final class AggregateCapturingModel
     }
 
     /**
-     * Derive the alias from the 'relation as alias' relation argument.
+     * Derive the alias from one 'relation as alias' relation specification.
      *
-     * @param  mixed  $relations
+     * @param  mixed  $specification
      * @return string
      */
-    private function resolveAlias(mixed $relations): string
+    private function resolveAlias(mixed $specification): string
     {
-        $specification = is_array($relations) ? (string) array_key_first($relations) : (is_string($relations) ? $relations : '');
+        $specification = is_string($specification) ? $specification : '';
 
         return explode(' as ', $specification)[1] ?? $specification;
     }

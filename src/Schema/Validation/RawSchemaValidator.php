@@ -23,6 +23,9 @@ final class RawSchemaValidator
     /** @var array<string, string> Callable list keys mapped to the label reported for a defect */
     private const array CALLABLE_LISTS = ['guards' => 'Guard', 'transformers' => 'Transformer'];
 
+    /** @var string The characters an aggregate key may hold, so it survives the relation alias and the SQL alias */
+    private const string AGGREGATE_KEY_PATTERN = '/^\w+$/u';
+
     /** @var int The longest identifier PostgreSQL keeps before truncating it */
     private const int MAX_ATTRIBUTE_BYTES = 63;
 
@@ -104,6 +107,10 @@ final class RawSchemaValidator
 
         $present = SchemaCompiler::resolveAggregateKey($key, $definition);
         $defects = self::collectColumnDefects($function, $definition['column'] ?? null);
+
+        if (preg_match(self::AGGREGATE_KEY_PATTERN, $present) !== 1) {
+            $defects[] = sprintf('Aggregate key "%s" may hold only letters, digits and underscores', $present);
+        }
 
         if (isset($aggregates[$present])) {
             $defects[] = sprintf('Aggregate key "%s" is already declared by "%s"', $present, $aggregates[$present]);

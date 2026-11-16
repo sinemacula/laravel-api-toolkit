@@ -188,6 +188,11 @@ final class ApiResourceIntegrationTest extends TestCase
         ApiQuery::parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb()));
 
         $alice = User::query()->where('name', 'Alice')->firstOrFail();
+        $ids   = $alice->posts()->orderBy('id')->pluck('id')->all();
+
+        Post::query()->whereKey($ids[0])->update(['created_at' => '2026-03-01 09:30:00']);
+        Post::query()->whereKey($ids[1])->update(['created_at' => '2026-01-01 08:00:00']);
+
         $posts = $alice->posts()->get();
 
         $queryPath = array_map(static fn (User $user): array => (new AggregatingUserResource($user))->resolve(), $this->usersWithAggregates());
@@ -208,10 +213,8 @@ final class ApiResourceIntegrationTest extends TestCase
         self::assertSame((float) $posts->avg('id'), $aggregates['posts_avg_id']); // @phpstan-ignore cast.double
         self::assertInstanceOf(\DateTimeInterface::class, $aggregates['posts_min_created_at']);
         self::assertInstanceOf(\DateTimeInterface::class, $aggregates['last_posted_at']);
-        self::assertSame(
-            (string) Post::query()->where('user_id', $alice->id)->max('created_at'), // @phpstan-ignore cast.string
-            $aggregates['last_posted_at']->format('Y-m-d H:i:s'),
-        );
+        self::assertSame('2026-01-01 08:00:00', $aggregates['posts_min_created_at']->format('Y-m-d H:i:s'));
+        self::assertSame('2026-03-01 09:30:00', $aggregates['last_posted_at']->format('Y-m-d H:i:s'));
 
         // Bob has no posts, so only the count and the existence check render
         self::assertSame(['posts_count' => 0, 'has_published_posts' => false], $queryPath[1]['aggregates']);

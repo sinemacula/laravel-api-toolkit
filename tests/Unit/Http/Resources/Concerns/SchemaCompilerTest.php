@@ -400,12 +400,12 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that count entries produce CompiledCountDefinition with the correct
+     * Test that a count entry compiles to an aggregate definition keyed by its
      * present key.
      *
      * @return void
      */
-    public function testCompileCreatesCompiledCountDefinitionsForCountMetrics(): void
+    public function testCompileCreatesAnAggregateDefinitionForACountMetric(): void
     {
         $resourceClass = $this->createStubResourceClass([
             '__aggregate__:posts' => [

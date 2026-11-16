@@ -322,7 +322,8 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     /**
      * Load the selected aggregates the resource does not carry yet.
      *
-     * The loadAggregate() helper is not idempotent, unlike loadMissing().
+     * The loadAggregate() helper is not idempotent, unlike loadMissing(). The
+     * aggregates sharing a function and a column load in one query.
      *
      * @param  object  $resource
      * @return void
@@ -335,13 +336,23 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
             return;
         }
 
+        $groups = [];
+
         foreach (EagerLoadPlanner::buildAggregateMap(static::class, ApiQuery::getAggregates($resourceType) ?? []) as $entry) {
 
             if (EagerLoadPlanner::isAggregateAttributeLoaded($resource, $entry['relation'])) {
                 continue;
             }
 
-            $resource->loadAggregate($entry['relation'], $entry['column'], $entry['function']);
+            $group = $entry['function'] . ':' . $entry['column'];
+
+            $groups[$group]['column']    = $entry['column'];
+            $groups[$group]['function']  = $entry['function'];
+            $groups[$group]['relations'] = [...$groups[$group]['relations'] ?? [], ...(array) $entry['relation']];
+        }
+
+        foreach ($groups as $group) {
+            $resource->loadAggregate($group['relations'], $group['column'], $group['function']);
         }
     }
 }

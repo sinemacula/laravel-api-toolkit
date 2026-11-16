@@ -707,14 +707,32 @@ final class EagerLoadPlannerTest extends TestCase
     public function testBuildAggregateMapReturnsTheMemoisedResultForTheKey(): void
     {
         $this->setStaticProperty(EagerLoadPlanner::class, 'aggregateCache', [
-            UserResource::class . '|*'                         => [['relation' => 'defaults', 'column' => '*', 'function' => 'count']],
-            UserResource::class . "|posts_count\0posts_sum_id" => [['relation' => 'requested', 'column' => '*', 'function' => 'count']],
+            UserResource::class . '|*'                                             => [['relation' => 'defaults', 'column' => '*', 'function' => 'count']],
+            UserResource::class . '|' . serialize(['posts_count', 'posts_sum_id']) => [['relation' => 'requested', 'column' => '*', 'function' => 'count']],
         ]);
 
         self::assertSame('defaults', EagerLoadPlanner::buildAggregateMap(UserResource::class)[0]['relation']);
         self::assertSame('defaults', EagerLoadPlanner::buildAggregateMap(UserResource::class, [])[0]['relation']);
         self::assertSame('requested', EagerLoadPlanner::buildAggregateMap(UserResource::class, ['posts_count', 'posts_sum_id'])[0]['relation']);
         self::assertSame('posts as aggregate_posts_count', EagerLoadPlanner::buildAggregateMap(UserResource::class, ['posts_count'])[0]['relation']);
+    }
+
+    /**
+     * Test that no requested key list can reach the memo entry of the defaults
+     * or of another list.
+     *
+     * @return void
+     */
+    public function testBuildAggregateMapKeepsEveryRequestedListApart(): void
+    {
+        $defaults = EagerLoadPlanner::buildAggregateMap(UserResource::class);
+        $split    = EagerLoadPlanner::buildAggregateMap(UserResource::class, ['posts_count', 'posts_sum_id']);
+
+        self::assertCount(2, $defaults);
+        self::assertSame([], EagerLoadPlanner::buildAggregateMap(UserResource::class, ['*']));
+        self::assertSame([], EagerLoadPlanner::buildAggregateMap(UserResource::class, ["posts_count\0posts_sum_id"]));
+        self::assertCount(2, $split);
+        self::assertSame($defaults, EagerLoadPlanner::buildAggregateMap(UserResource::class));
     }
 
     /**
