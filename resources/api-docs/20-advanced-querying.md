@@ -22,13 +22,13 @@ request looks like this:
 | `trashed`    | `?trashed=with`                 | Widen a read to include soft-deleted records.              |
 
 The first two shape the representation of a resource that is returned, so they
-are honoured wherever one is serialised, whatever the verb that produced it.
-The next five select, order, and page a collection, so only an endpoint
-returning a list answers them. `trashed` widens the scope a read is served from
-and so joins both read endpoints, but only where the model behind them soft
-deletes at all; a resource that has not opted in to exposing its soft-deleted
-records ignores it. Cursor paging adds two more, `pagination` and `cursor`,
-described in the Pagination section.
+are honoured wherever one is serialised, whatever the verb that produced it. The
+next five select, order, and page a collection, so only an endpoint returning a
+list answers them. `trashed` widens the scope a read is served from and so joins
+both read endpoints, but only where the model behind them soft deletes at all; a
+resource that has not opted in to exposing its soft-deleted records, or a caller
+it does not permit, gets a 422 for it. Cursor paging adds two more, `pagination`
+and `cursor`, described in the Pagination section.
 
 Every operation in the OpenAPI document lists the parameters it accepts, by
 reference to the shared definitions in `components.parameters`.

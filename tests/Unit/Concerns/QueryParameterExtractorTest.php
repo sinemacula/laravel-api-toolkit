@@ -47,18 +47,18 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that extract lowercases and trims the trashed parameter, and blanks
-     * a value that is not a string.
+     * Test that extract keeps the trashed parameter exactly as sent, so the
+     * validator refuses anything but an exact state.
      *
      * @return void
      */
-    public function testExtractNormalisesTheTrashedParameter(): void
+    public function testExtractKeepsTheTrashedParameterAsSent(): void
     {
         $padded = $this->extractor->extract(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['trashed' => ' WITH ']));
         $listed = $this->extractor->extract(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['trashed' => ['with']]));
 
-        self::assertSame('with', $padded['trashed']);
-        self::assertSame('', $listed['trashed']);
+        self::assertSame(' WITH ', $padded['trashed']);
+        self::assertSame(['with'], $listed['trashed']);
     }
 
     /**

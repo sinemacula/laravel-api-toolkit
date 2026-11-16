@@ -227,12 +227,13 @@ final class BoundedRelationHttpTest extends TestCase
     }
 
     /**
-     * Test that a soft-deleting relation opened to trashed rows keeps the key
-     * order and the bound.
+     * Test that a soft-deleting relation keeps its live rows in key order under
+     * the bound, and that a root which does not soft delete refuses to open its
+     * relations to trashed rows.
      *
      * @return void
      */
-    public function testTrashedRowsKeepTheKeyOrderAndTheBound(): void
+    public function testTrashedRowsStayOutsideTheBoundUnderALiveOnlyRoot(): void
     {
         $author = User::create(['name' => 'Author', 'email' => 'author@example.com']);
 
@@ -249,11 +250,9 @@ final class BoundedRelationHttpTest extends TestCase
 
         self::assertArrayNotHasKey('_truncated', self::record($live->json('data.0')));
 
-        $trashed = $this->getJson('/users?trashed=with&fields[bounded_users]=name,articles&fields[articles]=slug');
-
-        $trashed->assertOk();
-        $trashed->assertJsonPath('data.0.articles.*.slug', ['removed', 'first']);
-        $trashed->assertJsonPath('data.0._truncated', ['articles']);
+        $this->getJson('/users?trashed=with&fields[bounded_users]=name,articles&fields[articles]=slug')
+            ->assertUnprocessable()
+            ->assertJsonPath('error.meta.trashed.0', fn ($message): bool => is_string($message) && $message !== '');
     }
 
     /**

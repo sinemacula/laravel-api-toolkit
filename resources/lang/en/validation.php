@@ -39,4 +39,8 @@ return [
         'too_many_words' => 'The search term may not carry more than :max words.',
     ],
 
+    'trashed' => [
+        'not_permitted' => 'The trashed parameter is not permitted for this resource.',
+    ],
+
 ];

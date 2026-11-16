@@ -17,7 +17,8 @@ trait GatesTrashedVisibility
     /**
      * Determine whether the current request may see soft-deleted records.
      *
-     * Denies by default, so `?trashed=` is ignored until this is overridden.
+     * Denies by default, so `?trashed=` is refused with a 422 until this is
+     * overridden.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return bool

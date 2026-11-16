@@ -190,7 +190,7 @@ class ApiQueryParser
     {
         $trashed = $this->getParameters('trashed');
 
-        return TrashedState::fromParameter(is_scalar($trashed) ? (string) $trashed : null);
+        return TrashedState::fromParameter(is_string($trashed) ? $trashed : null);
     }
 
     /**

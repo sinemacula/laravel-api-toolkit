@@ -290,7 +290,8 @@ final readonly class QueryParameterBuilder
         return $this->parameter(
             'trashed',
             'Soft-delete visibility: with returns soft-deleted records alongside the live ones and only returns the soft-deleted records alone, '
-            . 'e.g. trashed=with. Omitting it returns live records only. A resource that has not opted in to exposing its soft-deleted records ignores it.',
+            . 'e.g. trashed=with. Omitting it returns live records only. An included relation follows it where its resource opts in and otherwise '
+            . 'stays live. A resource that has not opted in to exposing its soft-deleted records, or a caller it does not permit, gets a 422.',
             ['type' => 'string', 'enum' => ['with', 'only']],
         );
     }
