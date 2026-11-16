@@ -39,6 +39,28 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
+     * Test that the exported audiences are the configured ones, then the
+     * default and the assembled audience, each once.
+     *
+     * @return void
+     */
+    public function testExportedAudiencesAddTheDefaultAndTheAssembledAudience(): void
+    {
+        $this->config()->set('api-toolkit.openapi.default_audience', 'public');
+        $this->config()->set('api-toolkit.openapi.audiences', ['internal' => [], 'partner' => []]);
+
+        $configuration = new AudienceConfiguration;
+
+        self::assertSame(['internal', 'partner', 'public'], $configuration->exportedAudiences('partner'));
+        self::assertSame(['internal', 'partner', 'public', 'staff'], $configuration->exportedAudiences('staff'));
+
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => [], 'internal' => []]);
+
+        self::assertSame(['public', 'internal'], $configuration->exportedAudiences('public'));
+        self::assertSame(['public', 'internal', 'staff'], $configuration->exportedAudiences('staff'));
+    }
+
+    /**
      * Test that membership is reported for configured and unconfigured names.
      *
      * @return void

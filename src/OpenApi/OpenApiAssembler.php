@@ -13,8 +13,11 @@ use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Docs\OperationDescriptions;
+use SineMacula\ApiToolkit\OpenApi\Docs\TagList;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaNameCollisionGuard;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
@@ -61,6 +64,9 @@ final readonly class OpenApiAssembler
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry  $definedSchemas
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder  $definedSchemaBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder  $errorExamples
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector  $routes
+     * @param  \SineMacula\ApiToolkit\OpenApi\Docs\OperationDescriptions  $descriptions
+     * @param  \SineMacula\ApiToolkit\OpenApi\Docs\TagList  $tags
      */
     public function __construct(
 
@@ -96,6 +102,15 @@ final readonly class OpenApiAssembler
 
         /** The builder of the error examples the paths reference. */
         private ErrorExampleBuilder $errorExamples,
+
+        /** The collector of every exported audience's documentable routes. */
+        private DocumentedRouteCollector $routes,
+
+        /** The resolver of the operation descriptions. */
+        private OperationDescriptions $descriptions,
+
+        /** The builder of the top-level tags list. */
+        private TagList $tags,
     ) {
         $this->envelopeBuilder = new EnvelopeBuilder;
         $this->reachability    = new ReachableSchemaResolver;
@@ -106,8 +121,15 @@ final readonly class OpenApiAssembler
     /**
      * Assemble the OpenAPI 3.1 document for the given audience.
      *
+     * The description and tag files of every exported audience are audited, so
+     * a file describing nothing fails every export.
+     *
      * @param  string|null  $audience
      * @return array<string, mixed>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\OperationIdCollisionException
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\OrphanedDocumentationException
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\TagConfigurationException
      */
     public function assemble(?string $audience = null): array
     {
@@ -115,8 +137,8 @@ final readonly class OpenApiAssembler
         $this->definedSchemas->reset();
 
         $audience = $audience === null || $audience === '' ? $this->audiences->defaultAudience() : $audience;
-        $posture  = $this->audiences->postureFor($audience);
-        $paths    = $this->pathBuilder->build($audience, $posture);
+        $routes   = $this->routes->collect($this->audiences->exportedAudiences($audience));
+        $paths    = $this->pathBuilder->build($routes->in($audience), $this->descriptions->for($audience, $routes));
 
         $document = [
             'openapi' => self::OPENAPI_VERSION,
@@ -131,6 +153,12 @@ final readonly class OpenApiAssembler
 
         $document['paths']      = $paths === [] ? (object) [] : $paths;
         $document['components'] = $this->buildComponents($paths);
+
+        $tags = $this->tags->for($audience, $routes);
+
+        if ($tags !== null) {
+            $document['tags'] = $tags;
+        }
 
         return $this->schemaObjects->normalise($document);
     }
