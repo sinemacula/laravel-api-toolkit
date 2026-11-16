@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\Exceptions\PerItemGuardedFieldException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Support\PureEnumName;
 use SineMacula\Exporter\Schema\Column;
 use SineMacula\Exporter\Schema\TabularSchema;
 
@@ -80,6 +81,10 @@ trait DerivesTabularSchema
     /**
      * Build the value-resolving column for the field, before guards.
      *
+     * A plain field reads the attribute directly, with a pure enum written as
+     * the lowercase name a response carries, since the exporter has no cell for
+     * an enum without a value.
+     *
      * @param  string  $key
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>  $resourceClass
@@ -91,11 +96,14 @@ trait DerivesTabularSchema
             return Column::make($key)->resolveUsing($this->resourceValueResolver($key, $definition, $resourceClass));
         }
 
-        if (is_string($definition->accessor)) {
-            return Column::make($key)->fromModel($definition->accessor);
-        }
+        $path = is_string($definition->accessor) ? $definition->accessor : $key;
 
-        return Column::make($key);
+        return Column::make($key)->resolveUsing(static function (array|object $item) use ($path): mixed {
+
+            $value = data_get($item, $path);
+
+            return $value instanceof \UnitEnum && !$value instanceof \BackedEnum ? PureEnumName::of($value) : $value;
+        });
     }
 
     /**
