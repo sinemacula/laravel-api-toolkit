@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -27,6 +28,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $status
  * @property int $views
  * @property \Tests\Fixtures\Models\User|null $author
+ * @property \Illuminate\Database\Eloquent\Collection<int, \Tests\Fixtures\Models\Article> $siblingArticles
+ * @property \Illuminate\Database\Eloquent\Collection<int, \Tests\Fixtures\Models\Comment> $authorComments
  *
  * @method static static create(array<string, mixed> $attributes = [])
  *
@@ -50,6 +53,26 @@ final class Article extends Model
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * Get every article by the same author, this one included.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Article, $this>
+     */
+    public function siblingArticles(): HasMany
+    {
+        return $this->hasMany(self::class, 'user_id', 'user_id');
+    }
+
+    /**
+     * Get every comment by the article's author.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Comment, $this>
+     */
+    public function authorComments(): HasMany
+    {
+        return $this->hasMany(Comment::class, 'user_id', 'user_id');
     }
 
     /**

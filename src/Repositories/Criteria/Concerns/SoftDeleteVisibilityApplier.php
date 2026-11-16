@@ -10,11 +10,14 @@ use Illuminate\Http\Request;
 use SineMacula\ApiToolkit\Enums\TrashedState;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
  * Applies soft-delete visibility to an Eloquent query builder.
  *
- * Only SoftDeletes models whose resource opts in ever expose trashed rows.
+ * Only SoftDeletes models whose resource opts in ever expose trashed rows; a
+ * request for them anywhere else is refused rather than answered with live
+ * rows.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -28,17 +31,22 @@ final class SoftDeleteVisibilityApplier
      * @param  string|null  $resourceClass
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
     public function apply(Builder $query, ?string $resourceClass, Request $request): Builder
     {
         $state = ApiQuery::getTrashed();
 
-        $applicable = $state !== TrashedState::NONE
-            && in_array(SoftDeletes::class, class_uses_recursive($query->getModel()), true)
+        if ($state === TrashedState::NONE) {
+            return $query;
+        }
+
+        $applicable = in_array(SoftDeletes::class, class_uses_recursive($query->getModel()), true)
             && $this->isGateOpen($resourceClass, $request);
 
         if (!$applicable) {
-            return $query;
+            throw Rejection::at('trashed', 'trashed.not_permitted');
         }
 
         return $state === TrashedState::ONLY

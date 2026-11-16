@@ -430,7 +430,8 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the visibility description states the default and the opt-in.
+     * Test that the visibility description states the default, the opt-in, the
+     * relation cascade and the refusal.
      *
      * @return void
      */
@@ -442,8 +443,11 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertStringStartsWith('Soft-delete visibility: with returns soft-deleted records alongside the live ones', $description);
         self::assertIsString($description);
         self::assertStringContainsString('Omitting it returns live records only.', $description);
-        self::assertIsString($description);
-        self::assertStringContainsString('has not opted in', $description);
+        self::assertStringContainsString('An included relation follows it where its resource opts in and otherwise stays live.', $description);
+        self::assertStringEndsWith(
+            'A resource that has not opted in to exposing its soft-deleted records, or a caller it does not permit, gets a 422.',
+            $description,
+        );
     }
 
     /**

@@ -66,6 +66,8 @@ final class QueryParameterValidatorTest extends TestCase
         yield 'limit of one' => [['limit' => '1']];
         yield 'cursor string' => [['cursor' => 'eyJpZCI6MTAwfQ==']];
         yield 'search string' => [['search' => 'john smith']];
+        yield 'trashed with' => [['trashed' => 'with']];
+        yield 'trashed only' => [['trashed' => 'only']];
     }
 
     /**
@@ -123,6 +125,46 @@ final class QueryParameterValidatorTest extends TestCase
         $this->expectException(ValidationException::class);
 
         $this->validator->validate($parameters);
+    }
+
+    /**
+     * Provide trashed values the parameter does not accept.
+     *
+     * @return iterable<string, array{mixed}>
+     */
+    public static function invalidTrashedProvider(): iterable
+    {
+        yield 'capitalised' => ['With'];
+        yield 'upper case' => ['ONLY'];
+        yield 'misspelt' => ['onyl'];
+        yield 'unknown' => ['deleted'];
+        yield 'empty string' => [''];
+        yield 'null' => [null];
+        yield 'list' => [['only']];
+        yield 'empty list' => [[]];
+    }
+
+    /**
+     * Test that a trashed value other than exactly with or only is refused on
+     * the trashed key.
+     *
+     * @param  mixed  $trashed
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('invalidTrashedProvider')]
+    public function testInvalidTrashedValueIsRefusedOnTheTrashedKey(mixed $trashed): void
+    {
+        try {
+            $this->validator->validate(['trashed' => $trashed]);
+        } catch (ValidationException $exception) {
+            self::assertSame(['trashed'], array_keys($exception->errors()));
+
+            return;
+        }
+
+        self::fail('An invalid trashed value passed validation.');
     }
 
     /**

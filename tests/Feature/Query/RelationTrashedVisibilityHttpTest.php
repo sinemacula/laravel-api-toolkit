@@ -12,24 +12,29 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Comment;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Repositories\ArticleRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\AuthorResource;
 use Tests\Fixtures\Resources\CommentResource;
+use Tests\Fixtures\Resources\TrashedCascadeArticleResource;
 use Tests\TestCase;
 
 /**
  * Feature tests for trashed visibility cascading to eager-loaded relations over
  * HTTP.
  *
- * Articles opt in to trashed visibility and comments do not, so one request
- * proves the gate is per relation.
+ * The root is a soft-deleting article that opts in, with sibling articles that
+ * opt in and author comments that do not, so one honoured request proves the
+ * gate is per relation. A root that cannot honour the request refuses it rather
+ * than widening only its children.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -38,14 +43,15 @@ use Tests\TestCase;
  */
 #[CoversClass(RelationTrashedGate::class)]
 #[CoversClass(EagerLoadApplier::class)]
+#[CoversClass(SoftDeleteVisibilityApplier::class)]
 #[CoversClass(ApiCriteria::class)]
 final class RelationTrashedVisibilityHttpTest extends TestCase
 {
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up an authors route with soft-deleting article and comment relations
-     * holding live and trashed rows.
+     * Set up an articles route over soft-deleting relations holding live and
+     * trashed rows, and an authors route whose root never soft deletes.
      *
      * @return void
      */
@@ -74,6 +80,13 @@ final class RelationTrashedVisibilityHttpTest extends TestCase
         Comment::create(['user_id' => $author->id, 'body' => 'Live two']);
         Comment::create(['user_id' => $author->id, 'body' => 'Removed'])->delete();
 
+        Route::middleware(ParseApiQuery::class)->get('/articles', function (ArticleRepository $repository): ApiResourceCollection {
+
+            $articles = $repository->usingResource(TrashedCascadeArticleResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($articles, TrashedCascadeArticleResource::class);
+        });
+
         Route::middleware(ParseApiQuery::class)->get('/authors', function (UserRepository $repository): ApiResourceCollection {
 
             $authors = $repository->usingResource(AuthorResource::class)->withApiCriteria()->paginate();
@@ -97,12 +110,62 @@ final class RelationTrashedVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that without a trashed parameter both relations return only live
-     * children.
+     * Test that without a trashed parameter the root and both relations return
+     * only live rows.
      *
      * @return void
      */
-    public function testDefaultReturnsOnlyLiveChildren(): void
+    public function testDefaultReturnsOnlyLiveRows(): void
+    {
+        $response = $this->getJson('/articles');
+
+        $response->assertOk();
+        $response->assertJsonCount(2, 'data');
+        $response->assertJsonCount(2, 'data.0.siblingArticles');
+        $response->assertJsonCount(2, 'data.0.authorComments');
+    }
+
+    /**
+     * Test that trashed=with widens the root and the opted-in relation while
+     * the closed relation stays live.
+     *
+     * @return void
+     */
+    public function testWithWidensTheRootAndOnlyTheOptedInRelation(): void
+    {
+        $response = $this->getJson('/articles?trashed=with');
+
+        $response->assertOk();
+        $response->assertJsonCount(3, 'data');
+        $response->assertJsonCount(3, 'data.0.siblingArticles');
+        $response->assertJsonCount(2, 'data.0.authorComments');
+    }
+
+    /**
+     * Test that trashed=only narrows the root and the opted-in relation to
+     * trashed rows while the closed relation stays live.
+     *
+     * @return void
+     */
+    public function testOnlyNarrowsTheRootAndOnlyTheOptedInRelation(): void
+    {
+        $response = $this->getJson('/articles?trashed=only');
+
+        $response->assertOk();
+        $response->assertJsonCount(1, 'data');
+        $response->assertJsonPath('data.0.title', 'Removed Article');
+        $response->assertJsonCount(1, 'data.0.siblingArticles');
+        $response->assertJsonPath('data.0.siblingArticles.0.title', 'Removed Article');
+        $response->assertJsonCount(2, 'data.0.authorComments');
+    }
+
+    /**
+     * Test that a root that never soft deletes keeps its relations live-only by
+     * default.
+     *
+     * @return void
+     */
+    public function testNonSoftDeletingRootKeepsRelationsLiveByDefault(): void
     {
         $response = $this->getJson('/authors');
 
@@ -112,47 +175,17 @@ final class RelationTrashedVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that trashed=with includes trashed children for the opted-in
-     * relation.
+     * Test that a root that never soft deletes refuses a trashed request
+     * instead of widening only its children.
      *
      * @return void
      */
-    public function testWithIncludesTrashedChildrenWhenChildResourceOptsIn(): void
+    public function testNonSoftDeletingRootRefusesATrashedRequest(): void
     {
         $response = $this->getJson('/authors?trashed=with');
 
-        $response->assertOk();
-        $response->assertJsonCount(3, 'data.0.articles');
-    }
-
-    /**
-     * Test that trashed=with still excludes trashed comments whose resource has
-     * not opted in.
-     *
-     * @return void
-     */
-    public function testWithExcludesTrashedChildrenWhenChildGateClosed(): void
-    {
-        $response = $this->getJson('/authors?trashed=with');
-
-        $response->assertOk();
-        $response->assertJsonCount(3, 'data.0.articles');
-        $response->assertJsonCount(2, 'data.0.comments');
-    }
-
-    /**
-     * Test that trashed=only isolates trashed children for the opted-in
-     * relation only.
-     *
-     * @return void
-     */
-    public function testOnlyReturnsOnlyTrashedChildrenForOptedInRelation(): void
-    {
-        $response = $this->getJson('/authors?trashed=only');
-
-        $response->assertOk();
-        $response->assertJsonCount(1, 'data.0.articles');
-        $response->assertJsonCount(2, 'data.0.comments');
+        $response->assertUnprocessable();
+        $response->assertJsonPath('error.meta.trashed', ['The trashed parameter is not permitted for this resource.']);
     }
 
     /**

@@ -9,6 +9,7 @@ use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\Relation;
 
 /**
  * Fixture article resource declaring a search surface over a soft-deleting
@@ -18,7 +19,8 @@ use SineMacula\ApiToolkit\Schema\Field;
  * model soft deletes, and the gate opts in, so one request can carry a term and
  * a trashed widening together. A filterable pair rides alongside so the search
  * group, the filter group, and the visibility scope can be proven to compose
- * rather than to substitute for one another.
+ * rather than to substitute for one another, and the author's comments ride as
+ * an opted-in relation so the cascade can be proven under a searched root.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -59,6 +61,7 @@ final class TrashedSearchArticleResource extends ApiResource
             Field::scalar('title')->searchable(SearchStrategy::SUBSTRING),
             Field::scalar('status')->filterable(Capability::ENUM),
             Field::scalar('views')->filterable(Capability::RANGE),
+            Relation::to('authorComments', TrashedSearchCommentResource::class),
         );
     }
 }

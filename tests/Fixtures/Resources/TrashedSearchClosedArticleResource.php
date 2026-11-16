@@ -13,8 +13,8 @@ use SineMacula\ApiToolkit\Schema\Field;
  * gate held closed.
  *
  * Identical to its opted-in sibling but for the gate, so a `?trashed=with`
- * carried alongside a term can be proven to widen nothing: a search is never
- * the thing that opens soft-delete visibility.
+ * carried alongside a term can be proven to be refused: a search is never the
+ * thing that opens soft-delete visibility.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

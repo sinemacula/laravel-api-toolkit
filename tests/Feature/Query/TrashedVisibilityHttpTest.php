@@ -7,7 +7,9 @@ namespace Tests\Feature\Query;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
@@ -37,6 +39,15 @@ final class TrashedVisibilityHttpTest extends TestCase
 {
     use RegistersApiExceptionHandler;
 
+    /** @var string The refusal for a root that cannot honour the parameter */
+    private const string NOT_PERMITTED = 'The trashed parameter is not permitted for this resource.';
+
+    /** @var string The refusal for a value outside with and only */
+    private const string INVALID = 'The selected trashed is invalid.';
+
+    /** @var string The refusal for a present but empty value */
+    private const string EMPTY = 'The trashed field must have a value.';
+
     /**
      * Set up a repository-backed articles route with live and trashed rows.
      *
@@ -64,6 +75,8 @@ final class TrashedVisibilityHttpTest extends TestCase
 
             return new ApiResourceCollection($articles, ArticleResource::class);
         });
+
+        Route::middleware(ParseApiQuery::class)->post('/articles', static fn (): JsonResponse => new JsonResponse(null, 201));
 
         Route::middleware(ParseApiQuery::class)->get('/articles/{slug}', function (string $slug, ArticleRepository $repository): JsonResponse {
 
@@ -135,19 +148,56 @@ final class TrashedVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that trashed=with is ignored when the resource keeps the gate
+     * Test that trashed=with is refused when the resource keeps the gate
      * closed.
      *
      * @return void
      */
-    public function testWithIsIgnoredWhenResourceGateClosed(): void
+    public function testWithIsRefusedWhenResourceGateClosed(): void
     {
         $this->gateThrough(RestrictedArticleResource::class);
 
-        $response = $this->getJson('/articles?trashed=with');
+        $this->assertTrashedRefused($this->getJson('/articles?trashed=with'), self::NOT_PERMITTED);
+    }
 
-        $response->assertOk();
-        $response->assertJsonCount(2, 'data');
+    /**
+     * Provide trashed values the parameter does not accept.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function invalidValueProvider(): iterable
+    {
+        yield 'misspelt' => ['trashed=onyl', self::INVALID];
+        yield 'unknown' => ['trashed=deleted', self::INVALID];
+        yield 'upper case' => ['trashed=ONLY', self::INVALID];
+        yield 'list' => ['trashed[]=only', self::INVALID];
+        yield 'empty' => ['trashed=', self::EMPTY];
+    }
+
+    /**
+     * Test that a trashed value other than with or only is refused.
+     *
+     * @param  string  $query
+     * @param  string  $message
+     * @return void
+     */
+    #[DataProvider('invalidValueProvider')]
+    public function testInvalidTrashedValueIsRefused(string $query, string $message): void
+    {
+        $this->gateThrough(ArticleResource::class);
+
+        $this->assertTrashedRefused($this->getJson('/articles?' . $query), $message);
+    }
+
+    /**
+     * Test that a write body carrying an invalid trashed value is refused, as
+     * the query parser validates the whole request.
+     *
+     * @return void
+     */
+    public function testWriteBodyCarryingAnInvalidTrashedValueIsRefused(): void
+    {
+        $this->assertTrashedRefused($this->postJson('/articles', ['trashed' => 'deleted']), self::INVALID);
     }
 
     /**
@@ -169,16 +219,28 @@ final class TrashedVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that a single-record read keeps a trashed row hidden while the gate
-     * is closed.
+     * Test that a single-record read is refused while the gate is closed.
      *
      * @return void
      */
-    public function testSingleRecordReadStaysNarrowWhenResourceGateClosed(): void
+    public function testSingleRecordReadIsRefusedWhenResourceGateClosed(): void
     {
         $this->gateThrough(RestrictedArticleResource::class);
 
-        $this->getJson('/articles/removed-article?trashed=with')->assertNotFound();
+        $this->assertTrashedRefused($this->getJson('/articles/removed-article?trashed=with'), self::NOT_PERMITTED);
+    }
+
+    /**
+     * Assert the response is a 422 naming the trashed parameter.
+     *
+     * @param  \Illuminate\Testing\TestResponse<\Symfony\Component\HttpFoundation\Response>  $response
+     * @param  string  $message
+     * @return void
+     */
+    private function assertTrashedRefused(TestResponse $response, string $message): void
+    {
+        $response->assertUnprocessable();
+        $response->assertJsonPath('error.meta.trashed', [$message]);
     }
 
     /**

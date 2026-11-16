@@ -1054,7 +1054,7 @@ if (ApiQuery::getTrashed() === TrashedState::WITH) {
 ```
 
 You rarely need to read it: a read through `withApiCriteria()` applies it where the model uses `SoftDeletes` and the
-resource opts in by overriding `allowsTrashed()`. A resource that has not opted in keeps soft-deleted records hidden.
+resource opts in by overriding `allowsTrashed()`. A resource that has not opted in refuses the parameter with a 422.
 
 ### Exception handling changes
 

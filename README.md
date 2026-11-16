@@ -202,7 +202,9 @@ otherwise.
 
 **Soft deletes** - `?trashed=with` or `?trashed=only`, read as a `TrashedState` from `ApiQuery::getTrashed()`. The
 criteria layer applies it only where the model uses `SoftDeletes` and the resource opts in by overriding
-`allowsTrashed()`; otherwise soft-deleted records stay hidden.
+`allowsTrashed()`; anywhere else the request is refused with a 422 on `trashed`, as is any value other than `with` or
+`only`, so a client never mistakes live records for the ones it asked for. An included relation follows the state where
+its own resource opts in and otherwise stays live.
 
 ### Schema-Driven ApiResource
 

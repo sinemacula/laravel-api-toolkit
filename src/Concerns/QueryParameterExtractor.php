@@ -39,7 +39,7 @@ final class QueryParameterExtractor
             'filters'  => fn ($value) => $this->parseFilters($value),
             'search'   => fn ($value) => SearchTerm::from(is_string($value) ? $value : ''),
             'order'    => fn ($value) => $this->parseOrder($value),
-            'trashed'  => fn ($value) => is_string($value) ? strtolower(trim($value)) : '',
+            'trashed'  => fn ($value) => $value,
         ];
 
         foreach ($parsers as $key => $parser) {

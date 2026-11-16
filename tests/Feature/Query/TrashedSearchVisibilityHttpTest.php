@@ -51,9 +51,12 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
 {
     use RegistersApiExceptionHandler;
 
+    /** @var string The field selection embedding the author's comments */
+    private const string WITH_COMMENTS = 'fields[trashed_search_articles]=id,title,authorComments';
+
     /**
-     * Set up searchable soft-deleting routes, a gate-closed twin and a
-     * searchable parent with a soft-deleting relation.
+     * Set up searchable soft-deleting routes with a soft-deleting relation, a
+     * gate-closed twin and a searchable parent that never soft deletes.
      *
      * @return void
      */
@@ -164,19 +167,14 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that a resource holding its trashed gate closed keeps soft-deleted
-     * rows hidden from a search.
+     * Test that a resource holding its trashed gate closed refuses a trashed
+     * request beside a search.
      *
      * @return void
      */
     public function testTrashedWideningIsRefusedBesideASearchWhenTheGateIsClosed(): void
     {
-        $response = $this->getJson('/gate-closed-articles?search=ledger&trashed=with');
-
-        $response->assertOk();
-
-        self::assertSame(['Public ledger update', 'Second ledger update'], $this->titles($response));
-        $response->assertJsonPath('meta.total', 2);
+        $this->assertTrashedRefused($this->getJson('/gate-closed-articles?search=ledger&trashed=with'));
     }
 
     /**
@@ -221,36 +219,50 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that a searched parent carries its trashed children when the request
-     * asks for them.
+     * Test that a searched parent that never soft deletes refuses a trashed
+     * request rather than widening only its children.
      *
      * @return void
      */
-    public function testSearchedParentWidensRelationChildrenWhenTrashedRequested(): void
+    public function testSearchedParentThatNeverSoftDeletesRefusesATrashedRequest(): void
     {
-        $response = $this->getJson('/searchable-authors?search=archivist&trashed=with');
-
-        $response->assertOk();
-        $response->assertJsonPath('meta.total', 1);
-        $response->assertJsonPath('data.0.name', 'Alice the archivist');
-        $response->assertJsonCount(3, 'data.0.comments');
+        $this->assertTrashedRefused($this->getJson('/searchable-authors?search=archivist&trashed=with'));
     }
 
     /**
-     * Test that a searched parent isolates its trashed children when the
-     * request asks for those alone.
+     * Test that a searched, widened root carries its trashed children too.
      *
      * @return void
      */
-    public function testSearchedParentIsolatesTrashedRelationChildren(): void
+    public function testSearchedRootWidensRelationChildrenWhenTrashedRequested(): void
     {
-        $response = $this->getJson('/searchable-authors?search=archivist&trashed=only');
+        $response = $this->getJson('/searchable-articles?search=ledger&trashed=with&' . self::WITH_COMMENTS);
 
         $response->assertOk();
-        $response->assertJsonPath('meta.total', 1);
-        $response->assertJsonPath('data.0.name', 'Alice the archivist');
-        $response->assertJsonCount(1, 'data.0.comments');
-        $response->assertJsonPath('data.0.comments.0.body', 'Retracted remark');
+
+        self::assertSame(
+            ['Public ledger update', 'Second ledger update', 'Retracted ledger draft'],
+            $this->titles($response),
+        );
+        $response->assertJsonCount(3, 'data.0.authorComments');
+        $response->assertJsonCount(3, 'data.2.authorComments');
+    }
+
+    /**
+     * Test that a searched root isolated to trashed rows isolates its trashed
+     * children as well.
+     *
+     * @return void
+     */
+    public function testSearchedRootIsolatesTrashedRelationChildren(): void
+    {
+        $response = $this->getJson('/searchable-articles?search=ledger&trashed=only&' . self::WITH_COMMENTS);
+
+        $response->assertOk();
+
+        self::assertSame(['Retracted ledger draft'], $this->titles($response));
+        $response->assertJsonCount(1, 'data.0.authorComments');
+        $response->assertJsonPath('data.0.authorComments.0.body', 'Retracted report');
     }
 
     /**
@@ -267,6 +279,10 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
         $this->seedArticle($author->id, 'Unrelated notice', 'unrelated-notice', 'archived', 10);
         $this->seedArticle($author->id, 'Retracted ledger draft', 'retracted-ledger-draft', 'draft', 10)->delete();
         $this->seedArticle($author->id, 'Retracted notice', 'retracted-notice', 'archived', 10)->delete();
+
+        Comment::create(['user_id' => $author->id, 'body' => 'Live report one']);
+        Comment::create(['user_id' => $author->id, 'body' => 'Live report two']);
+        Comment::create(['user_id' => $author->id, 'body' => 'Retracted report'])->delete();
     }
 
     /**
@@ -308,6 +324,18 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
             'status'  => $status,
             'views'   => $views,
         ]);
+    }
+
+    /**
+     * Assert the response is a 422 refusing the trashed parameter.
+     *
+     * @param  \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>  $response
+     * @return void
+     */
+    private function assertTrashedRefused(TestResponse $response): void
+    {
+        $response->assertUnprocessable();
+        $response->assertJsonPath('error.meta.trashed', ['The trashed parameter is not permitted for this resource.']);
     }
 
     /**

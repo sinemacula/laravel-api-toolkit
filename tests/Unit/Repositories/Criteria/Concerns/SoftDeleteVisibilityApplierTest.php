@@ -6,7 +6,9 @@ namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
 use SineMacula\Http\Enums\HttpMethod;
@@ -65,68 +67,73 @@ final class SoftDeleteVisibilityApplierTest extends TestCase
     }
 
     /**
-     * Test that a model without SoftDeletes is never widened.
+     * Provide every unhonourable root under each trashed state it refuses.
      *
+     * @return iterable<string, array{class-string<\Illuminate\Database\Eloquent\Model>, string|null, string}>
+     */
+    public static function unhonourableProvider(): iterable
+    {
+        foreach (['with', 'only'] as $trashed) {
+            foreach (self::unhonourableRootProvider() as $name => [$model, $resourceClass]) {
+                yield "{$trashed} on {$name}" => [$model, $resourceClass, $trashed];
+            }
+        }
+    }
+
+    /**
+     * Test that a trashed request the root cannot honour is refused.
+     *
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
+     * @param  string|null  $resourceClass
+     * @param  string  $trashed
      * @return void
      */
-    public function testNonSoftDeleteModelLeavesQueryUntouched(): void
+    #[DataProvider('unhonourableProvider')]
+    public function testTrashedTheRootCannotHonourIsRefused(string $model, ?string $resourceClass, string $trashed): void
     {
-        $this->parse('with');
+        $this->parse($trashed);
 
-        $query    = User::query();
-        $expected = $this->sqlOf(User::query());
+        try {
+            $this->applier->apply($model::query(), $resourceClass, $this->request());
+        } catch (ValidationException $exception) {
+            self::assertSame(['trashed' => ['The trashed parameter is not permitted for this resource.']], $exception->errors());
 
-        $this->applier->apply($query, UserResource::class, $this->request());
+            return;
+        }
 
+        self::fail('A trashed request the root cannot honour was not refused.');
+    }
+
+    /**
+     * Provide the roots that cannot honour a trashed request.
+     *
+     * @return iterable<string, array{class-string<\Illuminate\Database\Eloquent\Model>, string|null}>
+     */
+    public static function unhonourableRootProvider(): iterable
+    {
+        yield 'a model without soft deletes' => [User::class, UserResource::class];
+        yield 'a resource that has not opted in' => [Article::class, RestrictedArticleResource::class];
+        yield 'a class that is not an api resource' => [Article::class, \stdClass::class];
+        yield 'no resource' => [Article::class, null];
+    }
+
+    /**
+     * Test that the None state leaves every unhonourable root untouched.
+     *
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
+     * @param  string|null  $resourceClass
+     * @return void
+     */
+    #[DataProvider('unhonourableRootProvider')]
+    public function testNoneStateLeavesAnUnhonourableRootUntouched(string $model, ?string $resourceClass): void
+    {
+        $this->parse(null);
+
+        $query    = $model::query();
+        $expected = $this->sqlOf($model::query());
+
+        self::assertSame($query, $this->applier->apply($query, $resourceClass, $this->request()));
         self::assertSame($expected, $this->sqlOf($query));
-    }
-
-    /**
-     * Test that a resource that has not opted in keeps trashed rows hidden.
-     *
-     * @return void
-     */
-    public function testClosedGateResourceLeavesQueryUntouched(): void
-    {
-        $this->parse('with');
-
-        $query = Article::query();
-
-        $this->applier->apply($query, RestrictedArticleResource::class, $this->request());
-
-        self::assertStringContainsString('is null', $this->sqlOf($query));
-    }
-
-    /**
-     * Test that a non-ApiResource class string keeps the gate closed.
-     *
-     * @return void
-     */
-    public function testNonApiResourceClassLeavesQueryUntouched(): void
-    {
-        $this->parse('with');
-
-        $query = Article::query();
-
-        $this->applier->apply($query, \stdClass::class, $this->request());
-
-        self::assertStringContainsString('is null', $this->sqlOf($query));
-    }
-
-    /**
-     * Test that a null resource class keeps the gate closed.
-     *
-     * @return void
-     */
-    public function testNullResourceClassLeavesQueryUntouched(): void
-    {
-        $this->parse('with');
-
-        $query = Article::query();
-
-        $this->applier->apply($query, null, $this->request());
-
-        self::assertStringContainsString('is null', $this->sqlOf($query));
     }
 
     /**

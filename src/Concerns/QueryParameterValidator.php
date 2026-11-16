@@ -214,6 +214,7 @@ final class QueryParameterValidator
             'limit'   => 'integer|min:1',
             'cursor'  => 'string',
             'search'  => 'string',
+            'trashed' => 'filled|in:with,only',
         ];
     }
 

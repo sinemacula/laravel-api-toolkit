@@ -47,9 +47,9 @@ final class TrashedStateTest extends TestCase
         yield 'null maps to None' => [null, TrashedState::NONE];
         yield 'empty string maps to None' => ['', TrashedState::NONE];
         yield 'unknown maps to None' => ['nonsense', TrashedState::NONE];
-        yield 'mixed case with maps to With' => ['WiTh', TrashedState::WITH];
-        yield 'upper only maps to Only' => ['ONLY', TrashedState::ONLY];
-        yield 'padded with maps to With' => ['  with  ', TrashedState::WITH];
+        yield 'mixed case with maps to None' => ['WiTh', TrashedState::NONE];
+        yield 'upper only maps to None' => ['ONLY', TrashedState::NONE];
+        yield 'padded with maps to None' => ['  with  ', TrashedState::NONE];
     }
 
     /**

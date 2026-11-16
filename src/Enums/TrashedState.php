@@ -24,14 +24,15 @@ enum TrashedState
     /**
      * Resolve the trashed state from the raw query parameter value.
      *
-     * Anything unrecognised excludes soft-deleted records.
+     * The value is validated before it is read, so only an absent parameter
+     * excludes soft-deleted records.
      *
      * @param  string|null  $value
      * @return self
      */
     public static function fromParameter(?string $value): self
     {
-        return match (strtolower(trim((string) $value))) {
+        return match ($value) {
             'with'  => self::WITH,
             'only'  => self::ONLY,
             default => self::NONE,

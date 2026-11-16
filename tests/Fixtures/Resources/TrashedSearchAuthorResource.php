@@ -14,8 +14,7 @@ use SineMacula\ApiToolkit\Schema\Relation;
  * loads a soft-deleting child.
  *
  * The parent itself never soft deletes, so a request carrying both parameters
- * exercises the one path where the term narrows the root and the trashed state
- * is spent entirely on the relation.
+ * is refused: a trashed state is never spent on the relations alone.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
