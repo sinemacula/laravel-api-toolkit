@@ -7,7 +7,6 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Operators;
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\ExpandsValueList;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 
 /**
  * Filter operator handler for the $contains (JSON containment) token.
@@ -27,20 +26,19 @@ final class ContainsOperator implements ExpandsValueList, FilterOperator
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $column
      * @param  mixed  $value
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
     #[\Override]
-    public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
+    public function apply(Builder $query, string $column, mixed $value): void
     {
         $items = $this->listItems($value);
 
         if ($items !== null) {
-            $this->applyCommaSeparated($query, $column, $items, $context);
+            $this->applyCommaSeparated($query, $column, $items);
             return;
         }
 
-        $query->getQuery()->whereJsonContains($column, $value, $context->sqlBoolean());
+        $query->getQuery()->whereJsonContains($column, $value);
     }
 
     /**
@@ -95,24 +93,17 @@ final class ContainsOperator implements ExpandsValueList, FilterOperator
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $column
      * @param  array<int, string>  $items
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
-    private function applyCommaSeparated(Builder $query, string $column, array $items, FilterContext $context): void
+    private function applyCommaSeparated(Builder $query, string $column, array $items): void
     {
         if (empty($items)) {
             return;
         }
 
-        $callback = function (Builder $query) use ($column, $items): void {
+        $query->where(function (Builder $query) use ($column, $items): void {
             $this->applyJsonContainsGroup($query, $column, $items);
-        };
-
-        if ($context->isOr()) {
-            $query->orWhere($callback);
-        } else {
-            $query->where($callback);
-        }
+        });
     }
 
     /**

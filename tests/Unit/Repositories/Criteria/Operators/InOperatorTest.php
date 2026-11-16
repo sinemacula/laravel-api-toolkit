@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\InOperator;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
@@ -31,7 +30,7 @@ final class InOperatorTest extends TestCase
         $query    = (new User)->newQuery();
         $operator = new InOperator;
 
-        $operator->apply($query, 'status', ['active', 'pending'], FilterContext::root());
+        $operator->apply($query, 'status', ['active', 'pending']);
 
         $wheres = $query->getQuery()->wheres;
 
@@ -51,7 +50,7 @@ final class InOperatorTest extends TestCase
         $query    = (new User)->newQuery();
         $operator = new InOperator;
 
-        $operator->apply($query, 'status', 'active', FilterContext::root());
+        $operator->apply($query, 'status', 'active');
 
         $wheres = $query->getQuery()->wheres;
 
@@ -62,23 +61,23 @@ final class InOperatorTest extends TestCase
     }
 
     /**
-     * Test that apply honours the OR boolean of the filter context.
+     * Test that apply joins the list to an earlier clause with AND.
      *
      * @return void
      */
-    public function testInApplyInOrContextUsesOrBoolean(): void
+    public function testInApplyJoinsAnEarlierClauseWithAnd(): void
     {
         $query    = (new User)->newQuery();
         $operator = new InOperator;
 
         $query->where('name', 'Alice');
 
-        $operator->apply($query, 'status', ['active'], FilterContext::nested('$or'));
+        $operator->apply($query, 'status', ['active']);
 
         $wheres = $query->getQuery()->wheres;
 
         self::assertCount(2, $wheres);
         self::assertSame('In', $wheres[1]['type']);
-        self::assertSame('or', $wheres[1]['boolean']);
+        self::assertSame('and', $wheres[1]['boolean']);
     }
 }

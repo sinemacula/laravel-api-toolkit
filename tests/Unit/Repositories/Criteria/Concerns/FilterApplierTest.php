@@ -274,17 +274,15 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that $between with wrong array size is ignored.
+     * Test that $between without exactly two values is refused, not dropped.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithBetweenWrongArraySizeIsIgnored(): void
+    public function testApplyWithBetweenWrongArraySizeIsRefused(): void
     {
-        $result = $this->applyFilters(['id' => ['$between' => [1]]]);
-
-        self::assertEmpty($result->getQuery()->wheres);
+        $this->assertRefusedAt(['id' => ['$between' => [1]]], 'filters.id.$between', self::addsNothing('filters.id.$between'));
     }
 
     /**
@@ -418,7 +416,7 @@ final class FilterApplierTest extends TestCase
         /** @var \Illuminate\Database\Query\Builder $subQuery */
         $subQuery = $wheres[0]['query'];
 
-        $subWheres = $this->relationGroupWheres($subQuery);
+        $subWheres = $this->relationWheres($subQuery);
 
         self::assertTrue(
             $subWheres->contains(fn (array $where): bool => ($where['column'] ?? null) === 'title' && ($where['value'] ?? null) === 'test'),
@@ -426,7 +424,7 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that $or logical operator groups conditions.
+     * Test that an $or group joins its documents with OR.
      *
      * @return void
      *
@@ -434,31 +432,15 @@ final class FilterApplierTest extends TestCase
      */
     public function testApplyWithOrLogicalOperatorGroupsConditions(): void
     {
-        $result = $this->applyFilters([
-            '$or' => [
-                'name'  => 'Alice',
-                'email' => 'bob@example.com',
-            ],
-        ]);
-
-        $wheres = $result->getQuery()->wheres;
-
-        self::assertNotEmpty($wheres);
-        self::assertCount(1, $wheres);
-        self::assertSame('Nested', $wheres[0]['type']);
-        self::assertSame('or', $wheres[0]['boolean']);
-
-        $nested = $wheres[0]['query']->wheres;
-
-        self::assertCount(2, $nested);
-        self::assertSame('name', $nested[0]['column']);
-        self::assertSame('or', $nested[0]['boolean']);
-        self::assertSame('email', $nested[1]['column']);
-        self::assertSame('or', $nested[1]['boolean']);
+        $this->assertCompilesTo(
+            ['$or' => [['name' => 'Alice'], ['email' => 'bob@example.com']]],
+            '(("name" = ?) or ("email" = ?))',
+            ['Alice', 'bob@example.com'],
+        );
     }
 
     /**
-     * Test that $and logical operator groups conditions.
+     * Test that an $and group joins its documents with AND.
      *
      * @return void
      *
@@ -466,67 +448,106 @@ final class FilterApplierTest extends TestCase
      */
     public function testApplyWithAndLogicalOperatorGroupsConditions(): void
     {
-        $result = $this->applyFilters([
-            '$and' => [
-                'name'  => 'Alice',
-                'email' => 'alice@example.com',
-            ],
-        ]);
-
-        $wheres = $result->getQuery()->wheres;
-
-        self::assertNotEmpty($wheres);
-        self::assertCount(1, $wheres);
-        self::assertSame('Nested', $wheres[0]['type']);
-        self::assertSame('and', $wheres[0]['boolean']);
-
-        $nested = $wheres[0]['query']->wheres;
-
-        self::assertCount(2, $nested);
-        self::assertSame('and', $nested[0]['boolean']);
-        self::assertSame('and', $nested[1]['boolean']);
+        $this->assertCompilesTo(
+            ['$and' => [['name' => 'Alice'], ['email' => 'alice@example.com']]],
+            '(("name" = ?) and ("email" = ?))',
+            ['Alice', 'alice@example.com'],
+        );
     }
 
     /**
-     * Test that nested logical operators produce nested grouping.
+     * Test that a key beside a group joins it with AND in either order.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithNestedLogicalOperators(): void
+    public function testAKeyBesideAGroupJoinsItWithAndInEitherOrder(): void
     {
-        $result = $this->applyFilters([
-            '$and' => [
-                '$or' => [
-                    'name'  => 'Alice',
-                    'email' => 'alice@example.com',
-                ],
-            ],
-        ]);
+        $group = [['name' => 'Alice'], ['email' => 'bob@example.com']];
 
-        $wheres = $result->getQuery()->wheres;
+        $this->assertCompilesTo(
+            ['status' => 'active', '$or' => $group],
+            '"status" = ? and (("name" = ?) or ("email" = ?))',
+            ['active', 'Alice', 'bob@example.com'],
+        );
 
-        self::assertNotEmpty($wheres);
-        self::assertCount(1, $wheres);
-        self::assertSame('Nested', $wheres[0]['type']);
-        self::assertSame('and', $wheres[0]['boolean']);
-
-        $andGroup = $wheres[0]['query']->wheres;
-
-        self::assertCount(1, $andGroup);
-        self::assertSame('Nested', $andGroup[0]['type']);
-        self::assertSame('and', $andGroup[0]['boolean']);
-
-        $orGroup = $andGroup[0]['query']->wheres;
-
-        self::assertCount(2, $orGroup);
-        self::assertSame('or', $orGroup[0]['boolean']);
-        self::assertSame('or', $orGroup[1]['boolean']);
+        $this->assertCompilesTo(
+            ['$or' => $group, 'status' => 'active'],
+            '(("name" = ?) or ("email" = ?)) and "status" = ?',
+            ['Alice', 'bob@example.com', 'active'],
+        );
     }
 
     /**
-     * Test that a relation filter applies whereHas with nested conditions.
+     * Test that an $or of multi-key documents ANDs within each document.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAnOrOfMultiKeyDocumentsAndsWithinEachDocument(): void
+    {
+        $this->assertCompilesTo(
+            ['$or' => [['name' => 'Alice', 'status' => 'active'], ['name' => 'Bob', 'status' => 'banned']]],
+            '(("name" = ? and "status" = ?) or ("name" = ? and "status" = ?))',
+            ['Alice', 'active', 'Bob', 'banned'],
+        );
+    }
+
+    /**
+     * Test that an $and of two $or groups keeps each disjunction whole.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAnAndOfTwoOrGroupsKeepsEachDisjunctionWhole(): void
+    {
+        $this->assertCompilesTo(
+            ['$and' => [
+                ['$or' => [['name' => 'Alice'], ['name' => 'Bob']]],
+                ['$or' => [['status' => 'active'], ['email' => 'carol@example.com']]],
+            ]],
+            '(((("name" = ?) or ("name" = ?))) and ((("status" = ?) or ("email" = ?))))',
+            ['Alice', 'Bob', 'active', 'carol@example.com'],
+        );
+    }
+
+    /**
+     * Test that an $and inside an $or document keeps AND inside and OR between.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAnAndInsideAnOrDocumentKeepsAndInsideAndOrBetween(): void
+    {
+        $this->assertCompilesTo(
+            ['$or' => [['name' => 'Alice'], ['$and' => [['email' => 'bob@example.com'], ['status' => 'active']]]]],
+            '(("name" = ?) or ((("email" = ?) and ("status" = ?))))',
+            ['Alice', 'bob@example.com', 'active'],
+        );
+    }
+
+    /**
+     * Test that the conditions on one column inside an $or document are ANDed.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testConditionsOnOneColumnInsideAnOrDocumentAreAnded(): void
+    {
+        $this->assertCompilesTo(
+            ['$or' => [['id' => ['$gt' => 1, '$lt' => 5]], ['name' => 'Alice']]],
+            '(("id" > ? and "id" < ?) or ("name" = ?))',
+            [1, 5, 'Alice'],
+        );
+    }
+
+    /**
+     * Test that a relation filter applies whereHas with its conditions.
      *
      * @return void
      *
@@ -534,182 +555,102 @@ final class FilterApplierTest extends TestCase
      */
     public function testApplyWithRelationFilterAppliesWhereHas(): void
     {
-        $result = $this->applyFilters([
-            'posts' => ['title' => ['$eq' => 'test']],
-        ]);
-
-        $wheres = $result->getQuery()->wheres;
-
-        self::assertNotEmpty($wheres);
-        self::assertSame('Exists', $wheres[0]['type']);
-        self::assertSame('and', $wheres[0]['boolean']);
-
-        /** @var \Illuminate\Database\Query\Builder $subQuery */
-        $subQuery = $wheres[0]['query'];
-
-        $subWheres = $this->relationGroupWheres($subQuery);
-
-        self::assertTrue(
-            $subWheres->contains(fn (array $where): bool => ($where['column'] ?? null) === 'title' && ($where['value'] ?? null) === 'test'),
+        $this->assertCompilesTo(
+            ['posts' => ['title' => ['$eq' => 'test'], 'id' => 7]],
+            'exists (select * from "posts" where "users"."id" = "posts"."user_id" and "title" = ? and "id" = ?)',
+            ['test', 7],
         );
     }
 
     /**
-     * Test that a relation filter under $or uses orWhereHas.
+     * Test that a relation key inside an $or document attaches with OR.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithRelationFilterUnderOrUsesOrWhereHas(): void
+    public function testARelationKeyInsideAnOrDocumentAttachesWithOr(): void
     {
-        $result = $this->applyFilters([
-            '$or' => [
-                'nested' => [
-                    'posts' => ['title' => ['$eq' => 'test']],
-                ],
-            ],
-        ]);
-
-        $wheres = $result->getQuery()->wheres;
-
-        self::assertCount(1, $wheres);
-        self::assertSame('Nested', $wheres[0]['type']);
-
-        $nested = $wheres[0]['query']->wheres;
-
-        self::assertCount(1, $nested);
-        self::assertSame('Exists', $nested[0]['type']);
-        self::assertSame('or', $nested[0]['boolean']);
+        $this->assertCompilesTo(
+            ['$or' => [['name' => 'Alice'], ['posts' => ['id' => 1]]]],
+            '(("name" = ?) or (exists (select * from "posts" where "users"."id" = "posts"."user_id" and "id" = ?)))',
+            ['Alice', 1],
+        );
     }
 
     /**
-     * Test that conditions inside a relation filter under $or combine with AND.
-     *
-     * The OR belongs to the parent, not the correlation predicate.
+     * Test that a relation key inside a group checks its columns against the
+     * related resource, never the root.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testConditionsInsideARelationFilterUnderOrAreCombinedWithAnd(): void
+    public function testARelationKeyInsideAGroupChecksItsColumnsAgainstTheRelatedResource(): void
     {
-        $result = $this->applyFilters([
-            '$or' => [
-                'nested' => [
-                    'posts' => ['title' => 'first', 'id' => '1'],
-                ],
-            ],
-        ]);
-
-        $nested = $result->getQuery()->wheres[0]['query']->wheres;
-
-        self::assertSame('Exists', $nested[0]['type']);
-        self::assertSame('or', $nested[0]['boolean']);
-
-        $booleans = $this->relationGroupWheres($nested[0]['query'])->pluck('boolean')->all();
-
-        self::assertSame(['and', 'and'], $booleans);
+        $this->assertRejectsKey(['$or' => [['name' => 'Alice'], ['posts' => ['email' => 'bob@example.com']]]], 'email');
     }
 
     /**
-     * Test that $or inside a relation filter creates a grouped orWhere.
+     * Test that a relation of a related resource compiles to a nested exists.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithOrInsideRelationFilterCreatesOrWhereGroup(): void
+    public function testARelationOfARelatedResourceCompilesToANestedExists(): void
     {
-        $result = $this->applyFilters([
-            'posts' => [
-                '$or' => [
-                    'title' => ['$eq' => 'test'],
-                    'id'    => ['$eq' => 1],
-                ],
-            ],
-        ]);
-
-        $wheres = $result->getQuery()->wheres;
-
-        self::assertNotEmpty($wheres);
-        self::assertSame('Exists', $wheres[0]['type']);
-
-        /** @var \Illuminate\Database\Query\Builder $subQuery */
-        $subQuery = $wheres[0]['query'];
-
-        $subWheres = $this->relationGroupWheres($subQuery);
-
-        /** @var array{type: string, boolean: string, query: \Illuminate\Database\Query\Builder}|null $group */
-        $group = $subWheres->first(fn (array $where): bool => $where['type'] === 'Nested');
-
-        self::assertNotNull($group);
-        self::assertSame('and', $group['boolean']);
-
-        $orWheres = $group['query']->wheres;
-
-        self::assertCount(2, $orWheres);
-        self::assertSame('title', $orWheres[0]['column']);
-        self::assertSame('test', $orWheres[0]['value']);
-        self::assertSame('or', $orWheres[0]['boolean']);
-        self::assertSame('or', $orWheres[1]['boolean']);
+        $this->assertCompilesTo(
+            ['posts' => ['user' => ['name' => 'Alice']]],
+            'exists (select * from "posts" where "users"."id" = "posts"."user_id" and exists (select * from "users" where "posts"."user_id" = "users"."id" and "name" = ?))',
+            ['Alice'],
+        );
     }
 
     /**
-     * Test that $or combined with $has uses orWhereHas.
+     * Test that an $or inside a relation filter is grouped beside the
+     * correlation predicate.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithOrAndHasUsesOrWhereHas(): void
+    public function testApplyWithOrInsideRelationFilterKeepsTheCorrelationPredicate(): void
     {
-        $result = $this->applyFilters([
-            '$or' => [
-                '$has' => ['posts'],
-            ],
-        ]);
-
-        $wheres = $result->getQuery()->wheres;
-
-        self::assertNotEmpty($wheres);
-        self::assertSame('Nested', $wheres[0]['type']);
-
-        $nested = $wheres[0]['query']->wheres;
-
-        self::assertCount(1, $nested);
-        self::assertSame('Exists', $nested[0]['type']);
-        self::assertSame('or', $nested[0]['boolean']);
+        $this->assertCompilesTo(
+            ['posts' => ['$or' => [['title' => 'test'], ['id' => 1]], 'id' => 7]],
+            'exists (select * from "posts" where "users"."id" = "posts"."user_id" and (("title" = ?) or ("id" = ?)) and "id" = ?)',
+            ['test', 1, 7],
+        );
     }
 
     /**
-     * Test that $hasnt under $or adds whereDoesntHave inside the group.
+     * Test that $has and $hasnt inside an $or document attach with OR.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithOrAndHasntAddsWhereDoesntHave(): void
+    public function testExistenceOperatorsInsideAnOrDocumentAttachWithOr(): void
     {
-        $result = $this->applyFilters([
-            '$or' => [
-                '$hasnt' => ['posts'],
-            ],
-        ]);
+        $exists = '(select * from "posts" where "users"."id" = "posts"."user_id")';
 
-        $wheres = $result->getQuery()->wheres;
+        $this->assertCompilesTo(
+            ['$or' => [['name' => 'Alice'], ['$has' => 'posts']]],
+            '(("name" = ?) or (exists ' . $exists . '))',
+            ['Alice'],
+        );
 
-        self::assertNotEmpty($wheres);
-        self::assertSame('Nested', $wheres[0]['type']);
-
-        $nested = $wheres[0]['query']->wheres;
-
-        self::assertCount(1, $nested);
-        self::assertSame('NotExists', $nested[0]['type']);
+        $this->assertCompilesTo(
+            ['$or' => [['name' => 'Alice'], ['$hasnt' => ['posts']]]],
+            '(("name" = ?) or (not exists ' . $exists . '))',
+            ['Alice'],
+        );
     }
 
     /**
-     * Test that $has is not also applied as a column condition.
+     * Test that $has dispatches structurally even when registered as an
+     * operator, and is refused as a column condition.
      *
      * @return void
      *
@@ -719,11 +660,12 @@ final class FilterApplierTest extends TestCase
     {
         $this->operatorRegistry->register('$has', new EqualOperator);
 
-        $result = $this->applyFilters(['name' => ['$has' => 'posts']]);
-        $wheres = $result->getQuery()->wheres;
+        $wheres = $this->applyFilters(['$has' => 'posts'])->getQuery()->wheres;
 
         self::assertCount(1, $wheres);
         self::assertSame('Exists', $wheres[0]['type']);
+
+        $this->assertRefusedAt(['name' => ['$has' => 'posts']], 'filters.name.$has', self::notACondition('filters.name.$has'));
     }
 
     /**
@@ -739,21 +681,19 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that $notNull under $or uses orWhereNotNull.
+     * Test that $notNull inside an $or document attaches its document with OR.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithNotNullUnderOrUsesOrWhereNotNull(): void
+    public function testApplyWithNotNullInsideAnOrDocument(): void
     {
-        $result = $this->applyFilters([
-            '$or' => [
-                'organization_id' => ['$notNull' => true],
-            ],
-        ]);
-
-        self::assertNotEmpty($result->getQuery()->wheres);
+        $this->assertCompilesTo(
+            ['$or' => [['organization_id' => ['$notNull' => true]], ['name' => 'Alice']]],
+            '(("organization_id" is not null) or ("name" = ?))',
+            ['Alice'],
+        );
     }
 
     /**
@@ -777,7 +717,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testUndeclaredColumnInsideALogicalGroupIsRejected(): void
     {
-        $this->assertRejectsKey(['$or' => ['nonexistent_column' => 'value']], 'nonexistent_column');
+        $this->assertRejectsKey(['$or' => [['name' => 'Alice'], ['nonexistent_column' => 'value']]], 'nonexistent_column');
     }
 
     /**
@@ -789,7 +729,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testUndeclaredColumnUnderAnOperatorInsideALogicalGroupIsRejected(): void
     {
-        $this->assertRejectsKey(['$or' => ['nonexistent_column' => ['$eq' => 'Alice']]], 'nonexistent_column');
+        $this->assertRejectsKey(['$or' => [['nonexistent_column' => ['$eq' => 'Alice']]]], 'nonexistent_column');
     }
 
     /**
@@ -861,7 +801,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testRefusedOperatorInsideALogicalGroupIsRejected(): void
     {
-        $this->assertRejectsOperator(['$or' => ['id' => ['$contains' => 'php']]], 'id', '$contains', '$eq, $in, $gt, $ge, $lt, $le, $between, $null, $notNull');
+        $this->assertRejectsOperator(['$or' => [['id' => ['$contains' => 'php']]]], 'id', '$contains', '$eq, $in, $gt, $ge, $lt, $le, $between, $null, $notNull');
     }
 
     /**
@@ -898,22 +838,20 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a registered token resolving to no handler is skipped.
+     * Test that a registered token resolving to no handler is refused.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testConditionOperatorWithNullHandlerIsSkipped(): void
+    public function testConditionOperatorWithNullHandlerIsRefused(): void
     {
         // Registered but resolving to null, so has() and resolve() disagree
         $operators             = $this->getProperty($this->operatorRegistry, 'operators');
         $operators['$phantom'] = null;
         $this->setProperty($this->operatorRegistry, 'operators', $operators);
 
-        $result = $this->applyFilters(['name' => ['$phantom' => 'Alice']]);
-
-        self::assertEmpty($result->getQuery()->wheres);
+        $this->assertRefusedAt(['name' => ['$phantom' => 'Alice']], 'filters.name.$phantom', self::notACondition('filters.name.$phantom'));
     }
 
     /**
@@ -1015,12 +953,11 @@ final class FilterApplierTest extends TestCase
 
         self::assertSame('=', $eq->getQuery()->wheres[0]['operator']);
 
-        $orFilters = ['$or' => ['name' => 'Alice', 'email' => 'bob@example.com']];
+        $orFilters = ['$or' => [['name' => 'Alice'], ['email' => 'bob@example.com']]];
 
         $or = $this->applier->apply((new User)->newQuery(), $orFilters, $this->operatorRegistry, $surface);
 
-        self::assertSame('Nested', $or->getQuery()->wheres[0]['type']);
-        self::assertSame('or', $or->getQuery()->wheres[0]['boolean']);
+        self::assertSame('select * from "users" where (("name" = ?) or ("email" = ?))', $or->toSql());
     }
 
     /**
@@ -1053,7 +990,7 @@ final class FilterApplierTest extends TestCase
         Config::set('api-toolkit.query_cost.max_depth', 3);
 
         $result = $this->applyFilters([
-            '$or' => ['$and' => ['$or' => ['name' => 'Alice']]],
+            '$or' => [['$and' => [['$or' => [['name' => 'Alice']]]]]],
         ]);
 
         self::assertNotEmpty($result->getQuery()->wheres);
@@ -1069,9 +1006,9 @@ final class FilterApplierTest extends TestCase
         Config::set('api-toolkit.query_cost.max_depth', 3);
 
         $this->assertRejectedForCost(
-            ['$or' => ['$and' => ['$or' => ['$and' => ['name' => 'Alice']]]]],
+            ['$or' => [['$and' => [['$or' => [['$and' => [['name' => 'Alice']]]]]]]]],
             QueryCostLimits::MAX_DEPTH,
-            '/$or/$and/$or/$and',
+            '/$or/0/$and/0/$or/0/$and',
             3,
             4,
         );
@@ -1087,7 +1024,7 @@ final class FilterApplierTest extends TestCase
         Config::set('api-toolkit.query_cost.max_depth', 1);
 
         $this->assertRejectedForCost(
-            ['posts' => ['nested' => ['user' => ['name' => 'Alice']]]],
+            ['posts' => ['user' => ['name' => 'Alice']]],
             QueryCostLimits::MAX_DEPTH,
             '/posts/user',
             1,
@@ -1148,12 +1085,24 @@ final class FilterApplierTest extends TestCase
         Config::set('api-toolkit.query_cost.max_nodes', 2);
 
         $this->assertRejectedForCost(
-            ['$or' => ['name' => 'Alice', 'email' => 'alice@example.com']],
+            ['$or' => [['name' => 'Alice'], ['email' => 'alice@example.com']]],
             QueryCostLimits::MAX_NODES,
-            '/$or/email',
+            '/$or/1/email',
             2,
             3,
         );
+    }
+
+    /**
+     * Test that each condition under a column counts toward the node cap.
+     *
+     * @return void
+     */
+    public function testConditionsUnderAColumnCountTowardTheNodeCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 2);
+
+        $this->assertRejectedForCost(['id' => ['$gt' => 1, '$lt' => 5]], QueryCostLimits::MAX_NODES, '/id/$lt', 2, 3);
     }
 
     /**
@@ -1181,14 +1130,14 @@ final class FilterApplierTest extends TestCase
      */
     public function testKeysInsideAGroupWithinARelationCountTowardTheNodeCap(): void
     {
-        Config::set('api-toolkit.query_cost.max_nodes', 2);
+        Config::set('api-toolkit.query_cost.max_nodes', 3);
 
         $this->assertRejectedForCost(
-            ['posts' => ['$or' => ['title' => 'first', 'id' => '1']]],
+            ['posts' => ['$or' => [['title' => 'first'], ['id' => '1']]]],
             QueryCostLimits::MAX_NODES,
-            '/posts/$or/id',
-            2,
+            '/posts/$or/1/id',
             3,
+            4,
         );
     }
 
@@ -1337,51 +1286,15 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that an $or nested inside a relation filter is grouped.
-     *
-     * An ungrouped `or` would disjoin the scope's correlation predicate.
+     * Test that a key holding a pointer delimiter is escaped in a cost pointer.
      *
      * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testAnOrBelowTheTopLevelOfARelationKeepsTheCorrelationPredicate(): void
+    public function testAKeyHoldingAPointerDelimiterIsEscapedInACostPointer(): void
     {
-        // @phpstan-ignore staticMethod.dynamicCall
-        $sql = $this->applyFilters([
-            'posts' => [
-                'wrapper' => [
-                    '$or' => [
-                        'title' => ['$eq' => 'test'],
-                        'id'    => ['$eq' => 1],
-                    ],
-                ],
-            ],
-        ])->toSql();
+        Config::set('api-toolkit.query_cost.max_nodes', 1);
 
-        self::assertStringContainsString('"users"."id" = "posts"."user_id" and (', $sql);
-        self::assertStringNotContainsString('"users"."id" = "posts"."user_id" or', $sql);
-    }
-
-    /**
-     * Test that a key beside $or in a relation filter is applied.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testAKeyBesideAnOrInARelationFilterIsStillApplied(): void
-    {
-        // @phpstan-ignore staticMethod.dynamicCall
-        $bindings = $this->applyFilters([
-            'posts' => [
-                '$or' => ['title' => ['$eq' => 'test']],
-                'id'  => ['$eq' => 7],
-            ],
-        ])->getBindings();
-
-        self::assertContains('test', $bindings);
-        self::assertContains(7, $bindings, 'The key beside the $or must reach the query.');
+        $this->assertRejectedForCost(['name' => 'Alice', 'a/b~c' => 'x'], QueryCostLimits::MAX_NODES, '/a~1b~0c', 1, 2);
     }
 
     /**
@@ -1400,7 +1313,10 @@ final class FilterApplierTest extends TestCase
 
             self::fail('A list at the root of the walk must be refused.');
         } catch (ValidationException $exception) {
-            self::assertArrayHasKey('filters', $exception->errors());
+            self::assertSame(
+                ['filters' => ['The filters filter must name a field or a condition. To match any of several values, give the field a condition such as $in.']],
+                $exception->errors(),
+            );
         }
     }
 
@@ -1420,13 +1336,10 @@ final class FilterApplierTest extends TestCase
 
             self::fail('A list given to a named field must be refused.');
         } catch (ValidationException $exception) {
-            self::assertArrayHasKey('name', $exception->errors());
-            self::assertArrayNotHasKey('filters', $exception->errors());
-
             // Asserted whole: a substring match lets the halves reorder.
             self::assertSame(
-                ['The name filter must name a field or a condition. To match any of several values, give the field a condition such as $in.'],
-                $exception->errors()['name'],
+                ['filters.name' => ['The filters.name filter must name a field or a condition. To match any of several values, give the field a condition such as $in.']],
+                $exception->errors(),
             );
         }
     }
@@ -1438,17 +1351,37 @@ final class FilterApplierTest extends TestCase
      */
     public static function malformedDocumentProvider(): iterable
     {
-        yield 'bare value under $or' => [['$or' => 'Alice'], '$or', 'The $or filter must be a document of conditions.'];
-        yield 'bare value under nested $or' => [['$and' => ['$or' => 'Alice']], '$or', 'The $or filter must be a document of conditions.'];
-        yield 'bare value under a relation' => [['posts' => 'first'], 'posts', 'The posts filter must be a document of conditions.'];
+        $notGroup  = static fn (string $position): string => 'The ' . $position . ' filter must be a non-empty list of filter documents.';
+        $empty     = static fn (string $position): string => 'The ' . $position . ' filter must carry at least one condition.';
+        $fieldless = static fn (string $position): string => 'The ' . $position . ' condition must be given under a field.';
+
+        yield 'bare value under $or' => [['$or' => 'Alice'], 'filters.$or', $notGroup('filters.$or')];
+        yield 'bare value under nested $or' => [['$and' => [['$or' => 'Alice']]], 'filters.$and.0.$or', $notGroup('filters.$and.0.$or')];
+        yield 'object under $or' => [['$or' => ['name' => 'Alice']], 'filters.$or', $notGroup('filters.$or')];
+        yield 'empty list under $and' => [['$and' => []], 'filters.$and', $notGroup('filters.$and')];
+        yield 'empty document in $or' => [['$or' => [['name' => 'Alice'], []]], 'filters.$or.1', $empty('filters.$or.1')];
+        yield 'scalar document in $or' => [['$or' => [['name' => 'Alice'], 'Bob']], 'filters.$or.1', $empty('filters.$or.1')];
+        yield 'condition at the root' => [['$eq' => 'Alice'], 'filters.$eq', $fieldless('filters.$eq')];
+        yield 'condition in an $or document' => [['$or' => [['$eq' => 'Alice']]], 'filters.$or.0.$eq', $fieldless('filters.$or.0.$eq')];
+        yield 'empty column object' => [['name' => []], 'filters.name', $empty('filters.name')];
+        yield 'plain key under a column' => [['name' => ['email' => 'Alice']], 'filters.name.email', self::notACondition('filters.name.email')];
+        yield '$or under a column' => [['name' => ['$or' => [['$eq' => 'Alice']]]], 'filters.name.$or', self::notACondition('filters.name.$or')];
+        yield 'list index beside a condition' => [['name' => ['$eq' => 'Alice', 0 => 'Bob']], 'filters.name.0', self::notACondition('filters.name.0')];
+        yield 'unknown token under a column' => [['name' => ['$like' => 'Alice']], 'filters.name.$like', self::notACondition('filters.name.$like')];
+        yield 'bare value under a relation' => [['posts' => 'first'], 'filters.posts', 'The filters.posts filter must be a document of conditions.'];
         yield 'list under a relation' => [
             ['posts' => ['first']],
-            'relation',
-            'The relation filter must name a field or a condition. To match any of several values, give the field a condition such as $in.',
+            'filters.posts',
+            'The filters.posts filter must name a field or a condition. To match any of several values, give the field a condition such as $in.',
         ];
-        yield 'number under $has' => [['$has' => 1], '$has', 'The $has filter must be a document of conditions.'];
-        yield 'list entry under $hasnt' => [['$hasnt' => [['posts']]], '$hasnt', 'The $hasnt filter must list relation names.'];
-        yield 'bare value under a $has relation' => [['$has' => ['posts' => 'first']], 'posts', 'The posts filter must be a document of conditions.'];
+        yield 'number under $has' => [['$has' => 1], 'filters.$has', 'The filters.$has filter must be a document of conditions.'];
+        yield 'empty list under $has' => [['$has' => []], 'filters.$has', self::addsNothing('filters.$has')];
+        yield 'list entry under $hasnt' => [['$hasnt' => [['posts']]], 'filters.$hasnt', 'The filters.$hasnt filter must list relation names.'];
+        yield 'bare value under a $has relation' => [['$has' => ['posts' => 'first']], 'filters.$has.posts', 'The filters.$has.posts filter must be a document of conditions.'];
+        yield 'one-value $between' => [['id' => ['$between' => [1]]], 'filters.id.$between', self::addsNothing('filters.id.$between')];
+        yield 'one-value $between alone in an $or' => [['$or' => [['id' => ['$between' => [1]]]]], 'filters.$or.0.id.$between', self::addsNothing('filters.$or.0.id.$between')];
+        yield '$gt beside a one-value $between' => [['id' => ['$gt' => 1, '$between' => [2]]], 'filters.id.$between', self::addsNothing('filters.id.$between')];
+        yield '$contains of only delimiters' => [['context' => ['$contains' => ',,']], 'filters.context.$contains', self::addsNothing('filters.context.$contains')];
     }
 
     /**
@@ -1464,15 +1397,7 @@ final class FilterApplierTest extends TestCase
     #[DataProvider('malformedDocumentProvider')]
     public function testMalformedDocumentIsRefusedAtItsPosition(array $filters, string $position, string $message): void
     {
-        $surface = $this->declaredSurface(filterable: ['name' => Capability::EXACT], relations: ['posts']);
-
-        try {
-            $this->applier->apply((new User)->newQuery(), $filters, $this->operatorRegistry, $surface);
-
-            self::fail('A malformed filter document must be refused.');
-        } catch (ValidationException $exception) {
-            self::assertSame([$position => [$message]], $exception->errors());
-        }
+        $this->assertRefusedAt($filters, $position, $message);
     }
 
     /**
@@ -1483,9 +1408,14 @@ final class FilterApplierTest extends TestCase
      */
     public static function localisedMalformedDocumentProvider(): iterable
     {
-        yield 'list under a field' => [['name' => ['Alice']], 'name', 'Der Filter name muss ein Feld benennen.'];
-        yield 'bare value under $or' => [['$or' => 'Alice'], '$or', 'Der Filter $or muss ein Dokument sein.'];
-        yield 'list entry under $has' => [['$has' => [['posts']]], '$has', 'Der Filter $has muss Relationen auflisten.'];
+        yield 'list under a field' => [['name' => ['Alice']], 'filters.name', 'Der Filter filters.name muss ein Feld benennen.'];
+        yield 'bare value under a relation' => [['posts' => 'first'], 'filters.posts', 'Der Filter filters.posts muss ein Dokument sein.'];
+        yield 'list entry under $has' => [['$has' => [['posts']]], 'filters.$has', 'Der Filter filters.$has muss Relationen auflisten.'];
+        yield 'object under $or' => [['$or' => ['name' => 'Alice']], 'filters.$or', 'Der Filter filters.$or muss eine Liste sein.'];
+        yield 'empty column object' => [['name' => []], 'filters.name', 'Der Filter filters.name ist leer.'];
+        yield 'plain key under a column' => [['name' => ['email' => 'Alice']], 'filters.name.email', 'Der Filter filters.name.email ist keine Bedingung.'];
+        yield 'condition at the root' => [['$eq' => 'Alice'], 'filters.$eq', 'Die Bedingung filters.$eq braucht ein Feld.'];
+        yield 'one-value $between' => [['id' => ['$between' => [1]]], 'filters.id.$between', 'Der Filter filters.id.$between bewirkt nichts.'];
     }
 
     /**
@@ -1502,20 +1432,17 @@ final class FilterApplierTest extends TestCase
     public function testMalformedDocumentIsRefusedInTheCurrentLocale(array $filters, string $position, string $message): void
     {
         $this->localiseToolkitMessages([
-            'filters.unnamed_key'    => 'Der Filter :position muss ein Feld benennen.',
-            'filters.not_document'   => 'Der Filter :position muss ein Dokument sein.',
-            'filters.relation_names' => 'Der Filter :operator muss Relationen auflisten.',
+            'filters.unnamed_key'         => 'Der Filter :position muss ein Feld benennen.',
+            'filters.not_document'        => 'Der Filter :position muss ein Dokument sein.',
+            'filters.relation_names'      => 'Der Filter :position muss Relationen auflisten.',
+            'filters.not_group'           => 'Der Filter :position muss eine Liste sein.',
+            'filters.empty_document'      => 'Der Filter :position ist leer.',
+            'filters.not_condition'       => 'Der Filter :position ist keine Bedingung.',
+            'filters.fieldless_condition' => 'Die Bedingung :position braucht ein Feld.',
+            'filters.no_effect'           => 'Der Filter :position bewirkt nichts.',
         ]);
 
-        $surface = $this->declaredSurface(filterable: ['name' => Capability::EXACT], relations: ['posts']);
-
-        try {
-            $this->applier->apply((new User)->newQuery(), $filters, $this->operatorRegistry, $surface);
-
-            self::fail('A malformed filter document must be refused.');
-        } catch (ValidationException $exception) {
-            self::assertSame([$position => [$message]], $exception->errors());
-        }
+        $this->assertRefusedAt($filters, $position, $message);
     }
 
     /**
@@ -1535,7 +1462,7 @@ final class FilterApplierTest extends TestCase
         yield '$in mixed names' => [['platform' => ['$in' => ['MOBILE_APP', 'console', 'desktop']]], ['Workstation']];
         yield '$neq declared name' => [['platform' => ['$neq' => 'WEB']], ['Browser', 'Phone', 'Workstation']];
         yield '$null' => [['platform' => ['$null' => true]], ['Unregistered']];
-        yield '$or wire names' => [['$or' => ['platform' => ['$eq' => 'web'], 'name' => ['$eq' => 'Workstation']]], ['Browser', 'Workstation']];
+        yield '$or wire names' => [['$or' => [['platform' => ['$eq' => 'web']], ['name' => ['$eq' => 'Workstation']]]], ['Browser', 'Workstation']];
         yield 'backed enum value' => [['status' => ['$eq' => 'inactive']], ['Phone']];
         yield 'backed enum $in' => [['status' => ['$in' => ['active', 'banned']]], ['Browser']];
         yield 'plain column' => [['name' => ['$eq' => 'Phone']], ['Phone']];
@@ -1606,12 +1533,11 @@ final class FilterApplierTest extends TestCase
         yield '$eq false' => [['organization_id' => ['$eq' => false]], ['0']];
         yield 'bare null' => [['organization_id' => null], ['Alice']];
         yield '$eq null' => [['organization_id' => ['$eq' => null]], ['Alice']];
-        yield 'bare "0" in an $or' => [['$or' => ['name' => '0', 'organization_id' => 1]], ['0', '']];
-        yield 'bare 0 in an $and' => [['$and' => ['organization_id' => 0]], ['0']];
+        yield 'bare "0" in an $or' => [['$or' => [['name' => '0'], ['organization_id' => 1]]], ['0', '']];
+        yield 'bare 0 in an $and' => [['$and' => [['organization_id' => 0]]], ['0']];
         yield 'bare "0" in a relation' => [['posts' => ['title' => '0']], ['']];
-        yield 'bare "0" in a relation $or' => [['posts' => ['$or' => ['title' => '0']]], ['']];
+        yield 'bare "0" in a relation $or' => [['posts' => ['$or' => [['title' => '0']]]], ['']];
         yield 'bare "0" under $has' => [['$has' => ['posts' => ['title' => '0']]], ['']];
-        yield 'field with no conditions' => [['name' => []], ['0', '', 'Alice']];
     }
 
     /**
@@ -1821,19 +1747,79 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Return the grouped filter clauses a relation scope carries.
+     * Assert that the filters compile to the given where clause and bindings.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $where
+     * @param  array<int, mixed>  $bindings
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function assertCompilesTo(array $filters, string $where, array $bindings): void
+    {
+        $query = $this->applyFilters($filters);
+
+        self::assertSame('select * from "users" where ' . $where, $query->toSql());
+        self::assertSame($bindings, $query->getBindings());
+    }
+
+    /**
+     * Assert that applying the filters is refused with exactly the message.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $position
+     * @param  string  $message
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function assertRefusedAt(array $filters, string $position, string $message): void
+    {
+        try {
+            $this->applyFilters($filters);
+
+            self::fail('The filter document must be refused at ' . $position . '.');
+        } catch (ValidationException $exception) {
+            self::assertSame([$position => [$message]], $exception->errors());
+        }
+    }
+
+    /**
+     * Return the message refusing a key under a column that is no condition.
+     *
+     * @param  string  $position
+     * @return string
+     */
+    private static function notACondition(string $position): string
+    {
+        return 'The ' . $position . ' filter is not a condition. A field accepts only its registered condition tokens, such as $eq or $in.';
+    }
+
+    /**
+     * Return the message refusing an entry that adds no condition.
+     *
+     * @param  string  $position
+     * @return string
+     */
+    private static function addsNothing(string $position): string
+    {
+        return 'The ' . $position . ' filter adds no condition, so it would match every row.';
+    }
+
+    /**
+     * Return the clauses a relation subquery carries, asserting each is ANDed.
      *
      * @param  \Illuminate\Database\Query\Builder  $subQuery
      * @return \Illuminate\Support\Collection<int, array<string, mixed>>
      */
-    private function relationGroupWheres(mixed $subQuery): Collection
+    private function relationWheres(mixed $subQuery): Collection
     {
-        /** @var array{boolean: string, query: \Illuminate\Database\Query\Builder}|null $group */
-        $group = collect($subQuery->wheres)->first(static fn (array $where): bool => $where['type'] === 'Nested');
+        $wheres = collect($subQuery->wheres);
 
-        self::assertNotNull($group, 'The relation scope must group its filters.');
-        self::assertSame('and', $group['boolean'], 'The filter group must be ANDed with the correlation predicate.');
+        self::assertSame(['and'], $wheres->pluck('boolean')->unique()->values()->all(), 'Every clause beside the correlation predicate must be ANDed.');
 
-        return collect($group['query']->wheres);
+        return $wheres;
     }
 }

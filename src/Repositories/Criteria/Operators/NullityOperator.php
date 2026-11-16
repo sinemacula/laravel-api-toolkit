@@ -6,7 +6,6 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Operators;
 
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 
 /**
  * Base handler for nullity filter operators.
@@ -24,15 +23,12 @@ abstract class NullityOperator implements FilterOperator
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $column
      * @param  mixed  $value
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
     #[\Override]
-    public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
+    public function apply(Builder $query, string $column, mixed $value): void
     {
-        $boolean = $context->sqlBoolean();
-
-        $query->getQuery()->whereNull($column, $boolean, $this->isNegated());
+        $query->getQuery()->whereNull($column, 'and', $this->isNegated());
     }
 
     /**

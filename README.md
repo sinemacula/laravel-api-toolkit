@@ -86,6 +86,27 @@ Each is accepted only on a column whose declared capability allows it (see
 [Query capabilities](#schema-driven-apiresource)); any other pairing is rejected with a 422 naming the operator, the
 column and the operators that column accepts. The shorthand `{"name":"Alice"}` is `$eq` and is gated the same way.
 
+The entries of a filter document AND together, at every depth. `$and` and `$or` take a non-empty list of filter
+documents, each grouped on its own and joined by AND or OR:
+
+```json
+{"status":"active","$or":[{"name":"a"},{"email":"b"}]}
+{"$or":[{"role":"admin","status":"active"},{"role":"owner"}]}
+{"$and":[{"$or":[{"a":1},{"b":2}]},{"$or":[{"c":3},{"d":4}]}]}
+{"$or":[{"name":"a"},{"posts":{"user":{"name":"b"}}}]}
+```
+
+A relation declared `traversable()` takes a filter document for the related resource, checked against that
+resource's own declarations, and compiles to `whereHas()`. `$has` and `$hasnt` take a relation name, a list of names,
+or relation names keyed to filter documents, and compile to `whereHas()` and `whereDoesntHave()`. Every condition in
+one relation document must hold for the same related row: `{"posts":{"a":1,"b":2}}` needs one post matching both,
+while `{"$and":[{"posts":{"a":1}},{"posts":{"b":2}}]}` may match different posts.
+
+A filter that cannot narrow the query is rejected with a 422 keyed by its position, such as `filters.$or.1.name`,
+rather than dropped: a group that is not a non-empty list, an empty group document, a condition with no column, a
+column given an empty object, a list, or a key that is not a registered condition, and any entry that adds no
+condition, such as an empty `$has` list or a `$between` without exactly two values.
+
 **Free-text search** - match a term against the fields a resource declares `searchable()`:
 
 ```http
@@ -440,8 +461,12 @@ class AppServiceProvider extends ServiceProvider
 ```
 
 An operator is a class implementing `SineMacula\ApiToolkit\Contracts\FilterOperator`, or a closure with the same
-signature. `register()` throws `InvalidArgumentException` if the token is already taken; `override()` replaces it
-unconditionally.
+signature, `apply(Builder $query, string $column, mixed $value): void`. `register()` throws `InvalidArgumentException`
+if the token is already taken; `override()` replaces it unconditionally.
+
+An operator adds AND-joined predicates for one column; the applier owns the grouping, so an operator never chooses the
+connective. One that refuses its operand throws a `ValidationException`, and one that adds no clause is rejected with
+a 422. Operators are predicate-only: a scope removed inside one leaks to the outer query.
 
 An operator that expands one value into a predicate per item should also implement
 `SineMacula\ApiToolkit\Contracts\ExpandsValueList` and return the item count from `countValueItems()`. That count is
@@ -451,7 +476,7 @@ the contract counts as one item per non-list value.
 The capability gate covers only the shipped tokens. A token registered under a new name is allowed on any declared
 column, since the package cannot know which access path it needs. Overriding a shipped token keeps that token's
 capability rules, so a replacement `$contains` is still served only on `DOCUMENT` columns. An unregistered token is
-read as a column name and rejected by the allowlist.
+rejected with a 422, under a column or on its own.
 
 ### Exception Handling
 
