@@ -589,10 +589,22 @@ added under its status with its error code as an example; other throwables in th
 `@throws` resolve as PHP would in the file declaring the action, so imported, aliased, same-namespace and fully
 qualified names all work, and a union such as `@throws A|B` names both.
 
-Every enum the document references, through a model cast or a request field validated by `Rule::enum()` or
-`PureEnum`, becomes one named component listing its values under `enum`: the backing values of a backed enum, or the
-lowercase case names of a pure enum. Fields reference the component, except a field narrowed by `only()` or
-`except()`, which lists its accepted values inline (an empty list when it accepts none).
+Each path parameter is typed from what the router enforces on its segment. A `where` constraint comes first:
+`whereUuid()` exports a `uuid`, `whereNumber()` a non-negative integer, `whereIn()` or a plain alternation such as
+`draft|published` an `enum`, and any other pattern its anchored `pattern`. Without one, the parameter takes the
+string-backed enum or Eloquent model the action binds: the enum's component, or the type of the column the model is
+looked up by, which is its route key or the field a `{post:slug}` segment names. The `openapi()` schema of a resource
+field that emits that column unchanged, with no model accessor, takes precedence over the column type. A `HasUuids` or
+`HasUlids` key is typed without a database, unless the model replaces the trait's `isValidUniqueId()`. An explicit
+`Route::bind()` binder, an overridden `resolveRouteBinding()`, a model bound in the container or a key cast to a pure
+enum leaves the parameter a string. A constraint outside the syntax PHP and JavaScript read alike is not exported, so
+the binding types the parameter, or it stays a string: `\d`, `\w` and an unescaped `.` match more characters in PHP, so
+write `[0-9]` or `whereNumber()` to export the constraint.
+
+Every enum the document references, through a model cast, a request field validated by `Rule::enum()` or `PureEnum`, or
+a string-backed enum bound to a route parameter, becomes one named component listing its values under `enum`: the
+backing values of a backed enum, or the lowercase case names of a pure enum. Fields reference the component, except a
+field narrowed by `only()` or `except()`, which lists its accepted values inline (an empty list when it accepts none).
 
 A request field's presence rules shape its object's schema:
 
