@@ -5,10 +5,13 @@ on:
         branches: [ master ]
     pull_request:
         types: [ opened, synchronize, reopened, ready_for_review ]
+    schedule:
+        -   cron: 0 7 * * 1
     workflow_dispatch:
 
+# Keyed by event so a merge to master cannot cancel a scheduled or manual run
 concurrency:
-    group: tests-${{ github.event.pull_request.number || github.ref }}
+    group: tests-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
     cancel-in-progress: true
 
 permissions:
