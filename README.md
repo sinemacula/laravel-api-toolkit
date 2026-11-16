@@ -244,6 +244,17 @@ never required, so a model without a resource (a vendor model, say) keeps morphi
 alias, so renaming a `RESOURCE_TYPE`, or binding a second model to a resource (which withholds its alias), orphans
 rows already stored under the old alias.
 
+**Generating a resource** - `php artisan api-toolkit:make:resource OrderResource` writes
+`app/Http/Resources/OrderResource.php`, bound by `#[ForModel]` to the model guessed from the class name
+(`App\Models\Order`). Pass `--model=` to name another model, including one outside your application, `--type=` to
+choose the `RESOURCE_TYPE` (the snake-cased model name by default), and `--force` to overwrite an existing file. The
+command reads no database. The draft exposes only the model key, as its one field and its default, so nothing else is
+returned and nothing is filterable, sortable or searchable: declare each further field and its query surface by hand.
+The command refuses a type another mapped resource already returns, and a model another discovered resource already
+binds without an explicit `resource_map` entry. It warns when discovery will not see the file (outside `paths`, or a
+compiled map in place), and notes the morph alias a model not yet mapped will gain. Run `php artisan stub:publish` to
+customise `stubs/api-toolkit.resource.stub`.
+
 **Eager-load planning** - the resource builds `with()`/`withCount()`/`withSum()`/`withAvg()` maps from the resolved
 field set:
 
