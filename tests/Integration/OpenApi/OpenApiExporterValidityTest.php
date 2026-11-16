@@ -1098,7 +1098,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         self::assertSame(['role'], $schema['required']);
         self::assertSame(
-            '{"name":{"type":"string","maxLength":255},"email":false,"role":{"type":"string"},"nickname":{"type":"string"},"terms":{},"labels":{"type":"array","items":{}}}',
+            '{"name":{"type":"string","maxLength":255},"email":false,"role":{"type":"string"},"nickname":{"type":"string"},"zone":{},"labels":{"type":"array","items":{}}}',
             json_encode($schema['properties'], JSON_THROW_ON_ERROR),
         );
 
