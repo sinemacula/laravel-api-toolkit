@@ -140,7 +140,7 @@ final readonly class FieldSchemaBuilder
 
         $this->enums->register($enumClass);
 
-        $reference = ['$ref' => self::SCHEMA_REF_PREFIX . SchemaComponentName::fromEnum($enumClass)];
+        $reference = ['$ref' => self::SCHEMA_REF_PREFIX . SchemaComponentName::fromClass($enumClass)];
 
         return $this->presence->acceptsNull($tokens)
             ? ['anyOf' => [$reference, ['type' => 'null']]]

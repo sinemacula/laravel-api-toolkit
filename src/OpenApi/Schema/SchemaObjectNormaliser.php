@@ -30,6 +30,9 @@ final readonly class SchemaObjectNormaliser
     /** The keywords whose value maps property names to lists of names */
     private const array NAME_MAP_KEYWORDS = ['dependentRequired'];
 
+    /** The keyword whose mapping keys discriminator values to references */
+    private const string DISCRIMINATOR_KEYWORD = 'discriminator';
+
     /** The keywords holding example data rather than document structure */
     private const array EXAMPLE_KEYWORDS = ['example', 'examples'];
 
@@ -125,6 +128,7 @@ final readonly class SchemaObjectNormaliser
                 in_array($keyword, self::SCHEMA_LIST_KEYWORDS, true) => array_map($this->subschema(...), $value),
                 in_array($keyword, self::SCHEMA_MAP_KEYWORDS, true)  => $this->schemaMap($value),
                 in_array($keyword, self::NAME_MAP_KEYWORDS, true)    => $this->nameMap($value),
+                $keyword === self::DISCRIMINATOR_KEYWORD             => $this->discriminator($value),
                 default                                              => $value,
             };
         }
@@ -141,6 +145,21 @@ final readonly class SchemaObjectNormaliser
     private function schemaMap(array $map): array|\stdClass
     {
         return $this->nameMap(array_map($this->subschema(...), $map));
+    }
+
+    /**
+     * Normalise a discriminator's mapping as a name map.
+     *
+     * @param  array<array-key, mixed>  $discriminator
+     * @return array<array-key, mixed>
+     */
+    private function discriminator(array $discriminator): array
+    {
+        if (is_array($discriminator['mapping'] ?? null)) {
+            $discriminator['mapping'] = $this->nameMap($discriminator['mapping']);
+        }
+
+        return $discriminator;
     }
 
     /**
