@@ -875,8 +875,8 @@ same `422` as the query-cost caps:
 
 `0` (or `null`) disables the ceiling.
 
-**Action required.** Clients asking for a page larger than the ceiling now get a `422` instead of a shorter page.
-Raise the ceiling or have the client ask within it.
+**Action required.** Clients asking for a page larger than the ceiling now get a `422` instead of the rows they asked
+for. Raise the ceiling or have the client ask within it.
 
 ### Removed: the `$like` operator, replaced by `?search=`
 

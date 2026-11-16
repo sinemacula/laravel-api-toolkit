@@ -38,11 +38,28 @@ final class EnvironmentVariableNamesTest extends TestCase
             $off = Arr::dot($this->loadConfigWith($name, '0'));
             $on  = Arr::dot($this->loadConfigWith($name, '1'));
 
-            $changed = array_keys(array_filter($on, static fn (mixed $value, string $key): bool => !array_key_exists($key, $off) || $off[$key] !== $value, ARRAY_FILTER_USE_BOTH));
+            $changed = $this->changedKeys($off, $on);
 
             self::assertCount(1, $changed, sprintf('%s sets %d keys, not one: %s', $name, count($changed), implode(', ', $changed)));
             self::assertSame('API_TOOLKIT_' . strtoupper(str_replace('.', '_', $changed[0])), $name, sprintf('%s sets the key %s', $name, $changed[0]));
         }
+    }
+
+    /**
+     * Test that the config reads the environment through env calls alone.
+     *
+     * @return void
+     */
+    public function testEveryVariableIsReadThroughEnv(): void
+    {
+        $tokens = $this->tokens();
+
+        $reads = array_filter(
+            array_map(fn (int $index): ?string => $this->otherEnvironmentRead($tokens, $index), array_keys($tokens)),
+            static fn (?string $read): bool => $read !== null,
+        );
+
+        self::assertSame([], array_values($reads));
     }
 
     /**
@@ -66,12 +83,8 @@ final class EnvironmentVariableNamesTest extends TestCase
      */
     private function variableNames(): array
     {
-        $tokens = array_values(array_filter(
-            token_get_all((string) file_get_contents($this->configPath())),
-            static fn (mixed $token): bool => !is_array($token) || !in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true),
-        ));
-
-        $names = [];
+        $tokens = $this->tokens();
+        $names  = [];
 
         foreach (array_keys($tokens) as $index) {
             if (!$this->isEnvCall($tokens, $index)) {
@@ -97,8 +110,68 @@ final class EnvironmentVariableNamesTest extends TestCase
 
         return is_array($token)
             && in_array($token[0], [T_STRING, T_NAME_FULLY_QUALIFIED], true)
-            && ltrim($token[1], '\\')        === 'env'
-            && ($tokens[$index + 1] ?? null) === '(';
+            && strtolower(ltrim($token[1], '\\')) === 'env'
+            && ($tokens[$index + 1] ?? null)      === '(';
+    }
+
+    /**
+     * Describe the read of the environment bypassing env at the given index.
+     *
+     * @param  list<array{int, string, int}|string>  $tokens
+     * @param  int  $index
+     * @return string|null
+     */
+    private function otherEnvironmentRead(array $tokens, int $index): ?string
+    {
+        $token = $tokens[$index];
+
+        if (!is_array($token)) {
+            return null;
+        }
+
+        $next     = $tokens[$index + 1] ?? null;
+        $segments = explode('\\', $token[1]);
+        $name     = strtolower(end($segments));
+
+        $read = match ($token[0]) {
+            T_VARIABLE                                         => in_array($token[1], ['$_ENV', '$_SERVER', '$GLOBALS'], true),
+            T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED => ($name === 'getenv' && $next === '(')
+                || ($name === 'env' && is_array($next) && $next[0] === T_DOUBLE_COLON),
+            default => false,
+        };
+
+        return $read ? sprintf('%s on line %d', $token[1], $token[2]) : null;
+    }
+
+    /**
+     * Return the keys whose value differs between the two flattened loads,
+     * including a key present in only one of them.
+     *
+     * @param  array<array-key, mixed>  $off
+     * @param  array<array-key, mixed>  $on
+     * @return list<string>
+     */
+    private function changedKeys(array $off, array $on): array
+    {
+        $keys = array_map(strval(...), array_keys($off + $on));
+
+        return array_values(array_filter(
+            $keys,
+            static fn (string $key): bool => !array_key_exists($key, $off) || !array_key_exists($key, $on) || $off[$key] !== $on[$key],
+        ));
+    }
+
+    /**
+     * Tokenise the config file, dropping whitespace and comments.
+     *
+     * @return list<array{int, string, int}|string>
+     */
+    private function tokens(): array
+    {
+        return array_values(array_filter(
+            token_get_all((string) file_get_contents($this->configPath())),
+            static fn (mixed $token): bool => !is_array($token) || !in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true),
+        ));
     }
 
     /**
