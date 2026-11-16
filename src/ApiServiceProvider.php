@@ -4,13 +4,16 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit;
 
+use Illuminate\Foundation\Events\PublishingStubs;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use SineMacula\ApiToolkit\Console\CacheResourcesCommand;
 use SineMacula\ApiToolkit\Console\ClearResourcesCommand;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\Console\GenerateDocsCommand;
 use SineMacula\ApiToolkit\Console\InvalidateMetadataCommand;
+use SineMacula\ApiToolkit\Console\MakeResourceCommand;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
@@ -85,6 +88,7 @@ final class ApiServiceProvider extends ServiceProvider
             InvalidateMetadataCommand::class,
             CacheResourcesCommand::class,
             ClearResourcesCommand::class,
+            MakeResourceCommand::class,
         ]);
 
         $this->optimizes(
@@ -133,6 +137,10 @@ final class ApiServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../resources/api-docs' => resource_path('api-docs'),
         ], 'api-toolkit-docs');
+
+        Event::listen(PublishingStubs::class, static function (PublishingStubs $event): void {
+            $event->add(MakeResourceCommand::STUB, 'api-toolkit.resource.stub');
+        });
     }
 
     /**

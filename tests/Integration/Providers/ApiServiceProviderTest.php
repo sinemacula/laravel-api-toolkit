@@ -10,6 +10,7 @@ use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Events\PublishingStubs;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as FrameworkMaintenance;
 use Illuminate\Http\Middleware\HandleCors;
@@ -29,6 +30,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Cache\CacheManager;
+use SineMacula\ApiToolkit\Console\MakeResourceCommand;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
@@ -889,6 +891,34 @@ final class ApiServiceProviderTest extends TestCase
     public function testClearResourcesCommandIsRegistered(): void
     {
         self::assertArrayHasKey('api-toolkit:resources:clear', Artisan::all());
+    }
+
+    /**
+     * Test that the make resource command is registered.
+     *
+     * @return void
+     */
+    public function testMakeResourceCommandIsRegistered(): void
+    {
+        self::assertArrayHasKey('api-toolkit:make:resource', Artisan::all());
+    }
+
+    /**
+     * Test that publishing the stubs offers the resource stub alongside the
+     * framework stubs.
+     *
+     * @return void
+     */
+    public function testPublishingStubsOffersTheResourceStub(): void
+    {
+        $event = new PublishingStubs(['framework.stub' => 'framework.stub']);
+
+        Event::dispatch($event);
+
+        self::assertSame([
+            'framework.stub'          => 'framework.stub',
+            MakeResourceCommand::STUB => 'api-toolkit.resource.stub',
+        ], $event->stubs);
     }
 
     /**
