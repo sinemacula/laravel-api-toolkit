@@ -4,9 +4,13 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Concerns;
 
+use Illuminate\Database\Eloquent\Attributes\Table;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -173,6 +177,27 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
+     * Test that an encrypted object cast converts an array before it is
+     * encrypted, so an empty array reads back as an empty object.
+     *
+     * @return void
+     */
+    public function testPersistConvertsAnArrayForAnEncryptedObjectCast(): void
+    {
+        Config::set('app.key', 'base64:' . base64_encode(str_repeat('k', 32)));
+
+        $note = $this->createNote();
+
+        $note->mergeCasts(['meta' => 'encrypted:object']);
+
+        self::assertTrue($this->attributeSetter->persist($note, ['meta' => []]));
+
+        $fresh = Note::query()->findOrFail($note->id)->mergeCasts(['meta' => 'encrypted:object']);
+
+        self::assertEquals(new \stdClass, $fresh->meta);
+    }
+
+    /**
      * Provide values a pure-enum attribute accepts, with the case each stores.
      *
      * @return iterable<string, array{mixed, \Tests\Fixtures\Enums\Platform|null}>
@@ -285,6 +310,37 @@ final class AttributeSetterTest extends TestCase
 
         self::assertTrue($this->attributeSetter->persist($note, ['owner' => self::ALICE_EMAIL]));
         self::assertSame($alice->id, $note->fresh()?->owner_id);
+    }
+
+    /**
+     * Test that a pure-enum cast converts the wire name before the set mutator
+     * of the same key runs.
+     *
+     * @return void
+     */
+    public function testPersistConvertsAPureEnumCastBeforeItsSetMutatorRuns(): void
+    {
+        $note = $this->newMutatedNote();
+
+        self::assertTrue($this->attributeSetter->persist($note, ['kind' => 'mobile_app']));
+        self::assertSame('MOBILE_APP', $note->fresh()?->getRawOriginal('kind'));
+    }
+
+    /**
+     * Test that an Attribute set mutator wins over a dynamic relation of the
+     * same name.
+     *
+     * @return void
+     */
+    public function testPersistPrefersAnAttributeSetMutatorOverARelationOfTheSameName(): void
+    {
+        $alice = $this->createAlice();
+        $note  = $this->newMutatedNote();
+
+        $note::resolveRelationUsing('primary_contact', static fn (Model $model): BelongsTo => $model->belongsTo(User::class, 'primary_contact_id', 'id', 'primary_contact'));
+
+        self::assertTrue($this->attributeSetter->persist($note, ['primary_contact' => self::ALICE_EMAIL]));
+        self::assertSame($alice->id, $note->fresh()?->getAttribute('primary_contact_id'));
     }
 
     /**
@@ -739,6 +795,51 @@ final class AttributeSetterTest extends TestCase
     private function createPost(): Post
     {
         return Post::create(['user_id' => $this->createAlice()->id, 'title' => 'T', 'body' => 'B']);
+    }
+
+    /**
+     * Create an unsaved note whose cast and relation keys carry set mutators.
+     *
+     * @return \Illuminate\Database\Eloquent\Model
+     */
+    private function newMutatedNote(): Model
+    {
+        return new #[Table('notes')] class extends Model {
+            /**
+             * Store the kind by its case name.
+             *
+             * @return \Illuminate\Database\Eloquent\Casts\Attribute
+             */
+            protected function kind(): Attribute
+            {
+                return Attribute::make(
+                    set: static fn (Platform $kind): string => $kind->name,
+                );
+            }
+
+            /**
+             * Set the primary contact from the contact's email address.
+             *
+             * @return \Illuminate\Database\Eloquent\Casts\Attribute
+             */
+            protected function primaryContact(): Attribute
+            {
+                return Attribute::make(
+                    set: static fn (string $email): array => ['primary_contact_id' => User::query()->where('email', $email)->value('id')],
+                );
+            }
+
+            /**
+             * Get the attributes that should be cast.
+             *
+             * @return array<string, string>
+             */
+            #[\Override]
+            protected function casts(): array
+            {
+                return ['kind' => Platform::class];
+            }
+        };
     }
 
     /**

@@ -728,17 +728,17 @@ The bypass limits how many store calls fail, not how long each takes, so give th
 
 Schema entries are keyed by the schema the connection actually reads (its name, database, table prefix, Postgres
 search path, database user and configured server), so a tenancy switcher that repoints one connection name reads each
-tenant's schema separately, provided it purges the connection when it switches. Casts, relation lookups and the
-resource map come from code and are shared across tenants. Where each tenant has its own cache prefix, each has its
-own generation, so invalidate per tenant.
+tenant's schema separately, provided it purges the connection when it switches. Relation lookups and the resource map
+come from code and are shared across tenants. Where each tenant has its own cache prefix, each has its own generation,
+so invalidate per tenant.
 
 The generation is replaced automatically when a migration run finishes. A run with nothing to migrate, or a
 `--pretend` run, leaves the metadata warm. If the cache store cannot be written, the hook logs a warning instead of
 failing the migration. Set `API_TOOLKIT_LIFECYCLE_MIGRATIONS=false` to turn the hook off.
 
 The hook is not enough on its own: migrations run before the new release takes traffic, so workers still on the old
-code can refill the new generation with their casts, resource mappings and relation lookups. Run this on every
-deploy, after the new release is live:
+code can refill the new generation with their resource mappings and relation lookups. Run this on every deploy,
+after the new release is live:
 
 ```bash
 php artisan api-toolkit:invalidate-metadata

@@ -1312,11 +1312,11 @@ connection object, never by a query, so:
   connection, so workers may cache under several correct keys that fill separately; prefer one entry with a host
   list.
 
-Casts, relation lookups and the model-to-resource map come from code, so they are keyed by class and shared across
-tenants. Where each tenant has its own cache prefix, each has its own generation, so run the invalidation per tenant.
+Relation lookups and the model-to-resource map come from code, so they are keyed by class and shared across tenants.
+Where each tenant has its own cache prefix, each has its own generation, so run the invalidation per tenant.
 
 The migration hook is not enough on its own: migrations run before the new release takes traffic, so workers still on
-the old code can refill the new generation with their casts, resource mappings and relation lookups.
+the old code can refill the new generation with their resource mappings and relation lookups.
 
 **Action required.** Run `php artisan api-toolkit:invalidate-metadata` on every deploy, after the new release is
 live. Code that read toolkit metadata keys straight from the store must go through `MetadataCacheWriter`, since the
