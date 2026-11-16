@@ -78,6 +78,7 @@ final class FieldSchemaBuilderTest extends TestCase
             'untyped not in'        => [['not_in:"a","b,c"'], ['not' => ['enum' => ['a', 'b,c']]]],
             'array not in'          => [['array', 'not_in:a'], ['type' => 'array']],
             'empty not in'          => [['string', 'not_in:'], ['type' => 'string']],
+            'integer not in zero'   => [['integer', 'not_in:0'], ['type' => 'integer']],
             'starts with'           => [['starts_with:a.b,c'], ['pattern' => '^(?:a\.b|c)']],
             'alpha ascii'           => [['alpha:ascii'], ['pattern' => '^[a-zA-Z]+$']],
             'json'                  => [['json'], ['contentMediaType' => 'application/json']],

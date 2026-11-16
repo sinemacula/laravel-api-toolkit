@@ -386,6 +386,18 @@ final class RulesToSchemaTranslatorTest extends TestCase
 
         yield 'case-insensitive regex' => [['code' => 'regex:/^abc$/i'], ['{"code":"ABC"}', '{"code":"abc"}']];
 
+        yield 'bracket-delimited regex' => [['code' => 'regex:{^abc$}'], ['{"code":"abc"}', '{"code":"abcd"}']];
+
+        yield 'case-insensitive bracket regex' => [['code' => 'regex:<^abc$>i'], ['{"code":"ABC"}', '{"code":"abc"}']];
+
+        yield 'spaced regex' => [['code' => 'regex: /^abc$/u '], ['{"code":"abc"}', '{"code":"x"}']];
+
+        yield 'quoted strict distinct' => [['ids' => 'array', 'ids.*' => 'numeric|distinct:"strict"'], ['{"ids":[1,1.0]}', '{"ids":[1,2]}']];
+
+        yield 'not in zero' => [['count' => 'numeric|not_in:0,5'], ['{"count":-0.0}', '{"count":5}', '{"count":5.0}', '{"count":6}']];
+
+        yield 'overflowing bound' => [['count' => 'integer|lt:100000000000000000000'], ['{"count":9223372036854775807}']];
+
         yield 'unicode regex' => [['code' => 'regex:/^é+$/u'], ['{"code":"éé"}', '{"code":"e"}']];
 
         yield 'ip' => [['address' => 'ip'], ['{"address":"::1"}', '{"address":"127.0.0.1"}', '{"address":"nope"}']];

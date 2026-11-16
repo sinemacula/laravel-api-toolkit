@@ -15,6 +15,28 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
  */
 final readonly class InRuleValues
 {
+    /** The magnitude from which a float renders an integer in exponent form */
+    private const int EXPONENT_FORM_FROM = 10 ** 14;
+
+    /**
+     * Resolve the enum a field must not match, using exact numbers on a numeric
+     * field.
+     *
+     * A JSON-equal float renders zero as -0 and a large integer in exponent
+     * form, so the validator lets either through and neither is excluded.
+     *
+     * @param  string  $argument
+     * @param  string|null  $type
+     * @return list<float|int|string>
+     */
+    public function forExclusion(string $argument, ?string $type): array
+    {
+        return array_values(array_filter(
+            $this->forField($argument, $type),
+            static fn (float|int|string $value): bool => !is_int($value) || ($value !== 0 && abs($value) < self::EXPONENT_FORM_FROM),
+        ));
+    }
+
     /**
      * Resolve the enum for a field, using exact numbers on a numeric field.
      *

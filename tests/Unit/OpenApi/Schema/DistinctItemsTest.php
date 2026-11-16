@@ -36,6 +36,7 @@ final class DistinctItemsTest extends TestCase
             'ignoring case'   => [['distinct:ignore_case'], ['type' => 'string'], true],
             'colon in option' => [['distinct:strict:x'], ['type' => 'integer'], true],
             'strict'          => [['distinct:strict'], ['type' => 'integer'], false],
+            'quoted strict'   => [['distinct:"strict"'], ['type' => 'number'], false],
             'strict and case' => [['distinct:ignore_case,strict'], ['type' => 'string'], false],
             'lookalike rule'  => [['distinctly'], ['type' => 'string'], false],
             'no distinct'     => [['string'], ['type' => 'string'], false],

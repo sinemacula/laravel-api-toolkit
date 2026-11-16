@@ -268,14 +268,14 @@ final readonly class RangeConstraintBuilder
     }
 
     /**
-     * Cast a numeric string to a float when fractional or exponential,
-     * otherwise an integer.
+     * Cast a numeric string to an integer when one holds it exactly, otherwise
+     * a float.
      *
      * @param  string  $value
      * @return float|int
      */
     private function numericValue(string $value): float|int
     {
-        return strpbrk($value, '.eE') !== false ? (float) $value : (int) $value;
+        return strpbrk($value, '.eE') === false && abs((float) $value) < PHP_INT_MAX ? (int) $value : (float) $value;
     }
 }

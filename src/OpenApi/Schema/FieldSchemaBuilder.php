@@ -275,11 +275,17 @@ final readonly class FieldSchemaBuilder
     {
         $values = $this->argument($tokens, 'not_in');
 
-        if ($values === null || $values === '' || $type === 'array') {
+        if ($values === null || $type === 'array') {
             return;
         }
 
-        $schema['not'] = ['enum' => $this->inValues->forField($values, $type)];
+        $excluded = $this->inValues->forExclusion($values, $type);
+
+        if ($excluded === []) {
+            return;
+        }
+
+        $schema['not'] = ['enum' => $excluded];
     }
 
     /**

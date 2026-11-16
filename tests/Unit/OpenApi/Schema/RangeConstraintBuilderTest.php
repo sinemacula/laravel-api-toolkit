@@ -57,6 +57,10 @@ final class RangeConstraintBuilderTest extends TestCase
             'equal lower keeps first' => [['min:5', 'gte:5.0'], 'number', ['minimum' => 5]],
             'equal upper keeps first' => [['max:5', 'lte:5.0'], 'number', ['maximum' => 5]],
             'argumentless rules'      => [['min', 'gt', 'digits', 'multiple_of'], 'integer', []],
+            'leading zero bound'      => [['min:05'], 'integer', ['minimum' => 5]],
+            'largest integer bound'   => [['max:9223372036854775000'], 'integer', ['maximum' => 9223372036854775000]],
+            'overflowing upper bound' => [['max:9223372036854775808'], 'integer', ['maximum' => 9.2233720368547758E+18]],
+            'overflowing lower bound' => [['min:-100000000000000000000'], 'number', ['minimum' => -1.0E+20]],
         ];
     }
 
@@ -94,6 +98,8 @@ final class RangeConstraintBuilderTest extends TestCase
             'multiple of field'       => [['multiple_of:other'], 'integer', []],
             'multiple of string'      => [['multiple_of:2'], 'string', []],
             'first multiple of'       => [['multiple_of:4', 'multiple_of:6'], 'integer', ['multipleOf' => 4]],
+            'overflowing comparison'  => [['lt:100000000000000000000'], 'integer', ['exclusiveMaximum' => 1.0E+20]],
+            'overflowing multiple of' => [['multiple_of:100000000000000000000'], 'number', ['multipleOf' => 1.0E+20]],
             'integer digits'          => [['digits:4'], 'integer', ['minimum' => 1000, 'maximum' => 9999]],
             'number digits'           => [['digits:2'], 'number', ['minimum' => 10, 'maximum' => 99]],
             'single digit'            => [['digits:1'], 'integer', ['minimum' => 0, 'maximum' => 9]],

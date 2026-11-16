@@ -313,6 +313,23 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
+     * Test that a conditional exclude rule yields its rule name without
+     * evaluating its condition.
+     *
+     * @return void
+     */
+    public function testConditionalExcludeRuleYieldsItsNameWithoutEvaluatingItsCondition(): void
+    {
+        $condition = static function (): bool {
+            self::fail('The rule condition was evaluated.');
+        };
+
+        $tokens = (new RuleNormaliser)->normalise([Rule::excludeIf($condition), Rule::excludeUnless($condition)]);
+
+        self::assertSame(['exclude_if', 'exclude_unless'], $tokens);
+    }
+
+    /**
      * Test that a rule object of any other class is dropped without being
      * called.
      *

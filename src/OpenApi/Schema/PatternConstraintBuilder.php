@@ -29,6 +29,15 @@ final readonly class PatternConstraintBuilder
     /** The regex modifiers under which a pattern keeps its meaning */
     private const string PORTABLE_MODIFIERS = 'uD';
 
+    /** The whitespace PCRE skips among a regex's modifiers */
+    private const string MODIFIER_SPACING = " \n\r";
+
+    /** The whitespace PCRE skips before a regex's opening delimiter */
+    private const string LEADING_SPACE = " \t\n\v\f\r";
+
+    /** The bracket delimiters a regex may open with, mapped to their closers */
+    private const array BRACKET_DELIMITERS = ['(' => ')', '[' => ']', '{' => '}', '<' => '>'];
+
     /** The pattern syntax characters a literal value must escape */
     private const string SYNTAX_CHARACTERS = '^$\.*+?()[]{}|';
 
@@ -181,15 +190,21 @@ final readonly class PatternConstraintBuilder
      * Strip the delimiters from a regex, or drop it when a modifier would
      * change its meaning.
      *
+     * A regex opened by a bracket is closed by its matching bracket.
+     *
      * @param  string  $pattern
      * @return string|null
      */
     private function portablePattern(string $pattern): ?string
     {
-        if (preg_match('/^(.)(.*)\1([a-zA-Z]*)$/s', $pattern, $matches) !== 1) {
+        $regex  = ltrim($pattern, self::LEADING_SPACE);
+        $opener = substr($regex, 0, 1);
+        $closer = preg_quote(self::BRACKET_DELIMITERS[$opener] ?? $opener, '/');
+
+        if (preg_match('/^.(.*)' . $closer . '([a-zA-Z' . self::MODIFIER_SPACING . ']*)$/s', $regex, $matches) !== 1) {
             return $pattern;
         }
 
-        return strspn($matches[3], self::PORTABLE_MODIFIERS) === strlen($matches[3]) ? $matches[2] : null;
+        return strspn($matches[2], self::PORTABLE_MODIFIERS . self::MODIFIER_SPACING) === strlen($matches[2]) ? $matches[1] : null;
     }
 }

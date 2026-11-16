@@ -37,7 +37,7 @@ final readonly class DistinctItems
         foreach ($tokens as $token) {
             $parts = explode(':', $token, 2);
 
-            if ($parts[0] === 'distinct' && !in_array('strict', explode(',', $parts[1] ?? ''), true)) {
+            if ($parts[0] === 'distinct' && !in_array('strict', str_getcsv($parts[1] ?? '', ',', '"', '\\'), true)) {
                 return true;
             }
         }
