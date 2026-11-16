@@ -280,10 +280,12 @@ abstract class Service implements LockKeyProvider
     abstract protected function handle(): mixed;
 
     /**
-     * React to a successful outcome after the transaction has committed.
+     * React to a successful outcome after the outermost commit.
      *
      * Exceptions are reported and recorded as side-effect errors without
-     * failing the committed outcome. Default: no-op.
+     * failing the committed outcome. Inside a caller's transaction they are
+     * carried on the ServiceCompleted result, not on the one run() returned.
+     * Default: no-op.
      *
      * @param  TOutput  $output
      * @return void

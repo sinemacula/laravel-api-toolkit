@@ -1099,7 +1099,7 @@ store. Each attempt runs the whole lifecycle, firing `onFailure()` and `ServiceF
 #### Transactions
 
 `$transactional` (default `true`) wraps the concerns, `prepare()` and `handle()` in a database transaction, and
-`afterCommit()` runs once the service's own transaction has committed. The transaction runs once: a deadlock or other
+`afterCommit()` runs once the outermost transaction has committed. The transaction runs once: a deadlock or other
 concurrency error rolls it back and fails the run, firing `onFailure()` and `ServiceFailed`.
 
 `$transactionAttempts` (default `1`) lets a top-level run retry a concurrency error. Each retry re-runs the concerns,
@@ -1140,6 +1140,18 @@ For any other service, retry the call rather than the transaction: run `Service:
 input, or `dispatch()` it and let the worker retry per `--tries`. Each worker attempt starts from the dispatch-time
 input rather than the previous attempt's models, but models nested in an `ArrayInput` or `Payload` are not re-fetched,
 so pass keys and keep external effects idempotent.
+
+A service run inside a caller's transaction (another service, a `DB::transaction()` or a job that opens one) commits
+only a savepoint, so its lock, `afterCommit()` and `ServiceCompleted` wait for the outermost commit, and a rollback
+releases the lock and runs neither. A `$transactional = false` service behaves the same. The result `run()` returns
+there has empty `sideEffectErrors()`; errors from `afterCommit()` are reported and carried on the `ServiceCompleted`
+result. A `ServiceCompleted` or `ServiceFailed` listener exception is reported, never thrown.
+
+The lock is held for the rest of the caller's transaction, so `$lockExpiration` must cover it, and a second run with the
+same lock key inside it fails with `LockUnavailableException`. Queue follow-up work from `afterCommit()`, which runs
+once and never after a rollback or a retried attempt. `dispatch()` from `handle()` pushes at once unless the queue
+connection sets `after_commit`, so the job can run for a write that never commits. Transactions interleaved on two
+connections are not supported: the deferred work attaches to the most recent open transaction on any connection.
 
 #### Reading the Run Context
 
