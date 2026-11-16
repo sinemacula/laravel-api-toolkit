@@ -523,33 +523,40 @@ final class PayloadTest extends TestCase
              * Create a new instance with a camelCase enum property.
              *
              * @param  \Tests\Fixtures\Enums\Magnitude|null  $clientMagnitude
+             * @param  string  $clientName
              */
             public function __construct(
 
                 /** The magnitude read from the client_magnitude body key. */
                 public readonly ?Magnitude $clientMagnitude = null,
+
+                /** The name read from the client_name body key. */
+                public readonly string $clientName = '',
             ) {}
 
             /**
-             * Accept the snake_case body key.
+             * Accept the snake_case body keys.
              *
              * @return array<string, mixed>
              */
             #[\Override]
             public static function rules(): array
             {
-                return ['client_magnitude' => ['sometimes']];
+                return ['client_magnitude' => ['sometimes'], 'client_name' => ['sometimes', 'string']];
             }
         };
 
         self::assertSame(Magnitude::NEGATIVE, $definition::from(['client_magnitude' => '-3'])->clientMagnitude);
 
         try {
-            $definition::from(['client_magnitude' => '01']);
+            $definition::from(['client_magnitude' => '01', 'client_name' => 5]);
 
-            self::fail('Expected a ValidationException for the non-canonical magnitude.');
+            self::fail('Expected a ValidationException for both mapped keys.');
         } catch (ValidationException $exception) {
-            self::assertSame(['client_magnitude' => ['The selected client magnitude is invalid.']], $exception->errors());
+            self::assertSame(
+                ['client_magnitude' => ['The selected client magnitude is invalid.'], 'client_name' => ['The client name field must be a string.']],
+                $exception->errors(),
+            );
         }
     }
 
