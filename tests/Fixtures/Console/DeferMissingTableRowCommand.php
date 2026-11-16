@@ -33,7 +33,7 @@ final class DeferMissingTableRowCommand extends Command
      */
     public function handle(WritePool $pool): int
     {
-        $pool->add('nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
 
         return self::SUCCESS;
     }

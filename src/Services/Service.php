@@ -33,8 +33,8 @@ abstract class Service implements LockKeyProvider
     /** @var bool Wrap prepare()+handle() in a database transaction */
     protected bool $transactional = true;
 
-    /** @var int Transaction retry attempts */
-    protected int $transactionAttempts = 3;
+    /** @var int Transaction attempts; a top-level run retries a concurrency error */
+    protected int $transactionAttempts = 1;
 
     /** @var bool Whether this service acquires a cache lock */
     protected bool $lockable = false;

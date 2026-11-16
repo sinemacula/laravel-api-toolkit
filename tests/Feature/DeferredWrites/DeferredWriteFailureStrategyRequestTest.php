@@ -50,7 +50,7 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
         // The table does not exist, so the flush fails
         Route::post('/deferred-invalid-boundary', function (): JsonResponse {
 
-            app(WritePool::class)->add('nonexistent_table', ['col' => 'val']);
+            app(WritePool::class)->add('testing', 'nonexistent_table', ['col' => 'val']);
 
             return response()->json(['accepted' => true], 202);
         });
@@ -58,7 +58,7 @@ final class DeferredWriteFailureStrategyRequestTest extends TestCase
         // The pool limit is one, so the auto-flush fires inside the handler
         Route::post('/deferred-invalid-handler', function (): JsonResponse {
 
-            app(WritePool::class)->add('nonexistent_table', ['col' => 'val']);
+            app(WritePool::class)->add('testing', 'nonexistent_table', ['col' => 'val']);
 
             return response()->json(['accepted' => true], 202);
         });

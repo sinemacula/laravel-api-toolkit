@@ -26,10 +26,10 @@ final class WritePoolFlushAccumulator
     /** @var int The number of records contained in failed chunks. */
     private int $failedRecordCount = 0;
 
-    /** @var array<string, list<array{records: list<array<string, mixed>>, exception: string, exception_class: string}>> Failure details keyed by table name. */
+    /** @var array<string, array<string, list<array{records: list<array<string, mixed>>, exception: string, exception_class: string}>>> Failure details keyed by connection, then table. */
     private array $failures = [];
 
-    /** @var array<string, list<array<string, mixed>>> Records retained in the buffer for retry, keyed by table name. */
+    /** @var array<string, array<string, list<array<string, mixed>>>> Records retained for retry, keyed by connection, then table. */
     private array $retainedRecords = [];
 
     /** @var \Throwable|null The first underlying failure, kept as the cause of a reported flush failure. */
@@ -50,18 +50,19 @@ final class WritePoolFlushAccumulator
     /**
      * Record a failed chunk along with its failure detail.
      *
+     * @param  string  $connection
      * @param  string  $table
      * @param  list<array<string, mixed>>  $chunk
      * @param  \Throwable  $exception
      * @return void
      */
-    public function recordFailure(string $table, array $chunk, \Throwable $exception): void
+    public function recordFailure(string $connection, string $table, array $chunk, \Throwable $exception): void
     {
         $this->failureCount++;
         $this->failedRecordCount += count($chunk);
         $this->firstException ??= $exception;
 
-        $this->failures[$table][] = [
+        $this->failures[$connection][$table][] = [
             'records'         => $chunk,
             'exception'       => $exception->getMessage(),
             'exception_class' => $exception::class,
@@ -71,19 +72,21 @@ final class WritePoolFlushAccumulator
     /**
      * Retain a failed chunk's records in the buffer for retry.
      *
+     * @param  string  $connection
      * @param  string  $table
      * @param  list<array<string, mixed>>  $chunk
      * @return void
      */
-    public function retain(string $table, array $chunk): void
+    public function retain(string $connection, string $table, array $chunk): void
     {
-        $this->retainedRecords[$table] = array_merge($this->retainedRecords[$table] ?? [], $chunk);
+        $this->retainedRecords[$connection][$table] = array_merge($this->retainedRecords[$connection][$table] ?? [], $chunk);
     }
 
     /**
-     * Get the records retained in the buffer for retry.
+     * Get the records retained in the buffer for retry, keyed by connection,
+     * then table.
      *
-     * @return array<string, list<array<string, mixed>>>
+     * @return array<string, array<string, list<array<string, mixed>>>>
      */
     public function failedRecords(): array
     {

@@ -18,11 +18,11 @@
     ],
     "require": {
         "php": "^8.3",
-        "illuminate/database": "^13.2",
-        "illuminate/http": "^13.2",
-        "illuminate/routing": "^13.2",
-        "illuminate/support": "^13.2",
-        "illuminate/validation": "^13.2",
+        "illuminate/database": "^13.39",
+        "illuminate/http": "^13.39",
+        "illuminate/routing": "^13.39",
+        "illuminate/support": "^13.39",
+        "illuminate/validation": "^13.39",
         "sinemacula/http-primitives-php": "^2.0",
         "sinemacula/laravel-repositories": "^3.2.1"
     },
@@ -51,7 +51,7 @@
         "phpstan/phpstan-strict-rules": "^2.0",
         "phpunit/phpunit": "^12.5",
         "sinemacula/coding-standards-laravel": "^1.7.1",
-        "sinemacula/laravel-resource-exporter": "^3.0",
+        "sinemacula/laravel-resource-exporter": "^3.1.2",
         "slevomat/coding-standard": "^8.28",
         "squizlabs/php_codesniffer": "^3.13.6 || ^4.0.2"
     },

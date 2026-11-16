@@ -128,7 +128,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
     public function testHandleFlushResolvesWritePoolFromContainerAndCallsFlush(): void
     {
         $pool = new WritePool(500, 10000);
-        $pool->add('users', ['name' => 'Alice', 'email' => 'alice@example.com', 'password' => 'secret']);
+        $pool->add('testing', 'users', ['name' => 'Alice', 'email' => 'alice@example.com', 'password' => 'secret']);
 
         $container = \Mockery::mock(Container::class);
         $container->shouldReceive('make')
@@ -160,7 +160,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
         Exceptions::assertReported(fn (WritePoolFlushException $e): bool => $e->getMessage() === 'WritePool flush failed: 1 chunk(s) failed out of 1 total.'
             && $e->getPrevious() instanceof QueryException
             && $e->getPrevious()       === $e->flushResult()->firstException()
-            && $e->context()['tables'] === ['nonexistent_table']);
+            && $e->context()['tables'] === ['testing' => ['nonexistent_table']]);
     }
 
     /**
@@ -187,8 +187,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     public function testHandleFlushDispatchesEventCarryingEverySystemicFailure(): void
     {
         $pool = new WritePool(500, 10000);
-        $pool->add('nonexistent_table', ['col' => 'a']);
-        $pool->add('another_missing_table', ['col' => 'b']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'a']);
+        $pool->add('testing', 'another_missing_table', ['col' => 'b']);
 
         Exceptions::fake();
         Event::fake([WritePoolFlushFailed::class]);
@@ -197,8 +197,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
 
         Exceptions::assertReportedCount(1);
         Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult->failureCount() === 2
-            && array_key_exists('nonexistent_table', $event->flushResult->failures())
-            && array_key_exists('another_missing_table', $event->flushResult->failures()));
+            && array_key_exists('nonexistent_table', $event->flushResult->failures()['testing'])
+            && array_key_exists('another_missing_table', $event->flushResult->failures()['testing']));
     }
 
     /**
@@ -247,7 +247,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
     public function testHandleFlushDoesNotReportOrDispatchOnSuccess(): void
     {
         $pool = new WritePool(500, 10000);
-        $pool->add('users', ['name' => 'Carol', 'email' => 'carol@example.com', 'password' => 'secret']);
+        $pool->add('testing', 'users', ['name' => 'Carol', 'email' => 'carol@example.com', 'password' => 'secret']);
 
         Exceptions::fake();
         Event::fake([WritePoolFlushFailed::class]);
@@ -445,7 +445,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
     private function failingPool(FlushStrategy $strategy = FlushStrategy::COLLECT): WritePool
     {
         $pool = new WritePool(500, 10000, $strategy);
-        $pool->add('nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
 
         return $pool;
     }
@@ -475,7 +475,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
     private function subscribeWithPooledRow(string $email): array
     {
         $pool = new WritePool(500, 10000);
-        $pool->add('users', ['name' => 'Dave', 'email' => $email, 'password' => 'secret']);
+        $pool->add('testing', 'users', ['name' => 'Dave', 'email' => $email, 'password' => 'secret']);
 
         $container = \Mockery::mock(Container::class);
         $container->shouldReceive('make')
