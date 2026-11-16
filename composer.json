@@ -85,7 +85,7 @@
             "@php -d memory_limit=-1 vendor/bin/infection --configuration=infection.json5 --only-covering-test-cases --threads=max --git-diff-lines --git-diff-base=origin/master --map-source-class-to-test --min-msi=90 --min-covered-msi=90 --ignore-msi-with-no-mutations"
         ],
         "test:mutation:full": [
-            "@php -d memory_limit=-1 vendor/bin/infection --configuration=infection.full.json5 --only-covering-test-cases --threads=max"
+            "@php -d memory_limit=-1 vendor/bin/infection --configuration=infection.full.json5 --only-covering-test-cases --threads=max --min-msi=95 --min-covered-msi=95"
         ]
     },
     "scripts-descriptions": {
@@ -95,7 +95,7 @@
         "test": "Run the PHPUnit test suite in parallel using Paratest.",
         "test:coverage": "Run the PHPUnit test suite with clover coverage report.",
         "test:mutation": "Run the Infection mutation-testing gate against the MSI thresholds.",
-        "test:mutation:full": "Run the full Infection mutation suite without MSI thresholds."
+        "test:mutation:full": "Run the full Infection mutation suite against its MSI floor."
     },
     "config": {
         "optimize-autoloader": true,

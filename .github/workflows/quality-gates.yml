@@ -78,3 +78,13 @@ jobs:
 
             -   name: Full mutation suite
                 run: composer test:mutation:full
+
+            -   name: Upload mutation logs
+                if: always()
+                uses: actions/upload-artifact@v7
+                with:
+                    name: infection-full
+                    path: |
+                        build/infection-full.log
+                        build/infection-full-summary.log
+                    if-no-files-found: warn
