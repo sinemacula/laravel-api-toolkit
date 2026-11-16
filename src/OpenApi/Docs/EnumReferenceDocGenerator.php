@@ -79,7 +79,7 @@ final readonly class EnumReferenceDocGenerator
      */
     private function compareByComponentName(string $a, string $b): int
     {
-        return SchemaComponentName::fromEnum($a) <=> SchemaComponentName::fromEnum($b);
+        return SchemaComponentName::fromClass($a) <=> SchemaComponentName::fromClass($b);
     }
 
     /**
@@ -99,7 +99,7 @@ final readonly class EnumReferenceDocGenerator
 
         $lines = [
             '',
-            $level . ' ' . SchemaComponentName::fromEnum($enum),
+            $level . ' ' . SchemaComponentName::fromClass($enum),
             '',
             '| Name | Value |',
             '| --- | --- |',
