@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Integration\Providers\Registrars;
 
 use Illuminate\Container\Container;
+use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -15,7 +16,10 @@ use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
+use SineMacula\ApiToolkit\Exceptions\GoneException;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Exceptions\NotFoundException;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
@@ -33,6 +37,7 @@ use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
 use SineMacula\ApiToolkit\Search\Drivers\SqliteSearchDriver;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Fixtures\Input\StorePayload;
 use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\User;
@@ -102,6 +107,30 @@ final class ContainerBindingRegistrarTest extends TestCase
         self::assertSame($app->make(ServiceRunner::class), $app->make(ServiceRunner::class));
         self::assertSame($app->make(EnumSchemaRegistry::class), $app->make(EnumSchemaRegistry::class));
         self::assertSame($app->make(DefinedSchemaRegistry::class), $app->make(DefinedSchemaRegistry::class));
+    }
+
+    /**
+     * Test that the exception map is built from the config on every resolution.
+     *
+     * @return void
+     */
+    public function testRegisterBindsTheExceptionMapToTheCurrentConfig(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        $default = $app->make(ExceptionMap::class);
+
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $app->make('config');
+        $config->set('api-toolkit.exceptions.map', [NotFoundHttpException::class => GoneException::class]);
+
+        $configured = $app->make(ExceptionMap::class);
+
+        self::assertNotSame($default, $configured);
+        self::assertSame(NotFoundException::class, $default->targetFor(NotFoundHttpException::class));
+        self::assertSame(GoneException::class, $configured->targetFor(NotFoundHttpException::class));
     }
 
     /**
@@ -261,6 +290,50 @@ final class ContainerBindingRegistrarTest extends TestCase
         self::assertSame(700, $this->readProperty($pool, 'chunkSize'));
         self::assertSame(900, $this->readProperty($pool, 'poolLimit'));
         self::assertFalse($this->readProperty($pool, 'transactional'));
+        self::assertSame($app->make('db.transactions'), $this->resolveTracker($pool));
+    }
+
+    /**
+     * Test that the write pool resolves the transaction tracker bound when it
+     * checks, not the one bound when it was built.
+     *
+     * @return void
+     */
+    public function testRegisterBuildsWritePoolResolvingTheTrackerBoundAtEachCheck(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        $pool = $app->make(WritePool::class);
+
+        $app->instance('db.transactions', $rebound = new DatabaseTransactionsManager);
+
+        self::assertSame($rebound, $this->resolveTracker($pool));
+    }
+
+    /**
+     * Test that the write pool resolves no transaction tracker when the
+     * container binds none, or binds something else.
+     *
+     * @return void
+     */
+    public function testRegisterBuildsWritePoolWithoutATrackerWhenNoneIsBound(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        $pool = $app->make(WritePool::class);
+
+        $app->instance('db.transactions', new \stdClass);
+
+        self::assertNull($this->resolveTracker($pool));
+
+        $app->offsetUnset('db.transactions');
+
+        self::assertFalse($app->bound('db.transactions'));
+        self::assertNull($this->resolveTracker($pool));
     }
 
     /**
@@ -408,6 +481,21 @@ final class ContainerBindingRegistrarTest extends TestCase
     private function readProperty(object $object, string $property): mixed
     {
         return (new \ReflectionProperty($object, $property))->getValue($object);
+    }
+
+    /**
+     * Resolve the transaction tracker the write pool would check against.
+     *
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePool  $pool
+     * @return mixed
+     */
+    private function resolveTracker(WritePool $pool): mixed
+    {
+        $resolver = $this->readProperty($pool, 'transactions');
+
+        assert($resolver instanceof \Closure);
+
+        return $resolver();
     }
 
     /**

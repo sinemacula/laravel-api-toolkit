@@ -134,6 +134,26 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
+     * Test that the filter description states the group grammar with an
+     * example.
+     *
+     * @return void
+     */
+    public function testFilterDescriptionStatesTheGroupGrammarWithAnExample(): void
+    {
+        $description = $this->makeBuilder()->build()['Filters']['description'];
+
+        self::assertIsString($description);
+        self::assertStringContainsString(
+            'The entries of a document AND together. $and and $or take a non-empty list of filter documents, joined by AND or OR, '
+            . 'e.g. filters={"status":"active","$or":[{"role":"admin"},{"role":"owner"}]}. '
+            . 'A traversable relation key takes a filter document for the related resource. '
+            . '$has and $hasnt take a relation name, a list of names, or relation names keyed to filter documents. ',
+            $description,
+        );
+    }
+
+    /**
      * Test that the filter declares no closed per-resource field allow-list.
      *
      * @return void

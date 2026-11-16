@@ -5,15 +5,20 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use SineMacula\ApiToolkit\Contracts\ExpandsValueList;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
- * Applies filter trees to an Eloquent query builder.
+ * Applies filter documents to an Eloquent query builder.
+ *
+ * The entries of a document AND together, and every key at every depth is
+ * routed the same way. An entry that adds no condition is refused, as dropping
+ * it would widen the result set.
  *
  * @SuppressWarnings("php:S1448")
  *
@@ -32,7 +37,7 @@ final class FilterApplier
     private const string OPERATOR_EQUAL = '$eq';
 
     /** @var array<string, string> */
-    private array $logicalOperatorMap = ['$or' => 'orWhere', '$and' => 'where'];
+    private array $logicalOperatorMap = ['$and' => 'and', '$or' => 'or'];
 
     /** @var array<string, string> */
     private array $relationalMethodMap = ['$has' => 'whereHas', self::OPERATOR_HASNT => 'whereDoesntHave'];
@@ -66,143 +71,72 @@ final class FilterApplier
         $this->querySurface     = $querySurface;
         $this->limits           = QueryCostLimits::fromConfig();
 
-        $this->applyEntries($query, $filters ?? [], null, FilterContext::root(new FilterCostBudget($this->limits)));
+        $this->applyDocument($query, $filters ?? [], FilterContext::root(new FilterCostBudget($this->limits)));
 
         return $query;
     }
 
     /**
-     * Apply the value given for a field to the query.
-     *
-     * Any scalar, falsy ones included, is the bare equality shorthand.
+     * Apply each entry of a filter document to the query, ANDed together.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
-     * @param  mixed  $value
-     * @param  string  $field
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
-     * @return \Illuminate\Database\Eloquent\Builder<TModel>
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    private function applyFilters(Builder $query, mixed $value, string $field, FilterContext $context): Builder
-    {
-        if (!is_array($value)) {
-            return $this->applySimpleFilter($query, $field, $value, $context);
-        }
-
-        return $this->applyEntries($query, $value, $field, $context);
-    }
-
-    /**
-     * Apply each entry of a filter document to the query.
-     *
-     * @template TModel of \Illuminate\Database\Eloquent\Model
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
-     * @param  array<array-key, mixed>  $filters
-     * @param  string|null  $field
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
-     * @return \Illuminate\Database\Eloquent\Builder<TModel>
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    private function applyEntries(Builder $query, array $filters, ?string $field, FilterContext $context): Builder
-    {
-        foreach ($filters as $key => $value) {
-            $this->applyFilterEntry($query, $this->assertNamedKey($key, $field ?? 'filters'), $value, $field, $context);
-        }
-
-        return $query;
-    }
-
-    /**
-     * Assert that a filter position carries a named key, not a list index.
-     *
-     * @param  mixed  $key
-     * @param  string  $position
-     * @return string
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
-    private function assertNamedKey(mixed $key, string $position): string
-    {
-        if (is_string($key)) {
-            return $key;
-        }
-
-        $message = 'The %s filter must name a field or a condition. To match '
-            . 'any of several values, give the field a condition such as $in.';
-
-        throw ValidationException::withMessages([$position => sprintf($message, $position)]);
-    }
-
-    /**
-     * Assert that a filter position carries a document of conditions.
-     *
-     * @param  mixed  $value
-     * @param  string  $position
-     * @return array<array-key, mixed>
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
-    private function assertDocument(mixed $value, string $position): array
-    {
-        if (is_array($value)) {
-            return $value;
-        }
-
-        throw ValidationException::withMessages([$position => sprintf('The %s filter must be a document of conditions.', $position)]);
-    }
-
-    /**
-     * Assert that a relation existence filter lists a relation name.
-     *
-     * @param  mixed  $relation
-     * @param  string  $operator
-     * @return string
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
-    private function assertRelationName(mixed $relation, string $operator): string
-    {
-        if (is_string($relation)) {
-            return $relation;
-        }
-
-        throw ValidationException::withMessages([$operator => sprintf('The %s filter must list relation names.', $operator)]);
-    }
-
-    /**
-     * Dispatch a single filter entry to the appropriate handler.
-     *
-     * @template TModel of \Illuminate\Database\Eloquent\Model
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
-     * @param  string  $key
-     * @param  mixed  $value
-     * @param  string|null  $field
+     * @param  array<array-key, mixed>  $document
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    private function applyFilterEntry(Builder $query, string $key, mixed $value, ?string $field, FilterContext $context): void
+    private function applyDocument(Builder $query, array $document, FilterContext $context): void
     {
-        $context->admit($key);
+        foreach ($document as $key => $value) {
 
-        if ($this->isConditionOperator($key)) {
-            $this->applyConditionOperator($query, $key, $value, $field, $context);
+            $key = $this->assertNamedKey($key, $context->path());
+
+            $context->admit($key);
+
+            $applied = count($query->getQuery()->wheres);
+
+            $this->applyEntry($query, $key, $value, $context);
+
+            $this->assertNarrowed($query, $applied, $context->at($key)->path());
+        }
+    }
+
+    /**
+     * Dispatch a single document entry to the handler its key names.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  string  $key
+     * @param  mixed  $value
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function applyEntry(Builder $query, string $key, mixed $value, FilterContext $context): void
+    {
+        if (array_key_exists($key, $this->logicalOperatorMap)) {
+            $this->applyGroup($query, $key, $value, $context);
             return;
         }
 
-        if (array_key_exists($key, $this->logicalOperatorMap)) {
-            $this->applyLogicalOperator($query, $key, $this->assertDocument($value, $key), $context);
+        if (array_key_exists($key, $this->relationalMethodMap)) {
+            $this->applyHasFilter($query, $key, $value, $context);
             return;
+        }
+
+        if ($this->operatorRegistry->has($key)) {
+
+            $position = $context->at($key)->path();
+
+            throw Rejection::at($position, 'filters.fieldless_condition', ['position' => $position]);
         }
 
         $this->routePlainKey($query, $key, $value, $context);
@@ -229,28 +163,19 @@ final class FilterApplier
         $model = $query->getModel();
 
         if ($this->querySurface->isDeclaredRelation($key, $model)) {
-            $this->applyRelationFilter($query, $key, $this->assertDocument($value, $key), $context);
+            $this->applyRelation($query, 'whereHas', $key, $this->assertDocument($value, $context->at($key)->path()), $context);
             return;
         }
 
         $this->querySurface->guardFilter($key, $model);
 
-        $this->applyFilters($query, $value, $key, $context);
+        $this->applyColumn($query, $key, $value, $context->at($key));
     }
 
     /**
-     * Determine whether the given key is a condition operator.
+     * Apply the value given for a column to the query.
      *
-     * @param  string  $key
-     * @return bool
-     */
-    private function isConditionOperator(string $key): bool
-    {
-        return $key === '$has' || $key === self::OPERATOR_HASNT || $this->operatorRegistry->has($key);
-    }
-
-    /**
-     * Apply a simple equality filter.
+     * Any scalar, falsy ones included, is the bare equality shorthand.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
@@ -258,63 +183,94 @@ final class FilterApplier
      * @param  string  $column
      * @param  mixed  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
-     * @return \Illuminate\Database\Eloquent\Builder<TModel>
+     * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    private function applySimpleFilter(Builder $query, string $column, mixed $value, FilterContext $context): Builder
+    private function applyColumn(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
-        $this->querySurface->guardFilterOperator($column, self::OPERATOR_EQUAL, $query->getModel());
-
-        $stored = PureEnumFilterValue::resolve($query->getModel(), $column, $value);
-
-        if ($context->isOr()) {
-            $query->orWhere($column, '=', $stored);
-        } else {
-            $query->where($column, '=', $stored);
+        if (!is_array($value)) {
+            $this->applyEquality($query, $column, $value);
+            return;
         }
 
-        return $query;
+        if ($value === []) {
+            throw Rejection::at($context->path(), 'filters.empty_document', ['position' => $context->path()]);
+        }
+
+        if (array_is_list($value)) {
+            throw Rejection::at($context->path(), 'filters.unnamed_key', ['position' => $context->path()]);
+        }
+
+        foreach ($value as $token => $operand) {
+
+            $token = (string) $token;
+
+            $context->admit($token);
+
+            $applied = count($query->getQuery()->wheres);
+
+            $this->applyCondition($query, $column, $token, $operand, $context);
+
+            $this->isolateCondition($query->getQuery(), $applied);
+
+            $this->assertNarrowed($query, $applied, $context->at($token)->path());
+        }
     }
 
     /**
-     * Dispatch a condition operator to the appropriate handler.
+     * Apply the bare equality shorthand for a column.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
-     * @param  string  $operator
+     * @param  string  $column
      * @param  mixed  $value
-     * @param  string|null  $field
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    private function applyEquality(Builder $query, string $column, mixed $value): void
+    {
+        $this->querySurface->guardFilterOperator($column, self::OPERATOR_EQUAL, $query->getModel());
+
+        $query->where($column, '=', PureEnumFilterValue::resolve($query->getModel(), $column, $value));
+    }
+
+    /**
+     * Apply one condition token to a column, located by the column's context.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  string  $column
+     * @param  string  $token
+     * @param  mixed  $operand
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    private function applyConditionOperator(Builder $query, string $operator, mixed $value, ?string $field, FilterContext $context): void
+    private function applyCondition(Builder $query, string $column, string $token, mixed $operand, FilterContext $context): void
     {
-        if (in_array($operator, ['$has', self::OPERATOR_HASNT], true)) {
-
-            $this->applyHasFilter($query, is_string($value) ? $value : $this->assertDocument($value, $operator), $operator, $context);
-            return;
-        }
-
-        if ($field === null) {
-            return;
-        }
-
-        $this->querySurface->guardFilterOperator($field, $operator, $query->getModel());
-
-        $handler = $this->operatorRegistry->resolve($operator);
-
-        $this->limits->enforce(QueryCostLimits::MAX_IN_ITEMS, $this->countValueItems($handler, $value), 'filters', $context->pointerTo($field) . '/' . $operator);
+        $handler = in_array($token, self::STRUCTURAL_OPERATORS, true) ? null : $this->operatorRegistry->resolve($token);
 
         if ($handler === null) {
-            return;
+
+            $position = $context->at($token)->path();
+
+            throw Rejection::at($position, 'filters.not_condition', ['position' => $position]);
         }
 
-        $handler->apply($query, $field, PureEnumFilterValue::resolve($query->getModel(), $field, $value), $context);
+        $this->querySurface->guardFilterOperator($column, $token, $query->getModel());
+
+        $this->limits->enforce(QueryCostLimits::MAX_IN_ITEMS, $this->countValueItems($handler, $operand), 'filters', $context->pointerTo($token));
+
+        $handler->apply($query, $column, PureEnumFilterValue::resolve($query->getModel(), $column, $operand));
     }
 
     /**
@@ -322,11 +278,11 @@ final class FilterApplier
      *
      * A handler that fans a delimited string out reports its own count.
      *
-     * @param  \SineMacula\ApiToolkit\Contracts\FilterOperator|null  $handler
+     * @param  \SineMacula\ApiToolkit\Contracts\FilterOperator  $handler
      * @param  mixed  $value
      * @return int
      */
-    private function countValueItems(?FilterOperator $handler, mixed $value): int
+    private function countValueItems(FilterOperator $handler, mixed $value): int
     {
         if (is_array($value)) {
             return count($value);
@@ -336,202 +292,117 @@ final class FilterApplier
     }
 
     /**
-     * Apply a logical operator group to the query.
+     * Apply a logical group, each of its documents grouped on its own.
+     *
+     * The group attaches with AND, as its parent is always a document.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $operator
-     * @param  array<array-key, mixed>  $value
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    private function applyLogicalOperator(Builder $query, string $operator, array $value, FilterContext $context): void
-    {
-        $method = ($context->getLogicalOperator() === '$and' && $operator === '$or')
-            ? 'where' : $this->logicalOperatorMap[$operator];
-        $nested = $context->descend($operator, $operator);
-
-        $callback = function (Builder $query) use ($value, $nested, $operator): void {
-            foreach ($value as $subKey => $subValue) {
-                $this->applyLogicalEntry($query, $this->assertNamedKey($subKey, $operator), $subValue, $nested);
-            }
-        };
-
-        if ($method === 'orWhere') {
-            $query->orWhere($callback);
-        } else {
-            $query->where($callback);
-        }
-    }
-
-    /**
-     * Apply one entry of a logical operator group to the query.
-     *
-     * @template TModel of \Illuminate\Database\Eloquent\Model
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
-     * @param  string  $key
      * @param  mixed  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    private function applyLogicalEntry(Builder $query, string $key, mixed $value, FilterContext $context): void
+    private function applyGroup(Builder $query, string $operator, mixed $value, FilterContext $context): void
     {
-        $context->admit($key);
+        if (!is_array($value) || $value === [] || !array_is_list($value)) {
 
-        if ($this->isConditionOperator($key)) {
-            $this->applyConditionOperator($query, $key, $value, null, $context);
-        } elseif (array_key_exists($key, $this->logicalOperatorMap)) {
-            $this->applyLogicalOperator($query, $key, $this->assertDocument($value, $key), $context);
-        } else {
-            $this->applyFilters($query, $value, $key, $context);
+            $position = $context->at($operator)->path();
+
+            throw Rejection::at($position, 'filters.not_group', ['position' => $position]);
         }
-    }
 
-    /**
-     * Apply a relation filter using whereHas or orWhereHas.
-     *
-     * An OR inside the subquery would disjoin the correlation predicate.
-     *
-     * @template TModel of \Illuminate\Database\Eloquent\Model
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
-     * @param  string  $relation
-     * @param  array<array-key, mixed>  $filters
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    private function applyRelationFilter(Builder $query, string $relation, array $filters, FilterContext $context): void
-    {
-        $method = $context->isOr() ? 'orWhereHas' : 'whereHas';
-        $nested = $context->descend($relation, null);
+        $nested  = $context->descend($operator);
+        $boolean = $this->logicalOperatorMap[$operator];
 
-        $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters, $nested): void {
-            $this->processRelationFilters($query, $filters, $nested);
-        });
-    }
+        $query->where(function (Builder $group) use ($value, $nested, $boolean): void {
+            foreach ($value as $index => $document) {
 
-    /**
-     * Process filters inside a relation scope.
-     *
-     * @template TModel of \Illuminate\Database\Eloquent\Model
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
-     * @param  array<array-key, mixed>  $filters
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
-     * @return void
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     *
-     * @phpstan-ignore throws.unusedType, throws.unusedType
-     */
-    private function processRelationFilters(Builder $query, array $filters, FilterContext $context): void
-    {
-        // Grouped so the clause beside the correlation predicate stays an `and`
-        $query->where(function (Builder $group) use ($filters, $context): void {
-            foreach ($filters as $key => $value) {
+                $child = $nested->at((string) $index);
 
-                $key = $this->assertNamedKey($key, 'relation');
-
-                if ($key === '$or') {
-                    $this->applyRelationOrGroup($group, $value, $context);
-                    continue;
+                if ($document === []) {
+                    throw Rejection::at($child->path(), 'filters.empty_document', ['position' => $child->path()]);
                 }
 
-                $context->admit($key);
+                $document = $this->assertDocument($document, $child->path());
 
-                $this->applyFilters($group, $value, $key, $context);
+                $group->where(function (Builder $query) use ($document, $child): void {
+                    $this->applyDocument($query, $document, $child);
+                }, boolean: $boolean);
             }
         });
     }
 
     /**
-     * Apply an $or carried by a relation filter as its own grouped disjunction.
+     * Apply a $has or $hasnt relation existence filter.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  string  $operator
      * @param  mixed  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     *
-     * @phpstan-ignore throws.unusedType, throws.unusedType
      */
-    private function applyRelationOrGroup(Builder $query, mixed $value, FilterContext $context): void
+    private function applyHasFilter(Builder $query, string $operator, mixed $value, FilterContext $context): void
     {
-        /** @var array<string, mixed> $filters */
-        $filters = is_array($value) ? $value : [];
+        $method = $this->relationalMethodMap[$operator];
+        $scope  = $context->at($operator);
 
-        $nested = $context->descend('$or', '$or');
-
-        $query->where(function (Builder $group) use ($filters, $nested): void {
-            foreach ($filters as $key => $subValue) {
-                $nested->admit($key);
-                $this->applyFilters($group, $subValue, $key, $nested);
-            }
-        });
-    }
-
-    /**
-     * Apply a $has or $hasnt relational filter.
-     *
-     * @template TModel of \Illuminate\Database\Eloquent\Model
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
-     * @param  array<array-key, mixed>|string  $relations
-     * @param  string  $operator
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
-     * @return void
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    private function applyHasFilter(Builder $query, array|string $relations, string $operator, FilterContext $context): void
-    {
-        $baseMethod = $this->relationalMethodMap[$operator];
-        $method     = ($context->isOr() && $operator === '$has') ? 'orWhereHas' : $baseMethod;
-        $scope      = $context->at($operator);
-
-        foreach ((array) $relations as $relation => $filters) {
+        foreach ($this->relationEntries($value, $scope->path()) as $relation => $filters) {
 
             $scope->admit((string) $relation);
 
             if (is_int($relation)) {
 
-                $relation = $this->assertRelationName($filters, $operator);
+                $relation = $this->assertRelationName($filters, $scope->at((string) $relation)->path());
 
                 $this->querySurface->guardRelation($relation, $query->getModel());
 
                 $this->applyRelationalMethod($query, $method, $relation);
 
-            } else {
-
-                $this->querySurface->guardRelation($relation, $query->getModel());
-
-                $nested  = $scope->descend($relation, null);
-                $filters = $this->assertDocument($filters, $relation);
-
-                $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($filters, $nested): void {
-                    $this->processRelationFilters($query, $filters, $nested);
-                });
+                continue;
             }
+
+            $this->querySurface->guardRelation($relation, $query->getModel());
+
+            $this->applyRelation($query, $method, $relation, $this->assertDocument($filters, $scope->at($relation)->path()), $scope);
         }
     }
 
     /**
-     * Invoke the resolved relational existence method on the query.
+     * Apply a relation body as a document on the related resource.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  string  $method
+     * @param  string  $relation
+     * @param  array<array-key, mixed>  $document
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function applyRelation(Builder $query, string $method, string $relation, array $document, FilterContext $context): void
+    {
+        $nested = $context->descend($relation);
+
+        $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($document, $nested): void {
+            $this->applyDocument($query, $document, $nested);
+        });
+    }
+
+    /**
+     * Invoke the relational existence method on the query.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
@@ -543,10 +414,131 @@ final class FilterApplier
      */
     private function applyRelationalMethod(Builder $query, string $method, string $relation, ?\Closure $callback = null): void
     {
-        match ($method) {
-            'orWhereHas'      => $query->orWhereHas($relation, $callback),
-            'whereDoesntHave' => $query->whereDoesntHave($relation, $callback),
-            default           => $query->whereHas($relation, $callback),
-        };
+        if ($method === 'whereDoesntHave') {
+            $query->whereDoesntHave($relation, $callback);
+        } else {
+            $query->whereHas($relation, $callback);
+        }
+    }
+
+    /**
+     * Group the clauses a condition added when any of them is OR-joined.
+     *
+     * Keeps a handler's OR from disjoining the clauses beside it, such as the
+     * correlation predicate of a relation subquery.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  int  $applied
+     * @return void
+     */
+    private function isolateCondition(QueryBuilder $query, int $applied): void
+    {
+        $added = array_slice($query->wheres, $applied);
+
+        $disjoined = array_filter($added, static fn (array $where): bool => in_array($where['boolean'], ['or', 'or not'], true));
+
+        if ($disjoined === []) {
+            return;
+        }
+
+        $group         = $query->forNestedWhere();
+        $group->wheres = $added;
+
+        $query->wheres = [...array_slice($query->wheres, 0, $applied), ['type' => 'Nested', 'query' => $group, 'boolean' => 'and']];
+    }
+
+    /**
+     * Assert that a document entry or condition added a clause to the query.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  int  $applied
+     * @param  string  $position
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function assertNarrowed(Builder $query, int $applied, string $position): void
+    {
+        if (count($query->getQuery()->wheres) <= $applied) {
+            throw Rejection::at($position, 'filters.no_effect', ['position' => $position]);
+        }
+    }
+
+    /**
+     * Assert that a document position carries a named key, not a list index.
+     *
+     * @param  mixed  $key
+     * @param  string  $position
+     * @return string
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function assertNamedKey(mixed $key, string $position): string
+    {
+        if (is_string($key)) {
+            return $key;
+        }
+
+        throw Rejection::at($position, 'filters.unnamed_key', ['position' => $position]);
+    }
+
+    /**
+     * Assert that a filter position carries a document.
+     *
+     * @param  mixed  $value
+     * @param  string  $position
+     * @return array<array-key, mixed>
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function assertDocument(mixed $value, string $position): array
+    {
+        if (is_array($value) && ($value === [] || !array_is_list($value))) {
+            return $value;
+        }
+
+        throw Rejection::at($position, 'filters.not_document', ['position' => $position]);
+    }
+
+    /**
+     * Return the entries of a relation existence filter, a bare name as one.
+     *
+     * @param  mixed  $value
+     * @param  string  $position
+     * @return array<array-key, mixed>
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function relationEntries(mixed $value, string $position): array
+    {
+        if (is_string($value)) {
+            return [$value];
+        }
+
+        if (is_array($value)) {
+            return $value;
+        }
+
+        throw Rejection::at($position, 'filters.not_document', ['position' => $position]);
+    }
+
+    /**
+     * Assert that a relation existence filter lists a relation name.
+     *
+     * @param  mixed  $relation
+     * @param  string  $position
+     * @return string
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function assertRelationName(mixed $relation, string $position): string
+    {
+        if (is_string($relation)) {
+            return $relation;
+        }
+
+        throw Rejection::at($position, 'filters.relation_names', ['position' => $position]);
     }
 }

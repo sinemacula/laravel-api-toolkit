@@ -22,7 +22,7 @@
             the validation tests enable it. "(false)" survives the runner's boolean
             coercion, which turns a bare "false" into an empty string.
         -->
-        <env name="VALIDATE_SCHEMAS" value="(false)"/>
+        <env name="API_TOOLKIT_RESOURCES_VALIDATE_SCHEMAS" value="(false)"/>
     </php>
     <source>
         <include>

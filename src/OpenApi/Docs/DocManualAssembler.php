@@ -4,8 +4,6 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Docs;
 
-use Illuminate\Support\Facades\Config;
-
 /**
  * Assembles the committed Markdown manual injected into info.description.
  *
@@ -17,11 +15,16 @@ use Illuminate\Support\Facades\Config;
  */
 final readonly class DocManualAssembler
 {
-    /** The subdirectory holding one directory of section files per audience. */
-    public const string AUDIENCE_DIRECTORY = 'audiences';
+    /**
+     * Constructor.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Docs\DocsDirectory  $directory
+     */
+    public function __construct(
 
-    /** The default docs directory, relative to the application resources. */
-    private const string DEFAULT_DIRECTORY = 'api-docs';
+        /** The docs directory the section files are read from. */
+        private DocsDirectory $directory = new DocsDirectory,
+    ) {}
 
     /**
      * Assemble the concatenated Markdown manual for the given audience.
@@ -31,66 +34,30 @@ final readonly class DocManualAssembler
      */
     public function assemble(?string $audience = null): string
     {
-        return $this->concatenate($this->sectionFiles($this->docsPath(), $audience));
+        return $this->concatenate($this->sectionFiles($audience));
     }
 
     /**
      * List the section files the audience reads, ordered by filename.
      *
-     * @param  string  $path
      * @param  string|null  $audience
      * @return array<string, string>
      */
-    private function sectionFiles(string $path, ?string $audience): array
+    private function sectionFiles(?string $audience): array
     {
         $files = [];
 
-        foreach ($this->markdownIn($path) as $file) {
+        foreach ($this->directory->markdownIn($this->directory->root()) as $file) {
             $files[basename($file)] = $file;
         }
 
-        foreach ($this->markdownIn($this->audiencePath($path, $audience)) as $file) {
-            $files[basename($file)] = $file;
+        if ($audience !== null && $audience !== '') {
+            foreach ($this->directory->markdownIn($this->directory->audienceRoot($audience)) as $file) {
+                $files[basename($file)] = $file;
+            }
         }
 
         ksort($files);
-
-        return $files;
-    }
-
-    /**
-     * Resolve the directory holding the given audience's own section files.
-     *
-     * @param  string  $path
-     * @param  string|null  $audience
-     * @return string|null
-     */
-    private function audiencePath(string $path, ?string $audience): ?string
-    {
-        if ($audience === null || $audience === '') {
-            return null;
-        }
-
-        return rtrim($path, '/') . '/' . self::AUDIENCE_DIRECTORY . '/' . $audience;
-    }
-
-    /**
-     * List the Markdown files directly within the given directory.
-     *
-     * @param  string|null  $directory
-     * @return list<string>
-     */
-    private function markdownIn(?string $directory): array
-    {
-        if ($directory === null || !is_dir($directory)) {
-            return [];
-        }
-
-        $files = glob(rtrim($directory, '/') . '/*.md');
-
-        if ($files === false) {
-            return []; // @codeCoverageIgnore
-        }
 
         return $files;
     }
@@ -108,9 +75,9 @@ final readonly class DocManualAssembler
 
         foreach ($files as $file) {
 
-            $contents = $this->read($file);
+            $contents = $this->directory->read($file);
 
-            if ($contents === null || $contents === '') {
+            if ($contents === '') {
                 continue;
             }
 
@@ -118,42 +85,5 @@ final readonly class DocManualAssembler
         }
 
         return implode("\n\n", $sections);
-    }
-
-    /**
-     * Read a file's trimmed contents, tolerating one removed since the glob.
-     *
-     * @param  string  $file
-     * @return string|null
-     */
-    private function read(string $file): ?string
-    {
-        try {
-            $contents = file_get_contents($file);
-        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
-            return null; // @codeCoverageIgnore
-        }
-
-        if ($contents === false) {
-            return null; // @codeCoverageIgnore
-        }
-
-        $trimmed = trim($contents);
-
-        return $trimmed === '' ? null : $trimmed;
-    }
-
-    /**
-     * Resolve the docs directory, defaulting to the application resources.
-     *
-     * @return string
-     */
-    private function docsPath(): string
-    {
-        $configured = Config::get('api-toolkit.openapi.docs_path');
-
-        return is_string($configured) && $configured !== ''
-            ? $configured
-            : resource_path(self::DEFAULT_DIRECTORY);
     }
 }

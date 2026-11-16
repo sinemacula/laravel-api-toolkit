@@ -401,6 +401,19 @@ final class ServiceTest extends TestCase
     }
 
     /**
+     * Test that a service attempts its transaction once unless it opts in to
+     * retries.
+     *
+     * @return void
+     */
+    public function testTransactionAttemptsDefaultsToOne(): void
+    {
+        $hooks = (new OutputService(new ArrayInput([])))->serviceHooks();
+
+        self::assertSame(1, $hooks['transactionAttempts']);
+    }
+
+    /**
      * Test that ServiceInput::toArray() is correctly exposed as the contract.
      *
      * @return void

@@ -4,15 +4,13 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
-use Illuminate\Support\Str;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
-use SineMacula\Http\Enums\HttpStatus;
 
 /**
- * Reflects an action's documented throws into its error descriptors.
+ * Lists the ApiExceptions an action's @throws tags name.
  *
- * Only ApiException subclasses reporting an HTTP status are kept, grouped by
- * that status.
+ * Only ApiException subclasses reporting an HTTP status are kept, in tag order
+ * and once each.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -22,46 +20,35 @@ final readonly class ThrowsErrorResolver
     /**
      * Constructor.
      *
-     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver  $headers
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver  $classNames
      */
     public function __construct(
-
-        /** The resolver of the headers each exception declares. */
-        private ResponseHeaderResolver $headers,
 
         /** The resolver of the class names the @throws tags write. */
         private ClassNameResolver $classNames,
     ) {}
 
     /**
-     * Resolve the status-keyed error descriptors for the action.
+     * Resolve the ApiException classes the action documents.
      *
      * @param  class-string  $controllerClass
      * @param  string  $action
-     * @return array<int, array{phrase: string, examples: array<string, array<string, mixed>>, headers: array<string, array<string, mixed>>}>
+     * @return list<class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
      */
     public function resolve(string $controllerClass, string $action): array
     {
-        $errors = [];
+        $classes = [];
 
         foreach ($this->documentedThrows($controllerClass, $action) as $class) {
 
-            $error = $this->describe($class);
-
-            if ($error === null) {
+            if (!$this->reportsStatus($class) || in_array($class, $classes, true)) {
                 continue;
             }
 
-            [$status, $phrase, $name, $example, $headers] = $error;
-
-            $errors[$status] ??= ['phrase' => $phrase, 'examples' => [], 'headers' => []];
-
-            $errors[$status]['examples'][$name] = $example;
-            $errors[$status]['headers']         = $this->headers->merge($errors[$status]['headers'], $headers);
+            $classes[] = $class;
         }
 
-        return $errors;
+        return $classes;
     }
 
     /**
@@ -94,48 +81,25 @@ final readonly class ThrowsErrorResolver
     }
 
     /**
-     * Describe an exception class, or null when it is not an ApiException
-     * reporting a status.
+     * Determine whether the class is an ApiException reporting an HTTP status.
      *
      * @param  string  $exceptionClass
-     * @return array{0: int, 1: string, 2: string, 3: array<string, mixed>, 4: array<string, array<string, mixed>>}|null
+     * @return bool
+     *
+     * @phpstan-assert-if-true class-string<\SineMacula\ApiToolkit\Exceptions\ApiException> $exceptionClass
      */
-    private function describe(string $exceptionClass): ?array
+    private function reportsStatus(string $exceptionClass): bool
     {
         if (!is_subclass_of($exceptionClass, ApiException::class)) {
-            return null;
+            return false;
         }
 
         try {
-            $status = $exceptionClass::getHttpStatusCode();
+            $exceptionClass::getHttpStatusCode();
         } catch (\LogicException) {
-            return null;
+            return false;
         }
 
-        $name  = class_basename($exceptionClass);
-        $error = ['status' => $status];
-
-        if (defined($exceptionClass . '::CODE')) {
-            /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface $code */
-            $code          = constant($exceptionClass . '::CODE');
-            $error['code'] = $code->getCode();
-        }
-
-        return [$status, $this->phraseFor($status, $name), $name, ['value' => ['error' => $error]], $this->headers->forException($exceptionClass)];
-    }
-
-    /**
-     * Derive the sentence-case phrase for a status, else from the exception's
-     * name.
-     *
-     * @param  int  $status
-     * @param  string  $exceptionName
-     * @return string
-     */
-    private function phraseFor(int $status, string $exceptionName): string
-    {
-        $words = HttpStatus::tryFrom($status)->name ?? Str::snake(Str::beforeLast($exceptionName, \Exception::class));
-
-        return ucfirst(strtolower(str_replace('_', ' ', $words))) . '.';
+        return true;
     }
 }

@@ -5,10 +5,12 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Contracts;
 
 use Illuminate\Database\Eloquent\Builder;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 
 /**
  * Filter operator handler contract.
+ *
+ * A handler adds AND-joined predicates for one column, and throws a validation
+ * exception for an operand it refuses. One that adds nothing is refused.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -23,8 +25,7 @@ interface FilterOperator
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $column
      * @param  mixed  $value
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      */
-    public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void;
+    public function apply(Builder $query, string $column, mixed $value): void;
 }

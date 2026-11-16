@@ -212,10 +212,7 @@ final class ApiCriteriaIntegrationTest extends TestCase
     {
         $this->parseQuery([
             'filters' => json_encode([
-                '$or' => [
-                    'name'  => 'Alice',
-                    'email' => 'charlie@example.com',
-                ],
+                '$or' => [['name' => 'Alice'], ['email' => 'charlie@example.com']],
             ], JSON_THROW_ON_ERROR),
         ]);
 
@@ -330,28 +327,42 @@ final class ApiCriteriaIntegrationTest extends TestCase
     }
 
     /**
-     * Test that a relation filter under $or matches only the owning rows.
+     * Provide filter documents built from logical groups, with the users each
+     * reads.
      *
+     * @return iterable<string, array{string, array<int, string>}>
+     */
+    public static function logicalGroupProvider(): iterable
+    {
+        yield 'a key before a group' => ['{"status":"active","$or":[{"name":"Charlie"},{"email":"alice@example.com"}]}', ['Alice']];
+        yield 'a key after a group' => ['{"$or":[{"name":"Charlie"},{"email":"alice@example.com"}],"status":"active"}', ['Alice']];
+        yield 'an $or of multi-key documents' => ['{"$or":[{"name":"Alice","status":"inactive"},{"name":"Charlie","status":"inactive"}]}', ['Charlie']];
+        yield 'an $and of two $or groups' => ['{"$and":[{"$or":[{"name":"Alice"},{"name":"Charlie"}]},{"$or":[{"status":"inactive"},{"email":"bob@example.com"}]}]}', ['Charlie']];
+        yield 'an $and inside an $or document' => ['{"$or":[{"name":"Charlie"},{"$and":[{"status":"active"},{"email":"bob@example.com"}]}]}', ['Bob', 'Charlie']];
+        yield 'a range inside an $or document' => ['{"$or":[{"id":{"$gt":1,"$lt":3}},{"name":"Alice"}]}', ['Alice', 'Bob']];
+        yield '$hasnt inside an $or document' => ['{"$or":[{"name":"Alice"},{"$hasnt":"posts"}]}', ['Alice', 'Charlie']];
+        yield 'a relation key inside an $or document' => ['{"$or":[{"posts":{"title":"Bob Post"}},{"name":"Charlie"}]}', ['Bob', 'Charlie']];
+    }
+
+    /**
+     * Test that a logical group reads exactly the rows it describes.
+     *
+     * @param  string  $filters
+     * @param  array<int, string>  $expected
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testRelationFilterUnderOrMatchesOnlyTheOwningRows(): void
+    #[DataProvider('logicalGroupProvider')]
+    public function testLogicalGroupReadsTheRowsItDescribes(string $filters, array $expected): void
     {
         Config::set('api-toolkit.resources.resource_map', [Post::class => PostResource::class]);
 
-        $this->parseQuery([
-            'filters' => json_encode([
-                '$or' => [
-                    'nested' => ['posts' => ['title' => 'Alice Post']],
-                    'name'   => 'Charlie',
-                ],
-            ], JSON_THROW_ON_ERROR),
-        ]);
+        $this->parseQuery(['filters' => $filters]);
 
-        $results = $this->makeCriteria()->apply(new User)->get();
+        $results = $this->makeCriteria()->apply(new User)->orderBy('id')->get();
 
-        self::assertSame(['Alice', 'Charlie'], $results->pluck('name')->sort()->values()->all());
+        self::assertSame($expected, $results->pluck('name')->all());
     }
 
     /**

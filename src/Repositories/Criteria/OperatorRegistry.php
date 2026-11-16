@@ -6,7 +6,6 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 
 /**
  * Registry for operator token-to-handler mappings.
@@ -133,13 +132,12 @@ final class OperatorRegistry
              * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
              * @param  string  $column
              * @param  mixed  $value
-             * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
              * @return void
              */
             #[\Override]
-            public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
+            public function apply(Builder $query, string $column, mixed $value): void
             {
-                ($this->closure)($query, $column, $value, $context);
+                ($this->closure)($query, $column, $value);
             }
         };
     }
