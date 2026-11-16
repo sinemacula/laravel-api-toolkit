@@ -125,6 +125,8 @@ final class ValidateRelationLimits implements SchemaValidationRule
     /**
      * Determine whether the model's relation method declares a to-one return.
      *
+     * A union qualifies only when every member is a to-one relation.
+     *
      * @param  string|null  $modelClass
      * @param  string  $relation
      * @return bool
@@ -136,9 +138,26 @@ final class ValidateRelationLimits implements SchemaValidationRule
         }
 
         $returnType = (new \ReflectionMethod($modelClass, $relation))->getReturnType();
-        $name       = $returnType instanceof \ReflectionNamedType ? $returnType->getName() : null;
+        $members    = $returnType instanceof \ReflectionUnionType ? $returnType->getTypes() : [$returnType];
 
-        return $name !== null && array_filter(self::TO_ONE, static fn (string $toOne): bool => is_a($name, $toOne, true)) !== [];
+        foreach ($members as $member) {
+            if (!$member instanceof \ReflectionNamedType || !$this->isToOneClass($member->getName())) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Determine whether the named class is a relation that loads one record.
+     *
+     * @param  string  $name
+     * @return bool
+     */
+    private function isToOneClass(string $name): bool
+    {
+        return array_filter(self::TO_ONE, static fn (string $toOne): bool => is_a($name, $toOne, true)) !== [];
     }
 
     /**

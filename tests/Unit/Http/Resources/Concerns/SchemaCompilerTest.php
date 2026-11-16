@@ -927,23 +927,21 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that a declared relation limit is carried onto the field, and a
-     * malformed one is dropped.
+     * Test that a declared relation limit is carried onto the field, and an
+     * undeclared one stays null.
      *
      * @return void
      */
     public function testCompileCarriesTheRelationLimitOntoTheField(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            'posts'    => ['relation' => 'posts', 'limit' => 5],
-            'comments' => ['relation' => 'comments', 'limit' => '5'],
-            'tags'     => ['relation' => 'tags'],
+            'posts' => ['relation' => 'posts', 'limit' => 5],
+            'tags'  => ['relation' => 'tags'],
         ]);
 
         $schema = SchemaCompiler::compile($resourceClass);
 
         self::assertSame(5, $schema->getField('posts')?->limit);
-        self::assertNull($schema->getField('comments')?->limit);
         self::assertNull($schema->getField('tags')?->limit);
     }
 

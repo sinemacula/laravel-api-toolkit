@@ -332,7 +332,11 @@ final class ValueResolver
         $name  = $definition->relation;
         $owner = $this->unwrapResource($resource);
 
-        if ($name === null || !is_object($owner) || !method_exists($owner, 'getRelation') || !$this->isRelationLoaded($name, $resource)) {
+        if ($name === null || !is_object($owner) || !method_exists($owner, 'getRelation')) {
+            return new MissingValue;
+        }
+
+        if (!method_exists($owner, 'relationLoaded') || !$owner->relationLoaded($name)) {
             return new MissingValue;
         }
 
@@ -367,27 +371,10 @@ final class ValueResolver
             return $related;
         }
 
-        return $this->wrapRelatedWithResource($this->capRelated($definition, $related), $childClass, $childFields);
-    }
+        $capped          = RelationLimit::cap($definition, $related);
+        $this->truncated = $capped !== $related;
 
-    /**
-     * Cut a related collection to the relation's limit, recording the cut.
-     *
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
-     * @param  mixed  $related
-     * @return mixed
-     */
-    private function capRelated(CompiledFieldDefinition $definition, mixed $related): mixed
-    {
-        $limit = RelationLimit::for($definition);
-
-        if ($limit === 0 || !$related instanceof Collection || $related->count() <= $limit) {
-            return $related;
-        }
-
-        $this->truncated = true;
-
-        return $related->take($limit);
+        return $this->wrapRelatedWithResource($capped, $childClass, $childFields);
     }
 
     /**
@@ -403,22 +390,6 @@ final class ValueResolver
         }
 
         return $value;
-    }
-
-    /**
-     * Check whether a relation is already loaded on the model that owns it.
-     *
-     * @param  string  $name
-     * @param  mixed  $resource
-     * @return bool
-     */
-    private function isRelationLoaded(string $name, mixed $resource): bool
-    {
-        $owner = $this->unwrapResource($resource);
-
-        return is_object($owner)
-            && method_exists($owner, 'relationLoaded')
-            && $owner->relationLoaded($name);
     }
 
     /**

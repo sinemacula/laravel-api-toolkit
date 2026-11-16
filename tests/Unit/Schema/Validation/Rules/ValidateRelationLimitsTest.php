@@ -9,6 +9,7 @@ use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationLimits;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use Tests\Fixtures\Contracts\UnionRelations;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -78,6 +79,24 @@ final class ValidateRelationLimitsTest extends TestCase
         self::assertCount(1, $errors);
         self::assertSame('organization', $errors[0]->fieldKey);
         self::assertSame('Relation "organization" declares a limit but its method returns a to-one relation', $errors[0]->defect);
+    }
+
+    /**
+     * Test that a limit on a relation method returning a union of to-one
+     * relations fails, while a union reaching a to-many passes.
+     *
+     * @return void
+     */
+    public function testLimitOnAUnionOfToOneReturnTypesFails(): void
+    {
+        $errors = (new ValidateRelationLimits)->validate(UserResource::class, UnionRelations::class, new CompiledSchema(fields: [
+            'either' => self::field('either', limit: 5),
+            'varied' => self::field('varied', limit: 5),
+        ], counts: []));
+
+        self::assertCount(1, $errors);
+        self::assertSame('either', $errors[0]->fieldKey);
+        self::assertSame('Relation "either" declares a limit but its method returns a to-one relation', $errors[0]->defect);
     }
 
     /**

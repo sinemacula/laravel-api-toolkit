@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\RelationWindow;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\RelationLimit;
 use Tests\Concerns\RegistersApiExceptionHandler;
@@ -40,6 +41,7 @@ use Tests\TestCase;
 #[CoversClass(ApiResource::class)]
 #[CoversClass(EagerLoadPlanner::class)]
 #[CoversClass(RelationLimit::class)]
+#[CoversClass(RelationWindow::class)]
 #[CoversClass(ValueResolver::class)]
 final class BoundedRelationHttpTest extends TestCase
 {

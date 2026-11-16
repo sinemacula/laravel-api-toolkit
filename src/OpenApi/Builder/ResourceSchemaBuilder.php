@@ -203,7 +203,8 @@ final readonly class ResourceSchemaBuilder
         $target = isset($built[$childResource]) && class_exists($childResource)
             ? ['$ref' => self::SCHEMA_REF_PREFIX . SchemaComponentName::fromResource($childResource)]
             : ['type' => 'object', self::UNDOCUMENTED_KEY => true];
-        $array    = $this->buildArrayProperty($target, RelationLimit::for($field));
+        $limit    = RelationLimit::for($field);
+        $array    = ['type' => 'array', 'items' => $target] + ($limit > 0 ? ['maxItems' => $limit] : []);
         $instance = $this->resolveRelation($relation, $modelClass);
 
         if ($instance === null) {
@@ -211,24 +212,6 @@ final readonly class ResourceSchemaBuilder
         }
 
         return $this->isToOne($instance) ? $target : $array;
-    }
-
-    /**
-     * Build the array form of a relation property, bounded by its limit.
-     *
-     * @param  array<string, mixed>  $target
-     * @param  int  $limit
-     * @return array<string, mixed>
-     */
-    private function buildArrayProperty(array $target, int $limit): array
-    {
-        $array = ['type' => 'array', 'items' => $target];
-
-        if ($limit > 0) {
-            $array['maxItems'] = $limit;
-        }
-
-        return $array;
     }
 
     /**

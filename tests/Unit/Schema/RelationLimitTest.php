@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -67,6 +68,24 @@ final class RelationLimitTest extends TestCase
      */
     public function testShippedDefaultIsTwentyFive(): void
     {
+        self::assertSame(25, RelationLimit::for(self::field()));
+    }
+
+    /**
+     * Test that a published configuration without the setting keeps the default
+     * bound.
+     *
+     * @return void
+     */
+    public function testConfigurationWithoutTheSettingKeepsTheDefault(): void
+    {
+        /** @var array<string, mixed> $resources */
+        $resources = Config::get('api-toolkit.resources');
+
+        unset($resources['relation_limit']);
+
+        Config::set('api-toolkit.resources', $resources);
+
         self::assertSame(25, RelationLimit::for(self::field()));
     }
 
@@ -128,6 +147,47 @@ final class RelationLimitTest extends TestCase
     public function testNonRelationFieldIsUnbounded(): void
     {
         self::assertSame(0, RelationLimit::for(self::field(limit: 5, relation: null)));
+    }
+
+    /**
+     * Test that a collection above the limit is cut to it, in its order.
+     *
+     * @return void
+     */
+    public function testCapCutsACollectionAboveTheLimitInOrder(): void
+    {
+        $capped = RelationLimit::cap(self::field(limit: 2), new Collection(['first', 'second', 'third']));
+
+        self::assertInstanceOf(Collection::class, $capped);
+        self::assertSame(['first', 'second'], $capped->all());
+    }
+
+    /**
+     * Provide related values the cap must return unchanged.
+     *
+     * @return iterable<string, array{0: int|null, 1: mixed}>
+     */
+    public static function uncappedProvider(): iterable
+    {
+        yield 'collection at the limit' => [2, new Collection(['first', 'second'])];
+        yield 'collection below the limit' => [3, new Collection(['first', 'second'])];
+        yield 'collection under a disabled default' => [null, new Collection(['first', 'second'])];
+        yield 'single record' => [1, new \stdClass];
+    }
+
+    /**
+     * Test that a value within the limit, or no collection, is returned as is.
+     *
+     * @param  int|null  $limit
+     * @param  mixed  $related
+     * @return void
+     */
+    #[DataProvider('uncappedProvider')]
+    public function testCapReturnsAValueWithinTheLimitUnchanged(?int $limit, mixed $related): void
+    {
+        Config::set('api-toolkit.resources.relation_limit', 0);
+
+        self::assertSame($related, RelationLimit::cap(self::field(limit: $limit), $related));
     }
 
     /**
