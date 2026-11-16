@@ -463,6 +463,19 @@ final class SearchTermTest extends TestCase
     }
 
     /**
+     * Test that the escaped term escapes each wildcard and the escape
+     * character, adding no wildcard of its own.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function testEscapedTermEscapesTheWildcardsAndTheEscapeCharacter(): void
+    {
+        self::assertSame('a!%b!_c!!d', SearchTerm::from('a%b_c!d')->escaped());
+    }
+
+    /**
      * Test that the term is wrapped as a quoted phrase.
      *
      * @return void
