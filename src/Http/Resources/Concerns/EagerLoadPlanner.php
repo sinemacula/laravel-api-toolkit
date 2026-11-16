@@ -5,13 +5,14 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
@@ -26,6 +27,9 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  */
 final class EagerLoadPlanner
 {
+    /** The global scope that orders a bounded relation by its related key */
+    private const string KEY_ORDER_SCOPE = 'api-toolkit:relation-key-order';
+
     /** @var array<string, array<int|string, mixed>> Eager-load maps, keyed by resource class + field signature */
     private static array $eagerLoadCache = [];
 
@@ -253,7 +257,7 @@ final class EagerLoadPlanner
             }
 
             self::markVisited($visited, $resourceClass, $fullPath);
-            self::addEagerLoadPath($definition, $fullPath, $plain, $scoped);
+            self::addEagerLoadPath($definition, $resourceClass . '::' . $field, $fullPath, $plain, $scoped);
             self::recurseIntoChild($definition, $fullPath, $plain, $scoped, $visited, $ancestors);
         }
     }
@@ -281,48 +285,94 @@ final class EagerLoadPlanner
      * Add the relation path as either a scoped or plain eager-load entry.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
+     * @param  string  $owner
      * @param  string  $fullPath
      * @param  array<int, string>  $plain
      * @param  array<string, mixed>  $scoped
      * @return void
      */
-    private static function addEagerLoadPath(CompiledFieldDefinition $definition, string $fullPath, array &$plain, array &$scoped): void
+    private static function addEagerLoadPath(CompiledFieldDefinition $definition, string $owner, string $fullPath, array &$plain, array &$scoped): void
     {
         $constraint = $definition->constraint;
+        $limit      = RelationLimit::for($definition);
 
-        if (!($constraint instanceof \Closure)) {
+        if ($constraint === null && $limit === 0) {
             $plain[] = $fullPath;
 
             return;
         }
 
-        $scoped[$fullPath] = self::wrapConstraint($constraint);
+        $scoped[$fullPath] = static function (EloquentRelation $relation) use ($constraint, $limit, $owner): void {
+
+            if ($constraint !== null) {
+                self::applyConstraint($relation, $constraint, $owner);
+            }
+
+            if ($limit === 0 || !RelationLimit::appliesTo($relation)) {
+                return;
+            }
+
+            self::applyLimit($relation, $limit);
+        };
     }
 
     /**
-     * Wrap a constraint to handle MorphTo, relation and builder queries.
+     * Run the field's constraint on the relation, refusing one that bounds it.
      *
+     * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
      * @param  \Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void  $constraint
-     * @return \Closure(mixed): void
+     * @param  string  $owner
+     * @return void
+     *
+     * @throws \LogicException
      */
-    private static function wrapConstraint(\Closure $constraint): \Closure
+    private static function applyConstraint(EloquentRelation $relation, \Closure $constraint, string $owner): void
     {
-        return static function ($query) use ($constraint): void {
+        $query  = $relation->getQuery()->getQuery();
+        $before = self::bounds($query);
 
-            if ($query instanceof MorphTo) {
-                $constraint($query);
+        $constraint($relation);
 
-                return;
-            }
+        if (self::bounds($query) === $before) {
+            return;
+        }
 
-            $builder = $query instanceof EloquentRelation ? $query->getQuery() : $query;
+        throw new \LogicException(sprintf('The constraint on %s may not limit or offset the relation; declare limit() on the relation instead', $owner));
+    }
 
-            if (!($builder instanceof Builder)) {
-                return;
-            }
+    /**
+     * Return the limit and offset clauses of the given query.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @return list<mixed>
+     */
+    private static function bounds(QueryBuilder $query): array
+    {
+        return [$query->limit, $query->offset, $query->groupLimit, $query->unionLimit, $query->unionOffset];
+    }
 
-            $constraint($builder);
-        };
+    /**
+     * Bound the relation per parent, keeping one extra row as a truncation
+     * probe.
+     *
+     * The key order is a global scope, so it runs after the model's own scopes.
+     * A bound the relation method already declares tighter is kept.
+     *
+     * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
+     * @param  int  $limit
+     * @return void
+     */
+    private static function applyLimit(EloquentRelation $relation, int $limit): void
+    {
+        $key = $relation->getRelated()->getQualifiedKeyName();
+
+        $relation->getQuery()->withGlobalScope(self::KEY_ORDER_SCOPE, static function (Builder $query) use ($key): void {
+            $query->orderBy($key);
+        });
+
+        $existing = $relation->getQuery()->getQuery()->groupLimit['value'] ?? null;
+
+        $relation->limit(is_int($existing) ? min($existing, $limit + 1) : $limit + 1);
     }
 
     /**

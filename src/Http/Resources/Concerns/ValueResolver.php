@@ -12,6 +12,7 @@ use Illuminate\Support\Collection;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Support\PureEnumName;
 
 /**
@@ -29,6 +30,9 @@ final class ValueResolver
 
     /** @var \WeakMap<\SineMacula\ApiToolkit\Schema\CompiledFieldDefinition, array<int, string>|null>|null Resolved child field sets, keyed by compiled definition */
     private static ?\WeakMap $relationFieldsCache = null;
+
+    /** @var bool Whether the last resolved field cut its related collection */
+    private bool $truncated = false;
 
     /**
      * Create a new value resolver instance.
@@ -65,6 +69,8 @@ final class ValueResolver
      */
     public function resolveFieldValue(string $field, CompiledFieldDefinition $definition, mixed $resource, ?Request $request): mixed
     {
+        $this->truncated = false;
+
         if (!$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
             return new MissingValue;
         }
@@ -81,6 +87,16 @@ final class ValueResolver
         }
 
         return $value instanceof \UnitEnum && !$value instanceof \BackedEnum ? PureEnumName::of($value) : $value;
+    }
+
+    /**
+     * Determine whether the last resolved field cut its related collection.
+     *
+     * @return bool
+     */
+    public function wasTruncated(): bool
+    {
+        return $this->truncated;
     }
 
     /**
@@ -347,7 +363,31 @@ final class ValueResolver
         $childClass  = $definition->resource;
         $childFields = $this->getRelationFields($definition);
 
-        return $childClass === null ? $related : $this->wrapRelatedWithResource($related, $childClass, $childFields);
+        if ($childClass === null) {
+            return $related;
+        }
+
+        return $this->wrapRelatedWithResource($this->capRelated($definition, $related), $childClass, $childFields);
+    }
+
+    /**
+     * Cut a related collection to the relation's limit, recording the cut.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
+     * @param  mixed  $related
+     * @return mixed
+     */
+    private function capRelated(CompiledFieldDefinition $definition, mixed $related): mixed
+    {
+        $limit = RelationLimit::for($definition);
+
+        if ($limit === 0 || !$related instanceof Collection || $related->count() <= $limit) {
+            return $related;
+        }
+
+        $this->truncated = true;
+
+        return $related->take($limit);
     }
 
     /**

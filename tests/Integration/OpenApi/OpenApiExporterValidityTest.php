@@ -449,6 +449,43 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that a bounded relation keeps the document valid and a truncated
+     * payload validates against its component, within the bound only.
+     *
+     * @return void
+     */
+    public function testTruncatedPayloadValidatesAgainstItsComponent(): void
+    {
+        $this->registerUserRoutes();
+
+        $document = $this->export()->document;
+        $pointer  = '/components/schemas/User';
+        $stamps   = ['created_at' => '2026-01-01T09:00:00Z', 'updated_at' => '2026-01-02T09:00:00Z'];
+        $post     = ['_type' => 'posts', 'id' => 1, 'title' => 'First', 'body' => 'Body', 'published' => true, ...$stamps];
+        $user     = [
+            '_type'           => 'users',
+            'id'              => 1,
+            'name'            => 'Ada',
+            'email'           => 'ada@example.com',
+            'status'          => 'active',
+            'organization_id' => null,
+            'full_label'      => 'Ada <ada@example.com>',
+            'display_label'   => 'Ada <ada@example.com>',
+            ...$stamps,
+        ];
+
+        self::assertTrue($this->validateAgainstMetaSchema($document)->isValid(), $this->formatErrors($this->validateAgainstMetaSchema($document)));
+
+        $truncated = $this->validateAgainstExported($document, $pointer, [...$user, 'posts' => array_fill(0, 25, $post), '_truncated' => ['posts']]);
+
+        self::assertTrue($truncated->isValid(), $this->formatErrors($truncated));
+        self::assertTrue($this->validateAgainstExported($document, $pointer, $user)->isValid());
+        self::assertFalse($this->validateAgainstExported($document, $pointer, [...$user, 'posts' => array_fill(0, 26, $post)])->isValid());
+        self::assertFalse($this->validateAgainstExported($document, $pointer, [...$user, '_truncated' => ['email']])->isValid());
+        self::assertFalse($this->validateAgainstExported($document, $pointer, [...$user, '_truncated' => []])->isValid());
+    }
+
+    /**
      * Test that one error response is emitted per defined error code.
      *
      * Application exceptions discovered outside the toolkit count too.
@@ -1442,7 +1479,7 @@ final class OpenApiExporterValidityTest extends TestCase
         $posts    = $document['components']['schemas']['User']['properties']['posts'];
 
         self::assertSame(
-            ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Post']],
+            ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Post'], 'maxItems' => 25],
             $posts,
         );
 

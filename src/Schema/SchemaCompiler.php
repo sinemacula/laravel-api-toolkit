@@ -324,6 +324,7 @@ final class SchemaCompiler
             unindexedReason : self::declaredColumn($definition, 'unindexed'),
             searchable      : self::declaredColumn($definition, 'searchable'),
             searchStrategy  : self::resolveSearchStrategy($definition),
+            limit           : is_int($definition['limit'] ?? null) ? $definition['limit'] : null,
         );
     }
 

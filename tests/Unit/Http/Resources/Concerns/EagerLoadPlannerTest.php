@@ -4,14 +4,21 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Resources\Concerns;
 
+use Illuminate\Database\Eloquent\Attributes\Table;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -44,6 +51,9 @@ final class EagerLoadPlannerTest extends TestCase
 
         SchemaCompiler::clearCache();
         EagerLoadPlanner::clearCache();
+
+        // Path-walking tests read plain paths; bounded ones set a limit
+        Config::set('api-toolkit.resources.relation_limit', 0);
     }
 
     /**
@@ -1036,62 +1046,6 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
-     * Test that a wrapped constraint runs against a MorphTo query verbatim, is
-     * applied to a resolved builder, and is skipped for a query that resolves
-     * to no builder.
-     *
-     * @return void
-     */
-    public function testWrappedConstraintHandlesMorphToBuilderAndNonBuilderQueries(): void
-    {
-
-        /** @var list<mixed> $calls */
-        $calls = [];
-
-        $constrainedResource = new class {
-            /** @var string The resource type identifier. */
-            public const string RESOURCE_TYPE = 'wrap_constraint_test';
-
-            /** @var (\Closure(mixed): void)|null */
-            public static ?\Closure $constraint = null;
-
-            /**
-             * @return array<string, array<string, mixed>>
-             */
-            public static function schema(): array
-            {
-                return [
-                    'items' => [
-                        'relation'   => 'items',
-                        'constraint' => self::$constraint,
-                    ],
-                ];
-            }
-        };
-
-        $constrainedResource::$constraint = static function ($query) use (&$calls): void {
-            $calls[] = $query;
-        };
-
-        $map     = EagerLoadPlanner::buildEagerLoadMap($constrainedResource::class, ['items']);
-        $wrapped = $map['items'];
-
-        self::assertInstanceOf(\Closure::class, $wrapped);
-
-        // MorphTo and builder queries are constrained; others are skipped
-        $morphTo = \Mockery::mock(MorphTo::class);
-        $builder = User::query();
-
-        $wrapped($morphTo);
-        $wrapped($builder);
-        $wrapped(new \stdClass);
-
-        self::assertCount(2, $calls);
-        self::assertSame($morphTo, $calls[0]);
-        self::assertSame($builder, $calls[1]);
-    }
-
-    /**
      * Test that recursion halts when a child field projection resolves to an
      * empty set, so the parent relation is loaded without any child paths.
      *
@@ -1205,5 +1159,312 @@ final class EagerLoadPlannerTest extends TestCase
                 sprintf('The walk must not descend past the cycle: %s', $path),
             );
         }
+    }
+
+    /**
+     * Test that a relation with no constraint but a limit plans a closure.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapScopesALimitedRelationWithoutAConstraint(): void
+    {
+        $map = EagerLoadPlanner::buildEagerLoadMap(self::boundedResource(['limit' => 5]), ['posts']);
+
+        self::assertNotContains('posts', $map);
+        self::assertInstanceOf(\Closure::class, $map['posts'] ?? null);
+    }
+
+    /**
+     * Test that the default limit applies to a relation declaring none.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapBoundsAnUndeclaredRelationByTheDefault(): void
+    {
+        Config::set('api-toolkit.resources.relation_limit', 4);
+
+        $relation = $this->applyPlanned(self::boundedResource(), $this->eagerRelation(new User, 'posts'));
+
+        self::assertSame(['value' => 5, 'column' => 'posts.user_id'], $relation->getQuery()->getQuery()->groupLimit);
+    }
+
+    /**
+     * Test that the constraint receives the relation itself.
+     *
+     * @return void
+     */
+    public function testConstraintReceivesTheRelation(): void
+    {
+        $received = null;
+        $relation = $this->eagerRelation(new User, 'posts');
+
+        $this->applyPlanned(self::boundedResource(['constraint' => static function ($query) use (&$received): void {
+            $received = $query;
+        }]), $relation);
+
+        self::assertInstanceOf(HasMany::class, $received);
+        self::assertSame($relation, $received);
+    }
+
+    /**
+     * Test that a constraint can reach the pivot clauses of a many-to-many.
+     *
+     * @return void
+     */
+    public function testConstraintReachesPivotClauses(): void
+    {
+        $relation = $this->applyPlanned(self::boundedResource(['constraint' => static function ($query): void {
+            $query->wherePivot('tag_id', 7);
+        }], 'tags'), $this->eagerRelation(new Post, 'tags'));
+
+        $columns = array_column($relation->getQuery()->getQuery()->wheres, 'column');
+
+        self::assertContains('post_tag.tag_id', $columns);
+    }
+
+    /**
+     * Provide constraints that bound the relation they are given.
+     *
+     * @return iterable<string, array{0: \Closure(mixed): void, 1: string}>
+     */
+    public static function boundingConstraintProvider(): iterable
+    {
+        $limit = static function ($query): void {
+            $query->limit(5);
+        };
+
+        yield 'limit on a has-many' => [$limit, 'posts'];
+        yield 'take on a has-many' => [static function ($query): void {
+            $query->take(5);
+        }, 'posts'];
+        yield 'skip on a has-many' => [static function ($query): void {
+            $query->skip(5);
+        }, 'posts'];
+        yield 'limit on a morph-to' => [$limit, 'subject'];
+    }
+
+    /**
+     * Test that a constraint bounding the relation is refused, naming its
+     * field.
+     *
+     * @param  \Closure(mixed): void  $constraint
+     * @param  string  $relationName
+     * @return void
+     */
+    #[DataProvider('boundingConstraintProvider')]
+    public function testConstraintThatBoundsTheRelationIsRefused(\Closure $constraint, string $relationName): void
+    {
+        $resourceClass = self::boundedResource(['constraint' => $constraint]);
+        $relation      = $relationName === 'subject'
+            ? $this->eagerRelation(self::morphingModel(), 'subject')
+            : $this->eagerRelation(new User, $relationName);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('The constraint on ' . $resourceClass . '::posts may not limit or offset the relation; declare limit() on the relation instead');
+
+        $this->applyPlanned($resourceClass, $relation);
+    }
+
+    /**
+     * Test that a bound the relation method declares is not blamed on the
+     * constraint, and a tighter one is kept.
+     *
+     * @return void
+     */
+    public function testBoundDeclaredByTheRelationMethodIsKeptAndNotBlamed(): void
+    {
+        $relation = $this->applyPlanned(self::boundedResource([
+            'limit'      => 5,
+            'constraint' => static function ($query): void {
+                $query->where('published', true);
+            },
+        ]), $this->eagerRelation(self::cappedModel(), 'cappedPosts'));
+
+        self::assertSame(3, $relation->getQuery()->getQuery()->groupLimit['value'] ?? null);
+    }
+
+    /**
+     * Test that a looser bound the relation method declares is tightened to the
+     * limit and its probe row.
+     *
+     * @return void
+     */
+    public function testLooserBoundDeclaredByTheRelationMethodIsTightened(): void
+    {
+        $relation = $this->applyPlanned(self::boundedResource(['limit' => 1]), $this->eagerRelation(self::cappedModel(), 'cappedPosts'));
+
+        self::assertSame(2, $relation->getQuery()->getQuery()->groupLimit['value'] ?? null);
+    }
+
+    /**
+     * Test that a declared limit bounds the relation per parent with a probe
+     * row, ordered last by the related key.
+     *
+     * @return void
+     */
+    public function testDeclaredLimitBoundsPerParentWithAProbeRowAndKeyOrder(): void
+    {
+        $relation = $this->applyPlanned(self::boundedResource([
+            'limit'      => 5,
+            'constraint' => static function ($query): void {
+                $query->latest();
+            },
+        ]), $this->eagerRelation(new User, 'posts'));
+
+        self::assertSame(['value' => 6, 'column' => 'posts.user_id'], $relation->getQuery()->getQuery()->groupLimit);
+        self::assertSame([
+            ['column' => 'created_at', 'direction' => 'desc'],
+            ['column' => 'posts.id', 'direction' => 'asc'],
+        ], $relation->getQuery()->toBase()->orders);
+    }
+
+    /**
+     * Test that the key order survives the soft-delete scope being removed.
+     *
+     * @return void
+     */
+    public function testKeyOrderSurvivesWithTrashed(): void
+    {
+        $relation = $this->applyPlanned(self::boundedResource(['limit' => 2], 'comments'), $this->eagerRelation(new User, 'comments'));
+
+        $relation->getQuery()->withTrashed(); // @phpstan-ignore method.notFound
+
+        self::assertSame([['column' => 'comments.id', 'direction' => 'asc']], $relation->getQuery()->toBase()->orders);
+        self::assertSame(3, $relation->getQuery()->getQuery()->groupLimit['value'] ?? null);
+    }
+
+    /**
+     * Test that a to-one relation is never bounded or ordered.
+     *
+     * @return void
+     */
+    public function testToOneRelationIsNeitherBoundedNorOrdered(): void
+    {
+        $relation = $this->applyPlanned(self::boundedResource(['limit' => 5]), $this->eagerRelation(new User, 'organization'));
+
+        self::assertNull($relation->getQuery()->getQuery()->groupLimit);
+        self::assertNull($relation->getQuery()->getQuery()->limit);
+        self::assertSame([], $relation->getQuery()->toBase()->orders ?? []);
+    }
+
+    /**
+     * Test that with the limit disabled a constrained closure adds no order and
+     * no bound.
+     *
+     * @return void
+     */
+    public function testDisabledLimitAddsNoOrderAndNoBound(): void
+    {
+        $relation = $this->applyPlanned(self::boundedResource(['constraint' => static function ($query): void {
+            $query->where('published', true);
+        }]), $this->eagerRelation(new User, 'posts'));
+
+        self::assertNull($relation->getQuery()->getQuery()->groupLimit);
+        self::assertNull($relation->getQuery()->getQuery()->limit);
+        self::assertSame([], $relation->getQuery()->toBase()->orders ?? []);
+    }
+
+    /**
+     * Build a resource whose single posts field carries the given definition.
+     *
+     * @param  array<string, mixed>  $definition
+     * @param  string  $relation
+     * @return string
+     */
+    private static function boundedResource(array $definition = [], string $relation = 'posts'): string
+    {
+        $resource = new class {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'bounded_planner_test';
+
+            /** @var array<string, mixed> */
+            public static array $definition = [];
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return ['posts' => self::$definition];
+            }
+        };
+
+        $resource::$definition = ['relation' => $relation, 'resource' => PostResource::class, 'fields' => ['id'], ...$definition];
+
+        return $resource::class;
+    }
+
+    /**
+     * Run the closure planned for the resource's single field on the relation.
+     *
+     * @param  string  $resourceClass
+     * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
+     * @return \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>
+     */
+    private function applyPlanned(string $resourceClass, EloquentRelation $relation): EloquentRelation
+    {
+        $closure = current(EagerLoadPlanner::buildEagerLoadMap($resourceClass, ['posts']));
+
+        self::assertInstanceOf(\Closure::class, $closure);
+
+        $closure($relation);
+
+        return $relation;
+    }
+
+    /**
+     * Build the relation as an eager load does, from an unsaved parent.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $name
+     * @return \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>
+     */
+    private function eagerRelation(Model $model, string $name): EloquentRelation
+    {
+        $relation = EloquentRelation::noConstraints(static fn (): mixed => $model->{$name}()); // @phpstan-ignore method.dynamicName
+
+        assert($relation instanceof EloquentRelation);
+
+        return $relation;
+    }
+
+    /**
+     * Build a model whose relation method declares its own bound of three.
+     *
+     * @return \Illuminate\Database\Eloquent\Model
+     */
+    private static function cappedModel(): Model
+    {
+        return new #[Table('users')] class extends Model {
+            /**
+             * Get at most three of the user's posts.
+             *
+             * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+             */
+            public function cappedPosts(): HasMany
+            {
+                return $this->hasMany(Post::class, 'user_id')->limit(3);
+            }
+        };
+    }
+
+    /**
+     * Build a model with a polymorphic to-one relation.
+     *
+     * @return \Illuminate\Database\Eloquent\Model
+     */
+    private static function morphingModel(): Model
+    {
+        return new #[Table('comments')] class extends Model {
+            /**
+             * Get the commented subject.
+             *
+             * @return \Illuminate\Database\Eloquent\Relations\MorphTo<\Illuminate\Database\Eloquent\Model, $this>
+             */
+            public function subject(): MorphTo
+            {
+                return $this->morphTo();
+            }
+        };
     }
 }

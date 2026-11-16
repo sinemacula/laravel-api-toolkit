@@ -55,6 +55,19 @@ type separately:
 ?fields[user]=first_name&fields[organization]=name
 ```
 
+An embedded collection holds at most the `maxItems` its schema declares, per
+parent record. When a collection was cut to that size, the record lists the
+collection's key in `_truncated`:
+
+```json
+{"_type": "user", "id": 1, "posts": [...], "_truncated": ["posts"]}
+```
+
+`_truncated` is absent when nothing was cut, and cannot itself be requested
+with `fields`. Embedded collections are not paged; request the relation's
+count, where the resource offers one, for the total, and read the related
+records from their own endpoint to page through them.
+
 ## Filtering
 
 Filters are expressed as a JSON object, then URL-encoded and passed as the

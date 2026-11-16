@@ -927,6 +927,27 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
+     * Test that a declared relation limit is carried onto the field, and a
+     * malformed one is dropped.
+     *
+     * @return void
+     */
+    public function testCompileCarriesTheRelationLimitOntoTheField(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'posts'    => ['relation' => 'posts', 'limit' => 5],
+            'comments' => ['relation' => 'comments', 'limit' => '5'],
+            'tags'     => ['relation' => 'tags'],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+
+        self::assertSame(5, $schema->getField('posts')?->limit);
+        self::assertNull($schema->getField('comments')?->limit);
+        self::assertNull($schema->getField('tags')?->limit);
+    }
+
+    /**
      * Test that a fixture resource's plain fields compile with a null openApi
      * while timestamp() auto-declares a date-time format.
      *

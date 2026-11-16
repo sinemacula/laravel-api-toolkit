@@ -16,6 +16,7 @@ use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
@@ -24,6 +25,8 @@ use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
+use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
@@ -35,6 +38,7 @@ use Tests\Fixtures\Input\StorePayload;
 use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\MissingColumnQueryableResource;
+use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\SearchableComputedResource;
 use Tests\Fixtures\Resources\SensitiveQueryableResource;
 use Tests\Fixtures\Resources\TrailingIndexSortableResource;
@@ -142,6 +146,49 @@ final class ContainerBindingRegistrarTest extends TestCase
         ));
 
         $validator->validate([User::class => MissingColumnQueryableResource::class]);
+    }
+
+    /**
+     * Test that the shipped rules refuse a limit on a to-one relation.
+     *
+     * @return void
+     */
+    public function testRegisterBindsSchemaValidatorRefusingALimitOnAToOneRelation(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        SchemaCompiler::clearCache();
+
+        $resource = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'limited_to_one_users';
+
+            /**
+             * Return the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Relation::to('organization', OrganizationResource::class)->limit(2),
+                );
+            }
+        };
+
+        $validator = $app->make(SchemaValidator::class);
+
+        $this->expectException(InvalidSchemaException::class);
+        $this->expectExceptionMessage(sprintf(
+            "Schema validation failed with 1 error(s):\n  - [%s] Field \"organization\": Relation \"organization\" declares a limit but its method returns a to-one relation",
+            $resource::class,
+        ));
+
+        $validator->validate([User::class => $resource::class]);
     }
 
     /**
