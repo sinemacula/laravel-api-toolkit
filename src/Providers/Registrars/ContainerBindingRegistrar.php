@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -45,6 +46,7 @@ use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateAccessors;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateComputedFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateIndexBacking;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateNeedsColumns;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateQueryableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationInterfaces;
@@ -203,6 +205,7 @@ final readonly class ContainerBindingRegistrar
             new ValidateComputedFields,
             new ValidateAccessors,
             new ValidateQueryableFields($app->make(SchemaIntrospectionProvider::class)),
+            new ValidateNeedsColumns($app->make(SchemaIntrospectionProvider::class)),
             new ValidateIndexBacking($app->make(SchemaIntrospectionProvider::class), $app->make(IndexEligibilityInspector::class)),
             new ValidateSearchableFields,
             new ValidateSearchIndexes($app->make(SearchDriverRegistry::class), $app->make(SchemaIntrospectionProvider::class)),
@@ -275,12 +278,14 @@ final readonly class ContainerBindingRegistrar
      * Bind the OpenAPI exporter ports to their default adapters.
      *
      * The enum and defined schema registries are singletons so every resolver
-     * shares one collected set per document.
+     * shares one collected set per document. The exception map is read from the
+     * config on every resolution.
      *
      * @return void
      */
     private function registerOpenApiExporter(): void
     {
+        $this->container->bind(ExceptionMap::class, static fn (): ExceptionMap => ExceptionMap::fromConfig());
         $this->container->singleton(MetadataCatalogue::class, ConfigMetadataCatalogue::class);
         $this->container->singleton(DocumentWriter::class, FilesystemDocumentWriter::class);
         $this->container->singleton(ApiExceptionDiscoverer::class, static fn (): ApiExceptionDiscoverer => ApiExceptionDiscoverer::fromComposer());

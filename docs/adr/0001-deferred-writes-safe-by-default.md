@@ -67,7 +67,7 @@ flush from hard-crashing completed requests.
   collect-and-retain. This is intentional - the old default was the silent-data-loss bug. Existing
   `Deferrable` consumers that relied on drop-on-failure now retain failed records in the scoped
   pool and re-attempt them on each subsequent boundary within the scope's lifetime. Opt back into
-  the old behaviour with `DEFERRED_WRITES_ON_FAILURE=log`, which is now an explicit choice for
+  the old behaviour with `API_TOOLKIT_DEFERRED_WRITES_ON_FAILURE=log`, which is now an explicit choice for
   genuinely disposable writes (audit, analytics, telemetry).
 - **Auto-flush under `throw` can raise from `defer()`.** Previously impossible (downgraded to
   `collect`). Consumers that set `throw` and relied on `add()` never throwing get a new exception
