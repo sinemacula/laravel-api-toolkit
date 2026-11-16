@@ -9,13 +9,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Validator as RequestValidator;
-use Opis\JsonSchema\Errors\ErrorFormatter;
-use Opis\JsonSchema\Formats\UriFormats;
-use Opis\JsonSchema\Helper;
-use Opis\JsonSchema\Resolvers\FormatResolver;
-use Opis\JsonSchema\Resolvers\SchemaResolver;
 use Opis\JsonSchema\ValidationResult;
-use Opis\JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -31,6 +25,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ServerListValidator;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Concerns\ValidatesOpenApiDocuments;
 use Tests\Concerns\WritesDocsDirectories;
 use Tests\Fixtures\Enums\TicketPriority;
 use Tests\Fixtures\Models\Article;
@@ -87,32 +82,7 @@ use Tests\TestCase;
 #[CoversClass(ServerListValidator::class)]
 final class OpenApiExporterValidityTest extends TestCase
 {
-    use WritesDocsDirectories;
-
-    /** @var string The identifier of the OpenAPI 3.1 meta-schema that also validates every embedded schema. */
-    private const string META_SCHEMA_ID = 'https://spec.openapis.org/oas/3.1/schema-base/2022-10-07';
-
-    /** @var string The schema a Schema Object's dynamic `#meta` reference resolves to under that meta-schema. */
-    private const string SCHEMA_OBJECT_REF = self::META_SCHEMA_ID . '#/$defs/schema';
-
-    /** @var list<string> The bundled meta-schema fixtures, each registered under its own `$id`. */
-    private const array META_SCHEMA_FIXTURES = [
-        'json-schema-2020-12.json',
-        'json-schema-2020-12-meta-core.json',
-        'json-schema-2020-12-meta-applicator.json',
-        'json-schema-2020-12-meta-unevaluated.json',
-        'json-schema-2020-12-meta-validation.json',
-        'json-schema-2020-12-meta-meta-data.json',
-        'json-schema-2020-12-meta-format-annotation.json',
-        'json-schema-2020-12-meta-content.json',
-        'openapi-3.1-dialect-base.json',
-        'openapi-3.1-meta-base.json',
-        'openapi-3.1-schema.json',
-        'openapi-3.1-schema-base.json',
-    ];
-
-    /** @var string The identifier under which an exported document is registered as a schema. */
-    private const string EXPORTED_DOCUMENT_ID = 'https://api.example.com/openapi.json';
+    use ValidatesOpenApiDocuments, WritesDocsDirectories;
 
     /** @var list<string> The temporary docs directories to clean up. */
     private array $docsDirs = [];
@@ -179,8 +149,8 @@ final class OpenApiExporterValidityTest extends TestCase
         );
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document carrying the docs manual must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document carrying the docs manual must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -206,7 +176,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $document = $this->export()->document;
         $user     = $document['paths']['/users/{user}'];
-        $result   = $this->validateAgainstMetaSchema($document);
+        $result   = $this->validateDocument($document);
 
         self::assertSame('path-fixture.update.patch', $user['patch']['operationId']);
         self::assertSame("Replaces the user.\n\nSends a **full** representation.", $user['patch']['description']);
@@ -226,7 +196,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $document = $this->export()->document;
 
-        $result = $this->validateAgainstMetaSchema($document);
+        $result = $this->validateDocument($document);
 
         self::assertTrue(
             $result->isValid(),
@@ -264,7 +234,7 @@ final class OpenApiExporterValidityTest extends TestCase
         foreach (['public' => 4, 'partner' => 1] as $audience => $count) {
 
             $document = $this->export($audience)->document;
-            $result   = $this->validateAgainstMetaSchema($document);
+            $result   = $this->validateDocument($document);
 
             self::assertIsArray($document['servers']);
             self::assertCount($count, $document['servers']);
@@ -314,7 +284,7 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertSame('{}', json_encode($document['paths']));
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
+            $this->validateDocument($document)->isValid(),
             'A document with an empty paths object must validate as OpenAPI 3.1.',
         );
     }
@@ -449,7 +419,7 @@ final class OpenApiExporterValidityTest extends TestCase
         $this->registerPathParameterRoutes();
 
         $document = $this->export()->document;
-        $result   = $this->validateAgainstMetaSchema($document);
+        $result   = $this->validateDocument($document);
 
         self::assertSame(['type' => 'string', 'format' => 'uuid'], $document['paths']['/tickets/{ticket}']['get']['parameters'][0]['schema']);
         self::assertSame(['type' => 'integer'], $document['paths']['/users/{user}']['get']['parameters'][0]['schema']);
@@ -544,7 +514,7 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertTrue($properties['organization']['x-undocumented']);
 
         $this->assertReferencesResolve($document);
-        self::assertTrue($this->validateAgainstMetaSchema($document)->isValid());
+        self::assertTrue($this->validateDocument($document)->isValid());
     }
 
     /**
@@ -573,7 +543,7 @@ final class OpenApiExporterValidityTest extends TestCase
             ...$stamps,
         ];
 
-        self::assertTrue($this->validateAgainstMetaSchema($document)->isValid(), $this->formatErrors($this->validateAgainstMetaSchema($document)));
+        self::assertTrue($this->validateDocument($document)->isValid(), $this->formatErrors($this->validateDocument($document)));
 
         $truncated = $this->validateAgainstExported($document, $pointer, [...$user, 'posts' => array_fill(0, 25, $post), '_truncated' => ['posts']]);
 
@@ -626,7 +596,7 @@ final class OpenApiExporterValidityTest extends TestCase
         }
 
         $this->assertReferencesResolve($document);
-        self::assertTrue($this->validateAgainstMetaSchema($document)->isValid());
+        self::assertTrue($this->validateDocument($document)->isValid());
     }
 
     /**
@@ -683,8 +653,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertArrayHasKey('Total-Count', $components['headers']);
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'Emitted document with envelope components is not valid OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'Emitted document with envelope components is not valid OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -743,7 +713,7 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertNotEmpty($before);
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($after)->isValid(),
+            $this->validateDocument($after)->isValid(),
             'Regenerated document is not valid OpenAPI 3.1.',
         );
     }
@@ -780,64 +750,6 @@ final class OpenApiExporterValidityTest extends TestCase
         } finally {
             @unlink($path);
         }
-    }
-
-    /**
-     * Test that the opis-adapted meta-schema still rejects invalid documents.
-     *
-     * Guards the in-test transforms from silently hollowing out the validity
-     * check.
-     *
-     * @return void
-     */
-    public function testAdaptedMetaSchemaStillRejectsInvalidDocuments(): void
-    {
-        $valid = $this->export()->document;
-
-        self::assertTrue(
-            $this->validateAgainstMetaSchema($valid)->isValid(),
-            'The real emitted document must validate as OpenAPI 3.1.',
-        );
-
-        $threeZero            = $valid;
-        $threeZero['openapi'] = '3.0.3';
-
-        self::assertFalse(
-            $this->validateAgainstMetaSchema($threeZero)->isValid(),
-            'A 3.0 version string must be rejected by the 3.1 meta-schema.',
-        );
-
-        $missingInfo = $valid;
-        unset($missingInfo['info']);
-
-        self::assertFalse(
-            $this->validateAgainstMetaSchema($missingInfo)->isValid(),
-            'A document missing the required info object must be rejected.',
-        );
-
-        $malformedParameter                                       = $valid;
-        $malformedParameter['components']['parameters']['Broken'] = ['description' => 'no name or in'];
-
-        self::assertFalse(
-            $this->validateAgainstMetaSchema($malformedParameter)->isValid(),
-            'A parameter missing its required name/in must be rejected.',
-        );
-
-        $arraySchema                                    = $valid;
-        $arraySchema['components']['schemas']['Broken'] = ['type' => 'object', 'properties' => ['field' => []]];
-
-        self::assertFalse(
-            $this->validateAgainstMetaSchema($arraySchema)->isValid(),
-            'An embedded schema encoded as an array must be rejected.',
-        );
-
-        $malformedServer            = $valid;
-        $malformedServer['servers'] = [['url' => 'https://{region}.api.example.com/a path']];
-
-        self::assertFalse(
-            $this->validateAgainstMetaSchema($malformedServer)->isValid(),
-            'A templated server url that is not a uri-reference must be rejected.',
-        );
     }
 
     /**
@@ -883,8 +795,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertArrayHasKey('204', $paths['/users/{user}']['delete']['responses']);
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document with path operations must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document with path operations must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -964,8 +876,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertTrue($schema['properties']['data']['x-undocumented']);
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document with an undocumented operation must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document with an undocumented operation must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -986,8 +898,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertArrayHasKey('User', $document['components']['schemas']);
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document referencing a declared response resource must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document referencing a declared response resource must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -1012,8 +924,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertSame(['title' => 'SignedInShape', ...SignedInShape::schema()], $document['components']['schemas']['SignedInShape']);
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document declaring a response union must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document declaring a response union must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -1035,8 +947,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertFalse($this->validateAgainstExported($document, $pointer, ['data' => ['id' => 1]])->isValid());
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document declaring a response shape must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document declaring a response shape must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
         $this->assertReferencesResolve($document);
     }
@@ -1066,8 +978,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertFalse($this->validateAgainstExported($document, $pointer, ['data' => ['status' => 'pending', 'token' => 'x']])->isValid());
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document declaring a discriminated union must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document declaring a discriminated union must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
         $this->assertReferencesResolve($document);
     }
@@ -1116,8 +1028,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertSame(['type' => 'integer', 'enum' => [1, 2, 3]], $properties['level']);
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document with a requestBody must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document with a requestBody must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -1140,8 +1052,8 @@ final class OpenApiExporterValidityTest extends TestCase
         );
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document with prohibited and unconstrained fields must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document with prohibited and unconstrained fields must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -1173,8 +1085,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertFalse($this->validateAgainstExported($document, $pointer, ['password' => 'x', 'member_id' => $uuid])->isValid());
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document with presence constraints must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document with presence constraints must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -1197,8 +1109,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertSame(['type' => 'string', 'enum' => ['web', 'mobile_app', 'desktop']], $schemas['Platform']);
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document with enum components must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document with enum components must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -1219,8 +1131,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertSame(['type' => 'string', 'enum' => []], $properties['retired']);
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document with narrowed enum fields must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document with narrowed enum fields must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -1265,8 +1177,8 @@ final class OpenApiExporterValidityTest extends TestCase
         }
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document with keyed array fields must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document with keyed array fields must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -1301,8 +1213,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertFalse($this->validateRequestBody($document, '/numbered', '{"tags":["a"]}')->isValid());
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document with numeric rule keys must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document with numeric rule keys must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -1481,8 +1393,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertSame(['type' => 'http', 'scheme' => 'basic'], $schemes['basicAuth']);
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document with security requirements must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document with security requirements must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -1566,7 +1478,7 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertIsArray($paths['/sign-in']['post']['responses']['409']);
         self::assertArrayNotHasKey('headers', $paths['/sign-in']['post']['responses']['409']);
 
-        $result = $this->validateAgainstMetaSchema($document);
+        $result = $this->validateDocument($document);
 
         self::assertTrue($result->isValid(), 'A document carrying declared headers must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
         $this->assertReferencesResolve($document);
@@ -1608,7 +1520,7 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertIsArray($paths['/status-users/{user}']['delete']['responses']['200']);
         self::assertArrayHasKey('content', $paths['/status-users/{user}']['delete']['responses']['200']);
 
-        $result = $this->validateAgainstMetaSchema($document);
+        $result = $this->validateDocument($document);
 
         self::assertTrue($result->isValid(), 'A document carrying declared statuses must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
         $this->assertReferencesResolve($document);
@@ -1738,8 +1650,8 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertSame(['type' => 'string', 'enum' => ['active', 'inactive', 'banned']], $schemas['UserStatus']);
 
         self::assertTrue(
-            $this->validateAgainstMetaSchema($document)->isValid(),
-            'A document exported without column introspection must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+            $this->validateDocument($document)->isValid(),
+            'A document exported without column introspection must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
     }
 
@@ -1793,17 +1705,6 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Validate a document against the opis-adapted OpenAPI 3.1 meta-schema.
-     *
-     * @param  array<string, mixed>  $document
-     * @return \Opis\JsonSchema\ValidationResult
-     */
-    private function validateAgainstMetaSchema(array $document): ValidationResult
-    {
-        return $this->validator()->validate(Helper::toJSON($document), self::META_SCHEMA_ID);
-    }
-
-    /**
      * Validate a payload against the exported /users index 200 schema.
      *
      * @param  array<string, mixed>  $document
@@ -1816,30 +1717,6 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Validate a payload against the exported schema at a JSON pointer.
-     *
-     * @param  array<string, mixed>  $document
-     * @param  string  $pointer
-     * @param  array<string, mixed>  $payload
-     * @return \Opis\JsonSchema\ValidationResult
-     */
-    private function validateAgainstExported(array $document, string $pointer, array $payload): ValidationResult
-    {
-        $validator = new Validator;
-        $resolver  = $validator->resolver();
-
-        assert($resolver instanceof SchemaResolver);
-
-        $exported = Helper::toJSON($document);
-
-        self::assertIsObject($exported);
-
-        $resolver->registerRaw($exported, self::EXPORTED_DOCUMENT_ID);
-
-        return $validator->validate(Helper::toJSON((object) $payload), self::EXPORTED_DOCUMENT_ID . '#' . $pointer);
-    }
-
-    /**
      * Validate a JSON payload against the path's exported POST body schema.
      *
      * @param  array<string, mixed>  $document
@@ -1849,213 +1726,11 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     private function validateRequestBody(array $document, string $path, string $payload): ValidationResult
     {
-        $validator = new Validator;
-        $resolver  = $validator->resolver();
-
-        assert($resolver instanceof SchemaResolver);
-
-        $exported = Helper::toJSON($document);
-
-        self::assertIsObject($exported);
-
-        $resolver->registerRaw($exported, self::EXPORTED_DOCUMENT_ID);
-
-        return $validator->validate(
+        return $this->validateAgainstExported(
+            $document,
+            '/paths/' . str_replace('/', '~1', $path) . '/post/requestBody/content/application~1json/schema',
             json_decode($payload, false, 512, JSON_THROW_ON_ERROR),
-            self::EXPORTED_DOCUMENT_ID . '#/paths/' . str_replace('/', '~1', $path) . '/post/requestBody/content/application~1json/schema',
         );
-    }
-
-    /**
-     * Validate a raw JSON document string against the bundled meta-schema.
-     *
-     * Decoding to objects keeps an empty `paths` object distinct from an empty
-     * array.
-     *
-     * @param  string  $json
-     * @return \Opis\JsonSchema\ValidationResult
-     */
-    private function validateJson(string $json): ValidationResult
-    {
-        return $this->validator()->validate(json_decode($json, false, 512, JSON_THROW_ON_ERROR), self::META_SCHEMA_ID);
-    }
-
-    /**
-     * Build a validator with every bundled meta-schema registered and adapted.
-     *
-     * A uri-reference is checked after substituting server variable templates
-     * with a name, or a digit so a templated port holds.
-     *
-     * @return \Opis\JsonSchema\Validator
-     */
-    private function validator(): Validator
-    {
-        $validator = new Validator;
-        $resolver  = $validator->resolver();
-        $formats   = $validator->parser()->getFormatResolver();
-
-        assert($resolver instanceof SchemaResolver);
-        assert($formats instanceof FormatResolver);
-
-        foreach (self::META_SCHEMA_FIXTURES as $fixture) {
-            /** @var array<string, mixed> $schema */
-            $schema = json_decode($this->fixture($fixture), true, 512, JSON_THROW_ON_ERROR);
-
-            $this->adaptForOpis($schema);
-
-            assert(is_string($schema['$id']));
-
-            $resolver->registerRaw(json_encode($schema, JSON_THROW_ON_ERROR), $schema['$id']);
-        }
-
-        $formats->registerCallable('string', 'uri-reference', static function (string $value): bool {
-            foreach (['variable', '0'] as $substitute) {
-                if (UriFormats::uriReference((string) preg_replace('/\{[^{}]+\}/', $substitute, $value))) {
-                    return true;
-                }
-            }
-
-            return false;
-        });
-
-        return $validator;
-    }
-
-    /**
-     * Apply the two opis/json-schema compatibility transforms in place.
-     *
-     * Rewrites `$dynamicRef: "#meta"` to a static `$ref` and relaxes
-     * `unevaluatedProperties: false` to `true`, working around opis gaps
-     * without weakening any validity constraint; see the fixtures README.
-     *
-     * @param  array<array-key, mixed>  $node
-     * @return void
-     */
-    private function adaptForOpis(array &$node): void
-    {
-        if (($node['$dynamicRef'] ?? null) === '#meta') {
-            unset($node['$dynamicRef']);
-            $node['$ref'] = self::SCHEMA_OBJECT_REF;
-        }
-
-        if (($node['unevaluatedProperties'] ?? null) === false) {
-            $node['unevaluatedProperties'] = true;
-        }
-
-        foreach ($node as &$value) {
-            if (!is_array($value)) {
-                continue;
-            }
-
-            $this->adaptForOpis($value);
-        }
-    }
-
-    /**
-     * Read a bundled fixture file by name.
-     *
-     * @param  string  $name
-     * @return string
-     */
-    private function fixture(string $name): string
-    {
-        $contents = file_get_contents(__DIR__ . '/../../Fixtures/OpenApi/' . $name);
-
-        assert(is_string($contents));
-
-        return $contents;
-    }
-
-    /**
-     * Format a validation result's errors for a failure message.
-     *
-     * @param  \Opis\JsonSchema\ValidationResult  $result
-     * @return string
-     */
-    private function formatErrors(ValidationResult $result): string
-    {
-        $error = $result->error();
-
-        if ($error === null) {
-            return '(no error)';
-        }
-
-        return json_encode((new ErrorFormatter)->format($error), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
-    }
-
-    /**
-     * Assert every reference is local and resolves to an existing component.
-     *
-     * @param  array<string, mixed>  $document
-     * @return void
-     */
-    private function assertReferencesResolve(array $document): void
-    {
-        $references = $this->collectReferences($document);
-
-        self::assertNotEmpty($references);
-
-        foreach ($references as $reference) {
-
-            self::assertStringStartsWith('#/', $reference, 'Only a local reference can be resolved within the document.');
-            self::assertNotNull(
-                $this->resolveReference($document, $reference),
-                sprintf('The reference "%s" resolves to no component.', $reference),
-            );
-        }
-    }
-
-    /**
-     * Collect every distinct reference the node carries, at any depth.
-     *
-     * @param  mixed  $node
-     * @return array<int, string>
-     */
-    private function collectReferences(mixed $node): array
-    {
-        if (!is_array($node)) {
-            return [];
-        }
-
-        $references = [];
-
-        foreach ($node as $key => $value) {
-
-            if ($key === '$ref' && is_string($value)) {
-
-                $references[] = $value;
-                continue;
-            }
-
-            $references = [...$references, ...$this->collectReferences($value)];
-        }
-
-        return array_values(array_unique($references));
-    }
-
-    /**
-     * Resolve a local reference against the document, or null when missing.
-     *
-     * @param  array<string, mixed>  $document
-     * @param  string  $reference
-     * @return mixed
-     */
-    private function resolveReference(array $document, string $reference): mixed
-    {
-        $node = $document;
-
-        foreach (explode('/', substr($reference, 2)) as $segment) {
-
-            $segment = str_replace(['~1', '~0'], ['/', '~'], $segment);
-
-            if (!is_array($node) || !array_key_exists($segment, $node)) {
-                return null;
-            }
-
-            $node = $node[$segment];
-        }
-
-        return $node;
     }
 
     /**
