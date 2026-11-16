@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi\Docs;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Docs\DocsDirectory;
 use Tests\TestCase;
 
 /**
@@ -167,11 +168,37 @@ final class DocManualAssemblerTest extends TestCase
         $this->writeAudienceFiles($dir, 'public', ['60-surface.md' => 'Public surface.']);
 
         // A file in the audiences directory itself belongs to no audience
-        $this->writeFiles($dir . '/' . DocManualAssembler::AUDIENCE_DIRECTORY, ['90-stray.md' => 'Stray.']);
+        $this->writeFiles($dir . '/' . DocsDirectory::AUDIENCE_DIRECTORY, ['90-stray.md' => 'Stray.']);
 
         $this->config()->set('api-toolkit.openapi.docs_path', $dir);
 
         self::assertSame('Shared.', (new DocManualAssembler)->assemble());
+        self::assertSame('Shared.', (new DocManualAssembler)->assemble(''));
+    }
+
+    /**
+     * Test that operation and tag descriptions never join the manual.
+     *
+     * @return void
+     */
+    public function testKeyedDescriptionFilesAreNotAssembled(): void
+    {
+        $dir = $this->makeDir(['10-a.md' => 'Shared.']);
+
+        mkdir($dir . '/operations');
+        mkdir($dir . '/tags');
+
+        $this->writeFiles($dir . '/operations', ['users.index.md' => 'Lists the users.']);
+        $this->writeFiles($dir . '/tags', ['User.md' => 'Accounts.']);
+        $this->writeAudienceFiles($dir, 'public', ['20-b.md' => 'Public.']);
+
+        mkdir($dir . '/' . DocsDirectory::AUDIENCE_DIRECTORY . '/public/tags');
+
+        $this->writeFiles($dir . '/' . DocsDirectory::AUDIENCE_DIRECTORY . '/public/tags', ['User.md' => 'Public accounts.']);
+
+        $this->config()->set('api-toolkit.openapi.docs_path', $dir);
+
+        self::assertSame("Shared.\n\nPublic.", (new DocManualAssembler)->assemble('public'));
     }
 
     /**
@@ -251,7 +278,7 @@ final class DocManualAssemblerTest extends TestCase
      */
     private function writeAudienceFiles(string $dir, string $audience, array $files): void
     {
-        $path = $dir . '/' . DocManualAssembler::AUDIENCE_DIRECTORY . '/' . $audience;
+        $path = $dir . '/' . DocsDirectory::AUDIENCE_DIRECTORY . '/' . $audience;
 
         mkdir($path, 0o777, true);
 

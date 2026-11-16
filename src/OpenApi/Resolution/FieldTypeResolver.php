@@ -6,7 +6,6 @@ namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 use Illuminate\Database\Eloquent\Model;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
-use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
@@ -19,9 +18,6 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
  */
 final readonly class FieldTypeResolver
 {
-    /** The path prefix under which component schemas are referenced */
-    private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
-
     /**
      * Constructor.
      *
@@ -61,6 +57,42 @@ final readonly class FieldTypeResolver
         }
 
         return $this->inferScalar($fieldKey, $modelClass);
+    }
+
+    /**
+     * Resolve a column's schema, reusing the declaration of a field that emits
+     * the column unchanged.
+     *
+     * A guard only hides the value, so a guarded field's declaration is reused;
+     * a model accessor changes it, so an accessed column's declaration is not.
+     *
+     * @param  string  $column
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition|null  $field
+     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
+     */
+    public function resolveColumn(string $column, string $modelClass, ?CompiledFieldDefinition $field = null): OpenApiFieldSchema
+    {
+        if ($field?->openApi !== null && $this->emitsColumn($field, $column, $modelClass)) {
+            return $field->openApi;
+        }
+
+        return $this->inferScalar($column, $modelClass);
+    }
+
+    /**
+     * Determine whether a field emits its column's stored value.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @param  string  $column
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @return bool
+     */
+    private function emitsColumn(CompiledFieldDefinition $field, string $column, string $modelClass): bool
+    {
+        return !$this->hasAlternateSource($field)
+            && $field->transformers === []
+            && !(new $modelClass)->hasAnyGetMutator($column);
     }
 
     /**
@@ -115,7 +147,7 @@ final readonly class FieldTypeResolver
         $cast   = $this->resolveCast($model, $fieldKey);
 
         if ($cast !== null && enum_exists($cast)) {
-            return $this->enumReference($cast, $column !== null && $column->nullable);
+            return OpenApiFieldSchema::reference($this->enums->reference($cast), $column !== null && $column->nullable);
         }
 
         if ($column === null && $cast === null) {
@@ -123,20 +155,6 @@ final readonly class FieldTypeResolver
         }
 
         return $this->mapper->map($column, $cast);
-    }
-
-    /**
-     * Build a reference to the enum's component schema, registering the enum.
-     *
-     * @param  class-string  $cast
-     * @param  bool  $nullable
-     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
-     */
-    private function enumReference(string $cast, bool $nullable): OpenApiFieldSchema
-    {
-        $this->enums->register($cast);
-
-        return OpenApiFieldSchema::reference(self::SCHEMA_REF_PREFIX . SchemaComponentName::fromClass($cast), $nullable);
     }
 
     /**

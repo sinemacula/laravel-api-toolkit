@@ -32,11 +32,13 @@ final class WritePoolFlushFailedTest extends TestCase
             successCount: 2,
             failureCount: 1,
             failures: [
-                'orders' => [
-                    [
-                        'records'         => [['name' => 'foo']],
-                        'exception'       => 'Insert failed',
-                        'exception_class' => \RuntimeException::class,
+                'main' => [
+                    'orders' => [
+                        [
+                            'records'         => [['name' => 'foo']],
+                            'exception'       => 'Insert failed',
+                            'exception_class' => \RuntimeException::class,
+                        ],
                     ],
                 ],
             ],

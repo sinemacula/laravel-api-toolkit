@@ -10,11 +10,11 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
  * @phpstan-type SerializedFlushResult array{
  *     successCount: int,
  *     failureCount: int,
- *     failures: array<string, list<array{
+ *     failures: array<string, array<string, list<array{
  *         records: list<array<string, mixed>>,
  *         exception: string,
  *         exception_class: string,
- *     }>>,
+ *     }>>>,
  *     flushedRecordCount: int,
  *     failedRecordCount: int,
  *     retainedRecordCount: int,
@@ -32,7 +32,7 @@ final readonly class WritePoolFlushResult
      *
      * @param  int  $successCount
      * @param  int  $failureCount
-     * @param  array<string, list<array{records: list<array<string, mixed>>, exception: string, exception_class: string}>>  $failures
+     * @param  array<string, array<string, list<array{records: list<array<string, mixed>>, exception: string, exception_class: string}>>>  $failures
      * @param  int  $flushedRecordCount
      * @param  int  $failedRecordCount
      * @param  int  $retainedRecordCount
@@ -49,7 +49,7 @@ final readonly class WritePoolFlushResult
         /** The number of failed chunks. */
         private int $failureCount,
 
-        /** The failure details keyed by table name. */
+        /** The failure details keyed by connection, then table. */
         private array $failures = [],
 
         /** The number of records persisted to the database. */
@@ -164,9 +164,9 @@ final readonly class WritePoolFlushResult
     }
 
     /**
-     * Get the failure details keyed by table name.
+     * Get the failure details keyed by connection, then table.
      *
-     * @return array<string, list<array{records: list<array<string, mixed>>, exception: string, exception_class: string}>>
+     * @return array<string, array<string, list<array{records: list<array<string, mixed>>, exception: string, exception_class: string}>>>
      */
     public function failures(): array
     {

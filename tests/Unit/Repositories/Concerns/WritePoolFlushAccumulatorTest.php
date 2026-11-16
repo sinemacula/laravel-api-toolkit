@@ -40,26 +40,35 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     }
 
     /**
-     * Test that recordFailure tallies failures and keys the detail by table.
+     * Test that recordFailure tallies failures and keys the detail by
+     * connection, then table.
      *
      * @return void
      */
-    public function testRecordFailureCapturesDetailKeyedByTable(): void
+    public function testRecordFailureCapturesDetailKeyedByConnectionAndTable(): void
     {
         $accumulator = new WritePoolFlushAccumulator;
         $exception   = new \RuntimeException('insert failed');
 
-        $accumulator->recordFailure('orders', [['id' => 1], ['id' => 2]], $exception);
+        $accumulator->recordFailure('main', 'orders', [['id' => 1], ['id' => 2]], $exception);
+        $accumulator->recordFailure('audit', 'orders', [['id' => 3]], $exception);
 
-        $result   = $accumulator->toResult(FlushStrategy::COLLECT);
-        $failures = $result->failures();
+        $result = $accumulator->toResult(FlushStrategy::COLLECT);
 
-        self::assertSame(1, $result->failureCount());
-        self::assertSame(2, $result->failedRecordCount());
-        self::assertArrayHasKey('orders', $failures);
-        self::assertSame([['id' => 1], ['id' => 2]], $failures['orders'][0]['records']);
-        self::assertSame('insert failed', $failures['orders'][0]['exception']);
-        self::assertSame(\RuntimeException::class, $failures['orders'][0]['exception_class']);
+        self::assertSame(2, $result->failureCount());
+        self::assertSame(3, $result->failedRecordCount());
+        self::assertSame([
+            'main' => [
+                'orders' => [
+                    ['records' => [['id' => 1], ['id' => 2]], 'exception' => 'insert failed', 'exception_class' => \RuntimeException::class],
+                ],
+            ],
+            'audit' => [
+                'orders' => [
+                    ['records' => [['id' => 3]], 'exception' => 'insert failed', 'exception_class' => \RuntimeException::class],
+                ],
+            ],
+        ], $result->failures());
     }
 
     /**
@@ -71,8 +80,8 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     {
         $accumulator = new WritePoolFlushAccumulator;
 
-        $accumulator->recordFailure('orders', [['id' => 1], ['id' => 2]], new \RuntimeException);
-        $accumulator->recordFailure('orders', [['id' => 3], ['id' => 4], ['id' => 5]], new \RuntimeException);
+        $accumulator->recordFailure('main', 'orders', [['id' => 1], ['id' => 2]], new \RuntimeException);
+        $accumulator->recordFailure('main', 'orders', [['id' => 3], ['id' => 4], ['id' => 5]], new \RuntimeException);
 
         $result = $accumulator->toResult(FlushStrategy::COLLECT);
 
@@ -81,7 +90,7 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     }
 
     /**
-     * Test that retain merges retained records per table for failedRecords.
+     * Test that retain merges retained records per connection and table.
      *
      * @return void
      */
@@ -89,13 +98,19 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     {
         $accumulator = new WritePoolFlushAccumulator;
 
-        $accumulator->retain('orders', [['id' => 1]]);
-        $accumulator->retain('orders', [['id' => 2]]);
-        $accumulator->retain('payments', [['id' => 9]]);
+        $accumulator->retain('main', 'orders', [['id' => 1]]);
+        $accumulator->retain('main', 'orders', [['id' => 2]]);
+        $accumulator->retain('main', 'payments', [['id' => 9]]);
+        $accumulator->retain('audit', 'orders', [['id' => 4]]);
 
         self::assertSame([
-            'orders'   => [['id' => 1], ['id' => 2]],
-            'payments' => [['id' => 9]],
+            'main' => [
+                'orders'   => [['id' => 1], ['id' => 2]],
+                'payments' => [['id' => 9]],
+            ],
+            'audit' => [
+                'orders' => [['id' => 4]],
+            ],
         ], $accumulator->failedRecords());
     }
 
@@ -120,7 +135,7 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     {
         $accumulator = new WritePoolFlushAccumulator;
 
-        $accumulator->recordFailure('orders', [['id' => 1], ['id' => 2]], new \RuntimeException);
+        $accumulator->recordFailure('main', 'orders', [['id' => 1], ['id' => 2]], new \RuntimeException);
 
         $result = $accumulator->toResult(FlushStrategy::COLLECT, ['orders', 'payments']);
 
@@ -138,7 +153,7 @@ final class WritePoolFlushAccumulatorTest extends TestCase
     {
         $accumulator = new WritePoolFlushAccumulator;
 
-        $accumulator->recordFailure('orders', [['id' => 1], ['id' => 2]], new \RuntimeException);
+        $accumulator->recordFailure('main', 'orders', [['id' => 1], ['id' => 2]], new \RuntimeException);
 
         $result = $accumulator->toResult(FlushStrategy::LOG);
 
@@ -157,7 +172,7 @@ final class WritePoolFlushAccumulatorTest extends TestCase
         $accumulator = new WritePoolFlushAccumulator;
 
         $accumulator->recordSuccess([['id' => 1]]);
-        $accumulator->recordFailure('orders', [['id' => 2]], new \RuntimeException);
+        $accumulator->recordFailure('main', 'orders', [['id' => 2]], new \RuntimeException);
 
         $result = $accumulator->toThrowResult(5, ['orders', 'payments']);
 
@@ -180,8 +195,8 @@ final class WritePoolFlushAccumulatorTest extends TestCase
         $accumulator = new WritePoolFlushAccumulator;
         $first       = new \RuntimeException('first');
 
-        $accumulator->recordFailure('orders', [['id' => 1]], $first);
-        $accumulator->recordFailure('payments', [['id' => 2]], new \RuntimeException('second'));
+        $accumulator->recordFailure('main', 'orders', [['id' => 1]], $first);
+        $accumulator->recordFailure('main', 'payments', [['id' => 2]], new \RuntimeException('second'));
 
         self::assertSame($first, $accumulator->toResult(FlushStrategy::COLLECT)->firstException());
     }
@@ -210,7 +225,7 @@ final class WritePoolFlushAccumulatorTest extends TestCase
         $accumulator = new WritePoolFlushAccumulator;
         $first       = new \RuntimeException('first');
 
-        $accumulator->recordFailure('orders', [['id' => 1]], $first);
+        $accumulator->recordFailure('main', 'orders', [['id' => 1]], $first);
 
         self::assertSame($first, $accumulator->toThrowResult(1)->firstException());
     }

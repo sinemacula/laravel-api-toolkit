@@ -1,0 +1,198 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace SineMacula\ApiToolkit\OpenApi\Builder;
+
+use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ErrorCatalogueMismatchException;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
+
+/**
+ * Builds the components.examples set and the references to it, one example per
+ * error code.
+ *
+ * Each example carries its code's catalogue text, so exceptions sharing a code
+ * share one example.
+ *
+ * @author      Ben Carey <bdmc@sinemacula.co.uk>
+ * @copyright   2026 Sine Macula Limited.
+ */
+final class ErrorExampleBuilder
+{
+    /** The path prefix under which example components are referenced */
+    private const string REFERENCE_PREFIX = '#/components/examples/';
+
+    /** The component name of each per-code error example */
+    private const string NAME_FORMAT = 'Error%d';
+
+    /** The message for a code the error catalogue does not hold */
+    private const string UNCATALOGUED_MESSAGE = 'The error code %d of [%s] is not in the error catalogue; add its namespace to api-toolkit.openapi.exception_namespaces.';
+
+    /** The message for a status the error catalogue documents otherwise */
+    private const string STATUS_MESSAGE = '[%1$s] answers %2$d with error code %3$d, which the error catalogue documents for [%4$s] as %5$d; give [%1$s] its own error code.';
+
+    /** @var array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>|null The catalogue indexed by code, once read. */
+    private ?array $descriptors = null;
+
+    /**
+     * Constructor.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
+     */
+    public function __construct(
+
+        /** The metadata catalogue providing the error catalogue. */
+        private readonly MetadataCatalogue $catalogue,
+    ) {}
+
+    /**
+     * Build the media-type examples entry referencing the exception's example.
+     *
+     * @param  class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>  $exceptionClass
+     * @return array<string, array{'$ref': string}>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ErrorCatalogueMismatchException
+     */
+    public function reference(string $exceptionClass): array
+    {
+        if (!defined($exceptionClass . '::CODE')) {
+            return [];
+        }
+
+        $code       = $exceptionClass::getInternalErrorCode();
+        $status     = $exceptionClass::getHttpStatusCode();
+        $descriptor = $this->descriptors()[$code]
+            ?? throw new ErrorCatalogueMismatchException(sprintf(self::UNCATALOGUED_MESSAGE, $code, $exceptionClass));
+
+        if ($descriptor->httpStatus !== $status) {
+            throw new ErrorCatalogueMismatchException(sprintf(self::STATUS_MESSAGE, $exceptionClass, $status, $code, $descriptor->source, $descriptor->httpStatus));
+        }
+
+        $name = sprintf(self::NAME_FORMAT, $code);
+
+        return [$name => ['$ref' => self::REFERENCE_PREFIX . $name]];
+    }
+
+    /**
+     * Build the components.examples map the paths reference, ordered by code.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @return array<string, array{summary: string, value: array{error: array<string, int|string>}}>
+     */
+    public function build(array $paths): array
+    {
+        $referenced = $this->referencedNames($paths);
+        $examples   = [];
+
+        foreach ($this->descriptors() as $code => $descriptor) {
+
+            $name = sprintf(self::NAME_FORMAT, $code);
+
+            if (!($referenced[$name] ?? false)) {
+                continue;
+            }
+
+            $examples[$name] = $this->example($descriptor);
+        }
+
+        return $examples;
+    }
+
+    /**
+     * Build the example object for an error code from its descriptor.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor  $descriptor
+     * @return array{summary: string, value: array{error: array<string, int|string>}}
+     */
+    private function example(ErrorDescriptor $descriptor): array
+    {
+        return [
+            'summary' => $descriptor->title ?? $descriptor->detail,
+            'value'   => [
+                'error' => array_filter([
+                    'status' => $descriptor->httpStatus,
+                    'code'   => $descriptor->code,
+                    'title'  => $descriptor->title,
+                    'detail' => $descriptor->detail,
+                ], static fn (int|string|null $value): bool => $value !== null),
+            ],
+        ];
+    }
+
+    /**
+     * Collect the example names the paths' media types reference.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @return array<string, true>
+     */
+    private function referencedNames(array $paths): array
+    {
+        $names = [];
+
+        foreach ($this->mediaTypes($paths) as $media) {
+            foreach ($this->arrayAt($media, 'examples') as $example) {
+
+                $reference = is_array($example) ? $example['$ref'] ?? null : null;
+
+                if (!is_string($reference) || !str_starts_with($reference, self::REFERENCE_PREFIX)) {
+                    continue;
+                }
+
+                $names[substr($reference, strlen(self::REFERENCE_PREFIX))] = true;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * Yield every response media type object across the paths' operations.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @return iterable<mixed>
+     */
+    private function mediaTypes(array $paths): iterable
+    {
+        foreach ($paths as $operations) {
+            foreach ($operations as $operation) {
+                foreach ($this->arrayAt($operation, 'responses') as $response) {
+                    yield from $this->arrayAt($response, 'content');
+                }
+            }
+        }
+    }
+
+    /**
+     * Read the array held under a key of a node, empty when either is not one.
+     *
+     * @param  mixed  $node
+     * @param  string  $key
+     * @return array<array-key, mixed>
+     */
+    private function arrayAt(mixed $node, string $key): array
+    {
+        return is_array($node) && is_array($node[$key] ?? null) ? $node[$key] : [];
+    }
+
+    /**
+     * Index the error catalogue by code on first use.
+     *
+     * @return array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>
+     */
+    private function descriptors(): array
+    {
+        if ($this->descriptors === null) {
+
+            $this->descriptors = [];
+
+            foreach ($this->catalogue->getErrorCatalogue() as $descriptor) {
+                $this->descriptors[$descriptor->code] = $descriptor;
+            }
+
+            ksort($this->descriptors);
+        }
+
+        return $this->descriptors;
+    }
+}
