@@ -20,14 +20,19 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Docs\OperationDescriptions;
+use SineMacula\ApiToolkit\OpenApi\Docs\TagList;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\OrphanedDocumentationException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
+use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
@@ -46,6 +51,7 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
+use Tests\Concerns\WritesDocsDirectories;
 use Tests\Fixtures\Enums\SelfDescribingPlan;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Organization;
@@ -79,14 +85,13 @@ use Tests\TestCase;
 #[CoversClass(OpenApiAssembler::class)]
 final class OpenApiAssemblerTest extends TestCase
 {
+    use WritesDocsDirectories;
+
     /** @var array<class-string, class-string> The default resource map. */
     private const array RESOURCE_MAP = [
         User::class         => UserResource::class,
         Organization::class => OrganizationResource::class,
     ];
-
-    /** @var list<string> The temporary docs directories to clean up. */
-    private array $docsDirs = [];
 
     /**
      * Point the docs directory somewhere absent so no manual leaks in.
@@ -99,24 +104,6 @@ final class OpenApiAssemblerTest extends TestCase
         parent::setUp();
 
         $this->config()->set('api-toolkit.openapi.docs_path', sys_get_temp_dir() . '/api-toolkit-absent-' . uniqid('', true));
-    }
-
-    /**
-     * Tear down each test, removing any temporary docs directories.
-     *
-     * @return void
-     */
-    #[\Override]
-    protected function tearDown(): void
-    {
-        foreach ($this->docsDirs as $dir) {
-            array_map('unlink', glob($dir . '/*') ?: []);
-            @rmdir($dir);
-        }
-
-        $this->docsDirs = [];
-
-        parent::tearDown();
     }
 
     /**
@@ -200,9 +187,7 @@ final class OpenApiAssemblerTest extends TestCase
      */
     public function testManualIsAppendedAfterConfiguredDescription(): void
     {
-        $dir = $this->makeDocsDir(['10-intro.md' => "# Intro\n\nWelcome."]);
-
-        $this->config()->set('api-toolkit.openapi.docs_path', $dir);
+        $this->useDocsDirectory(['10-intro.md' => "# Intro\n\nWelcome."]);
         $this->config()->set('api-toolkit.openapi.audiences', [
             'public' => ['info' => ['description' => 'Preface.']],
         ]);
@@ -219,9 +204,7 @@ final class OpenApiAssemblerTest extends TestCase
      */
     public function testManualBecomesDescriptionWhenNoneConfigured(): void
     {
-        $dir = $this->makeDocsDir(['20-body.md' => "# Body\n\nContent."]);
-
-        $this->config()->set('api-toolkit.openapi.docs_path', $dir);
+        $this->useDocsDirectory(['20-body.md' => "# Body\n\nContent."]);
 
         $info = $this->assemble()['info'];
 
@@ -828,24 +811,91 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Create a temporary docs directory seeded with the given files.
+     * Test that nothing configured adds no operationId, summary or top-level
+     * tags.
      *
-     * @param  array<string, string>  $files
-     * @return string
+     * @return void
      */
-    private function makeDocsDir(array $files): string
+    public function testNothingConfiguredAddsNoOperationDocumentation(): void
     {
-        $dir = sys_get_temp_dir() . '/api-toolkit-docs-' . uniqid('', true);
+        $this->registerUserRoutes();
 
-        mkdir($dir);
+        $document = $this->assemble();
 
-        foreach ($files as $name => $contents) {
-            file_put_contents($dir . '/' . $name, $contents);
+        self::assertArrayNotHasKey('tags', $document);
+        self::assertIsArray($document['paths']);
+
+        foreach ($document['paths'] as $operations) {
+            self::assertIsArray($operations);
+
+            foreach ($operations as $operation) {
+                self::assertIsArray($operation);
+                self::assertArrayNotHasKey('operationId', $operation);
+                self::assertArrayNotHasKey('summary', $operation);
+            }
         }
+    }
 
-        $this->docsDirs[] = $dir;
+    /**
+     * Test that an operation description reaches its operation, and the tag
+     * list follows the components.
+     *
+     * @return void
+     */
+    public function testDescriptionsAndTagsReachTheDocument(): void
+    {
+        $this->config()->set('api-toolkit.openapi.operation_ids', true);
+        $this->config()->set('api-toolkit.openapi.tags', ['User']);
 
-        return $dir;
+        $this->useDocsDirectory(['operations/path-fixture.index.md' => 'Lists the users.']);
+        $this->registerUserRoutes();
+
+        $document = $this->assemble();
+
+        self::assertSame('Lists the users.', $document['paths']['/users']['get']['description']);
+        self::assertSame('path-fixture.index', $document['paths']['/users']['get']['operationId']);
+        self::assertSame(['openapi', 'info', 'paths', 'components', 'tags'], array_keys($document));
+        self::assertSame([['name' => 'User']], $document['tags']);
+    }
+
+    /**
+     * Test that one audience's export fails on another audience's orphaned
+     * file.
+     *
+     * @return void
+     */
+    public function testExportFailsOnAnotherAudiencesOrphanedFile(): void
+    {
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => [], 'internal' => []]);
+
+        $dir = $this->useDocsDirectory(['audiences/internal/tags/Ghost.md' => 'Ghost.']);
+
+        $this->registerUserRoutes();
+
+        $this->expectException(OrphanedDocumentationException::class);
+        $this->expectExceptionMessageMatches('/^' . preg_quote(
+            sprintf('The tag description [%s/audiences/internal/tags/Ghost.md] matches no tag in the [internal] audience.', $dir),
+            '/',
+        ) . '$/');
+
+        $this->makeAssembler()->assemble('public');
+    }
+
+    /**
+     * Test that the undeclared default audience's files pass on another
+     * audience's export.
+     *
+     * @return void
+     */
+    public function testUndeclaredDefaultAudiencesFilesPassOnAnotherExport(): void
+    {
+        $this->config()->set('api-toolkit.openapi.audiences', ['internal' => []]);
+
+        $this->useDocsDirectory(['audiences/public/tags/User.md' => 'Accounts.']);
+        $this->registerUserRoutes();
+
+        self::assertSame([['name' => 'User']], $this->makeAssembler()->assemble('internal')['tags']);
+        self::assertSame([['name' => 'User', 'description' => 'Accounts.']], $this->makeAssembler()->assemble()['tags']);
     }
 
     /**
@@ -919,12 +969,7 @@ final class OpenApiAssemblerTest extends TestCase
             new QueryParameterBuilder($catalogue),
             $errors,
             new PathBuilder(
-                $this->router(),
-                $catalogue,
-                new AudienceResolver,
-                new DocumentableRouteFilter,
                 new EnvelopeBuilder,
-                new TagResolver,
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
                 new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
                 new QueryParameterBuilder($catalogue),
@@ -949,6 +994,9 @@ final class OpenApiAssemblerTest extends TestCase
             $definedSchemas,
             new DefinedSchemaBuilder,
             new ErrorExampleBuilder($catalogue),
+            new DocumentedRouteCollector($this->router(), $catalogue, new AudienceResolver, new AudienceConfiguration, new DocumentableRouteFilter, new TagResolver),
+            new OperationDescriptions,
+            new TagList,
         );
     }
 

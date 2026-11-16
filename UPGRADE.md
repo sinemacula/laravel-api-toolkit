@@ -200,8 +200,8 @@ class MyService extends Service
     /** Wrap prepare() + handle() in a database transaction. */
     protected bool $transactional = true;
 
-    /** Number of transaction retry attempts. */
-    protected int $transactionAttempts = 3;
+    /** Transaction attempts; raise it only for a retry-safe service. */
+    protected int $transactionAttempts = 1;
 
     /** Acquire a cache lock around the whole pipeline. */
     protected bool $lockable = false;
@@ -328,18 +328,28 @@ one method:
 public function handle(ServiceContext $context, \Closure $next): mixed;
 ```
 
-Call `$next()` to continue, and return or transform its result:
+Call `$next()` once to continue, and return or transform its result. A concern must not re-invoke `$next` to retry:
+the retry runs inside the same transaction, against the models and state the failed call left behind.
 
 ```php
 use Closure;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
 use SineMacula\ApiToolkit\Services\ServiceContext;
 
-class RetryConcern implements ServiceConcern
+class TimingConcern implements ServiceConcern
 {
     public function handle(ServiceContext $context, Closure $next): mixed
     {
-        return retry(3, $next);
+        $start = hrtime(true);
+
+        try {
+            return $next();
+        } finally {
+            logger()->debug('Service handled.', [
+                'correlation_id' => $context->correlationId,
+                'duration_ms'    => (hrtime(true) - $start) / 1e6,
+            ]);
+        }
     }
 }
 
@@ -347,7 +357,7 @@ class MyService extends Service
 {
     protected function concerns(): array
     {
-        return [RetryConcern::class];
+        return [TimingConcern::class];
     }
 
     protected function handle(): mixed

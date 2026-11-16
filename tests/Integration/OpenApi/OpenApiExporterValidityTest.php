@@ -31,6 +31,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ServerListValidator;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Concerns\WritesDocsDirectories;
 use Tests\Fixtures\Enums\TicketPriority;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
@@ -47,6 +48,7 @@ use Tests\Fixtures\OpenApi\PathHeaderedUserController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathKeyedArrayController;
 use Tests\Fixtures\OpenApi\PathNumericKeyController;
+use Tests\Fixtures\OpenApi\PathOperationController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
@@ -85,6 +87,8 @@ use Tests\TestCase;
 #[CoversClass(ServerListValidator::class)]
 final class OpenApiExporterValidityTest extends TestCase
 {
+    use WritesDocsDirectories;
+
     /** @var string The identifier of the OpenAPI 3.1 meta-schema that also validates every embedded schema. */
     private const string META_SCHEMA_ID = 'https://spec.openapis.org/oas/3.1/schema-base/2022-10-07';
 
@@ -178,6 +182,37 @@ final class OpenApiExporterValidityTest extends TestCase
             $this->validateAgainstMetaSchema($document)->isValid(),
             'A document carrying the docs manual must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
         );
+    }
+
+    /**
+     * Test that a document carrying operation ids, summaries, descriptions and
+     * tags stays valid.
+     *
+     * @return void
+     */
+    public function testDocumentWithOperationDocumentationValidatesAsOpenApiThreeOne(): void
+    {
+        $this->registerUserRoutes();
+        $this->router()->get('widgets/{widget}', [PathOperationController::class, 'show']);
+
+        $this->getConfig()->set('api-toolkit.openapi.operation_ids', true);
+        $this->getConfig()->set('api-toolkit.openapi.tags', ['User']);
+
+        $this->useDocsDirectory([
+            'operations/path-fixture.update.md' => "Replaces the user.\n\nSends a **full** representation.",
+            'operations/widgets.showcase.md'    => 'Shows a widget.',
+            'tags/User.md'                      => 'Accounts and sign-in.',
+        ]);
+
+        $document = $this->export()->document;
+        $user     = $document['paths']['/users/{user}'];
+        $result   = $this->validateAgainstMetaSchema($document);
+
+        self::assertSame('path-fixture.update.patch', $user['patch']['operationId']);
+        self::assertSame("Replaces the user.\n\nSends a **full** representation.", $user['patch']['description']);
+        self::assertSame('Show a widget', $document['paths']['/widgets/{widget}']['get']['summary']);
+        self::assertSame([['name' => 'User', 'description' => 'Accounts and sign-in.'], ['name' => 'PathOperation']], $document['tags']);
+        self::assertTrue($result->isValid(), 'A document carrying operation documentation must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
     }
 
     /**

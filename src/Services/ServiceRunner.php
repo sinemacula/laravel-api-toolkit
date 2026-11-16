@@ -129,6 +129,7 @@ final class ServiceRunner
         $core = $this->wrapConcerns($core, $hooks['concerns'], $context);
 
         if ($hooks['transactional']) {
+            $this->guardTransactionAttempts($hooks['transactionAttempts']);
             $core = $this->wrapTransaction($core, $hooks['transactionAttempts']);
         }
 
@@ -185,6 +186,21 @@ final class ServiceRunner
         $class = TransactionStage::class;
 
         return fn (): mixed => app($class)->wrap($core, $attempts);
+    }
+
+    /**
+     * Guard that a transactional service attempts its transaction.
+     *
+     * @param  int  $attempts
+     * @return void
+     *
+     * @throws \LogicException
+     */
+    private function guardTransactionAttempts(int $attempts): void
+    {
+        if ($attempts < 1) {
+            throw new \LogicException(sprintf('Service is transactional but $transactionAttempts is %d; it must be at least 1.', $attempts));
+        }
     }
 
     /**

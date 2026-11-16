@@ -737,6 +737,59 @@ that already carry the resource's schema:
 php artisan api-toolkit:docs:generate
 ```
 
+#### Operation Ids, Summaries and Descriptions
+
+Set `api-toolkit.openapi.operation_ids` to `true` to export an `operationId` on every operation. The id is the first
+of:
+
+1. the `id` of the action's `#[Operation]`;
+2. the route name, unless it is empty, `'0'`, ends in `.`, or contains `generated::`, the marker `route:cache` names
+   unnamed routes with. A name ending in `.` is the bare prefix of a `->name('admin.')` group and is never an id;
+3. for a controller, its basename without `Controller` and the action, kebab-cased with acronyms kept whole:
+   `APIKeyController@showAll` gives `api-key.show-all`, and an invokable `APIKeyController` gives `api-key`;
+4. for a closure, the method and the path segments without braces: `GET /users/{user}/avatar` gives
+   `get.users.user.avatar`.
+
+A route with several methods keeps the id on its first method and appends each later method to it, in the order the
+route declares them: a `PUT|PATCH` route named `users.update` exports `users.update` and `users.update.patch`, so
+reordering a `match()` changes its ids. An id taken from the method and path already starts with its method, and is not
+suffixed. Ids must be unique across every audience; two operations claiming one id fail the export, naming both.
+
+`#[Operation]` declares an action's `id`, its `summary`, or both. The summary is exported whether or not ids are on:
+
+```php
+use SineMacula\ApiToolkit\OpenApi\Attributes\Operation;
+
+#[Operation(summary: 'Update a user')]
+public function update(UpdateUserRequest $request): JsonResponse {}
+```
+
+An operation's description is read from `<docs_path>/operations/<id>.md`, and `audiences/<name>/operations/<id>.md`
+replaces it for that audience; an empty file blanks it. A later method without its own file takes the first method's, so
+`users.update.md` describes both methods unless `users.update.patch.md` exists. Filenames are matched byte for byte, so
+ids differing only in case cannot share a case-insensitive filesystem. Files and directories whose names start with `.`
+are ignored. Every export checks the files of every audience, and fails on an operation file while ids are off, on one
+matching no exported operation, and on one under the directory of an audience that is not configured.
+
+#### Tags
+
+An operation's tag is the action's `#[Tag]`, else its controller's, else the resource's schema name. Failing those, a
+controller route takes the controller basename without `Controller`, and a closure the first URI segment that is not a
+parameter, else `default`.
+
+The document carries a top-level `tags` list once `api-toolkit.openapi.tags` names a tag or a `tags/` directory, shared
+or an audience's, holds a file. It lists the tags the audience's operations use: those named in
+`api-toolkit.openapi.tags` first, in that order, then the rest in natural, case-insensitive order:
+
+```php
+'tags' => ['User', 'Article'],
+```
+
+A tag's description is read from `<docs_path>/tags/<Tag>.md`, with the same per-audience override. In a filename,
+`%`, `/`, `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|`, control characters and a leading `.` are written as `%XX`, so
+`Admin/Users` reads `tags/Admin%2FUsers.md`; everything else, spaces included, is kept. A configured tag that no
+audience uses fails the export, as does a tag file that matches no tag, under the same rules as operation files.
+
 ### Metadata Invalidation
 
 Schema metadata (column listings and definitions, index catalogues, cast maps, relation lookups and the
@@ -844,6 +897,51 @@ lifecycle events.
 captured exception, so the worker retries it per `--tries` and `--backoff` and finally records it in the failed job
 store. Each attempt runs the whole lifecycle, firing `onFailure()` and `ServiceFailed` every time it fails. On the
 `sync` connection there is no worker to retry, so the failure is thrown to the dispatching code.
+
+#### Transactions
+
+`$transactional` (default `true`) wraps the concerns, `prepare()` and `handle()` in a database transaction, and
+`afterCommit()` runs once the service's own transaction has committed. The transaction runs once: a deadlock or other
+concurrency error rolls it back and fails the run, firing `onFailure()` and `ServiceFailed`.
+
+`$transactionAttempts` (default `1`) lets a top-level run retry a concurrency error. Each retry re-runs the concerns,
+`prepare()` and `handle()` in full, but the rollback resets only the database: a model saved by the failed attempt still
+looks saved, so the retry can skip its write and report success. A service nested in another transaction never retries;
+it fails with a `DeadlockException`. On a transactional service a value below `1` fails the run with a `LogicException`.
+A service that sets it above `1` must:
+
+1. Load every model it writes inside the transaction, in `prepare()` or `handle()`, from keys in the input
+   (`Order::query()->lockForUpdate()->findOrFail($this->input->orderId)`). Never write a model carried by the input or
+   loaded in `authorize()` or `validate()`.
+2. Keep no attempt-local state on the service, its concerns (which may be container singletons) or stateful observers,
+   or reset it before its first use in each attempt. Concerns run before `prepare()`, so resetting in `prepare()` only
+   covers state first used there or in `handle()`.
+3. Do non-database work in `afterCommit()`, or register it inside the attempt with `DB::afterCommit()` or an
+   after-commit job. Laravel discards the callbacks a rolled-back attempt registered, so never guard registration with a
+   flag that outlives the attempt.
+
+```php
+final class ShipOrder extends Service
+{
+    protected int $transactionAttempts = 3;
+
+    protected function handle(): mixed
+    {
+        $order = Order::query()->lockForUpdate()->findOrFail($this->input->orderId);
+
+        $order->update(['status' => 'shipped']);
+
+        DB::afterCommit(fn () => OrderShipped::dispatch($order));
+
+        return $order;
+    }
+}
+```
+
+For any other service, retry the call rather than the transaction: run `Service::make(...)->run()` again with fresh
+input, or `dispatch()` it and let the worker retry per `--tries`. Each worker attempt starts from the dispatch-time
+input rather than the previous attempt's models, but models nested in an `ArrayInput` or `Payload` are not re-fetched,
+so pass keys and keep external effects idempotent.
 
 #### Reading the Run Context
 
