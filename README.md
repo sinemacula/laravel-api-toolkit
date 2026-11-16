@@ -801,8 +801,8 @@ concurrency error rolls it back and fails the run, firing `onFailure()` and `Ser
 `$transactionAttempts` (default `1`) lets a top-level run retry a concurrency error. Each retry re-runs the concerns,
 `prepare()` and `handle()` in full, but the rollback resets only the database: a model saved by the failed attempt still
 looks saved, so the retry can skip its write and report success. A service nested in another transaction never retries;
-it fails with a `DeadlockException`. A value below `1` fails the run with a `LogicException`. A service that raises it
-must:
+it fails with a `DeadlockException`. On a transactional service a value below `1` fails the run with a `LogicException`.
+A service that sets it above `1` must:
 
 1. Load every model it writes inside the transaction, in `prepare()` or `handle()`, from keys in the input
    (`Order::query()->lockForUpdate()->findOrFail($this->input->orderId)`). Never write a model carried by the input or

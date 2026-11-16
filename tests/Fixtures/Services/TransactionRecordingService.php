@@ -32,14 +32,14 @@ final class TransactionRecordingService extends Service
      * Constructor.
      *
      * @param  \Closure(): mixed  $body
-     * @param  int  $attempts
+     * @param  int|null  $attempts
      */
-    public function __construct(\Closure $body, int $attempts = 1)
+    public function __construct(\Closure $body, ?int $attempts = null)
     {
         parent::__construct(new ArrayInput([]));
 
         $this->body                = $body;
-        $this->transactionAttempts = $attempts;
+        $this->transactionAttempts = $attempts ?? $this->transactionAttempts;
     }
 
     /**
