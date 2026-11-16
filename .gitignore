@@ -18,6 +18,7 @@ composer.lock
 /.editorconfig-checker.json
 /.markdownlint.json
 /.yamllint.yaml
+/trivy.yaml
 
 # Exported OpenAPI spec artifacts and stray test temp output - generated on
 # demand by the export command, never committed.
