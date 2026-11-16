@@ -7,6 +7,7 @@ namespace Tests\Unit\Console;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -84,16 +85,19 @@ final class MakeResourceCommandTest extends TestCase
 
     /**
      * Test that the command writes a resource bound to the model that declares
-     * only the model key.
+     * only the model key, with no warning or note under the default paths.
      *
      * @return void
      */
     public function testWritesAResourceExposingOnlyTheModelKey(): void
     {
-        $this->pendingArtisan(self::COMMAND, ['name' => 'PostResource', '--model' => Post::class])
-            ->expectsOutputToContain('created successfully')
-            ->assertExitCode(0)
-            ->run();
+        self::assertSame(0, Artisan::call(self::COMMAND, ['name' => 'PostResource', '--model' => Post::class]));
+
+        $output = Artisan::output();
+
+        self::assertStringContainsString('created successfully', $output);
+        self::assertSame(1, substr_count($output, 'INFO'));
+        self::assertSame(0, substr_count($output, 'WARN'));
 
         self::assertSame(<<<'PHP'
             <?php
