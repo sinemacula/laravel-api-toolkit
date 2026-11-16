@@ -45,6 +45,9 @@ final class SchemaCompiler
     /**
      * Clear all cached compiled schemas.
      *
+     * Compiled schemas live for the worker, so a lifecycle flush leaves them;
+     * this is for test isolation.
+     *
      * @return void
      */
     public static function clearCache(): void

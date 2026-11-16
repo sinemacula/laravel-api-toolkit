@@ -249,6 +249,12 @@ Only fields marked `filterable()` or `sortable()` can be queried, and `?search=`
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. `$default` lists the fields
 returned when the client sends no `?fields`.
 
+**Schema lifetime** - `schema()` runs once per resource class per worker, and its result is shared by every request
+the worker serves, under Octane and on queue workers alike. It must not read or capture the request, the user, the
+tenant, the query parser, the clock or runtime config, and the closures it declares must not retain them. Read
+per-request values when a closure runs instead: guards, accessors and compute closures receive the resource and the
+request, constraints the query, and transformers the resource and the value.
+
 **Declared column reads** - `needs()` names the base-table columns a field reads. Declare it on any field whose value
 does not come straight from the column of the same name, such as one over an Eloquent accessor or custom cast, or an
 accessor closure:
@@ -899,10 +905,17 @@ audience uses fails the export, as does a tag file that matches no tag, under th
 
 Schema metadata (column listings and definitions, index catalogues, relation lookups and the
 model-to-resource map) is cached in the application's cache store and shared by every process. The Octane and queue
-boundary flushes reset only each worker's in-process state, so a schema or mapping change needs the shared entries
+boundary flushes reset only each worker's per-operation state, so a schema or mapping change needs the shared entries
 retired explicitly. Every metadata key is stored under a generation held in the same store; replacing the generation
 makes every earlier entry unreachable in every process at once. A column listing that reads empty, as it does before
 its table exists, is never stored.
+
+Under Octane the boundary is the end of every request, task and tick; on a queue worker it is the end of every job
+attempt, including one that fails or is released for a retry. It drops the memoised generation, the per-operation
+index proofs, the in-memory column listings, column definitions and index catalogues, the field and eager-load memos
+and the query parser's state. The compiled schemas, search plans, field-to-column maps and cast reflections come from
+code alone, so they live for the worker and are rebuilt only when it restarts; reload Octane and queue workers on
+every deploy. An application that runs its own reset can call `CacheManager::flush()`; a second reset is harmless.
 
 Entries are stored as arrays and scalars, never objects, so the cache works under Laravel's default
 `cache.serializable_classes => false`. An entry that does not read back in the expected shape is treated as a miss

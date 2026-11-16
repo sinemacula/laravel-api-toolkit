@@ -112,38 +112,6 @@ final class RuntimeContextTest extends TestCase
     }
 
     /**
-     * Test that the no-connection check detects a worker from the running
-     * command, not the default queue driver.
-     *
-     * @return void
-     */
-    public function testIsServingAsQueueWorkerDetectsTheWorkerCommand(): void
-    {
-        Config::set('queue.default', 'database');
-        Config::set('queue.connections.database', ['driver' => 'database']);
-
-        $context = new RuntimeContext;
-        $argv    = $_SERVER['argv'] ?? null;
-
-        try {
-            $_SERVER['argv'] = ['artisan', 'queue:work', 'redis'];
-            self::assertTrue($context->isServingAsQueueWorker(null));
-
-            $_SERVER['argv'] = ['artisan', 'queue:listen'];
-            self::assertTrue($context->isServingAsQueueWorker(null));
-
-            $_SERVER['argv'] = ['artisan', 'route:list'];
-            self::assertFalse($context->isServingAsQueueWorker(null));
-        } finally {
-            if ($argv === null) {
-                unset($_SERVER['argv']);
-            } else {
-                $_SERVER['argv'] = $argv;
-            }
-        }
-    }
-
-    /**
      * Test that isServingAsQueueWorker returns false when the connection driver
      * cannot be resolved.
      *
@@ -157,31 +125,46 @@ final class RuntimeContextTest extends TestCase
     }
 
     /**
-     * Test that a process with an unreadable argument list is not taken for a
-     * queue worker.
+     * Test that a connection with an empty or non-string driver is not taken
+     * for a queue worker.
      *
      * @return void
      */
-    public function testAnUnreadableArgumentListIsNotTakenForAQueueWorker(): void
+    public function testIsServingAsQueueWorkerReturnsFalseForAnUnusableDriver(): void
     {
+        Config::set('queue.connections.blank', ['driver' => '']);
+        Config::set('queue.connections.numeric', ['driver' => 1]);
+
         $context = new RuntimeContext;
-        $argv    = $_SERVER['argv'] ?? null;
 
-        try {
-            $_SERVER['argv'] = 'queue:work';
-            self::assertFalse($context->isServingAsQueueWorker());
+        self::assertFalse($context->isServingAsQueueWorker('blank'));
+        self::assertFalse($context->isServingAsQueueWorker('numeric'));
+    }
 
-            unset($_SERVER['argv']);
-            self::assertFalse($context->isServingAsQueueWorker());
+    /**
+     * Test that a job without a connection name is judged by the default
+     * connection, and by none when the default is not a name.
+     *
+     * @return void
+     */
+    public function testIsServingAsQueueWorkerFallsBackToTheDefaultConnection(): void
+    {
+        Config::set('queue.connections.database', ['driver' => 'database']);
+        Config::set('queue.connections.sync', ['driver' => 'sync']);
 
-            $_SERVER['argv'] = ['artisan', 'queue:work'];
-            self::assertTrue($context->isServingAsQueueWorker());
-        } finally {
-            if ($argv === null) {
-                unset($_SERVER['argv']);
-            } else {
-                $_SERVER['argv'] = $argv;
-            }
-        }
+        $context = new RuntimeContext;
+
+        Config::set('queue.default', 'database');
+        self::assertTrue($context->isServingAsQueueWorker(null));
+
+        Config::set('queue.default', 'sync');
+        self::assertFalse($context->isServingAsQueueWorker(null));
+
+        Config::set('queue.default', null);
+        self::assertFalse($context->isServingAsQueueWorker(null));
+
+        Config::set('queue.connections.1', ['driver' => 'database']);
+        Config::set('queue.default', 1);
+        self::assertFalse($context->isServingAsQueueWorker(null));
     }
 }
