@@ -34,7 +34,7 @@ final readonly class CacheManager
 
     /**
      * Retire the shared metadata by advancing its generation, then flush this
-     * process's caches.
+     * process's per-operation state.
      *
      * @return void
      *

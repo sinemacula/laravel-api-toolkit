@@ -86,7 +86,7 @@ final class QueueAttemptFlushTest extends TestCase
     public static function finalAttemptProvider(): iterable
     {
         yield 'deleted job' => [ParsingJob::DELETE, false];
-        yield 'job over its max attempts' => [ParsingJob::THROW, true];
+        yield 'job throwing on its last attempt' => [ParsingJob::THROW, true];
         yield 'job failing itself' => [ParsingJob::FAIL, true];
     }
 
@@ -116,5 +116,31 @@ final class QueueAttemptFlushTest extends TestCase
         self::assertNotNull(ParsingJob::$parser);
         self::assertNull(ParsingJob::$parser->getFields());
         self::assertSame($fails ? 1 : 0, DB::connection('queue_probe')->table('failed_jobs')->count());
+    }
+
+    /**
+     * Test that a job already over its max attempts when reserved, as after a
+     * worker crash, flushes once after the failure listeners ran.
+     *
+     * @return void
+     */
+    public function testJobAlreadyOverItsMaxAttemptsFlushesOnceAfterTheFailureListeners(): void
+    {
+        $seen = [];
+
+        Queue::failing(function () use (&$seen): void {
+            $seen[] = $this->flushes;
+        });
+
+        Queue::push(new ParsingJob(ParsingJob::THROW));
+
+        DB::connection('queue_probe')->table('jobs')->update(['attempts' => 1]);
+
+        $this->workOnce(1);
+
+        self::assertSame([0], $seen);
+        self::assertSame(1, $this->flushes);
+        self::assertNull(ParsingJob::$parser);
+        self::assertSame(1, DB::connection('queue_probe')->table('failed_jobs')->count());
     }
 }

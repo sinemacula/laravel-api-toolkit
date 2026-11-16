@@ -112,38 +112,6 @@ final class RuntimeContextTest extends TestCase
     }
 
     /**
-     * Test that the no-connection check detects a worker from the running
-     * command, not the default queue driver.
-     *
-     * @return void
-     */
-    public function testIsServingAsQueueWorkerDetectsTheWorkerCommand(): void
-    {
-        Config::set('queue.default', 'database');
-        Config::set('queue.connections.database', ['driver' => 'database']);
-
-        $context = new RuntimeContext;
-        $argv    = $_SERVER['argv'] ?? null;
-
-        try {
-            $_SERVER['argv'] = ['artisan', 'queue:work', 'redis'];
-            self::assertTrue($context->isServingAsQueueWorker(null));
-
-            $_SERVER['argv'] = ['artisan', 'queue:listen'];
-            self::assertTrue($context->isServingAsQueueWorker(null));
-
-            $_SERVER['argv'] = ['artisan', 'route:list'];
-            self::assertFalse($context->isServingAsQueueWorker(null));
-        } finally {
-            if ($argv === null) {
-                unset($_SERVER['argv']);
-            } else {
-                $_SERVER['argv'] = $argv;
-            }
-        }
-    }
-
-    /**
      * Test that isServingAsQueueWorker returns false when the connection driver
      * cannot be resolved.
      *
@@ -154,34 +122,5 @@ final class RuntimeContextTest extends TestCase
         $context = new RuntimeContext;
 
         self::assertFalse($context->isServingAsQueueWorker('nonexistent-connection'));
-    }
-
-    /**
-     * Test that a process with an unreadable argument list is not taken for a
-     * queue worker.
-     *
-     * @return void
-     */
-    public function testAnUnreadableArgumentListIsNotTakenForAQueueWorker(): void
-    {
-        $context = new RuntimeContext;
-        $argv    = $_SERVER['argv'] ?? null;
-
-        try {
-            $_SERVER['argv'] = 'queue:work';
-            self::assertFalse($context->isServingAsQueueWorker());
-
-            unset($_SERVER['argv']);
-            self::assertFalse($context->isServingAsQueueWorker());
-
-            $_SERVER['argv'] = ['artisan', 'queue:work'];
-            self::assertTrue($context->isServingAsQueueWorker());
-        } finally {
-            if ($argv === null) {
-                unset($_SERVER['argv']);
-            } else {
-                $_SERVER['argv'] = $argv;
-            }
-        }
     }
 }

@@ -343,7 +343,8 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that registering on a serving runtime logs nothing.
+     * Test that registering on a serving runtime logs nothing, even when a
+     * published config still carries the removed lifecycle switches.
      *
      * @return void
      */
@@ -351,20 +352,13 @@ final class LifecycleRegistrarTest extends TestCase
     {
         $_SERVER['LARAVEL_OCTANE'] = 1;
 
-        $argv            = $_SERVER['argv'] ?? null;
-        $_SERVER['argv'] = ['artisan', 'queue:work'];
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $this->getApplication()->make('config');
+        $config->set('api-toolkit.lifecycle', ['octane' => false, 'queue' => false, 'migrations' => true]);
 
         Log::shouldReceive('info')->never();
 
-        try {
-            (new LifecycleRegistrar)->register();
-        } finally {
-            if ($argv === null) {
-                unset($_SERVER['argv']);
-            } else {
-                $_SERVER['argv'] = $argv;
-            }
-        }
+        (new LifecycleRegistrar)->register();
     }
 
     /**
