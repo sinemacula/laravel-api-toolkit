@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Console;
 
 use Illuminate\Console\Command;
+use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\Introspection\CatalogueProbe;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationReport;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
@@ -45,12 +46,29 @@ final class ValidateSchemasCommand extends Command
             return $this->reportEmptyMap();
         }
 
-        $report = $validator->report($resourceMap);
+        $report = $this->validate($validator, $resourceMap);
 
         $this->reportErrors($report);
         $this->reportUnverified($report);
 
         return $report->errors === [] ? $this->conclude($report) : self::FAILURE;
+    }
+
+    /**
+     * Validate the resource map, reporting a raw schema the compiler refuses as
+     * its defects.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\Validation\SchemaValidator  $validator
+     * @param  array<class-string<\Illuminate\Database\Eloquent\Model>, class-string>  $resourceMap
+     * @return \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationReport
+     */
+    private function validate(SchemaValidator $validator, array $resourceMap): SchemaValidationReport
+    {
+        try {
+            return $validator->report($resourceMap);
+        } catch (InvalidSchemaException $exception) {
+            return new SchemaValidationReport($exception->getErrors(), [], count($resourceMap));
+        }
     }
 
     /**
@@ -70,9 +88,6 @@ final class ValidateSchemasCommand extends Command
         }
 
         if ($this->option('allow-unverified') !== true) {
-
-            $this->components->error('Run against a migrated database the application can reach, or pass --allow-unverified.');
-
             return self::FAILURE;
         }
 
@@ -123,7 +138,7 @@ final class ValidateSchemasCommand extends Command
 
     /**
      * Report every unverified declaration, grouped under why its model's
-     * catalogue could not be read.
+     * catalogue could not be read, then how to clear them.
      *
      * @param  \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationReport  $report
      * @return void
@@ -143,6 +158,12 @@ final class ValidateSchemasCommand extends Command
             $this->line(sprintf('  %s: %s', $modelClass, $probe->describe(new $modelClass)));
             $this->components->bulletList(array_map($this->describeDeclaration(...), $declarations));
         }
+
+        if ($this->option('allow-unverified') === true) {
+            return;
+        }
+
+        $this->components->error('Run against a migrated database the application can reach, or pass --allow-unverified.');
     }
 
     /**

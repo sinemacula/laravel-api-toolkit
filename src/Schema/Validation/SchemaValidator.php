@@ -54,6 +54,8 @@ final readonly class SchemaValidator
      *
      * @param  array<class-string, class-string>  $resourceMap
      * @return \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationReport
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function report(array $resourceMap): SchemaValidationReport
     {

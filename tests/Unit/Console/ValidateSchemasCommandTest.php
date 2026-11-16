@@ -30,6 +30,7 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BrokenResource;
 use Tests\Fixtures\Resources\CatalogueRowResource;
 use Tests\Fixtures\Resources\UnbackedQueryableResource;
+use Tests\Fixtures\Resources\UncompilableResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -121,6 +122,26 @@ final class ValidateSchemasCommandTest extends TestCase
             ->expectsOutputToContain('Schema validation failed:')
             ->expectsOutputToContain('does not exist')
             ->assertExitCode(1);
+    }
+
+    /**
+     * Test that a raw schema the compiler refuses is reported as a defect, not
+     * thrown.
+     *
+     * @return void
+     */
+    public function testCommandReportsARawSchemaDefectAsAFailure(): void
+    {
+        SchemaCompiler::clearCache();
+
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => UncompilableResource::class,
+        ]);
+
+        $output = $this->outputOf(1);
+
+        self::assertStringContainsString('Schema validation failed:', $output);
+        self::assertStringContainsString('[' . UncompilableResource::class . '] Field "name": Guard at index 0 is not callable', $output);
     }
 
     /**
@@ -236,6 +257,25 @@ final class ValidateSchemasCommandTest extends TestCase
             ->doesntExpectOutputToContain('were not verified')
             ->doesntExpectOutputToContain('Run against a migrated database')
             ->assertExitCode(1);
+    }
+
+    /**
+     * Test that a defect beside an unverified declaration still names how to
+     * clear the unverified one.
+     *
+     * @return void
+     */
+    public function testCommandNamesHowToClearAnUnverifiedDeclarationBesideADefect(): void
+    {
+        $this->useFindings([
+            new SchemaValidationError(UserResource::class, 'id', 'Test defect'),
+            new UnverifiedDeclaration(UserResource::class, 'name', 'a claim', User::class),
+        ]);
+
+        $output = $this->outputOf(1);
+
+        self::assertStringContainsString('Schema validation failed:', $output);
+        self::assertStringContainsString('Run against a migrated database the application can reach, or pass --allow-unverified.', $output);
     }
 
     /**

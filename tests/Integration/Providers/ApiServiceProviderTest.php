@@ -683,6 +683,8 @@ final class ApiServiceProviderTest extends TestCase
     {
         yield 'bare' => [['artisan', 'api-toolkit:validate-schemas']];
         yield 'with an environment' => [['artisan', '--env', 'ci', 'api-toolkit:validate-schemas']];
+        yield 'with an inline environment' => [['artisan', '--env=ci', 'api-toolkit:validate-schemas']];
+        yield 'with options around it' => [['artisan', '-v', 'api-toolkit:validate-schemas', '--allow-unverified']];
     }
 
     /**
