@@ -258,7 +258,8 @@ return [
     | your own traffic; 0 or null disables a cap.
     |
     | `max_bytes`       - byte length of the filter document.
-    | `max_parse_depth` - nested object levels in the filter document.
+    | `max_parse_depth` - levels the filter document nests, objects and lists
+    |                     alike.
     | `max_depth`       - levels the filter dispatcher descends; a logical group
     |                     or a relation subquery is one level.
     | `max_nodes`       - total filter keys visited.
@@ -380,10 +381,9 @@ return [
     /*
     | Cache lifecycle
     |
-    | `octane` and `queue` reset the toolkit's in-process caches after every
-    | Octane operation or queue job, so long-lived workers do not grow and pick
-    | up invalidations made elsewhere. They only engage when actually serving
-    | under Octane or a non-sync queue worker.
+    | Under Octane and on a non-sync queue worker, the toolkit's per-operation
+    | state is reset after every Octane operation and queue job attempt, so
+    | long-lived workers do not grow and pick up invalidations made elsewhere.
     |
     | `migrations` invalidates the cached schema metadata whenever a migration
     | run applies or rolls back a migration. Old-code workers can refill it
@@ -392,10 +392,6 @@ return [
     */
 
     'lifecycle' => [
-
-        'octane' => env('API_TOOLKIT_LIFECYCLE_OCTANE', true),
-
-        'queue' => env('API_TOOLKIT_LIFECYCLE_QUEUE', true),
 
         'migrations' => env('API_TOOLKIT_LIFECYCLE_MIGRATIONS', true),
 

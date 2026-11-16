@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\PostResource;
@@ -221,6 +222,75 @@ final class SchemaValidatorTest extends TestCase
             self::assertCount(2, $exception->getErrors());
             self::assertSame($userError, $exception->getErrors()[0]);
             self::assertSame($postError, $exception->getErrors()[1]);
+        }
+    }
+
+    /**
+     * Test that the report keeps unverified declarations apart from defects, in
+     * order, and counts every resource validated.
+     *
+     * @return void
+     */
+    public function testReportPartitionsTheFindingsAndCountsTheResources(): void
+    {
+        $userError  = new SchemaValidationError(UserResource::class, 'id', 'User defect');
+        $userClaim  = new UnverifiedDeclaration(UserResource::class, 'name', 'a claim', User::class);
+        $postError  = new SchemaValidationError(PostResource::class, 'title', 'Post defect');
+        $postClaim  = new UnverifiedDeclaration(PostResource::class, 'body', 'another claim', Post::class);
+        $byResource = [UserResource::class => [$userClaim, $userError], PostResource::class => [$postError, $postClaim]];
+
+        $rule = self::createStub(SchemaValidationRule::class);
+
+        $rule->method('validate')
+            ->willReturnCallback(static fn (string $resourceClass): array => $byResource[$resourceClass]);
+
+        $report = (new SchemaValidator($rule))->report([
+            User::class => UserResource::class,
+            Post::class => PostResource::class,
+        ]);
+
+        self::assertSame([$userError, $postError], $report->errors);
+        self::assertSame([$userClaim, $postClaim], $report->unverified);
+        self::assertSame(2, $report->resourceCount);
+    }
+
+    /**
+     * Test that an unverified declaration alone does not fail validation.
+     *
+     * @return void
+     */
+    public function testValidateDoesNotThrowForAnUnverifiedDeclaration(): void
+    {
+        $rule = self::createStub(SchemaValidationRule::class);
+
+        $rule->method('validate')
+            ->willReturn([new UnverifiedDeclaration(UserResource::class, 'name', 'a claim', User::class)]);
+
+        (new SchemaValidator($rule))->validate([User::class => UserResource::class]);
+
+        $this->expectNotToPerformAssertions();
+    }
+
+    /**
+     * Test that the exception carries the defects only, never an unverified
+     * declaration.
+     *
+     * @return void
+     */
+    public function testValidateThrowsWithTheDefectsOnly(): void
+    {
+        $error = new SchemaValidationError(UserResource::class, 'id', 'Test defect');
+
+        $rule = self::createStub(SchemaValidationRule::class);
+
+        $rule->method('validate')
+            ->willReturn([new UnverifiedDeclaration(UserResource::class, 'name', 'a claim', User::class), $error]);
+
+        try {
+            (new SchemaValidator($rule))->validate([User::class => UserResource::class]);
+            self::fail('Expected InvalidSchemaException was not thrown');
+        } catch (InvalidSchemaException $exception) {
+            self::assertSame([$error], $exception->getErrors());
         }
     }
 }

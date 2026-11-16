@@ -896,6 +896,22 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
+     * Test that after a merge the explicit map holds the configured entries
+     * without the bindings the merge contributed.
+     *
+     * @return void
+     */
+    public function testExplicitMapExcludesTheBindingsAMergeContributed(): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary')]);
+        Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+
+        $this->discovery()->merge();
+
+        self::assertSame([User::class => UserResource::class], $this->discovery()->explicitMap());
+    }
+
+    /**
      * Resolve the discovery service from the container.
      *
      * @return \SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery

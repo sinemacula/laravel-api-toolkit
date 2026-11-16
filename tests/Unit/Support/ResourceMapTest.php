@@ -51,8 +51,8 @@ final class ResourceMapTest extends TestCase
     }
 
     /**
-     * Provide bindings that do not bind an existing model to an existing
-     * resource, with the reported binding.
+     * Provide bindings that do not bind an existing Eloquent model to an
+     * existing resource, with the reported binding.
      *
      * @return iterable<string, array{array<array-key, mixed>, string}>
      */
@@ -60,12 +60,13 @@ final class ResourceMapTest extends TestCase
     {
         yield 'list entry' => [[UserResource::class], '0 => ' . UserResource::class];
         yield 'missing model' => [['Tests\Fixtures\Models\Missing' => UserResource::class], 'Tests\Fixtures\Models\Missing => ' . UserResource::class];
+        yield 'class that is not a model' => [[PostResource::class => UserResource::class], PostResource::class . ' => ' . UserResource::class];
         yield 'missing resource' => [[User::class => 'Tests\Fixtures\Resources\Missing'], User::class . ' => Tests\Fixtures\Resources\Missing'];
         yield 'non-string resource' => [[User::class => 1], User::class . ' => int'];
     }
 
     /**
-     * Test that a binding naming no class on either side fails loud, naming the
+     * Test that a binding naming no model or no resource fails loud, naming the
      * binding.
      *
      * @param  array<array-key, mixed>  $map
@@ -73,12 +74,12 @@ final class ResourceMapTest extends TestCase
      * @return void
      */
     #[DataProvider('invalidBindingProvider')]
-    public function testConfiguredRefusesABindingNamingNoClass(array $map, string $binding): void
+    public function testConfiguredRefusesABindingNamingNoModelOrResource(array $map, string $binding): void
     {
         Config::set('api-toolkit.resources.resource_map', $map);
 
         $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage(sprintf('The resource map must bind an existing model class to an existing resource class, [%s] given', $binding));
+        $this->expectExceptionMessage(sprintf('The resource map must bind an existing Eloquent model class to an existing resource class, [%s] given', $binding));
 
         ResourceMap::configured();
     }

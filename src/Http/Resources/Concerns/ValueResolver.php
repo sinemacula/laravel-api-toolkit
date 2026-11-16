@@ -28,9 +28,6 @@ final class ValueResolver
     /** @var array<string, array<string, bool>> Cast-accessor reflection results, keyed by [class][field] */
     private static array $castAccessorCache = [];
 
-    /** @var \WeakMap<\SineMacula\ApiToolkit\Schema\CompiledFieldDefinition, array<int, string>|null>|null Resolved child field sets, keyed by compiled definition */
-    private static ?\WeakMap $relationFieldsCache = null;
-
     /** @var bool Whether the last resolved field cut its related collection */
     private bool $truncated = false;
 
@@ -46,14 +43,16 @@ final class ValueResolver
     ) {}
 
     /**
-     * Clear the static serialization memo caches.
+     * Clear the cast-accessor reflection memo.
+     *
+     * The memo lives for the worker, so a lifecycle flush leaves it; this is
+     * for test isolation.
      *
      * @return void
      */
     public static function clearCache(): void
     {
-        self::$castAccessorCache   = [];
-        self::$relationFieldsCache = null;
+        self::$castAccessorCache = [];
     }
 
     /**
@@ -400,21 +399,13 @@ final class ValueResolver
      */
     private function getRelationFields(CompiledFieldDefinition $definition): ?array
     {
-        self::$relationFieldsCache ??= new \WeakMap;
-
-        if (isset(self::$relationFieldsCache[$definition])) {
-            return self::$relationFieldsCache[$definition];
-        }
-
         $fields = $definition->fields;
 
-        if (is_array($fields)) {
-            $fields = array_values(array_filter($fields, static fn ($f) => is_string($f) && $f !== '')); // @phpstan-ignore function.alreadyNarrowedType
-        } else {
-            $fields = null;
+        if (!is_array($fields)) {
+            return null;
         }
 
-        return self::$relationFieldsCache[$definition] = $fields;
+        return array_values(array_filter($fields, static fn ($f) => is_string($f) && $f !== '')); // @phpstan-ignore function.alreadyNarrowedType
     }
 
     /**

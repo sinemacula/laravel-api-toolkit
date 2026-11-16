@@ -262,7 +262,7 @@ final class OpenApiAssemblerTest extends TestCase
 
         $properties = $this->assemble()['paths']['/accounts']['post']['requestBody']['content']['application/json']['schema']['properties'];
 
-        self::assertSame('{}', json_encode($properties['terms']));
+        self::assertSame('{}', json_encode($properties['zone']));
         self::assertSame('{"type":"array","items":{}}', json_encode($properties['labels']));
     }
 

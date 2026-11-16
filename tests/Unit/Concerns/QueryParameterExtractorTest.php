@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\TestCase;
 
 /**
@@ -24,6 +25,8 @@ use Tests\TestCase;
 #[CoversClass(QueryParameterExtractor::class)]
 final class QueryParameterExtractorTest extends TestCase
 {
+    use LocalisesToolkitMessages;
+
     /** @var string */
     private const string TEST_URL = '/test';
 
@@ -373,6 +376,25 @@ final class QueryParameterExtractorTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => $filters]);
 
         $this->assertRejectsFilters($request);
+    }
+
+    /**
+     * Test that the filters rejection is worded in the current locale.
+     *
+     * @return void
+     */
+    public function testFiltersRejectionIsWordedInTheCurrentLocale(): void
+    {
+        $this->localiseToolkitMessages(['filters.not_object' => 'Der Parameter filters muss ein JSON-Objekt sein.']);
+
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => '[1]']);
+
+        try {
+            $this->extractor->extract($request);
+            self::fail('Expected a ValidationException for the filters parameter.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['filters' => ['Der Parameter filters muss ein JSON-Objekt sein.']], $exception->errors());
+        }
     }
 
     /**

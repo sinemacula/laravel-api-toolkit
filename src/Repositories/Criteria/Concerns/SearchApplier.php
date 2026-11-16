@@ -6,7 +6,6 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
@@ -16,6 +15,7 @@ use SineMacula\ApiToolkit\Search\IndexProofWaiver;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
+use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
  * Applies a free-text search term to an Eloquent query builder.
@@ -87,7 +87,7 @@ final readonly class SearchApplier
      * @param  string|null  $resourceClass
      * @return \SineMacula\ApiToolkit\Search\SearchPlan
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
     private function resolvePlan(?string $resourceClass): SearchPlan
     {
@@ -96,7 +96,7 @@ final readonly class SearchApplier
             : null;
 
         if ($plan === null || $plan->isEmpty()) {
-            throw ValidationException::withMessages(['search' => 'The search parameter is not permitted for this resource.']);
+            throw Rejection::at('search', 'search.not_permitted');
         }
 
         return $plan;

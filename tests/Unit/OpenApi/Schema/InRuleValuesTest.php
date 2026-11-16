@@ -59,6 +59,40 @@ final class InRuleValuesTest extends TestCase
     }
 
     /**
+     * Provide not_in arguments with the values a field must not match.
+     *
+     * @return iterable<string, array{0: string, 1: string|null, 2: list<float|int|string>}>
+     */
+    public static function exclusionProvider(): iterable
+    {
+        yield from [
+            'zero dropped'       => ['0,5', 'integer', [5]],
+            'unit values kept'   => ['1,-1', 'integer', [1, -1]],
+            'large integers'     => ['99999999999999,100000000000000,-100000000000000,-7', 'number', [99999999999999, -7]],
+            'fractions kept'     => ['0.5,a', 'number', [0.5, 'a']],
+            'integral floats'    => ['1.0E+14,-1.0E+14,-1.5,1.0E-7', 'integer', [-1.5, 1.0E-7]],
+            'strings keep zero'  => ['0,a', 'string', ['0', 'a']],
+            'untyped keeps zero' => ['0', null, ['0']],
+            'empty argument'     => ['', 'integer', []],
+        ];
+    }
+
+    /**
+     * Test that an exclusion leaves out a number a JSON-equal float renders
+     * differently.
+     *
+     * @param  string  $argument
+     * @param  string|null  $type
+     * @param  list<float|int|string>  $expected
+     * @return void
+     */
+    #[DataProvider('exclusionProvider')]
+    public function testExclusionLeavesOutNumbersAFloatRendersDifferently(string $argument, ?string $type, array $expected): void
+    {
+        self::assertSame($expected, (new InRuleValues)->forExclusion($argument, $type));
+    }
+
+    /**
      * Test that an array item enum lists values as strings and numbers.
      *
      * @return void

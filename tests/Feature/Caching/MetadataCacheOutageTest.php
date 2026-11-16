@@ -70,9 +70,9 @@ final class MetadataCacheOutageTest extends TestCase
 
             $user = User::query()->findOrFail($id);
 
-            $repository->persist($user, ['status' => $request->input('status')]);
+            $repository->persist($user, ['name' => $request->input('name'), 'status' => $request->input('status')]);
 
-            return ['status' => $user->fresh()?->status];
+            return ['name' => $user->fresh()?->name, 'status' => $user->fresh()?->status];
         });
 
         User::create(['name' => 'Alpha', 'email' => 'alpha@smith.com', 'status' => 'active']);
@@ -131,8 +131,8 @@ final class MetadataCacheOutageTest extends TestCase
     }
 
     /**
-     * Test that a repository write, which reads casts through the store, is
-     * served during an outage.
+     * Test that a repository write, which looks up relations through the store,
+     * is served during an outage.
      *
      * @return void
      */
@@ -142,9 +142,10 @@ final class MetadataCacheOutageTest extends TestCase
 
         self::assertIsInt($id);
 
-        $response = $this->patchJson('/users/' . $id, ['status' => 'banned']);
+        $response = $this->patchJson('/users/' . $id, ['name' => 'Bravo Updated', 'status' => 'banned']);
 
         $response->assertOk();
+        $response->assertJsonPath('name', 'Bravo Updated');
         $response->assertJsonPath('status', 'banned');
 
         Exceptions::assertReportedCount(1);
