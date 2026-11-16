@@ -29,7 +29,9 @@ use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ServerListValidator;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Fixtures\Enums\TicketPriority;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
@@ -39,6 +41,7 @@ use Tests\Fixtures\OpenApi\ColumnlessIntrospectionProvider;
 use Tests\Fixtures\OpenApi\KeyedArrayRequestInput;
 use Tests\Fixtures\OpenApi\NumericKeyRequestInput;
 use Tests\Fixtures\OpenApi\PathArticleController;
+use Tests\Fixtures\OpenApi\PathBindingController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathHeaderedUserController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
@@ -54,7 +57,6 @@ use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
 use Tests\Fixtures\OpenApi\SignedInShape;
-use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -400,6 +402,67 @@ final class OpenApiExporterValidityTest extends TestCase
         }
 
         self::assertGreaterThan(0, $seen);
+    }
+
+    /**
+     * Test that every path parameter derivation validates as OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testTypedPathParametersValidateAsOpenApiThreeOne(): void
+    {
+        $this->registerPathParameterRoutes();
+
+        $document = $this->export()->document;
+        $result   = $this->validateAgainstMetaSchema($document);
+
+        self::assertSame(['type' => 'string', 'format' => 'uuid'], $document['paths']['/tickets/{ticket}']['get']['parameters'][0]['schema']);
+        self::assertSame(['type' => 'integer'], $document['paths']['/users/{user}']['get']['parameters'][0]['schema']);
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $document['paths']['/statuses/{status}']['get']['parameters'][0]['schema']);
+        self::assertSame(['type' => 'string'], $document['paths']['/posts/{blog_post}']['get']['parameters'][0]['schema']);
+        self::assertTrue($result->isValid(), 'Typed path parameters must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
+
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that an enum only a route key references resolves to its component.
+     *
+     * @return void
+     */
+    public function testPathOnlyEnumReferenceResolves(): void
+    {
+        $this->router()->get('priorities/{ticket:priority}', [PathBindingController::class, 'ticket']);
+
+        $document = $this->export()->document;
+
+        self::assertSame(['$ref' => '#/components/schemas/TicketPriority'], $document['paths']['/priorities/{ticket}']['get']['parameters'][0]['schema']);
+        self::assertSame(['type' => 'string', 'enum' => ['low', 'high']], $document['components']['schemas']['TicketPriority']);
+
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that a path enum registered by one audience's export does not carry
+     * into the next.
+     *
+     * @return void
+     */
+    public function testPathEnumDoesNotCarryIntoTheNextAudience(): void
+    {
+        $this->registerTwoAudiences();
+
+        $this->router()->get('priorities/{ticket:priority}', [PathBindingController::class, 'ticket'])->notDocumentedIn('public'); // @phpstan-ignore method.notFound
+
+        $enums = $this->makeApplication()->make(EnumSchemaRegistry::class);
+
+        $this->export('internal');
+
+        self::assertContains(TicketPriority::class, $enums->classes());
+
+        $this->export('public');
+
+        self::assertNotContains(TicketPriority::class, $enums->classes());
     }
 
     /**
@@ -869,16 +932,95 @@ final class OpenApiExporterValidityTest extends TestCase
         $schema   = $document['paths']['/session']['get']['responses']['200']['content']['application/json']['schema'];
 
         self::assertSame(
-            [['$ref' => '#/components/schemas/User'], SignedInShape::schema()],
+            [['$ref' => '#/components/schemas/User'], ['$ref' => '#/components/schemas/SignedInShape']],
             $schema['properties']['data']['oneOf'],
         );
         self::assertIsArray($document['components']['schemas']);
         self::assertArrayHasKey('User', $document['components']['schemas']);
+        self::assertSame(['title' => 'SignedInShape', ...SignedInShape::schema()], $document['components']['schemas']['SignedInShape']);
 
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
             'A document declaring a response union must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
         );
+    }
+
+    /**
+     * Test that a declared single shape exports as a valid component reference.
+     *
+     * @return void
+     */
+    public function testDeclaredShapeExportsAsAComponentReference(): void
+    {
+        $this->router()->get('widget', [PathResponseSchemaController::class, 'widget']);
+
+        $document = $this->export()->document;
+        $pointer  = '/paths/~1widget/get/responses/200/content/application~1json/schema';
+        $schema   = $document['paths']['/widget']['get']['responses']['200']['content']['application/json']['schema'];
+
+        self::assertSame(['$ref' => '#/components/schemas/WidgetShape'], $schema['properties']['data']);
+        self::assertTrue($this->validateAgainstExported($document, $pointer, ['data' => ['id' => 1, 'label' => 'x']])->isValid());
+        self::assertFalse($this->validateAgainstExported($document, $pointer, ['data' => ['id' => 1]])->isValid());
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document declaring a response shape must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that a discriminated response union stays valid and validates its
+     * members.
+     *
+     * @return void
+     */
+    public function testDiscriminatedResponseUnionStaysValid(): void
+    {
+        $this->router()->get('session', [PathResponseSchemaController::class, 'union']);
+
+        $document = $this->export()->document;
+        $pointer  = '/paths/~1session/get/responses/200/content/application~1json/schema';
+        $data     = $document['paths']['/session']['get']['responses']['200']['content']['application/json']['schema']['properties']['data'];
+
+        self::assertSame([
+            'propertyName' => 'status',
+            'mapping'      => [
+                'signed_in' => '#/components/schemas/SignedInShape',
+                'pending'   => '#/components/schemas/PendingSignInShape',
+            ],
+        ], $data['discriminator']);
+        self::assertTrue($this->validateAgainstExported($document, $pointer, ['data' => ['status' => 'pending', 'choices' => []]])->isValid());
+        self::assertFalse($this->validateAgainstExported($document, $pointer, ['data' => ['status' => 'pending', 'token' => 'x']])->isValid());
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document declaring a discriminated union must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that a union documented in one audience exports its components there
+     * only.
+     *
+     * @return void
+     */
+    public function testAudienceUnionComponentsStayInTheirAudience(): void
+    {
+        $this->registerTwoAudiences();
+        $this->router()->get('session', [PathResponseSchemaController::class, 'internalUnion']);
+
+        $public   = $this->export('public')->document['components']['schemas'];
+        $internal = $this->export('internal')->document;
+
+        self::assertIsArray($public);
+        self::assertArrayNotHasKey('SignedInShape', $public);
+        self::assertArrayNotHasKey('MfaChallenge', $public);
+        self::assertIsArray($internal['components']['schemas']);
+        self::assertArrayHasKey('SignedInShape', $internal['components']['schemas']);
+        self::assertArrayHasKey('MfaChallenge', $internal['components']['schemas']);
+        $this->assertReferencesResolve($internal);
     }
 
     /**
@@ -1386,7 +1528,7 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertIsArray($paths['/reset']['post']['responses']['205']);
         self::assertSame(['description', 'headers'], array_keys($paths['/reset']['post']['responses']['205']));
         self::assertSame(
-            WidgetShape::schema(),
+            ['$ref' => '#/components/schemas/WidgetShape'],
             $paths['/jobs']['post']['responses']['202']['content']['application/json']['schema']['properties']['data'],
         );
         self::assertIsArray($paths['/status-users']['get']['responses']['206']['headers']);
@@ -1887,6 +2029,32 @@ final class OpenApiExporterValidityTest extends TestCase
         $router->get('users/{user}', [PathFixtureController::class, 'show']);
         $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update']);
         $router->delete('users/{user}', [PathFixtureController::class, 'destroy']);
+    }
+
+    /**
+     * Register one route per path parameter derivation.
+     *
+     * @return void
+     */
+    private function registerPathParameterRoutes(): void
+    {
+        $router = $this->router();
+
+        $router->get('uuids/{value}', [PathBindingController::class, 'value'])->whereUuid('value');
+        $router->get('numbers/{value}', [PathBindingController::class, 'value'])->whereNumber('value');
+        $router->get('states/{value}', [PathBindingController::class, 'value'])->whereIn('value', ['draft', 'published']);
+        $router->get('codes/{value}', [PathBindingController::class, 'value'])->whereAlpha('value');
+        $router->get('ulids/{value}', [PathBindingController::class, 'value'])->whereUlid('value');
+        $router->get('versions/{value}', [PathBindingController::class, 'value'])->where('value', 'v[0-9]+|latest');
+        $router->get('slugs/{value}', [PathBindingController::class, 'value'])->where('value', '\w+');
+        $router->get('statuses/{status}', [PathBindingController::class, 'status']);
+        $router->get('tickets/{ticket}', [PathBindingController::class, 'ticket']);
+        $router->get('users/{user}', [PathBindingController::class, 'user']);
+        $router->get('emails/{user:email}', [PathBindingController::class, 'user']);
+        $router->get('numbered/{ticket}', [PathBindingController::class, 'ticket'])->whereNumber('ticket');
+        $router->get('invoices/{invoice}', [PathBindingController::class, 'invoice']);
+        $router->bind('blog_post', static fn (string $value): ?Post => Post::query()->find($value));
+        $router->get('posts/{blog_post}', [PathBindingController::class, 'blogPost']);
     }
 
     /**

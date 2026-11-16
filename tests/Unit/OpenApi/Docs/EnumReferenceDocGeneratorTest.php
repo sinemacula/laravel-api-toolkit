@@ -49,8 +49,7 @@ final class EnumReferenceDocGeneratorTest extends TestCase
     {
         $markdown = $this->combinedGenerator()->generate([UserStatus::class]);
 
-        self::assertStringContainsString("## UserStatus\n", $markdown);
-        self::assertStringContainsString("| Name | Value |\n| --- | --- |\n", $markdown);
+        self::assertStringContainsString("\n\n## UserStatus\n\n| Name | Value |\n| --- | --- |\n", $markdown);
         self::assertStringContainsString('| ACTIVE | active |', $markdown);
         self::assertStringContainsString('| BANNED | banned |', $markdown);
     }

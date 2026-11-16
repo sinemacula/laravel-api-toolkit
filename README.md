@@ -601,10 +601,22 @@ catalogue title and detail, and every error response references the examples of 
 error catalogue (add its namespace to `api-toolkit.openapi.exception_namespaces`), or when it shares a code with an
 exception answering another status.
 
-Every enum the document references, through a model cast or a request field validated by `Rule::enum()` or
-`PureEnum`, becomes one named component listing its values under `enum`: the backing values of a backed enum, or the
-lowercase case names of a pure enum. Fields reference the component, except a field narrowed by `only()` or
-`except()`, which lists its accepted values inline (an empty list when it accepts none).
+Each path parameter is typed from what the router enforces on its segment. A `where` constraint comes first:
+`whereUuid()` exports a `uuid`, `whereNumber()` a non-negative integer, `whereIn()` or a plain alternation such as
+`draft|published` an `enum`, and any other pattern its anchored `pattern`. Without one, the parameter takes the
+string-backed enum or Eloquent model the action binds: the enum's component, or the type of the column the model is
+looked up by, which is its route key or the field a `{post:slug}` segment names. The `openapi()` schema of a resource
+field that emits that column unchanged, with no model accessor, takes precedence over the column type. A `HasUuids` or
+`HasUlids` key is typed without a database, unless the model replaces the trait's `isValidUniqueId()`. An explicit
+`Route::bind()` binder, an overridden `resolveRouteBinding()`, a model bound in the container or a key cast to a pure
+enum leaves the parameter a string. A constraint outside the syntax PHP and JavaScript read alike is not exported, so
+the binding types the parameter, or it stays a string: `\d`, `\w` and an unescaped `.` match more characters in PHP, so
+write `[0-9]` or `whereNumber()` to export the constraint.
+
+Every enum the document references, through a model cast, a request field validated by `Rule::enum()` or `PureEnum`, or
+a string-backed enum bound to a route parameter, becomes one named component listing its values under `enum`: the
+backing values of a backed enum, or the lowercase case names of a pure enum. Fields reference the component, except a
+field narrowed by `only()` or `except()`, which lists its accepted values inline (an empty list when it accepts none).
 
 A request field's presence rules shape its object's schema:
 
@@ -617,11 +629,17 @@ A request field's presence rules shape its object's schema:
 - A present but empty value, such as `null`, `""` or `[]`, counts as missing to these rules but as sent to the schema.
 
 A route outside the resource pipeline documents its success body with `#[ResponseSchema]` on the action. Name a
-registered resource to reference its component, or a class implementing `DefinesSchema` to inline the JSON Schema its
-`schema()` returns; `collection: true` wraps the shape in the collection envelope. Name several classes to document a
-response that may be any one of them, exported as a `oneOf` under `data` (or under each item of a collection). Give
-each member a required property holding its own constant, such as a `status`, so clients can tell them apart. If any
-named class is neither a registered resource nor a `DefinesSchema`, the body is left undocumented.
+registered resource to reference its component, or a class implementing `DefinesSchema` to export the JSON Schema its
+`schema()` returns as a component named after the class, or after its `#[SchemaName]`. The class is defined once and
+referenced wherever it is named. `collection: true` wraps the shape in the collection envelope. Name several classes to
+document a response that may be any one of them, exported as a `oneOf` of their references under `data` (or under each
+item of a collection). Give each member an object schema (`type` exactly `object`) with a required property holding its
+own string `const`, such as a `status`. When every member pins the same property to a distinct value, the `oneOf`
+carries a `discriminator` mapping each value to its member. Resources pin `_type`, so a union of resources with distinct
+types is discriminated on it. If any named class is neither a registered resource nor a `DefinesSchema`, the body is
+left undocumented. `#[SchemaName]` on a resource, enum or `DefinesSchema` sets its component name, and two classes
+deriving one name fail the export. An enum named as a shape fails the export when a registered resource's field or a
+documented request rule also uses the enum.
 
 On a resource controller's `index`, `show`, `store`, `update` or `destroy`, declaring the controller's own resource
 (as a collection on `index`, a single item elsewhere) changes nothing: the action keeps its full resource

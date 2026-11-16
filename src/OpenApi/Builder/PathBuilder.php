@@ -56,6 +56,7 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver  $requestBody
      * @param  \SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver  $security
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder  $queryParameters
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder  $pathParameters
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder  $errors
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder  $successResponse
      */
@@ -87,6 +88,9 @@ final readonly class PathBuilder
 
         /** The builder naming the query parameters each action accepts. */
         private QueryParameterBuilder $queryParameters,
+
+        /** The builder typing each path parameter from its route. */
+        private PathParameterBuilder $pathParameters,
 
         /** The builder of each operation's error responses. */
         private ErrorResponseBuilder $errors,
@@ -280,7 +284,7 @@ final readonly class PathBuilder
     private function assembleOperation(string $tag, array $responses, Route $route, array $requestBody = [], array $queryParameters = []): array
     {
         $operation  = ['tags' => [$tag]];
-        $parameters = array_merge($this->pathParameters($route), $queryParameters);
+        $parameters = array_merge($this->pathParameters->build($route), $queryParameters);
 
         if ($parameters !== []) {
             $operation['parameters'] = $parameters;
@@ -376,28 +380,6 @@ final readonly class PathBuilder
         return [
             '204' => ['description' => 'The resource was deleted.'],
         ];
-    }
-
-    /**
-     * Build the path parameter list from the route's parameter names.
-     *
-     * @param  \Illuminate\Routing\Route  $route
-     * @return array<int, array<string, mixed>>
-     */
-    private function pathParameters(Route $route): array
-    {
-        $parameters = [];
-
-        foreach ($route->parameterNames() as $name) {
-            $parameters[] = [
-                'name'     => $name,
-                'in'       => 'path',
-                'required' => true,
-                'schema'   => ['type' => 'string'],
-            ];
-        }
-
-        return $parameters;
     }
 
     /**

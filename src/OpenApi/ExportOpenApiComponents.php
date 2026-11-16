@@ -76,7 +76,8 @@ final readonly class ExportOpenApiComponents
     }
 
     /**
-     * Count the resource component schemas, excluding envelopes and enums.
+     * Count the resource component schemas, excluding envelope, defined and
+     * enum schemas.
      *
      * @param  array<string, mixed>  $document
      * @return int
