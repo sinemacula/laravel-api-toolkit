@@ -6,6 +6,7 @@ namespace Tests\Unit\Runtime;
 
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use Tests\TestCase;
 
@@ -109,6 +110,36 @@ final class RuntimeContextTest extends TestCase
         $context = new RuntimeContext;
 
         self::assertFalse($context->isServingAsQueueWorker('sync'));
+    }
+
+    /**
+     * Provide queue drivers with whether their jobs run outside the request.
+     *
+     * @return iterable<string, array{0: string, 1: bool}>
+     */
+    public static function queueDriverProvider(): iterable
+    {
+        yield 'deferred runs the job in the request after the response' => ['deferred', false];
+        yield 'background runs the job in a child process' => ['background', true];
+        yield 'failover hands the job to a worker' => ['failover', true];
+    }
+
+    /**
+     * Test that isServingAsQueueWorker treats only a driver that runs the job
+     * outside the request as a worker.
+     *
+     * @param  string  $driver
+     * @param  bool  $isWorker
+     * @return void
+     */
+    #[DataProvider('queueDriverProvider')]
+    public function testIsServingAsQueueWorkerJudgesWhereTheDriverRunsTheJob(string $driver, bool $isWorker): void
+    {
+        Config::set('queue.connections.probe', ['driver' => $driver]);
+
+        $context = new RuntimeContext;
+
+        self::assertSame($isWorker, $context->isServingAsQueueWorker('probe'));
     }
 
     /**
