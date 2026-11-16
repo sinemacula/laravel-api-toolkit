@@ -55,9 +55,11 @@ use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
+use Tests\Fixtures\Models\CatalogueRow;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BrokenResource;
+use Tests\Fixtures\Resources\CatalogueRowResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -650,6 +652,91 @@ final class ApiServiceProviderTest extends TestCase
         $this->expectException(InvalidSchemaException::class);
 
         $provider->boot();
+    }
+
+    /**
+     * Test that a table that is not migrated does not fail boot, since boot
+     * passes over a catalogue it cannot read.
+     *
+     * @return void
+     */
+    public function testValidateSchemasBootsAgainstATableThatIsNotMigrated(): void
+    {
+        $this->getConfig()->set('database.connections.catalogue', $this->getConfig()->get('database.connections.testing'));
+        $this->getConfig()->set('api-toolkit.search.unverified_connections', ['catalogue']);
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            CatalogueRow::class => CatalogueRowResource::class,
+        ]);
+
+        $this->bootWithArgv(null);
+
+        self::assertSame([CatalogueRow::class => CatalogueRowResource::class], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Provide the arguments of the validation command.
+     *
+     * @return iterable<string, array{0: array<int, string>}>
+     */
+    public static function validationCommandArgvProvider(): iterable
+    {
+        yield 'bare' => [['artisan', 'api-toolkit:validate-schemas']];
+        yield 'with an environment' => [['artisan', '--env', 'ci', 'api-toolkit:validate-schemas']];
+    }
+
+    /**
+     * Test that boot leaves schema validation to the validation command.
+     *
+     * @param  array<int, string>  $argv
+     * @return void
+     */
+    #[DataProvider('validationCommandArgvProvider')]
+    public function testValidateSchemasIsLeftToTheValidationCommand(array $argv): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => BrokenResource::class,
+        ]);
+
+        $this->bootWithArgv($argv);
+
+        self::assertSame([User::class => BrokenResource::class], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that boot still validates schemas for every other command.
+     *
+     * @return void
+     */
+    public function testValidateSchemasStillRunsForOtherCommands(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => BrokenResource::class,
+        ]);
+
+        $this->expectException(InvalidSchemaException::class);
+
+        $this->bootWithArgv(['artisan', 'migrate']);
+    }
+
+    /**
+     * Test that a discovery conflict still fails boot for the validation
+     * command.
+     *
+     * @return void
+     */
+    public function testDiscoveryConflictStillFailsBootForTheValidationCommand(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Conflict']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Resource discovery found multiple resources for model [' . User::class . ']');
+
+        $this->bootWithArgv(['artisan', 'api-toolkit:validate-schemas']);
     }
 
     /**

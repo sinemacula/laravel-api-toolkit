@@ -32,6 +32,8 @@ final readonly class SchemaValidator
     /**
      * Validate all schemas in the provided resource map.
      *
+     * Declarations the catalogue could not verify do not fail validation.
+     *
      * @param  array<class-string, class-string>  $resourceMap
      * @return void
      *
@@ -39,20 +41,37 @@ final readonly class SchemaValidator
      */
     public function validate(array $resourceMap): void
     {
-        /** @var array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError> $errors */
-        $errors = [];
+        $report = $this->report($resourceMap);
+
+        if ($report->errors !== []) {
+            throw new InvalidSchemaException($report->errors);
+        }
+    }
+
+    /**
+     * Run every rule over the resource map, keeping what could not be verified
+     * apart from the defects.
+     *
+     * @param  array<class-string, class-string>  $resourceMap
+     * @return \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationReport
+     */
+    public function report(array $resourceMap): SchemaValidationReport
+    {
+        $findings = [];
 
         foreach ($resourceMap as $modelClass => $resourceClass) {
 
             $schema = SchemaCompiler::compile($resourceClass);
 
             foreach ($this->rules as $rule) {
-                array_push($errors, ...$rule->validate($resourceClass, $modelClass, $schema));
+                array_push($findings, ...$rule->validate($resourceClass, $modelClass, $schema));
             }
         }
 
-        if ($errors !== []) {
-            throw new InvalidSchemaException($errors);
-        }
+        return new SchemaValidationReport(
+            errors: array_values(array_filter($findings, static fn (object $finding): bool => $finding instanceof SchemaValidationError)),
+            unverified: array_values(array_filter($findings, static fn (object $finding): bool => $finding instanceof UnverifiedDeclaration)),
+            resourceCount: count($resourceMap),
+        );
     }
 }

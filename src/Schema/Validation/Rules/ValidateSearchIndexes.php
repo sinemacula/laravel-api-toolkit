@@ -12,13 +12,16 @@ use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 use SineMacula\ApiToolkit\Search\IndexProofWaiver;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 
 /**
  * Validate that an index behind the connection serves every searchable field.
  *
- * An unreadable catalogue passes here; the request path proves it again.
+ * An unreadable catalogue leaves the declarations it would decide unverified.
+ *
+ * @phpstan-type Finding string|array{check: string, cause: string|null}
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -47,7 +50,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|\SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>
      */
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
@@ -61,9 +64,14 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
         /** @var \Illuminate\Database\Eloquent\Model $model */
         $model = new $modelClass;
 
-        $connection = $model->getConnection();
-        $name       = $connection->getDriverName();
-        $driver     = $this->drivers->has($name) ? $this->drivers->resolve($name) : null;
+        try {
+            $connection = $model->getConnection();
+        } catch (\Throwable $exception) { // @phpstan-ignore catch.neverThrown
+            return $this->report($resourceClass, $model, $declared, $this->unresolvedDefects($declared, $model->getTable(), $exception->getMessage()));
+        }
+
+        $name   = $connection->getDriverName();
+        $driver = $this->drivers->has($name) ? $this->drivers->resolve($name) : null;
 
         $defects = $driver === null
             ? $this->missingDriverDefects($declared, $name)
@@ -72,7 +80,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
                 $this->strategyDefects($driver, $declared, $model, $connection),
             );
 
-        return $this->report($resourceClass, $declared, $defects);
+        return $this->report($resourceClass, $model, $declared, $defects);
     }
 
     /**
@@ -100,29 +108,92 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     }
 
     /**
-     * Turn the per-field defects into validation errors, in declaration order.
+     * Turn the per-field findings into validation errors and unverified
+     * declarations, in declaration order.
      *
      * @param  string  $resourceClass
+     * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
-     * @param  array<string, array<int, string>>  $defects
-     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     * @param  array<string, array<int, Finding>>  $defects
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|\SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>
      */
-    private function report(string $resourceClass, array $declared, array $defects): array
+    private function report(string $resourceClass, Model $model, array $declared, array $defects): array
     {
         $errors = [];
 
         foreach (array_keys($declared) as $key) {
 
             foreach ($defects[$key] ?? [] as $defect) {
-                $errors[] = new SchemaValidationError(
-                    resourceClass: $resourceClass,
-                    fieldKey: $key,
-                    defect: $defect,
-                );
+                $errors[] = is_string($defect)
+                    ? new SchemaValidationError(resourceClass: $resourceClass, fieldKey: $key, defect: $defect)
+                    : new UnverifiedDeclaration(
+                        resourceClass: $resourceClass,
+                        fieldKey: $key,
+                        check: $defect['check'],
+                        modelClass: $model::class,
+                        cause: $defect['cause'],
+                    );
             }
         }
 
         return $errors;
+    }
+
+    /**
+     * Leave every declared field unverified against a connection that cannot be
+     * resolved.
+     *
+     * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
+     * @param  string  $table
+     * @param  string  $cause
+     * @return array<string, array<int, Finding>>
+     */
+    private function unresolvedDefects(array $declared, string $table, string $cause): array
+    {
+        $defects = [];
+
+        foreach ($declared as $key => $field) {
+            $defects[$key] = [$this->unproven($table, $field['strategy'], $field['column'], $cause)];
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Leave each of the strategy's columns unverified, keyed by column.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
+     * @param  array<int, string>  $columns
+     * @param  string  $table
+     * @param  string|null  $cause
+     * @return array<string, array<int, Finding>>
+     */
+    private function unreadDefects(SearchStrategy $strategy, array $columns, string $table, ?string $cause): array
+    {
+        $defects = [];
+
+        foreach ($columns as $column) {
+            $defects[$column] = [$this->unproven($table, $strategy, $column, $cause)];
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Name the claim an unread catalogue leaves unproven for the column.
+     *
+     * @param  string  $table
+     * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
+     * @param  string  $column
+     * @param  string|null  $cause
+     * @return array{check: string, cause: string|null}
+     */
+    private function unproven(string $table, SearchStrategy $strategy, string $column, ?string $cause): array
+    {
+        return [
+            'check' => sprintf('an index on table "%s" serves the "%s" search on "%s"', $table, $strategy->value, $column),
+            'cause' => $cause,
+        ];
     }
 
     /**
@@ -178,7 +249,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
      * @param  array<string, array{column: string, strategy: \SineMacula\ApiToolkit\Enums\SearchStrategy}>  $declared
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, Finding>>
      */
     private function strategyDefects(SearchDriver $driver, array $declared, Model $model, Connection $connection): array
     {
@@ -207,9 +278,9 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     /**
      * Merge two field-keyed defect maps, keeping the defects both carry.
      *
-     * @param  array<string, array<int, string>>  $first
-     * @param  array<string, array<int, string>>  $second
-     * @return array<string, array<int, string>>
+     * @param  array<string, array<int, Finding>>  $first
+     * @param  array<string, array<int, Finding>>  $second
+     * @return array<string, array<int, Finding>>
      */
     private function merge(array $first, array $second): array
     {
@@ -228,7 +299,7 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
      * @param  array<int, string>  $columns
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, Finding>>
      */
     private function defects(SearchDriver $driver, SearchStrategy $strategy, array $columns, Model $model, Connection $connection): array
     {
@@ -256,26 +327,28 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     }
 
     /**
-     * Ask the driver for the proof, or nothing if the catalogue is unreadable.
+     * Ask the driver for the proof, leaving the columns unverified when the
+     * catalogue cannot be read.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SearchDriver  $driver
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
      * @param  array<int, string>  $columns
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  \Illuminate\Database\Connection  $connection
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, Finding>>
      */
     private function proof(SearchDriver $driver, SearchStrategy $strategy, array $columns, Model $model, Connection $connection): array
     {
-        // A null catalogue is unknown, so it proves nothing
+        $table = $model->getTable();
+
         if ($this->introspector->getIndexes($model) === null) {
-            return [];
+            return $this->unreadDefects($strategy, $columns, $table, null);
         }
 
         try {
-            return $driver->indexDefects($strategy, $columns, $model->getTable(), $connection);
-        } catch (\Throwable) {
-            return [];
+            return $driver->indexDefects($strategy, $columns, $table, $connection);
+        } catch (\Throwable $exception) {
+            return $this->unreadDefects($strategy, $columns, $table, $exception->getMessage());
         }
     }
 
