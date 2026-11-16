@@ -5,12 +5,12 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Contracts\ExpandsValueList;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
  * Applies filter trees to an Eloquent query builder.
@@ -126,7 +126,7 @@ final class FilterApplier
      * @param  string  $position
      * @return string
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
     private function assertNamedKey(mixed $key, string $position): string
     {
@@ -134,10 +134,7 @@ final class FilterApplier
             return $key;
         }
 
-        $message = 'The %s filter must name a field or a condition. To match '
-            . 'any of several values, give the field a condition such as $in.';
-
-        throw ValidationException::withMessages([$position => sprintf($message, $position)]);
+        throw Rejection::at($position, 'filters.unnamed_key', ['position' => $position]);
     }
 
     /**
@@ -147,7 +144,7 @@ final class FilterApplier
      * @param  string  $position
      * @return array<array-key, mixed>
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
     private function assertDocument(mixed $value, string $position): array
     {
@@ -155,7 +152,7 @@ final class FilterApplier
             return $value;
         }
 
-        throw ValidationException::withMessages([$position => sprintf('The %s filter must be a document of conditions.', $position)]);
+        throw Rejection::at($position, 'filters.not_document', ['position' => $position]);
     }
 
     /**
@@ -165,7 +162,7 @@ final class FilterApplier
      * @param  string  $operator
      * @return string
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
     private function assertRelationName(mixed $relation, string $operator): string
     {
@@ -173,7 +170,7 @@ final class FilterApplier
             return $relation;
         }
 
-        throw ValidationException::withMessages([$operator => sprintf('The %s filter must list relation names.', $operator)]);
+        throw Rejection::at($operator, 'filters.relation_names', ['operator' => $operator]);
     }
 
     /**

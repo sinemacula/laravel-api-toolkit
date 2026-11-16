@@ -100,10 +100,6 @@ final class ApiServiceProvider extends ServiceProvider
             __DIR__ . '/../resources/lang',
             'api-toolkit',
         );
-
-        $this->publishes([
-            __DIR__ . '/../resources/lang' => resource_path('lang/vendor/api-toolkit'),
-        ], 'translations');
     }
 
     /**
@@ -123,7 +119,11 @@ final class ApiServiceProvider extends ServiceProvider
 
         $this->publishes([
             __DIR__ . '/../config/api-toolkit.php' => config_path('api-toolkit.php'),
-        ], 'config');
+        ], 'api-toolkit-config');
+
+        $this->publishes([
+            __DIR__ . '/../resources/lang' => $this->app->langPath('vendor/api-toolkit'),
+        ], 'api-toolkit-lang');
 
         $this->publishes([
             __DIR__ . '/../resources/api-docs' => resource_path('api-docs'),

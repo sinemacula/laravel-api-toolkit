@@ -28,6 +28,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Device;
@@ -51,7 +52,7 @@ use Tests\TestCase;
 #[CoversClass(FilterApplier::class)]
 final class FilterApplierTest extends TestCase
 {
-    use InteractsWithNonPublicMembers;
+    use InteractsWithNonPublicMembers, LocalisesToolkitMessages;
 
     /** @var string */
     private const string OPERATOR_CONTAINS = '$contains';
@@ -1463,6 +1464,49 @@ final class FilterApplierTest extends TestCase
     #[DataProvider('malformedDocumentProvider')]
     public function testMalformedDocumentIsRefusedAtItsPosition(array $filters, string $position, string $message): void
     {
+        $surface = $this->declaredSurface(filterable: ['name' => Capability::EXACT], relations: ['posts']);
+
+        try {
+            $this->applier->apply((new User)->newQuery(), $filters, $this->operatorRegistry, $surface);
+
+            self::fail('A malformed filter document must be refused.');
+        } catch (ValidationException $exception) {
+            self::assertSame([$position => [$message]], $exception->errors());
+        }
+    }
+
+    /**
+     * Provide filters of a refused shape, with their position and the German
+     * message each is refused with.
+     *
+     * @return iterable<string, array{array<string, mixed>, string, string}>
+     */
+    public static function localisedMalformedDocumentProvider(): iterable
+    {
+        yield 'list under a field' => [['name' => ['Alice']], 'name', 'Der Filter name muss ein Feld benennen.'];
+        yield 'bare value under $or' => [['$or' => 'Alice'], '$or', 'Der Filter $or muss ein Dokument sein.'];
+        yield 'list entry under $has' => [['$has' => [['posts']]], '$has', 'Der Filter $has muss Relationen auflisten.'];
+    }
+
+    /**
+     * Test that a refused shape is worded in the current locale.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $position
+     * @param  string  $message
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('localisedMalformedDocumentProvider')]
+    public function testMalformedDocumentIsRefusedInTheCurrentLocale(array $filters, string $position, string $message): void
+    {
+        $this->localiseToolkitMessages([
+            'filters.unnamed_key'    => 'Der Filter :position muss ein Feld benennen.',
+            'filters.not_document'   => 'Der Filter :position muss ein Dokument sein.',
+            'filters.relation_names' => 'Der Filter :operator muss Relationen auflisten.',
+        ]);
+
         $surface = $this->declaredSurface(filterable: ['name' => Capability::EXACT], relations: ['posts']);
 
         try {

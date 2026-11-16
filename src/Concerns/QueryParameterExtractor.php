@@ -5,8 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Concerns;
 
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Search\SearchTerm;
+use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
  * Extracts and parses API query parameters from a request.
@@ -183,14 +183,14 @@ final class QueryParameterExtractor
      * @param  string  $query
      * @return array<string, mixed>
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
     private function parseFilters(string $query): array
     {
         $filters = json_decode($query, true);
 
         if (!is_array($filters) || ($filters !== [] && array_is_list($filters))) {
-            throw ValidationException::withMessages(['filters' => 'The filters parameter must be a JSON object.']);
+            throw Rejection::at('filters', 'filters.not_object');
         }
 
         return $filters;

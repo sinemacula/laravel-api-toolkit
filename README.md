@@ -23,13 +23,33 @@ composer require sinemacula/laravel-api-toolkit
 Publish the config file:
 
 ```bash
-php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider" --tag=config
+php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider" --tag=api-toolkit-config
 ```
 
 `config/api-toolkit.php` is documented inline. Per-query repository caching is configured separately, in the
 `sinemacula/laravel-repositories` package under `repositories.cache`.
 
 The Markdown templates for the generated API manual are published with `--tag=api-toolkit-docs`.
+
+### Translations
+
+Every message the toolkit sends a client is a translation line in the `api-toolkit` namespace: `exceptions.php` holds
+the error titles and details, keyed by integer error code, and `validation.php` holds the 422 messages for rejected
+query parameters. Publish them with `--tag=api-toolkit-lang`, which copies them to `lang/vendor/api-toolkit` (or
+`resources/lang/vendor/api-toolkit` when the application keeps its translations there).
+
+Laravel merges a published file over the package's own, so keep only the lines you change. A full copy freezes the
+wording of every other line against later releases. Placeholders such as `:key` and `:operator` carry the parameter
+names exactly as the client sent them, and do not pass through `validation.attributes`.
+
+To add a locale, create `lang/vendor/api-toolkit/<locale>/validation.php` (and `exceptions.php`) with the lines you
+translate. Missing lines fall back to English as long as `app.fallback_locale` is `en`.
+
+A message is worded in the locale current when it is raised. `ParseApiQuery` is global middleware, so a malformed
+`page`, `limit`, `filters` or `search` value is rejected before any route middleware runs, while an undeclared key or
+operator is rejected later, in the controller. An application that sets the locale in route middleware, for example
+from the authenticated user, sets `api-toolkit.parser.register_middleware` to `false` and adds `ParseApiQuery` to its
+routes after its locale middleware.
 
 ## Usage
 
