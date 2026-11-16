@@ -203,11 +203,11 @@ final class ExportOpenApiCommand extends Command
         }
 
         $this->components->info(sprintf(
-            'Exported %d operation(s), %d resource schema(s), %d query parameter(s), and %d error response(s) for the %s audience to %s.',
+            'Exported %d operation(s), %d resource schema(s), %d query parameter(s), and %d error example(s) for the %s audience to %s.',
             $result->operationCount,
             $result->resourceCount,
             $result->parameterCount,
-            $result->responseCount,
+            $result->errorExampleCount,
             $audience,
             $path,
         ));

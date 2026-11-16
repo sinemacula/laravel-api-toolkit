@@ -79,7 +79,7 @@ final class ExportOpenApiCommandTest extends TestCase
 
     /**
      * Test that the command exports a non-empty document and reports the
-     * operation and resource counts.
+     * operation, resource and error example counts.
      *
      * @return void
      */
@@ -89,7 +89,7 @@ final class ExportOpenApiCommandTest extends TestCase
         $this->router()->get('users/{user}', [PathResponseSchemaController::class, 'single']);
 
         $this->runCommand(['--output' => $this->outputPath])
-            ->expectsOutputToContain('Exported 1 operation(s), 2 resource schema(s)')
+            ->expectsOutputToContain('Exported 1 operation(s), 2 resource schema(s), 12 query parameter(s), and 2 error example(s)')
             ->assertExitCode(0);
 
         self::assertFileExists($this->outputPath);

@@ -33,6 +33,14 @@ return [
     | `include_debug_info` adds the message, file, line and trace of the
     | underlying exception to the response meta. Null follows app.debug; keep it
     | false in production.
+    |
+    | `map` renders an exception as one of your ApiExceptions. A key naming a
+    | built-in replaces it; any other key is matched before the first built-in
+    | it extends, else after every built-in, and the first match wins. Laravel
+    | converts some exceptions before rendering, so map the converted type, such
+    | as NotFoundHttpException for ModelNotFoundException. The map is validated
+    | once an application serving requests has booted, and drives the OpenAPI
+    | error responses too. It does not affect reporting.
     */
 
     'exceptions' => [
@@ -40,6 +48,10 @@ return [
         'render_strategy' => env('API_EXCEPTION_RENDER_STRATEGY', 'auto'),
 
         'include_debug_info' => null,
+
+        'map' => [
+            // e.g. ThrottleRequestsException::class => QuotaException::class
+        ],
 
     ],
 
