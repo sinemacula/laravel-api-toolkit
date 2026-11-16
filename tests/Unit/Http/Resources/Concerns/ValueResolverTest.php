@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
@@ -830,6 +832,81 @@ final class ValueResolverTest extends TestCase
         $result = $this->resolver->resolveFieldValue('organization', $definition, $resource, null);
 
         self::assertInstanceOf(OrganizationResource::class, $result);
+    }
+
+    /**
+     * Test that a related collection above the limit is cut to it, in its
+     * loaded order, and the cut is reported.
+     *
+     * @return void
+     */
+    public function testRelatedCollectionAboveTheLimitIsCutAndReported(): void
+    {
+        $posts = $this->resolvePosts($this->userWithPosts(4), 3);
+
+        self::assertSame(['Post 1', 'Post 2', 'Post 3'], $posts->map(static fn (mixed $post): mixed => data_get($post, 'resource.title'))->all());
+        self::assertTrue($this->resolver->wasTruncated());
+    }
+
+    /**
+     * Test that a related collection at the limit is kept whole and unflagged.
+     *
+     * @return void
+     */
+    public function testRelatedCollectionAtTheLimitIsNotReported(): void
+    {
+        self::assertCount(4, $this->resolvePosts($this->userWithPosts(4), 4));
+        self::assertFalse($this->resolver->wasTruncated());
+    }
+
+    /**
+     * Test that a disabled default leaves a related collection whole.
+     *
+     * @return void
+     */
+    public function testDisabledDefaultLeavesTheRelatedCollectionWhole(): void
+    {
+        Config::set('api-toolkit.resources.relation_limit', 0);
+
+        self::assertCount(3, $this->resolvePosts($this->userWithPosts(3), null));
+        self::assertFalse($this->resolver->wasTruncated());
+    }
+
+    /**
+     * Test that the truncation report covers only the last resolved field.
+     *
+     * @return void
+     */
+    public function testTruncationReportResetsOnTheNextField(): void
+    {
+        $resource = new JsonResource($this->userWithPosts(2));
+
+        $this->resolver->resolveFieldValue('posts', $this->makeFieldDefinition(relation: 'posts', resource: PostResource::class, limit: 1), $resource, null);
+
+        self::assertTrue($this->resolver->wasTruncated());
+
+        $this->resolver->resolveFieldValue('name', $this->makeFieldDefinition(), $resource, null);
+
+        self::assertFalse($this->resolver->wasTruncated());
+    }
+
+    /**
+     * Test that a to-one related model is never cut.
+     *
+     * @return void
+     */
+    public function testRelatedModelIsNeverCut(): void
+    {
+        $organization = Organization::create(['name' => 'CapOrg', 'slug' => 'cap-org']);
+        $user         = User::create(['name' => 'CapUser', 'email' => 'cap-user@example.com', 'organization_id' => $organization->id]);
+
+        $user->load('organization');
+
+        $definition = $this->makeFieldDefinition(relation: 'organization', resource: OrganizationResource::class, limit: 1);
+        $result     = $this->resolver->resolveFieldValue('organization', $definition, new JsonResource($user), null);
+
+        self::assertInstanceOf(OrganizationResource::class, $result);
+        self::assertFalse($this->resolver->wasTruncated());
     }
 
     /**
@@ -2260,6 +2337,41 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
+     * Resolve the user's posts through the post resource under the given limit.
+     *
+     * @param  \Tests\Fixtures\Models\User  $user
+     * @param  int|null  $limit
+     * @return \Illuminate\Support\Collection<int, mixed>
+     */
+    private function resolvePosts(User $user, ?int $limit): Collection
+    {
+        $definition = $this->makeFieldDefinition(relation: 'posts', resource: PostResource::class, limit: $limit);
+        $result     = $this->resolver->resolveFieldValue('posts', $definition, new JsonResource($user), null);
+
+        self::assertInstanceOf(ApiResourceCollection::class, $result);
+        self::assertInstanceOf(Collection::class, $result->collection);
+
+        return $result->collection;
+    }
+
+    /**
+     * Create a user with the given number of posts loaded.
+     *
+     * @param  int  $count
+     * @return \Tests\Fixtures\Models\User
+     */
+    private function userWithPosts(int $count): User
+    {
+        $user = User::create(['name' => 'Poster', 'email' => 'poster@example.com']);
+
+        for ($index = 1; $index <= $count; $index++) {
+            Post::create(['user_id' => $user->id, 'title' => 'Post ' . $index, 'body' => 'Body']);
+        }
+
+        return $user->load(['posts' => static fn ($query) => $query->orderBy('id')]);
+    }
+
+    /**
      * Render a loaded organization relation with the given explicit child
      * fields.
      *
@@ -2304,6 +2416,7 @@ final class ValueResolverTest extends TestCase
      * @param  array<int, string>  $needs
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
+     * @param  int|null  $limit
      * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
     private function makeFieldDefinition(
@@ -2317,6 +2430,7 @@ final class ValueResolverTest extends TestCase
         array $needs = [],
         array $guards = [],
         array $transformers = [],
+        ?int $limit = null,
     ): CompiledFieldDefinition {
         return new CompiledFieldDefinition(
             accessor: $accessor,
@@ -2329,6 +2443,7 @@ final class ValueResolverTest extends TestCase
             needs: $needs,
             guards: $guards,
             transformers: $transformers,
+            limit: $limit,
         );
     }
 }

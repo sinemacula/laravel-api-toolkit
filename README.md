@@ -326,6 +326,25 @@ field set:
 $with = UserResource::eagerLoadMapFor(UserResource::resolveFields());
 ```
 
+**Relation constraints and limits** - `constrain()` receives the relation itself, as a Laravel `with()` closure does, so
+`where()`, local scopes, `latest()` and pivot clauses such as `wherePivot()` all apply. A constraint may filter and
+order the relation but never bound it: a `limit()`, `take()` or `skip()` inside it that changes the relation's bound
+throws a `LogicException`. Bound a to-many relation with `limit()` instead:
+
+```php
+Relation::to('posts', PostResource::class)->limit(5)->constrain(fn ($query) => $query->latest()),
+```
+
+Each parent renders at most `limit` related records. The relation loads in one windowed query, ordered last by the
+related key so the window is deterministic. A relation declaring no limit takes `api-toolkit.resources.relation_limit`
+(`API_TOOLKIT_RESOURCES_RELATION_LIMIT`, default `25`; `0` or `null` leaves it unbounded). A record whose relation was
+cut lists the relation's response key in `_truncated`, and the exported schema documents the bound as `maxItems`.
+`HasMany`, `MorphMany`, `BelongsToMany` and `HasManyThrough` are bounded in SQL unless their query has unions; any other
+loaded collection, including one your own code loaded, is cut when it renders. A relation bounded in SQL keeps up to
+`limit + 1` rows on the model after the repository returns, the extra row being how a cut is detected; one with unions
+keeps every row and is cut only in the response. A collection your application loaded below the bound never carries
+`_truncated`, so its absence proves nothing about a relation you limited yourself.
+
 **Field-set control** at instantiation:
 
 ```php
@@ -347,6 +366,8 @@ Validation checks that:
 - an ordered index leads with every `sortable()` column, unless the field carries `indexed()` or `unindexed()`.
 - an index on the connection serves every `searchable()` declaration in the shape its strategy needs.
 - no declaration names a column configured as sensitive.
+- every `limit()` sits on a to-many relation rendered through a child resource, every field over one relation shares
+  one limit, and no field is named `_truncated`.
 
 At boot, checks that read the connection are skipped where it cannot be read, such as a boot with no database or
 before migrations have run.

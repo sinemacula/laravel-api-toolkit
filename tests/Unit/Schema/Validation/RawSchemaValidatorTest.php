@@ -105,6 +105,29 @@ final class RawSchemaValidatorTest extends TestCase
     }
 
     /**
+     * Test that a relation limit below 1 or not an integer is reported, while a
+     * positive or absent one passes.
+     *
+     * @return void
+     */
+    public function testReportsEveryLimitThatIsNotAPositiveInteger(): void
+    {
+        $errors = $this->collectErrors([
+            'posts'    => ['relation' => 'posts', 'limit' => 1],
+            'comments' => ['relation' => 'comments', 'limit' => null],
+            'tags'     => ['relation' => 'tags', 'limit' => 0],
+            'articles' => ['relation' => 'articles', 'limit' => -1],
+            'reviews'  => ['relation' => 'reviews', 'limit' => '5'],
+        ]);
+
+        self::assertSame([
+            [self::RESOURCE, 'tags', 'Limit must be an integer of at least 1'],
+            [self::RESOURCE, 'articles', 'Limit must be an integer of at least 1'],
+            [self::RESOURCE, 'reviews', 'Limit must be an integer of at least 1'],
+        ], $errors);
+    }
+
+    /**
      * Return the errors for the raw schema as class, key and defect triples.
      *
      * @param  array<string, array<string, mixed>>  $rawSchema

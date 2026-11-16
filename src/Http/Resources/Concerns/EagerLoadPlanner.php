@@ -4,14 +4,13 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
@@ -253,7 +252,7 @@ final class EagerLoadPlanner
             }
 
             self::markVisited($visited, $resourceClass, $fullPath);
-            self::addEagerLoadPath($definition, $fullPath, $plain, $scoped);
+            self::addEagerLoadPath($definition, $resourceClass . '::' . $field, $fullPath, $plain, $scoped);
             self::recurseIntoChild($definition, $fullPath, $plain, $scoped, $visited, $ancestors);
         }
     }
@@ -281,47 +280,30 @@ final class EagerLoadPlanner
      * Add the relation path as either a scoped or plain eager-load entry.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
+     * @param  string  $owner
      * @param  string  $fullPath
      * @param  array<int, string>  $plain
      * @param  array<string, mixed>  $scoped
      * @return void
      */
-    private static function addEagerLoadPath(CompiledFieldDefinition $definition, string $fullPath, array &$plain, array &$scoped): void
+    private static function addEagerLoadPath(CompiledFieldDefinition $definition, string $owner, string $fullPath, array &$plain, array &$scoped): void
     {
         $constraint = $definition->constraint;
+        $limit      = RelationLimit::for($definition);
 
-        if (!($constraint instanceof \Closure)) {
+        if ($constraint === null && $limit === 0) {
             $plain[] = $fullPath;
 
             return;
         }
 
-        $scoped[$fullPath] = self::wrapConstraint($constraint);
-    }
+        $scoped[$fullPath] = static function (EloquentRelation $relation) use ($constraint, $limit, $owner): void {
 
-    /**
-     * Wrap a constraint to handle MorphTo, relation and builder queries.
-     *
-     * @param  \Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void  $constraint
-     * @return \Closure(mixed): void
-     */
-    private static function wrapConstraint(\Closure $constraint): \Closure
-    {
-        return static function ($query) use ($constraint): void {
-
-            if ($query instanceof MorphTo) {
-                $constraint($query);
-
-                return;
+            if ($constraint !== null) {
+                RelationWindow::constrain($relation, $constraint, $owner);
             }
 
-            $builder = $query instanceof EloquentRelation ? $query->getQuery() : $query;
-
-            if (!($builder instanceof Builder)) {
-                return;
-            }
-
-            $constraint($builder);
+            RelationWindow::bound($relation, $limit);
         };
     }
 

@@ -9,8 +9,12 @@ use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\MissingValue;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -889,6 +893,8 @@ final class ApiResourceTest extends TestCase
      */
     public function testEagerLoadMapForBuildsCorrectMap(): void
     {
+        Config::set('api-toolkit.resources.relation_limit', 0);
+
         $fields = ['id', 'name', 'organization'];
 
         $map = UserResource::eagerLoadMapFor($fields);
@@ -1248,6 +1254,8 @@ final class ApiResourceTest extends TestCase
         ]);
 
         $parser->parse($request);
+
+        Config::set('api-toolkit.resources.relation_limit', 0);
 
         $fields = ['posts'];
         $map    = UserResource::eagerLoadMapFor($fields);
@@ -1975,6 +1983,8 @@ final class ApiResourceTest extends TestCase
      */
     public function testEagerLoadMapForDoesNotAddDuplicatePaths(): void
     {
+        Config::set('api-toolkit.resources.relation_limit', 0);
+
         $map = UserResource::eagerLoadMapFor(['organization', 'organization']);
 
         $plainValues = array_values($map);
@@ -2041,6 +2051,8 @@ final class ApiResourceTest extends TestCase
             }
         };
 
+        Config::set('api-toolkit.resources.relation_limit', 0);
+
         $outerClass::$childClassName = $childClassName;
 
         $map = $outerClass::eagerLoadMapFor(['rel']);
@@ -2095,8 +2107,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that the scoped-constraint closure returned by eagerLoadMapFor
-     * accepts a non-MorphTo builder.
+     * Test that the scoped-constraint closure returned by eagerLoadMapFor runs
+     * the constraint on the relation it is given.
      *
      * @return void
      */
@@ -2134,10 +2146,10 @@ final class ApiResourceTest extends TestCase
         self::assertArrayHasKey('organization', $map);
         self::assertIsCallable($map['organization']);
 
-        $builder = Organization::query();
-        ($map['organization'])($builder);
+        $relation = EloquentRelation::noConstraints(static fn (): BelongsTo => (new User)->organization());
+        ($map['organization'])($relation);
 
-        self::assertNotEmpty($builder->getQuery()->wheres);
+        self::assertSame(['name'], array_column($relation->getQuery()->getQuery()->wheres, 'column'));
     }
 
     /**
@@ -2239,8 +2251,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that the scoped-constraint closure passes a MorphTo query directly
-     * to the user constraint.
+     * Test that the scoped-constraint closure passes a MorphTo relation
+     * directly to the user constraint.
      *
      * @return void
      */
@@ -2255,6 +2267,9 @@ final class ApiResourceTest extends TestCase
             /** @var array<int, string> */
             protected static array $default = ['id', 'organization'];
 
+            /** @var \Illuminate\Contracts\Database\Eloquent\Builder|null The query the constraint last received */
+            public static ?BuilderContract $received = null;
+
             /**
              * Get the resource schema.
              *
@@ -2266,7 +2281,9 @@ final class ApiResourceTest extends TestCase
                 return Field::set(
                     Field::scalar('id'),
                     Relation::to('organization', OrganizationResource::class)
-                        ->constrain(static function (BuilderContract $query): void {}),
+                        ->constrain(static function (BuilderContract $query): void {
+                            self::$received = $query;
+                        }),
                 );
             }
         };
@@ -2276,8 +2293,22 @@ final class ApiResourceTest extends TestCase
         self::assertArrayHasKey('organization', $map);
         self::assertIsCallable($map['organization']);
 
-        $morphTo = \Mockery::mock(MorphTo::class);
+        $model = new #[Table('comments')] class extends Model {
+            /**
+             * Get the commented subject.
+             *
+             * @return \Illuminate\Database\Eloquent\Relations\MorphTo<\Illuminate\Database\Eloquent\Model, $this>
+             */
+            public function subject(): MorphTo
+            {
+                return $this->morphTo();
+            }
+        };
+
+        $morphTo = EloquentRelation::noConstraints(static fn (): MorphTo => $model->subject());
         ($map['organization'])($morphTo);
+
+        self::assertSame($morphTo, $resourceClass::$received);
     }
 
     /**
@@ -2995,6 +3026,111 @@ final class ApiResourceTest extends TestCase
         self::assertContains(['relation' => 'authors as authors_sum_id', 'column' => 'id'], $values);
         self::assertNotContains('posts as posts_count', $values);
         self::assertNotContains(['relation' => 'posts as posts_sum_id', 'column' => 'id'], $values);
+    }
+
+    /**
+     * Test that a relation cut to its limit is listed under its response key,
+     * even when the application loaded it unbounded.
+     *
+     * @return void
+     */
+    public function testCutRelationIsListedUnderItsResponseKey(): void
+    {
+        $result = (new (self::truncatingResource()::class)($this->userWithPosts(3)))->withFields(['id', 'writings', 'tags'])->resolve();
+
+        self::assertSame(['writings'], $result['_truncated']);
+        self::assertIsObject($result['writings']);
+        self::assertCount(2, $result['writings']->collection); // @phpstan-ignore property.notFound
+    }
+
+    /**
+     * Test that every cut relation is listed, in the order it resolved.
+     *
+     * @return void
+     */
+    public function testEveryCutRelationIsListedInResolutionOrder(): void
+    {
+        $user = $this->userWithPosts(3);
+
+        $user->setRelation('posts_copy', $user->getRelation('posts'));
+
+        $result = (new (self::truncatingResource()::class)($user))->withFields(['id', 'writings', 'copies'])->resolve();
+
+        self::assertSame(['writings', 'copies'], $result['_truncated']);
+    }
+
+    /**
+     * Test that no truncation list is added when nothing was cut.
+     *
+     * @return void
+     */
+    public function testNoTruncationListWhenNothingIsCut(): void
+    {
+        $result = (new (self::truncatingResource()::class)($this->userWithPosts(2)))->withFields(['id', 'writings'])->resolve();
+
+        self::assertArrayNotHasKey('_truncated', $result);
+        self::assertArrayHasKey('writings', $result);
+    }
+
+    /**
+     * Test that a cut relation a transformer drops from the payload is not
+     * listed.
+     *
+     * @return void
+     */
+    public function testCutRelationDroppedFromThePayloadIsNotListed(): void
+    {
+        $result = (new (self::truncatingResource()::class)($this->userWithPosts(3)))->withFields(['id', 'hidden_writings', 'name'])->resolve();
+
+        self::assertArrayNotHasKey('hidden_writings', $result);
+        self::assertArrayNotHasKey('_truncated', $result);
+    }
+
+    /**
+     * Build a resource whose posts relations are limited to two.
+     *
+     * @return \SineMacula\ApiToolkit\Http\Resources\ApiResource
+     */
+    private static function truncatingResource(): ApiResource
+    {
+        return new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'truncating_users';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Field::scalar('name'),
+                    Relation::to('posts', PostResource::class, 'writings')->limit(2),
+                    Relation::to('posts_copy', PostResource::class, 'copies')->limit(2),
+                    Relation::to('posts', PostResource::class, 'hidden_writings')->limit(2)->transform(static fn (): MissingValue => new MissingValue),
+                );
+            }
+        };
+    }
+
+    /**
+     * Create a user with the given number of posts loaded unbounded.
+     *
+     * @param  int  $count
+     * @return \Tests\Fixtures\Models\User
+     */
+    private function userWithPosts(int $count): User
+    {
+        $user = User::create(['name' => 'Truncated', 'email' => 'truncated@example.com']);
+
+        for ($index = 1; $index <= $count; $index++) {
+            Post::create(['user_id' => $user->id, 'title' => 'Post ' . $index, 'body' => 'Body']);
+        }
+
+        return $user->load('posts');
     }
 
     /**

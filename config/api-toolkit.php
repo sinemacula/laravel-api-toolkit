@@ -117,6 +117,11 @@ return [
         // code reads attributes outside the declared fields
         'narrow_columns' => env('API_TOOLKIT_RESOURCES_NARROW_COLUMNS', true),
 
+        // The most related records a to-many relation renders per parent when
+        // it declares no limit(). A capped relation is listed in `_truncated`;
+        // 0 or null leaves undeclared relations unbounded
+        'relation_limit' => env('API_TOOLKIT_RESOURCES_RELATION_LIMIT', 25),
+
     ],
 
     /*
