@@ -201,6 +201,24 @@ final class RelationWindowTest extends TestCase
     }
 
     /**
+     * Test that a relation whose query carries unions is left unbounded, so the
+     * window never drops them.
+     *
+     * @return void
+     */
+    public function testRelationWithUnionsIsLeftUnbounded(): void
+    {
+        $relation = $this->eagerRelation(new User, 'posts');
+
+        $relation->getQuery()->getQuery()->union(DB::table('posts'));
+
+        RelationWindow::bound($relation, 5);
+
+        self::assertNull($relation->getQuery()->getQuery()->groupLimit);
+        self::assertSame([], $relation->getQuery()->toBase()->unionOrders ?? []);
+    }
+
+    /**
      * Test that a zero limit adds no order and no bound.
      *
      * @return void

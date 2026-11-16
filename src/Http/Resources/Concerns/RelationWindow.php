@@ -50,7 +50,8 @@ final class RelationWindow
      * truncation probe.
      *
      * The key order is a global scope, so it runs after the model's own scopes.
-     * A bound the relation method already declares tighter is kept.
+     * A bound the relation method already declares tighter is kept. A query
+     * with unions is left to the render cap, since a window would drop them.
      *
      * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
      * @param  int  $limit
@@ -58,7 +59,7 @@ final class RelationWindow
      */
     public static function bound(EloquentRelation $relation, int $limit): void
     {
-        if ($limit === 0 || !RelationLimit::appliesTo($relation)) {
+        if ($limit === 0 || !RelationLimit::appliesTo($relation) || $relation->getQuery()->getQuery()->unions !== null) {
             return;
         }
 
