@@ -4,9 +4,15 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Schema;
 
+use Illuminate\Contracts\Validation\ParameterizedRule;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\ExcludeWith;
+use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Rules\Url;
+use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
 use Tests\Fixtures\Enums\DocumentFormat;
@@ -220,13 +226,150 @@ final class RuleNormaliserTest extends TestCase
     }
 
     /**
-     * Test that a NotIn rule yields no tokens.
+     * Provide framework rule objects with the tokens the validator reads from
+     * them.
+     *
+     * @return iterable<string, array{0: object, 1: list<string>}>
+     */
+    public static function frameworkRuleProvider(): iterable
+    {
+        $stringable = new class implements \Stringable {
+            /**
+             * Convert the parameter to its string form.
+             *
+             * @return string
+             */
+            #[\Override]
+            public function __toString(): string
+            {
+                return 'other';
+            }
+        };
+
+        yield from [
+            'array'                => [Rule::array(['a', 'b'])->min(1), ['array:a,b', 'min:1']],
+            'date'                 => [Rule::date()->afterToday(), ['date', 'after:today']],
+            'numeric'              => [Rule::numeric()->integer()->min(1)->max(10), ['numeric', 'integer', 'min:1', 'max:10']],
+            'string'               => [Rule::string()->alpha(true)->max(5), ['string', 'alpha:ascii', 'max:5']],
+            'not in'               => [Rule::notIn(['a', 'b|c']), ['not_in:"a","b|c"']],
+            'regex'                => [Rule::regex('/a|b/'), ['regex:/a|b/']],
+            'ip address'           => [Rule::ip()->version(6), ['ipv6']],
+            'url'                  => [Rule::url(), ['url']],
+            'url protocols'        => [Rule::url()->protocols(['http', 'https']), ['url:http,https']],
+            'uuid version'         => [Rule::uuid()->version(4), ['uuid:4']],
+            'distinct'             => [Rule::distinct()->ignoreCase(), ['distinct:ignore_case']],
+            'confirmed'            => [Rule::confirmed()->customField('repeat'), ['confirmed:repeat']],
+            'required with'        => [Rule::requiredWith('a'), ['required_with:a']],
+            'required with all'    => [Rule::requiredWithAll(['a', 'b']), ['required_with_all:a,b']],
+            'required without'     => [Rule::requiredWithout('a'), ['required_without:a']],
+            'required without all' => [Rule::requiredWithoutAll(['a', 'b']), ['required_without_all:a,b']],
+            'exclude with'         => [Rule::excludeWith('a'), ['exclude_with:a']],
+            'exclude without'      => [Rule::excludeWithout('b'), ['exclude_without:b']],
+            'quoted parameters'    => [Rule::requiredWith(['a"b', 'c,d', 'e']), ['required_with:"a""b","c,d",e']],
+            'stringable parameter' => [Rule::requiredWith([$stringable, 7]), ['required_with:other,7']],
+            'unreadable parameter' => [Rule::requiredWith([['a']]), ['required_with:']],
+            'file'                 => [File::types(['pdf'])->max(2048), ['file']],
+            'image file'           => [File::image(), ['file', 'image']],
+            'email'                => [Rule::email(), ['email']],
+        ];
+    }
+
+    /**
+     * Test that a framework rule object expands to the tokens the validator
+     * reads.
+     *
+     * @param  object  $rule
+     * @param  list<string>  $expected
+     * @return void
+     */
+    #[DataProvider('frameworkRuleProvider')]
+    public function testFrameworkRuleObjectExpandsAsTheValidatorReadsIt(object $rule, array $expected): void
+    {
+        $normaliser = new RuleNormaliser;
+
+        self::assertSame($expected, $normaliser->normalise($rule));
+        self::assertSame(['required', ...$expected], $normaliser->normalise(['required', $rule]));
+    }
+
+    /**
+     * Test that a rule deciding at request time yields no tokens without
+     * evaluating its condition.
      *
      * @return void
      */
-    public function testNotInObjectYieldsNoTokens(): void
+    public function testRequestTimeRuleYieldsNoTokensWithoutEvaluatingItsCondition(): void
     {
-        self::assertSame([], (new RuleNormaliser)->normalise(Rule::notIn(['a'])));
+        $condition = static function (): bool {
+            self::fail('The rule condition was evaluated.');
+        };
+
+        $tokens = (new RuleNormaliser)->normalise([
+            Rule::requiredIf($condition),
+            Rule::prohibitedIf($condition),
+            Rule::when($condition, ['required']),
+        ]);
+
+        self::assertSame([], $tokens);
+    }
+
+    /**
+     * Test that a rule object of any other class is dropped without being
+     * called.
+     *
+     * @return void
+     */
+    public function testOtherRuleObjectIsDroppedWithoutBeingCalled(): void
+    {
+        $subclass = new class extends Url {
+            /**
+             * Fail the test when the rule is read.
+             *
+             * @return array<int, mixed>
+             */
+            #[\Override]
+            public function toArray(): array
+            {
+                Assert::fail('The rule subclass was called.');
+            }
+        };
+
+        $application = new class implements ParameterizedRule {
+            /**
+             * Fail the test when the rule is read.
+             *
+             * @return array<int, mixed>
+             */
+            #[\Override]
+            public function toArray(): array
+            {
+                Assert::fail('The application rule was called.');
+            }
+
+            /**
+             * Fail the test when the rule is read.
+             *
+             * @return string
+             */
+            #[\Override]
+            public function __toString(): string
+            {
+                Assert::fail('The application rule was called.');
+            }
+        };
+
+        self::assertSame(['string'], (new RuleNormaliser)->normalise(['string', $subclass, $application, Rule::acceptedIf('terms', 'yes')]));
+    }
+
+    /**
+     * Test that a subclassed exclude rule still marks the field excludable.
+     *
+     * @return void
+     */
+    public function testSubclassedExcludeRuleExpandsToItsRuleName(): void
+    {
+        $rule = new class ('a') extends ExcludeWith {};
+
+        self::assertSame(['exclude_with'], (new RuleNormaliser)->normalise($rule));
     }
 
     /**
@@ -284,10 +427,9 @@ final class RuleNormaliserTest extends TestCase
             Rule::excludeUnless(true),
             Rule::excludeWith('a'),
             Rule::excludeWithout('b'),
-            Rule::notIn(['x']),
         ]);
 
-        self::assertSame(['exclude_if', 'exclude_unless', 'exclude_with', 'exclude_without'], $tokens);
+        self::assertSame(['exclude_if', 'exclude_unless', 'exclude_with:a', 'exclude_without:b'], $tokens);
     }
 
     /**

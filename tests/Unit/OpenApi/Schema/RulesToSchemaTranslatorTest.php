@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\Rules\File;
 use Opis\JsonSchema\Helper;
 use Opis\JsonSchema\Validator as SchemaValidator;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -275,15 +276,170 @@ final class RulesToSchemaTranslatorTest extends TestCase
     }
 
     /**
-     * Test that a NotIn rule contributes nothing beside other rules.
+     * Test that a NotIn rule excludes its values beside other rules.
      *
      * @return void
      */
-    public function testNotInObjectContributesNothing(): void
+    public function testNotInObjectExcludesItsValues(): void
     {
         $schema = $this->translator()->translate(['f' => ['string', Rule::notIn(['a'])]]);
 
-        self::assertSame(['type' => 'string'], $schema['properties']['f']);
+        self::assertSame(['type' => 'string', 'not' => ['enum' => ['a']]], $schema['properties']['f']);
+    }
+
+    /**
+     * Test that fluent and parameterised rule objects translate like their
+     * strings.
+     *
+     * @return void
+     */
+    public function testRuleObjectsTranslateLikeTheirStrings(): void
+    {
+        $schema = $this->translator()->translate([
+            'count'  => ['required', Rule::numeric()->integer()->min(1)->max(10)],
+            'upload' => [File::types(['pdf'])->max(2048)],
+            'a'      => 'string',
+            'b'      => [Rule::requiredWith('a'), 'string'],
+        ]);
+
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [
+                'count'  => ['type' => 'integer', 'minimum' => 1, 'maximum' => 10],
+                'upload' => ['type' => 'string', 'format' => 'binary'],
+                'a'      => ['type' => 'string'],
+                'b'      => ['type' => 'string'],
+            ],
+            'required'          => ['count'],
+            'dependentRequired' => ['a' => ['b']],
+        ], $schema);
+    }
+
+    /**
+     * Provide item rules with whether the array's items must be unique.
+     *
+     * @return iterable<string, array{0: array<string, mixed>, 1: bool}>
+     */
+    public static function distinctItemsProvider(): iterable
+    {
+        yield from [
+            'string items'     => [['tags' => 'array', 'tags.*' => 'string|distinct'], true],
+            'ignoring case'    => [['tags' => 'array', 'tags.*' => 'string|distinct:ignore_case'], true],
+            'integer items'    => [['tags.*' => 'integer|distinct'], true],
+            'number items'     => [['tags.*' => 'numeric|distinct'], true],
+            'boolean items'    => [['tags.*' => 'boolean|distinct'], true],
+            'enum items'       => [['tags.*' => [Rule::enum(UserStatus::class), 'distinct']], true],
+            'strict items'     => [['tags.*' => 'integer|distinct:strict'], false],
+            'strict and case'  => [['tags.*' => 'string|distinct:ignore_case,strict'], false],
+            'colon in option'  => [['tags.*' => 'integer|distinct:strict:x'], true],
+            'own rules'        => [['tags' => 'array|distinct', 'tags.*' => 'string'], false],
+            'untyped items'    => [['tags.*' => 'distinct'], false],
+            'nullable items'   => [['tags.*' => 'nullable|string|distinct'], false],
+            'nullable enum'    => [['tags.*' => ['nullable', Rule::enum(UserStatus::class), 'distinct']], false],
+            'array items'      => [['tags.*' => 'array|distinct'], false],
+            'prohibited items' => [['tags.*' => 'prohibited|distinct'], false],
+            'not distinct'     => [['tags.*' => 'string|distinctly'], false],
+        ];
+    }
+
+    /**
+     * Test that only distinct scalar items export uniqueItems.
+     *
+     * @param  array<string, mixed>  $rules
+     * @param  bool  $unique
+     * @return void
+     */
+    #[DataProvider('distinctItemsProvider')]
+    public function testDistinctScalarItemsAreUnique(array $rules, bool $unique): void
+    {
+        $tags = $this->translator()->translate($rules)['properties']['tags'];
+
+        self::assertIsArray($tags);
+        self::assertSame($unique, $tags['uniqueItems'] ?? false);
+    }
+
+    /**
+     * Test that a distinct rule on a deeper path leaves the items free.
+     *
+     * @return void
+     */
+    public function testDistinctRuleOnADeeperPathIsNotUnique(): void
+    {
+        $schema = $this->translator()->translate(['items' => 'array', 'items.*.id' => 'integer|distinct']);
+
+        self::assertSame([
+            'type'  => 'array',
+            'items' => ['type' => 'object', 'properties' => ['id' => ['type' => 'integer']]],
+        ], $schema['properties']['items']);
+    }
+
+    /**
+     * Provide rules with JSON bodies on both sides of each keyword they export.
+     *
+     * @return iterable<string, array{0: array<string, mixed>, 1: list<string>}>
+     */
+    public static function ruleFidelityBodies(): iterable
+    {
+        yield 'strict distinct' => [['ids' => 'array', 'ids.*' => 'integer|distinct:strict'], ['{"ids":[1,1.0]}', '{"ids":[1,2]}']];
+
+        yield 'distinct' => [['ids' => 'array', 'ids.*' => 'string|distinct'], ['{"ids":["a","a"]}', '{"ids":["a","b"]}']];
+
+        yield 'case-insensitive regex' => [['code' => 'regex:/^abc$/i'], ['{"code":"ABC"}', '{"code":"abc"}']];
+
+        yield 'unicode regex' => [['code' => 'regex:/^é+$/u'], ['{"code":"éé"}', '{"code":"e"}']];
+
+        yield 'ip' => [['address' => 'ip'], ['{"address":"::1"}', '{"address":"127.0.0.1"}', '{"address":"nope"}']];
+
+        yield 'ipv6' => [['address' => 'ipv6'], ['{"address":"::1"}', '{"address":"127.0.0.1"}']];
+
+        yield 'date' => [['at' => 'date'], ['{"at":"2026-01-02T03:04:05+00:00"}', '{"at":"2026-01-02"}', '{"at":["x"]}']];
+
+        yield 'alpha' => [['name' => 'alpha'], ['{"name":"Zoë"}', '{"name":"Zoë1"}', '{"name":"abc"}']];
+
+        yield 'ascii alpha' => [['name' => 'alpha:ascii'], ['{"name":"Zoë"}', '{"name":"Zoe"}']];
+
+        yield 'alpha dash' => [['name' => 'alpha_dash'], ['{"name":"a_b-1"}', '{"name":"a b"}']];
+
+        yield 'starts with' => [['code' => 'starts_with:a.b'], ['{"code":"a.bc"}', '{"code":"axb"}']];
+
+        yield 'ends with' => [['code' => 'string|ends_with:x,y'], ['{"code":"ay"}', '{"code":"ya"}']];
+
+        yield 'greater than' => [['count' => 'integer|gt:0'], ['{"count":1}', '{"count":0}']];
+
+        yield 'at most' => [['count' => 'numeric|lte:2.5'], ['{"count":2.5}', '{"count":2.6}']];
+
+        yield 'multiple of' => [['count' => 'numeric|multiple_of:0.5'], ['{"count":1.5}', '{"count":1.25}']];
+
+        yield 'integer digits' => [['pin' => 'integer|digits:4'], ['{"pin":1000}', '{"pin":999}', '{"pin":9999}', '{"pin":10000}']];
+
+        yield 'string digits' => [['pin' => 'string|digits_between:2,3'], ['{"pin":"12"}', '{"pin":"1"}', '{"pin":"1a"}']];
+
+        yield 'not in' => [['role' => 'integer|not_in:1,2'], ['{"role":1}', '{"role":3}']];
+
+        yield 'accepted' => [['terms' => 'accepted'], ['{}', '{"terms":"yes"}', '{"terms":true}', '{"terms":1}', '{"terms":"no"}', '{"terms":null}']];
+
+        yield 'declined' => [['terms' => 'boolean|declined'], ['{}', '{"terms":false}', '{"terms":true}']];
+    }
+
+    /**
+     * Test that the schema accepts exactly the bodies the validator accepts.
+     *
+     * @param  array<string, mixed>  $rules
+     * @param  list<string>  $bodies
+     * @return void
+     */
+    #[DataProvider('ruleFidelityBodies')]
+    public function testRuleKeywordsAcceptWhatTheValidatorAccepts(array $rules, array $bodies): void
+    {
+        $schema = $this->translator()->translate($rules);
+
+        foreach ($bodies as $body) {
+            self::assertSame(
+                Validator::make((array) json_decode($body, true, 512, JSON_THROW_ON_ERROR), $rules)->passes(),
+                $this->isPayloadAcceptedBySchema($schema, $body),
+                sprintf('The schema and the validator disagree on %s.', $body),
+            );
+        }
     }
 
     /**
@@ -555,7 +711,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
      */
     public function testUntranslatableFieldsKeepAnEmptySchema(): void
     {
-        $schema = $this->translator()->translate(['flag' => 'accepted', 'list' => 'array', 'list.*' => 'nullable']);
+        $schema = $this->translator()->translate(['flag' => 'timezone', 'list' => 'array', 'list.*' => 'nullable']);
 
         self::assertSame([
             'type'       => 'object',
