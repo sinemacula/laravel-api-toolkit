@@ -318,7 +318,9 @@ final class QueryParameterExtractorTest extends TestCase
         yield 'default ascending direction' => ['name', ['name' => 'asc']];
         yield 'multiple fields' => ['name:asc,created_at:desc', ['name' => 'asc', 'created_at' => 'desc']];
         yield 'mixed directions' => ['first_name,last_name:desc', ['first_name' => 'asc', 'last_name' => 'desc']];
-        yield 'direction containing colons' => ['name:desc:extra', ['name' => 'desc:extra']];
+        yield 'upper-case direction' => ['name:DESC', ['name' => 'desc']];
+        yield 'padded mixed-case direction' => [' name : Desc ', ['name' => 'desc']];
+        yield 'padded ascending direction' => ['name: ASC ', ['name' => 'asc']];
         yield 'empty order string' => ['', []];
         yield 'order string of empty values' => [',,', []];
         yield 'trailing empty segment' => ['name,', ['name' => 'asc']];
@@ -357,6 +359,42 @@ final class QueryParameterExtractorTest extends TestCase
 
         self::assertSame(['name' => 'asc'], $parameters['order']);
         self::assertArrayNotHasKey('', $parameters['order']);
+    }
+
+    /**
+     * Provide order directions that are neither asc nor desc.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function unpermittedDirectionProvider(): iterable
+    {
+        yield 'empty direction' => ['name:', ''];
+        yield 'unknown direction' => ['name:sideways', 'sideways'];
+        yield 'padded unknown direction' => ['name: SIDEWAYS ', 'SIDEWAYS'];
+        yield 'direction containing colons' => ['name:desc:extra', 'desc:extra'];
+    }
+
+    /**
+     * Test that a direction other than asc or desc is rejected on its key.
+     *
+     * @param  string  $orderString
+     * @param  string  $direction
+     * @return void
+     */
+    #[DataProvider('unpermittedDirectionProvider')]
+    public function testExtractRejectsAnUnpermittedOrderDirection(string $orderString, string $direction): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => 'email:desc,' . $orderString]);
+
+        try {
+            $this->extractor->extract($request);
+            self::fail('Expected a ValidationException for the order direction.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['order.name' => ['The "' . $direction . '" direction is not permitted on the "name" key, which accepts asc, desc.']],
+                $exception->errors(),
+            );
+        }
     }
 
     /**

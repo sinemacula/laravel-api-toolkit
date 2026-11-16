@@ -178,6 +178,20 @@ connection may scan the whole table on every request; only list development conn
 GET /users?order=last_name,first_name:desc
 ```
 
+A direction is `asc` (the default) or `desc`, in any case; anything else, including an empty suffix, is rejected with
+a `422` on `order.{column}` rather than ignored. `paginate()` appends the model key in the last direction when the
+order does not already include it, so rows tied on the requested columns never repeat or go missing between pages. The
+appended key needs no `sortable()` declaration and does not count against `max_order_keys`. A grouped read takes its
+group columns instead; a read grouped by an expression, filtered by `having` without groups, `distinct` on columns, or
+`distinct` without selecting the columns it would take gets nothing appended and needs a unique order of its own.
+
+A cursor can only seek by a column that holds a value in every row, so a cursor-paginated read rejects `random` and
+any column the cached column catalogue reports as nullable, such as the `created_at` that `timestamps()` creates;
+declare the column `NOT NULL` to cursor-page by it. Offset pagination sorts by either. Columns a repository scope
+orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, or does not carry a value for every
+ordered column (the client changed `?order` and kept `?cursor`), is rejected with a `422` on `cursor`; restart from
+the first page.
+
 **Page-size ceiling** - a `?limit` above `api-toolkit.parser.max_limit` (default 100) is rejected with a `422` naming
 the ceiling and the requested size, not reduced to the ceiling. Set the ceiling to `0` to disable it:
 
@@ -408,9 +422,10 @@ neither flag lets a defect pass. A searchable declaration on a connection listed
 `api-toolkit.search.unverified_connections` is not reported, since that listing already waives its index proof. Boot
 skips schema validation while this command runs, so the command reports everything itself.
 
-The index catalogue is read only during validation, never while a filter or sort is served. Two schema reads do sit
-on the request path, both cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads
-the table's column listing, and search reads its index proof.
+The index catalogue is read only during validation, never while a filter or sort is served. Three schema reads do sit
+on the request path, all cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads
+the table's column listing, search reads its index proof, and a cursor-paginated sort reads the column definitions to
+refuse a nullable key.
 
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
@@ -478,6 +493,8 @@ the column's own order, so a MySQL prefix index (`name(20)`), or a PostgreSQL in
 class (`text_pattern_ops`) or a non-default collation, does not count for sorting. A MySQL prefix key still backs an
 exact or prefix search, and a PostgreSQL pattern-class key still backs an exact search, but a PostgreSQL key with a
 different collation backs neither. A connection that cannot be inspected skips the check rather than failing it.
+Because pages end on the model key, a composite `(column, key)` index serves the whole order; the leading-column rule
+is unchanged.
 
 Two overrides cover what the catalogue cannot show:
 

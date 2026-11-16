@@ -21,6 +21,17 @@ return [
         'relation_names'       => 'The :position filter must name a relation.',
     ],
 
+    'order' => [
+        'unpermitted_direction' => 'The ":direction" direction is not permitted on the ":key" key, which accepts :accepts.',
+        'random_cursor'         => 'Random order cannot be paged by cursor; use offset pagination.',
+        'nullable_cursor'       => 'The ":key" key admits null, so it cannot order a cursor-paginated read; use offset pagination.',
+    ],
+
+    'cursor' => [
+        'malformed' => 'The cursor could not be read; restart from the first page.',
+        'mismatch'  => 'The cursor does not match the requested order; restart from the first page.',
+    ],
+
     'search' => [
         'not_permitted'  => 'The search parameter is not permitted for this resource.',
         'word_too_short' => 'Every word in the search term must be at least :min characters.',

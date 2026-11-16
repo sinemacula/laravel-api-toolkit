@@ -742,19 +742,26 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getOrder treats everything after the first colon as the
-     * direction.
+     * Test that everything after the first colon is read as one direction, and
+     * rejected when it is not asc or desc.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testGetOrderTreatsEverythingAfterFirstColonAsDirection(): void
+    public function testParseRejectsEverythingAfterTheFirstColonAsOneDirection(): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => 'name:desc:extra']);
-        $this->parser->parse($request);
 
-        self::assertSame(['name' => 'desc:extra'], $this->parser->getOrder());
+        try {
+            $this->parser->parse($request);
+            self::fail('Expected a ValidationException for the order direction.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['order.name' => ['The "desc:extra" direction is not permitted on the "name" key, which accepts asc, desc.']],
+                $exception->errors(),
+            );
+        }
     }
 
     /**

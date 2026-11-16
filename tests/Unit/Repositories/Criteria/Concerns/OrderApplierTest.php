@@ -4,11 +4,16 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
+use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
@@ -36,7 +41,9 @@ final class OrderApplierTest extends TestCase
     {
         parent::setUp();
 
-        $this->applier = new OrderApplier;
+        assert($this->app !== null);
+
+        $this->applier = new OrderApplier($this->app->make(SchemaIntrospectionProvider::class));
     }
 
     /**
@@ -148,19 +155,6 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that apply with an invalid direction silently skips the column.
-     *
-     * @return void
-     */
-    public function testApplyWithInvalidDirectionSkipsColumn(): void
-    {
-        $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, ['name' => 'invalid'], $this->surface());
-
-        self::assertEmpty($result->getQuery()->orders ?? []);
-    }
-
-    /**
      * Test that apply with an undeclared column rejects the request.
      *
      * @return void
@@ -193,20 +187,95 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that a column with an unusable direction is skipped.
+     * Test that random order is refused on a cursor-paginated read.
      *
      * @return void
      */
-    public function testAppliesValidColumnAfterSkippingAnInvalidOne(): void
+    public function testRandomOrderIsRejectedUnderCursorPagination(): void
     {
-        $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, ['email' => 'sideways', 'name' => 'asc'], $this->surface());
+        Config::set('api-toolkit.repositories.allow_random_order', true);
+
+        $this->paginateByCursor();
+
+        $query = (new User)->newQuery();
+
+        $this->assertRejectsWith(
+            fn () => $this->applier->apply($query, ['random' => 'asc'], $this->surface()),
+            'random',
+            'Random order cannot be paged by cursor; use offset pagination.',
+        );
+    }
+
+    /**
+     * Test that a nullable column is refused on a cursor-paginated read.
+     *
+     * @return void
+     */
+    public function testNullableColumnIsRejectedUnderCursorPagination(): void
+    {
+        $this->paginateByCursor();
+
+        $query = (new User)->newQuery();
+
+        $this->assertRejectsWith(
+            fn () => $this->applier->apply($query, ['name' => 'asc', 'created_at' => 'desc'], $this->surface()),
+            'created_at',
+            'The "created_at" key admits null, so it cannot order a cursor-paginated read; use offset pagination.',
+        );
+    }
+
+    /**
+     * Test that a column that does not admit null orders a cursor read.
+     *
+     * @return void
+     */
+    public function testNonNullableColumnOrdersACursorRead(): void
+    {
+        $this->paginateByCursor();
+
+        $result = $this->applier->apply((new User)->newQuery(), ['name' => 'desc'], $this->surface());
+
+        self::assertSame([['column' => 'name', 'direction' => 'desc']], $result->getQuery()->orders);
+    }
+
+    /**
+     * Test that a column the catalogue does not list orders a cursor read.
+     *
+     * @return void
+     */
+    public function testColumnAbsentFromTheCatalogueOrdersACursorRead(): void
+    {
+        $this->paginateByCursor();
+
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
+        $introspector->method('getColumnDefinitions')->willReturn(['name' => new ColumnDefinition('name', 'varchar', true)]);
+
+        $result = (new OrderApplier($introspector))->apply((new User)->newQuery(), ['email' => 'asc'], $this->surface());
+
+        self::assertSame([['column' => 'email', 'direction' => 'asc']], $result->getQuery()->orders);
+    }
+
+    /**
+     * Test that random order and nullable columns still order an offset read,
+     * without reading the column catalogue.
+     *
+     * @return void
+     */
+    public function testOffsetReadOrdersByRandomAndNullableColumnsWithoutReadingTheCatalogue(): void
+    {
+        Config::set('api-toolkit.repositories.allow_random_order', true);
+
+        ApiQuery::parse(Request::create('/', HttpMethod::GET->getVerb(), ['page' => '2']));
+
+        $introspector = $this->createMock(SchemaIntrospectionProvider::class);
+        $introspector->expects(self::never())->method('getColumnDefinitions');
+
+        $result = (new OrderApplier($introspector))->apply((new User)->newQuery(), ['random' => 'asc', 'created_at' => 'desc'], $this->surface());
 
         $orders = $result->getQuery()->orders ?? [];
 
-        self::assertCount(1, $orders);
-        self::assertSame('name', $orders[0]['column']);
-        self::assertSame('asc', $orders[0]['direction']);
+        self::assertCount(2, $orders);
+        self::assertSame(['column' => 'created_at', 'direction' => 'desc'], $orders[1]);
     }
 
     /**
@@ -230,6 +299,16 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
+     * Parse a cursor-paginated request into the query parser.
+     *
+     * @return void
+     */
+    private function paginateByCursor(): void
+    {
+        ApiQuery::parse(Request::create('/', HttpMethod::GET->getVerb(), ['pagination' => 'cursor']));
+    }
+
+    /**
      * Assert that applying the order rejects the column.
      *
      * @param  callable(): mixed  $apply
@@ -238,14 +317,24 @@ final class OrderApplierTest extends TestCase
      */
     private function assertRejects(callable $apply, string $column): void
     {
+        $this->assertRejectsWith($apply, $column, 'The "' . $column . '" key is not a permitted query parameter for this resource.');
+    }
+
+    /**
+     * Assert that applying the order rejects the column with the message.
+     *
+     * @param  callable(): mixed  $apply
+     * @param  string  $column
+     * @param  string  $message
+     * @return void
+     */
+    private function assertRejectsWith(callable $apply, string $column, string $message): void
+    {
         try {
             $apply();
             self::fail('Expected a ValidationException for the "' . $column . '" order key.');
         } catch (ValidationException $exception) {
-            self::assertSame(
-                ['The "' . $column . '" key is not a permitted query parameter for this resource.'],
-                $exception->errors()['order.' . $column] ?? [],
-            );
+            self::assertSame(['order.' . $column => [$message]], $exception->errors());
         }
     }
 }

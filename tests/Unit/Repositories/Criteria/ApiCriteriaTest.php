@@ -601,24 +601,24 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that order with an invalid direction is ignored.
+     * Test that an order with an invalid direction is rejected before it can
+     * reach the query.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testOrderWithInvalidDirectionIsIgnored(): void
+    public function testOrderWithInvalidDirectionIsRejected(): void
     {
-        $this->parseRequest(new Request([
-            'order' => 'name:invalid',
-        ]));
-
-        $model = new User;
-        $query = $this->criteria->apply($model);
-
-        $orders = $query->getQuery()->orders ?? [];
-
-        self::assertEmpty($orders);
+        try {
+            $this->parseRequest(new Request(['order' => 'name:invalid']));
+            self::fail('Expected a ValidationException for the order direction.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['order.name' => ['The "invalid" direction is not permitted on the "name" key, which accepts asc, desc.']],
+                $exception->errors(),
+            );
+        }
     }
 
     /**
@@ -1263,6 +1263,7 @@ final class ApiCriteriaTest extends TestCase
      * @param  \Illuminate\Http\Request  $request
      * @return void
      *
+     * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function parseRequest(Request $request): void

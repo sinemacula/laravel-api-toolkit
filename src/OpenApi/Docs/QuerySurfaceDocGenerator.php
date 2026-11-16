@@ -36,9 +36,11 @@ final readonly class QuerySurfaceDocGenerator
     /** The fixed note saying when those two names come apart. */
     private const string ALIASES = 'The two differ wherever a field is presented under an alias.';
 
-    /** The fixed note saying what an index-backed order does and does not claim. */
+    /** The fixed note saying what an index-backed order claims and how pages stay whole. */
     private const string ORDERS = 'An order reads as Index-backed where the resource recorded no exemption for it; the index itself is proven by '
-        . 'schema validation, which reads the catalogue behind the model where a connection can be inspected.';
+        . 'schema validation, which reads the catalogue behind the model where a connection can be inspected. Every page is ordered by '
+        . 'the key last, in the last direction, so tied rows never repeat or go missing; a cursor-paginated read refuses random order '
+        . 'and any column that admits null.';
 
     /** The cell shown where a column answers nothing, or a row is undescribed. */
     private const string NO_VALUE = '-';

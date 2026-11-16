@@ -190,7 +190,9 @@ final readonly class QueryParameterBuilder
     {
         return $this->parameter(
             'order',
-            'Ordering: a comma-separated list of fields, each optionally suffixed with :desc, e.g. order=name,created_at:desc.',
+            'Ordering: a comma-separated list of fields, each optionally suffixed with :asc or :desc in any case, e.g. order=name,created_at:desc. '
+            . 'Any other direction is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
+            . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read.',
             ['type' => 'string'],
         );
     }
@@ -239,7 +241,8 @@ final readonly class QueryParameterBuilder
     {
         return $this->parameter(
             'cursor',
-            'Opaque cursor token for cursor pagination.',
+            'Opaque cursor token for cursor pagination. A token that does not decode, or does not match the requested order, is rejected; '
+            . 'restart from the first page.',
             ['type' => 'string'],
         );
     }

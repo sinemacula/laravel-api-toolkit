@@ -102,7 +102,7 @@ final class ApiCriteria implements CriteriaInterface
         private readonly MetadataCacheWriter $metadataCacheWriter,
     ) {
         $this->filterApplier               = new FilterApplier;
-        $this->orderApplier                = new OrderApplier;
+        $this->orderApplier                = new OrderApplier($this->schemaIntrospector);
         $this->eagerLoadApplier            = new EagerLoadApplier;
         $this->limitApplier                = new LimitApplier;
         $this->columnProjectionApplier     = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector), $this->schemaIntrospector);
@@ -245,7 +245,7 @@ final class ApiCriteria implements CriteriaInterface
     /**
      * Get the order to be applied to the query.
      *
-     * @return array<string, string>
+     * @return array<string, 'asc'|'desc'>
      */
     private function getOrder(): array
     {

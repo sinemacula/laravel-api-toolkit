@@ -125,7 +125,9 @@ final class QueryParameterExtractor
      * Extract the order parameters from the query string.
      *
      * @param  string  $query
-     * @return array<string, string>
+     * @return array<string, 'asc'|'desc'>
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
     private function parseOrder(string $query): array
     {
@@ -139,9 +141,31 @@ final class QueryParameterExtractor
                 continue;
             }
 
-            $order[$column] = $parts[1] ?? 'asc';
+            $order[$column] = $this->parseDirection($column, $parts[1] ?? 'asc');
         }
 
         return $order;
+    }
+
+    /**
+     * Normalise an order direction, rejecting anything but asc or desc.
+     *
+     * Dropping an unreadable direction would silently return an unsorted page.
+     *
+     * @param  string  $column
+     * @param  string  $suffix
+     * @return 'asc'|'desc'
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function parseDirection(string $column, string $suffix): string
+    {
+        $direction = strtolower(trim($suffix));
+
+        if ($direction !== 'asc' && $direction !== 'desc') {
+            throw Rejection::at('order.' . $column, 'order.unpermitted_direction', ['direction' => trim($suffix), 'key' => $column, 'accepts' => 'asc, desc']);
+        }
+
+        return $direction;
     }
 }
