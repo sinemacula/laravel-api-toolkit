@@ -28,13 +28,14 @@ final class WritePoolFlushContextTest extends TestCase
     public function testAccessorsReturnConstructorValues(): void
     {
         $chunks  = [[['id' => 1]], [['id' => 2]]];
-        $context = new WritePoolFlushContext(FlushStrategy::COLLECT, 'orders', $chunks, ['orders', 'payments'], 0);
+        $context = new WritePoolFlushContext(FlushStrategy::COLLECT, 'audit', 'orders', $chunks, [['audit', 'orders'], ['main', 'payments']], 0);
 
         self::assertSame(FlushStrategy::COLLECT, $context->strategy());
+        self::assertSame('audit', $context->connection());
         self::assertSame('orders', $context->table());
         self::assertSame($chunks, $context->chunks());
-        self::assertSame(['orders', 'payments'], $context->tables());
-        self::assertSame(0, $context->tableIndex());
+        self::assertSame([['audit', 'orders'], ['main', 'payments']], $context->targets());
+        self::assertSame(0, $context->targetIndex());
     }
 
     /**
@@ -44,7 +45,7 @@ final class WritePoolFlushContextTest extends TestCase
      */
     public function testChunkIndexDefaultsToNull(): void
     {
-        $context = new WritePoolFlushContext(FlushStrategy::THROW, 'orders', [], [], 0);
+        $context = new WritePoolFlushContext(FlushStrategy::THROW, 'main', 'orders', [], [], 0);
 
         self::assertNull($context->chunkIndex());
     }
@@ -56,10 +57,10 @@ final class WritePoolFlushContextTest extends TestCase
      */
     public function testChunkIndexReturnsConstructorValue(): void
     {
-        $context = new WritePoolFlushContext(FlushStrategy::LOG, 'orders', [], ['orders'], 2, 7);
+        $context = new WritePoolFlushContext(FlushStrategy::LOG, 'main', 'orders', [], [['main', 'orders']], 2, 7);
 
         self::assertSame(7, $context->chunkIndex());
-        self::assertSame(2, $context->tableIndex());
+        self::assertSame(2, $context->targetIndex());
     }
 
     /**
@@ -70,7 +71,7 @@ final class WritePoolFlushContextTest extends TestCase
     public function testWithChunkIndexReturnsNewInstancePreservingOtherFields(): void
     {
         $chunks   = [[['id' => 1]], [['id' => 2]]];
-        $original = new WritePoolFlushContext(FlushStrategy::THROW, 'orders', $chunks, ['orders', 'payments'], 1);
+        $original = new WritePoolFlushContext(FlushStrategy::THROW, 'audit', 'orders', $chunks, [['main', 'payments'], ['audit', 'orders']], 1);
 
         $derived = $original->withChunkIndex(3);
 
@@ -78,9 +79,10 @@ final class WritePoolFlushContextTest extends TestCase
         self::assertNull($original->chunkIndex());
         self::assertSame(3, $derived->chunkIndex());
         self::assertSame(FlushStrategy::THROW, $derived->strategy());
+        self::assertSame('audit', $derived->connection());
         self::assertSame('orders', $derived->table());
         self::assertSame($chunks, $derived->chunks());
-        self::assertSame(['orders', 'payments'], $derived->tables());
-        self::assertSame(1, $derived->tableIndex());
+        self::assertSame([['main', 'payments'], ['audit', 'orders']], $derived->targets());
+        self::assertSame(1, $derived->targetIndex());
     }
 }

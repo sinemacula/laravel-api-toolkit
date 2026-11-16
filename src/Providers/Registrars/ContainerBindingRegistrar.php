@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Providers\Registrars;
 
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\ApiQueryParser;
@@ -221,12 +222,14 @@ final readonly class ContainerBindingRegistrar
             $poolLimit     = Config::get('api-toolkit.deferred_writes.pool_limit', 10000);
             $onFailure     = Config::get('api-toolkit.deferred_writes.on_failure', 'collect');
             $transactional = Config::get('api-toolkit.deferred_writes.transactional', false);
+            $transactions  = $this->container->make('db.transactions');
 
             return new WritePool(
                 is_numeric($chunkSize) ? (int) $chunkSize : 500,
                 is_numeric($poolLimit) ? (int) $poolLimit : 10000,
                 FlushStrategy::from(is_string($onFailure) ? $onFailure : 'collect'),
                 (bool) $transactional,
+                $transactions instanceof DatabaseTransactionsManager ? $transactions : null,
             );
         });
     }

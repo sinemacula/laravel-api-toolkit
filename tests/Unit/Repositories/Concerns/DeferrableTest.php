@@ -14,6 +14,11 @@ use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
+use Tests\Concerns\CreatesDeferredWriteTargets;
+use Tests\Fixtures\Models\AuditEntry;
+use Tests\Fixtures\Models\ImportRow;
+use Tests\Fixtures\Models\LedgerEntry;
+use Tests\Fixtures\Models\Reading;
 use Tests\Fixtures\Repositories\DeferrableUserRepository;
 use Tests\TestCase;
 
@@ -28,6 +33,8 @@ use Tests\TestCase;
 #[CoversTrait(Deferrable::class)]
 final class DeferrableTest extends TestCase
 {
+    use CreatesDeferredWriteTargets;
+
     /** @var string The timestamp used for deferral-based assertions. */
     private const string TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';
 
@@ -264,12 +271,136 @@ final class DeferrableTest extends TestCase
      */
     public function testDeferPropagatesThrowExceptionOnAutoFlushFailure(): void
     {
-        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(500, 1, FlushStrategy::THROW)); // @phpstan-ignore method.nonObject
+        $transactions = $this->transactionTracker();
+
+        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(500, 1, FlushStrategy::THROW, transactions: $transactions)); // @phpstan-ignore method.nonObject
 
         $repository = $this->app->make(DeferrableUserRepository::class); // @phpstan-ignore method.nonObject
 
         $this->expectException(WritePoolFlushException::class);
 
         $repository->defer(['name' => 'Kim', 'email' => 'kim@example.com', 'password' => 'secret', 'nonexistent_column' => 'x']);
+    }
+
+    /**
+     * Test that defer writes the row to the model's connection only.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     */
+    public function testDeferWritesToTheModelConnection(): void
+    {
+        $this->useAuditConnection();
+
+        $repository = $this->deferrableRepository(AuditEntry::class);
+
+        $repository->defer(['action' => 'login']);
+
+        self::assertTrue($repository->flushWrites()->isSuccessful());
+        self::assertSame(['login'], DB::connection('audit')->table('audit_entries')->pluck('action')->all());
+        self::assertFalse(DB::getSchemaBuilder()->hasTable('audit_entries'));
+    }
+
+    /**
+     * Test that a default connection changed after deferral does not move the
+     * buffered row.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     */
+    public function testDeferKeepsTheConnectionResolvedAtDeferral(): void
+    {
+        $this->useAuditConnection();
+
+        $this->repository->defer(['name' => 'Lena', 'email' => 'lena@example.com', 'password' => 'secret']);
+
+        DB::setDefaultConnection('audit');
+
+        try {
+            $flushResult = $this->repository->flushWrites();
+        } finally {
+            DB::setDefaultConnection('testing');
+        }
+
+        self::assertTrue($flushResult->isSuccessful());
+        self::assertSame(1, DB::table('users')->count());
+    }
+
+    /**
+     * Test that a model without timestamps defers no timestamp columns.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     */
+    public function testDeferAddsNoTimestampsForAModelWithoutThem(): void
+    {
+        $repository = $this->deferrableRepository(ImportRow::class);
+
+        $repository->defer(['reference' => 'r-1', 'payload' => 'p']);
+
+        self::assertTrue($repository->flushWrites()->isSuccessful());
+        self::assertSame(1, DB::table('import_rows')->count());
+    }
+
+    /**
+     * Test that defer fills the model's custom timestamp columns and not the
+     * default ones.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     */
+    public function testDeferFillsCustomTimestampColumns(): void
+    {
+        Carbon::setTestNow(Carbon::parse(self::TIMESTAMP_DEFERRAL));
+
+        $repository = $this->deferrableRepository(LedgerEntry::class);
+
+        $repository->defer(['label' => 'filled']);
+        $repository->defer(['label' => 'given', 'created' => self::TIMESTAMP_EXPLICIT]);
+
+        self::assertTrue($repository->flushWrites()->isSuccessful());
+        self::assertSame([
+            ['filled', self::TIMESTAMP_DEFERRAL, self::TIMESTAMP_DEFERRAL],
+            ['given', self::TIMESTAMP_EXPLICIT, self::TIMESTAMP_DEFERRAL],
+        ], DB::table('ledger_entries')->orderBy('id')->get(['label', 'created', 'modified'])->map(
+            fn (object $row): array => array_values((array) $row),
+        )->all());
+    }
+
+    /**
+     * Test that defer formats timestamps with the model's date format and skips
+     * a timestamp column the model sets to null.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     */
+    public function testDeferUsesTheModelDateFormatAndSkipsANullTimestampColumn(): void
+    {
+        Carbon::setTestNow(Carbon::parse(self::TIMESTAMP_DEFERRAL));
+
+        $repository = $this->deferrableRepository(Reading::class);
+
+        $repository->defer(['label' => 'gauge']);
+
+        self::assertTrue($repository->flushWrites()->isSuccessful());
+        self::assertSame((string) Carbon::parse(self::TIMESTAMP_DEFERRAL)->getTimestamp(), DB::table('readings')->value('updated_at'));
+    }
+
+    /**
+     * Define the database migrations.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function defineDatabaseMigrations(): void
+    {
+        parent::defineDatabaseMigrations();
+
+        $this->createTimestampFixtureTables();
     }
 }

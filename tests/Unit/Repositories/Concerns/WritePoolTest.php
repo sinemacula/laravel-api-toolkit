@@ -19,6 +19,7 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 use SineMacula\Repositories\Concerns\CacheSizeGuard;
 use SineMacula\Repositories\Concerns\CacheStore;
 use SineMacula\Repositories\Concerns\CacheStoreOptions;
+use Tests\Concerns\CreatesDeferredWriteTargets;
 use Tests\TestCase;
 
 /**
@@ -32,6 +33,8 @@ use Tests\TestCase;
 #[CoversClass(WritePool::class)]
 final class WritePoolTest extends TestCase
 {
+    use CreatesDeferredWriteTargets;
+
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePool The write pool instance under test. */
     private WritePool $pool;
 
@@ -55,7 +58,7 @@ final class WritePoolTest extends TestCase
      */
     public function testAddBuffersAttributesForGivenTable(): void
     {
-        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         self::assertSame(1, $this->pool->count());
         self::assertFalse($this->pool->isEmpty());
@@ -68,8 +71,8 @@ final class WritePoolTest extends TestCase
      */
     public function testAddBuffersAttributesForMultipleTables(): void
     {
-        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
-        $this->pool->add('test_other', ['label' => 'baz']);
+        $this->pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->add('testing', 'test_other', ['label' => 'baz']);
 
         self::assertSame(2, $this->pool->count());
     }
@@ -101,7 +104,7 @@ final class WritePoolTest extends TestCase
      */
     public function testIsEmptyReturnsFalseAfterAdd(): void
     {
-        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         self::assertFalse($this->pool->isEmpty());
     }
@@ -113,8 +116,8 @@ final class WritePoolTest extends TestCase
      */
     public function testFlushInsertsRecordsIntoDatabase(): void
     {
-        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
-        $this->pool->add('test_records', ['name' => 'baz', 'value' => 'qux']);
+        $this->pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->add('testing', 'test_records', ['name' => 'baz', 'value' => 'qux']);
 
         $flushResult = $this->pool->flush();
 
@@ -129,8 +132,8 @@ final class WritePoolTest extends TestCase
      */
     public function testFlushGroupsRecordsByTable(): void
     {
-        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
-        $this->pool->add('test_other', ['label' => 'baz']);
+        $this->pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->add('testing', 'test_other', ['label' => 'baz']);
 
         $flushResult = $this->pool->flush();
 
@@ -146,7 +149,7 @@ final class WritePoolTest extends TestCase
      */
     public function testFlushClearsBufferAfterExecution(): void
     {
-        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         $flushResult = $this->pool->flush();
 
@@ -181,7 +184,7 @@ final class WritePoolTest extends TestCase
         DB::enableQueryLog();
 
         for ($i = 0; $i < 5; $i++) {
-            $pool->add('test_records', ['name' => "name_{$i}", 'value' => "value_{$i}"]);
+            $pool->add('testing', 'test_records', ['name' => "name_{$i}", 'value' => "value_{$i}"]);
         }
 
         $flushResult = $pool->flush();
@@ -206,8 +209,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 0, poolLimit: 10000);
 
-        $pool->add('test_records', ['name' => 'name_0', 'value' => 'value_0']);
-        $pool->add('test_records', ['name' => 'name_1', 'value' => 'value_1']);
+        $pool->add('testing', 'test_records', ['name' => 'name_0', 'value' => 'value_0']);
+        $pool->add('testing', 'test_records', ['name' => 'name_1', 'value' => 'value_1']);
 
         self::assertSame(2, $pool->flush()->successCount());
         self::assertSame(2, DB::table('test_records')->count());
@@ -224,8 +227,8 @@ final class WritePoolTest extends TestCase
 
         Log::shouldReceive('warning')->never();
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         $flushResult = $pool->flush();
 
@@ -243,7 +246,7 @@ final class WritePoolTest extends TestCase
     {
         Log::shouldReceive('warning')->never();
 
-        $this->pool->add('nonexistent_table', ['col' => 'val']);
+        $this->pool->add('testing', 'nonexistent_table', ['col' => 'val']);
 
         $this->pool->flush();
 
@@ -260,8 +263,8 @@ final class WritePoolTest extends TestCase
     {
         Log::shouldReceive('warning')->never();
 
-        $this->pool->add('nonexistent_table', ['col' => 'val']);
-        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $this->pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         $flushResult = $this->pool->flush();
 
@@ -270,7 +273,7 @@ final class WritePoolTest extends TestCase
         self::assertSame(1, $flushResult->retainedRecordCount());
         self::assertSame(1, $this->pool->count());
         self::assertInstanceOf(QueryException::class, $flushResult->firstException());
-        self::assertSame($flushResult->failures()['nonexistent_table'][0]['exception'], $flushResult->firstException()->getMessage());
+        self::assertSame($flushResult->failures()['testing']['nonexistent_table'][0]['exception'], $flushResult->firstException()->getMessage());
     }
 
     /**
@@ -280,11 +283,11 @@ final class WritePoolTest extends TestCase
      */
     public function testAddTriggersAutoFlushWhenPoolLimitReached(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 3);
+        $pool = new WritePool(chunkSize: 500, poolLimit: 3, transactions: $this->transactionTracker());
 
-        $pool->add('test_records', ['name' => 'a', 'value' => '1']);
-        $pool->add('test_records', ['name' => 'b', 'value' => '2']);
-        $pool->add('test_records', ['name' => 'c', 'value' => '3']);
+        $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
+        $pool->add('testing', 'test_records', ['name' => 'b', 'value' => '2']);
+        $pool->add('testing', 'test_records', ['name' => 'c', 'value' => '3']);
 
         self::assertSame(3, DB::table('test_records')->count());
         self::assertSame(0, $pool->count());
@@ -297,10 +300,10 @@ final class WritePoolTest extends TestCase
      */
     public function testAddTriggersAutoFlushWhenPoolLimitExceeded(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2);
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
 
-        $pool->add('test_records', ['name' => 'a', 'value' => '1']);
-        $pool->add('test_records', ['name' => 'b', 'value' => '2']);
+        $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
+        $pool->add('testing', 'test_records', ['name' => 'b', 'value' => '2']);
 
         self::assertSame(2, DB::table('test_records')->count());
         self::assertSame(0, $pool->count());
@@ -313,14 +316,14 @@ final class WritePoolTest extends TestCase
      */
     public function testSubsequentAddsAfterAutoFlushAccumulateInFreshBuffer(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2);
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
 
-        $pool->add('test_records', ['name' => 'a', 'value' => '1']);
-        $pool->add('test_records', ['name' => 'b', 'value' => '2']);
+        $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
+        $pool->add('testing', 'test_records', ['name' => 'b', 'value' => '2']);
 
         self::assertSame(0, $pool->count());
 
-        $pool->add('test_records', ['name' => 'c', 'value' => '3']);
+        $pool->add('testing', 'test_records', ['name' => 'c', 'value' => '3']);
 
         self::assertSame(1, $pool->count());
         self::assertSame(2, DB::table('test_records')->count());
@@ -338,18 +341,18 @@ final class WritePoolTest extends TestCase
         Log::shouldReceive('error')->never();
         Log::shouldReceive('warning')->once()->withAnyArgs();
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         $flushResult = $pool->flush();
 
         self::assertFalse($flushResult->isSuccessful());
         self::assertSame(1, $flushResult->failureCount());
         self::assertSame(1, $flushResult->successCount());
-        self::assertArrayHasKey('nonexistent_table', $flushResult->failures());
-        self::assertSame([['col' => 'val']], $flushResult->failures()['nonexistent_table'][0]['records']);
-        self::assertNotEmpty($flushResult->failures()['nonexistent_table'][0]['exception']);
-        self::assertSame(QueryException::class, $flushResult->failures()['nonexistent_table'][0]['exception_class']);
+        self::assertArrayHasKey('nonexistent_table', $flushResult->failures()['testing']);
+        self::assertSame([['col' => 'val']], $flushResult->failures()['testing']['nonexistent_table'][0]['records']);
+        self::assertNotEmpty($flushResult->failures()['testing']['nonexistent_table'][0]['exception']);
+        self::assertSame(QueryException::class, $flushResult->failures()['testing']['nonexistent_table'][0]['exception_class']);
     }
 
     /**
@@ -365,15 +368,16 @@ final class WritePoolTest extends TestCase
         Log::shouldReceive('warning')
             ->once()
             ->with(
-                'WritePool flush failed for table [nonexistent_table]',
-                \Mockery::on(fn (array $context): bool => array_keys($context) === ['table', 'chunk_size', 'error', 'exception']
+                'WritePool flush failed for table [nonexistent_table] on connection [testing]',
+                \Mockery::on(fn (array $context): bool => array_keys($context) === ['connection', 'table', 'chunk_size', 'error', 'exception']
+                    && $context['connection']                                  === 'testing'
                     && $context['table']                                       === 'nonexistent_table'
                     && $context['chunk_size']                                  === 1
                     && $context['exception'] instanceof QueryException
                     && $context['error'] === $context['exception']->getMessage()),
             );
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
 
         $pool->flush();
     }
@@ -387,8 +391,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::THROW);
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         $this->expectException(WritePoolFlushException::class);
 
@@ -404,8 +408,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::THROW);
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         try {
             $pool->flush();
@@ -426,10 +430,10 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW);
 
-        $pool->add('test_records', ['name' => 'a', 'value' => '1']);
-        $pool->add('test_records', ['name' => 'b', 'value' => '2']);
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_other', ['label' => 'baz']);
+        $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
+        $pool->add('testing', 'test_records', ['name' => 'b', 'value' => '2']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_other', ['label' => 'baz']);
 
         try {
             $pool->flush();
@@ -450,8 +454,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW);
 
-        $pool->add('test_records', ['name' => 'a', 'value' => '1']);
-        $pool->add('nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
 
         try {
             $pool->flush();
@@ -474,8 +478,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         $pool->flush();
 
@@ -491,8 +495,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         $pool->flush();
 
@@ -509,8 +513,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         $pool->flush();
 
@@ -527,16 +531,16 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('another_missing_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'another_missing_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         $flushResult = $pool->flush();
 
         self::assertSame(2, $flushResult->failureCount());
         self::assertSame(1, $flushResult->successCount());
-        self::assertArrayHasKey('nonexistent_table', $flushResult->failures());
-        self::assertArrayHasKey('another_missing_table', $flushResult->failures());
+        self::assertArrayHasKey('nonexistent_table', $flushResult->failures()['testing']);
+        self::assertArrayHasKey('another_missing_table', $flushResult->failures()['testing']);
     }
 
     /**
@@ -550,8 +554,8 @@ final class WritePoolTest extends TestCase
 
         Log::shouldReceive('warning')->never();
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         $pool->flush(FlushStrategy::COLLECT);
 
@@ -566,13 +570,13 @@ final class WritePoolTest extends TestCase
      */
     public function testAutoFlushUsesLogStrategyWhenConfiguredAsLog(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::LOG);
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::LOG, transactions: $this->transactionTracker());
 
         Log::shouldReceive('error')->never();
         Log::shouldReceive('warning')->once()->withAnyArgs();
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         self::assertSame(0, $pool->count());
     }
@@ -584,13 +588,13 @@ final class WritePoolTest extends TestCase
      */
     public function testAutoFlushThrowsWhenConfiguredAsThrow(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::THROW);
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::THROW, transactions: $this->transactionTracker());
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
 
         $this->expectException(WritePoolFlushException::class);
 
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
     }
 
     /**
@@ -600,10 +604,10 @@ final class WritePoolTest extends TestCase
      */
     public function testAutoFlushUsesCollectStrategyWhenConfiguredAsCollect(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::COLLECT);
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::COLLECT, transactions: $this->transactionTracker());
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         self::assertNotNull($pool->lastAutoFlushResult());
     }
@@ -625,10 +629,10 @@ final class WritePoolTest extends TestCase
      */
     public function testLastAutoFlushResultReturnsResultAfterAutoFlush(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2);
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
 
-        $pool->add('test_records', ['name' => 'a', 'value' => '1']);
-        $pool->add('test_records', ['name' => 'b', 'value' => '2']);
+        $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
+        $pool->add('testing', 'test_records', ['name' => 'b', 'value' => '2']);
 
         self::assertInstanceOf(WritePoolFlushResult::class, $pool->lastAutoFlushResult());
     }
@@ -642,8 +646,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         $pool->flush();
 
@@ -669,8 +673,8 @@ final class WritePoolTest extends TestCase
         Log::shouldReceive('error')->never();
         Log::shouldReceive('warning')->once()->withAnyArgs();
 
-        $pool->add('nonexistent_table', ['col' => 'val']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         $pool->flush();
 
@@ -687,8 +691,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
 
-        $pool->add('nonexistent_table', ['col' => 'a']);
-        $pool->add('nonexistent_table', ['col' => 'b']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'a']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'b']);
 
         $pool->flush();
 
@@ -704,10 +708,10 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW);
 
-        $pool->add('test_unique', ['name' => 'alpha']);
-        $pool->add('test_unique', ['name' => 'alpha']);
-        $pool->add('test_unique', ['name' => 'beta']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'beta']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         try {
             $pool->flush();
@@ -730,8 +734,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::COLLECT, transactional: true);
 
-        $pool->add('test_unique', ['name' => 'alpha']);
-        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
 
         $pool->flush();
 
@@ -747,8 +751,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
 
-        $pool->add('test_unique', ['name' => 'alpha']);
-        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
 
         $pool->flush();
 
@@ -764,8 +768,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::COLLECT, transactional: true);
 
-        $pool->add('test_unique', ['name' => 'alpha']);
-        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
 
         $flushResult = $pool->flush();
 
@@ -784,9 +788,9 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW, transactional: true);
 
-        $pool->add('test_unique', ['name' => 'alpha']);
-        $pool->add('test_unique', ['name' => 'alpha']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         try {
             $pool->flush();
@@ -808,10 +812,10 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW, transactional: true);
 
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
-        $pool->add('test_unique', ['name' => 'alpha']);
-        $pool->add('test_unique', ['name' => 'alpha']);
-        $pool->add('test_other', ['label' => 'baz']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_other', ['label' => 'baz']);
 
         try {
             $pool->flush();
@@ -835,9 +839,9 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
 
-        $pool->add('nonexistent_table', ['col' => 'a']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
-        $pool->add('test_records', ['name' => 'baz', 'value' => 'qux']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'a']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'test_records', ['name' => 'baz', 'value' => 'qux']);
 
         $flushResult = $pool->flush();
 
@@ -856,9 +860,9 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW);
 
-        $pool->add('nonexistent_table', ['col' => 'a']);
-        $pool->add('nonexistent_table', ['col' => 'b']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'a']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'b']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         try {
             $pool->flush();
@@ -886,8 +890,8 @@ final class WritePoolTest extends TestCase
         Log::shouldReceive('error')->never();
         Log::shouldReceive('warning')->once()->withAnyArgs();
 
-        $pool->add('nonexistent_table', ['col' => 'a']);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'a']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         $flushResult = $pool->flush();
 
@@ -904,8 +908,8 @@ final class WritePoolTest extends TestCase
      */
     public function testFlushResultReportsEveryAttemptedTable(): void
     {
-        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
-        $this->pool->add('test_other', ['label' => 'baz']);
+        $this->pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->add('testing', 'test_other', ['label' => 'baz']);
 
         $flushResult = $this->pool->flush();
 
@@ -933,8 +937,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW);
 
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
-        $pool->add('nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
 
         try {
             $pool->flush();
@@ -953,8 +957,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::COLLECT, transactional: true);
 
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
-        $pool->add('test_records', ['name' => 'baz', 'value' => 'qux']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'test_records', ['name' => 'baz', 'value' => 'qux']);
 
         $flushResult = $pool->flush();
 
@@ -977,8 +981,8 @@ final class WritePoolTest extends TestCase
         Log::shouldReceive('error')->never();
         Log::shouldReceive('warning')->once()->withAnyArgs();
 
-        $pool->add('test_unique', ['name' => 'alpha']);
-        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
 
         $flushResult = $pool->flush();
 
@@ -1004,7 +1008,7 @@ final class WritePoolTest extends TestCase
 
         self::assertNotNull($warm->fetch('stale-query-hash'));
 
-        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
         $this->pool->flush();
 
         self::assertNull($this->cacheStore('test_records')->fetch('stale-query-hash'));
@@ -1023,8 +1027,8 @@ final class WritePoolTest extends TestCase
         $warm = $this->cacheStore('test_records');
         $warm->put('stale-query-hash', collect(['stale']), 60);
 
-        $pool = new WritePool(chunkSize: 500, poolLimit: 1);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool = new WritePool(chunkSize: 500, poolLimit: 1, transactions: $this->transactionTracker());
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         self::assertSame(1, DB::table('test_records')->count());
         self::assertNull($this->cacheStore('test_records')->fetch('stale-query-hash'));
@@ -1046,7 +1050,7 @@ final class WritePoolTest extends TestCase
         $warm = $this->cacheStore('test_records');
         $warm->put('stale-query-hash', collect(['stale']), 60);
 
-        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
         $this->pool->flush();
 
         self::assertNull($this->cacheStore('test_records')->fetch('stale-query-hash'));
@@ -1065,7 +1069,7 @@ final class WritePoolTest extends TestCase
         $warm = $this->cacheStore('test_records');
         $warm->put('stale-query-hash', collect(['stale']), 60);
 
-        $this->pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
+        $this->pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
         $this->pool->flush();
 
         self::assertNotNull($this->cacheStore('test_records')->fetch('stale-query-hash'));
@@ -1085,8 +1089,8 @@ final class WritePoolTest extends TestCase
         $warm->put('stale-query-hash', collect(['stale']), 60);
 
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::THROW);
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
-        $pool->add('nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
 
         try {
             $pool->flush();
@@ -1107,9 +1111,9 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
 
-        $pool->add('nonexistent_table', ['col' => 'a']);
-        $pool->add('nonexistent_table', ['col' => 'b']);
-        $pool->add('another_missing_table', ['col' => 'c']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'a']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'b']);
+        $pool->add('testing', 'another_missing_table', ['col' => 'c']);
 
         $flushResult = $pool->flush();
 
@@ -1120,8 +1124,8 @@ final class WritePoolTest extends TestCase
         self::assertSame(3, $flushResult->failedRecordCount());
         self::assertSame(3, $flushResult->retainedRecordCount());
         self::assertSame(0, $flushResult->droppedRecordCount());
-        self::assertArrayHasKey('nonexistent_table', $flushResult->failures());
-        self::assertArrayHasKey('another_missing_table', $flushResult->failures());
+        self::assertArrayHasKey('nonexistent_table', $flushResult->failures()['testing']);
+        self::assertArrayHasKey('another_missing_table', $flushResult->failures()['testing']);
         self::assertSame(3, $pool->count());
     }
 
@@ -1134,8 +1138,8 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
 
-        $pool->add('test_deferred_retry', ['label' => 'first']);
-        $pool->add('test_deferred_retry', ['label' => 'second']);
+        $pool->add('testing', 'test_deferred_retry', ['label' => 'first']);
+        $pool->add('testing', 'test_deferred_retry', ['label' => 'second']);
 
         $firstResult = $pool->flush();
 
@@ -1164,12 +1168,12 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 2, poolLimit: 10000, strategy: FlushStrategy::COLLECT);
 
-        $pool->add('test_unique', ['name' => 'alpha']);
-        $pool->add('test_unique', ['name' => 'beta']);
-        $pool->add('test_unique', ['name' => 'gamma']);
-        $pool->add('test_unique', ['name' => 'gamma']);
-        $pool->add('test_unique', ['name' => 'delta']);
-        $pool->add('test_unique', ['name' => 'epsilon']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'beta']);
+        $pool->add('testing', 'test_unique', ['name' => 'gamma']);
+        $pool->add('testing', 'test_unique', ['name' => 'gamma']);
+        $pool->add('testing', 'test_unique', ['name' => 'delta']);
+        $pool->add('testing', 'test_unique', ['name' => 'epsilon']);
 
         $flushResult = $pool->flush();
 
@@ -1190,10 +1194,10 @@ final class WritePoolTest extends TestCase
     {
         $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::COLLECT, transactional: true);
 
-        $pool->add('test_records', ['name' => 'foo', 'value' => 'bar']);
-        $pool->add('test_records', ['name' => 'baz', 'value' => 'qux']);
-        $pool->add('test_unique', ['name' => 'alpha']);
-        $pool->add('test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
+        $pool->add('testing', 'test_records', ['name' => 'baz', 'value' => 'qux']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
 
         $flushResult = $pool->flush();
 
@@ -1203,8 +1207,345 @@ final class WritePoolTest extends TestCase
         self::assertSame(2, $flushResult->retainedRecordCount());
         self::assertSame(0, $flushResult->droppedRecordCount());
         self::assertSame(2, $pool->count());
-        self::assertArrayHasKey('test_unique', $flushResult->failures());
-        self::assertArrayNotHasKey('test_records', $flushResult->failures());
+        self::assertArrayHasKey('test_unique', $flushResult->failures()['testing']);
+        self::assertArrayNotHasKey('test_records', $flushResult->failures()['testing']);
+    }
+
+    /**
+     * Test that one table name on two connections keeps two buffers, each
+     * flushed to its own connection.
+     *
+     * @return void
+     */
+    public function testTargetsWithOneTableNameFlushToTheirOwnConnection(): void
+    {
+        $this->useAuditTestTables();
+
+        $this->pool->add('testing', 'test_records', ['name' => 'main', 'value' => '1']);
+        $this->pool->add('audit', 'test_records', ['name' => 'audit', 'value' => '2']);
+        $this->pool->add('audit', 'test_unique', ['name' => 'alpha']);
+
+        self::assertSame(3, $this->pool->count());
+
+        $flushResult = $this->pool->flush();
+
+        self::assertSame(3, $flushResult->successCount());
+        self::assertSame(['test_records', 'test_unique'], $flushResult->flushedTables());
+        self::assertSame(['main'], DB::table('test_records')->pluck('name')->all());
+        self::assertSame(['audit'], DB::connection('audit')->table('test_records')->pluck('name')->all());
+    }
+
+    /**
+     * Test that the transactional mode rolls back the failing target on its own
+     * connection and leaves the other connection committed.
+     *
+     * @return void
+     */
+    public function testTransactionalFlushRollsBackTheTargetConnectionOnly(): void
+    {
+        $this->useAuditTestTables();
+
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: FlushStrategy::COLLECT, transactional: true);
+
+        $pool->add('testing', 'test_unique', ['name' => 'alpha']);
+        $pool->add('audit', 'test_unique', ['name' => 'alpha']);
+        $pool->add('audit', 'test_unique', ['name' => 'alpha']);
+
+        $flushResult = $pool->flush();
+
+        self::assertSame(1, DB::table('test_unique')->count());
+        self::assertSame(0, DB::connection('audit')->table('test_unique')->count());
+        self::assertSame(2, $pool->count());
+        self::assertSame(['audit'], array_keys($flushResult->failures()));
+    }
+
+    /**
+     * Test that rows of different column sets insert as separate statements,
+     * each value in its own column.
+     *
+     * @return void
+     */
+    public function testRowsOfDifferentColumnSetsInsertAsSeparateStatements(): void
+    {
+        $inserts = $this->countInserts(function (): void {
+            $this->pool->add('testing', 'test_shapes', ['a' => 'first']);
+            $this->pool->add('testing', 'test_shapes', ['b' => 'second']);
+            $this->pool->flush();
+        });
+
+        self::assertSame(2, $inserts);
+        self::assertSame([['first', null], [null, 'second']], $this->shapeRows(['a', 'b']));
+    }
+
+    /**
+     * Test that rows of one column set in any key order insert as one
+     * statement.
+     *
+     * @return void
+     */
+    public function testRowsOfOneColumnSetInsertAsOneStatement(): void
+    {
+        $inserts = $this->countInserts(function (): void {
+            $this->pool->add('testing', 'test_shapes', ['a' => 'one', 'b' => 'two']);
+            $this->pool->add('testing', 'test_shapes', ['b' => 'four', 'a' => 'three']);
+            $this->pool->flush();
+        });
+
+        self::assertSame(1, $inserts);
+        self::assertSame([['one', 'two'], ['three', 'four']], $this->shapeRows(['a', 'b']));
+    }
+
+    /**
+     * Test that a row omitting a column keeps the column's database default.
+     *
+     * @return void
+     */
+    public function testRowOmittingAColumnKeepsItsDefault(): void
+    {
+        $this->pool->add('testing', 'test_shapes', ['a' => 'one', 'c' => 'given']);
+        $this->pool->add('testing', 'test_shapes', ['a' => 'two']);
+
+        self::assertTrue($this->pool->flush()->isSuccessful());
+        self::assertSame([['one', 'given'], ['two', 'fallback']], $this->shapeRows(['a', 'c']));
+    }
+
+    /**
+     * Test that runs are consecutive, chunked on their own, and keep the
+     * insertion order.
+     *
+     * @return void
+     */
+    public function testRunsKeepInsertionOrderAndChunkOnTheirOwn(): void
+    {
+        $pool = new WritePool(chunkSize: 2, poolLimit: 10000);
+
+        $pool->add('testing', 'test_shapes', ['a' => 'one']);
+        $pool->add('testing', 'test_shapes', ['a' => 'two']);
+        $pool->add('testing', 'test_shapes', ['a' => 'three']);
+        $pool->add('testing', 'test_shapes', ['b' => 'four']);
+        $pool->add('testing', 'test_shapes', ['a' => 'five']);
+
+        self::assertSame(4, $pool->flush()->successCount());
+        self::assertSame([
+            ['one', null],
+            ['two', null],
+            ['three', null],
+            [null, 'four'],
+            ['five', null],
+        ], $this->shapeRows(['a', 'b']));
+    }
+
+    /**
+     * Test that failures and retained records are keyed by connection, then
+     * table.
+     *
+     * @return void
+     */
+    public function testFailuresAndRetainedRecordsAreKeyedByConnectionAndTable(): void
+    {
+        $this->useAuditTestTables();
+
+        $this->pool->add('audit', 'nonexistent_table', ['col' => 'val']);
+        $this->pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
+
+        $flushResult = $this->pool->flush();
+
+        self::assertSame(['audit'], array_keys($flushResult->failures()));
+        self::assertSame([['col' => 'val']], $flushResult->failures()['audit']['nonexistent_table'][0]['records']);
+        self::assertSame(1, $this->pool->count());
+
+        $retry = $this->pool->flush();
+
+        self::assertSame(0, $retry->successCount());
+        self::assertSame(['nonexistent_table'], $retry->flushedTables());
+        self::assertSame(1, DB::table('test_records')->count());
+    }
+
+    /**
+     * Test that the pool limit inside a transaction on the target connection
+     * does not flush, and the next add after commit does.
+     *
+     * @return void
+     */
+    public function testAutoFlushWaitsForTheTargetTransactionToCommit(): void
+    {
+        $this->useAuditTestTables();
+
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
+
+        DB::connection('audit')->transaction(function () use ($pool): void {
+            $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
+            $pool->add('audit', 'test_records', ['name' => 'b', 'value' => '2']);
+
+            self::assertSame(0, DB::connection('audit')->table('test_records')->count());
+        });
+
+        self::assertSame(2, $pool->count());
+        self::assertNull($pool->lastAutoFlushResult());
+
+        $pool->add('audit', 'test_records', ['name' => 'c', 'value' => '3']);
+
+        self::assertSame(3, DB::connection('audit')->table('test_records')->count());
+        self::assertSame(0, $pool->count());
+    }
+
+    /**
+     * Test that the pool limit inside a transaction on the default connection
+     * does not flush, and the boundary flush after commit does.
+     *
+     * @return void
+     */
+    public function testAutoFlushWaitsForATransactionOnTheDefaultConnection(): void
+    {
+        $pool = new WritePool(chunkSize: 500, poolLimit: 1, transactions: $this->transactionTracker());
+
+        DB::transaction(function () use ($pool): void {
+            $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
+        });
+
+        self::assertSame(0, DB::table('test_records')->count());
+        self::assertSame(1, $pool->count());
+
+        $pool->flush();
+
+        self::assertSame(1, DB::table('test_records')->count());
+    }
+
+    /**
+     * Test that rows buffered in a rolled-back transaction stay buffered for
+     * the boundary flush.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testRolledBackTransactionLeavesRowsForTheBoundaryFlush(): void
+    {
+        $this->useAuditTestTables();
+
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
+
+        try {
+            DB::connection('audit')->transaction(function () use ($pool): void {
+                $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
+                $pool->add('audit', 'test_records', ['name' => 'b', 'value' => '2']);
+
+                throw new \RuntimeException('rolled back');
+            });
+        } catch (\RuntimeException) {
+            // The rows stay buffered past the rollback
+        }
+
+        self::assertSame(2, $pool->count());
+
+        $pool->flush();
+
+        self::assertSame(2, DB::connection('audit')->table('test_records')->count());
+    }
+
+    /**
+     * Test that a target on another, idle connection still auto-flushes while
+     * one connection is inside a transaction.
+     *
+     * @return void
+     */
+    public function testAutoFlushStillFlushesAnIdleConnection(): void
+    {
+        $this->useAuditTestTables();
+
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
+
+        DB::connection('audit')->transaction(function () use ($pool): void {
+            $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
+            $pool->add('testing', 'test_records', ['name' => 'b', 'value' => '2']);
+        });
+
+        self::assertSame(1, DB::table('test_records')->count());
+        self::assertSame(0, DB::connection('audit')->table('test_records')->count());
+        self::assertSame(1, $pool->count());
+        self::assertSame(['test_records'], $pool->lastAutoFlushResult()?->flushedTables());
+    }
+
+    /**
+     * Test that without a transaction tracker every open transaction counts,
+     * the test's wrapping one included.
+     *
+     * @return void
+     */
+    public function testAutoFlushWithoutATrackerCountsEveryOpenTransaction(): void
+    {
+        $this->useAuditTestTables();
+
+        $pool = new WritePool(chunkSize: 500, poolLimit: 1);
+
+        $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
+
+        self::assertSame(0, DB::table('test_records')->count());
+
+        DB::connection('audit')->transaction(function () use ($pool): void {
+            $pool->add('audit', 'test_records', ['name' => 'b', 'value' => '2']);
+        });
+
+        self::assertSame(0, DB::connection('audit')->table('test_records')->count());
+
+        $pool->add('audit', 'test_records', ['name' => 'c', 'value' => '3']);
+
+        self::assertSame(2, DB::connection('audit')->table('test_records')->count());
+        self::assertSame(1, $pool->count());
+    }
+
+    /**
+     * Test that a pool limit reached with every buffered connection inside a
+     * transaction records no auto-flush, even after an earlier flush emptied
+     * another connection.
+     *
+     * @return void
+     */
+    public function testAutoFlushRecordsNothingWhenNoBufferedConnectionIsIdle(): void
+    {
+        $this->useAuditTestTables();
+
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
+
+        $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
+        $pool->flush();
+
+        DB::connection('audit')->transaction(function () use ($pool): void {
+            $pool->add('audit', 'test_records', ['name' => 'b', 'value' => '2']);
+            $pool->add('audit', 'test_records', ['name' => 'c', 'value' => '3']);
+        });
+
+        self::assertNull($pool->lastAutoFlushResult());
+        self::assertSame(2, $pool->count());
+    }
+
+    /**
+     * Test that a throwing auto-flush counts only the records of the
+     * connections it flushed as retained.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testThrowingAutoFlushCountsOnlyFlushedConnectionsAsRetained(): void
+    {
+        $this->useAuditTestTables();
+
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::THROW, transactions: $this->transactionTracker());
+
+        try {
+            DB::connection('audit')->transaction(function () use ($pool): void {
+                $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
+                $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+            });
+
+            self::fail('Expected WritePoolFlushException was not thrown');
+        } catch (WritePoolFlushException $exception) {
+            self::assertSame(1, $exception->flushResult()->retainedRecordCount());
+            self::assertSame(['nonexistent_table'], $exception->flushResult()->flushedTables());
+        }
+
+        self::assertSame(2, $pool->count());
     }
 
     /**
@@ -1232,6 +1573,68 @@ final class WritePoolTest extends TestCase
             $table->id();
             $table->string('name')->unique();
         });
+
+        Schema::create('test_shapes', function (Blueprint $table): void {
+            $table->id();
+            $table->string('a')->nullable();
+            $table->string('b')->nullable();
+            $table->string('c')->default('fallback');
+        });
+    }
+
+    /**
+     * Configure the second connection holding the test tables.
+     *
+     * @return void
+     */
+    private function useAuditTestTables(): void
+    {
+        $this->useAuditConnection();
+
+        Schema::connection('audit')->create('test_records', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('value');
+        });
+
+        Schema::connection('audit')->create('test_unique', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name')->unique();
+        });
+    }
+
+    /**
+     * Count the INSERT statements the callback runs on the default connection.
+     *
+     * @param  callable(): void  $callback
+     * @return int
+     */
+    private function countInserts(callable $callback): int
+    {
+        DB::enableQueryLog();
+
+        $callback();
+
+        $inserts = collect(DB::getQueryLog())->filter(
+            fn (array $query): bool => str_starts_with($query['query'], 'insert'),
+        )->count();
+
+        DB::disableQueryLog();
+
+        return $inserts;
+    }
+
+    /**
+     * Read the given columns of every shapes row in insertion order.
+     *
+     * @param  list<string>  $columns
+     * @return array<int, list<mixed>>
+     */
+    private function shapeRows(array $columns): array
+    {
+        return DB::table('test_shapes')->orderBy('id')->get($columns)
+            ->map(fn (object $row): array => array_values((array) $row))
+            ->all();
     }
 
     /**

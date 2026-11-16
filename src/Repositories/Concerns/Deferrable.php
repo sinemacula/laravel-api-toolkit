@@ -4,6 +4,9 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+
 /**
  * Provides opt-in deferred bulk inserts for API repositories.
  *
@@ -20,7 +23,9 @@ trait Deferrable
     /**
      * Defer an insert operation to the write pool.
      *
-     * Timestamps are taken at deferral; a full pool flushes, which may throw.
+     * The row goes to the model's connection, resolved now. Timestamps follow
+     * the model and are taken at deferral; a full pool flushes, which may
+     * throw.
      *
      * @param  array<string, mixed>  $attributes
      * @return void
@@ -30,13 +35,9 @@ trait Deferrable
      */
     public function defer(array $attributes): void
     {
-        $table = $this->getModel()->getTable();
-        $now   = now()->toDateTimeString();
+        $model = $this->getModel();
 
-        $attributes['created_at'] ??= $now;
-        $attributes['updated_at'] ??= $now;
-
-        $this->writePool->add($table, $attributes);
+        $this->writePool->add($model->getConnectionName() ?? DB::getDefaultConnection(), $model->getTable(), $this->withDeferralTimestamps($model, $attributes));
     }
 
     /**
@@ -59,5 +60,32 @@ trait Deferrable
     protected function bootDeferrable(): void
     {
         $this->writePool = $this->app->make(WritePool::class);
+    }
+
+    /**
+     * Fill the model's timestamp columns the attributes leave unset.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function withDeferralTimestamps(Model $model, array $attributes): array
+    {
+        if (!$model->usesTimestamps()) {
+            return $attributes;
+        }
+
+        $now = $model->freshTimestampString();
+
+        foreach ([$model->getCreatedAtColumn(), $model->getUpdatedAtColumn()] as $column) {
+
+            if ($column === null) {
+                continue;
+            }
+
+            $attributes[$column] ??= $now;
+        }
+
+        return $attributes;
     }
 }

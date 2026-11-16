@@ -257,6 +257,24 @@ final class ContainerBindingRegistrarTest extends TestCase
         self::assertSame(700, $this->readProperty($pool, 'chunkSize'));
         self::assertSame(900, $this->readProperty($pool, 'poolLimit'));
         self::assertFalse($this->readProperty($pool, 'transactional'));
+        self::assertSame($app->make('db.transactions'), $this->readProperty($pool, 'transactions'));
+    }
+
+    /**
+     * Test that the write pool is built without a transaction tracker when the
+     * container binds none.
+     *
+     * @return void
+     */
+    public function testRegisterBuildsWritePoolWithoutATrackerWhenNoneIsBound(): void
+    {
+        $app = $this->getApplication();
+
+        $app->instance('db.transactions', new \stdClass);
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        self::assertNull($this->readProperty($app->make(WritePool::class), 'transactions'));
     }
 
     /**
