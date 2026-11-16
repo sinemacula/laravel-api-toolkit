@@ -280,6 +280,25 @@ final class ColumnNarrowerTest extends TestCase
     }
 
     /**
+     * Test that a public static property named like a column still narrows,
+     * since an instance read of it goes through the attribute.
+     *
+     * @return void
+     */
+    public function testNarrowsForAnInferredColumnNamedLikeAPublicStaticProperty(): void
+    {
+        $model = new class extends Model {
+            /** @var string */
+            public static string $title = 'static';
+        };
+
+        $decision = $this->narrower->decide(FieldColumnMap::make([], ['title']), ['title'], ['id'], $model, self::REAL_COLUMNS);
+
+        self::assertTrue($decision->shouldNarrow());
+        self::assertSame(['title', 'id'], $decision->columns());
+    }
+
+    /**
      * Test that a set-only attribute mutator does not block narrowing.
      *
      * @return void

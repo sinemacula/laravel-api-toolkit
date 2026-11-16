@@ -295,7 +295,7 @@ the table's column listing, and search reads its index proof.
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
 relations and the order columns. A field reads the columns it declares through `needs()`, each of which must exist on
 the table. A plain field without `needs()` is taken to read the column of its own key, but only when the table carries
-that column and the model reads it without an accessor, a public property of the same name or a cast that could
+that column and the model reads it without an accessor, a public instance property of the same name or a cast that could
 consult other attributes; Eloquent's built-in cast types, enums that do not name their own caster, and the casts under
 `Illuminate\Database\Eloquent\Casts` qualify. Any other field, such as one over an accessor or custom cast, or a
 computed, guarded or transformed field, leaves the select unnarrowed until it declares `needs()`.

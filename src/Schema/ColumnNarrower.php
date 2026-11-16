@@ -102,7 +102,8 @@ final class ColumnNarrower
     }
 
     /**
-     * Determine whether a public property shadows the field's attribute.
+     * Determine whether a public instance property shadows the field's
+     * attribute.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $field
@@ -110,7 +111,13 @@ final class ColumnNarrower
      */
     private function declaresPublicProperty(Model $model, string $field): bool
     {
-        return property_exists($model, $field) && (new \ReflectionProperty($model, $field))->isPublic();
+        if (!property_exists($model, $field)) {
+            return false;
+        }
+
+        $property = new \ReflectionProperty($model, $field);
+
+        return $property->isPublic() && !$property->isStatic();
     }
 
     /**
