@@ -7,8 +7,6 @@ namespace SineMacula\ApiToolkit\OpenApi\Builder;
 use Illuminate\Routing\Route;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
-use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
-use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 
 /**
@@ -28,19 +26,6 @@ final readonly class PathBuilder
     /** The path prefix under which header components are referenced */
     private const string HEADER_REF_PREFIX = '#/components/headers/';
 
-    /** The reference to the shared error-envelope schema */
-    private const string ERROR_ENVELOPE_REF = self::SCHEMA_REF_PREFIX . ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME;
-
-    /** The standard reason phrase emitted for each baseline error status */
-    private const array BASELINE_PHRASES = [
-        401 => 'Unauthenticated.',
-        403 => 'Forbidden.',
-        404 => 'The requested resource does not exist.',
-        422 => 'The request payload failed validation.',
-        429 => 'Too many requests.',
-        500 => 'An unexpected server error occurred.',
-    ];
-
     /** The media type every documented response body is served under */
     private const string MEDIA_TYPE = SuccessResponseBuilder::MEDIA_TYPE;
 
@@ -54,8 +39,8 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver  $requestBody
      * @param  \SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver  $security
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder  $queryParameters
-     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver  $middleware
-     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver  $throws
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder  $pathParameters
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder  $errors
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder  $successResponse
      */
     public function __construct(
@@ -72,11 +57,11 @@ final readonly class PathBuilder
         /** The builder naming the query parameters each action accepts. */
         private QueryParameterBuilder $queryParameters,
 
-        /** The resolver reading a route's auth, authorization, and limits. */
-        private RouteMiddlewareResolver $middleware,
+        /** The builder typing each path parameter from its route. */
+        private PathParameterBuilder $pathParameters,
 
-        /** The resolver of the ApiExceptions an action's throws tags name. */
-        private ThrowsErrorResolver $throws,
+        /** The builder of each operation's error responses. */
+        private ErrorResponseBuilder $errors,
 
         /** The builder applying what an action declares about its success. */
         private SuccessResponseBuilder $successResponse,
@@ -164,7 +149,7 @@ final readonly class PathBuilder
         $requestBody = array_intersect($route->verbs, self::BODY_VERBS) === []
             ? []
             : $this->requestBody->resolve($controllerClass, $action) ?? [];
-        $responses += $this->errorResponses($controllerClass, $action, $route->route, $requestBody !== [] || ($resource !== null && in_array($action, ['store', 'update'], true)));
+        $responses += $this->errors->build($controllerClass, $action, $route->route, $requestBody !== [] || ($resource !== null && in_array($action, ['store', 'update'], true)));
 
         return $this->assembleOperation(
             $responses,
@@ -203,7 +188,7 @@ final readonly class PathBuilder
     private function assembleOperation(array $responses, Route $route, array $requestBody = [], array $queryParameters = []): array
     {
         $operation  = [];
-        $parameters = array_merge($this->pathParameters($route), $queryParameters);
+        $parameters = array_merge($this->pathParameters->build($route), $queryParameters);
 
         if ($parameters !== []) {
             $operation['parameters'] = $parameters;
@@ -299,103 +284,5 @@ final readonly class PathBuilder
         return [
             '204' => ['description' => 'The resource was deleted.'],
         ];
-    }
-
-    /**
-     * Build the error responses for the action, keyed by HTTP status.
-     *
-     * Merges the baseline set with the ApiExceptions the action's @throws tags
-     * name.
-     *
-     * @param  class-string|null  $controllerClass
-     * @param  string  $action
-     * @param  \Illuminate\Routing\Route  $route
-     * @param  bool  $acceptsBody
-     * @return array<int, array<string, mixed>>
-     */
-    private function errorResponses(?string $controllerClass, string $action, Route $route, bool $acceptsBody): array
-    {
-        $throws    = $controllerClass === null ? [] : $this->throws->resolve($controllerClass, $action);
-        $responses = [];
-
-        foreach ($this->baselineErrorsFor($route, $acceptsBody) as $status) {
-            $responses[$status] = $this->errorResponse(self::BASELINE_PHRASES[$status], $throws[$status]['examples'] ?? [], $throws[$status]['headers'] ?? []);
-            unset($throws[$status]);
-        }
-
-        foreach ($throws as $status => $descriptor) {
-            $responses[$status] = $this->errorResponse(self::BASELINE_PHRASES[$status] ?? $descriptor['phrase'], $descriptor['examples'], $descriptor['headers']);
-        }
-
-        ksort($responses);
-
-        return $responses;
-    }
-
-    /**
-     * List the baseline error statuses the route's facts imply.
-     *
-     * @param  \Illuminate\Routing\Route  $route
-     * @param  bool  $acceptsBody
-     * @return array<int, int>
-     */
-    private function baselineErrorsFor(Route $route, bool $acceptsBody): array
-    {
-        $facts = [
-            401 => $this->middleware->authenticates($route),
-            403 => $this->middleware->authorizes($route),
-            404 => $route->parameterNames() !== [],
-            422 => $acceptsBody,
-            429 => $this->middleware->throttles($route),
-            500 => true,
-        ];
-
-        return array_keys(array_filter($facts));
-    }
-
-    /**
-     * Build a single error response referencing the shared error envelope.
-     *
-     * @param  string  $description
-     * @param  array<string, array<string, mixed>>  $examples
-     * @param  array<string, array<string, mixed>>  $headers
-     * @return array<string, mixed>
-     */
-    private function errorResponse(string $description, array $examples, array $headers): array
-    {
-        $media    = ['schema' => ['$ref' => self::ERROR_ENVELOPE_REF]];
-        $response = ['description' => $description];
-
-        if ($examples !== []) {
-            $media['examples'] = $examples;
-        }
-
-        if ($headers !== []) {
-            $response['headers'] = $headers;
-        }
-
-        return [...$response, 'content' => [self::MEDIA_TYPE => $media]];
-    }
-
-    /**
-     * Build the path parameter list from the route's parameter names.
-     *
-     * @param  \Illuminate\Routing\Route  $route
-     * @return array<int, array<string, mixed>>
-     */
-    private function pathParameters(Route $route): array
-    {
-        $parameters = [];
-
-        foreach ($route->parameterNames() as $name) {
-            $parameters[] = [
-                'name'     => $name,
-                'in'       => 'path',
-                'required' => true,
-                'schema'   => ['type' => 'string'],
-            ];
-        }
-
-        return $parameters;
     }
 }

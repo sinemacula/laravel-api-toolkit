@@ -32,6 +32,8 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Exceptions\GoneException;
+use SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
@@ -50,6 +52,8 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
@@ -77,6 +81,8 @@ use Tests\TestCase;
 #[CoversClass(MorphMapRegistrar::class)]
 final class ApiServiceProviderTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /**
      * Test that the package config is merged.
      *
@@ -650,6 +656,89 @@ final class ApiServiceProviderTest extends TestCase
         $this->expectException(InvalidSchemaException::class);
 
         $provider->boot();
+    }
+
+    /**
+     * Test that an invalid exception map fails the booted application.
+     *
+     * @return void
+     */
+    public function testInvalidExceptionMapFailsOnceBooted(): void
+    {
+        $this->getConfig()->set('api-toolkit.exceptions.map', [\stdClass::class => GoneException::class]);
+
+        $this->expectException(InvalidExceptionMapException::class);
+        $this->expectExceptionMessage('The api-toolkit.exceptions.map key [stdClass] must be an interface or a Throwable class, and not an ApiException.');
+
+        $this->outsideTheConsole(fn () => (new ApiServiceProvider($this->getApplication()))->boot());
+    }
+
+    /**
+     * Test that the exception map is validated after every provider has booted,
+     * so a map a later provider writes is validated too.
+     *
+     * @return void
+     */
+    public function testExceptionMapWrittenByALaterProviderFailsOnceBooted(): void
+    {
+        $validate = $this->outsideTheConsole(fn (): callable => $this->registeredBootedCallback());
+
+        $this->getConfig()->set('api-toolkit.exceptions.map', [NotFoundHttpException::class => \RuntimeException::class]);
+
+        $this->expectException(InvalidExceptionMapException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The api-toolkit.exceptions.map target [RuntimeException] for [%s] must be an instantiable ApiException with a CODE, a 4xx or 5xx status, '
+            . 'and ApiException\'s own constructor and getStatusCode().',
+            NotFoundHttpException::class,
+        ));
+
+        $validate($this->getApplication());
+    }
+
+    /**
+     * Test that an absent or empty exception map passes the boot validation.
+     *
+     * @return void
+     */
+    public function testAbsentOrEmptyExceptionMapPassesTheBootValidation(): void
+    {
+        $validate = $this->outsideTheConsole(fn (): callable => $this->registeredBootedCallback());
+
+        foreach ([null, []] as $map) {
+            $this->getConfig()->set('api-toolkit.exceptions.map', $map);
+            $validate($this->getApplication());
+        }
+
+        $this->getConfig()->set('api-toolkit.exceptions.map', [\stdClass::class => GoneException::class]);
+
+        $this->expectException(InvalidExceptionMapException::class);
+
+        $validate($this->getApplication());
+    }
+
+    /**
+     * Test that the console skips the exception map validation, so a broken map
+     * cannot block the commands that repair it.
+     *
+     * @return void
+     */
+    public function testConsoleSkipsTheExceptionMapValidation(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.exceptions.map', [\stdClass::class => GoneException::class]);
+        $this->setProperty($app, 'booted', false);
+
+        try {
+            /** @var list<callable(\Illuminate\Foundation\Application): void> $before */
+            $before = $this->getProperty($app, 'bootedCallbacks');
+
+            (new ApiServiceProvider($app))->boot();
+
+            self::assertSame($before, $this->getProperty($app, 'bootedCallbacks'));
+        } finally {
+            $this->setProperty($app, 'booted', true);
+        }
     }
 
     /**
@@ -1452,5 +1541,56 @@ final class ApiServiceProviderTest extends TestCase
         self::assertIsArray($listeners);
 
         return $listeners;
+    }
+
+    /**
+     * Boot the provider on an unbooted application and return the one booted
+     * callback it registers.
+     *
+     * @return callable(\Illuminate\Foundation\Application): void
+     */
+    private function registeredBootedCallback(): callable
+    {
+        $app = $this->getApplication();
+
+        $this->setProperty($app, 'booted', false);
+
+        try {
+            /** @var list<callable(\Illuminate\Foundation\Application): void> $before */
+            $before = $this->getProperty($app, 'bootedCallbacks');
+
+            (new ApiServiceProvider($app))->boot();
+
+            /** @var list<callable(\Illuminate\Foundation\Application): void> $after */
+            $after = $this->getProperty($app, 'bootedCallbacks');
+        } finally {
+            $this->setProperty($app, 'booted', true);
+        }
+
+        self::assertCount(count($before) + 1, $after);
+
+        return end($after);
+    }
+
+    /**
+     * Run the callback as if the application were serving a request.
+     *
+     * @template TReturn
+     *
+     * @param  callable(): TReturn  $callback
+     * @return TReturn
+     */
+    private function outsideTheConsole(callable $callback): mixed
+    {
+        $app      = $this->getApplication();
+        $original = $this->getProperty($app, 'isRunningInConsole');
+
+        $this->setProperty($app, 'isRunningInConsole', false);
+
+        try {
+            return $callback();
+        } finally {
+            $this->setProperty($app, 'isRunningInConsole', $original);
+        }
     }
 }

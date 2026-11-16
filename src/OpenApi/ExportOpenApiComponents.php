@@ -44,11 +44,11 @@ final readonly class ExportOpenApiComponents
         $document = $this->assembler->assemble($audience);
 
         return new ExportResult(
-            document      : $document,
-            operationCount: $this->countOperations($document),
-            resourceCount : $this->countResourceSchemas($document),
-            parameterCount: $this->countComponents($document, 'parameters'),
-            responseCount : $this->countComponents($document, 'responses'),
+            document         : $document,
+            operationCount   : $this->countOperations($document),
+            resourceCount    : $this->countResourceSchemas($document),
+            parameterCount   : $this->countComponents($document, 'parameters'),
+            errorExampleCount: $this->countComponents($document, 'examples'),
         );
     }
 
@@ -76,7 +76,8 @@ final readonly class ExportOpenApiComponents
     }
 
     /**
-     * Count the resource component schemas, excluding envelopes and enums.
+     * Count the resource component schemas, excluding envelope, defined and
+     * enum schemas.
      *
      * @param  array<string, mixed>  $document
      * @return int

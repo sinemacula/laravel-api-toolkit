@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use Tests\Fixtures\Enums\Alternate\Tier as AlternateTier;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\Resources\CustomNamedResource;
 use Tests\Fixtures\Resources\EmptyNamedResource;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -92,7 +93,7 @@ final class SchemaComponentNameTest extends TestCase
      */
     public function testEnumKeepsItsBasenameVerbatim(): void
     {
-        self::assertSame('UserStatus', SchemaComponentName::fromEnum(UserStatus::class));
+        self::assertSame('UserStatus', SchemaComponentName::fromClass(UserStatus::class));
     }
 
     /**
@@ -102,7 +103,17 @@ final class SchemaComponentNameTest extends TestCase
      */
     public function testSchemaNameOverrideWinsOverTheEnumBasename(): void
     {
-        self::assertSame('AlternateTier', SchemaComponentName::fromEnum(AlternateTier::class));
+        self::assertSame('AlternateTier', SchemaComponentName::fromClass(AlternateTier::class));
+    }
+
+    /**
+     * Test that a DefinesSchema class keeps its short name verbatim.
+     *
+     * @return void
+     */
+    public function testDefinedSchemaKeepsItsShortNameVerbatim(): void
+    {
+        self::assertSame('SignedInShape', SchemaComponentName::fromClass(SignedInShape::class));
     }
 
     /**

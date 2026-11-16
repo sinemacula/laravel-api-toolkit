@@ -4,31 +4,16 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Exceptions;
 
-use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Auth\AuthenticationException;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Database\RecordsNotFoundException;
 use Illuminate\Foundation\Configuration\Exceptions;
-use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Exceptions\BackedEnumCaseNotFoundException;
-use Illuminate\Session\TokenMismatchException as LaravelTokenMismatchException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Validation\UnauthorizedException as LaravelUnauthorizedException;
 use Illuminate\Validation\ValidationException;
 use SineMacula\Http\Enums\HttpStatus;
-use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
-use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
-use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface as SymfonyHttpExceptionInterface;
-use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
-use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
-use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
 /**
  * Renders exceptions as API error responses.
@@ -105,10 +90,33 @@ final class ApiExceptionHandler
         }
 
         if (!$exception instanceof ApiException) {
-            $exception = self::mapApiException($exception);
+            $exception = self::mapOrReport($exception);
         }
 
-        return self::renderApiExceptionWithJson($request, $exception);
+        return $exception === null ? null : self::renderApiExceptionWithJson($request, $exception);
+    }
+
+    /**
+     * Map the exception, or report an invalid exception map and leave the
+     * rendering to Laravel.
+     *
+     * @param  \Throwable  $exception
+     * @return \SineMacula\ApiToolkit\Exceptions\ApiException|null
+     */
+    private static function mapOrReport(\Throwable $exception): ?ApiException
+    {
+        // Mapping it would rebuild the invalid map and report it twice
+        if ($exception instanceof InvalidExceptionMapException) {
+            return null;
+        }
+
+        try {
+            return self::mapApiException($exception);
+        } catch (InvalidExceptionMapException $invalid) {
+            report($invalid);
+
+            return null;
+        }
     }
 
     /**
@@ -116,6 +124,8 @@ final class ApiExceptionHandler
      *
      * @param  \Throwable  $exception
      * @return \SineMacula\ApiToolkit\Exceptions\ApiException
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException
      */
     private static function mapApiException(\Throwable $exception): ApiException
     {
@@ -124,64 +134,13 @@ final class ApiExceptionHandler
 
         $previous = is_a($exception, ValidationException::class) ? null : $exception;
 
-        $mapped = self::resolveApiExceptionClass($exception);
+        $mapped = ExceptionMap::fromConfig()->targetFor($exception::class);
 
         if ($mapped === HttpException::class && $exception instanceof SymfonyHttpExceptionInterface) {
             return self::mapGenericHttpException($exception, $meta, $headers);
         }
 
         return new $mapped($meta, $headers, $previous);
-    }
-
-    /**
-     * Resolve the API exception class that the given throwable maps to.
-     *
-     * @param  \Throwable  $exception
-     * @return class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>
-     */
-    private static function resolveApiExceptionClass(\Throwable $exception): string
-    {
-        foreach (self::exceptionMap() as $source => $target) {
-            if ($exception instanceof $source) {
-                return $target;
-            }
-        }
-
-        return UnhandledException::class;
-    }
-
-    /**
-     * The ordered map of source exception types to their API exception class.
-     *
-     * The first match wins, so specific types precede the interfaces they
-     * implement.
-     *
-     * @return array<class-string<\Throwable>, class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
-     */
-    private static function exceptionMap(): array
-    {
-        // @phpstan-ignore return.type
-        return [
-            NotFoundHttpException::class           => NotFoundException::class,
-            BackedEnumCaseNotFoundException::class => NotFoundException::class,
-            ModelNotFoundException::class          => NotFoundException::class,
-            SuspiciousOperationException::class    => NotFoundException::class,
-            RecordsNotFoundException::class        => NotFoundException::class,
-            MethodNotAllowedHttpException::class   => NotAllowedException::class,
-            BadRequestHttpException::class         => BadRequestException::class,
-            RequestExceptionInterface::class       => BadRequestException::class,
-            LaravelUnauthorizedException::class    => ForbiddenException::class,
-            AuthorizationException::class          => ForbiddenException::class,
-            AccessDeniedHttpException::class       => ForbiddenException::class,
-            AuthenticationException::class         => UnauthenticatedException::class,
-            LaravelTokenMismatchException::class   => TokenMismatchException::class,
-            ValidationException::class             => InvalidInputException::class,
-            TooManyRequestsHttpException::class    => TooManyRequestsException::class,
-            LockUnavailableException::class        => TooManyRequestsException::class,
-            ServiceUnavailableHttpException::class => ServiceUnavailableException::class,
-            PostTooLargeException::class           => PayloadTooLargeException::class,
-            SymfonyHttpExceptionInterface::class   => HttpException::class,
-        ];
     }
 
     /**

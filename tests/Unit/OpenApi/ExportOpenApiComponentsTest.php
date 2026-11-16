@@ -8,10 +8,14 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
+use SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
@@ -21,7 +25,7 @@ use SineMacula\ApiToolkit\OpenApi\Docs\OperationDescriptions;
 use SineMacula\ApiToolkit\OpenApi\Docs\TagList;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
-use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
@@ -34,11 +38,14 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RouteKeySchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
@@ -122,7 +129,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Test that the resource count leaves out the envelope schemas.
+     * Test that the resource count leaves out the envelope and defined schemas.
      *
      * @return void
      */
@@ -132,7 +139,8 @@ final class ExportOpenApiComponentsTest extends TestCase
 
         $result = $this->export();
 
-        self::assertNotSame([], $result->document['components']['schemas']);
+        self::assertIsArray($result->document['components']['schemas']);
+        self::assertArrayHasKey('WidgetShape', $result->document['components']['schemas']);
         self::assertSame(0, $result->resourceCount);
     }
 
@@ -164,12 +172,14 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Test that the parameter and response counts reflect the components.
+     * Test that the parameter and error example counts reflect the components.
      *
      * @return void
      */
-    public function testSummaryParameterAndResponseCountsReflectComponents(): void
+    public function testSummaryParameterAndErrorExampleCountsReflectComponents(): void
     {
+        $this->router()->get('users/{user}', [PathResponseSchemaController::class, 'single']);
+
         $result = $this->export();
 
         self::assertIsArray($result->document['components']['parameters']);
@@ -177,12 +187,9 @@ final class ExportOpenApiComponentsTest extends TestCase
             count($result->document['components']['parameters']),
             $result->parameterCount,
         );
-        self::assertIsArray($result->document['components']['responses']);
-        self::assertSame(
-            count($result->document['components']['responses']),
-            $result->responseCount,
-        );
-        self::assertSame(1, $result->responseCount);
+        self::assertIsArray($result->document['components']['examples']);
+        self::assertSame(['Error10001', 'Error10103'], array_keys($result->document['components']['examples']));
+        self::assertSame(2, $result->errorExampleCount);
     }
 
     /**
@@ -305,24 +312,38 @@ final class ExportOpenApiComponentsTest extends TestCase
 
         assert($this->app !== null);
 
-        $introspector = $this->app->make(SchemaIntrospector::class);
-        $router       = $this->router();
-        $enums        = new EnumSchemaRegistry;
+        $introspector   = $this->app->make(SchemaIntrospector::class);
+        $router         = $this->router();
+        $enums          = new EnumSchemaRegistry;
+        $definedSchemas = new DefinedSchemaRegistry;
+
+        $errors = new ErrorResponseBuilder(
+            new RouteMiddlewareResolver($router),
+            new ThrowsErrorResolver(new ClassNameResolver),
+            new ResponseHeaderResolver,
+            new ErrorExampleBuilder($catalogue),
+            ExceptionMap::fromConfig(),
+        );
 
         $assembler = new OpenApiAssembler(
             new ResourceSchemaBuilder($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums), $introspector),
             new QueryParameterBuilder($catalogue),
-            new ErrorResponseBuilder($catalogue),
+            $errors,
             new PathBuilder(
                 new EnvelopeBuilder,
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
                 new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($router)),
                 new QueryParameterBuilder($catalogue),
-                new RouteMiddlewareResolver($router),
-                new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver),
+                new PathParameterBuilder(
+                    $router,
+                    new RoutePatternTranslator,
+                    new RouteKeySchemaResolver($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums), new RoutePatternTranslator, $enums, $this->app),
+                    $enums,
+                ),
+                $errors,
                 new SuccessResponseBuilder(
                     new EnvelopeBuilder,
-                    new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
+                    new ResponseSchemaResolver($catalogue, new EnvelopeBuilder, $definedSchemas),
                     new ResponseHeaderResolver,
                     new ResponseStatusResolver,
                 ),
@@ -331,6 +352,9 @@ final class ExportOpenApiComponentsTest extends TestCase
             new EnumSchemaBuilder,
             $enums,
             new DocManualAssembler,
+            $definedSchemas,
+            new DefinedSchemaBuilder,
+            new ErrorExampleBuilder($catalogue),
             new DocumentedRouteCollector($router, $catalogue, new AudienceResolver, new AudienceConfiguration, new DocumentableRouteFilter, new TagResolver),
             new OperationDescriptions,
             new TagList,
@@ -340,20 +364,21 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Build a stubbed catalogue exposing the resource map and one error.
+     * Build a stubbed catalogue exposing the resource map and the error
+     * catalogue.
      *
      * @param  array<class-string, class-string>  $resourceMap
      * @return \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue
      */
     private function makeCatalogue(array $resourceMap): MetadataCatalogue
     {
+        assert($this->app !== null);
+
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn($resourceMap);
         $catalogue->method('getOperatorTokens')->willReturn(['$eq', '$neq']);
         $catalogue->method('getStructuralOperators')->willReturn(['$and', '$or']);
-        $catalogue->method('getErrorCatalogue')->willReturn([
-            new ErrorDescriptor(code: 10103, httpStatus: 404, title: 'Not Found', detail: 'Missing.'),
-        ]);
+        $catalogue->method('getErrorCatalogue')->willReturn($this->app->make(ErrorCatalogueReader::class)->read());
 
         return $catalogue;
     }

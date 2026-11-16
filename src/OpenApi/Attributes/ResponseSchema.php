@@ -7,8 +7,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Attributes;
 /**
  * Declare the inner `data` shape of an action's success response.
  *
- * Each class is a resource or a DefinesSchema; a list of classes exports as a
- * `oneOf`.
+ * Each class is a resource or a DefinesSchema, referenced as a component; a
+ * list of classes exports as a `oneOf` of those references.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
