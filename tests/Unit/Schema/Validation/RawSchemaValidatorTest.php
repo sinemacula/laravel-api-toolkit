@@ -165,7 +165,7 @@ final class RawSchemaValidatorTest extends TestCase
 
     /**
      * Test that a key breaking the relation alias or the SQL alias is rejected,
-     * while a word key in any script passes.
+     * while a word key in any script, combining marks included, passes.
      *
      * @return void
      */
@@ -174,6 +174,8 @@ final class RawSchemaValidatorTest extends TestCase
         $errors = $this->collectErrors([
             'posts_count_2'         => ['metric' => 'count', 'relation' => 'posts'],
             'beiträge'              => ['metric' => 'count', 'relation' => 'posts'],
+            "i\u{0307}posts_count"  => ['metric' => 'count', 'relation' => 'posts'],
+            "trailing\n"            => ['metric' => 'count', 'relation' => 'posts'],
             'post count'            => ['metric' => 'count', 'relation' => 'posts'],
             'post.count'            => ['metric' => 'count', 'relation' => 'posts'],
             '__aggregate__:aliased' => ['metric' => 'count', 'relation' => 'posts', 'key' => 'post:count'],
@@ -181,6 +183,7 @@ final class RawSchemaValidatorTest extends TestCase
         ]);
 
         self::assertSame([
+            [self::RESOURCE, "trailing\n", "Aggregate key \"trailing\n\" may hold only letters, digits and underscores"],
             [self::RESOURCE, 'post count', 'Aggregate key "post count" may hold only letters, digits and underscores'],
             [self::RESOURCE, 'post.count', 'Aggregate key "post.count" may hold only letters, digits and underscores'],
             [self::RESOURCE, '__aggregate__:aliased', 'Aggregate key "post:count" may hold only letters, digits and underscores'],

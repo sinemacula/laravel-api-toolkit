@@ -24,7 +24,7 @@ final class RawSchemaValidator
     private const array CALLABLE_LISTS = ['guards' => 'Guard', 'transformers' => 'Transformer'];
 
     /** @var string The characters an aggregate key may hold, so it survives the relation alias and the SQL alias */
-    private const string AGGREGATE_KEY_PATTERN = '/^\w+$/u';
+    private const string AGGREGATE_KEY_PATTERN = '/^[\w\p{M}]+$/Du';
 
     /** @var int The longest identifier PostgreSQL keeps before truncating it */
     private const int MAX_ATTRIBUTE_BYTES = 63;
