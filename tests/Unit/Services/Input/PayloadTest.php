@@ -443,6 +443,73 @@ final class PayloadTest extends TestCase
     }
 
     /**
+     * Test that an enum parameter ruled only through nested keys still refuses
+     * a value that names no case.
+     *
+     * @return void
+     */
+    public function testEnumParameterRuledOnlyThroughNestedKeysRefusesAnUnmatchedValue(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with an enum ruled by a nested key.
+             *
+             * @param  \Tests\Fixtures\Enums\Magnitude|null  $magnitude
+             */
+            public function __construct(
+
+                /** An enum property whose rules name only a nested key. */
+                public readonly ?Magnitude $magnitude = null,
+            ) {}
+
+            /**
+             * Rule the magnitude through a nested key only.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['magnitude.value' => ['sometimes']];
+            }
+        };
+
+        $wildcard = new class extends Payload {
+            /**
+             * Create a new instance with an enum ruled by a wildcard key.
+             *
+             * @param  \Tests\Fixtures\Enums\Magnitude|null  $magnitude
+             */
+            public function __construct(
+
+                /** An enum property whose rules name only its items. */
+                public readonly ?Magnitude $magnitude = null,
+            ) {}
+
+            /**
+             * Rule the magnitude through a wildcard key only.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['magnitude.*' => ['integer']];
+            }
+        };
+
+        foreach ([[$definition, ['value' => 1]], [$wildcard, [1]]] as [$payload, $magnitude]) {
+            try {
+                $payload::from(['magnitude' => $magnitude]);
+
+                self::fail('Expected a ValidationException for the nested magnitude.');
+            } catch (ValidationException $exception) {
+                self::assertSame(['magnitude' => ['The selected magnitude is invalid.']], $exception->errors());
+            }
+        }
+    }
+
+    /**
      * Test that a mapped body key carries the enum rule.
      *
      * @return void

@@ -43,14 +43,20 @@ final class Enum extends EnumRule implements ImplicitRule // @phpstan-ignore cla
     /**
      * Determine whether the value is absent, a case of the enum, or names one.
      *
-     * @param  mixed  $attribute
+     * A value another rule already refused passes, so the field reports only
+     * that rule's message.
+     *
+     * @param  string  $attribute
      * @param  mixed  $value
      * @return bool
      */
     #[\Override]
     public function passes(mixed $attribute, mixed $value): bool
     {
-        return $value === null || $value instanceof $this->type || self::resolve($this->type, $value) !== null;
+        return $value === null
+            || $value instanceof $this->type
+            || self::resolve($this->type, $value) !== null
+            || array_key_exists($attribute, $this->validator->failed());
     }
 
     /**

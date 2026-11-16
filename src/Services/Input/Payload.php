@@ -72,7 +72,7 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
                 continue;
             }
 
-            $namedArgs[$name] = self::castValue($parameter, $validated[$key]);
+            $namedArgs[$name] = self::castValue($parameter, $validated[$key], $key);
         }
 
         $className = static::class;
@@ -261,11 +261,17 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     /**
      * Cast a validated value to the parameter's enum type, if it has one.
      *
+     * A key that rules() names only through nested keys never ran the enum
+     * rule, so a value that names no case is validated on its own here.
+     *
      * @param  \ReflectionParameter  $parameter
      * @param  mixed  $value
+     * @param  string  $key
      * @return mixed
+     *
+     * @throws \Illuminate\Validation\ValidationException
      */
-    private static function castValue(\ReflectionParameter $parameter, mixed $value): mixed
+    private static function castValue(\ReflectionParameter $parameter, mixed $value, string $key): mixed
     {
         $enum = self::enumType($parameter);
 
@@ -273,6 +279,6 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
             return $value;
         }
 
-        return Enum::resolve($enum, $value);
+        return Enum::resolve($enum, $value) ?? Validator::make([$key => $value], [$key => [new Enum($enum)]])->validate()[$key];
     }
 }

@@ -1082,6 +1082,19 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
+     * Test that a vendor override of a shipped locale merges over its lines.
+     *
+     * @return void
+     */
+    public function testVendorOverrideOfTheShippedLocaleKeepsItsOtherLines(): void
+    {
+        $this->overrideToolkitMessages(['search' => ['not_permitted' => 'Search is switched off here.']], 'en');
+
+        self::assertSame('Search is switched off here.', Rejection::message('search.not_permitted'));
+        self::assertSame('The search term may not be longer than 64 characters.', Rejection::message('search.too_long', ['max' => '64']));
+    }
+
+    /**
      * Test that no morph alias is registered when dynamic mapping is disabled.
      *
      * @return void

@@ -83,10 +83,15 @@ final class LocalisedRejectionHttpTest extends TestCase
     {
         $this->registerUsersRoute([SetRequestLocale::class, ParseApiQuery::class]);
 
-        $response = $this->getJson('/users?filters=' . urlencode('[1]'), [SetRequestLocale::HEADER => 'de']);
+        $url = '/users?filters=' . urlencode('[1]');
+
+        $response = $this->getJson($url, [SetRequestLocale::HEADER => 'de']);
 
         $response->assertStatus(Response::HTTP_UNPROCESSABLE_ENTITY);
         $response->assertJsonPath('error.meta', ['filters' => [self::GERMAN_NOT_OBJECT]]);
+
+        $this->getJson($url, [SetRequestLocale::HEADER => 'en'])
+            ->assertJsonPath('error.meta', ['filters' => ['The filters parameter must be a JSON object.']]);
     }
 
     /**

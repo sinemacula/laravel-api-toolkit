@@ -33,7 +33,7 @@ The Markdown templates for the generated API manual are published with `--tag=ap
 
 ### Translations
 
-Every message the toolkit sends a client is a translation line in the `api-toolkit` namespace: `exceptions.php` holds
+The toolkit's own client-facing messages are translation lines in the `api-toolkit` namespace: `exceptions.php` holds
 the error titles and details, keyed by integer error code, and `validation.php` holds the 422 messages for rejected
 query parameters. Publish them with `--tag=api-toolkit-lang`, which copies them to `lang/vendor/api-toolkit` (or
 `resources/lang/vendor/api-toolkit` when the application keeps its translations there).

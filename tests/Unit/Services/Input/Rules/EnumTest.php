@@ -128,6 +128,8 @@ final class EnumTest extends TestCase
     {
         $rule = new Enum(StubStatusEnum::class);
 
+        $rule->setValidator(Validator::make([], []));
+
         self::assertTrue($rule->passes('status', null));
         self::assertTrue($rule->passes('status', StubStatusEnum::INACTIVE));
         self::assertTrue($rule->passes('status', 'inactive'));
@@ -166,6 +168,29 @@ final class EnumTest extends TestCase
         $validator = Validator::make(['magnitude' => 'x'], ['magnitude' => ['bail', 'integer', new Enum(Magnitude::class)]]);
 
         self::assertSame(['magnitude' => ['The magnitude field must be an integer.']], $validator->errors()->toArray());
+    }
+
+    /**
+     * Test that a value another rule refused reports only that rule's message.
+     *
+     * @return void
+     */
+    public function testValueAnotherRuleRefusedReportsOnlyThatRule(): void
+    {
+        $validator = Validator::make(['typed' => 'x', 'banned' => 'x', 'other' => 'x'], [
+            'typed'  => ['integer', new Enum(Magnitude::class)],
+            'banned' => ['prohibited', new Enum(Magnitude::class)],
+            'other'  => [new Enum(Magnitude::class)],
+        ]);
+
+        self::assertSame(
+            [
+                'typed'  => ['The typed field must be an integer.'],
+                'banned' => ['The banned field is prohibited.'],
+                'other'  => ['The selected other is invalid.'],
+            ],
+            $validator->errors()->toArray(),
+        );
     }
 
     /**
