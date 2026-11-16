@@ -155,6 +155,22 @@ final class SafetySetDeriverTest extends TestCase
     }
 
     /**
+     * Test that an appended attribute is never retained, even when it names a
+     * real column.
+     *
+     * @return void
+     */
+    public function testOmitsAppendedAttributesThatNameRealColumns(): void
+    {
+        $model = (new class extends Model {})->setAppends(['status']);
+
+        $this->introspector->method('getDeletedAtColumn')->willReturn(null);
+        $this->introspector->method('getColumns')->willReturn(['id', 'status']);
+
+        self::assertSame(['id'], $this->deriver->derive($model, [], []));
+    }
+
+    /**
      * Test that a column name not present in the model's real columns is
      * dropped from the result.
      *

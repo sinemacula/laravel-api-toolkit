@@ -248,6 +248,38 @@ final class ColumnNarrowerTest extends TestCase
     }
 
     /**
+     * Test that a public property shadowing an inferred column falls back.
+     *
+     * @return void
+     */
+    public function testFallsBackForAnInferredColumnShadowedByAPublicProperty(): void
+    {
+        $model = new class extends Model {
+            /** @var string|null */
+            public ?string $title = null;
+        };
+
+        $decision = $this->narrower->decide(FieldColumnMap::make([], ['id', 'title']), ['id', 'title'], ['id'], $model, self::REAL_COLUMNS);
+
+        self::assertFalse($decision->shouldNarrow());
+        self::assertSame('title', $decision->reason());
+    }
+
+    /**
+     * Test that a protected model property named like a column still narrows,
+     * since reading it from outside goes through the attribute.
+     *
+     * @return void
+     */
+    public function testNarrowsForAnInferredColumnNamedLikeAProtectedProperty(): void
+    {
+        $decision = $this->narrower->decide(FieldColumnMap::make([], ['visible']), ['visible'], ['id'], $this->plainModel(), ['id', 'visible']);
+
+        self::assertTrue($decision->shouldNarrow());
+        self::assertSame(['visible', 'id'], $decision->columns());
+    }
+
+    /**
      * Test that a set-only attribute mutator does not block narrowing.
      *
      * @return void

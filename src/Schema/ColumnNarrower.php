@@ -13,7 +13,8 @@ use Illuminate\Support\Str;
  *
  * Narrows only when every resolved field reads columns the table carries. A
  * declared column must exist; an inferred one must also be read by the model
- * without an accessor or a cast that may consult other attributes.
+ * without an accessor, a shadowing public property or a cast that may consult
+ * other attributes.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -95,7 +96,21 @@ final class ColumnNarrower
             return true;
         }
 
-        return !$model->hasAnyGetMutator($field) && $this->readsOnlyItsOwnColumn($model, $field);
+        return !$model->hasAnyGetMutator($field)
+            && !$this->declaresPublicProperty($model, $field)
+            && $this->readsOnlyItsOwnColumn($model, $field);
+    }
+
+    /**
+     * Determine whether a public property shadows the field's attribute.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $field
+     * @return bool
+     */
+    private function declaresPublicProperty(Model $model, string $field): bool
+    {
+        return property_exists($model, $field) && (new \ReflectionProperty($model, $field))->isPublic();
     }
 
     /**

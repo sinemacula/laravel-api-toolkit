@@ -295,16 +295,16 @@ the table's column listing, and search reads its index proof.
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
 relations and the order columns. A field reads the columns it declares through `needs()`, each of which must exist on
 the table. A plain field without `needs()` is taken to read the column of its own key, but only when the table carries
-that column and the model reads it without an accessor or a cast that could consult other attributes; Eloquent's
-built-in cast types, enums that do not name their own caster, and the casts under `Illuminate\Database\Eloquent\Casts`
-qualify. Any other field, such as one over an accessor or custom cast, or a computed, guarded or transformed field,
-leaves the select as `*` until it declares `needs()`.
+that column and the model reads it without an accessor, a public property of the same name or a cast that could
+consult other attributes; Eloquent's built-in cast types, enums that do not name their own caster, and the casts under
+`Illuminate\Database\Eloquent\Casts` qualify. Any other field, such as one over an accessor or custom cast, or a
+computed, guarded or transformed field, leaves the select unnarrowed until it declares `needs()`.
 
 An incomplete `needs()` returns wrong data rather than failing. Call
 `Model::preventAccessingMissingAttributes(! app()->isProduction())` in a service provider to catch it outside
-production: it throws on a read of an unselected plain attribute, though not on one that itself has an accessor or
-cast, nor on a raw `$attributes[...]` read inside a cast. Disable narrowing if code reads attributes outside the
-rendered fields.
+production: it throws on a read of an unselected attribute that is plain or carries a built-in or enum cast, though
+not on one with an accessor or a class cast, nor on a raw `$attributes[...]` read inside a cast. Disable narrowing if
+code reads attributes outside the rendered fields.
 
 ### Repositories
 

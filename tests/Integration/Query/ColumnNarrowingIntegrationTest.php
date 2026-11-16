@@ -321,6 +321,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      */
     public function testFallsBackForAPlainFieldOverAModelAccessor(): void
     {
+        Config::set('api-toolkit.resources.narrow_columns', false);
+
         $off = $this->serialiseArticles('id,title,headline', null);
 
         Config::set('api-toolkit.resources.narrow_columns', true);
@@ -340,6 +342,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      */
     public function testFallsBackForARealColumnWhoseAccessorReadsAnotherColumn(): void
     {
+        Config::set('api-toolkit.resources.narrow_columns', false);
+
         $off = $this->serialiseThrough(SluggedTitleArticleResource::class, new SluggedTitleArticle, 'id,title');
 
         Config::set('api-toolkit.resources.narrow_columns', true);
@@ -358,6 +362,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      */
     public function testNarrowsAnAccessorBackedColumnToItsDeclaredNeeds(): void
     {
+        Config::set('api-toolkit.resources.narrow_columns', false);
+
         $off = $this->serialiseThrough(DeclaredSluggedTitleArticleResource::class, new SluggedTitleArticle, 'id,title');
 
         Config::set('api-toolkit.resources.narrow_columns', true);
