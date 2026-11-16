@@ -344,15 +344,13 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
                 continue;
             }
 
-            $group = $entry['function'] . ':' . $entry['column'];
-
-            $groups[$group]['column']    = $entry['column'];
-            $groups[$group]['function']  = $entry['function'];
-            $groups[$group]['relations'] = [...$groups[$group]['relations'] ?? [], ...(array) $entry['relation']];
+            $groups[$entry['function']][$entry['column']] = [...$groups[$entry['function']][$entry['column']] ?? [], ...(array) $entry['relation']];
         }
 
-        foreach ($groups as $group) {
-            $resource->loadAggregate($group['relations'], $group['column'], $group['function']);
+        foreach ($groups as $function => $columns) {
+            foreach ($columns as $column => $relations) {
+                $resource->loadAggregate($relations, $column, $function);
+            }
         }
     }
 }

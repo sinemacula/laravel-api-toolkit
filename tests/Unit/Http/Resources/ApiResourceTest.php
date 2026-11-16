@@ -2828,7 +2828,7 @@ final class ApiResourceTest extends TestCase
 
     /**
      * Test that load_missing loads the aggregates sharing a function and a
-     * column in one call, constrained or not.
+     * column in one call, constrained or not, and no others together.
      *
      * @return void
      *
@@ -2855,9 +2855,14 @@ final class ApiResourceTest extends TestCase
 
         self::assertSame([
             [['posts as aggregate_posts_count', 'posts as aggregate_published_posts' => $published], '*', 'count'],
+            [['posts as aggregate_posts_exists'], '*', 'exists'],
             [['posts as aggregate_posts_sum_id'], 'id', 'sum'],
+            [['posts as aggregate_posts_sum_user_id'], 'user_id', 'sum'],
         ], $model->calls);
-        self::assertSame(['posts_count' => 2, 'published_posts' => 2, 'posts_sum_id' => 42.0], $result['aggregates']);
+        self::assertSame(
+            ['posts_count' => 2, 'published_posts' => 2, 'posts_exists' => true, 'posts_sum_id' => 42.0, 'posts_sum_user_id' => 42.0],
+            $result['aggregates'],
+        );
 
         $this->clearSchemaCache();
     }
@@ -2898,18 +2903,21 @@ final class ApiResourceTest extends TestCase
 
         $connection->disableQueryLog();
 
-        self::assertSame(2, $queries);
-        self::assertSame(
-            ['posts_count' => 2, 'published_posts' => 1, 'posts_sum_id' => (float) $user->posts()->sum('id')], // @phpstan-ignore cast.double
-            $resource->resolve()['aggregates'],
-        );
+        self::assertSame(4, $queries);
+        self::assertSame([
+            'posts_count'       => 2,
+            'published_posts'   => 1,
+            'posts_exists'      => true,
+            'posts_sum_id'      => (float) $user->posts()->sum('id'), // @phpstan-ignore cast.double
+            'posts_sum_user_id' => (float) $user->posts()->sum('user_id'), // @phpstan-ignore cast.double
+        ], $resource->resolve()['aggregates']);
 
         $this->clearSchemaCache();
     }
 
     /**
      * Build a resource declaring two counts over one relation, one of them
-     * constrained, and a sum.
+     * constrained, an existence check and sums over two columns.
      *
      * @param  \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void  $constraint
      * @return class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>
@@ -2935,10 +2943,12 @@ final class ApiResourceTest extends TestCase
             public static function schema(): array
             {
                 return [
-                    'id'                            => [],
-                    '__aggregate__:posts_count'     => ['metric' => 'count', 'relation' => 'posts', 'default' => true],
-                    '__aggregate__:published_posts' => ['metric' => 'count', 'relation' => 'posts', 'constraint' => self::$constraint, 'default' => true],
-                    '__aggregate__:posts_sum_id'    => ['metric' => 'sum', 'relation' => 'posts', 'column' => 'id', 'default' => true],
+                    'id'                              => [],
+                    '__aggregate__:posts_count'       => ['metric' => 'count', 'relation' => 'posts', 'default' => true],
+                    '__aggregate__:published_posts'   => ['metric' => 'count', 'relation' => 'posts', 'constraint' => self::$constraint, 'default' => true],
+                    '__aggregate__:posts_exists'      => ['metric' => 'exists', 'relation' => 'posts', 'default' => true],
+                    '__aggregate__:posts_sum_id'      => ['metric' => 'sum', 'relation' => 'posts', 'column' => 'id', 'default' => true],
+                    '__aggregate__:posts_sum_user_id' => ['metric' => 'sum', 'relation' => 'posts', 'column' => 'user_id', 'default' => true],
                 ];
             }
         };
