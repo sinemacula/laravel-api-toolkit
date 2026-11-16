@@ -11,6 +11,8 @@ use Illuminate\Pagination\Cursor;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
@@ -48,7 +50,9 @@ final class PageOrderTest extends TestCase
     {
         parent::setUp();
 
-        $this->pageOrder = new PageOrder;
+        assert($this->app !== null);
+
+        $this->pageOrder = new PageOrder(new ColumnLiteral($this->app->make(SchemaIntrospectionProvider::class)));
     }
 
     /**
@@ -355,6 +359,8 @@ final class PageOrderTest extends TestCase
         yield 'missing key' => [['name' => 'Ann']];
         yield 'null ordered column' => [['name' => null, self::KEY => 1]];
         yield 'array ordered column' => [['name' => ['Ann'], self::KEY => 1]];
+        yield 'word on the integer key' => [['name' => 'Ann', self::KEY => 'abc']];
+        yield 'NUL in the ordered column' => [['name' => "A\0n", self::KEY => 1]];
     }
 
     /**
@@ -370,6 +376,34 @@ final class PageOrderTest extends TestCase
         $token = (new Cursor($parameters))->encode();
 
         $this->assertCursorRejected(fn () => $this->pageOrder->cursor($query, $token), self::MISMATCH);
+    }
+
+    /**
+     * Test that a boundary on an unqualified column is checked against that
+     * column's type.
+     *
+     * @return void
+     */
+    public function testUnqualifiedBoundaryIsCheckedAgainstItsColumnType(): void
+    {
+        $query = $this->pageOrder->complete($this->users(static fn (QueryBuilder $query) => $query->orderBy('created_at')));
+
+        self::assertInstanceOf(Cursor::class, $this->pageOrder->cursor($query, (new Cursor(['created_at' => '2024-01-01 10:00:00', self::KEY => 1]))->encode()));
+
+        $this->assertCursorRejected(fn () => $this->pageOrder->cursor($query, (new Cursor(['created_at' => 'not-a-date', self::KEY => 1]))->encode()), self::MISMATCH);
+    }
+
+    /**
+     * Test that a boundary on another table's column is not checked against a
+     * column of the model's own.
+     *
+     * @return void
+     */
+    public function testBoundaryOnAnotherTablesColumnIsUnchecked(): void
+    {
+        $query = $this->users(static fn (QueryBuilder $query) => $query->orderBy('posts.id')->orderBy(self::KEY));
+
+        self::assertInstanceOf(Cursor::class, $this->pageOrder->cursor($query, (new Cursor(['posts.id' => 'abc', self::KEY => 1]))->encode()));
     }
 
     /**

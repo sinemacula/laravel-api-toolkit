@@ -10,10 +10,16 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Contracts\DeclaresValueShape;
+use SineMacula\ApiToolkit\Contracts\FilterOperator;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
+use SineMacula\ApiToolkit\Enums\FilterValueShape;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
+use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\BetweenOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
@@ -57,6 +63,15 @@ final class FilterApplierTest extends TestCase
     /** @var string */
     private const string OPERATOR_CONTAINS = '$contains';
 
+    /** @var string */
+    private const string BETWEEN_BOUNDS = 'The $between condition on "id" must be a list of two values, [low, high].';
+
+    /** @var string */
+    private const string NOT_A_PLATFORM = 'must be one of web, mobile_app, desktop.';
+
+    /** @var string */
+    private const string TAKES_ONLY_TRUE = 'takes only true; $null matches a missing value and $notNull a present one.';
+
     /** @var array<string, \SineMacula\ApiToolkit\Enums\Capability> */
     private const array DEVICE_FILTERABLE = [
         'name'     => Capability::EXACT,
@@ -93,7 +108,9 @@ final class FilterApplierTest extends TestCase
         $this->operatorRegistry->register('$null', new NullOperator);
         $this->operatorRegistry->register('$notNull', new NotNullOperator);
 
-        $this->applier = new FilterApplier;
+        assert($this->app !== null);
+
+        $this->applier = new FilterApplier(new FilterValueGuard(new ColumnLiteral($this->app->make(SchemaIntrospectionProvider::class))));
     }
 
     /**
@@ -282,7 +299,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testApplyWithBetweenWrongArraySizeIsRefused(): void
     {
-        $this->assertRefusedAt(['id' => ['$between' => [1]]], 'filters.id.$between', self::addsNothing('filters.id.$between'));
+        $this->assertRefusedAt(['id' => ['$between' => [1]]], 'filters.id.$between', self::BETWEEN_BOUNDS);
     }
 
     /**
@@ -1474,9 +1491,9 @@ final class FilterApplierTest extends TestCase
         yield 'empty list under $has' => [['$has' => []], 'filters.$has', self::addsNothing('filters.$has')];
         yield 'list entry under $hasnt' => [['$hasnt' => ['posts', ['posts']]], 'filters.$hasnt.1', 'The filters.$hasnt.1 filter must name a relation.'];
         yield 'bare value under a $has relation' => [['$has' => ['posts' => 'first']], 'filters.$has.posts', 'The filters.$has.posts filter must be a document of conditions.'];
-        yield 'one-value $between' => [['id' => ['$between' => [1]]], 'filters.id.$between', self::addsNothing('filters.id.$between')];
-        yield 'one-value $between alone in an $or' => [['$or' => [['id' => ['$between' => [1]]]]], 'filters.$or.0.id.$between', self::addsNothing('filters.$or.0.id.$between')];
-        yield '$gt beside a one-value $between' => [['id' => ['$gt' => 1, '$between' => [2]]], 'filters.id.$between', self::addsNothing('filters.id.$between')];
+        yield 'one-value $between' => [['id' => ['$between' => [1]]], 'filters.id.$between', self::BETWEEN_BOUNDS];
+        yield 'one-value $between alone in an $or' => [['$or' => [['id' => ['$between' => [1]]]]], 'filters.$or.0.id.$between', self::BETWEEN_BOUNDS];
+        yield '$gt beside a one-value $between' => [['id' => ['$gt' => 1, '$between' => [2]]], 'filters.id.$between', self::BETWEEN_BOUNDS];
         yield '$contains of only delimiters' => [['context' => ['$contains' => ',,']], 'filters.context.$contains', self::addsNothing('filters.context.$contains')];
     }
 
@@ -1511,7 +1528,8 @@ final class FilterApplierTest extends TestCase
         yield 'empty column object' => [['name' => []], 'filters.name', 'Der Filter filters.name ist leer.'];
         yield 'plain key under a column' => [['name' => ['email' => 'Alice']], 'filters.name.email', 'Der Filter filters.name.email ist keine Bedingung.'];
         yield 'condition at the root' => [['$eq' => 'Alice'], 'filters.$eq', 'Die Bedingung filters.$eq braucht ein Feld.'];
-        yield 'one-value $between' => [['id' => ['$between' => [1]]], 'filters.id.$between', 'Der Filter filters.id.$between bewirkt nichts.'];
+        yield 'one-value $between' => [['id' => ['$between' => [1]]], 'filters.id.$between', 'Die Bedingung $between auf "id" braucht zwei Werte.'];
+        yield '$contains of only delimiters' => [['context' => ['$contains' => ',,']], 'filters.context.$contains', 'Der Filter filters.context.$contains bewirkt nichts.'];
     }
 
     /**
@@ -1536,6 +1554,7 @@ final class FilterApplierTest extends TestCase
             'filters.not_condition'       => 'Der Filter :position ist keine Bedingung.',
             'filters.fieldless_condition' => 'Die Bedingung :position braucht ein Feld.',
             'filters.no_effect'           => 'Der Filter :position bewirkt nichts.',
+            'filters.value_bounds'        => 'Die Bedingung :operator auf ":column" braucht zwei Werte.',
         ]);
 
         $this->assertRefusedAt($filters, $position, $message);
@@ -1552,11 +1571,6 @@ final class FilterApplierTest extends TestCase
         yield 'bare wire name' => [['platform' => 'mobile_app'], ['Phone']];
         yield '$in wire names' => [['platform' => ['$in' => ['web', 'mobile_app']]], ['Browser', 'Phone']];
         yield '$neq wire name' => [['platform' => ['$neq' => 'web']], ['Phone', 'Workstation']];
-        yield '$eq declared name' => [['platform' => ['$eq' => 'MOBILE_APP']], []];
-        yield 'bare declared name' => [['platform' => 'MOBILE_APP'], []];
-        yield '$eq unknown name' => [['platform' => ['$eq' => 'console']], []];
-        yield '$in mixed names' => [['platform' => ['$in' => ['MOBILE_APP', 'console', 'desktop']]], ['Workstation']];
-        yield '$neq declared name' => [['platform' => ['$neq' => 'WEB']], ['Browser', 'Phone', 'Workstation']];
         yield '$null' => [['platform' => ['$null' => true]], ['Unregistered']];
         yield '$or wire names' => [['$or' => [['platform' => ['$eq' => 'web']], ['name' => ['$eq' => 'Workstation']]]], ['Browser', 'Workstation']];
         yield 'backed enum value' => [['status' => ['$eq' => 'inactive']], ['Phone']];
@@ -1589,6 +1603,46 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Provide filters naming no case of a pure-enum column, with the position
+     * and message each is refused with.
+     *
+     * @return iterable<string, array{array<string, mixed>, string, string}>
+     */
+    public static function unknownPureEnumNameProvider(): iterable
+    {
+        yield '$eq declared name' => [['platform' => ['$eq' => 'MOBILE_APP']], 'filters.platform.$eq', 'The $eq condition on "platform" ' . self::NOT_A_PLATFORM];
+        yield 'bare declared name' => [['platform' => 'MOBILE_APP'], 'filters.platform', 'The $eq condition on "platform" ' . self::NOT_A_PLATFORM];
+        yield '$eq unknown name' => [['platform' => ['$eq' => 'console']], 'filters.platform.$eq', 'The $eq condition on "platform" ' . self::NOT_A_PLATFORM];
+        yield '$in mixed names' => [['platform' => ['$in' => ['desktop', 'console']]], 'filters.platform.$in', 'Item 1 of the $in condition on "platform" ' . self::NOT_A_PLATFORM];
+        yield '$neq declared name' => [['platform' => ['$neq' => 'WEB']], 'filters.platform.$neq', 'The $neq condition on "platform" ' . self::NOT_A_PLATFORM];
+    }
+
+    /**
+     * Test that a pure-enum column refuses a name that is not a wire name,
+     * rather than matching nothing or everything.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $position
+     * @param  string  $message
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('unknownPureEnumNameProvider')]
+    public function testPureEnumColumnRefusesANameThatIsNotAWireName(array $filters, string $position, string $message): void
+    {
+        $surface = new QuerySurface(self::DEVICE_FILTERABLE, [], [], new Device);
+
+        try {
+            $this->applier->apply((new Device)->newQuery(), $filters, $this->operatorRegistry, $surface);
+
+            self::fail('The filter must be refused at ' . $position . '.');
+        } catch (ValidationException $exception) {
+            self::assertSame([$position => [$message]], $exception->errors());
+        }
+    }
+
+    /**
      * Test that a pure-enum column on a related model is filtered by wire name.
      *
      * @return void
@@ -1608,8 +1662,15 @@ final class FilterApplierTest extends TestCase
 
         self::assertSame(['Bob'], $matched(['devices' => ['platform' => ['$eq' => 'mobile_app']]]));
         self::assertSame(['Alice', 'Bob'], $matched(['devices' => ['platform' => ['$in' => ['web', 'mobile_app']]]]));
-        self::assertSame([], $matched(['devices' => ['platform' => ['$eq' => 'MOBILE_APP']]]));
         self::assertSame(['Alice'], $matched(['$has' => ['devices' => ['platform' => 'web']]]));
+
+        try {
+            $matched(['devices' => ['platform' => ['$eq' => 'MOBILE_APP']]]);
+
+            self::fail('A case name must be refused on the related model.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['filters.devices.platform.$eq' => ['The $eq condition on "platform" ' . self::NOT_A_PLATFORM]], $exception->errors());
+        }
     }
 
     /**
@@ -1627,8 +1688,6 @@ final class FilterApplierTest extends TestCase
         yield '$eq 0' => [['organization_id' => ['$eq' => 0]], ['0']];
         yield 'bare false' => [['organization_id' => false], ['0']];
         yield '$eq false' => [['organization_id' => ['$eq' => false]], ['0']];
-        yield 'bare null' => [['organization_id' => null], ['Alice']];
-        yield '$eq null' => [['organization_id' => ['$eq' => null]], ['Alice']];
         yield 'bare "0" in an $or' => [['$or' => [['name' => '0'], ['organization_id' => 1]]], ['0', '']];
         yield 'bare 0 in an $and' => [['$and' => [['organization_id' => 0]]], ['0']];
         yield 'bare "0" in a relation' => [['posts' => ['title' => '0']], ['']];
@@ -1651,6 +1710,154 @@ final class FilterApplierTest extends TestCase
         $this->seedFalsyValueUsers();
 
         self::assertSame($expected, $this->matchedUserNames($filters));
+    }
+
+    /**
+     * Test that null is refused as an equality value, bare or under $eq, since
+     * only $null matches a missing value.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testNullEqualityValueIsRefused(): void
+    {
+        $message = 'The $eq condition on "organization_id" cannot be null; use $null to match a missing value.';
+
+        $this->assertRefusedAt(['organization_id' => null], 'filters.organization_id', $message);
+        $this->assertRefusedAt(['organization_id' => ['$eq' => null]], 'filters.organization_id.$eq', $message);
+        $this->assertRefusedAt(['$or' => [['name' => 'Alice'], ['organization_id' => null]]], 'filters.$or.1.organization_id', $message);
+    }
+
+    /**
+     * Provide operator values the query builder would flatten, truncate or
+     * reject, with the position and message each is refused with.
+     *
+     * @return iterable<string, array{array<string, mixed>, string, string}>
+     */
+    public static function unshapedOperandProvider(): iterable
+    {
+        $scalar = 'must be a single value other than null.';
+
+        yield '$gt null' => [['id' => ['$gt' => null]], 'filters.id.$gt', 'The $gt condition on "id" cannot be null; use $null to match a missing value.'];
+        yield '$eq list' => [['name' => ['$eq' => ['Bob', 'Alice']]], 'filters.name.$eq', 'The $eq condition on "name" must be a single value.'];
+        yield '$gt list' => [['id' => ['$gt' => [2, 0]]], 'filters.id.$gt', 'The $gt condition on "id" must be a single value.'];
+        yield '$gt object' => [['id' => ['$gt' => ['x' => 1]]], 'filters.id.$gt', 'The $gt condition on "id" must be a single value.'];
+        yield '$in scalar' => [['name' => ['$in' => 'Alice']], 'filters.name.$in', 'The $in condition on "name" must be a list of values.'];
+        yield '$in nested lists' => [['name' => ['$in' => [[1, 2], [3]]]], 'filters.name.$in', 'Item 0 of the $in condition on "name" ' . $scalar];
+        yield '$between nested first bound' => [['id' => ['$between' => [[1, 2], 3]]], 'filters.id.$between', 'Item 0 of the $between condition on "id" ' . $scalar];
+        yield '$between nested second bound' => [['id' => ['$between' => [1, [2, 3]]]], 'filters.id.$between', 'Item 1 of the $between condition on "id" ' . $scalar];
+        yield '$null false' => [['organization_id' => ['$null' => false]], 'filters.organization_id.$null', 'The $null condition on "organization_id" ' . self::TAKES_ONLY_TRUE];
+        yield '$gt word on an integer' => [['id' => ['$gt' => 'abc']], 'filters.id.$gt', 'The $gt condition on "id" must be an integer.'];
+        yield 'bare bool on a string' => [['name' => true], 'filters.name', 'The $eq condition on "name" must be a string or a number.'];
+    }
+
+    /**
+     * Test that an operator value outside its shape or its column's type is
+     * refused at its position before any clause is added.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $position
+     * @param  string  $message
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('unshapedOperandProvider')]
+    public function testOperandOutsideItsShapeOrTypeIsRefused(array $filters, string $position, string $message): void
+    {
+        $this->assertRefusedAt($filters, $position, $message);
+    }
+
+    /**
+     * Test that a handler declaring its value's shape receives the value
+     * resolved to the column's stored form.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testHandlerDeclaringAShapeReceivesTheResolvedValue(): void
+    {
+        $handler = new class implements DeclaresValueShape, FilterOperator {
+            /** @var mixed */
+            public mixed $received = null;
+
+            /**
+             * Return the shape of the value the operator accepts.
+             *
+             * @return \SineMacula\ApiToolkit\Enums\FilterValueShape
+             */
+            #[\Override]
+            public function valueShape(): FilterValueShape
+            {
+                return FilterValueShape::SCALAR;
+            }
+
+            /**
+             * Record the value and constrain the column by it.
+             *
+             * @template TModel of \Illuminate\Database\Eloquent\Model
+             *
+             * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+             * @param  string  $column
+             * @param  mixed  $value
+             * @return void
+             */
+            #[\Override]
+            public function apply(Builder $query, string $column, mixed $value): void
+            {
+                $this->received = $value;
+
+                $query->getQuery()->where($column, '>', $value);
+            }
+        };
+
+        $this->operatorRegistry->register('$after', $handler);
+
+        $surface = $this->declaredSurface(['created_at' => Capability::RANGE]);
+
+        $this->applier->apply((new User)->newQuery(), ['created_at' => ['$after' => '2024-01-01T10:00:00+02:00']], $this->operatorRegistry, $surface);
+
+        self::assertSame('2024-01-01 08:00:00', $handler->received);
+
+        $this->assertRefusedAt(['name' => ['$after' => null]], 'filters.name.$after', 'The $after condition on "name" cannot be null; use $null to match a missing value.');
+    }
+
+    /**
+     * Test that a closure handler receives the value as sent, since it declares
+     * no shape.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testClosureHandlerReceivesTheValueAsSent(): void
+    {
+        $received = null;
+
+        $this->operatorRegistry->register('$raw', static function (Builder $query, string $column, mixed $value) use (&$received): void {
+            $received = $value;
+
+            $query->getQuery()->whereNotNull($column);
+        });
+
+        $this->applyFilters(['name' => ['$raw' => ['x' => [null]]]]);
+
+        self::assertSame(['x' => [null]], $received);
+    }
+
+    /**
+     * Test that a list over the item cap is refused on cost before any of its
+     * items is checked.
+     *
+     * @return void
+     */
+    public function testListOverTheItemCapIsRefusedBeforeItsItemsAreChecked(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 2);
+
+        $this->assertRejectedForCost(['id' => ['$in' => [null, [1], 'abc']]], QueryCostLimits::MAX_IN_ITEMS, '/id/$in', 2, 3);
     }
 
     /**
