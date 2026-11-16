@@ -411,6 +411,16 @@ class AuditRepository extends ApiRepository
 $auditRepository->defer(['user_id' => 1, 'action' => 'login']);
 ```
 
+Each row goes to its model's connection, resolved when the row is deferred, so a later change of the default connection
+does not redirect it. Timestamps follow the model: none when it has timestamps disabled, otherwise its own
+`CREATED_AT` and `UPDATED_AT` columns in its date format, and a timestamp you pass is kept. Rows are inserted in
+consecutive runs of one column set, so a row may leave out optional columns and they keep their database default.
+
+Reaching `deferred_writes.pool_limit` flushes automatically, but never on a connection with an open transaction: those
+rows wait for the next deferral outside a transaction or for the boundary flush, so rolling the transaction back does
+not undo them. A flush that does run inside an open transaction joins it: `flushWrites()` called there, or a boundary
+flush while an outer transaction is still open, such as a sync-queued job dispatched inside one.
+
 `api-toolkit.deferred_writes.on_failure` picks what happens when a flush fails:
 
 - `collect` (default) - failed records are kept for the next flush.

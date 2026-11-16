@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Providers\Registrars;
 
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\ApiQueryParser;
@@ -231,8 +232,22 @@ final readonly class ContainerBindingRegistrar
                 is_numeric($poolLimit) ? (int) $poolLimit : 10000,
                 FlushStrategy::from(is_string($onFailure) ? $onFailure : 'collect'),
                 (bool) $transactional,
+                $this->transactionTracker(...),
             );
         });
+    }
+
+    /**
+     * Resolve the transaction tracker bound now, since test helpers rebind it
+     * after the write pool is built.
+     *
+     * @return \Illuminate\Database\DatabaseTransactionsManager|null
+     */
+    private function transactionTracker(): ?DatabaseTransactionsManager
+    {
+        $transactions = $this->container->bound('db.transactions') ? $this->container->make('db.transactions') : null;
+
+        return $transactions instanceof DatabaseTransactionsManager ? $transactions : null;
     }
 
     /**
