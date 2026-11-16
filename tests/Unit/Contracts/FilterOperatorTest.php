@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Builder;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 
 /**
  * Tests for the FilterOperator interface.
@@ -39,7 +38,7 @@ final class FilterOperatorTest extends TestCase
 
         $parameters = $method->getParameters();
 
-        self::assertCount(4, $parameters);
+        self::assertCount(3, $parameters);
 
         self::assertSame('query', $parameters[0]->getName());
 
@@ -61,13 +60,6 @@ final class FilterOperatorTest extends TestCase
 
         self::assertInstanceOf(\ReflectionNamedType::class, $valueType);
         self::assertSame('mixed', $valueType->getName());
-
-        self::assertSame('context', $parameters[3]->getName());
-
-        $contextType = $parameters[3]->getType();
-
-        self::assertInstanceOf(\ReflectionNamedType::class, $contextType);
-        self::assertSame(FilterContext::class, $contextType->getName());
 
         $returnType = $method->getReturnType();
 

@@ -52,8 +52,10 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use SineMacula\ApiToolkit\Validation\Rejection;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
@@ -83,7 +85,7 @@ use Tests\TestCase;
 #[CoversClass(MorphMapRegistrar::class)]
 final class ApiServiceProviderTest extends TestCase
 {
-    use InteractsWithNonPublicMembers;
+    use InteractsWithNonPublicMembers, LocalisesToolkitMessages;
 
     /**
      * Test that the package config is merged.
@@ -135,6 +137,7 @@ final class ApiServiceProviderTest extends TestCase
         $translator = $this->getApplication()->make('translator');
 
         self::assertTrue($translator->hasForLocale('api-toolkit::exceptions', 'en'));
+        self::assertTrue($translator->hasForLocale('api-toolkit::validation', 'en'));
     }
 
     /**
@@ -1199,13 +1202,13 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the config file is publishable under the config group.
+     * Test that the config file is publishable under the toolkit's own tag.
      *
      * @return void
      */
-    public function testConfigIsPublishableUnderConfigGroup(): void
+    public function testConfigIsPublishableUnderItsOwnTag(): void
     {
-        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'config');
+        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'api-toolkit-config');
 
         self::assertSame(
             [$this->getProviderPath('/../config/api-toolkit.php') => config_path('api-toolkit.php')],
@@ -1214,18 +1217,57 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the translations are publishable under the translations group.
+     * Test that the translations publish beneath the application's lang path.
      *
      * @return void
      */
-    public function testTranslationsArePublishableUnderTranslationsGroup(): void
+    public function testTranslationsArePublishableToTheApplicationLangPath(): void
     {
-        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'translations');
+        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'api-toolkit-lang');
 
         self::assertSame(
-            [$this->getProviderPath('/../resources/lang') => resource_path('lang/vendor/api-toolkit')],
+            [$this->getProviderPath('/../resources/lang') => $this->getApplication()->langPath('vendor/api-toolkit')],
             $paths,
         );
+    }
+
+    /**
+     * Test that nothing is published under the generic tags.
+     *
+     * @return void
+     */
+    public function testNothingIsPublishedUnderTheGenericTags(): void
+    {
+        self::assertSame([], ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'translations'));
+        self::assertSame([], ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'config'));
+    }
+
+    /**
+     * Test that a vendor override replaces only the lines it holds.
+     *
+     * @return void
+     */
+    public function testVendorOverrideReplacesOnlyTheLinesItHolds(): void
+    {
+        $this->overrideToolkitMessages(['search' => ['not_permitted' => 'Die Suche ist für diese Ressource nicht zulässig.']]);
+
+        $this->getApplication()->setLocale('de');
+
+        self::assertSame('Die Suche ist für diese Ressource nicht zulässig.', Rejection::message('search.not_permitted'));
+        self::assertSame('The search term may not be longer than 64 characters.', Rejection::message('search.too_long', ['max' => '64']));
+    }
+
+    /**
+     * Test that a vendor override of a shipped locale merges over its lines.
+     *
+     * @return void
+     */
+    public function testVendorOverrideOfTheShippedLocaleKeepsItsOtherLines(): void
+    {
+        $this->overrideToolkitMessages(['search' => ['not_permitted' => 'Search is switched off here.']], 'en');
+
+        self::assertSame('Search is switched off here.', Rejection::message('search.not_permitted'));
+        self::assertSame('The search term may not be longer than 64 characters.', Rejection::message('search.too_long', ['max' => '64']));
     }
 
     /**

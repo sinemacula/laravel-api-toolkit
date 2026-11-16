@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 /**
- * Immutable value object for filter dispatch state.
+ * Immutable value object locating one level of a filter walk.
  *
  * Every context derived from a budgeted root shares its mutable cost budget.
  *
@@ -17,22 +17,22 @@ final readonly class FilterContext
     /**
      * Constructor.
      *
-     * @param  string|null  $logicalOperator
      * @param  int  $depth
      * @param  string  $pointer
+     * @param  string  $path
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterCostBudget|null  $budget
      * @return void
      */
     private function __construct(
-
-        /** The current logical operator ('$and', '$or', or null) */
-        private ?string $logicalOperator,
 
         /** The number of levels descended from the root */
         private int $depth = 0,
 
         /** JSON pointer to the current level within the filter document */
         private string $pointer = '',
+
+        /** Dot path to the current level, as a validation error is keyed */
+        private string $path = 'filters',
 
         /** The cost budget shared by every level of the walk, if any */
         private ?FilterCostBudget $budget = null,
@@ -46,36 +46,24 @@ final readonly class FilterContext
      */
     public static function root(?FilterCostBudget $budget = null): self
     {
-        return new self(null, budget: $budget);
-    }
-
-    /**
-     * Create a standalone context for a nested logical group.
-     *
-     * @param  string  $logicalOperator
-     * @return self
-     */
-    public static function nested(string $logicalOperator): self
-    {
-        return new self($logicalOperator, pointer: '/' . $logicalOperator);
+        return new self(budget: $budget);
     }
 
     /**
      * Create the context for the level below this one, carrying its budget.
      *
      * @param  string  $segment
-     * @param  string|null  $logicalOperator
      * @return self
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function descend(string $segment, ?string $logicalOperator): self
+    public function descend(string $segment): self
     {
         $pointer = $this->pointerTo($segment);
 
         $this->budget?->admitLevel($this->depth + 1, $pointer);
 
-        return new self($logicalOperator, $this->depth + 1, $pointer, $this->budget);
+        return new self($this->depth + 1, $pointer, $this->pathTo($segment), $this->budget);
     }
 
     /**
@@ -88,7 +76,7 @@ final readonly class FilterContext
      */
     public function at(string $segment): self
     {
-        return new self($this->logicalOperator, $this->depth, $this->pointerTo($segment), $this->budget);
+        return new self($this->depth, $this->pointerTo($segment), $this->pathTo($segment), $this->budget);
     }
 
     /**
@@ -112,36 +100,27 @@ final readonly class FilterContext
      */
     public function pointerTo(string $key): string
     {
-        return $this->pointer . '/' . $key;
+        return $this->pointer . '/' . strtr($key, ['~' => '~0', '/' => '~1']);
     }
 
     /**
-     * Return the current logical operator.
-     *
-     * @return string|null
-     */
-    public function getLogicalOperator(): ?string
-    {
-        return $this->logicalOperator;
-    }
-
-    /**
-     * Determine whether the current group combines its conditions with OR.
-     *
-     * @return bool
-     */
-    public function isOr(): bool
-    {
-        return $this->logicalOperator === '$or';
-    }
-
-    /**
-     * Resolve the query-builder boolean connective for the current group.
+     * Return the dot path to the current level.
      *
      * @return string
      */
-    public function sqlBoolean(): string
+    public function path(): string
     {
-        return $this->isOr() ? 'or' : 'and';
+        return $this->path;
+    }
+
+    /**
+     * Return the dot path to the given key at the current level.
+     *
+     * @param  string  $key
+     * @return string
+     */
+    private function pathTo(string $key): string
+    {
+        return $this->path . '.' . $key;
     }
 }

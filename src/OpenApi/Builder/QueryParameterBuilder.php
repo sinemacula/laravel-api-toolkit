@@ -142,6 +142,10 @@ final readonly class QueryParameterBuilder
             sprintf(
                 'Generic filter grammar. Filters are a URL-encoded JSON object keyed by field and combined with the operator vocabulary: %s. '
                 . 'A whole document is sent under the one key, e.g. filters={"status":{"$eq":"active"}}. '
+                . 'The entries of a document AND together. $and and $or take a non-empty list of filter documents, joined by AND or OR, '
+                . 'e.g. filters={"status":"active","$or":[{"role":"admin"},{"role":"owner"}]}. '
+                . 'A traversable relation key takes a filter document for the related resource. '
+                . '$has and $hasnt take a relation name, a list of names, or relation names keyed to filter documents. '
                 . 'The operator grammar is documented at the pattern level; each resource accepts only the fields it declares filterable.',
                 implode(', ', $operators),
             ),

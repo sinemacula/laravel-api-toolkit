@@ -7,10 +7,9 @@ namespace SineMacula\ApiToolkit\Services\Input;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
-use SineMacula\ApiToolkit\Support\PureEnumName;
+use SineMacula\ApiToolkit\Services\Input\Rules\Enum;
 
 /**
  * Self-validating base for typed service inputs.
@@ -34,7 +33,8 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     /**
      * Validate the source against rules() and return a hydrated instance.
      *
-     * Enum parameters are cast from a backed value or a lowercase case name.
+     * Enum parameters are cast from a backed value or a lowercase case name,
+     * checked by the validator so an unmatched value fails with the rest.
      *
      * @param  array<string, mixed>|\Illuminate\Http\Request  $source
      * @return static
@@ -43,28 +43,36 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      */
     public static function from(array|Request $source): static
     {
-        $data      = $source instanceof Request ? $source->all() : $source;
-        $validated = Validator::make($data, static::rules())->validate();
+        $data       = $source instanceof Request ? $source->all() : $source;
+        $rules      = static::rules();
+        $keys       = self::bodyKeys(static::class);
+        $parameters = self::promotedParameters();
+        $validator  = Validator::make($data, $rules);
 
-        $constructor = (new \ReflectionClass(static::class))->getConstructor();
-        $keys        = self::bodyKeys(static::class);
-        $namedArgs   = [];
+        foreach ($parameters as $name => $parameter) {
 
-        if ($constructor !== null) {
-            foreach ($constructor->getParameters() as $parameter) {
-                if (!$parameter->isPromoted()) {
-                    continue;
-                }
+            $key  = $keys[$name] ?? $name;
+            $enum = self::enumType($parameter);
 
-                $name = $parameter->getName();
-                $key  = $keys[$name] ?? $name;
-
-                if (!array_key_exists($key, $validated)) {
-                    continue;
-                }
-
-                $namedArgs[$name] = self::castValue($parameter, $validated[$key], $key);
+            if ($enum === null || !array_key_exists($key, $rules)) {
+                continue;
             }
+
+            $validator->addRules([$key => [new Enum($enum)]]);
+        }
+
+        $validated = $validator->validate();
+        $namedArgs = [];
+
+        foreach ($parameters as $name => $parameter) {
+
+            $key = $keys[$name] ?? $name;
+
+            if (!array_key_exists($key, $validated)) {
+                continue;
+            }
+
+            $namedArgs[$name] = self::castValue($parameter, $validated[$key], $key);
         }
 
         $className = static::class;
@@ -218,10 +226,43 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     }
 
     /**
+     * Return the promoted constructor parameters keyed by name.
+     *
+     * @return array<string, \ReflectionParameter>
+     */
+    private static function promotedParameters(): array
+    {
+        $parameters = [];
+
+        foreach ((new \ReflectionClass(static::class))->getConstructor()?->getParameters() ?? [] as $parameter) {
+            if (!$parameter->isPromoted()) {
+                continue;
+            }
+
+            $parameters[$parameter->getName()] = $parameter;
+        }
+
+        return $parameters;
+    }
+
+    /**
+     * Return the enum a parameter is typed as, if any.
+     *
+     * @param  \ReflectionParameter  $parameter
+     * @return class-string<\UnitEnum>|null
+     */
+    private static function enumType(\ReflectionParameter $parameter): ?string
+    {
+        $type = $parameter->getType();
+
+        return $type instanceof \ReflectionNamedType && enum_exists($type->getName()) ? $type->getName() : null;
+    }
+
+    /**
      * Cast a validated value to the parameter's enum type, if it has one.
      *
-     * Laravel's enum rule passes non-canonical values such as "01" for an
-     * int-backed enum, so an unmatched value fails validation here.
+     * A key that rules() names only through nested keys never ran the enum
+     * rule, so a value that names no case is validated on its own here.
      *
      * @param  \ReflectionParameter  $parameter
      * @param  mixed  $value
@@ -232,73 +273,12 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      */
     private static function castValue(\ReflectionParameter $parameter, mixed $value, string $key): mixed
     {
-        $type = $parameter->getType();
+        $enum = self::enumType($parameter);
 
-        if ($value === null || !$type instanceof \ReflectionNamedType) {
+        if ($enum === null || $value instanceof $enum) {
             return $value;
         }
 
-        $typeName = $type->getName();
-
-        if (!enum_exists($typeName) || $value instanceof $typeName) {
-            return $value;
-        }
-
-        return self::enumCase($typeName, $value) ?? self::failEnumCast($key);
-    }
-
-    /**
-     * Resolve the enum case a value names in canonical form, if any.
-     *
-     * @param  class-string<\UnitEnum>  $enum
-     * @param  mixed  $value
-     * @return \UnitEnum|null
-     */
-    private static function enumCase(string $enum, mixed $value): ?\UnitEnum
-    {
-        if (!is_a($enum, \BackedEnum::class, true)) {
-            return is_string($value) ? PureEnumName::tryFrom($enum, $value) : null;
-        }
-
-        $backing = self::backingValue($enum, $value);
-
-        return $backing === null ? null : $enum::tryFrom($backing);
-    }
-
-    /**
-     * Read a value as a backed enum's backing value, in canonical form only.
-     *
-     * An int-backed enum accepts "-3" but not "03", "+3" or "3.0".
-     *
-     * @param  class-string<\BackedEnum>  $enum
-     * @param  mixed  $value
-     * @return int|string|null
-     */
-    private static function backingValue(string $enum, mixed $value): int|string|null
-    {
-        if ((string) (new \ReflectionEnum($enum))->getBackingType() !== 'int') {
-            return is_string($value) ? $value : null;
-        }
-
-        return match (true) {
-            is_int($value)                                        => $value,
-            is_string($value) && (string) (int) $value === $value => (int) $value,
-            default                                               => null,
-        };
-    }
-
-    /**
-     * Fail an unmatched enum value with Laravel's enum-rule message.
-     *
-     * @param  string  $key
-     * @return never
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
-    private static function failEnumCast(string $key): never
-    {
-        $attribute = str_replace('_', ' ', Str::snake($key));
-
-        throw ValidationException::withMessages([$key => ["The selected {$attribute} is invalid."]]);
+        return Enum::resolve($enum, $value) ?? Validator::make([$key => $value], [$key => [new Enum($enum)]])->validate()[$key];
     }
 }
