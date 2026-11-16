@@ -186,18 +186,23 @@ GET /users?limit=200   // 422, the ceiling is 100
 GET /users?limit=25    // honoured as-is
 ```
 
-**Relation aggregates** - request counts, sums, or averages over declared relations:
+**Relation aggregates** - request declared aggregates per resource type by their keys. Requesting any aggregate replaces
+every default of that type, as `?fields` replaces `$default`, and the response renders them under the `aggregates` field:
 
 ```http
-GET /users?counts[user]=memberships,posts
-GET /accounts?sums[account][transaction]=amount
-GET /accounts?averages[account][order]=total
+GET /users?fields[user]=name,aggregates&aggregates[user]=posts_count,orders_sum_total,last_order_at
 ```
 
 ```php
-ApiQuery::getCounts('user');           // ['memberships', 'posts']
-ApiQuery::getSums('account');          // ['transaction' => ['amount']]
-ApiQuery::getAverages('account');      // ['order' => ['total']]
+ApiQuery::getAggregates('user');       // ['posts_count', 'orders_sum_total', 'last_order_at']
+```
+
+```json
+{
+    "_type": "user",
+    "name": "Ada",
+    "aggregates": {"posts_count": 3, "orders_sum_total": 120.5, "last_order_at": "2026-01-01T10:00:00.000000Z"}
+}
 ```
 
 **Pagination** - `?pagination=cursor` (or any `?cursor` token) selects cursor pagination; offset pagination is used
@@ -209,7 +214,7 @@ criteria layer applies it only where the model uses `SoftDeletes` and the resour
 
 ### Schema-Driven ApiResource
 
-Extend `ApiResource` and declare a `schema()` method using the `Field`, `Relation`, `Count`, `Sum`, and `Average`
+Extend `ApiResource` and declare a `schema()` method using the `Field` and `Relation` helpers and the relation aggregate
 helpers. The compiled schema drives field resolution, guards and eager-load planning.
 
 ```php
@@ -219,7 +224,9 @@ use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Count;
+use SineMacula\ApiToolkit\Schema\Exists;
 use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\Max;
 use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\Sum;
 
@@ -238,12 +245,34 @@ class UserResource extends ApiResource
             Field::timestamp('created_at')->sortable(),
             Field::compute('full_name', 'getFullName'),
             Relation::to('organization', OrganizationResource::class)->traversable(),
-            Count::of('memberships'),
+            Count::of('memberships')->default(),
             Sum::of('orders', 'total'),
+            Max::of('orders', 'created_at', 'last_order_at'),
+            Exists::of('messages', 'has_unread_messages')->constrain(fn ($query) => $query->whereNull('read_at')),
         );
     }
 }
 ```
+
+**Relation aggregates** - six helpers load an aggregate over a relation in the same query, through Laravel's
+`withAggregate()`. Each has one key, which names it in the declaration, the `?aggregates` request, the response and the
+exported schema. The key defaults to Laravel's own attribute name and `as()` or the last argument of `of()` replaces it:
+
+| Helper                            | Default key             | Value                                 |
+|-----------------------------------|-------------------------|---------------------------------------|
+| `Count::of('posts')`              | `posts_count`           | integer, `0` without related rows     |
+| `Exists::of('posts')`             | `posts_exists`          | boolean, `false` without related rows |
+| `Sum::of('orders', 'total')`      | `orders_sum_total`      | number                                |
+| `Average::of('orders', 'total')`  | `orders_avg_total`      | number                                |
+| `Min::of('variants', 'price')`    | `variants_min_price`    | the column's value                    |
+| `Max::of('orders', 'created_at')` | `orders_max_created_at` | the column's value                    |
+
+`constrain()` narrows the related rows, `default()` includes the aggregate when the request names none, and `guard()`
+and `transform()` work as on fields. A minimum or maximum is read the way the related model reads that column, so a
+timestamp renders as ISO 8601 and a cast enum as its value. Sum, average, minimum and maximum over zero related rows are
+omitted. `api-toolkit:schemas:validate` rejects an aggregate over a sensitive or missing column, a sum or average over a
+non-numeric column, a minimum or maximum the related model would read back through an accessor or a non-scalar cast, a
+`MorphTo` relation, and an `aggregate_<key>` attribute the owner model already uses as a column, cast or setter.
 
 Only fields marked `filterable()` or `sortable()` can be queried, and `?search=` matches only fields marked
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. `$default` lists the fields
@@ -319,8 +348,7 @@ binds without an explicit `resource_map` entry. It warns when discovery will not
 compiled map in place), and notes the morph alias a model not yet mapped will gain. Run `php artisan stub:publish` to
 customise `stubs/api-toolkit.resource.stub`.
 
-**Eager-load planning** - the resource builds `with()`/`withCount()`/`withSum()`/`withAvg()` maps from the resolved
-field set:
+**Eager-load planning** - the resource builds `with()` and `withAggregate()` maps from the resolved field set:
 
 ```php
 $with = UserResource::eagerLoadMapFor(UserResource::resolveFields());

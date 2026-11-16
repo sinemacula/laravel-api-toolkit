@@ -4,21 +4,26 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
+
 /**
- * Typed representation of a single compiled sum or average definition.
+ * Typed representation of a single compiled relation aggregate.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class CompiledAggregateDefinition
 {
+    /** @var string The prefix of the attribute the aggregate is loaded under */
+    public const string ATTRIBUTE_PREFIX = 'aggregate_';
+
     /**
      * Create a new compiled aggregate definition.
      *
      * @param  string  $presentKey
      * @param  string  $relation
-     * @param  string  $column
-     * @param  string  $metric
+     * @param  \SineMacula\ApiToolkit\Enums\AggregateFunction  $function
+     * @param  string|null  $column
      * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null  $constraint
      * @param  bool  $isDefault
      * @param  array<int, callable(mixed, mixed): bool>  $guards
@@ -26,17 +31,17 @@ final readonly class CompiledAggregateDefinition
      */
     public function __construct(
 
-        /** The key used in the JSON response */
+        /** The key used in the request and the response */
         public string $presentKey,
 
         /** The Eloquent relation to aggregate */
         public string $relation,
 
-        /** The database column to aggregate */
-        public string $column,
+        /** The SQL function the aggregate applies */
+        public AggregateFunction $function,
 
-        /** The aggregate metric identifier ('sum' or 'avg') */
-        public string $metric,
+        /** The related column to aggregate, or null for count and exists */
+        public ?string $column,
 
         /** Optional query constraint for the aggregate */
         public ?\Closure $constraint,
@@ -50,4 +55,14 @@ final readonly class CompiledAggregateDefinition
         /** Value transformer closures */
         public array $transformers = [],
     ) {}
+
+    /**
+     * Return the attribute the aggregate is selected and loaded under.
+     *
+     * @return string
+     */
+    public function attribute(): string
+    {
+        return self::ATTRIBUTE_PREFIX . $this->presentKey;
+    }
 }

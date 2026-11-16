@@ -7,14 +7,12 @@ namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
-use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
- * Builds eager-load, count and aggregate maps from compiled schema relations.
+ * Builds eager-load and aggregate maps from compiled schema relations.
  *
  * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
  *
@@ -28,10 +26,7 @@ final class EagerLoadPlanner
     /** @var array<string, array<int|string, mixed>> Eager-load maps, keyed by resource class + field signature */
     private static array $eagerLoadCache = [];
 
-    /** @var array<string, array<int|string, mixed>> Count maps, keyed by resource class + alias signature */
-    private static array $countCache = [];
-
-    /** @var array<string, list<AggregateLoad>> Aggregate entry lists, keyed by metric:resource class + requested signature */
+    /** @var array<string, list<AggregateLoad>> Aggregate entry lists, keyed by resource class + requested signature */
     private static array $aggregateCache = [];
 
     /**
@@ -63,78 +58,55 @@ final class EagerLoadPlanner
     }
 
     /**
-     * Clear the static eager-load, count, and aggregate map memos.
+     * Clear the static eager-load and aggregate map memos.
      *
      * @return void
      */
     public static function clearCache(): void
     {
         self::$eagerLoadCache = [];
-        self::$countCache     = [];
         self::$aggregateCache = [];
     }
 
     /**
-     * Build a withCount-ready array for the given resource class.
+     * Build a withAggregate-ready entry list for the given resource class.
+     *
+     * A non-empty request selects exactly its keys; otherwise the defaults.
      *
      * @param  string  $resourceClass
-     * @param  array<int, string>|null  $requestedAliases
-     * @return array<int|string, mixed>
+     * @param  array<int, string>|null  $requested
+     * @return list<AggregateLoad>
      */
-    public static function buildCountMap(string $resourceClass, ?array $requestedAliases = null): array
+    public static function buildAggregateMap(string $resourceClass, ?array $requested = null): array
     {
-        $key = $resourceClass . '|' . ($requestedAliases === null ? '*' : implode("\0", $requestedAliases));
+        $requested = $requested ?: null;
+        $cacheKey  = $resourceClass . '|' . ($requested === null ? '*' : serialize($requested));
 
-        if (isset(self::$countCache[$key])) {
-            return self::$countCache[$key];
+        if (isset(self::$aggregateCache[$cacheKey])) {
+            return self::$aggregateCache[$cacheKey];
         }
 
-        $schema = SchemaCompiler::compile($resourceClass);
-        $with   = [];
+        $entries = [];
 
-        foreach ($schema->getCountDefinitions() as $presentKey => $definition) {
+        foreach (SchemaCompiler::compile($resourceClass)->getAggregateDefinitions() as $presentKey => $definition) {
 
-            if (!self::shouldIncludeCount($presentKey, $requestedAliases, $definition)) {
+            $included = $requested === null ? $definition->isDefault : in_array($presentKey, $requested, true);
+
+            if (!$included) {
                 continue;
             }
 
-            // Alias by present key so two counts on one relation do not collide
-            $aliased = $definition->relation . ' as ' . $definition->presentKey . '_count';
-
+            $aliased    = $definition->relation . ' as ' . $definition->attribute();
             $constraint = $definition->constraint;
 
-            if ($constraint instanceof \Closure) {
-                $with[$aliased] = $constraint;
-            } else {
-                $with[] = $aliased;
-            }
+            $entries[] = [
+                'relation' => $constraint instanceof \Closure ? [$aliased => $constraint] : $aliased,
+                'column'   => $definition->column ?? '*',
+                'function' => $definition->function->value,
+            ];
         }
 
-        return self::$countCache[$key] = $with;
-    }
-
-    /**
-     * Build a withSum-ready entry list for the given resource class.
-     *
-     * @param  string  $resourceClass
-     * @param  array<string, mixed>|null  $requested
-     * @return list<AggregateLoad>
-     */
-    public static function buildSumMap(string $resourceClass, ?array $requested = null): array
-    {
-        return self::buildAggregateMap($resourceClass, 'sum', $requested);
-    }
-
-    /**
-     * Build a withAvg-ready entry list for the given resource class.
-     *
-     * @param  string  $resourceClass
-     * @param  array<string, mixed>|null  $requested
-     * @return list<AggregateLoad>
-     */
-    public static function buildAvgMap(string $resourceClass, ?array $requested = null): array
-    {
-        return self::buildAggregateMap($resourceClass, 'avg', $requested);
+        return self::$aggregateCache[$cacheKey] = $entries;
     }
 
     /**
@@ -162,48 +134,6 @@ final class EagerLoadPlanner
         $alias    = $position === false ? $specification : substr($specification, $position + 4);
 
         return array_key_exists($alias, $resource->getAttributes());
-    }
-
-    /**
-     * Build a withSum/withAvg-ready entry list for the given metric.
-     *
-     * @param  string  $resourceClass
-     * @param  string  $metric
-     * @param  array<string, mixed>|null  $requested
-     * @return list<AggregateLoad>
-     */
-    private static function buildAggregateMap(string $resourceClass, string $metric, ?array $requested): array
-    {
-        $cacheKey = $metric . ':' . $resourceClass . '|' . (!$requested ? '*' : json_encode($requested));
-
-        if (isset(self::$aggregateCache[$cacheKey])) {
-            return self::$aggregateCache[$cacheKey];
-        }
-
-        $schema  = SchemaCompiler::compile($resourceClass);
-        $entries = [];
-
-        foreach ($schema->getAggregateDefinitions() as $definition) {
-
-            if ($definition->metric !== $metric) {
-                continue;
-            }
-
-            if (!self::shouldIncludeAggregate($definition, $requested)) {
-                continue;
-            }
-
-            // The alias must match the attribute name the resolver reads back
-            $aliased    = $definition->relation . ' as ' . $definition->presentKey . '_' . $metric . '_' . $definition->column;
-            $constraint = $definition->constraint;
-
-            $entries[] = [
-                'relation' => $constraint instanceof \Closure ? [$aliased => $constraint] : $aliased,
-                'column'   => $definition->column,
-            ];
-        }
-
-        return self::$aggregateCache[$cacheKey] = $entries;
     }
 
     /**
@@ -436,40 +366,5 @@ final class EagerLoadPlanner
         return array_values(
             array_filter($requested, static fn ($f) => $f !== ''),
         );
-    }
-
-    /**
-     * Determine whether a count is requested, or included by default.
-     *
-     * @param  string  $presentKey
-     * @param  array<int, string>|null  $requested
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledCountDefinition  $definition
-     * @return bool
-     */
-    private static function shouldIncludeCount(string $presentKey, ?array $requested, CompiledCountDefinition $definition): bool
-    {
-        if (is_array($requested) && $requested !== []) {
-            return in_array($presentKey, $requested, true);
-        }
-
-        return $definition->isDefault;
-    }
-
-    /**
-     * Determine whether an aggregate is requested, or included by default.
-     *
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $definition
-     * @param  array<string, mixed>|null  $requested
-     * @return bool
-     */
-    private static function shouldIncludeAggregate(CompiledAggregateDefinition $definition, ?array $requested): bool
-    {
-        if (is_array($requested) && $requested !== []) {
-            $columns = $requested[$definition->relation] ?? null;
-
-            return is_array($columns) && in_array($definition->column, $columns, true);
-        }
-
-        return $definition->isDefault;
     }
 }

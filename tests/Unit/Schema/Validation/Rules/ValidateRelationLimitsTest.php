@@ -90,7 +90,7 @@ final class ValidateRelationLimitsTest extends TestCase
     {
         $relations = ['profile', 'note', 'organization', 'subject', 'firstProfile'];
         $fields    = array_combine($relations, array_map(static fn (string $relation): CompiledFieldDefinition => self::field($relation, limit: 5), $relations));
-        $errors    = (new ValidateRelationLimits)->validate(UserResource::class, RelationSignatures::class, new CompiledSchema(fields: $fields, counts: []));
+        $errors    = (new ValidateRelationLimits)->validate(UserResource::class, RelationSignatures::class, new CompiledSchema(fields: $fields, aggregates: []));
 
         self::assertSame($relations, array_map(static fn (SchemaValidationError $error): string => $error->fieldKey, $errors));
     }
@@ -106,7 +106,7 @@ final class ValidateRelationLimitsTest extends TestCase
         $errors = (new ValidateRelationLimits)->validate(UserResource::class, RelationSignatures::class, new CompiledSchema(fields: [
             'either' => self::field('either', limit: 5),
             'varied' => self::field('varied', limit: 5),
-        ], counts: []));
+        ], aggregates: []));
 
         self::assertCount(1, $errors);
         self::assertSame('either', $errors[0]->fieldKey);
@@ -209,7 +209,7 @@ final class ValidateRelationLimitsTest extends TestCase
         self::assertSame([], $this->validate(['missing' => self::field('missing', limit: 5)]));
         self::assertSame([], $rule->validate(UserResource::class, null, new CompiledSchema(fields: [
             'organization' => self::field('organization', limit: 5, resource: OrganizationResource::class),
-        ], counts: [])));
+        ], aggregates: [])));
     }
 
     /**
@@ -223,7 +223,7 @@ final class ValidateRelationLimitsTest extends TestCase
             'ghost'        => null,
             'organization' => self::field('organization', limit: 5, resource: OrganizationResource::class),
             'post_titles'  => self::field('posts', limit: 5, resource: null, accessor: 'title'),
-        ], counts: []);
+        ], aggregates: []);
 
         $errors = (new ValidateRelationLimits)->validate(UserResource::class, User::class, $schema);
 
@@ -238,7 +238,7 @@ final class ValidateRelationLimitsTest extends TestCase
      */
     private function validate(array $fields): array
     {
-        return (new ValidateRelationLimits)->validate(UserResource::class, User::class, new CompiledSchema(fields: $fields, counts: []));
+        return (new ValidateRelationLimits)->validate(UserResource::class, User::class, new CompiledSchema(fields: $fields, aggregates: []));
     }
 
     /**

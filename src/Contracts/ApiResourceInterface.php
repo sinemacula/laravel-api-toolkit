@@ -7,7 +7,11 @@ namespace SineMacula\ApiToolkit\Contracts;
 /**
  * API resource interface.
  *
- * @phpstan-type AggregateLoad array{relation: string|array<string, \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void>, column: string}
+ * @phpstan-type AggregateLoad array{
+ *     relation: string|array<string, \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void>,
+ *     column: string,
+ *     function: string,
+ * }
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -59,28 +63,12 @@ interface ApiResourceInterface
     public static function eagerLoadMapFor(array $fields): array;
 
     /**
-     * Build a withCount-ready array for this resource.
+     * Build a withAggregate-ready entry list for this resource.
      *
-     * @param  array<int, string>|null  $requestedAliases
-     * @return array<int|string, mixed>
-     */
-    public static function eagerLoadCountsFor(?array $requestedAliases = null): array;
-
-    /**
-     * Build a withSum-ready entry list for this resource.
-     *
-     * @param  array<string, mixed>|null  $requestedSums
+     * @param  array<int, string>|null  $requested
      * @return list<AggregateLoad>
      */
-    public static function eagerLoadSumsFor(?array $requestedSums = null): array;
-
-    /**
-     * Build a withAvg-ready entry list for this resource.
-     *
-     * @param  array<string, mixed>|null  $requestedAverages
-     * @return list<AggregateLoad>
-     */
-    public static function eagerLoadAveragesFor(?array $requestedAverages = null): array;
+    public static function eagerLoadAggregatesFor(?array $requested = null): array;
 
     /**
      * Resolve the resource to an array.

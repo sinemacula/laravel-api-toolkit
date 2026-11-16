@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema;
 
 /**
- * Typed value object holding compiled field, count, and aggregate definitions.
+ * Typed value object holding compiled field and aggregate definitions.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -16,7 +16,6 @@ final readonly class CompiledSchema
      * Create a new compiled schema.
      *
      * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition>  $fields
-     * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledCountDefinition>  $counts
      * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition>  $aggregates
      * @param  array<string, \SineMacula\ApiToolkit\Enums\Capability>  $filterableColumns
      * @param  array<int, string>  $sortableColumns
@@ -28,10 +27,7 @@ final readonly class CompiledSchema
         /** The compiled field definitions keyed by field name */
         private array $fields,
 
-        /** The compiled count definitions keyed by present key */
-        private array $counts,
-
-        /** The compiled aggregate definitions keyed by metric and present key */
+        /** The compiled aggregate definitions keyed by present key */
         private array $aggregates = [],
 
         /** Declared filterable column names mapped to their capability */
@@ -59,7 +55,7 @@ final readonly class CompiledSchema
     }
 
     /**
-     * Return all field keys, excluding count definitions.
+     * Return all field keys, excluding aggregate definitions.
      *
      * @return array<int, string>
      */
@@ -69,37 +65,13 @@ final readonly class CompiledSchema
     }
 
     /**
-     * Return the count definitions keyed by present key.
-     *
-     * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledCountDefinition>
-     */
-    public function getCountDefinitions(): array
-    {
-        return $this->counts;
-    }
-
-    /**
-     * Return the sum and average definitions keyed by metric and present key.
+     * Return the aggregate definitions keyed by present key.
      *
      * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition>
      */
     public function getAggregateDefinitions(): array
     {
         return $this->aggregates;
-    }
-
-    /**
-     * Return aggregate definitions filtered to those matching the given metric.
-     *
-     * @param  string  $metric
-     * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition>
-     */
-    public function getAggregateDefinitionsByMetric(string $metric): array
-    {
-        return array_filter(
-            $this->aggregates,
-            static fn (CompiledAggregateDefinition $definition): bool => $definition->metric === $metric,
-        );
     }
 
     /**

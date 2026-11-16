@@ -65,7 +65,7 @@ final class ValidateSearchIndexesTest extends TestCase
      */
     public function testPassesOverAResourceDeclaringNothingSearchable(): void
     {
-        $schema = new CompiledSchema(fields: ['name' => $this->makeField()], counts: []);
+        $schema = new CompiledSchema(fields: ['name' => $this->makeField()]);
 
         self::assertSame([], $this->rule()->validate(SearchableUserResource::class, User::class, $schema));
     }
@@ -258,7 +258,7 @@ final class ValidateSearchIndexesTest extends TestCase
                 'name'  => $this->makeField('name', SearchStrategy::SUBSTRING),
                 'email' => $this->makeField('email', SearchStrategy::SUBSTRING),
             ],
-            counts: [],
+            aggregates: [],
             searchableColumns: ['name' => SearchStrategy::SUBSTRING, 'email' => SearchStrategy::SUBSTRING],
         );
 
@@ -351,7 +351,6 @@ final class ValidateSearchIndexesTest extends TestCase
 
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField('name')],
-            counts: [],
             searchableColumns: ['name' => SearchStrategy::SUBSTRING],
         );
 
@@ -409,7 +408,6 @@ final class ValidateSearchIndexesTest extends TestCase
                 'name'  => $this->makeField('name', SearchStrategy::SUBSTRING),
                 'email' => $this->makeField('email', SearchStrategy::SUBSTRING),
             ],
-            counts: [],
             searchableColumns: ['name' => SearchStrategy::SUBSTRING, 'email' => SearchStrategy::SUBSTRING],
         );
 
@@ -453,7 +451,6 @@ final class ValidateSearchIndexesTest extends TestCase
     {
         return new CompiledSchema(
             fields: ['name' => $this->makeField('name', SearchStrategy::SUBSTRING)],
-            counts: [],
             searchableColumns: ['name' => SearchStrategy::SUBSTRING],
         );
     }
@@ -471,7 +468,6 @@ final class ValidateSearchIndexesTest extends TestCase
                 'name'   => $this->makeField('name', SearchStrategy::SUBSTRING),
                 'email'  => $this->makeField('email', SearchStrategy::PREFIX),
             ],
-            counts: [],
             searchableColumns: ['name' => SearchStrategy::SUBSTRING, 'email' => SearchStrategy::PREFIX],
         );
     }

@@ -6,6 +6,7 @@ namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 
 /**
@@ -26,116 +27,71 @@ final class CompiledAggregateDefinitionTest extends TestCase
      */
     public function testCompiledAggregateDefinitionStoresAllProperties(): void
     {
-        $constraint = fn ($query) => $query->where('active', true);
-        $guard      = fn () => true;
+        $constraint  = fn ($query) => $query->where('active', true);
+        $guard       = fn () => true;
+        $transformer = fn ($resource, $value) => $value;
 
         $definition = new CompiledAggregateDefinition(
-            presentKey: 'posts_id',
-            relation: 'posts',
-            column: 'id',
-            metric: 'sum',
+            presentKey: 'orders_sum_total',
+            relation: 'orders',
+            function: AggregateFunction::SUM,
+            column: 'total',
             constraint: $constraint,
             isDefault: true,
             guards: [$guard],
+            transformers: [$transformer],
         );
 
-        self::assertSame('posts_id', $definition->presentKey);
-        self::assertSame('posts', $definition->relation);
-        self::assertSame('id', $definition->column);
-        self::assertSame('sum', $definition->metric);
+        self::assertSame('orders_sum_total', $definition->presentKey);
+        self::assertSame('orders', $definition->relation);
+        self::assertSame(AggregateFunction::SUM, $definition->function);
+        self::assertSame('total', $definition->column);
         self::assertSame($constraint, $definition->constraint);
         self::assertTrue($definition->isDefault);
         self::assertSame([$guard], $definition->guards);
+        self::assertSame([$transformer], $definition->transformers);
     }
 
     /**
-     * Test that isDefault can be false.
+     * Test that a count carries no column and no transformers by default.
      *
      * @return void
      */
-    public function testCompiledAggregateDefinitionDefaultFlagCanBeFalse(): void
+    public function testCountCarriesNoColumnOrTransformers(): void
     {
         $definition = new CompiledAggregateDefinition(
-            presentKey: 'posts_id',
+            presentKey: 'posts_count',
             relation: 'posts',
-            column: 'id',
-            metric: 'avg',
+            function: AggregateFunction::COUNT,
+            column: null,
             constraint: null,
             isDefault: false,
             guards: [],
         );
 
-        self::assertFalse($definition->isDefault);
-    }
-
-    /**
-     * Test that constraint can be null.
-     *
-     * @return void
-     */
-    public function testCompiledAggregateDefinitionConstraintCanBeNull(): void
-    {
-        $definition = new CompiledAggregateDefinition(
-            presentKey: 'posts_id',
-            relation: 'posts',
-            column: 'id',
-            metric: 'sum',
-            constraint: null,
-            isDefault: false,
-            guards: [],
-        );
-
+        self::assertNull($definition->column);
         self::assertNull($definition->constraint);
+        self::assertFalse($definition->isDefault);
+        self::assertSame([], $definition->transformers);
     }
 
     /**
-     * Test that guards can be empty.
+     * Test that the attribute prefixes the present key, whatever the function.
      *
      * @return void
      */
-    public function testCompiledAggregateDefinitionGuardsCanBeEmpty(): void
+    public function testAttributePrefixesThePresentKey(): void
     {
         $definition = new CompiledAggregateDefinition(
-            presentKey: 'posts_id',
-            relation: 'posts',
-            column: 'id',
-            metric: 'avg',
+            presentKey: 'revenue',
+            relation: 'orders',
+            function: AggregateFunction::MAX,
+            column: 'total',
             constraint: null,
             isDefault: false,
             guards: [],
         );
 
-        self::assertSame([], $definition->guards);
-    }
-
-    /**
-     * Test that the metric discriminator stores the provided value.
-     *
-     * @return void
-     */
-    public function testMetricDiscriminatorIsStoredVerbatim(): void
-    {
-        $sum = new CompiledAggregateDefinition(
-            presentKey: 'posts_id',
-            relation: 'posts',
-            column: 'id',
-            metric: 'sum',
-            constraint: null,
-            isDefault: false,
-            guards: [],
-        );
-
-        $avg = new CompiledAggregateDefinition(
-            presentKey: 'posts_id',
-            relation: 'posts',
-            column: 'id',
-            metric: 'avg',
-            constraint: null,
-            isDefault: false,
-            guards: [],
-        );
-
-        self::assertSame('sum', $sum->metric);
-        self::assertSame('avg', $avg->metric);
+        self::assertSame('aggregate_revenue', $definition->attribute());
     }
 }

@@ -101,8 +101,7 @@ final class DeepNestingQueryBoundTest extends TestCase
         self::assertArrayHasKey('name', $firstPost['tags'][0]);
 
         // Default metrics the request did not ask for must not leak
-        self::assertArrayNotHasKey('counts', $large['first']);
-        self::assertArrayNotHasKey('sums', $large['first']);
+        self::assertArrayNotHasKey('aggregates', $large['first']);
     }
 
     /**

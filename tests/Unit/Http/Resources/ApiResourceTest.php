@@ -52,11 +52,11 @@ final class ApiResourceTest extends TestCase
     /** @var string Email address used in fluent-return test fixtures. */
     private const string FLUENT_EMAIL = 'fluent@example.com';
 
-    /** @var string Field selection string that includes the counts field. */
-    private const string COUNTS_FIELDS = 'id,counts';
+    /** @var string Field selection string that includes the aggregates field. */
+    private const string AGGREGATES_FIELDS = 'id,aggregates';
 
     /** @var string Count metric key for the posts relation. */
-    private const string COUNT_KEY_POSTS = '__count__:posts';
+    private const string COUNT_KEY_POSTS = '__aggregate__:posts_count';
 
     /**
      * Clean up the testing environment before the next test.
@@ -125,11 +125,11 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that getAllFields returns all field keys excluding count metrics.
+     * Test that getAllFields returns all field keys excluding aggregates.
      *
      * @return void
      */
-    public function testGetAllFieldsReturnsAllFieldKeysExcludingCounts(): void
+    public function testGetAllFieldsReturnsAllFieldKeysExcludingAggregates(): void
     {
         $allFields = UserResource::getAllFields();
 
@@ -145,7 +145,7 @@ final class ApiResourceTest extends TestCase
         self::assertContains('posts', $allFields);
 
         foreach ($allFields as $field) {
-            self::assertStringNotContainsString('__count__', $field);
+            self::assertStringNotContainsString('__aggregate__', $field);
         }
     }
 
@@ -804,13 +804,13 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that counts payload is included when requested.
+     * Test that the aggregates payload is included when requested.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testCountsPayloadIsIncludedWhenRequested(): void
+    public function testAggregatesPayloadIsIncludedWhenRequested(): void
     {
         $user = User::create([
             'name'  => 'Counter',
@@ -831,14 +831,14 @@ final class ApiResourceTest extends TestCase
             'published' => false,
         ]);
 
-        $user->loadCount('posts');
+        $user->loadCount('posts as aggregate_posts_count');
 
         assert($this->app !== null);
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', HttpMethod::GET->getVerb(), [
-            'fields' => ['users' => 'id,name,counts'],
+            'fields' => ['users' => 'id,name,aggregates'],
         ]);
 
         $parser->parse($request);
@@ -846,14 +846,12 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        self::assertArrayHasKey('counts', $result);
-        self::assertIsArray($result['counts']);
-        self::assertArrayHasKey('posts', $result['counts']);
-        self::assertSame(2, $result['counts']['posts']);
+        self::assertSame(['posts_count' => 2], $result['aggregates']);
     }
 
     /**
-     * Test that counts are included when default flag is set.
+     * Test that a default count is included when the aggregates field is
+     * requested.
      *
      * @return void
      *
@@ -866,14 +864,14 @@ final class ApiResourceTest extends TestCase
             'email' => 'defcount@example.com',
         ]);
 
-        $user->loadCount('posts');
+        $user->loadCount('posts as aggregate_posts_count');
 
         assert($this->app !== null);
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', HttpMethod::GET->getVerb(), [
-            'fields' => ['users' => 'id,name,counts'],
+            'fields' => ['users' => 'id,name,aggregates'],
         ]);
 
         $parser->parse($request);
@@ -881,9 +879,7 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        self::assertArrayHasKey('counts', $result);
-        self::assertIsArray($result['counts']);
-        self::assertArrayHasKey('posts', $result['counts']);
+        self::assertSame(['posts_count' => 0], $result['aggregates']);
     }
 
     /**
@@ -956,51 +952,20 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that eagerLoadCountsFor builds correct count map.
+     * Test that eagerLoadAggregatesFor builds the requested entries, else the
+     * defaults.
      *
      * @return void
      */
-    public function testEagerLoadCountsForBuildsCorrectCountMap(): void
+    public function testEagerLoadAggregatesForBuildsTheAggregateMap(): void
     {
-        $counts = UserResource::eagerLoadCountsFor(['posts']);
-
-        self::assertContains('posts as posts_count', $counts);
-    }
-
-    /**
-     * Test that eagerLoadCountsFor respects default flag.
-     *
-     * @return void
-     */
-    public function testEagerLoadCountsForRespectsDefaultFlag(): void
-    {
-        $counts = UserResource::eagerLoadCountsFor(null);
-
-        self::assertContains('posts as posts_count', $counts);
-    }
-
-    /**
-     * Test that eagerLoadCountsFor with no defaults returns empty.
-     *
-     * @return void
-     */
-    public function testEagerLoadCountsForWithNoDefaultsReturnsEmpty(): void
-    {
-        $counts = OrganizationResource::eagerLoadCountsFor(null);
-
-        self::assertSame([], $counts);
-    }
-
-    /**
-     * Test that eagerLoadCountsFor with explicit request returns requested.
-     *
-     * @return void
-     */
-    public function testEagerLoadCountsForWithExplicitRequestReturnsRequested(): void
-    {
-        $counts = OrganizationResource::eagerLoadCountsFor(['users']);
-
-        self::assertContains('users as users_count', $counts);
+        self::assertSame(
+            [['relation' => 'posts as aggregate_posts_count', 'column' => '*', 'function' => 'count']],
+            UserResource::eagerLoadAggregatesFor(['posts_count']),
+        );
+        self::assertCount(2, UserResource::eagerLoadAggregatesFor(null));
+        self::assertSame([], OrganizationResource::eagerLoadAggregatesFor(null));
+        self::assertSame('users as aggregate_users_count', OrganizationResource::eagerLoadAggregatesFor(['users_count'])[0]['relation']);
     }
 
     /**
@@ -1436,11 +1401,11 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test eagerLoadCountsFor with constrained count returns closure.
+     * Test eagerLoadAggregatesFor with a constrained count returns its closure.
      *
      * @return void
      */
-    public function testEagerLoadCountsForWithConstrainedCountReturnsClosure(): void
+    public function testEagerLoadAggregatesForWithConstrainedCountReturnsClosure(): void
     {
         $resourceClass = new class (null) extends ApiResource {
             /** @var string */
@@ -1466,10 +1431,12 @@ final class ApiResourceTest extends TestCase
             }
         };
 
-        $counts = $resourceClass::eagerLoadCountsFor(null);
+        $aggregates = $resourceClass::eagerLoadAggregatesFor(null);
+        $relation   = $aggregates[0]['relation'];
 
-        self::assertArrayHasKey('items as items_count', $counts);
-        self::assertIsCallable($counts['items as items_count']);
+        self::assertIsArray($relation);
+        self::assertArrayHasKey('items as aggregate_items_count', $relation);
+        self::assertIsCallable($relation['items as aggregate_items_count']);
     }
 
     /**
@@ -1604,14 +1571,14 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that load_missing triggers loadCount when 'counts' is in the
-     * included fields.
+     * Test that load_missing over a model without related rows renders the
+     * count as zero and omits the null sum.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testConstructorWithLoadMissingAndCountsField(): void
+    public function testConstructorWithLoadMissingRendersAZeroCountAndOmitsANullSum(): void
     {
         $user = User::create([
             'name'  => 'CountLoad',
@@ -1622,30 +1589,32 @@ final class ApiResourceTest extends TestCase
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', HttpMethod::GET->getVerb());
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields' => ['users' => self::AGGREGATES_FIELDS],
+        ]);
         $parser->parse($request);
 
-        $resource = new UserResource($user, true, ['id', 'counts']);
-        $result   = $resource->resolve();
+        $result = (new UserResource($user, true))->resolve();
 
-        self::assertArrayHasKey('_type', $result);
+        self::assertSame(['posts_count' => 0], $result['aggregates']);
+        self::assertArrayHasKey('aggregate_posts_sum_id', $user->getAttributes());
     }
 
     /**
-     * Test that resolveCountsPayload returns an empty array for a non-object
-     * resource nested inside a JsonResource.
+     * Test that resolveAggregatesPayload returns an empty array for a
+     * non-object resource nested inside a JsonResource.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testResolveCountsPayloadReturnsEmptyForNullResource(): void
+    public function testResolveAggregatesPayloadReturnsEmptyForNullResource(): void
     {
         assert($this->app !== null);
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => self::COUNTS_FIELDS]]);
+        $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => self::AGGREGATES_FIELDS]]);
         $parser->parse($request);
 
         $inner    = new UserResource(null);
@@ -1653,11 +1622,11 @@ final class ApiResourceTest extends TestCase
 
         $result = $resource->resolve();
 
-        self::assertArrayNotHasKey('counts', $result);
+        self::assertArrayNotHasKey('aggregates', $result);
     }
 
     /**
-     * Test that a count field excluded by a guard is omitted from the counts
+     * Test that a count excluded by a guard is omitted from the aggregates
      * payload.
      *
      * @SuppressWarnings("php:S2014")
@@ -1673,7 +1642,7 @@ final class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'guarded_count_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'counts'];
+            protected static array $default = ['id', 'aggregates'];
 
             /**
              * Get the resource schema.
@@ -1695,19 +1664,19 @@ final class ApiResourceTest extends TestCase
             'email' => 'guardedcount@example.com',
         ]);
 
-        $user->loadCount('posts');
+        $user->loadCount('posts as aggregate_posts_count');
 
         assert($this->app !== null);
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['guarded_count_test' => self::COUNTS_FIELDS]]);
+        $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['guarded_count_test' => self::AGGREGATES_FIELDS]]);
         $parser->parse($request);
 
         $resource = new $resourceClass($user);
         $result   = $resource->resolve();
 
-        self::assertArrayNotHasKey('counts', $result);
+        self::assertArrayNotHasKey('aggregates', $result);
     }
 
     /**
@@ -1876,13 +1845,13 @@ final class ApiResourceTest extends TestCase
             'email' => 'wrapped2@example.com',
         ]);
 
-        $user->loadCount('posts');
+        $user->loadCount('posts as aggregate_posts_count');
 
         assert($this->app !== null);
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => self::COUNTS_FIELDS]]);
+        $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => self::AGGREGATES_FIELDS]]);
         $parser->parse($request);
 
         $inner    = new UserResource($user);
@@ -2206,20 +2175,20 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that getAttributeIfLoaded falls back to __isset when the owner has
-     * no getAttributes method.
+     * Test that an owner exposing magic attributes but no attribute listing
+     * yields no aggregates, so an accessor is never read in place of one.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testGetAttributeIfLoadedTakesIssetPathForNonEloquentOwner(): void
+    public function testAggregatesAreNotReadFromMagicAttributes(): void
     {
         assert($this->app !== null);
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
-        $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => 'id,counts']]);
+        $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => self::AGGREGATES_FIELDS]]);
         $parser->parse($request);
 
         // Exposes __isset/__get but no getAttributes()
@@ -2230,7 +2199,7 @@ final class ApiResourceTest extends TestCase
              */
             public function __isset(string $name): bool
             {
-                return $name === 'posts_count';
+                return $name === 'aggregate_posts_count';
             }
 
             /**
@@ -2239,15 +2208,14 @@ final class ApiResourceTest extends TestCase
              */
             public function __get(string $name): mixed
             {
-                return $name === 'posts_count' ? 2 : null;
+                return $name === 'aggregate_posts_count' ? 2 : null;
             }
         };
 
         $resource = new UserResource($fakeOwner);
         $result   = $resource->resolve();
 
-        self::assertArrayHasKey('counts', $result);
-        self::assertSame(2, $result['counts']['posts']);
+        self::assertArrayNotHasKey('aggregates', $result);
     }
 
     /**
@@ -2458,14 +2426,14 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that load_missing does not load counts when the counts field is not
-     * requested.
+     * Test that load_missing does not load aggregates when the aggregates field
+     * is not requested.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testConstructorWithLoadMissingSkipsCountsWhenNotRequested(): void
+    public function testConstructorWithLoadMissingSkipsAggregatesWhenNotRequested(): void
     {
         $user = User::create([
             'name'  => 'NoCountLoad',
@@ -2484,18 +2452,18 @@ final class ApiResourceTest extends TestCase
 
         new UserResource($user, true);
 
-        self::assertArrayNotHasKey('posts_count', $user->getAttributes());
+        self::assertArrayNotHasKey('aggregate_posts_count', $user->getAttributes());
     }
 
     /**
-     * Test that load_missing loads default counts and resolves them into the
-     * counts payload when the counts field is requested.
+     * Test that load_missing loads the default aggregates and resolves them
+     * into the aggregates payload when the aggregates field is requested.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testConstructorWithLoadMissingLoadsRequestedCounts(): void
+    public function testConstructorWithLoadMissingLoadsDefaultAggregates(): void
     {
         $user = User::create([
             'name'  => 'CountLoader',
@@ -2521,7 +2489,7 @@ final class ApiResourceTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', HttpMethod::GET->getVerb(), [
-            'fields' => ['users' => self::COUNTS_FIELDS],
+            'fields' => ['users' => self::AGGREGATES_FIELDS],
         ]);
 
         $parser->parse($request);
@@ -2529,19 +2497,20 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user, true);
         $result   = $resource->resolve();
 
-        self::assertArrayHasKey('counts', $result);
-        self::assertSame(2, $result['counts']['posts']);
+        $expectedSum = (float) Post::query()->where('user_id', $user->id)->sum('id'); // @phpstan-ignore cast.double
+
+        self::assertSame(['posts_count' => 2, 'posts_sum_id' => $expectedSum], $result['aggregates']);
     }
 
     /**
-     * Test that load_missing honours explicitly requested count aliases from
+     * Test that load_missing honours explicitly requested aggregate keys from
      * the API query.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testConstructorWithLoadMissingHonoursRequestedCountAliases(): void
+    public function testConstructorWithLoadMissingHonoursRequestedAggregateKeys(): void
     {
         $org = Organization::create([
             'name' => 'Counted Corp',
@@ -2559,8 +2528,8 @@ final class ApiResourceTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', HttpMethod::GET->getVerb(), [
-            'fields' => ['organizations' => self::COUNTS_FIELDS],
-            'counts' => ['organizations' => 'users'],
+            'fields'     => ['organizations' => self::AGGREGATES_FIELDS],
+            'aggregates' => ['organizations' => 'users_count'],
         ]);
 
         $parser->parse($request);
@@ -2568,29 +2537,25 @@ final class ApiResourceTest extends TestCase
         $resource = new OrganizationResource($org, true);
         $result   = $resource->resolve();
 
-        self::assertArrayHasKey('counts', $result);
-        self::assertSame(1, $result['counts']['users']);
+        self::assertSame(['users_count' => 1], $result['aggregates']);
     }
 
     /**
-     * Test that the sums payload is included when the sums field is requested
-     * and loadMissing loads the aggregate.
-     *
-     * AggregateCapturingModel stores the full presentKey_sum_column key, which
-     * Eloquent's 'relation as alias' form does not produce.
+     * Test that load_missing loads each default aggregate once, under its
+     * attribute, and the payload reads it back.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testSumsPayloadIsIncludedWhenLoadMissingAndSumsFieldRequested(): void
+    public function testLoadMissingLoadsEachDefaultAggregateUnderItsAttribute(): void
     {
         assert($this->app !== null);
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', HttpMethod::GET->getVerb(), [
-            'fields' => ['users' => 'id,sums'],
+            'fields' => ['users' => self::AGGREGATES_FIELDS],
         ]);
 
         $parser->parse($request);
@@ -2600,26 +2565,29 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($model, true);
         $result   = $resource->resolve();
 
-        self::assertArrayHasKey('sums', $result);
-        self::assertIsFloat($result['sums']['posts_id']);
+        self::assertSame([
+            [['posts as aggregate_posts_count'], '*', 'count'],
+            [['posts as aggregate_posts_sum_id'], 'id', 'sum'],
+        ], $model->calls);
+        self::assertSame(['posts_count' => 2, 'posts_sum_id' => 42.0], $result['aggregates']);
     }
 
     /**
-     * Test that the sums key is absent when the sums virtual field is requested
-     * but no aggregate attribute is loaded on the model.
+     * Test that the aggregates key is absent when the aggregates field is
+     * requested but no aggregate attribute is loaded on the model.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testSumsPayloadIsAbsentWhenNoSumsLoaded(): void
+    public function testAggregatesPayloadIsAbsentWhenNoneLoaded(): void
     {
         assert($this->app !== null);
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', HttpMethod::GET->getVerb(), [
-            'fields' => ['users' => 'id,sums'],
+            'fields' => ['users' => self::AGGREGATES_FIELDS],
         ]);
 
         $parser->parse($request);
@@ -2633,29 +2601,26 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        self::assertArrayNotHasKey('sums', $result);
+        self::assertArrayNotHasKey('aggregates', $result);
     }
 
     /**
-     * Test that the averages payload is included when the averages field is
-     * requested and loadMissing loads the aggregate.
-     *
-     * AggregateCapturingModel stores the full presentKey_avg_column key, which
-     * Eloquent's 'relation as alias' form does not produce.
+     * Test that a requested aggregate replaces every default, so only it is
+     * loaded and rendered.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testAveragesPayloadIsIncludedWhenLoadMissingAndAveragesFieldRequested(): void
+    public function testRequestedAggregateReplacesTheDefaults(): void
     {
         assert($this->app !== null);
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', HttpMethod::GET->getVerb(), [
-            'fields'   => ['users' => 'id,averages'],
-            'averages' => ['users' => ['posts' => 'id']],
+            'fields'     => ['users' => self::AGGREGATES_FIELDS],
+            'aggregates' => ['users' => 'posts_avg_id'],
         ]);
 
         $parser->parse($request);
@@ -2665,26 +2630,26 @@ final class ApiResourceTest extends TestCase
         $resource = new UserResource($model, true);
         $result   = $resource->resolve();
 
-        self::assertArrayHasKey('averages', $result);
-        self::assertIsFloat($result['averages']['posts_id']);
+        self::assertSame([[['posts as aggregate_posts_avg_id'], 'id', 'avg']], $model->calls);
+        self::assertSame(['posts_avg_id' => 3.5], $result['aggregates']);
     }
 
     /**
-     * Test that the averages key is absent when the averages field is not
-     * requested, even with an average attribute preloaded.
+     * Test that the aggregates key is absent when the aggregates field is not
+     * requested, even with an aggregate attribute preloaded.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testAveragesPayloadIsAbsentWhenShouldIncludeIsFalse(): void
+    public function testAggregatesPayloadIsAbsentWhenTheFieldIsNotRequested(): void
     {
         assert($this->app !== null);
 
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', HttpMethod::GET->getVerb(), [
-            'averages' => ['users' => ['posts' => 'id']],
+            'aggregates' => ['users' => 'posts_avg_id'],
         ]);
 
         $parser->parse($request);
@@ -2694,54 +2659,18 @@ final class ApiResourceTest extends TestCase
             'email' => 'avgfalse@example.com',
         ]);
 
-        // Preloaded so only the shouldInclude guard can omit the payload
-        $user->setAttribute('posts_id_avg_id', 3.0);
+        // Preloaded so only the field token can omit the payload
+        $user->setAttribute('aggregate_posts_avg_id', 3.0);
 
         $resource = new UserResource($user);
         $result   = $resource->resolve();
 
-        self::assertArrayNotHasKey('averages', $result);
-    }
-
-    /**
-     * Test that the averages key is absent when shouldInclude is true but no
-     * average attributes are loaded on the model.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testAveragesPayloadIsAbsentWhenNoAveragesLoaded(): void
-    {
-        assert($this->app !== null);
-
-        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
-        $parser  = $this->app->make('api.query');
-        $request = Request::create('/', HttpMethod::GET->getVerb(), [
-            'fields'   => ['users' => 'id,averages'],
-            'averages' => ['users' => ['posts' => 'id']],
-        ]);
-
-        $parser->parse($request);
-
-        $user = User::create([
-            'name'  => 'AvgEmptyUser',
-            'email' => 'avgempty@example.com',
-        ]);
-
-        // No loadMissing and no manual preload - attribute absent on model
-        $resource = new UserResource($user);
-        $result   = $resource->resolve();
-
-        self::assertArrayNotHasKey('averages', $result);
+        self::assertArrayNotHasKey('aggregates', $result);
     }
 
     /**
      * Test that loadMissing loads a non-default sum explicitly requested via
-     * the sums query parameter.
-     *
-     * AggregateCapturingModel stores the full presentKey_sum_column key, which
-     * Eloquent's 'relation as alias' form does not produce.
+     * the aggregates query parameter.
      *
      * @return void
      *
@@ -2756,7 +2685,7 @@ final class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'nondefault_sum_rt';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'sums'];
+            protected static array $default = ['id', 'aggregates'];
 
             /**
              * Get the resource schema.
@@ -2767,8 +2696,8 @@ final class ApiResourceTest extends TestCase
             public static function schema(): array
             {
                 return [
-                    'id'               => [],
-                    '__sum__:posts_id' => [
+                    'id'                         => [],
+                    '__aggregate__:posts_sum_id' => [
                         'metric'   => 'sum',
                         'relation' => 'posts',
                         'column'   => 'id',
@@ -2783,8 +2712,8 @@ final class ApiResourceTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', HttpMethod::GET->getVerb(), [
-            'fields' => ['nondefault_sum_rt' => 'id,sums'],
-            'sums'   => ['nondefault_sum_rt' => ['posts' => 'id']],
+            'fields'     => ['nondefault_sum_rt' => self::AGGREGATES_FIELDS],
+            'aggregates' => ['nondefault_sum_rt' => 'posts_sum_id'],
         ]);
 
         $parser->parse($request);
@@ -2794,14 +2723,14 @@ final class ApiResourceTest extends TestCase
         $instance = new $resourceClass($model, true);
         $result   = $instance->resolve();
 
-        self::assertArrayHasKey('sums', $result, 'non-default sum must be loaded when explicitly requested');
+        self::assertSame(['posts_sum_id' => 42.0], $result['aggregates'], 'non-default sum must be loaded when explicitly requested');
 
         $this->clearSchemaCache();
     }
 
     /**
-     * Test that load_missing skips sum and average aggregates whose fields are
-     * neither requested nor default, even when the definitions are default.
+     * Test that load_missing skips every aggregate while the aggregates field
+     * is neither requested nor default, even when the definitions are default.
      *
      * @return void
      */
@@ -2825,14 +2754,14 @@ final class ApiResourceTest extends TestCase
             public static function schema(): array
             {
                 return [
-                    'id'               => [],
-                    '__sum__:posts_id' => [
+                    'id'                         => [],
+                    '__aggregate__:posts_sum_id' => [
                         'metric'   => 'sum',
                         'relation' => 'posts',
                         'column'   => 'id',
                         'default'  => true,
                     ],
-                    '__avg__:posts_id' => [
+                    '__aggregate__:posts_avg_id' => [
                         'metric'   => 'avg',
                         'relation' => 'posts',
                         'column'   => 'id',
@@ -2842,107 +2771,11 @@ final class ApiResourceTest extends TestCase
             }
         };
 
-        $spy = new class {
-            /** @var array<int, array<int, mixed>> */
-            public array $sumCalls = [];
-
-            /** @var array<int, array<int, mixed>> */
-            public array $avgCalls = [];
-
-            /** @var array<string, mixed> */
-            private array $attributes = [];
-
-            /**
-             * Magic getter for attribute access.
-             *
-             * @param  string  $key
-             * @return mixed
-             */
-            public function __get(string $key): mixed
-            {
-                return $this->attributes[$key] ?? null;
-            }
-
-            /**
-             * Magic isset for attribute existence check.
-             *
-             * @param  string  $key
-             * @return bool
-             */
-            public function __isset(string $key): bool
-            {
-                return isset($this->attributes[$key]);
-            }
-
-            /**
-             * Return the attribute map.
-             *
-             * @return array<string, mixed>
-             */
-            public function getAttributes(): array
-            {
-                return $this->attributes;
-            }
-
-            /**
-             * No-op for the eager-load relations path.
-             *
-             * @SuppressWarnings("php:S1172")
-             *
-             * @param  mixed  $with
-             * @return self
-             */
-            public function loadMissing(mixed $with): self
-            {
-                return $this;
-            }
-
-            /**
-             * No-op for the count-loading path.
-             *
-             * @SuppressWarnings("php:S1172")
-             *
-             * @param  mixed  $relations
-             * @return self
-             */
-            public function loadCount(mixed $relations): self
-            {
-                return $this;
-            }
-
-            /**
-             * Record a sum-loading call.
-             *
-             * @param  mixed  $relations
-             * @param  string  $column
-             * @return self
-             */
-            public function loadSum(mixed $relations, string $column): self
-            {
-                $this->sumCalls[] = [$relations, $column];
-
-                return $this;
-            }
-
-            /**
-             * Record an average-loading call.
-             *
-             * @param  mixed  $relations
-             * @param  string  $column
-             * @return self
-             */
-            public function loadAvg(mixed $relations, string $column): self
-            {
-                $this->avgCalls[] = [$relations, $column];
-
-                return $this;
-            }
-        };
+        $spy = new AggregateCapturingModel;
 
         new $resourceClass($spy, true);
 
-        self::assertSame([], $spy->sumCalls);
-        self::assertSame([], $spy->avgCalls);
+        self::assertSame([], $spy->calls);
 
         $this->clearSchemaCache();
     }
@@ -2996,36 +2829,121 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that already-loaded aggregate specifications are dropped while
-     * unloaded ones are retained, for both count specs and aggregate entries.
+     * Test that load_missing skips an aggregate the model already carries, even
+     * one loaded as null, while loading the rest.
      *
      * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testRejectLoadedAggregatesDropsPreloadedSpecifications(): void
+    public function testLoadMissingSkipsAnAggregateAlreadyLoaded(): void
     {
-        $user = new User;
-        $user->setAttribute('posts_count', 2);
-        $user->setAttribute('posts_sum_id', 10);
+        assert($this->app !== null);
 
-        $resource = new UserResource($user);
-        $method   = new \ReflectionMethod(UserResource::class, 'rejectLoadedAggregates');
-
-        /** @var array<int|string, mixed> $result */
-        $result = $method->invoke($resource, $user, [
-            'posts as posts_count',
-            'comments as comments_count',
-            'tags as tags_count' => static fn (): null => null,
-            ['relation' => 'posts as posts_sum_id', 'column' => 'id'],
-            ['relation' => 'authors as authors_sum_id', 'column' => 'id'],
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser  = $this->app->make('api.query');
+        $request = Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields'     => ['users' => self::AGGREGATES_FIELDS],
+            'aggregates' => ['users' => 'posts_count,posts_sum_id,posts_avg_id'],
         ]);
 
-        $values = array_values($result);
+        $parser->parse($request);
 
-        self::assertContains('comments as comments_count', $values);
-        self::assertArrayHasKey('tags as tags_count', $result);
-        self::assertContains(['relation' => 'authors as authors_sum_id', 'column' => 'id'], $values);
-        self::assertNotContains('posts as posts_count', $values);
-        self::assertNotContains(['relation' => 'posts as posts_sum_id', 'column' => 'id'], $values);
+        $model = new AggregateCapturingModel(['aggregate_posts_count' => 5, 'aggregate_posts_avg_id' => null]);
+
+        $result = (new UserResource($model, true))->resolve();
+
+        self::assertSame([[['posts as aggregate_posts_sum_id'], 'id', 'sum']], $model->calls);
+        self::assertSame(['posts_count' => 5, 'posts_sum_id' => 42.0], $result['aggregates']);
+    }
+
+    /**
+     * Test that load_missing loads the aggregates sharing a function and a
+     * column in one call, constrained or not, and no others together.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testLoadMissingLoadsAggregatesSharingAFunctionInOneCall(): void
+    {
+        $this->clearSchemaCache();
+
+        $published = static function (Builder $query): void {
+            $query->where('published', true);
+        };
+
+        $resourceClass = $this->groupedCountsResource($published);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+        $parser->parse(Request::create('/', HttpMethod::GET->getVerb()));
+
+        $model  = new AggregateCapturingModel;
+        $result = (new $resourceClass($model, true))->resolve();
+
+        self::assertSame([
+            [['posts as aggregate_posts_count', 'posts as aggregate_published_posts' => $published], '*', 'count'],
+            [['posts as aggregate_posts_exists'], '*', 'exists'],
+            [['posts as aggregate_posts_sum_id'], 'id', 'sum'],
+            [['posts as aggregate_posts_sum_user_id'], 'user_id', 'sum'],
+        ], $model->calls);
+        self::assertSame(
+            ['posts_count' => 2, 'published_posts' => 2, 'posts_exists' => true, 'posts_sum_id' => 42.0, 'posts_sum_user_id' => 42.0],
+            $result['aggregates'],
+        );
+
+        $this->clearSchemaCache();
+    }
+
+    /**
+     * Test that a grouped load reads each aggregate of a real model correctly
+     * in one query per function and column.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testLoadMissingGroupedCountsReadEachConstraintFromTheDatabase(): void
+    {
+        $this->clearSchemaCache();
+
+        $resourceClass = $this->groupedCountsResource(static function (Builder $query): void {
+            $query->where('published', true);
+        });
+
+        $user = User::create(['name' => 'Grouped', 'email' => 'grouped@example.com']);
+
+        Post::create(['user_id' => $user->id, 'title' => 'One', 'body' => 'Body', 'published' => true]);
+        Post::create(['user_id' => $user->id, 'title' => 'Two', 'body' => 'Body', 'published' => false]);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+        $parser->parse(Request::create('/', HttpMethod::GET->getVerb()));
+
+        $connection = $user->getConnection();
+        $connection->flushQueryLog();
+        $connection->enableQueryLog();
+
+        $resource = new $resourceClass($user, true);
+        $queries  = count($connection->getQueryLog());
+
+        $connection->disableQueryLog();
+
+        self::assertSame(4, $queries);
+        self::assertSame([
+            'posts_count'       => 2,
+            'published_posts'   => 1,
+            'posts_exists'      => true,
+            'posts_sum_id'      => (float) $user->posts()->sum('id'), // @phpstan-ignore cast.double
+            'posts_sum_user_id' => (float) $user->posts()->sum('user_id'), // @phpstan-ignore cast.double
+        ], $resource->resolve()['aggregates']);
+
+        $this->clearSchemaCache();
     }
 
     /**
@@ -3084,6 +3002,49 @@ final class ApiResourceTest extends TestCase
 
         self::assertArrayNotHasKey('hidden_writings', $result);
         self::assertArrayNotHasKey('_truncated', $result);
+    }
+
+    /**
+     * Build a resource declaring two counts over one relation, one of them
+     * constrained, an existence check and sums over two columns.
+     *
+     * @param  \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void  $constraint
+     * @return class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>
+     */
+    private function groupedCountsResource(\Closure $constraint): string
+    {
+        $resource = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'grouped_counts_rt';
+
+            /** @var (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null The constraint the published count applies */
+            public static ?\Closure $constraint = null;
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'aggregates'];
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return [
+                    'id'                              => [],
+                    '__aggregate__:posts_count'       => ['metric' => 'count', 'relation' => 'posts', 'default' => true],
+                    '__aggregate__:published_posts'   => ['metric' => 'count', 'relation' => 'posts', 'constraint' => self::$constraint, 'default' => true],
+                    '__aggregate__:posts_exists'      => ['metric' => 'exists', 'relation' => 'posts', 'default' => true],
+                    '__aggregate__:posts_sum_id'      => ['metric' => 'sum', 'relation' => 'posts', 'column' => 'id', 'default' => true],
+                    '__aggregate__:posts_sum_user_id' => ['metric' => 'sum', 'relation' => 'posts', 'column' => 'user_id', 'default' => true],
+                ];
+            }
+        };
+
+        $resource::$constraint = $constraint;
+
+        return $resource::class;
     }
 
     /**

@@ -37,6 +37,9 @@ final readonly class ResourceSchemaBuilder
     /** The property an API resource's schema pins to its resource type */
     public const string TYPE_PROPERTY = '_type';
 
+    /** The property a resource's relation aggregates are rendered under */
+    private const string AGGREGATES_PROPERTY = 'aggregates';
+
     /** The path prefix under which resource component schemas are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
 
@@ -150,8 +153,8 @@ final readonly class ResourceSchemaBuilder
             $required[] = $fieldKey;
         }
 
-        foreach (array_keys($compiled->getCountDefinitions()) as $presentKey) {
-            $properties[$presentKey] ??= $this->buildCountProperty();
+        if ($compiled->getAggregateDefinitions() !== []) {
+            $properties[self::AGGREGATES_PROPERTY] ??= $this->buildAggregatesProperty($compiled, $modelClass);
         }
 
         if ($limited !== []) {
@@ -307,13 +310,21 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Build the count property: a non-negative integer.
+     * Build the aggregates property, keyed by each aggregate's present key.
      *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
+     * @param  class-string  $modelClass
      * @return array<string, mixed>
      */
-    private function buildCountProperty(): array
+    private function buildAggregatesProperty(CompiledSchema $compiled, string $modelClass): array
     {
-        return ['type' => 'integer', 'minimum' => 0];
+        $properties = [];
+
+        foreach ($compiled->getAggregateDefinitions() as $presentKey => $definition) {
+            $properties[$presentKey] = $this->resolver->resolveAggregate($definition, $modelClass);
+        }
+
+        return ['type' => 'object', 'properties' => $properties];
     }
 
     /**

@@ -77,7 +77,8 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Test that exactly the aggregate cap is accepted, counting each column.
+     * Test that exactly the aggregate cap is accepted, counting each requested
+     * key.
      *
      * @return void
      *
@@ -88,8 +89,7 @@ final class QueryCostGuardTest extends TestCase
         Config::set('api-toolkit.query_cost.max_aggregates', 4);
 
         $this->parseQuery([
-            'counts' => [self::RESOURCE_TYPE => 'posts,comments'],
-            'sums'   => [self::RESOURCE_TYPE => ['posts' => 'id,views']],
+            'aggregates' => [self::RESOURCE_TYPE => 'posts_count,comments_count,posts_sum_id,posts_max_views'],
         ]);
 
         $this->expectNotToPerformAssertions();
@@ -98,7 +98,8 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Test that one aggregate too many is rejected across all aggregate kinds.
+     * Test that one aggregate key too many is rejected, while another type's
+     * keys are not charged.
      *
      * @return void
      */
@@ -107,66 +108,13 @@ final class QueryCostGuardTest extends TestCase
         Config::set('api-toolkit.query_cost.max_aggregates', 4);
 
         $this->parseQuery([
-            'counts'   => [self::RESOURCE_TYPE => 'posts,comments'],
-            'sums'     => [self::RESOURCE_TYPE => ['posts' => 'id,views']],
-            'averages' => [self::RESOURCE_TYPE => ['posts' => 'id']],
+            'aggregates' => [
+                self::RESOURCE_TYPE => 'posts_count,comments_count,posts_sum_id,posts_max_views,posts_exists',
+                'organizations'     => 'users_count,users_exists',
+            ],
         ]);
 
         $this->assertRejectedForCost('aggregates', QueryCostLimits::MAX_AGGREGATES, 4, 5);
-    }
-
-    /**
-     * Test that expressions across relations accumulate up to the cap.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testExpressionsAcrossRelationsAccumulateToExactlyTheCap(): void
-    {
-        Config::set('api-toolkit.query_cost.max_aggregates', 3);
-
-        $this->parseQuery([
-            'sums' => [self::RESOURCE_TYPE => ['posts' => 'id,views', 'comments' => 'id']],
-        ]);
-
-        $this->expectNotToPerformAssertions();
-
-        $this->guard->guard(self::RESOURCE_TYPE);
-    }
-
-    /**
-     * Test that expressions across relations accumulate past the cap.
-     *
-     * @return void
-     */
-    public function testExpressionsAcrossRelationsAccumulateBeyondTheCap(): void
-    {
-        Config::set('api-toolkit.query_cost.max_aggregates', 2);
-
-        $this->parseQuery([
-            'sums' => [self::RESOURCE_TYPE => ['posts' => 'id,views', 'comments' => 'id']],
-        ]);
-
-        $this->assertRejectedForCost('aggregates', QueryCostLimits::MAX_AGGREGATES, 2, 3);
-    }
-
-    /**
-     * Test that an aggregate with non-list columns counts as one expression.
-     *
-     * @return void
-     */
-    public function testScalarAggregateColumnsCountAsOneExpression(): void
-    {
-        Config::set('api-toolkit.query_cost.max_aggregates', 1);
-
-        ApiQuery::shouldReceive('getOrder')->andReturn([]);
-        ApiQuery::shouldReceive('getCounts')->andReturn(null);
-        ApiQuery::shouldReceive('getSums')->andReturn(['posts' => 'id']);
-        ApiQuery::shouldReceive('getAverages')->andReturn(['posts' => 'id']);
-        ApiQuery::shouldReceive('getPage')->andReturn(1);
-
-        $this->assertRejectedForCost('aggregates', QueryCostLimits::MAX_AGGREGATES, 1, 2);
     }
 
     /**
@@ -268,9 +216,7 @@ final class QueryCostGuardTest extends TestCase
         Config::set('api-toolkit.query_cost.max_offset', 1);
 
         ApiQuery::shouldReceive('getOrder')->andReturn([]);
-        ApiQuery::shouldReceive('getCounts')->andReturn(null);
-        ApiQuery::shouldReceive('getSums')->andReturn(null);
-        ApiQuery::shouldReceive('getAverages')->andReturn(null);
+        ApiQuery::shouldReceive('getAggregates')->andReturn(null);
         ApiQuery::shouldReceive('getPage')->andReturn(null);
 
         $this->expectNotToPerformAssertions();

@@ -969,7 +969,7 @@ final class ApiCriteriaTest extends TestCase
         $provider->method('eagerLoadMapFor')
             ->willReturn([]);
 
-        $provider->method('eagerLoadCountsFor')
+        $provider->method('eagerLoadAggregatesFor')
             ->willReturn([]);
 
         $this->app->instance(ResourceMetadataProvider::class, $provider);
@@ -1009,7 +1009,7 @@ final class ApiCriteriaTest extends TestCase
         $provider->method('eagerLoadMapFor')
             ->willReturn([]);
 
-        $provider->method('eagerLoadCountsFor')
+        $provider->method('eagerLoadAggregatesFor')
             ->willReturn([]);
 
         $this->app->instance(ResourceMetadataProvider::class, $provider);
@@ -1049,7 +1049,7 @@ final class ApiCriteriaTest extends TestCase
             ->with(UserResource::class, ['id', 'name', 'organization'])
             ->willReturn(['organization' => fn () => null]);
 
-        $provider->method('eagerLoadCountsFor')
+        $provider->method('eagerLoadAggregatesFor')
             ->willReturn([]);
 
         $this->app->instance(ResourceMetadataProvider::class, $provider);
@@ -1066,13 +1066,13 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that eager loading calls eagerLoadCountsFor on the provider.
+     * Test that eager loading calls eagerLoadAggregatesFor on the provider.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyEagerLoadingUsesMetadataProviderForCountMap(): void
+    public function testApplyEagerLoadingUsesMetadataProviderForAggregateMap(): void
     {
         assert($this->app !== null);
 
@@ -1088,7 +1088,7 @@ final class ApiCriteriaTest extends TestCase
             ->willReturn([]);
 
         $provider->expects(self::once())
-            ->method('eagerLoadCountsFor')
+            ->method('eagerLoadAggregatesFor')
             ->with(UserResource::class, [])
             ->willReturn([]);
 

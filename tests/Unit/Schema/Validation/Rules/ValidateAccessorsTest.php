@@ -45,7 +45,6 @@ final class ValidateAccessorsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateAccessors;
@@ -76,7 +75,6 @@ final class ValidateAccessorsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateAccessors;
@@ -109,7 +107,6 @@ final class ValidateAccessorsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateAccessors;
@@ -152,7 +149,6 @@ final class ValidateAccessorsTest extends TestCase
                 'clean' => $this->makeField(null),
                 'bad'   => $this->makeField(''),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateAccessors;
@@ -174,7 +170,6 @@ final class ValidateAccessorsTest extends TestCase
                 'clean' => $this->makeField(static fn ($model) => $model->name),
                 'bad'   => $this->makeField(''),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateAccessors;
@@ -196,7 +191,6 @@ final class ValidateAccessorsTest extends TestCase
                 'clean' => $this->makeField('name'),
                 'bad'   => $this->makeField(''),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateAccessors;
@@ -218,7 +212,6 @@ final class ValidateAccessorsTest extends TestCase
                 'first'  => $this->makeField(''),
                 'second' => $this->makeField(''),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateAccessors;
@@ -251,7 +244,6 @@ final class ValidateAccessorsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateAccessors;
@@ -320,7 +312,7 @@ final class ValidateAccessorsTest extends TestCase
         $schema     = $reflection->newInstanceWithoutConstructor();
 
         $reflection->getProperty('fields')->setValue($schema, $fields);
-        $reflection->getProperty('counts')->setValue($schema, []);
+        $reflection->getProperty('aggregates')->setValue($schema, []);
 
         return $schema;
     }

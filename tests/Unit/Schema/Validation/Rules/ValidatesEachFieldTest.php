@@ -31,7 +31,6 @@ final class ValidatesEachFieldTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['first' => $this->field(), 'second' => $this->field()],
-            counts: [],
         );
 
         $errors = $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema);
@@ -54,7 +53,7 @@ final class ValidatesEachFieldTest extends TestCase
         $schema     = $reflection->newInstanceWithoutConstructor();
 
         $reflection->getProperty('fields')->setValue($schema, ['ghost' => null]);
-        $reflection->getProperty('counts')->setValue($schema, []);
+        $reflection->getProperty('aggregates')->setValue($schema, []);
 
         self::assertSame([], $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema));
     }
@@ -72,7 +71,7 @@ final class ValidatesEachFieldTest extends TestCase
         $schema     = $reflection->newInstanceWithoutConstructor();
 
         $reflection->getProperty('fields')->setValue($schema, ['ghost' => null, 'name' => $this->field()]);
-        $reflection->getProperty('counts')->setValue($schema, []);
+        $reflection->getProperty('aggregates')->setValue($schema, []);
 
         $errors = $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema);
 

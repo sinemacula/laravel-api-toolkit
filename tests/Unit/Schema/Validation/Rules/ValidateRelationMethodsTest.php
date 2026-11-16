@@ -9,8 +9,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
@@ -66,7 +66,6 @@ final class ValidateRelationMethodsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationMethods;
@@ -97,7 +96,6 @@ final class ValidateRelationMethodsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationMethods;
@@ -131,7 +129,6 @@ final class ValidateRelationMethodsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationMethods;
@@ -151,7 +148,6 @@ final class ValidateRelationMethodsTest extends TestCase
         $schema     = $reflection->newInstanceWithoutConstructor();
 
         $reflection->getProperty('fields')->setValue($schema, ['ghost' => null]);
-        $reflection->getProperty('counts')->setValue($schema, []);
         $reflection->getProperty('aggregates')->setValue($schema, []);
 
         $rule   = new ValidateRelationMethods;
@@ -197,7 +193,6 @@ final class ValidateRelationMethodsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationMethods;
@@ -241,7 +236,6 @@ final class ValidateRelationMethodsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationMethods;
@@ -286,7 +280,6 @@ final class ValidateRelationMethodsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationMethods;
@@ -305,17 +298,21 @@ final class ValidateRelationMethodsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: [],
-            counts: [
-                'posts_count' => new CompiledCountDefinition(
+            aggregates: [
+                'posts_count' => new CompiledAggregateDefinition(
                     presentKey: 'posts_count',
                     relation: 'posts',
+                    function: AggregateFunction::COUNT,
+                    column: null,
                     constraint: null,
                     isDefault: false,
                     guards: [],
                 ),
-                'bad_count' => new CompiledCountDefinition(
+                'bad_count' => new CompiledAggregateDefinition(
                     presentKey: 'bad_count',
                     relation: 'missing_relation',
+                    function: AggregateFunction::COUNT,
+                    column: null,
                     constraint: null,
                     isDefault: false,
                     guards: [],
@@ -339,10 +336,12 @@ final class ValidateRelationMethodsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: [],
-            counts: [
-                'posts_count' => new CompiledCountDefinition(
+            aggregates: [
+                'posts_count' => new CompiledAggregateDefinition(
                     presentKey: 'posts_count',
                     relation: 'posts',
+                    function: AggregateFunction::COUNT,
+                    column: null,
                     constraint: null,
                     isDefault: false,
                     guards: [],
@@ -365,10 +364,12 @@ final class ValidateRelationMethodsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: [],
-            counts: [
-                'nonexistent_count' => new CompiledCountDefinition(
+            aggregates: [
+                'nonexistent_count' => new CompiledAggregateDefinition(
                     presentKey: 'nonexistent_count',
                     relation: 'nonexistent_relation',
+                    function: AggregateFunction::COUNT,
+                    column: null,
                     constraint: null,
                     isDefault: false,
                     guards: [],
@@ -421,7 +422,6 @@ final class ValidateRelationMethodsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationMethods;
@@ -466,7 +466,6 @@ final class ValidateRelationMethodsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationMethods;
@@ -512,7 +511,6 @@ final class ValidateRelationMethodsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationMethods;
@@ -554,7 +552,6 @@ final class ValidateRelationMethodsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationMethods;
@@ -599,7 +596,6 @@ final class ValidateRelationMethodsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationMethods;
@@ -632,10 +628,12 @@ final class ValidateRelationMethodsTest extends TestCase
 
         $schema = new CompiledSchema(
             fields: [],
-            counts: [
-                'items_count' => new CompiledCountDefinition(
+            aggregates: [
+                'items_count' => new CompiledAggregateDefinition(
                     presentKey: 'items_count',
                     relation: 'items',
+                    function: AggregateFunction::COUNT,
+                    column: null,
                     constraint: null,
                     isDefault: false,
                     guards: [],
@@ -674,10 +672,12 @@ final class ValidateRelationMethodsTest extends TestCase
 
         $schema = new CompiledSchema(
             fields: [],
-            counts: [
-                'wrong_count' => new CompiledCountDefinition(
+            aggregates: [
+                'wrong_count' => new CompiledAggregateDefinition(
                     presentKey: 'wrong_count',
                     relation: 'wrongType',
+                    function: AggregateFunction::COUNT,
+                    column: null,
                     constraint: null,
                     isDefault: false,
                     guards: [],
@@ -702,13 +702,12 @@ final class ValidateRelationMethodsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: [],
-            counts: [],
             aggregates: [
                 'sum:reveiws_rating' => new CompiledAggregateDefinition(
                     presentKey: 'reveiws_rating',
                     relation: 'reveiws',
+                    function: AggregateFunction::SUM,
                     column: 'rating',
-                    metric: 'sum',
                     constraint: null,
                     isDefault: false,
                     guards: [],
@@ -734,13 +733,12 @@ final class ValidateRelationMethodsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: [],
-            counts: [],
             aggregates: [
                 'sum:posts_id' => new CompiledAggregateDefinition(
                     presentKey: 'posts_id',
                     relation: 'posts',
+                    function: AggregateFunction::SUM,
                     column: 'id',
-                    metric: 'sum',
                     constraint: null,
                     isDefault: false,
                     guards: [],

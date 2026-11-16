@@ -43,7 +43,7 @@ final class ValidateIndexBackingTest extends TestCase
 
         $introspector->expects(self::never())->method('getIndexes');
 
-        $schema = new CompiledSchema(fields: ['name' => $this->makeField()], counts: []);
+        $schema = new CompiledSchema(fields: ['name' => $this->makeField()]);
 
         self::assertSame([], (new ValidateIndexBacking($introspector))->validate(UserResource::class, User::class, $schema));
     }
@@ -209,7 +209,7 @@ final class ValidateIndexBackingTest extends TestCase
                 'name'   => $this->makeField('name'),
                 'email'  => $this->makeField('email'),
             ],
-            counts: [],
+            aggregates: [],
             sortableColumns: ['status', 'name', 'email'],
         );
 
@@ -229,7 +229,7 @@ final class ValidateIndexBackingTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField(indexedBy: 'users_name_index')],
-            counts: [],
+            aggregates: [],
         );
 
         self::assertEquals(
@@ -296,7 +296,6 @@ final class ValidateIndexBackingTest extends TestCase
                 'name'       => $this->makeField('name'),
                 'created_at' => $this->makeField('created_at'),
             ],
-            counts: [],
             sortableColumns: ['name', 'created_at'],
         );
 
@@ -390,7 +389,6 @@ final class ValidateIndexBackingTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField(indexedBy: 'users_name_index')],
-            counts: [],
         );
 
         $errors = self::defects($this->rule([])->validate(UserResource::class, User::class, $schema));
@@ -412,7 +410,6 @@ final class ValidateIndexBackingTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField(unindexedReason: 'Bounded table')],
-            counts: [],
         );
 
         $errors = self::defects($this->rule([])->validate(UserResource::class, User::class, $schema));
@@ -700,7 +697,6 @@ final class ValidateIndexBackingTest extends TestCase
     {
         return new CompiledSchema(
             fields: [$column => $this->makeField($column, $indexedBy, $unindexedReason)],
-            counts: [],
             sortableColumns: [$column],
         );
     }

@@ -89,47 +89,17 @@ final class ResourceMetadataServiceTest extends TestCase
     }
 
     /**
-     * Test that eagerLoadCountsFor delegates to the resource class static
+     * Test that eagerLoadAggregatesFor delegates to the resource class static
      * method.
      *
      * @return void
      */
-    public function testEagerLoadCountsForDelegatesToResourceClass(): void
+    public function testEagerLoadAggregatesForDelegatesToResourceClass(): void
     {
-        $aliases = ['posts'];
+        $result = $this->service->eagerLoadAggregatesFor(UserResource::class, ['posts_avg_id']);
 
-        $result = $this->service->eagerLoadCountsFor(UserResource::class, $aliases);
-
-        self::assertSame(UserResource::eagerLoadCountsFor($aliases), $result);
-    }
-
-    /**
-     * Test that eagerLoadSumsFor delegates to the resource class static method.
-     *
-     * @return void
-     */
-    public function testEagerLoadSumsForDelegatesToResourceClass(): void
-    {
-        $requested = ['posts' => ['id']];
-
-        $result = $this->service->eagerLoadSumsFor(UserResource::class, $requested);
-
-        self::assertSame(UserResource::eagerLoadSumsFor($requested), $result);
-    }
-
-    /**
-     * Test that eagerLoadAveragesFor delegates to the resource class static
-     * method.
-     *
-     * @return void
-     */
-    public function testEagerLoadAveragesForDelegatesToResourceClass(): void
-    {
-        $requested = ['posts' => ['id']];
-
-        $result = $this->service->eagerLoadAveragesFor(UserResource::class, $requested);
-
-        self::assertSame(UserResource::eagerLoadAveragesFor($requested), $result);
+        self::assertSame([['relation' => 'posts as aggregate_posts_avg_id', 'column' => 'id', 'function' => 'avg']], $result);
+        self::assertSame(UserResource::eagerLoadAggregatesFor(), $this->service->eagerLoadAggregatesFor(UserResource::class));
     }
 
     /**

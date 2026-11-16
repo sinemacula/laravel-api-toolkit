@@ -95,10 +95,8 @@ final class CollectionEagerLoadRegressionTest extends TestCase
      */
     public function testAggregatesFoldIntoTheBaseQueryRegardlessOfRowCount(): void
     {
-        $this->parseUserQuery('name,counts,sums,averages', [
-            'counts'   => ['users' => 'posts'],
-            'sums'     => ['users' => ['posts' => 'id']],
-            'averages' => ['users' => ['posts' => 'id']],
+        $this->parseUserQuery('name,aggregates', [
+            'aggregates' => ['users' => 'posts_count,posts_sum_id,posts_avg_id'],
         ]);
 
         $small = $this->fetchAndSerialise();
@@ -114,11 +112,9 @@ final class CollectionEagerLoadRegressionTest extends TestCase
         self::assertSame(1, $large['queries']);
 
         // The aggregates resolved, so the constant count is not an empty load
-        self::assertSame(2, $large['first']['counts']['posts']);
-        self::assertIsArray($large['first']['sums']);
-        self::assertArrayHasKey('posts_id', $large['first']['sums']);
-        self::assertIsArray($large['first']['averages']);
-        self::assertArrayHasKey('posts_id', $large['first']['averages']);
+        self::assertIsArray($large['first']['aggregates']);
+        self::assertSame(['posts_count', 'posts_sum_id', 'posts_avg_id'], array_keys($large['first']['aggregates']));
+        self::assertSame(2, $large['first']['aggregates']['posts_count']);
     }
 
     /**

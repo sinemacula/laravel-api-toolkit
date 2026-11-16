@@ -38,7 +38,7 @@ final class ValidateNeedsColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['full_name' => $this->makeField(['name', 'surname'])],
-            counts: [],
+            aggregates: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
@@ -64,7 +64,7 @@ final class ValidateNeedsColumnsTest extends TestCase
                 'avatar'    => $this->makeField([]),
                 'contact'   => $this->makeField(['phone']),
             ],
-            counts: [],
+            aggregates: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
@@ -92,7 +92,7 @@ final class ValidateNeedsColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['display_label' => $this->makeField(['name', 'email'])],
-            counts: [],
+            aggregates: [],
         );
 
         self::assertSame([], $this->rule(['id', 'name', 'email'])->validate(UserResource::class, User::class, $schema));
@@ -107,7 +107,7 @@ final class ValidateNeedsColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['display_label' => $this->makeField(['Name'])],
-            counts: [],
+            aggregates: [],
         );
 
         self::assertCount(1, $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
@@ -126,7 +126,7 @@ final class ValidateNeedsColumnsTest extends TestCase
 
         $schema = new CompiledSchema(
             fields: ['nickname' => $this->makeField([])],
-            counts: [],
+            aggregates: [],
         );
 
         self::assertSame([], (new ValidateNeedsColumns($introspector))->validate(UserResource::class, User::class, $schema));
@@ -148,7 +148,7 @@ final class ValidateNeedsColumnsTest extends TestCase
 
         $schema = new CompiledSchema(
             fields: ['full_name' => $this->makeField(['surname'])],
-            counts: [],
+            aggregates: [],
         );
 
         self::assertSame([], (new ValidateNeedsColumns($introspector))->validate(UserResource::class, $modelClass, $schema));
@@ -164,7 +164,7 @@ final class ValidateNeedsColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['full_name' => $this->makeField(['first_name', 'surname'])],
-            counts: [],
+            aggregates: [],
         );
 
         $results = $this->rule([])->validate(UserResource::class, User::class, $schema);

@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Schema\Validation\RawSchemaValidator;
@@ -56,6 +57,26 @@ final class SchemaCompiler
     }
 
     /**
+     * Resolve the presentation key for an aggregate definition.
+     *
+     * @param  string  $schemaKey
+     * @param  array<string, mixed>  $definition
+     * @return string
+     */
+    public static function resolveAggregateKey(string $schemaKey, array $definition): string
+    {
+        $key = $definition['key'] ?? null;
+
+        if (is_string($key)) {
+            return $key;
+        }
+
+        return str_starts_with($schemaKey, AggregateDefinition::KEY_PREFIX)
+            ? substr($schemaKey, strlen(AggregateDefinition::KEY_PREFIX))
+            : $schemaKey;
+    }
+
+    /**
      * Build a CompiledSchema from a raw schema array.
      *
      * @param  array<string, array<string, mixed>>  $rawSchema
@@ -65,9 +86,6 @@ final class SchemaCompiler
     {
         /** @var array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition> $fields */
         $fields = [];
-
-        /** @var array<string, \SineMacula\ApiToolkit\Schema\CompiledCountDefinition> $counts */
-        $counts = [];
 
         /** @var array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition> $aggregates */
         $aggregates = [];
@@ -79,16 +97,11 @@ final class SchemaCompiler
 
         foreach ($rawSchema as $schemaKey => $definition) {
 
-            $metric = $definition['metric'] ?? null;
+            $function = self::resolveAggregateFunction($definition);
 
-            if ($metric === 'count') {
-                $counts[self::resolveCountKey($schemaKey, $definition)] = self::buildCountDefinition($schemaKey, $definition);
-                continue;
-            }
-
-            if ($metric === 'sum' || $metric === 'avg') {
-                $compiled                                                    = self::buildAggregateDefinition($schemaKey, $definition);
-                $aggregates[$compiled->metric . ':' . $compiled->presentKey] = $compiled;
+            if ($function !== null) {
+                $compiled                          = self::buildAggregateDefinition($schemaKey, $definition, $function);
+                $aggregates[$compiled->presentKey] = $compiled;
                 continue;
             }
 
@@ -99,7 +112,6 @@ final class SchemaCompiler
 
         return new CompiledSchema(
             $fields,
-            $counts,
             $aggregates,
             $filterable,
             array_values(array_unique($sortable)),
@@ -109,65 +121,16 @@ final class SchemaCompiler
     }
 
     /**
-     * Resolve the presentation key for a count definition.
+     * Resolve the aggregate function a raw definition declares, if any.
      *
-     * @param  string  $schemaKey
      * @param  array<string, mixed>  $definition
-     * @return string
+     * @return \SineMacula\ApiToolkit\Enums\AggregateFunction|null
      */
-    private static function resolveCountKey(string $schemaKey, array $definition): string
+    private static function resolveAggregateFunction(array $definition): ?AggregateFunction
     {
-        $key = $definition['key'] ?? null;
+        $metric = $definition['metric'] ?? null;
 
-        if (is_string($key)) {
-            return $key;
-        }
-
-        return str_starts_with($schemaKey, '__count__:') ? substr($schemaKey, 10) : $schemaKey;
-    }
-
-    /**
-     * Build a CompiledCountDefinition from a raw definition array.
-     *
-     * @param  string  $schemaKey
-     * @param  array<string, mixed>  $definition
-     * @return \SineMacula\ApiToolkit\Schema\CompiledCountDefinition
-     */
-    private static function buildCountDefinition(string $schemaKey, array $definition): CompiledCountDefinition
-    {
-        $presentKey = self::resolveCountKey($schemaKey, $definition);
-        $constraint = $definition['constraint'] ?? null;
-
-        return new CompiledCountDefinition(
-            presentKey  : $presentKey,
-            relation    : is_string($definition['relation'] ?? null) ? $definition['relation'] : $presentKey,
-            constraint  : $constraint instanceof \Closure ? $constraint : null,
-            isDefault   : (bool) ($definition['default'] ?? false),
-            guards      : self::callableList($definition, 'guards'),
-            transformers: self::callableList($definition, 'transformers'),
-        );
-    }
-
-    /**
-     * Resolve the presentation key for an aggregate definition.
-     *
-     * Both prefixes are 8 characters, so one substr offset strips either.
-     *
-     * @param  string  $schemaKey
-     * @param  array<string, mixed>  $definition
-     * @return string
-     */
-    private static function resolveAggregateKey(string $schemaKey, array $definition): string
-    {
-        $key = $definition['key'] ?? null;
-
-        if (is_string($key)) {
-            return $key;
-        }
-
-        return (str_starts_with($schemaKey, '__sum__:') || str_starts_with($schemaKey, '__avg__:'))
-            ? substr($schemaKey, 8)
-            : $schemaKey;
+        return is_string($metric) ? AggregateFunction::tryFrom($metric) : null;
     }
 
     /**
@@ -175,20 +138,20 @@ final class SchemaCompiler
      *
      * @param  string  $schemaKey
      * @param  array<string, mixed>  $definition
+     * @param  \SineMacula\ApiToolkit\Enums\AggregateFunction  $function
      * @return \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition
      */
-    private static function buildAggregateDefinition(string $schemaKey, array $definition): CompiledAggregateDefinition
+    private static function buildAggregateDefinition(string $schemaKey, array $definition, AggregateFunction $function): CompiledAggregateDefinition
     {
         $presentKey = self::resolveAggregateKey($schemaKey, $definition);
         $constraint = $definition['constraint'] ?? null;
-        $metric     = self::stringOr($definition['metric'] ?? null, '');
-        $column     = self::stringOr($definition['column'] ?? null, '');
+        $column     = $definition['column']     ?? null;
 
         return new CompiledAggregateDefinition(
             presentKey  : $presentKey,
             relation    : self::stringOr($definition['relation'] ?? null, $presentKey),
-            column      : $column,
-            metric      : $metric,
+            function    : $function,
+            column      : is_string($column) ? $column : null,
             constraint  : $constraint instanceof \Closure ? $constraint : null,
             isDefault   : (bool) ($definition['default'] ?? false),
             guards      : self::callableList($definition, 'guards'),

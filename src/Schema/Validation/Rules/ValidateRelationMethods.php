@@ -34,14 +34,9 @@ final class ValidateRelationMethods implements SchemaValidationRule
 
         $errors = $this->collectFieldErrors($resourceClass, $modelClass, $schema);
 
-        $metrics = array_merge(
-            array_values($schema->getCountDefinitions()),
-            array_values($schema->getAggregateDefinitions()),
-        );
+        foreach ($schema->getAggregateDefinitions() as $aggregate) {
 
-        foreach ($metrics as $metric) {
-
-            $error = $this->validateRelationMethod($resourceClass, $metric->presentKey, $modelClass, $metric->relation);
+            $error = $this->validateRelationMethod($resourceClass, $aggregate->presentKey, $modelClass, $aggregate->relation);
 
             if ($error === null) {
                 continue;

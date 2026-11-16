@@ -90,7 +90,7 @@ final class ExportOpenApiCommandTest extends TestCase
         $this->router()->get('users/{user}', [PathResponseSchemaController::class, 'single']);
 
         $this->runCommand(['--output' => $this->outputPath])
-            ->expectsOutputToContain('Exported 1 operation(s), 2 resource schema(s), 12 query parameter(s), and 2 error example(s)')
+            ->expectsOutputToContain('Exported 1 operation(s), 2 resource schema(s), 10 query parameter(s), and 2 error example(s)')
             ->assertExitCode(0);
 
         self::assertFileExists($this->outputPath);

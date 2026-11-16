@@ -99,7 +99,7 @@ final class SparseFieldsetHttpTest extends TestCase
             self::assertArrayHasKey($field, $record);
         }
 
-        foreach (['status', 'created_at', 'updated_at', 'full_label', 'display_label', 'organization', 'posts', 'counts', 'sums', 'averages'] as $field) {
+        foreach (['status', 'created_at', 'updated_at', 'full_label', 'display_label', 'organization', 'posts', 'aggregates'] as $field) {
             self::assertArrayNotHasKey($field, $record);
         }
     }

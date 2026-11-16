@@ -6,10 +6,10 @@ namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 
@@ -102,43 +102,6 @@ final class CompiledSchemaTest extends TestCase
     }
 
     /**
-     * Test that getCountDefinitions returns all count definitions.
-     *
-     * @return void
-     */
-    public function testCompiledSchemaGetCountDefinitionsReturnsAllCounts(): void
-    {
-        $count = new CompiledCountDefinition(
-            presentKey: 'posts',
-            relation: 'posts',
-            constraint: null,
-            isDefault: true,
-            guards: [],
-        );
-
-        $schema = new CompiledSchema([], ['posts' => $count]);
-
-        $counts = $schema->getCountDefinitions();
-
-        self::assertCount(1, $counts);
-        self::assertArrayHasKey('posts', $counts);
-        self::assertSame($count, $counts['posts']);
-    }
-
-    /**
-     * Test that getCountDefinitions returns an empty array when no counts
-     * exist.
-     *
-     * @return void
-     */
-    public function testCompiledSchemaGetCountDefinitionsReturnsEmptyWhenNoCounts(): void
-    {
-        $schema = new CompiledSchema([], []);
-
-        self::assertSame([], $schema->getCountDefinitions());
-    }
-
-    /**
      * Test that getAggregateDefinitions returns all aggregate definitions.
      *
      * @return void
@@ -148,14 +111,14 @@ final class CompiledSchemaTest extends TestCase
         $aggregate = new CompiledAggregateDefinition(
             presentKey: 'posts_id',
             relation: 'posts',
+            function: AggregateFunction::SUM,
             column: 'id',
-            metric: 'sum',
             constraint: null,
             isDefault: true,
             guards: [],
         );
 
-        $schema = new CompiledSchema([], [], ['posts_id' => $aggregate]);
+        $schema = new CompiledSchema([], ['posts_id' => $aggregate]);
 
         $aggregates = $schema->getAggregateDefinitions();
 
@@ -187,8 +150,8 @@ final class CompiledSchemaTest extends TestCase
         $sum = new CompiledAggregateDefinition(
             presentKey: 'posts_id',
             relation: 'posts',
+            function: AggregateFunction::SUM,
             column: 'id',
-            metric: 'sum',
             constraint: null,
             isDefault: true,
             guards: [],
@@ -197,78 +160,20 @@ final class CompiledSchemaTest extends TestCase
         $avg = new CompiledAggregateDefinition(
             presentKey: 'posts_id_avg',
             relation: 'posts',
+            function: AggregateFunction::AVG,
             column: 'id',
-            metric: 'avg',
             constraint: null,
             isDefault: false,
             guards: [],
         );
 
-        $schema = new CompiledSchema([], [], ['posts_id' => $sum, 'posts_id_avg' => $avg]);
+        $schema = new CompiledSchema([], ['posts_id' => $sum, 'posts_id_avg' => $avg]);
 
         $aggregates = $schema->getAggregateDefinitions();
 
         self::assertCount(2, $aggregates);
-        self::assertSame('sum', $aggregates['posts_id']->metric);
-        self::assertSame('avg', $aggregates['posts_id_avg']->metric);
-    }
-
-    /**
-     * Test that getAggregateDefinitionsByMetric returns only the definitions
-     * whose metric matches the requested value.
-     *
-     * @return void
-     */
-    public function testGetAggregateDefinitionsByMetricReturnsMatchingDefinitions(): void
-    {
-        $sum = new CompiledAggregateDefinition(
-            presentKey: 'posts_id',
-            relation: 'posts',
-            column: 'id',
-            metric: 'sum',
-            constraint: null,
-            isDefault: true,
-            guards: [],
-        );
-
-        $avg = new CompiledAggregateDefinition(
-            presentKey: 'posts_id_avg',
-            relation: 'posts',
-            column: 'id',
-            metric: 'avg',
-            constraint: null,
-            isDefault: false,
-            guards: [],
-        );
-
-        $schema = new CompiledSchema([], [], ['posts_id' => $sum, 'posts_id_avg' => $avg]);
-
-        $matches = $schema->getAggregateDefinitionsByMetric('sum');
-
-        self::assertSame(['posts_id' => $sum], $matches);
-    }
-
-    /**
-     * Test that getAggregateDefinitionsByMetric returns an empty array when no
-     * definition matches the requested metric.
-     *
-     * @return void
-     */
-    public function testGetAggregateDefinitionsByMetricReturnsEmptyWhenNoMatch(): void
-    {
-        $sum = new CompiledAggregateDefinition(
-            presentKey: 'posts_id',
-            relation: 'posts',
-            column: 'id',
-            metric: 'sum',
-            constraint: null,
-            isDefault: true,
-            guards: [],
-        );
-
-        $schema = new CompiledSchema([], [], ['posts_id' => $sum]);
-
-        self::assertSame([], $schema->getAggregateDefinitionsByMetric('avg'));
+        self::assertSame(AggregateFunction::SUM, $aggregates['posts_id']->function);
+        self::assertSame(AggregateFunction::AVG, $aggregates['posts_id_avg']->function);
     }
 
     /**
@@ -279,7 +184,7 @@ final class CompiledSchemaTest extends TestCase
      */
     public function testGetFilterableColumnsReturnsDeclaredColumns(): void
     {
-        $schema = new CompiledSchema([], [], [], ['email' => Capability::EXACT, 'status' => Capability::ENUM]);
+        $schema = new CompiledSchema([], [], ['email' => Capability::EXACT, 'status' => Capability::ENUM]);
 
         self::assertSame(['email' => Capability::EXACT, 'status' => Capability::ENUM], $schema->getFilterableColumns());
     }
@@ -303,7 +208,7 @@ final class CompiledSchemaTest extends TestCase
      */
     public function testGetSortableColumnsReturnsDeclaredColumns(): void
     {
-        $schema = new CompiledSchema([], [], [], [], ['created_at', 'name']);
+        $schema = new CompiledSchema([], [], [], ['created_at', 'name']);
 
         self::assertSame(['created_at', 'name'], $schema->getSortableColumns());
     }
@@ -328,7 +233,7 @@ final class CompiledSchemaTest extends TestCase
      */
     public function testGetTraversableRelationsReturnsDeclaredRelations(): void
     {
-        $schema = new CompiledSchema([], [], [], [], [], ['posts', 'organization']);
+        $schema = new CompiledSchema([], [], [], [], ['posts', 'organization']);
 
         self::assertSame(['posts', 'organization'], $schema->getTraversableRelations());
     }
@@ -341,7 +246,7 @@ final class CompiledSchemaTest extends TestCase
      */
     public function testGetSearchableColumnsReturnsDeclaredColumns(): void
     {
-        $schema = new CompiledSchema([], [], [], [], [], [], ['name' => SearchStrategy::SUBSTRING]);
+        $schema = new CompiledSchema([], [], [], [], [], ['name' => SearchStrategy::SUBSTRING]);
 
         self::assertSame(['name' => SearchStrategy::SUBSTRING], $schema->getSearchableColumns());
     }
