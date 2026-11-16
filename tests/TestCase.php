@@ -338,6 +338,8 @@ abstract class TestCase extends OrchestraTestCase
      * variable, defaulting to in-memory SQLite.
      *
      * @return array<string, mixed>
+     *
+     * @throws \UnexpectedValueException
      */
     private function getDatabaseConnection(): array
     {
@@ -345,14 +347,16 @@ abstract class TestCase extends OrchestraTestCase
 
         return match ($driver) {
             'mysql' => [
-                'driver'   => 'mysql',
-                'host'     => env('DB_HOST', '127.0.0.1'),
-                'port'     => env('DB_PORT', '3306'),
-                'database' => env('DB_DATABASE', 'api_toolkit_test'),
-                'username' => env('DB_USERNAME', 'root'),
-                'password' => env('DB_PASSWORD', ''),
-                'prefix'   => '',
-                'charset'  => 'utf8mb4',
+                'driver'    => 'mysql',
+                'host'      => env('DB_HOST', '127.0.0.1'),
+                'port'      => env('DB_PORT', '3306'),
+                'database'  => env('DB_DATABASE', 'api_toolkit_test'),
+                'username'  => env('DB_USERNAME', 'root'),
+                'password'  => env('DB_PASSWORD', ''),
+                'prefix'    => '',
+                'charset'   => 'utf8mb4',
+                'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+                'strict'    => true,
             ],
             'pgsql' => [
                 'driver'   => 'pgsql',
@@ -364,11 +368,12 @@ abstract class TestCase extends OrchestraTestCase
                 'prefix'   => '',
                 'charset'  => 'utf8',
             ],
-            default => [
+            'sqlite' => [
                 'driver'   => 'sqlite',
                 'database' => ':memory:',
                 'prefix'   => '',
             ],
+            default => throw new \UnexpectedValueException(sprintf('DB_DRIVER must be sqlite, mysql or pgsql, not %s.', var_export($driver, true))),
         };
     }
 

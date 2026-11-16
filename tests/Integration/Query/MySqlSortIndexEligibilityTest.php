@@ -6,6 +6,7 @@ namespace Tests\Integration\Query;
 
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibilityInspector;
 use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
@@ -22,6 +23,7 @@ use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
  * @internal
  */
 #[CoversClass(IndexEligibilityInspector::class)]
+#[Group('mysql')]
 final class MySqlSortIndexEligibilityTest extends EngineSortIndexEligibilityTestCase
 {
     /**
