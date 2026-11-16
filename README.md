@@ -29,6 +29,9 @@ php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider"
 `config/api-toolkit.php` is documented inline. Per-query repository caching is configured separately, in the
 `sinemacula/laravel-repositories` package under `repositories.cache`.
 
+Each setting read from the environment is named `API_TOOLKIT_` followed by its key, upper-cased with dots as
+underscores: `deferred_writes.on_failure` is `API_TOOLKIT_DEFERRED_WRITES_ON_FAILURE`.
+
 The Markdown templates for the generated API manual are published with `--tag=api-toolkit-docs`.
 
 ## Usage
@@ -119,7 +122,7 @@ so a SQLite development connection must be listed before a searchable field is s
 
 With `validate_schemas` on (the default outside production), an unlisted connection fails application boot, not just
 the search request: every route and every Artisan command, including `php artisan migrate` on a fresh checkout with
-no database file yet. List the connection, or set `VALIDATE_SCHEMAS=false` until you do.
+no database file yet. List the connection, or set `API_TOOLKIT_RESOURCES_VALIDATE_SCHEMAS=false` until you do.
 
 Entries are connection names as `config/database.php` keys them, not engines. A stock application names each
 connection after its engine, so listing `mysql` waives the connection that usually serves production. A listed
@@ -202,6 +205,17 @@ Only fields marked `filterable()` or `sortable()` can be queried, and `?search=`
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. `$default` lists the fields
 returned when the client sends no `?fields`.
 
+**Declared column reads** - `needs()` names the base-table columns a field reads. Declare it on any field whose value
+does not come straight from the column of the same name, such as one over an Eloquent accessor or custom cast, or an
+accessor closure:
+
+```php
+// The model's fullName(): Attribute reads first_name and last_name
+Field::scalar('full_name')->needs('first_name', 'last_name'),
+Field::accessor('initials', fn ($resource) => $resource->first_name[0] . $resource->last_name[0])
+    ->needs('first_name', 'last_name'),
+```
+
 **Query capabilities** - `filterable()` takes the access path the column has, and the capability decides which
 operators the column answers. Any other operator is refused with a `422`:
 
@@ -261,13 +275,14 @@ new UserResource($user, excluded: ['email']);          // field set minus exclus
 ```
 
 **Schema validation** - `api-toolkit.resources.validate_schemas` validates every registered schema at boot. It is on
-by default outside production (`VALIDATE_SCHEMAS=false` turns it off) and off in production. The
+by default outside production (`API_TOOLKIT_RESOURCES_VALIDATE_SCHEMAS=false` turns it off) and off in production. The
 `api-toolkit:validate-schemas` Artisan command runs the same validation regardless of the flag, so it can gate CI.
 
 Validation checks that:
 
 - every `filterable()` and `sortable()` declaration names a column that exists. A computed field, or an accessor
   reading a different path, is caught from the schema alone; the rest is checked against the table's column listing.
+- every `needs()` column exists on the table.
 - an ordered index leads with every `sortable()` column, unless the field carries `indexed()` or `unindexed()`.
 - an index on the connection serves every `searchable()` declaration in the shape its strategy needs.
 - no declaration names a column configured as sensitive.
@@ -278,6 +293,21 @@ migrations have run.
 The index catalogue is read only during validation, never while a filter or sort is served. Two schema reads do sit
 on the request path, both cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads
 the table's column listing, and search reads its index proof.
+
+**Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
+to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
+relations and the order columns. A field reads the columns it declares through `needs()`, each of which must exist on
+the table. A plain field without `needs()` is taken to read the column of its own key, but only when the table carries
+that column and the model reads it without an accessor, a public instance property of the same name or a cast that could
+consult other attributes; Eloquent's built-in cast types, enums that do not name their own caster, and the casts under
+`Illuminate\Database\Eloquent\Casts` qualify. Any other field, such as one over an accessor or custom cast, or a
+computed, guarded or transformed field, leaves the select unnarrowed until it declares `needs()`.
+
+An incomplete `needs()` returns wrong data rather than failing. Call
+`Model::preventAccessingMissingAttributes(! app()->isProduction())` in a service provider to catch it outside
+production: it throws on a read of an unselected attribute that is plain or carries a built-in or enum cast, though
+not on one with an accessor or a class cast, nor on a raw `$attributes[...]` read inside a cast. Disable narrowing if
+code reads attributes outside the rendered fields.
 
 ### Repositories
 
@@ -338,8 +368,8 @@ Two overrides cover what the catalogue cannot show:
 - `unindexed('the table is bounded at a few hundred rows')` records a deliberate exemption. The reason is required.
 
 **Random ordering** - `?order=random` is disabled by default. Enable it with
-`api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_ALLOW_RANDOM_ORDER=true`); while disabled, `random` is
-treated as an ordinary sort key and rejected like any undeclared column.
+`api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_REPOSITORIES_ALLOW_RANDOM_ORDER=true`); while disabled,
+`random` is treated as an ordinary sort key and rejected like any undeclared column.
 
 **Query cost caps** - `api-toolkit.query_cost` bounds the filter document's size and nesting, the keys and value-list
 items it dispatches, the sort keys and relation aggregates requested, and how deep a request pages. A request over a
@@ -1097,7 +1127,7 @@ level. For a dedicated destination, define a channel in `config/logging.php`:
 Then point `api-toolkit.notifications.log_channel` at it:
 
 ```dotenv
-NOTIFICATION_LOG_CHANNEL=notifications
+API_TOOLKIT_NOTIFICATIONS_LOG_CHANNEL=notifications
 ```
 
 ## Requirements
