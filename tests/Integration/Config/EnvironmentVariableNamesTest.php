@@ -136,7 +136,7 @@ final class EnvironmentVariableNamesTest extends TestCase
         $read = match ($token[0]) {
             T_VARIABLE                                         => in_array($token[1], ['$_ENV', '$_SERVER', '$GLOBALS'], true),
             T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED => ($name === 'getenv' && $next === '(')
-                || ($name === 'env' && is_array($next) && $next[0] === T_DOUBLE_COLON),
+                || ($name === 'env' && $next !== '('),
             default => false,
         };
 
