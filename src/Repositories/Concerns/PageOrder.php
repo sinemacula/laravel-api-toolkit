@@ -159,7 +159,7 @@ final class PageOrder
         }
 
         $qualified = $model->qualifyColumn($column);
-        $names     = ['*', $model->getTable() . '.*', $qualified, Str::after($qualified, $model->getTable() . '.')];
+        $names     = ['*', Str::beforeLast($qualified, '.') . '.*', $qualified, Str::after($qualified, $model->getTable() . '.')];
 
         return array_filter($base->columns, static fn (mixed $selected): bool => in_array($selected, $names, true)) !== [];
     }
