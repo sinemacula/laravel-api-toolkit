@@ -123,4 +123,44 @@ final class RuntimeContextTest extends TestCase
 
         self::assertFalse($context->isServingAsQueueWorker('nonexistent-connection'));
     }
+
+    /**
+     * Test that a connection with an empty or non-string driver is not taken
+     * for a queue worker.
+     *
+     * @return void
+     */
+    public function testIsServingAsQueueWorkerReturnsFalseForAnUnusableDriver(): void
+    {
+        Config::set('queue.connections.blank', ['driver' => '']);
+        Config::set('queue.connections.numeric', ['driver' => 1]);
+
+        $context = new RuntimeContext;
+
+        self::assertFalse($context->isServingAsQueueWorker('blank'));
+        self::assertFalse($context->isServingAsQueueWorker('numeric'));
+    }
+
+    /**
+     * Test that a job without a connection name is judged by the default
+     * connection.
+     *
+     * @return void
+     */
+    public function testIsServingAsQueueWorkerFallsBackToTheDefaultConnection(): void
+    {
+        Config::set('queue.connections.database', ['driver' => 'database']);
+        Config::set('queue.connections.sync', ['driver' => 'sync']);
+
+        $context = new RuntimeContext;
+
+        Config::set('queue.default', 'database');
+        self::assertTrue($context->isServingAsQueueWorker(null));
+
+        Config::set('queue.default', 'sync');
+        self::assertFalse($context->isServingAsQueueWorker(null));
+
+        Config::set('queue.default', null);
+        self::assertFalse($context->isServingAsQueueWorker(null));
+    }
 }

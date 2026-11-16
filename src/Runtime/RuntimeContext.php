@@ -31,12 +31,16 @@ final class RuntimeContext
      * Determine whether a job on the given connection runs in a real queue
      * worker, which is any connection with a non-sync driver.
      *
-     * @param  string  $connection
+     * A worker started without a connection name runs the default one.
+     *
+     * @param  string|null  $connection
      * @return bool
      */
-    public function isServingAsQueueWorker(string $connection): bool
+    public function isServingAsQueueWorker(?string $connection): bool
     {
-        $driver = Config::get("queue.connections.{$connection}.driver");
+        $connection ??= Config::get('queue.default');
+
+        $driver = is_string($connection) ? Config::get("queue.connections.{$connection}.driver") : null;
 
         if (!is_string($driver) || $driver === '') {
             return false;
