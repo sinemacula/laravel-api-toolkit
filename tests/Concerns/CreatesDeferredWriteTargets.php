@@ -28,6 +28,7 @@ trait CreatesDeferredWriteTargets
      */
     protected function createTimestampFixtureTables(): void
     {
+        Schema::dropIfExists('ledger_entries');
         Schema::create('ledger_entries', function (Blueprint $table): void {
             $table->id();
             $table->string('label');
@@ -35,6 +36,7 @@ trait CreatesDeferredWriteTargets
             $table->timestamp('modified')->nullable();
         });
 
+        Schema::dropIfExists('readings');
         Schema::create('readings', function (Blueprint $table): void {
             $table->id();
             $table->string('label');
