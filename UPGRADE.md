@@ -959,20 +959,15 @@ need an unindexed partial match on any filterable column, register the operator 
 ```php
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 
 final class LikeOperator implements FilterOperator
 {
-    public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
+    public function apply(Builder $query, string $column, mixed $value): void
     {
         $term = is_scalar($value) || $value instanceof \Stringable ? (string) $value : '';
 
-        if ($context->isOr()) {
-            $query->orWhere($column, 'like', "%{$term}%");
-        } else {
-            $query->where($column, 'like', "%{$term}%");
-        }
+        $query->where($column, 'like', "%{$term}%");
     }
 }
 

@@ -57,7 +57,7 @@ final readonly class QuerySurfaceDocGenerator
     /** @var array<string, string> What each request bound holds, keyed by its name. */
     private const array LIMITS = [
         QueryCostLimits::MAX_BYTES         => 'The byte length of the filter document.',
-        QueryCostLimits::MAX_PARSE_DEPTH   => 'The object levels the filter document nests.',
+        QueryCostLimits::MAX_PARSE_DEPTH   => 'The levels the filter document nests, objects and lists alike.',
         QueryCostLimits::MAX_DEPTH         => 'The levels a filter descends, counting a logical group or a relation as one.',
         QueryCostLimits::MAX_NODES         => 'The keys a filter visits in total.',
         QueryCostLimits::MAX_IN_ITEMS      => 'The items a single operator value list carries, such as the one `$in` reads.',

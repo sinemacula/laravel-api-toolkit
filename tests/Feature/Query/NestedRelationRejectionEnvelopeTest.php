@@ -94,7 +94,7 @@ final class NestedRelationRejectionEnvelopeTest extends TestCase
      */
     public function testUndeclaredNestedTraversalRendersValidationEnvelope(): void
     {
-        $filters = json_encode(['posts' => ['nested' => ['user' => ['name' => 'Alice']]]]);
+        $filters = json_encode(['posts' => ['user' => ['name' => 'Alice']]]);
 
         $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
 
