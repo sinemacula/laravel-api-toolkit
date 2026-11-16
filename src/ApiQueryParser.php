@@ -125,11 +125,11 @@ class ApiQueryParser
      *  - e.g. ?order=first_name,last_name:desc
      *  - e.g. ?order=random.
      *
-     * @return array<string, string>
+     * @return array<string, 'asc'|'desc'>
      */
     public function getOrder(): array
     {
-        /** @var array<string, string>|null $order */
+        /** @var array<string, 'asc'|'desc'>|null $order */
         $order = $this->getParameters('order');
 
         return $order ?? [];

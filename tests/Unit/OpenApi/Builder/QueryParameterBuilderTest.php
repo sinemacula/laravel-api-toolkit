@@ -330,6 +330,35 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
+     * Test that the order description states its directions and tiebreaker.
+     *
+     * @return void
+     */
+    public function testOrderDescriptionStatesItsDirectionsAndTiebreaker(): void
+    {
+        self::assertSame(
+            'Ordering: a comma-separated list of fields, each optionally suffixed with :asc or :desc in any case, e.g. order=name,created_at:desc. '
+            . 'Any other direction is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
+            . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read.',
+            $this->makeBuilder()->build()['Order']['description'],
+        );
+    }
+
+    /**
+     * Test that the cursor description states when a token is rejected.
+     *
+     * @return void
+     */
+    public function testCursorDescriptionStatesWhenATokenIsRejected(): void
+    {
+        self::assertSame(
+            'Opaque cursor token for cursor pagination. A token that does not decode, or does not match the requested order, is rejected; '
+            . 'restart from the first page.',
+            $this->makeBuilder()->build()['Cursor']['description'],
+        );
+    }
+
+    /**
      * Test that a parameter without a style omits style and explode.
      *
      * @return void

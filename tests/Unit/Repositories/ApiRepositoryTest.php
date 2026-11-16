@@ -4,11 +4,14 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories;
 
+use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\Cursor;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
@@ -246,6 +249,83 @@ final class ApiRepositoryTest extends TestCase
         $result = $repository->paginate();
 
         self::assertInstanceOf(CursorPaginator::class, $result);
+    }
+
+    /**
+     * Test that paginate ends the order on the qualified key.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testPaginateEndsTheOrderOnTheQualifiedKey(): void
+    {
+        User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        $this->parseRequest(new Request(['limit' => '10']));
+
+        DB::enableQueryLog();
+
+        $this->repository->addScope(static function (Builder $query): void {
+            $query->getQuery()->orderBy('name', 'desc');
+        })->paginate();
+
+        $queries = array_column(DB::getQueryLog(), 'query');
+
+        self::assertStringEndsWith('order by "name" desc, "users"."id" desc limit 10 offset 0', (string) end($queries));
+    }
+
+    /**
+     * Test that paginate seeks from the decoded cursor token.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testPaginateSeeksFromTheCursorToken(): void
+    {
+        User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $bob = User::create(['name' => 'Bob', 'email' => self::BOB_EMAIL]);
+
+        $this->parseRequest(new Request(['cursor' => (new Cursor(['users.id' => 1]))->encode()]));
+
+        $result = $this->repository->paginate();
+
+        self::assertInstanceOf(CursorPaginator::class, $result);
+        self::assertCount(1, $result->items());
+        self::assertInstanceOf(User::class, $result->items()[0]);
+        self::assertSame($bob->id, $result->items()[0]->id);
+    }
+
+    /**
+     * Test that a rejected paginate resets the handle it was called on.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testRejectedPaginateLeavesTheHandleReusable(): void
+    {
+        $alice = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        User::create(['name' => 'Bob', 'email' => self::BOB_EMAIL]);
+
+        $scoped = $this->repository->scopeById($alice->id);
+
+        $this->parseRequest(new Request(['cursor' => 'garbage']));
+
+        try {
+            $scoped->paginate();
+            self::fail('Expected the cursor to be rejected.');
+        } catch (ValidationException $exception) {
+            self::assertArrayHasKey('cursor', $exception->errors());
+        }
+
+        $this->parseRequest(new Request(['limit' => '10']));
+
+        $page = $scoped->paginate();
+
+        self::assertInstanceOf(LengthAwarePaginator::class, $page);
+        self::assertCount(2, $page);
     }
 
     /**

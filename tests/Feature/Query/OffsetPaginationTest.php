@@ -6,12 +6,14 @@ namespace Tests\Feature\Query;
 
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ProvidesApiEnvelope;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
+use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
@@ -28,6 +30,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiRepository::class)]
 #[CoversClass(ApiResourceCollection::class)]
+#[CoversClass(PageOrder::class)]
 #[CoversTrait(ProvidesApiEnvelope::class)]
 final class OffsetPaginationTest extends TestCase
 {
@@ -133,5 +136,71 @@ final class OffsetPaginationTest extends TestCase
         $response->assertJsonPath('meta.total', 5);
         $response->assertJsonPath('meta.count', 2);
         $response->assertJsonPath('meta.continue', true);
+    }
+
+    /**
+     * Test that rows tied on the order are each paged once.
+     *
+     * @return void
+     */
+    public function testTiedRowsArePagedOnce(): void
+    {
+        User::query()->update(['name' => 'Same']);
+
+        $pages = array_map(fn (int $page): array => $this->emails($this->getJson('/users?order=name&limit=2&page=' . $page)), [1, 2, 3]);
+
+        self::assertSame([['anna', 'ben'], ['cara', 'dan'], ['evan']], $pages);
+    }
+
+    /**
+     * Test that a read with no order pages in key order, whatever order the
+     * engine stores the rows in.
+     *
+     * @return void
+     */
+    public function testUnorderedReadPagesInKeyOrder(): void
+    {
+        // Rewritten rows move to the end of a heap-organised table
+        User::query()->whereIn('email', ['anna@example.com', 'ben@example.com'])->update(['status' => 'inactive']);
+
+        self::assertSame(['anna', 'ben'], $this->emails($this->getJson('/users?limit=2')));
+    }
+
+    /**
+     * Test that a descending order is honoured.
+     *
+     * @return void
+     */
+    public function testDescendingOrderIsHonoured(): void
+    {
+        self::assertSame(['evan', 'dan'], $this->emails($this->getJson('/users?order=name:desc&limit=2')));
+    }
+
+    /**
+     * Test that the appended key does not count against the order-key cap.
+     *
+     * @return void
+     */
+    public function testAppendedKeyDoesNotCountAgainstTheOrderKeyCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_order_keys', 1);
+
+        self::assertSame(['anna', 'ben'], $this->emails($this->getJson('/users?order=name&limit=2')));
+    }
+
+    /**
+     * Read the local part of each email on the page, in order.
+     *
+     * @param  \Illuminate\Testing\TestResponse<\Symfony\Component\HttpFoundation\Response>  $response
+     * @return array<int, string>
+     */
+    private function emails(TestResponse $response): array
+    {
+        $response->assertOk();
+
+        /** @var array<int, array{email: string}> $data */
+        $data = $response->json('data');
+
+        return array_map(static fn (array $user): string => strstr($user['email'], '@', true) ?: '', $data);
     }
 }
