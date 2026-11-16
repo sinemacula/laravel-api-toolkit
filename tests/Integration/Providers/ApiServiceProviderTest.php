@@ -16,6 +16,7 @@ use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as Fr
 use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
+use Illuminate\Queue\Events\JobAttempted;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Routing\Router;
@@ -34,6 +35,8 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Exceptions\GoneException;
+use SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
@@ -52,14 +55,20 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use SineMacula\ApiToolkit\Validation\Rejection;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
+use Tests\Fixtures\Models\CatalogueRow;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BrokenResource;
+use Tests\Fixtures\Resources\CatalogueRowResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -79,6 +88,8 @@ use Tests\TestCase;
 #[CoversClass(MorphMapRegistrar::class)]
 final class ApiServiceProviderTest extends TestCase
 {
+    use InteractsWithNonPublicMembers, LocalisesToolkitMessages;
+
     /**
      * Test that the package config is merged.
      *
@@ -129,6 +140,7 @@ final class ApiServiceProviderTest extends TestCase
         $translator = $this->getApplication()->make('translator');
 
         self::assertTrue($translator->hasForLocale('api-toolkit::exceptions', 'en'));
+        self::assertTrue($translator->hasForLocale('api-toolkit::validation', 'en'));
     }
 
     /**
@@ -655,6 +667,176 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
+     * Test that a table that is not migrated does not fail boot, since boot
+     * passes over a catalogue it cannot read.
+     *
+     * @return void
+     */
+    public function testValidateSchemasBootsAgainstATableThatIsNotMigrated(): void
+    {
+        $this->getConfig()->set('database.connections.catalogue', $this->getConfig()->get('database.connections.testing'));
+        $this->getConfig()->set('api-toolkit.search.unverified_connections', ['catalogue']);
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            CatalogueRow::class => CatalogueRowResource::class,
+        ]);
+
+        $this->bootWithArgv(null);
+
+        self::assertSame([CatalogueRow::class => CatalogueRowResource::class], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Provide the arguments of the validation command.
+     *
+     * @return iterable<string, array{0: array<int, string>}>
+     */
+    public static function validationCommandArgvProvider(): iterable
+    {
+        yield 'bare' => [['artisan', 'api-toolkit:validate-schemas']];
+        yield 'with an environment' => [['artisan', '--env', 'ci', 'api-toolkit:validate-schemas']];
+        yield 'with an inline environment' => [['artisan', '--env=ci', 'api-toolkit:validate-schemas']];
+        yield 'with options around it' => [['artisan', '-v', 'api-toolkit:validate-schemas', '--allow-unverified']];
+    }
+
+    /**
+     * Test that boot leaves schema validation to the validation command.
+     *
+     * @param  array<int, string>  $argv
+     * @return void
+     */
+    #[DataProvider('validationCommandArgvProvider')]
+    public function testValidateSchemasIsLeftToTheValidationCommand(array $argv): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => BrokenResource::class,
+        ]);
+
+        $this->bootWithArgv($argv);
+
+        self::assertSame([User::class => BrokenResource::class], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that boot still validates schemas for every other command.
+     *
+     * @return void
+     */
+    public function testValidateSchemasStillRunsForOtherCommands(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => BrokenResource::class,
+        ]);
+
+        $this->expectException(InvalidSchemaException::class);
+
+        $this->bootWithArgv(['artisan', 'migrate']);
+    }
+
+    /**
+     * Test that a discovery conflict still fails boot for the validation
+     * command.
+     *
+     * @return void
+     */
+    public function testDiscoveryConflictStillFailsBootForTheValidationCommand(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Conflict']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Resource discovery found multiple resources for model [' . User::class . ']');
+
+        $this->bootWithArgv(['artisan', 'api-toolkit:validate-schemas']);
+    }
+
+    /**
+     * Test that an invalid exception map fails the booted application.
+     *
+     * @return void
+     */
+    public function testInvalidExceptionMapFailsOnceBooted(): void
+    {
+        $this->getConfig()->set('api-toolkit.exceptions.map', [\stdClass::class => GoneException::class]);
+
+        $this->expectException(InvalidExceptionMapException::class);
+        $this->expectExceptionMessage('The api-toolkit.exceptions.map key [stdClass] must be an interface or a Throwable class, and not an ApiException.');
+
+        $this->outsideTheConsole(fn () => (new ApiServiceProvider($this->getApplication()))->boot());
+    }
+
+    /**
+     * Test that the exception map is validated after every provider has booted,
+     * so a map a later provider writes is validated too.
+     *
+     * @return void
+     */
+    public function testExceptionMapWrittenByALaterProviderFailsOnceBooted(): void
+    {
+        $validate = $this->outsideTheConsole(fn (): callable => $this->registeredBootedCallback());
+
+        $this->getConfig()->set('api-toolkit.exceptions.map', [NotFoundHttpException::class => \RuntimeException::class]);
+
+        $this->expectException(InvalidExceptionMapException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The api-toolkit.exceptions.map target [RuntimeException] for [%s] must be an instantiable ApiException with a CODE, a 4xx or 5xx status, '
+            . 'and ApiException\'s own constructor and getStatusCode().',
+            NotFoundHttpException::class,
+        ));
+
+        $validate($this->getApplication());
+    }
+
+    /**
+     * Test that an absent or empty exception map passes the boot validation.
+     *
+     * @return void
+     */
+    public function testAbsentOrEmptyExceptionMapPassesTheBootValidation(): void
+    {
+        $validate = $this->outsideTheConsole(fn (): callable => $this->registeredBootedCallback());
+
+        foreach ([null, []] as $map) {
+            $this->getConfig()->set('api-toolkit.exceptions.map', $map);
+            $validate($this->getApplication());
+        }
+
+        $this->getConfig()->set('api-toolkit.exceptions.map', [\stdClass::class => GoneException::class]);
+
+        $this->expectException(InvalidExceptionMapException::class);
+
+        $validate($this->getApplication());
+    }
+
+    /**
+     * Test that the console skips the exception map validation, so a broken map
+     * cannot block the commands that repair it.
+     *
+     * @return void
+     */
+    public function testConsoleSkipsTheExceptionMapValidation(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.exceptions.map', [\stdClass::class => GoneException::class]);
+        $this->setProperty($app, 'booted', false);
+
+        try {
+            /** @var list<callable(\Illuminate\Foundation\Application): void> $before */
+            $before = $this->getProperty($app, 'bootedCallbacks');
+
+            (new ApiServiceProvider($app))->boot();
+
+            self::assertSame($before, $this->getProperty($app, 'bootedCallbacks'));
+        } finally {
+            $this->setProperty($app, 'booted', true);
+        }
+    }
+
+    /**
      * Test that SchemaValidator is registered as a singleton.
      *
      * @return void
@@ -827,15 +1009,13 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the Octane flush listener is registered when config is enabled.
+     * Test that the Octane flush listener is registered.
      *
      * @return void
      */
-    public function testOctaneFlushListenerRegisteredWhenConfigEnabled(): void
+    public function testOctaneFlushListenerRegistered(): void
     {
         $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.lifecycle.octane', true);
 
         // Reset the dispatcher so Octane's own listeners cannot mask the result
         Event::swap(new Dispatcher($app));
@@ -850,17 +1030,15 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the Octane flush listener is not registered when disabled.
+     * Test that the queue flush subscriber is registered.
      *
      * @return void
      */
-    public function testOctaneFlushListenerNotRegisteredWhenConfigDisabled(): void
+    public function testQueueFlushSubscriberRegistered(): void
     {
         $app = $this->getApplication();
 
-        $this->getConfig()->set('api-toolkit.lifecycle.octane', false);
-
-        // Reset the dispatcher so Octane's own listeners cannot mask the result
+        // Reset the dispatcher so boot-time wiring does not skew the baseline
         Event::swap(new Dispatcher($app));
 
         $provider = new ApiServiceProvider($app);
@@ -869,48 +1047,7 @@ final class ApiServiceProviderTest extends TestCase
         /** @var \Illuminate\Events\Dispatcher $events */
         $events = $app->make('events');
 
-        self::assertFalse($events->hasListeners(OperationTerminated::class));
-    }
-
-    /**
-     * Test that the queue flush subscriber is registered when enabled.
-     *
-     * @return void
-     */
-    public function testQueueFlushSubscriberRegisteredWhenConfigEnabled(): void
-    {
-        $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.lifecycle.queue', true);
-
-        $provider = new ApiServiceProvider($app);
-        $provider->boot();
-
-        /** @var \Illuminate\Events\Dispatcher $events */
-        $events = $app->make('events');
-
-        self::assertTrue($events->hasListeners(JobProcessed::class));
-    }
-
-    /**
-     * Test that the queue flush subscriber is not registered when disabled.
-     *
-     * @return void
-     */
-    public function testQueueFlushSubscriberNotRegisteredWhenConfigDisabled(): void
-    {
-        $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.lifecycle.octane', false);
-        $this->getConfig()->set('api-toolkit.lifecycle.queue', false);
-        $this->getConfig()->set('api-toolkit.notifications.enable_logging', false);
-
-        $provider = new ApiServiceProvider($app);
-        $provider->boot();
-
-        // Smoke test only: both subscribers hear JobProcessed, so this only
-        // proves boot completes with the queue lifecycle off
-        self::assertFalse((bool) $this->getConfig()->get('api-toolkit.lifecycle.queue'));
+        self::assertTrue($events->hasListeners(JobAttempted::class));
     }
 
     /**
@@ -1051,13 +1188,13 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the config file is publishable under the config group.
+     * Test that the config file is publishable under the toolkit's own tag.
      *
      * @return void
      */
-    public function testConfigIsPublishableUnderConfigGroup(): void
+    public function testConfigIsPublishableUnderItsOwnTag(): void
     {
-        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'config');
+        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'api-toolkit-config');
 
         self::assertSame(
             [$this->getProviderPath('/../config/api-toolkit.php') => config_path('api-toolkit.php')],
@@ -1066,18 +1203,57 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the translations are publishable under the translations group.
+     * Test that the translations publish beneath the application's lang path.
      *
      * @return void
      */
-    public function testTranslationsArePublishableUnderTranslationsGroup(): void
+    public function testTranslationsArePublishableToTheApplicationLangPath(): void
     {
-        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'translations');
+        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'api-toolkit-lang');
 
         self::assertSame(
-            [$this->getProviderPath('/../resources/lang') => resource_path('lang/vendor/api-toolkit')],
+            [$this->getProviderPath('/../resources/lang') => $this->getApplication()->langPath('vendor/api-toolkit')],
             $paths,
         );
+    }
+
+    /**
+     * Test that nothing is published under the generic tags.
+     *
+     * @return void
+     */
+    public function testNothingIsPublishedUnderTheGenericTags(): void
+    {
+        self::assertSame([], ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'translations'));
+        self::assertSame([], ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'config'));
+    }
+
+    /**
+     * Test that a vendor override replaces only the lines it holds.
+     *
+     * @return void
+     */
+    public function testVendorOverrideReplacesOnlyTheLinesItHolds(): void
+    {
+        $this->overrideToolkitMessages(['search' => ['not_permitted' => 'Die Suche ist für diese Ressource nicht zulässig.']]);
+
+        $this->getApplication()->setLocale('de');
+
+        self::assertSame('Die Suche ist für diese Ressource nicht zulässig.', Rejection::message('search.not_permitted'));
+        self::assertSame('The search term may not be longer than 64 characters.', Rejection::message('search.too_long', ['max' => '64']));
+    }
+
+    /**
+     * Test that a vendor override of a shipped locale merges over its lines.
+     *
+     * @return void
+     */
+    public function testVendorOverrideOfTheShippedLocaleKeepsItsOtherLines(): void
+    {
+        $this->overrideToolkitMessages(['search' => ['not_permitted' => 'Search is switched off here.']], 'en');
+
+        self::assertSame('Search is switched off here.', Rejection::message('search.not_permitted'));
+        self::assertSame('The search term may not be longer than 64 characters.', Rejection::message('search.too_long', ['max' => '64']));
     }
 
     /**
@@ -1237,40 +1413,18 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the queue flush subscriber is subscribed when enabled.
+     * Test that the queue flush subscriber is subscribed to job attempts only.
      *
      * @return void
      */
-    public function testQueueFlushSubscriberIsSubscribedWhenQueueLifecycleEnabled(): void
+    public function testQueueFlushSubscriberIsSubscribedToJobAttemptsOnly(): void
     {
         $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.lifecycle.queue', true);
 
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        self::assertTrue($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
-        self::assertTrue($this->hasSubscriberListener(JobFailed::class, QueueFlushSubscriber::class));
-    }
-
-    /**
-     * Test that the queue flush subscriber is not subscribed when disabled.
-     *
-     * @return void
-     */
-    public function testQueueFlushSubscriberIsNotSubscribedWhenQueueLifecycleDisabled(): void
-    {
-        $app = $this->getApplication();
-
-        // Reset the dispatcher so boot-time wiring does not skew the baseline
-        Event::swap(new Dispatcher($app));
-
-        $this->getConfig()->set('api-toolkit.lifecycle.queue', false);
-
-        $provider = new ApiServiceProvider($app);
-        $provider->boot();
-
+        self::assertTrue($this->hasSubscriberListener(JobAttempted::class, QueueFlushSubscriber::class));
         self::assertFalse($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
         self::assertFalse($this->hasSubscriberListener(JobFailed::class, QueueFlushSubscriber::class));
     }
@@ -1482,5 +1636,56 @@ final class ApiServiceProviderTest extends TestCase
         self::assertIsArray($listeners);
 
         return $listeners;
+    }
+
+    /**
+     * Boot the provider on an unbooted application and return the one booted
+     * callback it registers.
+     *
+     * @return callable(\Illuminate\Foundation\Application): void
+     */
+    private function registeredBootedCallback(): callable
+    {
+        $app = $this->getApplication();
+
+        $this->setProperty($app, 'booted', false);
+
+        try {
+            /** @var list<callable(\Illuminate\Foundation\Application): void> $before */
+            $before = $this->getProperty($app, 'bootedCallbacks');
+
+            (new ApiServiceProvider($app))->boot();
+
+            /** @var list<callable(\Illuminate\Foundation\Application): void> $after */
+            $after = $this->getProperty($app, 'bootedCallbacks');
+        } finally {
+            $this->setProperty($app, 'booted', true);
+        }
+
+        self::assertCount(count($before) + 1, $after);
+
+        return end($after);
+    }
+
+    /**
+     * Run the callback as if the application were serving a request.
+     *
+     * @template TReturn
+     *
+     * @param  callable(): TReturn  $callback
+     * @return TReturn
+     */
+    private function outsideTheConsole(callable $callback): mixed
+    {
+        $app      = $this->getApplication();
+        $original = $this->getProperty($app, 'isRunningInConsole');
+
+        $this->setProperty($app, 'isRunningInConsole', false);
+
+        try {
+            return $callback();
+        } finally {
+            $this->setProperty($app, 'isRunningInConsole', $original);
+        }
     }
 }

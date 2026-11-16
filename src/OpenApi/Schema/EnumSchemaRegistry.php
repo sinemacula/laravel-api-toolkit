@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Schema;
 
+use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
+
 /**
  * Collects the enum classes a document references through a $ref.
  *
@@ -15,6 +17,9 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
  */
 final class EnumSchemaRegistry
 {
+    /** The path prefix under which component schemas are referenced */
+    private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
+
     /** @var array<class-string, true> */
     private array $enums = [];
 
@@ -27,6 +32,19 @@ final class EnumSchemaRegistry
     public function register(string $enum): void
     {
         $this->enums[$enum] = true;
+    }
+
+    /**
+     * Register an enum class and return the $ref to its component schema.
+     *
+     * @param  class-string  $enum
+     * @return string
+     */
+    public function reference(string $enum): string
+    {
+        $this->register($enum);
+
+        return self::SCHEMA_REF_PREFIX . SchemaComponentName::fromClass($enum);
     }
 
     /**

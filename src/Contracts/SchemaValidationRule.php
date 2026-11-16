@@ -17,10 +17,13 @@ interface SchemaValidationRule
     /**
      * Validate the compiled schema for the given resource class.
      *
+     * A rule reading the catalogue returns an unverified declaration wherever
+     * the catalogue could not be read, never silence.
+     *
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|\SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>
      */
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array;
 }

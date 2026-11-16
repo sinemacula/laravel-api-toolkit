@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Console\GenerateDocsCommand;
 use SineMacula\ApiToolkit\Console\InvalidateMetadataCommand;
 use SineMacula\ApiToolkit\Console\MakeResourceCommand;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
@@ -42,6 +43,9 @@ final class ApiServiceProvider extends ServiceProvider
         'api-toolkit:resources:clear',
     ];
 
+    /** @var string The console command that runs schema validation itself */
+    private const string VALIDATING_COMMAND = 'api-toolkit:validate-schemas';
+
     /**
      * Bootstrap any application services.
      *
@@ -54,6 +58,7 @@ final class ApiServiceProvider extends ServiceProvider
         $this->offerPublishing();
         (new MorphMapRegistrar)->register();
         $this->validateSchemas();
+        $this->validateExceptionMap();
 
         (new MiddlewareRegistrar($this->app))->register();
         (new LoggingRegistrar)->register();
@@ -104,10 +109,6 @@ final class ApiServiceProvider extends ServiceProvider
             __DIR__ . '/../resources/lang',
             'api-toolkit',
         );
-
-        $this->publishes([
-            __DIR__ . '/../resources/lang' => resource_path('lang/vendor/api-toolkit'),
-        ], 'translations');
     }
 
     /**
@@ -127,7 +128,11 @@ final class ApiServiceProvider extends ServiceProvider
 
         $this->publishes([
             __DIR__ . '/../config/api-toolkit.php' => config_path('api-toolkit.php'),
-        ], 'config');
+        ], 'api-toolkit-config');
+
+        $this->publishes([
+            __DIR__ . '/../resources/lang' => $this->app->langPath('vendor/api-toolkit'),
+        ], 'api-toolkit-lang');
 
         $this->publishes([
             __DIR__ . '/../resources/api-docs' => resource_path('api-docs'),
@@ -188,13 +193,35 @@ final class ApiServiceProvider extends ServiceProvider
     }
 
     /**
+     * Validate the configured exception map once the application has booted.
+     *
+     * Deferred so a map written by a later provider is validated too. Skipped
+     * in the console, where the map renders nothing and a broken one must not
+     * block the commands that repair it.
+     *
+     * @return void
+     */
+    private function validateExceptionMap(): void
+    {
+        if ($this->app->runningInConsole()) {
+            return;
+        }
+
+        $this->app->booted(static function (): void {
+            ExceptionMap::fromConfig();
+        });
+    }
+
+    /**
      * Validate all registered resource schemas.
+     *
+     * Skipped for the validation command, so it reports what it found itself.
      *
      * @return void
      */
     private function validateSchemas(): void
     {
-        if (Config::get('api-toolkit.resources.validate_schemas', false) !== true) {
+        if (Config::get('api-toolkit.resources.validate_schemas', false) !== true || $this->consoleCommand() === self::VALIDATING_COMMAND) {
             return;
         }
 

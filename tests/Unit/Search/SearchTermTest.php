@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Search\SearchTerm;
+use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\TestCase;
 
 /**
@@ -23,6 +24,8 @@ use Tests\TestCase;
 #[CoversClass(SearchTerm::class)]
 final class SearchTermTest extends TestCase
 {
+    use LocalisesToolkitMessages;
+
     /** @var string The whole rejection message for a term carrying a word below the minimum length */
     private const string TOO_SHORT = 'Every word in the search term must be at least 3 characters.';
 
@@ -190,6 +193,37 @@ final class SearchTermTest extends TestCase
     public function testTermAboveTheWordLimitIsRejected(): void
     {
         $this->assertRejects(implode(' ', array_fill(0, SearchTerm::MAX_WORDS + 1, 'abc')), self::TOO_MANY_WORDS);
+    }
+
+    /**
+     * Provide terms outside each bound, with the German message each earns.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function localisedRejectionProvider(): iterable
+    {
+        yield 'short word' => ['ab', 'Jedes Wort braucht mindestens 3 Zeichen.'];
+        yield 'too long' => [str_repeat('a', SearchTerm::MAX_LENGTH + 1), 'Höchstens 128 Zeichen.'];
+        yield 'too many words' => [implode(' ', array_fill(0, SearchTerm::MAX_WORDS + 1, 'abc')), 'Höchstens 10 Wörter.'];
+    }
+
+    /**
+     * Test that each rejection is worded in the current locale.
+     *
+     * @param  string  $raw
+     * @param  string  $message
+     * @return void
+     */
+    #[DataProvider('localisedRejectionProvider')]
+    public function testRejectionIsWordedInTheCurrentLocale(string $raw, string $message): void
+    {
+        $this->localiseToolkitMessages([
+            'search.word_too_short' => 'Jedes Wort braucht mindestens :min Zeichen.',
+            'search.too_long'       => 'Höchstens :max Zeichen.',
+            'search.too_many_words' => 'Höchstens :max Wörter.',
+        ]);
+
+        $this->assertRejects($raw, $message);
     }
 
     /**

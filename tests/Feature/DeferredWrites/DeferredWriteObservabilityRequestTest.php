@@ -46,7 +46,7 @@ final class DeferredWriteObservabilityRequestTest extends TestCase
             $pool = app(WritePool::class);
 
             // The missing table fails the auto-flush without throwing
-            $pool->add('nonexistent_table', ['col' => 'val']);
+            $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
 
             return response()->json([
                 'failure_count' => $pool->lastAutoFlushResult()?->failureCount(),

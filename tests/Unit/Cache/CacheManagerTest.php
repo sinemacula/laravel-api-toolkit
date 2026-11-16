@@ -28,6 +28,7 @@ use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchPlan;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Search\CountingSearchDriver;
 use Tests\TestCase;
 
@@ -64,41 +65,19 @@ final class CacheManagerTest extends TestCase
     }
 
     /**
-     * Test that flush clears the SchemaCompiler static cache.
+     * Test that flush keeps the memos derived from code alone.
      *
      * @return void
      */
-    public function testFlushClearsSchemaCompilerCache(): void
+    public function testFlushKeepsCodeDerivedMemos(): void
     {
         Event::fake();
 
-        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
+        $memos = $this->warmCodeDerivedMemos();
 
-        self::assertNotEmpty($this->getStaticProperty(SchemaCompiler::class, 'cache'));
+        $this->manager()->flush();
 
-        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
-        $manager->flush();
-
-        self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
-    }
-
-    /**
-     * Test that flush clears the ValueResolver serialization memo caches.
-     *
-     * @return void
-     */
-    public function testFlushClearsValueResolverCache(): void
-    {
-        Event::fake();
-
-        $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', ['FakeModel' => ['field' => true]]);
-
-        self::assertNotEmpty($this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
-
-        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
-        $manager->flush();
-
-        self::assertSame([], $this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
+        $this->assertCodeDerivedMemosKept($memos);
     }
 
     /**
@@ -137,44 +116,6 @@ final class CacheManagerTest extends TestCase
         $manager->flush();
 
         self::assertSame([], $this->getStaticProperty(FieldResolver::class, 'resolvedCache'));
-    }
-
-    /**
-     * Test that flush clears the FieldColumnMapper static cache.
-     *
-     * @return void
-     */
-    public function testFlushClearsFieldColumnMapperCache(): void
-    {
-        Event::fake();
-
-        $this->setStaticProperty(FieldColumnMapper::class, 'cache', ['FakeResource' => 'map']);
-
-        self::assertNotEmpty($this->getStaticProperty(FieldColumnMapper::class, 'cache'));
-
-        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
-        $manager->flush();
-
-        self::assertSame([], $this->getStaticProperty(FieldColumnMapper::class, 'cache'));
-    }
-
-    /**
-     * Test that flush clears the SearchPlan static cache.
-     *
-     * @return void
-     */
-    public function testFlushClearsSearchPlanCache(): void
-    {
-        Event::fake();
-
-        $this->setStaticProperty(SearchPlan::class, 'cache', ['FakeResource' => 'plan']);
-
-        self::assertNotEmpty($this->getStaticProperty(SearchPlan::class, 'cache'));
-
-        $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
-        $manager->flush();
-
-        self::assertSame([], $this->getStaticProperty(SearchPlan::class, 'cache'));
     }
 
     /**
@@ -478,13 +419,30 @@ final class CacheManagerTest extends TestCase
         $writer = $this->app->make(MetadataCacheWriter::class); // @phpstan-ignore method.nonObject
 
         $writer->rememberMetadataForever('invalidated-key', fn (): string => 'stale');
-        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
+        $this->setStaticProperty(FieldResolver::class, 'resolvedCache', ['name|||' => ['name']]);
 
         $this->manager()->invalidateMetadata();
 
         self::assertNull($writer->readMetadata('invalidated-key'));
-        self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
+        self::assertSame([], $this->getStaticProperty(FieldResolver::class, 'resolvedCache'));
         Event::assertDispatched(CacheFlushed::class);
+    }
+
+    /**
+     * Test that invalidating keeps the memos derived from code alone, since
+     * they do not depend on the shared store.
+     *
+     * @return void
+     */
+    public function testInvalidateMetadataKeepsCodeDerivedMemos(): void
+    {
+        Event::fake();
+
+        $memos = $this->warmCodeDerivedMemos();
+
+        $this->manager()->invalidateMetadata();
+
+        $this->assertCodeDerivedMemosKept($memos);
     }
 
     /**
@@ -515,6 +473,36 @@ final class CacheManagerTest extends TestCase
 
         self::assertContains('email', $introspector->getColumns(new User));
         self::assertNotContains('stale-column', $introspector->getColumns(new User));
+    }
+
+    /**
+     * Warm every memo derived from code alone and return what it holds.
+     *
+     * @return array<string, object>
+     */
+    private function warmCodeDerivedMemos(): array
+    {
+        $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', [User::class => ['name' => false]]);
+
+        return [
+            'schema' => SchemaCompiler::compile(UserResource::class),
+            'plan'   => SearchPlan::for(UserResource::class),
+            'map'    => FieldColumnMapper::for(UserResource::class),
+        ];
+    }
+
+    /**
+     * Assert that every memo derived from code alone still holds what it held.
+     *
+     * @param  array<string, object>  $memos
+     * @return void
+     */
+    private function assertCodeDerivedMemosKept(array $memos): void
+    {
+        self::assertSame($memos['schema'], SchemaCompiler::compile(UserResource::class));
+        self::assertSame($memos['plan'], SearchPlan::for(UserResource::class));
+        self::assertSame($memos['map'], FieldColumnMapper::for(UserResource::class));
+        self::assertSame([User::class => ['name' => false]], $this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
     }
 
     /**

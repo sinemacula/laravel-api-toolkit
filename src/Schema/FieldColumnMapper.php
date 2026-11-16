@@ -36,25 +36,31 @@ final class FieldColumnMapper
      */
     public static function build(CompiledSchema $schema): FieldColumnMap
     {
-        $columns = [];
-        $mapped  = [];
+        $declared = [];
+        $inferred = [];
 
         foreach ($schema->getFieldKeys() as $field) {
             $definition = $schema->getField($field);
 
-            if ($definition === null || !self::isProvablyMapped($definition)) {
+            if ($definition === null) {
                 continue;
             }
 
-            $columns[$field] = self::columnsForDefinition($field, $definition);
-            $mapped[]        = $field;
+            if ($definition->needs !== []) {
+                $declared[$field] = $definition->needs;
+            } elseif (self::isPlain($definition)) {
+                $inferred[] = $field;
+            }
         }
 
-        return FieldColumnMap::make($columns, $mapped);
+        return FieldColumnMap::make($declared, $inferred);
     }
 
     /**
      * Clear the per-resource-class field-column map cache.
+     *
+     * Field-column maps live for the worker, so a lifecycle flush leaves them;
+     * this is for test isolation.
      *
      * @return void
      */
@@ -64,33 +70,17 @@ final class FieldColumnMapper
     }
 
     /**
-     * Determine whether a field is provably mapped to base-table columns.
+     * Determine whether a field is read straight off the model by its own key.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @return bool
      */
-    private static function isProvablyMapped(CompiledFieldDefinition $definition): bool
+    private static function isPlain(CompiledFieldDefinition $definition): bool
     {
-        if ($definition->needs !== []) {
-            return true;
-        }
-
         if ($definition->accessor !== null || $definition->compute !== null || $definition->relation !== null) {
             return false;
         }
 
         return $definition->guards === [] && $definition->transformers === [];
-    }
-
-    /**
-     * Resolve the declared columns for a provably-mapped field.
-     *
-     * @param  string  $field
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
-     * @return array<int, string>
-     */
-    private static function columnsForDefinition(string $field, CompiledFieldDefinition $definition): array
-    {
-        return $definition->needs !== [] ? $definition->needs : [$field];
     }
 }

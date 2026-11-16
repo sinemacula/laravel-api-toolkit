@@ -28,7 +28,6 @@ final class CacheKeysTest extends TestCase
      */
     public static function caseProvider(): iterable
     {
-        yield 'REPOSITORY_MODEL_CASTS' => [CacheKeys::REPOSITORY_MODEL_CASTS, 'repository-model-casts:%s'];
         yield 'MODEL_SCHEMA_COLUMNS' => [CacheKeys::MODEL_SCHEMA_COLUMNS, 'model-schema-columns:%s:%s'];
         yield 'MODEL_SCHEMA_COLUMN_DEFINITIONS' => [CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS, 'model-schema-column-definitions:%s:%s'];
         yield 'MODEL_SCHEMA_INDEXES' => [CacheKeys::MODEL_SCHEMA_INDEXES, 'model-schema-indexes:%s:%s'];
@@ -63,10 +62,10 @@ final class CacheKeysTest extends TestCase
      */
     public function testResolveKeyUsesDefaultPrefixWhenConfigMissing(): void
     {
-        $result = CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey(['User']);
+        $result = CacheKeys::MODEL_RESOURCES->resolveKey(['User']);
 
         self::assertStringStartsWith('api-toolkit:', $result);
-        self::assertSame('api-toolkit:repository-model-casts:User', $result);
+        self::assertSame('api-toolkit:model-resources:User', $result);
     }
 
     /**
@@ -117,6 +116,6 @@ final class CacheKeysTest extends TestCase
      */
     public function testExpectedCaseCount(): void
     {
-        self::assertCount(8, CacheKeys::cases());
+        self::assertCount(7, CacheKeys::cases());
     }
 }

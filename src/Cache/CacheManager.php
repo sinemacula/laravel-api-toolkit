@@ -10,11 +10,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
-use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
-use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\IndexProof;
-use SineMacula\ApiToolkit\Search\SearchPlan;
 
 /**
  * Resets in-process toolkit caches and invalidates the shared metadata.
@@ -38,7 +34,7 @@ final readonly class CacheManager
 
     /**
      * Retire the shared metadata by advancing its generation, then flush this
-     * process's caches.
+     * process's per-operation state.
      *
      * @return void
      *
@@ -52,10 +48,15 @@ final readonly class CacheManager
     }
 
     /**
-     * Reset this process's toolkit state and dispatch the flushed event.
+     * Reset this process's per-operation toolkit state and dispatch the flushed
+     * event.
      *
-     * The shared store is left alone; forgetting the generation lets a
-     * long-lived worker pick up an invalidation made elsewhere.
+     * The generation, index proofs, schema introspection, field and eager-load
+     * memos and the query parser are reset. Memos derived from code alone, the
+     * compiled schemas, search plans, field-column maps and cast reflections,
+     * live for the worker. The shared store is left alone; forgetting the
+     * generation lets a long-lived worker pick up an invalidation made
+     * elsewhere.
      *
      * @return void
      */
@@ -63,12 +64,8 @@ final readonly class CacheManager
     {
         $this->generation()->forget();
 
-        SchemaCompiler::clearCache();
-        ValueResolver::clearCache();
         EagerLoadPlanner::clearCache();
         FieldResolver::clearCache();
-        FieldColumnMapper::clearCache();
-        SearchPlan::clearCache();
         IndexProof::clearCache();
 
         $this->container->make(SchemaIntrospectionProvider::class)->flush();

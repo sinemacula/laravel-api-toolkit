@@ -21,6 +21,7 @@ use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
+use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchPlan;
@@ -89,11 +90,12 @@ abstract class TestCase extends OrchestraTestCase
     {
         FunctionOverrides::reset();
 
-        // Clear the process-static caches a real request boundary would flush
+        // Clear every process-static cache, worker-lifetime ones included
         FieldResolver::clearCache();
         ValueResolver::clearCache();
         EagerLoadPlanner::clearCache();
         SchemaCompiler::clearCache();
+        FieldColumnMapper::clearCache();
         SearchPlan::clearCache();
         IndexProof::clearCache();
         MetadataCacheWriter::reset();

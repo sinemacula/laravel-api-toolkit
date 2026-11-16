@@ -233,6 +233,38 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
+     * Test that a field the introspected table lacks falls back, logging it.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testFallsBackForAFieldMissingFromTheIntrospectedColumns(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request);
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('users');
+        $provider->method('resolveFields')->willReturn(self::USER_DEFAULT_FIELDS);
+        $provider->method('eagerLoadMapFor')->willReturn([]);
+
+        $query = (new User)->newQuery();
+
+        $introspector = $this->createMock(SchemaIntrospectionProvider::class);
+        $introspector->expects(self::once())->method('getColumns')->with($query->getModel())->willReturn(['id', 'name']);
+
+        Log::shouldReceive('debug')
+            ->once()
+            ->withArgs(fn (string $message, array $context): bool => $context['field'] === 'email');
+
+        $applier = new ColumnProjectionApplier(new SafetySetDeriver($this->makeIntrospector()), $introspector);
+
+        self::assertNull($applier->apply($query, $provider, UserResource::class, [])->getQuery()->columns);
+    }
+
+    /**
      * Test that the ':all' token resolves the full declared field set.
      *
      * @return void
@@ -294,7 +326,7 @@ final class ColumnProjectionApplierTest extends TestCase
             static fn (Relation $relation): array => $relation === $author ? ['author_id'] : ['editor_id'],
         );
 
-        $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector));
+        $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector), $introspector);
 
         $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, [])->getQuery()->columns;
 
@@ -331,7 +363,7 @@ final class ColumnProjectionApplierTest extends TestCase
         );
         $introspector->method('parentKeysFor')->willReturn(['organization_id']);
 
-        $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector));
+        $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector), $introspector);
 
         $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, [])->getQuery()->columns;
 
@@ -422,7 +454,7 @@ final class ColumnProjectionApplierTest extends TestCase
         );
         $introspector->method('parentKeysFor')->willReturn(['author_id']);
 
-        $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector));
+        $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector), $introspector);
 
         $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, [])->getQuery()->columns;
 
@@ -453,7 +485,7 @@ final class ColumnProjectionApplierTest extends TestCase
         $introspector->method('getDeletedAtColumn')->willReturn(null);
         $introspector->method('resolveRelation')->willReturn(null);
 
-        $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector));
+        $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector), $introspector);
 
         $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, ['random' => 'asc'])->getQuery()->columns;
 
@@ -468,12 +500,24 @@ final class ColumnProjectionApplierTest extends TestCase
      */
     private function makeApplier(): ColumnProjectionApplier
     {
+        $introspector = $this->makeIntrospector();
+
+        return new ColumnProjectionApplier(new SafetySetDeriver($introspector), $introspector);
+    }
+
+    /**
+     * Build an introspector stub over the fixture user columns.
+     *
+     * @return \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider
+     */
+    private function makeIntrospector(): SchemaIntrospectionProvider
+    {
         $introspector = self::createStub(SchemaIntrospectionProvider::class);
         $introspector->method('getColumns')->willReturn(self::USER_COLUMNS);
         $introspector->method('getDeletedAtColumn')->willReturn(null);
         $introspector->method('resolveRelation')->willReturn(null);
 
-        return new ColumnProjectionApplier(new SafetySetDeriver($introspector));
+        return $introspector;
     }
 
     /**
