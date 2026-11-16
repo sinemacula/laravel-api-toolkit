@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Http\Resources\Concerns;
 
 use Illuminate\Database\Eloquent\Attributes\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -201,21 +202,57 @@ final class RelationWindowTest extends TestCase
     }
 
     /**
+     * Provide the ways a union reaches a relation query.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function unionProvider(): iterable
+    {
+        yield 'union' => ['union'];
+        yield 'union all' => ['union all'];
+        yield 'global scope' => ['global scope'];
+    }
+
+    /**
      * Test that a relation whose query carries unions is left unbounded, so the
      * window never drops them.
      *
+     * @param  string  $source
      * @return void
      */
-    public function testRelationWithUnionsIsLeftUnbounded(): void
+    #[DataProvider('unionProvider')]
+    public function testRelationWithUnionsIsLeftUnbounded(string $source): void
     {
         $relation = $this->eagerRelation(new User, 'posts');
 
-        $relation->getQuery()->getQuery()->union(DB::table('posts'));
+        match ($source) {
+            'union'     => $relation->getQuery()->getQuery()->union(DB::table('posts')),
+            'union all' => $relation->getQuery()->getQuery()->unionAll(DB::table('posts')),
+            default     => $relation->getQuery()->withGlobalScope('union', static function (Builder $query): void {
+                $query->getQuery()->union(DB::table('posts'));
+            }),
+        };
 
         RelationWindow::bound($relation, 5);
 
-        self::assertNull($relation->getQuery()->getQuery()->groupLimit);
+        self::assertNull($relation->getQuery()->toBase()->groupLimit);
         self::assertSame([], $relation->getQuery()->toBase()->unionOrders ?? []);
+    }
+
+    /**
+     * Test that an emptied union list still takes the window bound.
+     *
+     * @return void
+     */
+    public function testEmptiedUnionListIsStillBounded(): void
+    {
+        $relation = $this->eagerRelation(new User, 'posts');
+
+        $relation->getQuery()->getQuery()->unions = [];
+
+        RelationWindow::bound($relation, 5);
+
+        self::assertSame(6, $relation->getQuery()->getQuery()->groupLimit['value'] ?? null);
     }
 
     /**

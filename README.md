@@ -264,11 +264,11 @@ Each parent renders at most `limit` related records. The relation loads in one w
 related key so the window is deterministic. A relation declaring no limit takes `api-toolkit.resources.relation_limit`
 (`API_TOOLKIT_RESOURCES_RELATION_LIMIT`, default `25`; `0` or `null` leaves it unbounded). A record whose relation was
 cut lists the relation's response key in `_truncated`, and the exported schema documents the bound as `maxItems`.
-`HasMany`, `MorphMany`, `BelongsToMany` and `HasManyThrough` are bounded in SQL unless their query has unions; any
-other loaded collection, including one your own code loaded, is cut when it renders. The model's loaded relation keeps
-up to `limit + 1` rows after the repository returns, the extra row being how a cut is detected. A collection your
-application loaded below the bound never carries `_truncated`, so its absence proves nothing about a relation you
-limited yourself.
+`HasMany`, `MorphMany`, `BelongsToMany` and `HasManyThrough` are bounded in SQL unless their query has unions; any other
+loaded collection, including one your own code loaded, is cut when it renders. A relation bounded in SQL keeps up to
+`limit + 1` rows on the model after the repository returns, the extra row being how a cut is detected; one with unions
+keeps every row and is cut only in the response. A collection your application loaded below the bound never carries
+`_truncated`, so its absence proves nothing about a relation you limited yourself.
 
 **Field-set control** at instantiation:
 
