@@ -143,7 +143,7 @@ final class RuntimeContextTest extends TestCase
 
     /**
      * Test that a job without a connection name is judged by the default
-     * connection.
+     * connection, and by none when the default is not a name.
      *
      * @return void
      */
@@ -161,6 +161,10 @@ final class RuntimeContextTest extends TestCase
         self::assertFalse($context->isServingAsQueueWorker(null));
 
         Config::set('queue.default', null);
+        self::assertFalse($context->isServingAsQueueWorker(null));
+
+        Config::set('queue.connections.1', ['driver' => 'database']);
+        Config::set('queue.default', 1);
         self::assertFalse($context->isServingAsQueueWorker(null));
     }
 }
