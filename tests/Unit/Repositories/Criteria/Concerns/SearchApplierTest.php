@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Search\SearchTerm;
+use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\EqualitySearchableUserResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
@@ -42,6 +43,8 @@ use Tests\TestCase;
 #[CoversClass(SearchApplier::class)]
 final class SearchApplierTest extends TestCase
 {
+    use LocalisesToolkitMessages;
+
     /** @var string The term every test searches for */
     private const string TERM = 'smith';
 
@@ -181,6 +184,25 @@ final class SearchApplierTest extends TestCase
         $this->expectExceptionMessage('The search parameter is not permitted for this resource.');
 
         $this->applier->apply(User::query(), $this->term(), \stdClass::class);
+    }
+
+    /**
+     * Test that the refusal is worded in the current locale.
+     *
+     * @return void
+     */
+    public function testRefusalIsWordedInTheCurrentLocale(): void
+    {
+        $this->registerDriver();
+        $this->localiseToolkitMessages(['search.not_permitted' => 'Die Suche ist für diese Ressource nicht zulässig.']);
+
+        try {
+            $this->applier->apply(User::query(), $this->term(), FilterableUserResource::class);
+
+            self::fail('A resource declaring nothing searchable must refuse the parameter.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['search' => ['Die Suche ist für diese Ressource nicht zulässig.']], $exception->errors());
+        }
     }
 
     /**

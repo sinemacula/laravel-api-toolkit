@@ -23,13 +23,39 @@ composer require sinemacula/laravel-api-toolkit
 Publish the config file:
 
 ```bash
-php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider" --tag=config
+php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider" --tag=api-toolkit-config
 ```
 
 `config/api-toolkit.php` is documented inline. Per-query repository caching is configured separately, in the
 `sinemacula/laravel-repositories` package under `repositories.cache`.
 
+Each setting read from the environment is named `API_TOOLKIT_` followed by its key, upper-cased with dots as
+underscores: `deferred_writes.on_failure` is `API_TOOLKIT_DEFERRED_WRITES_ON_FAILURE`.
+
 The Markdown templates for the generated API manual are published with `--tag=api-toolkit-docs`.
+
+### Translations
+
+The toolkit's own client-facing messages are translation lines in the `api-toolkit` namespace: `exceptions.php` holds
+the error titles and details, keyed by integer error code, and `validation.php` holds the 422 messages for rejected
+query parameters. Publish them with `--tag=api-toolkit-lang`, which copies them to `lang/vendor/api-toolkit` (or
+`resources/lang/vendor/api-toolkit` when the application keeps its translations there).
+
+Laravel merges a published file over the package's own, so keep only the lines you change. A full copy freezes the
+wording of every other line against later releases. Placeholders such as `:key` and `:operator` carry the parameter
+names exactly as the client sent them, and do not pass through `validation.attributes`.
+
+To add a locale, create `lang/vendor/api-toolkit/<locale>/validation.php` (and `exceptions.php`) with the lines you
+translate. Missing lines fall back to English as long as `app.fallback_locale` is `en`.
+
+A message is worded in the locale current when it is raised. `ParseApiQuery` is global middleware, so a malformed
+`page`, `limit`, `filters` or `search` value is rejected before any route middleware runs, while an undeclared key or
+operator is rejected later, in the controller. An application that sets the locale in route middleware, for example
+from the authenticated user, sets `api-toolkit.parser.register_middleware` to `false` and adds `ParseApiQuery` to its
+routes after its locale middleware.
+
+A Payload enum value is checked with the other rules and fails with Laravel's `validation.enum` line, so it honours
+`validation.attributes` and the locale like any other field.
 
 ## Usage
 
@@ -63,6 +89,27 @@ Each is accepted only on a column whose declared capability allows it (see
 [Query capabilities](#schema-driven-apiresource)); any other pairing is rejected with a 422 naming the operator, the
 column and the operators that column accepts. The shorthand `{"name":"Alice"}` is `$eq` and is gated the same way.
 
+The entries of a filter document AND together, at every depth. `$and` and `$or` take a non-empty list of filter
+documents, each grouped on its own and joined by AND or OR:
+
+```json
+{"status":"active","$or":[{"name":"a"},{"email":"b"}]}
+{"$or":[{"role":"admin","status":"active"},{"role":"owner"}]}
+{"$and":[{"$or":[{"a":1},{"b":2}]},{"$or":[{"c":3},{"d":4}]}]}
+{"$or":[{"name":"a"},{"posts":{"user":{"name":"b"}}}]}
+```
+
+A relation declared `traversable()` takes a filter document for the related resource, checked against that
+resource's own declarations, and compiles to `whereHas()`. `$has` and `$hasnt` take a relation name, a list of names,
+or relation names keyed to filter documents, and compile to `whereHas()` and `whereDoesntHave()`. Every condition in
+one relation document must hold for the same related row: `{"posts":{"a":1,"b":2}}` needs one post matching both,
+while `{"$and":[{"posts":{"a":1}},{"posts":{"b":2}}]}` may match different posts.
+
+A filter that cannot narrow the query is rejected with a 422 keyed by its position, such as `filters.$or.1.name`,
+rather than dropped: a group that is not a non-empty list, an empty group document, a condition with no column, a
+column given an empty object, a list, or a key that is not a registered condition, and any entry that adds no
+condition, such as an empty `$has` list or a `$between` without exactly two values.
+
 **Free-text search** - match a term against the fields a resource declares `searchable()`:
 
 ```http
@@ -95,10 +142,10 @@ The indexes belong in your own migrations:
 - `EXACT` needs an ordinary index leading with the column on either engine. On PostgreSQL that B-tree must use the
   column's own collation.
 
-`php artisan api-toolkit:validate-schemas` reports a searchable declaration with no index behind it; run it in CI.
-Because schema validation is off in production by default, the proof is also taken at request time, so a missing
-index refuses the request instead of scanning the table. On PostgreSQL a missing trigram index is not an error, so
-without this the search would silently run as a sequential scan.
+`php artisan api-toolkit:validate-schemas` reports a searchable declaration with no index behind it; run it in CI
+against a migrated database. Because schema validation is off in production by default, the proof is also taken at
+request time, so a missing index refuses the request instead of scanning the table. On PostgreSQL a missing trigram
+index is not an error, so without this the search would silently run as a sequential scan.
 
 The request-time proof is cached in the cache store for `api-toolkit.search.index_proof_ttl` seconds
 (`API_TOOLKIT_SEARCH_INDEX_PROOF_TTL`, default 60), keyed by the connection's schema and the declaration, and shared
@@ -119,7 +166,7 @@ so a SQLite development connection must be listed before a searchable field is s
 
 With `validate_schemas` on (the default outside production), an unlisted connection fails application boot, not just
 the search request: every route and every Artisan command, including `php artisan migrate` on a fresh checkout with
-no database file yet. List the connection, or set `VALIDATE_SCHEMAS=false` until you do.
+no database file yet. List the connection, or set `API_TOOLKIT_RESOURCES_VALIDATE_SCHEMAS=false` until you do.
 
 Entries are connection names as `config/database.php` keys them, not engines. A stock application names each
 connection after its engine, so listing `mysql` waives the connection that usually serves production. A listed
@@ -202,6 +249,23 @@ Only fields marked `filterable()` or `sortable()` can be queried, and `?search=`
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. `$default` lists the fields
 returned when the client sends no `?fields`.
 
+**Schema lifetime** - `schema()` runs once per resource class per worker, and its result is shared by every request
+the worker serves, under Octane and on queue workers alike. It must not read or capture the request, the user, the
+tenant, the query parser, the clock or runtime config, and the closures it declares must not retain them. Read
+per-request values when a closure runs instead: guards, accessors and compute closures receive the resource and the
+request, constraints the query, and transformers the resource and the value.
+
+**Declared column reads** - `needs()` names the base-table columns a field reads. Declare it on any field whose value
+does not come straight from the column of the same name, such as one over an Eloquent accessor or custom cast, or an
+accessor closure:
+
+```php
+// The model's fullName(): Attribute reads first_name and last_name
+Field::scalar('full_name')->needs('first_name', 'last_name'),
+Field::accessor('initials', fn ($resource) => $resource->first_name[0] . $resource->last_name[0])
+    ->needs('first_name', 'last_name'),
+```
+
 **Query capabilities** - `filterable()` takes the access path the column has, and the capability decides which
 operators the column answers. Any other operator is refused with a `422`:
 
@@ -261,23 +325,47 @@ new UserResource($user, excluded: ['email']);          // field set minus exclus
 ```
 
 **Schema validation** - `api-toolkit.resources.validate_schemas` validates every registered schema at boot. It is on
-by default outside production (`VALIDATE_SCHEMAS=false` turns it off) and off in production. The
+by default outside production (`API_TOOLKIT_RESOURCES_VALIDATE_SCHEMAS=false` turns it off) and off in production. The
 `api-toolkit:validate-schemas` Artisan command runs the same validation regardless of the flag, so it can gate CI.
 
 Validation checks that:
 
 - every `filterable()` and `sortable()` declaration names a column that exists. A computed field, or an accessor
   reading a different path, is caught from the schema alone; the rest is checked against the table's column listing.
+- every `needs()` column exists on the table.
 - an ordered index leads with every `sortable()` column, unless the field carries `indexed()` or `unindexed()`.
 - an index on the connection serves every `searchable()` declaration in the shape its strategy needs.
 - no declaration names a column configured as sensitive.
 
-Checks that read the connection are skipped where it cannot be read, such as a boot with no database or before
-migrations have run.
+At boot, checks that read the connection are skipped where it cannot be read, such as a boot with no database or
+before migrations have run.
+
+The command is stricter, because it gates deployment. It fails when the resource map is empty, and when any check
+could not read the connection: each declaration it could not verify is listed under why its table's catalogue was
+unreadable, whether the connection cannot be resolved, the catalogue cannot be read, or the table is not migrated.
+Pass `--allow-empty` to accept an empty map, or `--allow-unverified` to accept declarations it could not verify;
+neither flag lets a defect pass. A searchable declaration on a connection listed under
+`api-toolkit.search.unverified_connections` is not reported, since that listing already waives its index proof. Boot
+skips schema validation while this command runs, so the command reports everything itself.
 
 The index catalogue is read only during validation, never while a filter or sort is served. Two schema reads do sit
 on the request path, both cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads
 the table's column listing, and search reads its index proof.
+
+**Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
+to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
+relations and the order columns. A field reads the columns it declares through `needs()`, each of which must exist on
+the table. A plain field without `needs()` is taken to read the column of its own key, but only when the table carries
+that column and the model reads it without an accessor, a public instance property of the same name or a cast that could
+consult other attributes; Eloquent's built-in cast types, enums that do not name their own caster, and the casts under
+`Illuminate\Database\Eloquent\Casts` qualify. Any other field, such as one over an accessor or custom cast, or a
+computed, guarded or transformed field, leaves the select unnarrowed until it declares `needs()`.
+
+An incomplete `needs()` returns wrong data rather than failing. Call
+`Model::preventAccessingMissingAttributes(! app()->isProduction())` in a service provider to catch it outside
+production: it throws on a read of an unselected attribute that is plain or carries a built-in or enum cast, though
+not on one with an accessor or a class cast, nor on a raw `$attributes[...]` read inside a cast. Disable narrowing if
+code reads attributes outside the rendered fields.
 
 ### Repositories
 
@@ -338,13 +426,21 @@ Two overrides cover what the catalogue cannot show:
 - `unindexed('the table is bounded at a few hundred rows')` records a deliberate exemption. The reason is required.
 
 **Random ordering** - `?order=random` is disabled by default. Enable it with
-`api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_ALLOW_RANDOM_ORDER=true`); while disabled, `random` is
-treated as an ordinary sort key and rejected like any undeclared column.
+`api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_REPOSITORIES_ALLOW_RANDOM_ORDER=true`); while disabled,
+`random` is treated as an ordinary sort key and rejected like any undeclared column.
 
 **Query cost caps** - `api-toolkit.query_cost` bounds the filter document's size and nesting, the keys and value-list
 items it dispatches, the sort keys and relation aggregates requested, and how deep a request pages. A request over a
 cap is rejected before any SQL is issued, with a `422` naming the parameter, the position within it, the cap, the
 limit and the value supplied. Set a cap to `0` to disable it.
+
+**Writes** - `persist($model, $attributes)` creates or updates the model from an array or collection of attributes.
+Each key is written through Eloquent's `setAttribute()`, so casts, both mutator styles and JSON paths such as
+`options->theme` apply. A key naming a relation is written through it: a `BelongsTo` from a model, its key or `null`,
+a `MorphTo` from a model or `null`, and a `BelongsToMany` or `MorphToMany` from models or their keys, synced once the
+model is saved. A key naming any other relation throws an `InvalidArgumentException` before any key is assigned, and
+a key that is neither a column nor a mutator fails at save with the database's `QueryException`. A set mutator named
+like a relation takes precedence over it. `$fillable` and `$guarded` are not applied, so pass only validated input.
 
 **Cacheable trait** - per-query caching for any `ApiRepository` subclass:
 
@@ -380,6 +476,16 @@ class AuditRepository extends ApiRepository
 
 $auditRepository->defer(['user_id' => 1, 'action' => 'login']);
 ```
+
+Each row goes to its model's connection, resolved when the row is deferred, so a later change of the default connection
+does not redirect it. Timestamps follow the model: none when it has timestamps disabled, otherwise its own
+`CREATED_AT` and `UPDATED_AT` columns in its date format, and a timestamp you pass is kept. Rows are inserted in
+consecutive runs of one column set, so a row may leave out optional columns and they keep their database default.
+
+Reaching `deferred_writes.pool_limit` flushes automatically, but never on a connection with an open transaction: those
+rows wait for the next deferral outside a transaction or for the boundary flush, so rolling the transaction back does
+not undo them. A flush that does run inside an open transaction joins it: `flushWrites()` called there, or a boundary
+flush while an outer transaction is still open, such as a sync-queued job dispatched inside one.
 
 `api-toolkit.deferred_writes.on_failure` picks what happens when a flush fails:
 
@@ -417,8 +523,13 @@ class AppServiceProvider extends ServiceProvider
 ```
 
 An operator is a class implementing `SineMacula\ApiToolkit\Contracts\FilterOperator`, or a closure with the same
-signature. `register()` throws `InvalidArgumentException` if the token is already taken; `override()` replaces it
-unconditionally.
+signature, `apply(Builder $query, string $column, mixed $value): void`. `register()` throws `InvalidArgumentException`
+if the token is already taken; `override()` replaces it unconditionally.
+
+An operator adds AND-joined predicates for one column; the applier owns the grouping, so an operator never chooses the
+connective, and clauses an operator joins with OR are grouped on their own. One that refuses its operand throws a
+`ValidationException`, and one that adds no clause is rejected with a 422. Operators are predicate-only: a scope
+removed inside one leaks to the outer query.
 
 An operator that expands one value into a predicate per item should also implement
 `SineMacula\ApiToolkit\Contracts\ExpandsValueList` and return the item count from `countValueItems()`. That count is
@@ -428,7 +539,7 @@ the contract counts as one item per non-list value.
 The capability gate covers only the shipped tokens. A token registered under a new name is allowed on any declared
 column, since the package cannot know which access path it needs. Overriding a shipped token keeps that token's
 capability rules, so a replacement `$contains` is still served only on `DOCUMENT` columns. An unregistered token is
-read as a column name and rejected by the allowlist.
+rejected with a 422, under a column or on its own.
 
 ### Exception Handling
 
@@ -450,6 +561,29 @@ Exceptions are mapped to `ApiException` subclasses and rendered as JSON error re
 - `'always_json'` - always JSON.
 - `'json_when_expected'` - JSON only when the request expects it (Laravel's `expectsJson()`, e.g.
   `Accept: application/json`).
+
+`api-toolkit.exceptions.map` renders an exception as an `ApiException` of your own:
+
+```php
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
+
+'map' => [
+    ThrottleRequestsException::class => QuotaExceededException::class,
+],
+```
+
+A key naming a built-in replaces it, any other is matched just before the first built-in mapping whose key it extends,
+else after every built-in, and the first match wins. So `ThrottleRequestsException` wins over the built-in
+`TooManyRequestsHttpException` it extends, and `RuntimeException` or `Throwable` catches only what no built-in maps.
+Laravel converts some exceptions before the handler sees them, so map the converted type: `NotFoundHttpException` for a
+`ModelNotFoundException`, `AccessDeniedHttpException` for an `AuthorizationException` without a status. The response
+keeps the headers of the exception it replaces.
+
+A target must be an instantiable `ApiException` with a `CODE`, a 4xx or 5xx status, and `ApiException`'s own constructor
+and `getStatusCode()`. The map is validated once the application has booted to serve requests, and an invalid one throws
+`InvalidExceptionMapException`; console commands skip the check, so `config:clear` still runs. A map found invalid while
+rendering is reported, and Laravel renders the exception itself. The map does not change reporting: silence a mapped
+exception with `$exceptions->dontReport()`.
 
 **Reporting** - an `ApiException` is a handled response and is never reported or logged, whatever reporters are
 registered and in whatever order. This matches Laravel's treatment of its own HTTP exceptions; use the response
@@ -559,19 +693,41 @@ read from the same compiled schema the request-time checks use, and the operator
 document cannot offer a column the request would reject or an operator that is no longer registered. A column whose
 operators have all been removed from the registry is documented as answering no filter.
 
-Every operation also lists the errors it can return, derived from the route: `401` behind auth middleware, `403`
-behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, or an `AuthorizedController` action),
-`404` when the path has parameters, `422` when the operation accepts a request body, `429` behind a rate limit, and
-`500` always. Middleware is read as the router resolves it, so a guard or limit applied through a group counts and
-one removed with `withoutMiddleware()` does not. Each `ApiException` subclass named in the action's `@throws` tags is
-added under its status with its error code as an example; other throwables in those tags are ignored. Class names in
-`@throws` resolve as PHP would in the file declaring the action, so imported, aliased, same-namespace and fully
-qualified names all work, and a union such as `@throws A|B` names both.
+Every operation also lists the errors it can return, derived from the route: an unauthenticated request behind auth
+middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, or an
+`AuthorizedController` action), a missing record when the path has parameters, a validation failure when the operation
+accepts a request body, a refusal behind a rate limit, and an unhandled exception always. Each is documented as the
+exception map renders it: by default a `401`, `403`, `404`, `422`, `429` and `500`. The unhandled exception is looked up
+as a `Throwable`, so a `Throwable` key changes it and a narrower catch-all such as `RuntimeException` does not. A failed
+basic-auth challenge and an authorization denied with an explicit status render as a generic HTTP error, which the
+document does not describe. Middleware is read as the router resolves it, so a guard or limit applied through a group
+counts and one removed with `withoutMiddleware()` does not.
 
-Every enum the document references, through a model cast or a request field validated by `Rule::enum()` or
-`PureEnum`, becomes one named component listing its values under `enum`: the backing values of a backed enum, or the
-lowercase case names of a pure enum. Fields reference the component, except a field narrowed by `only()` or
-`except()`, which lists its accepted values inline (an empty list when it accepts none).
+Each `ApiException` subclass named in the action's `@throws` tags is added under its status too; other throwables in
+those tags are ignored. Class names in `@throws` resolve as PHP would in the file declaring the action, so imported,
+aliased, same-namespace and fully qualified names all work, and a union such as `@throws A|B` names both. Each error
+code is documented once, as the `components.examples` entry `Error<code>` (such as `Error10107`) carrying the code's
+catalogue title and detail, and every error response references the examples of its exceptions. An exception without a
+`CODE` adds its status and headers but no example. The export fails when a documented exception's code is not in the
+error catalogue (add its namespace to `api-toolkit.openapi.exception_namespaces`), or when it shares a code with an
+exception answering another status.
+
+Each path parameter is typed from what the router enforces on its segment. A `where` constraint comes first:
+`whereUuid()` exports a `uuid`, `whereNumber()` a non-negative integer, `whereIn()` or a plain alternation such as
+`draft|published` an `enum`, and any other pattern its anchored `pattern`. Without one, the parameter takes the
+string-backed enum or Eloquent model the action binds: the enum's component, or the type of the column the model is
+looked up by, which is its route key or the field a `{post:slug}` segment names. The `openapi()` schema of a resource
+field that emits that column unchanged, with no model accessor, takes precedence over the column type. A `HasUuids` or
+`HasUlids` key is typed without a database, unless the model replaces the trait's `isValidUniqueId()`. An explicit
+`Route::bind()` binder, an overridden `resolveRouteBinding()`, a model bound in the container or a key cast to a pure
+enum leaves the parameter a string. A constraint outside the syntax PHP and JavaScript read alike is not exported, so
+the binding types the parameter, or it stays a string: `\d`, `\w` and an unescaped `.` match more characters in PHP, so
+write `[0-9]` or `whereNumber()` to export the constraint.
+
+Every enum the document references, through a model cast, a request field validated by `Rule::enum()` or `PureEnum`, or
+a string-backed enum bound to a route parameter, becomes one named component listing its values under `enum`: the
+backing values of a backed enum, or the lowercase case names of a pure enum. Fields reference the component, except a
+field narrowed by `only()` or `except()`, which lists its accepted values inline (an empty list when it accepts none).
 
 A request field's presence rules shape its object's schema:
 
@@ -637,7 +793,9 @@ Document response headers with `#[ResponseHeader]`, repeated once per header:
 - On a controller class, it adds it to the success response of every action the controller handles; an action's own
   declaration wins.
 - On an `ApiException` subclass, it documents a header the exception may set, added to the error response of every
-  action whose `@throws` tags name it. Subclasses inherit their parents' headers, and exceptions sharing a status
+  action whose `@throws` tags name it or whose route facts the handler answers with it. A route fact also documents the
+  headers of its built-in target, which the handler forwards whatever the configured target, so a remapped rate limit
+  keeps `Retry-After` and `X-RateLimit-*`. Subclasses inherit their parents' headers, and exceptions sharing a status
   contribute every header they declare, the first declaration of a name winning.
 
 The schema defaults to a string and the description is optional. A header the export already emits, such as a
@@ -690,14 +848,74 @@ that already carry the resource's schema:
 php artisan api-toolkit:docs:generate
 ```
 
+#### Operation Ids, Summaries and Descriptions
+
+Set `api-toolkit.openapi.operation_ids` to `true` to export an `operationId` on every operation. The id is the first
+of:
+
+1. the `id` of the action's `#[Operation]`;
+2. the route name, unless it is empty, `'0'`, ends in `.`, or contains `generated::`, the marker `route:cache` names
+   unnamed routes with. A name ending in `.` is the bare prefix of a `->name('admin.')` group and is never an id;
+3. for a controller, its basename without `Controller` and the action, kebab-cased with acronyms kept whole:
+   `APIKeyController@showAll` gives `api-key.show-all`, and an invokable `APIKeyController` gives `api-key`;
+4. for a closure, the method and the path segments without braces: `GET /users/{user}/avatar` gives
+   `get.users.user.avatar`.
+
+A route with several methods keeps the id on its first method and appends each later method to it, in the order the
+route declares them: a `PUT|PATCH` route named `users.update` exports `users.update` and `users.update.patch`, so
+reordering a `match()` changes its ids. An id taken from the method and path already starts with its method, and is not
+suffixed. Ids must be unique across every audience; two operations claiming one id fail the export, naming both.
+
+`#[Operation]` declares an action's `id`, its `summary`, or both. The summary is exported whether or not ids are on:
+
+```php
+use SineMacula\ApiToolkit\OpenApi\Attributes\Operation;
+
+#[Operation(summary: 'Update a user')]
+public function update(UpdateUserRequest $request): JsonResponse {}
+```
+
+An operation's description is read from `<docs_path>/operations/<id>.md`, and `audiences/<name>/operations/<id>.md`
+replaces it for that audience; an empty file blanks it. A later method without its own file takes the first method's, so
+`users.update.md` describes both methods unless `users.update.patch.md` exists. Filenames are matched byte for byte, so
+ids differing only in case cannot share a case-insensitive filesystem. Files and directories whose names start with `.`
+are ignored. Every export checks the files of every audience, and fails on an operation file while ids are off, on one
+matching no exported operation, and on one under the directory of an audience that is not configured.
+
+#### Tags
+
+An operation's tag is the action's `#[Tag]`, else its controller's, else the resource's schema name. Failing those, a
+controller route takes the controller basename without `Controller`, and a closure the first URI segment that is not a
+parameter, else `default`.
+
+The document carries a top-level `tags` list once `api-toolkit.openapi.tags` names a tag or a `tags/` directory, shared
+or an audience's, holds a file. It lists the tags the audience's operations use: those named in
+`api-toolkit.openapi.tags` first, in that order, then the rest in natural, case-insensitive order:
+
+```php
+'tags' => ['User', 'Article'],
+```
+
+A tag's description is read from `<docs_path>/tags/<Tag>.md`, with the same per-audience override. In a filename,
+`%`, `/`, `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|`, control characters and a leading `.` are written as `%XX`, so
+`Admin/Users` reads `tags/Admin%2FUsers.md`; everything else, spaces included, is kept. A configured tag that no
+audience uses fails the export, as does a tag file that matches no tag, under the same rules as operation files.
+
 ### Metadata Invalidation
 
-Schema metadata (column listings and definitions, index catalogues, cast maps, relation lookups and the
+Schema metadata (column listings and definitions, index catalogues, relation lookups and the
 model-to-resource map) is cached in the application's cache store and shared by every process. The Octane and queue
-boundary flushes reset only each worker's in-process state, so a schema or mapping change needs the shared entries
+boundary flushes reset only each worker's per-operation state, so a schema or mapping change needs the shared entries
 retired explicitly. Every metadata key is stored under a generation held in the same store; replacing the generation
 makes every earlier entry unreachable in every process at once. A column listing that reads empty, as it does before
 its table exists, is never stored.
+
+Under Octane the boundary is the end of every request, task and tick; on a queue worker it is the end of every job
+attempt, including one that fails or is released for a retry. It drops the memoised generation, the per-operation
+index proofs, the in-memory column listings, column definitions and index catalogues, the field and eager-load memos
+and the query parser's state. The compiled schemas, search plans, field-to-column maps and cast reflections come from
+code alone, so they live for the worker and are rebuilt only when it restarts; reload Octane and queue workers on
+every deploy. An application that runs its own reset can call `CacheManager::flush()`; a second reset is harmless.
 
 Entries are stored as arrays and scalars, never objects, so the cache works under Laravel's default
 `cache.serializable_classes => false`. An entry that does not read back in the expected shape is treated as a miss
@@ -726,17 +944,17 @@ The bypass limits how many store calls fail, not how long each takes, so give th
 
 Schema entries are keyed by the schema the connection actually reads (its name, database, table prefix, Postgres
 search path, database user and configured server), so a tenancy switcher that repoints one connection name reads each
-tenant's schema separately, provided it purges the connection when it switches. Casts, relation lookups and the
-resource map come from code and are shared across tenants. Where each tenant has its own cache prefix, each has its
-own generation, so invalidate per tenant.
+tenant's schema separately, provided it purges the connection when it switches. Relation lookups and the resource map
+come from code and are shared across tenants. Where each tenant has its own cache prefix, each has its own generation,
+so invalidate per tenant.
 
 The generation is replaced automatically when a migration run finishes. A run with nothing to migrate, or a
 `--pretend` run, leaves the metadata warm. If the cache store cannot be written, the hook logs a warning instead of
 failing the migration. Set `API_TOOLKIT_LIFECYCLE_MIGRATIONS=false` to turn the hook off.
 
 The hook is not enough on its own: migrations run before the new release takes traffic, so workers still on the old
-code can refill the new generation with their casts, resource mappings and relation lookups. Run this on every
-deploy, after the new release is live:
+code can refill the new generation with their resource mappings and relation lookups. Run this on every deploy,
+after the new release is live:
 
 ```bash
 php artisan api-toolkit:invalidate-metadata
@@ -797,6 +1015,51 @@ lifecycle events.
 captured exception, so the worker retries it per `--tries` and `--backoff` and finally records it in the failed job
 store. Each attempt runs the whole lifecycle, firing `onFailure()` and `ServiceFailed` every time it fails. On the
 `sync` connection there is no worker to retry, so the failure is thrown to the dispatching code.
+
+#### Transactions
+
+`$transactional` (default `true`) wraps the concerns, `prepare()` and `handle()` in a database transaction, and
+`afterCommit()` runs once the service's own transaction has committed. The transaction runs once: a deadlock or other
+concurrency error rolls it back and fails the run, firing `onFailure()` and `ServiceFailed`.
+
+`$transactionAttempts` (default `1`) lets a top-level run retry a concurrency error. Each retry re-runs the concerns,
+`prepare()` and `handle()` in full, but the rollback resets only the database: a model saved by the failed attempt still
+looks saved, so the retry can skip its write and report success. A service nested in another transaction never retries;
+it fails with a `DeadlockException`. On a transactional service a value below `1` fails the run with a `LogicException`.
+A service that sets it above `1` must:
+
+1. Load every model it writes inside the transaction, in `prepare()` or `handle()`, from keys in the input
+   (`Order::query()->lockForUpdate()->findOrFail($this->input->orderId)`). Never write a model carried by the input or
+   loaded in `authorize()` or `validate()`.
+2. Keep no attempt-local state on the service, its concerns (which may be container singletons) or stateful observers,
+   or reset it before its first use in each attempt. Concerns run before `prepare()`, so resetting in `prepare()` only
+   covers state first used there or in `handle()`.
+3. Do non-database work in `afterCommit()`, or register it inside the attempt with `DB::afterCommit()` or an
+   after-commit job. Laravel discards the callbacks a rolled-back attempt registered, so never guard registration with a
+   flag that outlives the attempt.
+
+```php
+final class ShipOrder extends Service
+{
+    protected int $transactionAttempts = 3;
+
+    protected function handle(): mixed
+    {
+        $order = Order::query()->lockForUpdate()->findOrFail($this->input->orderId);
+
+        $order->update(['status' => 'shipped']);
+
+        DB::afterCommit(fn () => OrderShipped::dispatch($order));
+
+        return $order;
+    }
+}
+```
+
+For any other service, retry the call rather than the transaction: run `Service::make(...)->run()` again with fresh
+input, or `dispatch()` it and let the worker retry per `--tries`. Each worker attempt starts from the dispatch-time
+input rather than the previous attempt's models, but models nested in an `ArrayInput` or `Payload` are not re-fetched,
+so pass keys and keep external effects idempotent.
 
 #### Reading the Run Context
 
@@ -952,14 +1215,14 @@ level. For a dedicated destination, define a channel in `config/logging.php`:
 Then point `api-toolkit.notifications.log_channel` at it:
 
 ```dotenv
-NOTIFICATION_LOG_CHANNEL=notifications
+API_TOOLKIT_NOTIFICATIONS_LOG_CHANNEL=notifications
 ```
 
 ## Requirements
 
 - PHP ^8.3
-- Laravel 13.2+
-- MySQL 8.0+, where the search layer is used
+- Laravel 13.39+
+- MySQL 8.4+, where the search layer is used
 
 ## Testing
 

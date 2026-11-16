@@ -7,7 +7,9 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 
 /**
- * Immutable parameters for flushing one table's chunks in a WritePool flush.
+ * Immutable parameters for flushing one target's chunks in a WritePool flush.
+ *
+ * A target is a table on a connection.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -18,10 +20,11 @@ final readonly class WritePoolFlushContext
      * Create a new write pool flush context instance.
      *
      * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
+     * @param  string  $connection
      * @param  string  $table
      * @param  list<list<array<string, mixed>>>  $chunks
-     * @param  list<string>  $tables
-     * @param  int  $tableIndex
+     * @param  list<array{string, string}>  $targets
+     * @param  int  $targetIndex
      * @param  int|null  $chunkIndex
      * @return void
      */
@@ -30,17 +33,20 @@ final readonly class WritePoolFlushContext
         /** The failure handling strategy for the flush operation. */
         private FlushStrategy $strategy,
 
-        /** The table currently being flushed. */
+        /** The connection of the target currently being flushed. */
+        private string $connection,
+
+        /** The table of the target currently being flushed. */
         private string $table,
 
-        /** The chunks of rows queued for the current table. */
+        /** The chunks of rows queued for the current target. */
         private array $chunks,
 
-        /** The list of tables participating in the flush. */
-        private array $tables,
+        /** The connection and table pairs participating in the flush. */
+        private array $targets,
 
-        /** The index of the current table within the table list. */
-        private int $tableIndex,
+        /** The index of the current target within the target list. */
+        private int $targetIndex,
 
         /** The index of the current chunk, or null when not chunked. */
         private ?int $chunkIndex = null,
@@ -57,6 +63,16 @@ final readonly class WritePoolFlushContext
     }
 
     /**
+     * Get the name of the connection being flushed.
+     *
+     * @return string
+     */
+    public function connection(): string
+    {
+        return $this->connection;
+    }
+
+    /**
      * Get the name of the table being flushed.
      *
      * @return string
@@ -67,7 +83,7 @@ final readonly class WritePoolFlushContext
     }
 
     /**
-     * Get the chunked records for the table being flushed.
+     * Get the chunked records for the target being flushed.
      *
      * @return list<list<array<string, mixed>>>
      */
@@ -77,23 +93,23 @@ final readonly class WritePoolFlushContext
     }
 
     /**
-     * Get the ordered list of all table names in the flush.
+     * Get the ordered connection and table pairs in the flush.
      *
-     * @return list<string>
+     * @return list<array{string, string}>
      */
-    public function tables(): array
+    public function targets(): array
     {
-        return $this->tables;
+        return $this->targets;
     }
 
     /**
-     * Get the index of the current table within the table list.
+     * Get the index of the current target within the target list.
      *
      * @return int
      */
-    public function tableIndex(): int
+    public function targetIndex(): int
     {
-        return $this->tableIndex;
+        return $this->targetIndex;
     }
 
     /**
@@ -116,10 +132,11 @@ final readonly class WritePoolFlushContext
     {
         return new self(
             $this->strategy,
+            $this->connection,
             $this->table,
             $this->chunks,
-            $this->tables,
-            $this->tableIndex,
+            $this->targets,
+            $this->targetIndex,
             $chunkIndex,
         );
     }

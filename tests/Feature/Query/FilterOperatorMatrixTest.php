@@ -143,29 +143,23 @@ final class FilterOperatorMatrixTest extends TestCase
     }
 
     /**
-     * Test that a between payload with fewer than two bounds is dropped.
+     * Test that a between payload with fewer than two bounds is refused.
      *
      * @return void
      */
-    public function testBetweenOperatorDropsAnUnderLongPayload(): void
+    public function testBetweenOperatorRefusesAnUnderLongPayload(): void
     {
-        $response = $this->queryFilters(['id' => ['$between' => [2]]]);
-
-        $response->assertJsonPath('meta.total', 5);
-        self::assertCount(5, $this->names($response));
+        $this->assertBetweenIsRefused([2]);
     }
 
     /**
-     * Test that a between payload with more than two bounds is dropped.
+     * Test that a between payload with more than two bounds is refused.
      *
      * @return void
      */
-    public function testBetweenOperatorDropsAnOverLongPayload(): void
+    public function testBetweenOperatorRefusesAnOverLongPayload(): void
     {
-        $response = $this->queryFilters(['id' => ['$between' => [2, 3, 4]]]);
-
-        $response->assertJsonPath('meta.total', 5);
-        self::assertCount(5, $this->names($response));
+        $this->assertBetweenIsRefused([2, 3, 4]);
     }
 
     /**
@@ -229,8 +223,8 @@ final class FilterOperatorMatrixTest extends TestCase
     {
         $names = $this->names($this->queryFilters([
             '$or' => [
-                'name' => 'Alice',
-                'id'   => ['$gt' => 4],
+                ['name' => 'Alice'],
+                ['id' => ['$gt' => 4]],
             ],
         ]));
 
@@ -246,12 +240,26 @@ final class FilterOperatorMatrixTest extends TestCase
     {
         $names = $this->names($this->queryFilters([
             '$and' => [
-                'status' => ['$neq' => 'banned'],
-                'id'     => ['$lt' => 3],
+                ['status' => ['$neq' => 'banned']],
+                ['id' => ['$lt' => 3]],
             ],
         ], '/nullable-users'));
 
         self::assertSame(['Alan'], $names);
+    }
+
+    /**
+     * Assert that a between payload of the given bounds is refused with a 422.
+     *
+     * @param  array<int, int>  $bounds
+     * @return void
+     */
+    private function assertBetweenIsRefused(array $bounds): void
+    {
+        $response = $this->getJson('/users?filters=' . urlencode((string) json_encode(['id' => ['$between' => $bounds]])));
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.meta', ['filters.id.$between' => ['The filters.id.$between filter adds no condition, so it would match every row.']]);
     }
 
     /**

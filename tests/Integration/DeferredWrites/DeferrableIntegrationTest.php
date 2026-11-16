@@ -25,6 +25,10 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
+use Tests\Concerns\CreatesDeferredWriteTargets;
+use Tests\Fixtures\Models\AuditEntry;
+use Tests\Fixtures\Models\ImportRow;
+use Tests\Fixtures\Models\LedgerEntry;
 use Tests\Fixtures\Repositories\DeferrableUserRepository;
 use Tests\TestCase;
 
@@ -39,6 +43,8 @@ use Tests\TestCase;
 #[CoversTrait(Deferrable::class)]
 final class DeferrableIntegrationTest extends TestCase
 {
+    use CreatesDeferredWriteTargets;
+
     /** @var string The timestamp used to assert deferred dispatch timing. */
     private const string TIMESTAMP_DEFERRAL = '2026-03-10 12:00:01';
 
@@ -55,7 +61,7 @@ final class DeferrableIntegrationTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(3, 5)); // @phpstan-ignore method.nonObject
+        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(3, 5, transactions: $this->transactionTracker(...))); // @phpstan-ignore method.nonObject
 
         $this->repository = $this->app->make(DeferrableUserRepository::class); // @phpstan-ignore method.nonObject
     }
@@ -323,7 +329,7 @@ final class DeferrableIntegrationTest extends TestCase
     public function testRequestHandledEventDispatchesFailedEventOnFlushFailure(): void
     {
         $pool = new WritePool(500, 10000);
-        $pool->add('nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
 
         $this->app->scoped(WritePool::class, fn (): WritePool => $pool); // @phpstan-ignore method.nonObject
 
@@ -347,7 +353,7 @@ final class DeferrableIntegrationTest extends TestCase
     public function testBoundaryFailureRetainsRecordsUnderDefaultStrategy(): void
     {
         $pool = new WritePool(500, 10000);
-        $pool->add('nonexistent_table', ['col' => 'val']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
 
         $this->app->scoped(WritePool::class, fn (): WritePool => $pool); // @phpstan-ignore method.nonObject
 
@@ -372,8 +378,8 @@ final class DeferrableIntegrationTest extends TestCase
     public function testTransactionalBoundaryFlushRollsBackTableAndDispatchesEvent(): void
     {
         $pool = new WritePool(1, 10000, FlushStrategy::COLLECT, transactional: true);
-        $pool->add('users', ['name' => 'Tess', 'email' => 'tess@example.com', 'password' => 'secret']);
-        $pool->add('users', ['name' => 'Tess', 'email' => 'tess@example.com', 'password' => 'secret']);
+        $pool->add('testing', 'users', ['name' => 'Tess', 'email' => 'tess@example.com', 'password' => 'secret']);
+        $pool->add('testing', 'users', ['name' => 'Tess', 'email' => 'tess@example.com', 'password' => 'secret']);
 
         $this->app->scoped(WritePool::class, fn (): WritePool => $pool); // @phpstan-ignore method.nonObject
 
@@ -411,5 +417,80 @@ final class DeferrableIntegrationTest extends TestCase
         self::assertTrue($flushResult->isSuccessful());
         self::assertSame(1, $flushResult->successCount());
         self::assertSame(0, $flushResult->failureCount());
+    }
+
+    /**
+     * Test that the boundary flush writes each model's rows to its own
+     * connection.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     */
+    public function testBoundaryFlushWritesEachModelToItsConnection(): void
+    {
+        $this->useAuditConnection();
+
+        $this->deferrableRepository(AuditEntry::class)->defer(['action' => 'login']);
+        $this->repository->defer(['name' => 'Uma', 'email' => 'uma@example.com', 'password' => 'secret']);
+
+        Event::dispatch(new RequestHandled(new Request, new Response));
+
+        self::assertSame(1, DB::connection('audit')->table('audit_entries')->count());
+        self::assertSame(1, DB::table('users')->count());
+    }
+
+    /**
+     * Test that the boundary flush persists models whose timestamps differ from
+     * the defaults.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     */
+    public function testBoundaryFlushPersistsModelsWithOwnTimestampSettings(): void
+    {
+        $this->deferrableRepository(ImportRow::class)->defer(['reference' => 'r-1', 'payload' => 'p']);
+        $this->deferrableRepository(LedgerEntry::class)->defer(['label' => 'entry']);
+
+        Event::dispatch(new RequestHandled(new Request, new Response));
+
+        self::assertSame(1, DB::table('import_rows')->count());
+        self::assertNotNull(DB::table('ledger_entries')->value('created'));
+    }
+
+    /**
+     * Test that a full pool inside a transaction waits for the boundary flush.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testFullPoolInsideATransactionWaitsForTheBoundaryFlush(): void
+    {
+        DB::transaction(function (): void {
+            for ($i = 0; $i < 5; $i++) {
+                $this->repository->defer(['name' => "user_{$i}", 'email' => "user_{$i}@example.com", 'password' => 'secret']);
+            }
+        });
+
+        self::assertSame(0, DB::table('users')->count());
+
+        Event::dispatch(new RequestHandled(new Request, new Response));
+
+        self::assertSame(5, DB::table('users')->count());
+    }
+
+    /**
+     * Define the database migrations.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function defineDatabaseMigrations(): void
+    {
+        parent::defineDatabaseMigrations();
+
+        $this->createTimestampFixtureTables();
     }
 }

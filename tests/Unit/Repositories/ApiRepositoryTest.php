@@ -12,7 +12,6 @@ use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
-use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\Http\Enums\HttpMethod;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
@@ -249,116 +248,97 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that persist sets string attributes on the model.
+     * Test that persist writes uncast columns on an existing model.
      *
      * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
-    public function testPersistSetsStringAttributes(): void
+    public function testPersistWritesUncastColumnsOnUpdate(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $attributeSetter = $this->getAttributeSetter($this->repository);
-        $this->setProperty($attributeSetter, 'casts', ['name' => 'string']);
+        self::assertTrue($this->repository->persist($user, ['name' => 'Bob', 'email' => self::BOB_EMAIL]));
 
-        $result = $this->repository->persist($user, ['name' => 'Bob']);
+        $fresh = $user->fresh();
 
-        self::assertTrue($result);
-        self::assertSame('Bob', $user->fresh()?->name);
+        self::assertNotNull($fresh);
+        self::assertSame('Bob', $fresh->name);
+        self::assertSame(self::BOB_EMAIL, $fresh->email);
     }
 
     /**
-     * Test that persist sets integer attributes on the model.
+     * Test that persist writes uncast columns when creating a model.
      *
      * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
-    public function testPersistSetsIntegerAttributes(): void
+    public function testPersistWritesUncastColumnsOnCreate(): void
+    {
+        $user = new User;
+
+        self::assertTrue($this->repository->persist($user, ['name' => 'Carol', 'email' => 'carol@example.com']));
+
+        $fresh = $user->fresh();
+
+        self::assertNotNull($fresh);
+        self::assertSame('Carol', $fresh->name);
+        self::assertSame('carol@example.com', $fresh->email);
+    }
+
+    /**
+     * Test that persist accepts the attributes as a collection.
+     *
+     * @return void
+     */
+    public function testPersistAcceptsACollectionOfAttributes(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        self::assertTrue($this->repository->persist($user, collect(['name' => 'Bob', 'status' => UserStatus::BANNED])));
+
+        $fresh = $user->fresh();
+
+        self::assertNotNull($fresh);
+        self::assertSame('Bob', $fresh->name);
+        self::assertSame(UserStatus::BANNED, $fresh->getAttribute('status'));
+    }
+
+    /**
+     * Test that persist associates a BelongsTo relation and syncs a
+     * BelongsToMany relation.
+     *
+     * @return void
+     */
+    public function testPersistWritesRelations(): void
+    {
+        $org  = Organization::create(['name' => 'Acme', 'slug' => 'acme']);
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
+        $tag  = Tag::create(['name' => 'php']);
 
         assert($this->app !== null);
 
-        $repository = $this->app->make(UserRepository::class);
+        $posts = $this->app->make(DummyRepository::class);
 
-        $attributeSetter = $this->getAttributeSetter($repository);
-        $this->setProperty($attributeSetter, 'casts', ['organization_id' => 'integer']);
+        self::assertTrue($this->repository->persist($user, ['organization' => $org->id]));
+        self::assertTrue($posts->persist($post, ['tags' => collect([$tag]), 'published' => true]));
 
-        $result = $repository->persist($user, ['organization_id' => '5']);
-
-        self::assertTrue($result);
-        self::assertSame(5, $user->fresh()?->organization_id);
+        self::assertSame($org->id, $user->fresh()?->organization_id);
+        self::assertTrue($post->fresh()?->published);
+        self::assertSame(['php'], $post->tags()->pluck('name')->all());
     }
 
     /**
-     * Test that persist sets boolean attributes on the model.
+     * Test that persist refuses a relation it cannot write.
      *
      * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
-    public function testPersistSetsBooleanAttributes(): void
-    {
-        $post = Post::create([
-            'user_id' => User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL])->id,
-            'title'   => 'Test',
-            'body'    => 'Body',
-        ]);
-
-        assert($this->app !== null);
-
-        $repository = $this->app->make(DummyRepository::class);
-
-        $attributeSetter = $this->getAttributeSetter($repository);
-        $this->setProperty($attributeSetter, 'casts', ['published' => 'boolean']);
-
-        $result = $repository->persist($post, ['published' => true]);
-
-        self::assertTrue($result);
-        self::assertTrue($post->fresh()?->published === true);
-    }
-
-    /**
-     * Test that persist handles array attributes on the model.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
-     */
-    public function testPersistHandlesArrayAttributes(): void
+    public function testPersistRefusesAnUnwritableRelation(): void
     {
         $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
 
-        $attributeSetter = $this->getAttributeSetter($this->repository);
-        $this->setProperty($attributeSetter, 'casts', ['name' => 'string']);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage(sprintf('Attribute "posts" on %s is a HasMany relation, which persist() cannot write', User::class));
 
-        $result = $this->repository->persist($user, ['name' => 'Updated']);
-
-        self::assertTrue($result);
-        self::assertSame('Updated', $user->fresh()?->name);
-    }
-
-    /**
-     * Test that persist handles enum casting.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
-     */
-    public function testPersistHandlesEnumCasting(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL, 'status' => 'active']);
-
-        $attributeSetter = $this->getAttributeSetter($this->repository);
-        $this->setProperty($attributeSetter, 'casts', ['status' => 'enum']);
-
-        $result = $this->repository->persist($user, ['status' => UserStatus::BANNED]);
-
-        self::assertTrue($result);
-        // @phpstan-ignore staticMethod.impossibleType
-        self::assertSame(UserStatus::BANNED, $user->fresh()?->status);
+        $this->repository->persist($user, ['posts' => [1]]);
     }
 
     /**
@@ -393,24 +373,6 @@ final class ApiRepositoryTest extends TestCase
         $result = $this->repository->scopeByIds($ids)->get(); // @phpstan-ignore staticMethod.dynamicCall
 
         self::assertCount(2, $result);
-    }
-
-    /**
-     * Test that boot resolves attribute casts from the model.
-     *
-     * @return void
-     */
-    public function testBootResolvesAttributeCasts(): void
-    {
-        $attributeSetter = $this->getAttributeSetter($this->repository);
-
-        self::assertInstanceOf(AttributeSetter::class, $attributeSetter);
-
-        /** @var array<string, string|null> $casts */
-        $casts = $this->getProperty($attributeSetter, 'casts');
-
-        self::assertNotEmpty($casts);
-        self::assertArrayHasKey('status', $casts);
     }
 
     /**
@@ -552,97 +514,6 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that persist handles array cast attributes.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
-     */
-    public function testPersistSetsArrayAttributes(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-
-        $attributeSetter = $this->getAttributeSetter($this->repository);
-        $this->setProperty($attributeSetter, 'casts', ['name' => 'array']);
-
-        $result = $this->repository->persist($user, ['name' => ['first', 'last']]);
-
-        self::assertTrue($result);
-    }
-
-    /**
-     * Test that persist handles associate cast (BelongsTo relation).
-     *
-     * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
-     */
-    public function testPersistSetsAssociateAttribute(): void
-    {
-        $org  = Organization::create(['name' => 'Acme', 'slug' => 'acme']);
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-
-        $attributeSetter = $this->getAttributeSetter($this->repository);
-        $this->setProperty($attributeSetter, 'casts', ['organization' => 'associate']);
-
-        $result = $this->repository->persist($user, ['organization' => $org->id]);
-
-        self::assertTrue($result);
-        self::assertSame($org->id, $user->organization_id);
-    }
-
-    /**
-     * Test that persist handles sync cast (BelongsToMany relation).
-     *
-     * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
-     */
-    public function testPersistSyncAttribute(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
-        $tag  = Tag::create(['name' => 'php']);
-
-        assert($this->app !== null);
-
-        $repository = $this->app->make(DummyRepository::class);
-
-        $attributeSetter = $this->getAttributeSetter($repository);
-        $this->setProperty($attributeSetter, 'casts', ['tags' => 'sync']);
-
-        $result = $repository->persist($post, ['tags' => collect([$tag])]);
-
-        self::assertTrue($result);
-        self::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
-    }
-
-    /**
-     * Test that persist with a sync cast using an array of IDs.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
-     */
-    public function testPersistSyncAttributeWithArrayOfIds(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
-        $tag  = Tag::create(['name' => 'laravel']);
-
-        assert($this->app !== null);
-
-        $repository = $this->app->make(DummyRepository::class);
-
-        $attributeSetter = $this->getAttributeSetter($repository);
-        $this->setProperty($attributeSetter, 'casts', ['tags' => 'sync']);
-
-        $result = $repository->persist($post, ['tags' => [$tag->getKey()]]);
-
-        self::assertTrue($result);
-    }
-
-    /**
      * Test that naming a resource reaches the criteria the handle carries.
      *
      * @return void
@@ -676,69 +547,6 @@ final class ApiRepositoryTest extends TestCase
 
         self::assertInstanceOf(ApiCriteria::class, $criteria);
         self::assertSame(UserResource::class, $this->getProperty($criteria, 'customResourceClass'));
-    }
-
-    /**
-     * Test that persist auto-discovers an uncached BelongsTo cast.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
-     */
-    public function testPersistAutoDiscoversBelongsToRelationCast(): void
-    {
-        $org  = Organization::create(['name' => 'AutoOrg', 'slug' => 'auto-org']);
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-
-        $result = $this->repository->persist($user, ['organization' => $org->id]);
-
-        self::assertTrue($result);
-    }
-
-    /**
-     * Test that persist auto-discovers a BelongsToMany cast on Post.tags().
-     *
-     * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
-     */
-    public function testPersistAutoDiscoversBelongsToManyCast(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
-        $tag  = Tag::create(['name' => 'auto-tag']);
-
-        assert($this->app !== null);
-
-        $repository = $this->app->make(DummyRepository::class);
-
-        $result = $repository->persist($post, ['tags' => [$tag->getKey()]]);
-
-        self::assertTrue($result);
-    }
-
-    /**
-     * Test that persist sets an enum attribute using the model cast.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
-     */
-    public function testPersistSetsEnumCastAttributes(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL, 'status' => 'active']);
-
-        assert($this->app !== null);
-
-        $repository = $this->app->make(UserRepository::class);
-
-        $attributeSetter = $this->getAttributeSetter($repository);
-        $this->setProperty($attributeSetter, 'casts', []);
-
-        $result = $repository->persist($user, ['status' => UserStatus::BANNED]);
-
-        self::assertTrue($result);
-        self::assertSame(UserStatus::BANNED, $user->fresh()?->getAttribute('status'));
     }
 
     /**
@@ -778,24 +586,6 @@ final class ApiRepositoryTest extends TestCase
         self::assertCount(2, $firstRead);
         self::assertCount(2, $secondRead);
         self::assertTrue($repository->getCacheStatus()->isPopulated());
-    }
-
-    /**
-     * Get the AttributeSetter collaborator from the given repository.
-     *
-     * @template TModel of \Illuminate\Database\Eloquent\Model
-     *
-     * @param  \SineMacula\ApiToolkit\Repositories\ApiRepository<TModel>  $repository
-     * @return \SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter
-     *
-     * @SuppressWarnings("php:S3011")
-     */
-    private function getAttributeSetter(ApiRepository $repository): AttributeSetter
-    {
-        $reflection = new \ReflectionClass(ApiRepository::class);
-
-        /** @var \SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter */
-        return $reflection->getProperty('attributeSetter')->getValue($repository);
     }
 
     /**

@@ -24,48 +24,52 @@ use Tests\TestCase;
 final class FilterContextTest extends TestCase
 {
     /**
-     * Test that root returns a null logical operator at the top level.
+     * Test that the root sits at the top of the pointer and the parameter.
      *
      * @return void
      */
-    public function testRootReturnsNullOperator(): void
+    public function testRootSitsAtTheTopOfThePointerAndTheParameter(): void
     {
         $root = FilterContext::root();
 
-        self::assertNull($root->getLogicalOperator());
         self::assertSame('/name', $root->pointerTo('name'));
+        self::assertSame('filters', $root->path());
     }
 
     /**
-     * Test that nested sets the logical operator.
-     *
-     * @return void
-     */
-    public function testNestedSetsOperator(): void
-    {
-        $nested = FilterContext::nested('$and');
-
-        self::assertSame('$and', $nested->getLogicalOperator());
-        self::assertSame('/$and/name', $nested->pointerTo('name'));
-    }
-
-    /**
-     * Test that descending records the position and the requested operator.
+     * Test that descending records the position in the pointer and the path.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testDescendRecordsThePositionAndOperator(): void
+    public function testDescendRecordsThePosition(): void
     {
-        $child = FilterContext::root()->descend('posts', '$or')->descend('tags', null);
+        $child = FilterContext::root()->descend('$or')->at('1')->descend('posts');
 
-        self::assertNull($child->getLogicalOperator());
-        self::assertSame('/posts/tags/name', $child->pointerTo('name'));
+        self::assertSame('/$or/1/posts/name', $child->pointerTo('name'));
+        self::assertSame('filters.$or.1.posts', $child->path());
+        self::assertSame('filters.$or.1.posts.name', $child->at('name')->path());
     }
 
     /**
-     * Test that entering a segment keeps the operator and level in effect.
+     * Test that a key holding a pointer delimiter is escaped in the pointer
+     * only.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAKeyHoldingAPointerDelimiterIsEscapedInThePointer(): void
+    {
+        $context = FilterContext::root()->descend('a/b')->at('c~d');
+
+        self::assertSame('/a~1b/c~0d/~01', $context->pointerTo('~1'));
+        self::assertSame('filters.a/b.c~d', $context->path());
+    }
+
+    /**
+     * Test that entering a segment keeps the level in effect.
      *
      * @return void
      *
@@ -76,14 +80,14 @@ final class FilterContextTest extends TestCase
         Config::set('api-toolkit.query_cost.max_depth', 2);
 
         $context = FilterContext::root(new FilterCostBudget(QueryCostLimits::fromConfig()))
-            ->descend('posts', '$or')
+            ->descend('posts')
             ->at('$has');
 
-        self::assertSame('$or', $context->getLogicalOperator());
         self::assertSame('/posts/$has/name', $context->pointerTo('name'));
+        self::assertSame('filters.posts.$has', $context->path());
 
         try {
-            $context->descend('tags', null)->descend('country', null);
+            $context->descend('tags')->descend('country');
 
             self::fail('Expected a rejection for a descent beyond the depth cap.');
         } catch (QueryTooExpensiveException $exception) {
@@ -141,7 +145,7 @@ final class FilterContextTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $context = FilterContext::root()->descend('posts', null)->descend('tags', null);
+        $context = FilterContext::root()->descend('posts')->descend('tags');
 
         $context->admit('name');
         $context->admit('title');
@@ -158,10 +162,10 @@ final class FilterContextTest extends TestCase
     {
         Config::set('api-toolkit.query_cost.max_depth', 2);
 
-        $context = FilterContext::root(new FilterCostBudget(QueryCostLimits::fromConfig()))->descend('posts', null);
+        $context = FilterContext::root(new FilterCostBudget(QueryCostLimits::fromConfig()))->descend('posts');
 
         try {
-            $context->descend('tags', null)->descend('country', null);
+            $context->descend('tags')->descend('country');
 
             self::fail('Expected a rejection for a descent beyond the depth cap.');
         } catch (QueryTooExpensiveException $exception) {
@@ -187,7 +191,7 @@ final class FilterContextTest extends TestCase
         Config::set('api-toolkit.query_cost.max_nodes', 2);
 
         $root  = FilterContext::root(new FilterCostBudget(QueryCostLimits::fromConfig()));
-        $child = $root->descend('posts', null);
+        $child = $root->descend('posts');
 
         $root->admit('name');
         $child->admit('title');
@@ -205,18 +209,5 @@ final class FilterContextTest extends TestCase
                 'actual'    => 3,
             ], $exception->getCustomMeta());
         }
-    }
-
-    /**
-     * Test that the OR connective is resolved from the current operator.
-     *
-     * @return void
-     */
-    public function testOrConnectiveIsResolvedFromTheCurrentOperator(): void
-    {
-        self::assertTrue(FilterContext::nested('$or')->isOr());
-        self::assertSame('or', FilterContext::nested('$or')->sqlBoolean());
-        self::assertFalse(FilterContext::nested('$and')->isOr());
-        self::assertSame('and', FilterContext::nested('$and')->sqlBoolean());
     }
 }

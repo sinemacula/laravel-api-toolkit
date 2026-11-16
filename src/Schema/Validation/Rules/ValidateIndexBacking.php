@@ -13,11 +13,13 @@ use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibilityInspector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 
 /**
  * Validate that an ordered index leads with every sortable column.
  *
  * The column must lead the index; mere membership cannot serve an ordered read.
+ * An unreadable catalogue leaves every sort it would decide unverified.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -49,7 +51,7 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|\SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>
      */
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
@@ -71,6 +73,8 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
             ? $this->eligibility->inspect($table, $model->getConnection())
             : new IndexEligibility;
 
+        $unread = $indexes === null ? $model : null;
+
         foreach ($declared as $key => $field) {
 
             foreach ($this->defects($field, $indexes, $table, $eligibility) as $defect) {
@@ -80,6 +84,8 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
                     defect: $defect,
                 );
             }
+
+            array_push($errors, ...$this->unverified($resourceClass, $key, $field, $unread));
         }
 
         return $errors;
@@ -164,6 +170,51 @@ final readonly class ValidateIndexBacking implements SchemaValidationRule
         return $field->unindexedReason !== null || $indexes === null
             ? []
             : $this->backingDefects($field->sortable, $field->indexedBy, $indexes, $table, $eligibility);
+    }
+
+    /**
+     * Leave the field's sort unverified when the model's catalogue could not be
+     * read and the sort needs an index.
+     *
+     * @param  string  $resourceClass
+     * @param  string  $key
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @param  \Illuminate\Database\Eloquent\Model|null  $unread
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>
+     */
+    private function unverified(string $resourceClass, string $key, CompiledFieldDefinition $field, ?Model $unread): array
+    {
+        if ($unread === null) {
+            return [];
+        }
+
+        $check = $this->unprovenClaim($field, $unread->getTable());
+
+        return $check === null ? [] : [new UnverifiedDeclaration(
+            resourceClass: $resourceClass,
+            fieldKey: $key,
+            check: $check,
+            modelClass: $unread::class,
+        )];
+    }
+
+    /**
+     * Name the claim an unread catalogue leaves unproven, or null when the
+     * field's sort needs no index.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @param  string  $table
+     * @return string|null
+     */
+    private function unprovenClaim(CompiledFieldDefinition $field, string $table): ?string
+    {
+        if ($field->sortable === null || $field->unindexedReason !== null) {
+            return null;
+        }
+
+        return $field->indexedBy !== null
+            ? sprintf('table "%s" carries the "%s" index behind sortable column "%s"', $table, $field->indexedBy, $field->sortable)
+            : sprintf('an ordered index on table "%s" leads with "%s"', $table, $field->sortable);
     }
 
     /**

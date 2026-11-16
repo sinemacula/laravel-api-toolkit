@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\BetweenOperator;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
@@ -31,7 +30,7 @@ final class BetweenOperatorTest extends TestCase
         $query    = (new User)->newQuery();
         $operator = new BetweenOperator;
 
-        $operator->apply($query, 'age', [18, 65], FilterContext::root());
+        $operator->apply($query, 'age', [18, 65]);
 
         $wheres = $query->getQuery()->wheres;
 
@@ -50,7 +49,7 @@ final class BetweenOperatorTest extends TestCase
         $query    = (new User)->newQuery();
         $operator = new BetweenOperator;
 
-        $operator->apply($query, 'age', [18], FilterContext::root());
+        $operator->apply($query, 'age', [18]);
 
         self::assertEmpty($query->getQuery()->wheres);
     }
@@ -65,7 +64,7 @@ final class BetweenOperatorTest extends TestCase
         $query    = (new User)->newQuery();
         $operator = new BetweenOperator;
 
-        $operator->apply($query, 'age', [18, 30, 65], FilterContext::root());
+        $operator->apply($query, 'age', [18, 30, 65]);
 
         self::assertEmpty($query->getQuery()->wheres);
     }
@@ -80,29 +79,29 @@ final class BetweenOperatorTest extends TestCase
         $query    = (new User)->newQuery();
         $operator = new BetweenOperator;
 
-        $operator->apply($query, 'age', 'not-an-array', FilterContext::root());
+        $operator->apply($query, 'age', 'not-an-array');
 
         self::assertEmpty($query->getQuery()->wheres);
     }
 
     /**
-     * Test that apply honours the OR boolean of the filter context.
+     * Test that apply joins the range to an earlier clause with AND.
      *
      * @return void
      */
-    public function testBetweenApplyInOrContextUsesOrBoolean(): void
+    public function testBetweenApplyJoinsAnEarlierClauseWithAnd(): void
     {
         $query    = (new User)->newQuery();
         $operator = new BetweenOperator;
 
         $query->where('name', 'Alice');
 
-        $operator->apply($query, 'age', [18, 65], FilterContext::nested('$or'));
+        $operator->apply($query, 'age', [18, 65]);
 
         $wheres = $query->getQuery()->wheres;
 
         self::assertCount(2, $wheres);
         self::assertSame('between', $wheres[1]['type']);
-        self::assertSame('or', $wheres[1]['boolean']);
+        self::assertSame('and', $wheres[1]['boolean']);
     }
 }

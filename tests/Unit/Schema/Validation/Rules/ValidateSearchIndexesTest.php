@@ -12,7 +12,10 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchIndexes;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
+use Tests\Fixtures\Models\UnconfiguredConnectionUser;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\SearchableUserResource;
 use Tests\Fixtures\Search\PatternSearchDriver;
@@ -31,6 +34,12 @@ use Tests\TestCase;
 #[CoversClass(ValidateSearchIndexes::class)]
 final class ValidateSearchIndexesTest extends TestCase
 {
+    /** @var string The claim an unread catalogue leaves unproven for the name column */
+    private const string NAME_CLAIM = 'an index on table "users" serves the "substring" search on "name"';
+
+    /** @var string The claim an unread catalogue leaves unproven for the email column */
+    private const string EMAIL_CLAIM = 'an index on table "users" serves the "prefix" search on "email"';
+
     /** @var \SineMacula\ApiToolkit\Search\SearchDriverRegistry */
     private SearchDriverRegistry $drivers;
 
@@ -88,7 +97,7 @@ final class ValidateSearchIndexesTest extends TestCase
      */
     public function testReportsAConnectionWithNoDriverRegistered(): void
     {
-        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->schema());
+        $errors = self::defects($this->rule()->validate(SearchableUserResource::class, User::class, $this->schema()));
 
         self::assertCount(1, $errors);
         self::assertSame('name', $errors[0]->fieldKey);
@@ -105,7 +114,7 @@ final class ValidateSearchIndexesTest extends TestCase
      */
     public function testReportsEveryFieldAgainstAConnectionWithNoDriver(): void
     {
-        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->surface());
+        $errors = self::defects($this->rule()->validate(SearchableUserResource::class, User::class, $this->surface()));
 
         self::assertCount(2, $errors);
         self::assertSame('name', $errors[0]->fieldKey);
@@ -121,7 +130,7 @@ final class ValidateSearchIndexesTest extends TestCase
     {
         $this->register(new PatternSearchDriver([SearchStrategy::EXACT], true));
 
-        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->schema());
+        $errors = self::defects($this->rule()->validate(SearchableUserResource::class, User::class, $this->schema()));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -140,6 +149,7 @@ final class ValidateSearchIndexesTest extends TestCase
         $this->register(new PatternSearchDriver);
 
         self::assertSame([], $this->rule()->validate(SearchableUserResource::class, User::class, $this->schema()));
+        self::assertSame([], $this->rule(null)->validate(SearchableUserResource::class, User::class, $this->schema()));
     }
 
     /**
@@ -153,7 +163,7 @@ final class ValidateSearchIndexesTest extends TestCase
 
         $this->register(new PatternSearchDriver);
 
-        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->schema());
+        $errors = self::defects($this->rule()->validate(SearchableUserResource::class, User::class, $this->schema()));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -176,7 +186,7 @@ final class ValidateSearchIndexesTest extends TestCase
     {
         $this->register(new PatternSearchDriver(null, true, ['No index serves this column']));
 
-        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->schema());
+        $errors = self::defects($this->rule()->validate(SearchableUserResource::class, User::class, $this->schema()));
 
         self::assertCount(1, $errors);
         self::assertSame(SearchableUserResource::class, $errors[0]->resourceClass);
@@ -197,13 +207,11 @@ final class ValidateSearchIndexesTest extends TestCase
     }
 
     /**
-     * Test that a connection the driver could not read is passed over.
-     *
-     * A failed read proves nothing, and the request path proves it again.
+     * Test that a proof the driver could not read is unverified, carrying why.
      *
      * @return void
      */
-    public function testSkipsAConnectionTheDriverCouldNotRead(): void
+    public function testLeavesAProofTheDriverCouldNotReadUnverified(): void
     {
         $driver = self::createStub(SearchDriver::class);
 
@@ -213,11 +221,73 @@ final class ValidateSearchIndexesTest extends TestCase
 
         $this->register($driver);
 
-        self::assertSame([], $this->rule()->validate(SearchableUserResource::class, User::class, $this->schema()));
+        self::assertEquals(
+            [new UnverifiedDeclaration(SearchableUserResource::class, 'name', self::NAME_CLAIM, User::class, 'Connection refused')],
+            $this->rule()->validate(SearchableUserResource::class, User::class, $this->schema()),
+        );
     }
 
     /**
-     * Test that an unread catalogue is passed over and an empty one reported.
+     * Test that an unread catalogue leaves one entry per declared column, each
+     * under its own strategy.
+     *
+     * @return void
+     */
+    public function testLeavesEveryColumnUnverifiedAgainstAnUnreadCatalogue(): void
+    {
+        $this->register(new PatternSearchDriver(null, true, ['No index serves this column']));
+
+        self::assertEquals([
+            new UnverifiedDeclaration(SearchableUserResource::class, 'name', self::NAME_CLAIM, User::class),
+            new UnverifiedDeclaration(SearchableUserResource::class, 'email', self::EMAIL_CLAIM, User::class),
+        ], $this->rule(null)->validate(SearchableUserResource::class, User::class, $this->surface()));
+    }
+
+    /**
+     * Test that an unread catalogue leaves every column of one strategy
+     * unverified, not just the first.
+     *
+     * @return void
+     */
+    public function testLeavesEveryColumnOfOneStrategyUnverifiedAgainstAnUnreadCatalogue(): void
+    {
+        $this->register(new PatternSearchDriver(null, true));
+
+        $schema = new CompiledSchema(
+            fields: [
+                'name'  => $this->makeField('name', SearchStrategy::SUBSTRING),
+                'email' => $this->makeField('email', SearchStrategy::SUBSTRING),
+            ],
+            counts: [],
+            searchableColumns: ['name' => SearchStrategy::SUBSTRING, 'email' => SearchStrategy::SUBSTRING],
+        );
+
+        self::assertEquals([
+            new UnverifiedDeclaration(SearchableUserResource::class, 'name', self::NAME_CLAIM, User::class),
+            new UnverifiedDeclaration(SearchableUserResource::class, 'email', 'an index on table "users" serves the "substring" search on "email"', User::class),
+        ], $this->rule(null)->validate(SearchableUserResource::class, User::class, $schema));
+    }
+
+    /**
+     * Test that a connection that cannot be resolved leaves every declared
+     * field unverified, carrying why, rather than throwing.
+     *
+     * @return void
+     */
+    public function testLeavesEveryFieldUnverifiedOnAConnectionThatCannotBeResolved(): void
+    {
+        $this->register(new PatternSearchDriver(null, true));
+
+        $cause = 'Database connection [unconfigured] not configured.';
+
+        self::assertEquals([
+            new UnverifiedDeclaration(SearchableUserResource::class, 'name', self::NAME_CLAIM, UnconfiguredConnectionUser::class, $cause),
+            new UnverifiedDeclaration(SearchableUserResource::class, 'email', self::EMAIL_CLAIM, UnconfiguredConnectionUser::class, $cause),
+        ], $this->rule()->validate(SearchableUserResource::class, UnconfiguredConnectionUser::class, $this->surface()));
+    }
+
+    /**
+     * Test that an unread catalogue is unverified and an empty one reported.
      *
      * @return void
      */
@@ -225,9 +295,12 @@ final class ValidateSearchIndexesTest extends TestCase
     {
         $this->register(new PatternSearchDriver(null, true, ['No index serves this column']));
 
-        self::assertSame([], $this->rule(null)->validate(SearchableUserResource::class, User::class, $this->schema()));
+        self::assertEquals(
+            [new UnverifiedDeclaration(SearchableUserResource::class, 'name', self::NAME_CLAIM, User::class)],
+            $this->rule(null)->validate(SearchableUserResource::class, User::class, $this->schema()),
+        );
 
-        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->schema());
+        $errors = self::defects($this->rule()->validate(SearchableUserResource::class, User::class, $this->schema()));
 
         self::assertCount(1, $errors);
         self::assertSame('No index serves this column', $errors[0]->defect);
@@ -242,7 +315,7 @@ final class ValidateSearchIndexesTest extends TestCase
     {
         $this->register(new PatternSearchDriver([SearchStrategy::EXACT], true));
 
-        $errors = $this->rule(null)->validate(SearchableUserResource::class, User::class, $this->schema());
+        $errors = self::defects($this->rule(null)->validate(SearchableUserResource::class, User::class, $this->schema()));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -260,7 +333,7 @@ final class ValidateSearchIndexesTest extends TestCase
     {
         $this->register(new PatternSearchDriver(null, true, ['No index serves this column']));
 
-        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->surface());
+        $errors = self::defects($this->rule()->validate(SearchableUserResource::class, User::class, $this->surface()));
 
         self::assertCount(2, $errors);
         self::assertSame('name', $errors[0]->fieldKey);
@@ -294,7 +367,7 @@ final class ValidateSearchIndexesTest extends TestCase
     {
         $this->register(new PatternSearchDriver(null, true, [], 'they cannot share a disjunction here'));
 
-        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->surface());
+        $errors = self::defects($this->rule()->validate(SearchableUserResource::class, User::class, $this->surface()));
 
         self::assertCount(1, $errors);
         self::assertSame('name', $errors[0]->fieldKey);
@@ -316,7 +389,7 @@ final class ValidateSearchIndexesTest extends TestCase
     {
         $this->register(new PatternSearchDriver(null, true, ['No index serves this column'], 'they cannot share a disjunction here'));
 
-        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $this->surface());
+        $errors = self::defects($this->rule()->validate(SearchableUserResource::class, User::class, $this->surface()));
 
         self::assertCount(3, $errors);
         self::assertSame(['name', 'name', 'email'], array_map(static fn ($error): string => $error->fieldKey, $errors));
@@ -340,7 +413,7 @@ final class ValidateSearchIndexesTest extends TestCase
             searchableColumns: ['name' => SearchStrategy::SUBSTRING, 'email' => SearchStrategy::SUBSTRING],
         );
 
-        $errors = $this->rule()->validate(SearchableUserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule()->validate(SearchableUserResource::class, User::class, $schema));
 
         self::assertSame(['name', 'email'], array_map(static fn ($error): string => $error->fieldKey, $errors));
     }
@@ -446,5 +519,27 @@ final class ValidateSearchIndexesTest extends TestCase
     private function connectionName(): string
     {
         return (new User)->getConnection()->getName() ?? '';
+    }
+
+    /**
+     * Narrow the findings to defects, failing on anything left unverified.
+     *
+     * @param  array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|\SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>  $findings
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     */
+    private static function defects(array $findings): array
+    {
+        $defects = [];
+
+        foreach ($findings as $finding) {
+
+            if (!$finding instanceof SchemaValidationError) {
+                self::fail(sprintf('Expected only defects, found: %s', $finding));
+            }
+
+            $defects[] = $finding;
+        }
+
+        return $defects;
     }
 }

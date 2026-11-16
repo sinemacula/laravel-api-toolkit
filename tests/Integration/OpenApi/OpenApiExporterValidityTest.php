@@ -19,7 +19,6 @@ use Opis\JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
-use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
@@ -30,8 +29,10 @@ use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ServerListValidator;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
-use Tests\Fixtures\Enums\AppErrorCode;
+use Tests\Concerns\WritesDocsDirectories;
+use Tests\Fixtures\Enums\TicketPriority;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
@@ -41,16 +42,19 @@ use Tests\Fixtures\OpenApi\ColumnlessIntrospectionProvider;
 use Tests\Fixtures\OpenApi\KeyedArrayRequestInput;
 use Tests\Fixtures\OpenApi\NumericKeyRequestInput;
 use Tests\Fixtures\OpenApi\PathArticleController;
+use Tests\Fixtures\OpenApi\PathBindingController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathHeaderedUserController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
 use Tests\Fixtures\OpenApi\PathKeyedArrayController;
 use Tests\Fixtures\OpenApi\PathNumericKeyController;
+use Tests\Fixtures\OpenApi\PathOperationController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathResponseStatusController;
+use Tests\Fixtures\OpenApi\PathRouteFactsController;
 use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
@@ -83,6 +87,8 @@ use Tests\TestCase;
 #[CoversClass(ServerListValidator::class)]
 final class OpenApiExporterValidityTest extends TestCase
 {
+    use WritesDocsDirectories;
+
     /** @var string The identifier of the OpenAPI 3.1 meta-schema that also validates every embedded schema. */
     private const string META_SCHEMA_ID = 'https://spec.openapis.org/oas/3.1/schema-base/2022-10-07';
 
@@ -179,6 +185,37 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that a document carrying operation ids, summaries, descriptions and
+     * tags stays valid.
+     *
+     * @return void
+     */
+    public function testDocumentWithOperationDocumentationValidatesAsOpenApiThreeOne(): void
+    {
+        $this->registerUserRoutes();
+        $this->router()->get('widgets/{widget}', [PathOperationController::class, 'show']);
+
+        $this->getConfig()->set('api-toolkit.openapi.operation_ids', true);
+        $this->getConfig()->set('api-toolkit.openapi.tags', ['User']);
+
+        $this->useDocsDirectory([
+            'operations/path-fixture.update.md' => "Replaces the user.\n\nSends a **full** representation.",
+            'operations/widgets.showcase.md'    => 'Shows a widget.',
+            'tags/User.md'                      => 'Accounts and sign-in.',
+        ]);
+
+        $document = $this->export()->document;
+        $user     = $document['paths']['/users/{user}'];
+        $result   = $this->validateAgainstMetaSchema($document);
+
+        self::assertSame('path-fixture.update.patch', $user['patch']['operationId']);
+        self::assertSame("Replaces the user.\n\nSends a **full** representation.", $user['patch']['description']);
+        self::assertSame('Show a widget', $document['paths']['/widgets/{widget}']['get']['summary']);
+        self::assertSame([['name' => 'User', 'description' => 'Accounts and sign-in.'], ['name' => 'PathOperation']], $document['tags']);
+        self::assertTrue($result->isValid(), 'A document carrying operation documentation must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
+    }
+
+    /**
      * Test that the emitted document validates as OpenAPI 3.1.
      *
      * @return void
@@ -242,6 +279,8 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     public function testDocumentDeclaresThreeOneAndPopulatesComponents(): void
     {
+        $this->registerUserRoutes();
+
         $document = $this->export()->document;
 
         self::assertIsString($document['openapi']);
@@ -251,7 +290,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         self::assertNotEmpty($components['schemas']);
         self::assertNotEmpty($components['parameters']);
-        self::assertNotEmpty($components['responses']);
+        self::assertNotEmpty($components['examples']);
     }
 
     /**
@@ -401,6 +440,67 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that every path parameter derivation validates as OpenAPI 3.1.
+     *
+     * @return void
+     */
+    public function testTypedPathParametersValidateAsOpenApiThreeOne(): void
+    {
+        $this->registerPathParameterRoutes();
+
+        $document = $this->export()->document;
+        $result   = $this->validateAgainstMetaSchema($document);
+
+        self::assertSame(['type' => 'string', 'format' => 'uuid'], $document['paths']['/tickets/{ticket}']['get']['parameters'][0]['schema']);
+        self::assertSame(['type' => 'integer'], $document['paths']['/users/{user}']['get']['parameters'][0]['schema']);
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $document['paths']['/statuses/{status}']['get']['parameters'][0]['schema']);
+        self::assertSame(['type' => 'string'], $document['paths']['/posts/{blog_post}']['get']['parameters'][0]['schema']);
+        self::assertTrue($result->isValid(), 'Typed path parameters must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
+
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that an enum only a route key references resolves to its component.
+     *
+     * @return void
+     */
+    public function testPathOnlyEnumReferenceResolves(): void
+    {
+        $this->router()->get('priorities/{ticket:priority}', [PathBindingController::class, 'ticket']);
+
+        $document = $this->export()->document;
+
+        self::assertSame(['$ref' => '#/components/schemas/TicketPriority'], $document['paths']['/priorities/{ticket}']['get']['parameters'][0]['schema']);
+        self::assertSame(['type' => 'string', 'enum' => ['low', 'high']], $document['components']['schemas']['TicketPriority']);
+
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that a path enum registered by one audience's export does not carry
+     * into the next.
+     *
+     * @return void
+     */
+    public function testPathEnumDoesNotCarryIntoTheNextAudience(): void
+    {
+        $this->registerTwoAudiences();
+
+        $this->router()->get('priorities/{ticket:priority}', [PathBindingController::class, 'ticket'])->notDocumentedIn('public'); // @phpstan-ignore method.notFound
+
+        $enums = $this->makeApplication()->make(EnumSchemaRegistry::class);
+
+        $this->export('internal');
+
+        self::assertContains(TicketPriority::class, $enums->classes());
+
+        $this->export('public');
+
+        self::assertNotContains(TicketPriority::class, $enums->classes());
+    }
+
+    /**
      * Test that every reference in the document resolves to a component.
      *
      * @return void
@@ -448,29 +548,48 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that one error response is emitted per defined error code.
-     *
-     * Application exceptions discovered outside the toolkit count too.
+     * Test that every error example is referenced, resolves, and validates
+     * against the exported error envelope.
      *
      * @return void
      */
-    public function testOneResponsePerErrorCode(): void
+    public function testErrorExamplesAreReferencedAndValidateAgainstTheEnvelope(): void
     {
-        $document   = $this->export()->document;
-        $responses  = $document['components']['responses'];
-        $errorCodes = ErrorCode::cases();
+        $this->registerUserRoutes();
+        $this->router()->post('sign-in', [PathRouteFactsController::class, 'signIn'])->middleware(['auth', 'throttle:60,1']);
+        $this->router()->post('spend', [PathRouteFactsController::class, 'spend']);
 
-        // The toolkit's codes plus the discovered application exception
-        self::assertIsArray($responses);
-        self::assertCount(count($errorCodes) + 1, $responses);
+        $document = $this->export()->document;
+        $examples = $document['components']['examples'];
 
-        self::assertIsArray($responses);
+        self::assertIsArray($examples);
 
-        foreach ($errorCodes as $code) {
-            self::assertArrayHasKey('ErrorResponse' . $code->getCode(), $responses);
+        $referenced = array_filter(
+            $this->collectReferences($document['paths']),
+            static fn (string $reference): bool => str_starts_with($reference, '#/components/examples/'),
+        );
+
+        sort($referenced);
+
+        self::assertSame(
+            ['Error10001', 'Error10101', 'Error10102', 'Error10103', 'Error10105', 'Error10106', 'Error10107', 'Error10108', 'Error20002'],
+            array_keys($examples),
+        );
+        self::assertSame(array_map(static fn (string $name): string => '#/components/examples/' . $name, array_keys($examples)), $referenced);
+
+        foreach ($examples as $name => $example) {
+
+            self::assertIsArray($example);
+
+            /** @var array<string, mixed> $value */
+            $value  = $example['value'];
+            $result = $this->validateAgainstExported($document, '/components/schemas/ErrorEnvelope', $value);
+
+            self::assertTrue($result->isValid(), sprintf('The %s example must validate against the ErrorEnvelope schema: %s', $name, $this->formatErrors($result)));
         }
 
-        self::assertArrayHasKey('ErrorResponse' . AppErrorCode::WIDGET_FAILURE->getCode(), $responses);
+        $this->assertReferencesResolve($document);
+        self::assertTrue($this->validateAgainstMetaSchema($document)->isValid());
     }
 
     /**
@@ -1371,18 +1490,12 @@ final class OpenApiExporterValidityTest extends TestCase
         $notFound = $paths['/users/{user}']['get']['responses']['404']['content']['application/json'];
 
         self::assertSame('#/components/schemas/ErrorEnvelope', $notFound['schema']['$ref']);
-        self::assertSame(
-            ['NotFoundException' => ['value' => ['error' => ['status' => 404, 'code' => 10103]]]],
-            $notFound['examples'],
-        );
+        self::assertSame(['Error10103' => ['$ref' => '#/components/examples/Error10103']], $notFound['examples']);
 
         $conflict = $paths['/users']['post']['responses']['409']['content']['application/json'];
 
         self::assertSame('#/components/schemas/ErrorEnvelope', $conflict['schema']['$ref']);
-        self::assertSame(
-            ['ConflictException' => ['value' => ['error' => ['status' => 409, 'code' => 10108]]]],
-            $conflict['examples'],
-        );
+        self::assertSame(['Error10108' => ['$ref' => '#/components/examples/Error10108']], $conflict['examples']);
     }
 
     /**
@@ -1951,6 +2064,32 @@ final class OpenApiExporterValidityTest extends TestCase
         $router->get('users/{user}', [PathFixtureController::class, 'show']);
         $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update']);
         $router->delete('users/{user}', [PathFixtureController::class, 'destroy']);
+    }
+
+    /**
+     * Register one route per path parameter derivation.
+     *
+     * @return void
+     */
+    private function registerPathParameterRoutes(): void
+    {
+        $router = $this->router();
+
+        $router->get('uuids/{value}', [PathBindingController::class, 'value'])->whereUuid('value');
+        $router->get('numbers/{value}', [PathBindingController::class, 'value'])->whereNumber('value');
+        $router->get('states/{value}', [PathBindingController::class, 'value'])->whereIn('value', ['draft', 'published']);
+        $router->get('codes/{value}', [PathBindingController::class, 'value'])->whereAlpha('value');
+        $router->get('ulids/{value}', [PathBindingController::class, 'value'])->whereUlid('value');
+        $router->get('versions/{value}', [PathBindingController::class, 'value'])->where('value', 'v[0-9]+|latest');
+        $router->get('slugs/{value}', [PathBindingController::class, 'value'])->where('value', '\w+');
+        $router->get('statuses/{status}', [PathBindingController::class, 'status']);
+        $router->get('tickets/{ticket}', [PathBindingController::class, 'ticket']);
+        $router->get('users/{user}', [PathBindingController::class, 'user']);
+        $router->get('emails/{user:email}', [PathBindingController::class, 'user']);
+        $router->get('numbered/{ticket}', [PathBindingController::class, 'ticket'])->whereNumber('ticket');
+        $router->get('invoices/{invoice}', [PathBindingController::class, 'invoice']);
+        $router->bind('blog_post', static fn (string $value): ?Post => Post::query()->find($value));
+        $router->get('posts/{blog_post}', [PathBindingController::class, 'blogPost']);
     }
 
     /**

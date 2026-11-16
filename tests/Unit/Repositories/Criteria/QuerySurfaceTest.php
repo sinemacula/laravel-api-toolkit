@@ -9,6 +9,7 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\FilterableUserResource;
@@ -26,6 +27,8 @@ use Tests\TestCase;
 #[CoversClass(QuerySurface::class)]
 final class QuerySurfaceTest extends TestCase
 {
+    use LocalisesToolkitMessages;
+
     /**
      * Test that only a declared filter column is permitted.
      *
@@ -123,6 +126,28 @@ final class QuerySurfaceTest extends TestCase
                 $exception->errors()['filters.title.$contains'] ?? [],
             );
         }
+    }
+
+    /**
+     * Test that every rejection is worded in the current locale.
+     *
+     * @return void
+     */
+    public function testRejectionsAreWordedInTheCurrentLocale(): void
+    {
+        $this->localiseToolkitMessages([
+            'query.undeclared_key'         => 'Der Schlüssel ":key" ist nicht zulässig.',
+            'filters.unpermitted_operator' => 'Der Operator ":operator" ist für ":key" nicht zulässig, erlaubt sind :accepts.',
+        ]);
+
+        $surface = $this->make(filterable: ['email' => Capability::EXACT]);
+
+        $this->assertRejectsWith(fn () => $surface->guardSort('secret', new User), ['order.secret' => ['Der Schlüssel "secret" ist nicht zulässig.']]);
+        $this->assertRejectsWith(fn () => $surface->guardFilterOperator('password', '$eq', new User), ['filters.password' => ['Der Schlüssel "password" ist nicht zulässig.']]);
+        $this->assertRejectsWith(
+            fn () => $surface->guardFilterOperator('email', '$neq', new User),
+            ['filters.email.$neq' => ['Der Operator "$neq" ist für "email" nicht zulässig, erlaubt sind $eq, $in, $null, $notNull.']],
+        );
     }
 
     /**
@@ -333,6 +358,23 @@ final class QuerySurfaceTest extends TestCase
         }
 
         self::assertNull($rejection, 'The "' . $key . '" key was rejected but should have been permitted.');
+    }
+
+    /**
+     * Assert that the guard rejects with exactly the given errors.
+     *
+     * @param  callable(): void  $guard
+     * @param  array<string, array<int, string>>  $errors
+     * @return void
+     */
+    private function assertRejectsWith(callable $guard, array $errors): void
+    {
+        try {
+            $guard();
+            self::fail('Expected a ValidationException for ' . implode(', ', array_keys($errors)) . '.');
+        } catch (ValidationException $exception) {
+            self::assertSame($errors, $exception->errors());
+        }
     }
 
     /**
