@@ -10,8 +10,7 @@ use Illuminate\Contracts\Queue\Job;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Queue\Events\JobFailed;
-use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobAttempted;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -226,39 +225,20 @@ final class DeferrableIntegrationTest extends TestCase
     }
 
     /**
-     * Test that JobProcessed event triggers flush.
+     * Test that JobAttempted event triggers flush.
      *
      * @return void
      *
      * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
-    public function testJobProcessedEventTriggersFlush(): void
+    public function testJobAttemptedEventTriggersFlush(): void
     {
         $this->repository->defer(['name' => 'Judy', 'email' => 'judy@example.com', 'password' => 'secret']);
         $this->repository->defer(['name' => 'Karl', 'email' => 'karl@example.com', 'password' => 'secret']);
 
         $job = \Mockery::mock(Job::class);
 
-        Event::dispatch(new JobProcessed('sync', $job));
-
-        self::assertSame(2, DB::table('users')->count());
-    }
-
-    /**
-     * Test that JobFailed event triggers flush.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
-     */
-    public function testJobFailedEventTriggersFlush(): void
-    {
-        $this->repository->defer(['name' => 'Leo', 'email' => 'leo@example.com', 'password' => 'secret']);
-        $this->repository->defer(['name' => 'Mia', 'email' => 'mia@example.com', 'password' => 'secret']);
-
-        $job = \Mockery::mock(Job::class);
-
-        Event::dispatch(new JobFailed('sync', $job, new \RuntimeException('test')));
+        Event::dispatch(new JobAttempted('sync', $job, new \RuntimeException('test')));
 
         self::assertSame(2, DB::table('users')->count());
     }

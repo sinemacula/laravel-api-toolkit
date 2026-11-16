@@ -544,7 +544,7 @@ With `$cacheReferenceTable = true`, the full table is loaded once and memoised i
 never touch the database. Use it only for small lookup tables that rarely change.
 
 **Deferrable trait** - buffer inserts in memory and flush them as bulk `INSERT` statements at the lifecycle boundary
-(`RequestHandled`, `CommandFinished`, `JobProcessed`, or `JobFailed`):
+(`RequestHandled`, `CommandFinished`, or `JobAttempted`):
 
 ```php
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
@@ -556,6 +556,9 @@ class AuditRepository extends ApiRepository
 
 $auditRepository->defer(['user_id' => 1, 'action' => 'login']);
 ```
+
+Every queue job attempt flushes, including one that fails or is released for a retry, so a retried job keeps the rows
+of its earlier attempts.
 
 Each row goes to its model's connection, resolved when the row is deferred, so a later change of the default connection
 does not redirect it. Timestamps follow the model: none when it has timestamps disabled, otherwise its own

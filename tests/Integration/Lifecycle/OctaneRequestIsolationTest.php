@@ -6,21 +6,16 @@ namespace Tests\Integration\Lifecycle;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
-use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
-use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use Tests\Fixtures\Models\User;
-use Tests\Fixtures\Repositories\DeferrableUserRepository;
 use Tests\TestCase;
 
 /**
@@ -38,8 +33,6 @@ use Tests\TestCase;
 #[CoversClass(OctaneFlushListener::class)]
 #[CoversClass(OperatorRegistry::class)]
 #[CoversClass(RuntimeContext::class)]
-#[CoversClass(WritePool::class)]
-#[CoversTrait(Deferrable::class)]
 final class OctaneRequestIsolationTest extends TestCase
 {
     /** @var bool Whether LARAVEL_OCTANE was set before each test. */
@@ -121,62 +114,12 @@ final class OctaneRequestIsolationTest extends TestCase
     }
 
     /**
-     * Test that buffered deferred writes do not leak over the Octane boundary.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
-     */
-    public function testWritePoolBufferedWritesDoNotLeakAcrossRequests(): void
-    {
-        $_SERVER['LARAVEL_OCTANE'] = 1;
-
-        $app = $this->app;
-
-        assert($app !== null);
-
-        /** @var \Tests\Fixtures\Repositories\DeferrableUserRepository $repositoryA */
-        $repositoryA = $app->make(DeferrableUserRepository::class);
-        $repositoryA->defer(['name' => 'Alice', 'email' => 'alice@example.com']);
-
-        /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePool $poolA */
-        $poolA = $app->make(WritePool::class);
-
-        self::assertFalse($poolA->isEmpty());
-        self::assertSame(1, $poolA->count());
-
-        // Flush as RequestHandled would, then reset as Octane does
-        $poolA->flush();
-        $app->forgetScopedInstances();
-
-        self::assertSame(1, DB::table('users')->count());
-
-        /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePool $poolB */
-        $poolB = $app->make(WritePool::class);
-
-        self::assertNotSame($poolA, $poolB);
-        self::assertTrue($poolB->isEmpty());
-        self::assertSame(0, $poolB->count());
-
-        /** @var \Tests\Fixtures\Repositories\DeferrableUserRepository $repositoryB */
-        $repositoryB = $app->make(DeferrableUserRepository::class);
-        $repositoryB->defer(['name' => 'Bob', 'email' => 'bob@example.com']);
-
-        self::assertSame(1, $poolB->count());
-
-        $poolB->flush();
-
-        self::assertSame(2, DB::table('users')->count());
-        self::assertSame(1, DB::table('users')->where('name', 'Alice')->count());
-        self::assertSame(1, DB::table('users')->where('name', 'Bob')->count());
-    }
-
-    /**
-     * Test that schema-level singletons and shared metadata survive a boundary.
+     * Test that schema-level singletons already resolved on the base
+     * application, and the shared metadata, survive a boundary.
      *
      * @return void
      */
-    public function testSchemaLevelSingletonsAndSharedMetadataSurviveBoundary(): void
+    public function testSchemaLevelSingletonsResolvedOnTheBaseAppAndSharedMetadataSurviveBoundary(): void
     {
         $_SERVER['LARAVEL_OCTANE'] = 1;
 

@@ -1410,6 +1410,7 @@ final class ApiServiceProviderTest extends TestCase
     {
         self::assertTrue($this->hasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
         self::assertTrue($this->hasSubscriberListener(CommandFinished::class, WritePoolFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(JobAttempted::class, WritePoolFlushSubscriber::class));
     }
 
     /**
