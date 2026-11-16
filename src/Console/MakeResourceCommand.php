@@ -79,7 +79,7 @@ final class MakeResourceCommand extends GeneratorCommand
         try {
             $this->model        = $this->resolveModel($class);
             $this->resourceType = $this->resolveType();
-            $notes              = $this->refuseConflicts($discovery, $class);
+            $note               = $this->refuseConflicts($discovery, $class);
         } catch (\InvalidArgumentException $exception) {
 
             $this->components->error($exception->getMessage());
@@ -100,7 +100,10 @@ final class MakeResourceCommand extends GeneratorCommand
             $this->components->warn($warning);
         }
 
-        foreach (array_filter([...$notes, $this->morphAliasNote()], is_string(...)) as $note) {
+        // A model bound elsewhere never gains the resource's alias
+        $note ??= $this->morphAliasNote();
+
+        if ($note !== null) {
             $this->components->info($note);
         }
 
@@ -152,28 +155,28 @@ final class MakeResourceCommand extends GeneratorCommand
         $key  = $key === null ? null : $this->literal($key);
 
         if ($this->referencesModelQualified($name)) {
-            $stub  = str_replace("use {{ namespacedModel }};\n", '', $stub);
+            $stub  = str_replace(["use {{ namespacedModel }};\r\n", "use {{ namespacedModel }};\n"], '', $stub);
             $model = '\\' . $this->model;
         } else {
             $model = class_basename($this->model);
         }
 
-        return str_replace(
-            ['{{ namespacedModel }}', '{{ model }}', '{{ type }}', '{{ default }}', '{{ fields }}'],
-            [
-                $this->model,
-                $model,
-                $this->literal($this->resourceType),
-                $key === null ? '[]' : '[' . $key . ']',
-                $key === null ? '' : "\n            Field::scalar(" . $key . "),\n        ",
-            ],
-            $stub,
-        );
+        // One pass, so a placeholder in a substituted value stays literal
+        return strtr($stub, [
+            '{{ namespacedModel }}' => $this->model,
+            '{{ model }}'           => $model,
+            '{{ type }}'            => $this->literal($this->resourceType),
+            '{{ default }}'         => $key === null ? '[]' : '[' . $key . ']',
+            '{{ fields }}'          => $key === null ? '' : "\n            Field::scalar(" . $key . "),\n        ",
+        ]);
     }
 
     /**
      * Resolve the model the resource presents, guessing it from the class name
      * when no model is given.
+     *
+     * The application model wins over a same-named class outside it, such as a
+     * framework facade alias, and a given name is otherwise used as is.
      *
      * @param  string  $class
      * @return class-string<\Illuminate\Database\Eloquent\Model>
@@ -183,11 +186,12 @@ final class MakeResourceCommand extends GeneratorCommand
     private function resolveModel(string $class): string
     {
         $option = $this->option('model');
-        $model  = is_string($option) && $option !== ''
-            ? $option
-            : Str::replaceEnd('Resource', '', class_basename($class));
+        $given  = is_string($option) && $option !== '' ? $option : null;
+        $model  = $this->qualifyModel($given ?? Str::replaceEnd('Resource', '', class_basename($class)));
 
-        $model = class_exists($model) ? $model : $this->qualifyModel($model);
+        if (!class_exists($model) && $given !== null && class_exists($given)) {
+            $model = $given;
+        }
 
         if (!class_exists($model)) {
             throw new \InvalidArgumentException(sprintf('The model [%s] does not exist.', $model));
@@ -226,15 +230,16 @@ final class MakeResourceCommand extends GeneratorCommand
 
     /**
      * Refuse a class name, model binding or resource type that would fail the
-     * next boot, returning the notes for a binding that would not.
+     * next boot, returning the note for an explicit entry binding the model to
+     * another class.
      *
      * @param  \SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery  $discovery
      * @param  string  $class
-     * @return array<int, string>
+     * @return string|null
      *
      * @throws \InvalidArgumentException
      */
-    private function refuseConflicts(ResourceDiscovery $discovery, string $class): array
+    private function refuseConflicts(ResourceDiscovery $discovery, string $class): ?string
     {
         if (in_array(strtolower(class_basename($class)), self::IMPORTED_NAMES, true)) {
             throw new \InvalidArgumentException(sprintf('The class name [%s] clashes with a class the resource imports.', class_basename($class)));
@@ -246,12 +251,12 @@ final class MakeResourceCommand extends GeneratorCommand
         $this->refuseClaimedType($explicit + $scanned, $class);
 
         if (array_key_exists($this->model, $explicit)) {
-            return $explicit[$this->model] === $class ? [] : [sprintf(
+            return $explicit[$this->model] === $class ? null : sprintf(
                 'The resource_map binds [%s] to [%s], so [%s] is not used for it until that entry changes.',
                 $this->model,
                 $explicit[$this->model],
                 $class,
-            )];
+            );
         }
 
         $bound = $scanned[$this->model] ?? $class;
@@ -260,7 +265,7 @@ final class MakeResourceCommand extends GeneratorCommand
             throw new \InvalidArgumentException(sprintf('The model [%s] is already bound to [%s]. Declare the canonical resource in the resource_map.', $this->model, $bound));
         }
 
-        return [];
+        return null;
     }
 
     /**
@@ -328,7 +333,7 @@ final class MakeResourceCommand extends GeneratorCommand
      * Warn when the resource lies outside every discovery path.
      *
      * The default roots are compared as patterns, since the directory may not
-     * exist yet.
+     * exist yet, and every path is matched literally.
      *
      * @param  string  $directory
      * @return string|null
@@ -337,18 +342,18 @@ final class MakeResourceCommand extends GeneratorCommand
     {
         $configured = Config::get('api-toolkit.resources.paths');
 
-        $roots = match (true) {
-            $configured === null  => [app_path('Http/Resources'), app_path('*/Http/Resources')],
-            is_array($configured) => array_filter($configured, is_string(...)),
+        $patterns = match (true) {
+            $configured === null  => [$this->pattern(app_path('Http/Resources')), $this->pattern(app_path()) . '/*/Http/Resources'],
+            is_array($configured) => array_map(fn (string $root): string => $this->pattern(rtrim($root, '/')), array_filter($configured, is_string(...))),
             default               => [],
         };
 
-        if ($roots === []) {
+        if ($patterns === []) {
             return 'Resource discovery is disabled, so bind the resource in the resource_map.';
         }
 
-        foreach ($roots as $root) {
-            if ($this->isWithin($directory, rtrim($root, '/'))) {
+        foreach ($patterns as $pattern) {
+            if ($this->isWithin($directory, $pattern)) {
                 return null;
             }
         }
@@ -377,6 +382,17 @@ final class MakeResourceCommand extends GeneratorCommand
         } while ($directory !== $child);
 
         return false;
+    }
+
+    /**
+     * Escape the given path so a pattern matches it literally.
+     *
+     * @param  string  $path
+     * @return string
+     */
+    private function pattern(string $path): string
+    {
+        return addcslashes($path, '\*?[');
     }
 
     /**

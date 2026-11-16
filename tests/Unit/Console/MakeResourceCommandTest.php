@@ -129,8 +129,8 @@ final class MakeResourceCommandTest extends TestCase
 
     /**
      * Test that the generated resource loads, is discovered for its model,
-     * passes schema validation and serialises the key by default and on
-     * request.
+     * passes schema validation and serialises only the key, by default and when
+     * an undeclared field is requested.
      *
      * @return void
      */
@@ -160,7 +160,7 @@ final class MakeResourceCommandTest extends TestCase
         $post = Post::query()->create(['user_id' => 1, 'title' => 'Title', 'body' => 'Body']);
 
         self::assertSame(['_type' => 'post', 'id' => $post->getKey()], $this->serialise($class, $post, []));
-        self::assertSame(['_type' => 'post', 'id' => $post->getKey()], $this->serialise($class, $post, ['fields' => ['post' => 'id']]));
+        self::assertSame(['_type' => 'post', 'id' => $post->getKey()], $this->serialise($class, $post, ['fields' => ['post' => 'id,title']]));
     }
 
     /**
@@ -184,6 +184,30 @@ final class MakeResourceCommandTest extends TestCase
         $this->pendingArtisan(self::COMMAND, ['name' => 'OrderResource', '--model' => '', '--force' => true])->assertExitCode(0)->run();
 
         self::assertSame($contents, $this->generated('Http/Resources/OrderResource.php'));
+    }
+
+    /**
+     * Test that the application model wins over a framework facade alias of the
+     * same name, whether guessed or given.
+     *
+     * @return void
+     */
+    public function testApplicationModelWinsOverAFacadeAlias(): void
+    {
+        self::assertTrue(class_exists('Event'));
+
+        $this->declareClass('Models/Event.php', "namespace App\\Models;\n\nclass Event extends \\Illuminate\\Database\\Eloquent\\Model {}");
+
+        $this->pendingArtisan(self::COMMAND, ['name' => 'EventResource'])->assertExitCode(0)->run();
+        $this->pendingArtisan(self::COMMAND, ['name' => 'MeetingResource', '--model' => 'Event', '--type' => 'meeting'])->assertExitCode(0)->run();
+
+        foreach (['EventResource', 'MeetingResource'] as $name) {
+
+            $contents = $this->generated('Http/Resources/' . $name . '.php');
+
+            self::assertStringContainsString("use App\\Models\\Event;\n", $contents);
+            self::assertStringContainsString('#[ForModel(Event::class)]', $contents);
+        }
     }
 
     /**
@@ -338,17 +362,29 @@ final class MakeResourceCommandTest extends TestCase
     }
 
     /**
-     * Test that a type an explicitly mapped resource returns fails, past an
-     * entry for the resource itself.
+     * Test that a placeholder inside the type is written literally rather than
+     * substituted.
+     *
+     * @return void
+     */
+    public function testPlaceholderInTheTypeIsWrittenLiterally(): void
+    {
+        $this->pendingArtisan(self::COMMAND, ['name' => 'PostResource', '--model' => Post::class, '--type' => '{{ fields }}{{ default }}'])
+            ->assertExitCode(0)
+            ->run();
+
+        self::assertStringContainsString('RESOURCE_TYPE = \'{{ fields }}{{ default }}\';', $this->generated('Http/Resources/PostResource.php'));
+        $this->assertLints($this->root . '/app/Http/Resources/PostResource.php');
+    }
+
+    /**
+     * Test that a type an explicitly mapped resource returns fails.
      *
      * @return void
      */
     public function testTypeOfAnExplicitlyMappedResourceFails(): void
     {
-        Config::set('api-toolkit.resources.resource_map', [
-            Tag::class  => self::NAMESPACE . 'PostResource',
-            User::class => UserResource::class,
-        ]);
+        Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
 
         $this->pendingArtisan(self::COMMAND, ['name' => 'PostResource', '--model' => Post::class, '--type' => 'users'])
             ->expectsOutputToContain(sprintf('The resource type [users] is already used by [%s].', UserResource::class))
@@ -417,7 +453,8 @@ final class MakeResourceCommandTest extends TestCase
 
     /**
      * Test that an explicit entry naming another resource writes the resource
-     * with a note that the entry still decides the binding.
+     * with a note that the entry still decides the binding, and no morph alias
+     * note for a type that will not be mapped.
      *
      * @return void
      */
@@ -425,6 +462,7 @@ final class MakeResourceCommandTest extends TestCase
     {
         Config::set('api-toolkit.resources.paths', [$this->discoveryFixture('Primary')]);
         Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+        Config::set('api-toolkit.resources.enable_dynamic_morph_mapping', true);
 
         $this->pendingArtisan(self::COMMAND, ['name' => 'MemberResource', '--model' => User::class])
             ->expectsOutputToContain(sprintf(
@@ -433,6 +471,7 @@ final class MakeResourceCommandTest extends TestCase
                 UserResource::class,
                 self::NAMESPACE,
             ))
+            ->doesntExpectOutputToContain('Polymorphic')
             ->assertExitCode(0)
             ->run();
 
@@ -606,6 +645,37 @@ final class MakeResourceCommandTest extends TestCase
     }
 
     /**
+     * Test that a path holding pattern characters is matched literally, both
+     * under the default paths and as a configured path.
+     *
+     * @return void
+     */
+    public function testPathHoldingPatternCharactersIsMatchedLiterally(): void
+    {
+        assert($this->app !== null);
+
+        $app = $this->root . '/[x]*?/app';
+
+        mkdir($app, 0o755, true);
+
+        $this->app->useAppPath($app);
+
+        $this->pendingArtisan(self::COMMAND, ['name' => 'PostResource', '--model' => Post::class])
+            ->doesntExpectOutputToContain('discovery')
+            ->assertExitCode(0)
+            ->run();
+
+        Config::set('api-toolkit.resources.paths', [$app . '/Http/Resources']);
+
+        $this->pendingArtisan(self::COMMAND, ['name' => 'PostResource', '--model' => Post::class, '--force' => true])
+            ->doesntExpectOutputToContain('discovery')
+            ->assertExitCode(0)
+            ->run();
+
+        self::assertFileExists($app . '/Http/Resources/PostResource.php');
+    }
+
+    /**
      * Test that the default module pattern matches a single directory level.
      *
      * @return void
@@ -730,6 +800,30 @@ final class MakeResourceCommandTest extends TestCase
         $this->pendingArtisan(self::COMMAND, ['name' => 'PostResource', '--model' => Post::class])->assertExitCode(0)->run();
 
         self::assertSame("<?php\n\n// PostResource 'post' Post\n", $this->generated('Http/Resources/PostResource.php'));
+    }
+
+    /**
+     * Test that a published stub saved with Windows line endings still drops
+     * the model import when the model is referenced by its qualified name.
+     *
+     * @return void
+     */
+    public function testPublishedStubWithWindowsLineEndingsDropsTheModelImport(): void
+    {
+        assert($this->app !== null);
+
+        $this->app->setBasePath($this->root);
+
+        $stub = file_get_contents(MakeResourceCommand::STUB);
+
+        assert($stub !== false);
+
+        $this->generate('../stubs/api-toolkit.resource.stub', str_replace("\n", "\r\n", $stub));
+
+        $this->pendingArtisan(self::COMMAND, ['name' => 'FieldResource', '--model' => FieldModel::class])->assertExitCode(0)->run();
+
+        self::assertStringNotContainsString('use ' . FieldModel::class . ';', $this->generated('Http/Resources/FieldResource.php'));
+        $this->assertLints($this->root . '/app/Http/Resources/FieldResource.php');
     }
 
     /**
