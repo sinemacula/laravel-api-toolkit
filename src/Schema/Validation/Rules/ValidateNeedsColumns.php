@@ -57,7 +57,7 @@ final readonly class ValidateNeedsColumns implements SchemaValidationRule
 
         foreach ($declared as $key => $needs) {
 
-            // An empty listing means the columns are unknown, so nothing is proven
+            // An empty listing means the columns are unknown
             if ($columns === []) {
                 $errors = [...$errors, ...$this->unverified($resourceClass, $key, $needs, $model)];
 

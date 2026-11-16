@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateNeedsColumns;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
@@ -43,6 +44,7 @@ final class ValidateNeedsColumnsTest extends TestCase
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
 
         self::assertCount(1, $errors);
+        self::assertInstanceOf(SchemaValidationError::class, $errors[0]);
         self::assertSame(UserResource::class, $errors[0]->resourceClass);
         self::assertSame('full_name', $errors[0]->fieldKey);
         self::assertSame('Field declares needs() on "surname", and table "users" carries no such column', $errors[0]->defect);
@@ -73,7 +75,11 @@ final class ValidateNeedsColumnsTest extends TestCase
                 ['full_name', 'Field declares needs() on "surname", and table "users" carries no such column'],
                 ['contact', 'Field declares needs() on "phone", and table "users" carries no such column'],
             ],
-            array_map(static fn ($error): array => [$error->fieldKey, $error->defect], $errors),
+            array_map(static function (SchemaValidationError|UnverifiedDeclaration $error): array {
+                self::assertInstanceOf(SchemaValidationError::class, $error);
+
+                return [$error->fieldKey, $error->defect];
+            }, $errors),
         );
     }
 
