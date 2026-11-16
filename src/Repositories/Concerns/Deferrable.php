@@ -63,7 +63,7 @@ trait Deferrable
     }
 
     /**
-     * Fill the model's timestamp columns the attributes leave unset.
+     * Fill the model's timestamp columns the attributes leave out.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>  $attributes
@@ -79,11 +79,11 @@ trait Deferrable
 
         foreach ([$model->getCreatedAtColumn(), $model->getUpdatedAtColumn()] as $column) {
 
-            if ($column === null) {
+            if ($column === null || array_key_exists($column, $attributes)) {
                 continue;
             }
 
-            $attributes[$column] ??= $now;
+            $attributes[$column] = $now;
         }
 
         return $attributes;

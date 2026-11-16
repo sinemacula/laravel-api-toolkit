@@ -61,7 +61,7 @@ final class DeferrableIntegrationTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(3, 5, transactions: $this->transactionTracker())); // @phpstan-ignore method.nonObject
+        $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(3, 5, transactions: $this->transactionTracker(...))); // @phpstan-ignore method.nonObject
 
         $this->repository = $this->app->make(DeferrableUserRepository::class); // @phpstan-ignore method.nonObject
     }

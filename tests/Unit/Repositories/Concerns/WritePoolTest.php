@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Concerns;
 
+use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
@@ -283,7 +284,7 @@ final class WritePoolTest extends TestCase
      */
     public function testAddTriggersAutoFlushWhenPoolLimitReached(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 3, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 3, transactions: $this->transactionTracker(...));
 
         $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
         $pool->add('testing', 'test_records', ['name' => 'b', 'value' => '2']);
@@ -300,7 +301,7 @@ final class WritePoolTest extends TestCase
      */
     public function testAddTriggersAutoFlushWhenPoolLimitExceeded(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker(...));
 
         $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
         $pool->add('testing', 'test_records', ['name' => 'b', 'value' => '2']);
@@ -316,7 +317,7 @@ final class WritePoolTest extends TestCase
      */
     public function testSubsequentAddsAfterAutoFlushAccumulateInFreshBuffer(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker(...));
 
         $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
         $pool->add('testing', 'test_records', ['name' => 'b', 'value' => '2']);
@@ -570,7 +571,7 @@ final class WritePoolTest extends TestCase
      */
     public function testAutoFlushUsesLogStrategyWhenConfiguredAsLog(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::LOG, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::LOG, transactions: $this->transactionTracker(...));
 
         Log::shouldReceive('error')->never();
         Log::shouldReceive('warning')->once()->withAnyArgs();
@@ -588,7 +589,7 @@ final class WritePoolTest extends TestCase
      */
     public function testAutoFlushThrowsWhenConfiguredAsThrow(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::THROW, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::THROW, transactions: $this->transactionTracker(...));
 
         $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
 
@@ -604,7 +605,7 @@ final class WritePoolTest extends TestCase
      */
     public function testAutoFlushUsesCollectStrategyWhenConfiguredAsCollect(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::COLLECT, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::COLLECT, transactions: $this->transactionTracker(...));
 
         $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
         $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
@@ -629,7 +630,7 @@ final class WritePoolTest extends TestCase
      */
     public function testLastAutoFlushResultReturnsResultAfterAutoFlush(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker(...));
 
         $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
         $pool->add('testing', 'test_records', ['name' => 'b', 'value' => '2']);
@@ -1027,7 +1028,7 @@ final class WritePoolTest extends TestCase
         $warm = $this->cacheStore('test_records');
         $warm->put('stale-query-hash', collect(['stale']), 60);
 
-        $pool = new WritePool(chunkSize: 500, poolLimit: 1, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 1, transactions: $this->transactionTracker(...));
         $pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
 
         self::assertSame(1, DB::table('test_records')->count());
@@ -1362,6 +1363,66 @@ final class WritePoolTest extends TestCase
     }
 
     /**
+     * Test that a target on an unconfigured connection fails under the
+     * strategy, so rows flushed before it are not retried.
+     *
+     * @return void
+     */
+    public function testUnconfiguredConnectionFailsItsTargetOnly(): void
+    {
+        $this->pool->add('testing', 'test_records', ['name' => 'kept', 'value' => '1']);
+        $this->pool->add('missing', 'test_records', ['name' => 'lost', 'value' => '2']);
+
+        $flushResult = $this->pool->flush();
+
+        self::assertSame(['missing'], array_keys($flushResult->failures()));
+        self::assertSame(1, $this->pool->count());
+
+        $this->pool->flush();
+
+        self::assertSame(1, DB::table('test_records')->count());
+    }
+
+    /**
+     * Test that the transactional mode fails a target on an unconfigured
+     * connection under the strategy, so rows flushed before it are not retried.
+     *
+     * @return void
+     */
+    public function testTransactionalUnconfiguredConnectionFailsItsTargetOnly(): void
+    {
+        $pool = new WritePool(chunkSize: 500, poolLimit: 10000, transactional: true);
+
+        $pool->add('testing', 'test_records', ['name' => 'kept', 'value' => '1']);
+        $pool->add('missing', 'test_records', ['name' => 'lost', 'value' => '2']);
+
+        self::assertSame(['missing'], array_keys($pool->flush()->failures()));
+
+        $pool->flush();
+
+        self::assertSame(1, DB::table('test_records')->count());
+        self::assertSame(1, $pool->count());
+    }
+
+    /**
+     * Test that the pool limit reached with an unconfigured connection buffered
+     * still auto-flushes, failing that target under the strategy.
+     *
+     * @return void
+     */
+    public function testAutoFlushTreatsAnUnconfiguredConnectionAsIdle(): void
+    {
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker(...));
+
+        $pool->add('missing', 'test_records', ['name' => 'lost', 'value' => '1']);
+        $pool->add('testing', 'test_records', ['name' => 'kept', 'value' => '2']);
+
+        self::assertSame(1, DB::table('test_records')->count());
+        self::assertSame(['missing'], array_keys($pool->lastAutoFlushResult()?->failures() ?? []));
+        self::assertSame(1, $pool->count());
+    }
+
+    /**
      * Test that the pool limit inside a transaction on the target connection
      * does not flush, and the next add after commit does.
      *
@@ -1371,7 +1432,7 @@ final class WritePoolTest extends TestCase
     {
         $this->useAuditTestTables();
 
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker(...));
 
         DB::connection('audit')->transaction(function () use ($pool): void {
             $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
@@ -1397,7 +1458,7 @@ final class WritePoolTest extends TestCase
      */
     public function testAutoFlushWaitsForATransactionOnTheDefaultConnection(): void
     {
-        $pool = new WritePool(chunkSize: 500, poolLimit: 1, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 1, transactions: $this->transactionTracker(...));
 
         DB::transaction(function () use ($pool): void {
             $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
@@ -1423,7 +1484,7 @@ final class WritePoolTest extends TestCase
     {
         $this->useAuditTestTables();
 
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker(...));
 
         try {
             DB::connection('audit')->transaction(function () use ($pool): void {
@@ -1453,7 +1514,7 @@ final class WritePoolTest extends TestCase
     {
         $this->useAuditTestTables();
 
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker(...));
 
         DB::connection('audit')->transaction(function () use ($pool): void {
             $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
@@ -1495,6 +1556,26 @@ final class WritePoolTest extends TestCase
     }
 
     /**
+     * Test that a transaction the tracker never saw still counts as open, so
+     * only the test's wrapping transaction is discounted.
+     *
+     * @return void
+     */
+    public function testAutoFlushCountsATransactionTheTrackerDoesNotHold(): void
+    {
+        $this->useAuditTestTables();
+
+        $pool = new WritePool(chunkSize: 500, poolLimit: 1, transactions: fn (): DatabaseTransactionsManager => new DatabaseTransactionsManager);
+
+        DB::connection('audit')->transaction(function () use ($pool): void {
+            $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
+        });
+
+        self::assertSame(0, DB::connection('audit')->table('test_records')->count());
+        self::assertSame(1, $pool->count());
+    }
+
+    /**
      * Test that a pool limit reached with every buffered connection inside a
      * transaction records no auto-flush, even after an earlier flush emptied
      * another connection.
@@ -1505,7 +1586,7 @@ final class WritePoolTest extends TestCase
     {
         $this->useAuditTestTables();
 
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker(...));
 
         $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
         $pool->flush();
@@ -1531,7 +1612,7 @@ final class WritePoolTest extends TestCase
     {
         $this->useAuditTestTables();
 
-        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::THROW, transactions: $this->transactionTracker());
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::THROW, transactions: $this->transactionTracker(...));
 
         try {
             DB::connection('audit')->transaction(function () use ($pool): void {

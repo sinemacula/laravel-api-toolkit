@@ -222,16 +222,28 @@ final readonly class ContainerBindingRegistrar
             $poolLimit     = Config::get('api-toolkit.deferred_writes.pool_limit', 10000);
             $onFailure     = Config::get('api-toolkit.deferred_writes.on_failure', 'collect');
             $transactional = Config::get('api-toolkit.deferred_writes.transactional', false);
-            $transactions  = $this->container->make('db.transactions');
 
             return new WritePool(
                 is_numeric($chunkSize) ? (int) $chunkSize : 500,
                 is_numeric($poolLimit) ? (int) $poolLimit : 10000,
                 FlushStrategy::from(is_string($onFailure) ? $onFailure : 'collect'),
                 (bool) $transactional,
-                $transactions instanceof DatabaseTransactionsManager ? $transactions : null,
+                $this->transactionTracker(...),
             );
         });
+    }
+
+    /**
+     * Resolve the transaction tracker bound now, since test helpers rebind it
+     * after the write pool is built.
+     *
+     * @return \Illuminate\Database\DatabaseTransactionsManager|null
+     */
+    private function transactionTracker(): ?DatabaseTransactionsManager
+    {
+        $transactions = $this->container->bound('db.transactions') ? $this->container->make('db.transactions') : null;
+
+        return $transactions instanceof DatabaseTransactionsManager ? $transactions : null;
     }
 
     /**

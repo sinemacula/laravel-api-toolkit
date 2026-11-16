@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Integration\Providers\Registrars;
 
 use Illuminate\Container\Container;
+use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -257,12 +258,31 @@ final class ContainerBindingRegistrarTest extends TestCase
         self::assertSame(700, $this->readProperty($pool, 'chunkSize'));
         self::assertSame(900, $this->readProperty($pool, 'poolLimit'));
         self::assertFalse($this->readProperty($pool, 'transactional'));
-        self::assertSame($app->make('db.transactions'), $this->readProperty($pool, 'transactions'));
+        self::assertSame($app->make('db.transactions'), $this->resolveTracker($pool));
     }
 
     /**
-     * Test that the write pool is built without a transaction tracker when the
-     * container binds none.
+     * Test that the write pool resolves the transaction tracker bound when it
+     * checks, not the one bound when it was built.
+     *
+     * @return void
+     */
+    public function testRegisterBuildsWritePoolResolvingTheTrackerBoundAtEachCheck(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        $pool = $app->make(WritePool::class);
+
+        $app->instance('db.transactions', $rebound = new DatabaseTransactionsManager);
+
+        self::assertSame($rebound, $this->resolveTracker($pool));
+    }
+
+    /**
+     * Test that the write pool resolves no transaction tracker when the
+     * container binds none, or binds something else.
      *
      * @return void
      */
@@ -270,11 +290,18 @@ final class ContainerBindingRegistrarTest extends TestCase
     {
         $app = $this->getApplication();
 
-        $app->instance('db.transactions', new \stdClass);
-
         (new ContainerBindingRegistrar($app))->register();
 
-        self::assertNull($this->readProperty($app->make(WritePool::class), 'transactions'));
+        $pool = $app->make(WritePool::class);
+
+        $app->instance('db.transactions', new \stdClass);
+
+        self::assertNull($this->resolveTracker($pool));
+
+        $app->offsetUnset('db.transactions');
+
+        self::assertFalse($app->bound('db.transactions'));
+        self::assertNull($this->resolveTracker($pool));
     }
 
     /**
@@ -422,6 +449,21 @@ final class ContainerBindingRegistrarTest extends TestCase
     private function readProperty(object $object, string $property): mixed
     {
         return (new \ReflectionProperty($object, $property))->getValue($object);
+    }
+
+    /**
+     * Resolve the transaction tracker the write pool would check against.
+     *
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePool  $pool
+     * @return mixed
+     */
+    private function resolveTracker(WritePool $pool): mixed
+    {
+        $resolver = $this->readProperty($pool, 'transactions');
+
+        assert($resolver instanceof \Closure);
+
+        return $resolver();
     }
 
     /**

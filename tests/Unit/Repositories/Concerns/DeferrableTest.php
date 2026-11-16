@@ -151,6 +151,28 @@ final class DeferrableTest extends TestCase
     }
 
     /**
+     * Test that defer keeps a timestamp the caller passes as null.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     */
+    public function testDeferKeepsAnExplicitNullTimestamp(): void
+    {
+        Carbon::setTestNow(Carbon::parse(self::TIMESTAMP_EXPLICIT));
+
+        $this->repository->defer(['name' => 'Ezra', 'email' => 'ezra@example.com', 'password' => 'secret', 'updated_at' => null]);
+
+        $this->repository->flushWrites();
+
+        $user = DB::table('users')->first();
+
+        self::assertNotNull($user);
+        self::assertSame(self::TIMESTAMP_EXPLICIT, $user->created_at);
+        self::assertNull($user->updated_at);
+    }
+
+    /**
      * Test that defer adds created_at and updated_at when missing.
      *
      * @return void
@@ -271,7 +293,7 @@ final class DeferrableTest extends TestCase
      */
     public function testDeferPropagatesThrowExceptionOnAutoFlushFailure(): void
     {
-        $transactions = $this->transactionTracker();
+        $transactions = $this->transactionTracker(...);
 
         $this->app->scoped(WritePool::class, fn (): WritePool => new WritePool(500, 1, FlushStrategy::THROW, transactions: $transactions)); // @phpstan-ignore method.nonObject
 

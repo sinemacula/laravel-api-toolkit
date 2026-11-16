@@ -67,6 +67,8 @@ trait CreatesDeferredWriteTargets
      *
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
      * @return \Tests\Fixtures\Repositories\DeferrableModelRepository
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     protected function deferrableRepository(string $model): DeferrableModelRepository
     {

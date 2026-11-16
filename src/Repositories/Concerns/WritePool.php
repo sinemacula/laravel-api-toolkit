@@ -4,8 +4,6 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
-use Illuminate\Database\DatabaseTransactionRecord;
-use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -34,7 +32,7 @@ final class WritePool
      * @param  int  $poolLimit
      * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
      * @param  bool  $transactional
-     * @param  \Illuminate\Database\DatabaseTransactionsManager|null  $transactions
+     * @param  (\Closure(): (\Illuminate\Database\DatabaseTransactionsManager|null))|null  $transactions
      * @return void
      */
     public function __construct(
@@ -51,8 +49,8 @@ final class WritePool
         /** Whether each flush runs inside a database transaction. */
         private readonly bool $transactional = false,
 
-        /** Tracks open transactions, so a test's wrapping one is not counted. */
-        private readonly ?DatabaseTransactionsManager $transactions = null,
+        /** Resolves the current transaction tracker, so a test's wrapping transaction is not counted. */
+        private readonly ?\Closure $transactions = null,
     ) {}
 
     /**
@@ -76,7 +74,8 @@ final class WritePool
             return;
         }
 
-        $idle = array_filter(array_keys($this->buffer), fn (string $name): bool => !$this->hasOpenTransaction($name));
+        $detector = new DeferredWriteTransactionDetector($this->transactions);
+        $idle     = array_filter(array_keys($this->buffer), fn (string $name): bool => !$detector->hasOpenTransaction($name));
 
         if ($idle === []) {
             return;
@@ -137,31 +136,6 @@ final class WritePool
     public function isEmpty(): bool
     {
         return $this->count() === 0;
-    }
-
-    /**
-     * Determine whether the application has a transaction open on the
-     * connection.
-     *
-     * With a transaction tracker, the wrapping transaction a test opens is not
-     * counted.
-     *
-     * @param  string  $connection
-     * @return bool
-     */
-    private function hasOpenTransaction(string $connection): bool
-    {
-        if (DB::connection($connection)->transactionLevel() === 0) {
-            return false;
-        }
-
-        if ($this->transactions === null) {
-            return true;
-        }
-
-        return $this->transactions->callbackApplicableTransactions()->contains(
-            fn (DatabaseTransactionRecord $transaction): bool => $transaction->connection === $connection,
-        );
     }
 
     /**
@@ -239,7 +213,7 @@ final class WritePool
 
         foreach ($targets as $targetIndex => [$connection, $table]) {
 
-            $chunks  = $this->chunk($this->buffer[$connection][$table]);
+            $chunks  = (new DeferredWriteChunker($this->chunkSize))->chunk($this->buffer[$connection][$table]);
             $context = new WritePoolFlushContext($strategy, $connection, $table, $chunks, $targets, $targetIndex);
 
             $this->flushTarget($context, $accumulator);
@@ -252,49 +226,6 @@ final class WritePool
         }
 
         return $accumulator->toResult($strategy, $this->tableNames($targets));
-    }
-
-    /**
-     * Split records into runs of one column set, then chunk each run, so every
-     * INSERT statement lists the columns its rows carry.
-     *
-     * @param  list<array<string, mixed>>  $records
-     * @return list<list<array<string, mixed>>>
-     */
-    private function chunk(array $records): array
-    {
-        $size   = max(1, $this->chunkSize);
-        $chunks = [];
-        $run    = [];
-
-        foreach ($records as $record) {
-
-            if ($run !== [] && $this->columns($record) !== $this->columns($run[0])) {
-                array_push($chunks, ...array_chunk($run, $size));
-                $run = [];
-            }
-
-            $run[] = $record;
-        }
-
-        array_push($chunks, ...array_chunk($run, $size));
-
-        return $chunks;
-    }
-
-    /**
-     * Get the sorted column names of a record.
-     *
-     * @param  array<string, mixed>  $record
-     * @return list<string>
-     */
-    private function columns(array $record): array
-    {
-        $columns = array_keys($record);
-
-        sort($columns);
-
-        return $columns;
     }
 
     /**
@@ -366,9 +297,9 @@ final class WritePool
      */
     private function flushTargetTransactionally(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator): void
     {
-        $connection = DB::connection($context->connection());
-
         try {
+            $connection = DB::connection($context->connection());
+
             $connection->transaction(function () use ($connection, $context): void {
 
                 foreach ($context->chunks() as $chunk) {
@@ -376,23 +307,11 @@ final class WritePool
                 }
             });
 
-            $this->recordTargetSuccess($context, $accumulator);
+            foreach ($context->chunks() as $chunk) {
+                $accumulator->recordSuccess($chunk);
+            }
         } catch (\Throwable $exception) {
             $this->handleTargetRollback($context, $accumulator, $exception);
-        }
-    }
-
-    /**
-     * Count every chunk of a target whose transaction committed as flushed.
-     *
-     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
-     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
-     * @return void
-     */
-    private function recordTargetSuccess(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator): void
-    {
-        foreach ($context->chunks() as $chunk) {
-            $accumulator->recordSuccess($chunk);
         }
     }
 
@@ -441,12 +360,10 @@ final class WritePool
      */
     private function flushChunks(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator): void
     {
-        $connection = DB::connection($context->connection());
-
         foreach ($context->chunks() as $chunkIndex => $chunk) {
 
             try {
-                $connection->table($context->table())->insert($chunk);
+                DB::connection($context->connection())->table($context->table())->insert($chunk);
                 $accumulator->recordSuccess($chunk);
             } catch (\Throwable $exception) { // @phpstan-ignore catch.neverThrown
                 $this->handleChunkFailure($context->withChunkIndex($chunkIndex), $accumulator, $chunk, $exception);

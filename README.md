@@ -387,8 +387,9 @@ does not redirect it. Timestamps follow the model: none when it has timestamps d
 consecutive runs of one column set, so a row may leave out optional columns and they keep their database default.
 
 Reaching `deferred_writes.pool_limit` flushes automatically, but never on a connection with an open transaction: those
-rows wait for the next deferral outside a transaction or for the boundary flush. A deferred row is therefore always a
-boundary insert that a rollback does not undo, unless `flushWrites()` is called inside the transaction, which joins it.
+rows wait for the next deferral outside a transaction or for the boundary flush, so rolling the transaction back does
+not undo them. A flush that does run inside an open transaction joins it: `flushWrites()` called there, or a boundary
+flush while an outer transaction is still open, such as a sync-queued job dispatched inside one.
 
 `api-toolkit.deferred_writes.on_failure` picks what happens when a flush fails:
 
