@@ -20,7 +20,7 @@ final readonly class QueryCostLimits
     /** @var string Bounds the byte length of the filter document */
     public const string MAX_BYTES = 'max_bytes';
 
-    /** @var string Bounds the nested object levels within the filter document */
+    /** @var string Bounds the levels the filter document nests, objects and lists alike */
     public const string MAX_PARSE_DEPTH = 'max_parse_depth';
 
     /** @var string Bounds the levels the filter dispatcher may descend */

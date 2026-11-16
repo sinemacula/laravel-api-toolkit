@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
@@ -46,7 +45,7 @@ final class NullOperatorTest extends TestCase
     {
         $query = (new User)->newQuery();
 
-        $this->operator->apply($query, 'name', true, FilterContext::root());
+        $this->operator->apply($query, 'name', true);
 
         $wheres = $query->getQuery()->wheres;
 
@@ -55,19 +54,22 @@ final class NullOperatorTest extends TestCase
     }
 
     /**
-     * Test that apply in $or context uses orWhereNull.
+     * Test that apply joins an earlier clause with AND.
      *
      * @return void
      */
-    public function testNullApplyInOrContextUsesOrWhereNull(): void
+    public function testNullApplyJoinsAnEarlierClauseWithAnd(): void
     {
         $query = (new User)->newQuery();
 
-        $this->operator->apply($query, 'name', true, FilterContext::nested('$or'));
+        $query->where('email', 'alice@example.com');
+
+        $this->operator->apply($query, 'name', true);
 
         $wheres = $query->getQuery()->wheres;
 
-        self::assertSame('Null', $wheres[0]['type']);
-        self::assertSame('or', $wheres[0]['boolean']);
+        self::assertCount(2, $wheres);
+        self::assertSame('Null', $wheres[1]['type']);
+        self::assertSame('and', $wheres[1]['boolean']);
     }
 }
