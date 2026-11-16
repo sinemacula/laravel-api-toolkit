@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema\Concerns;
 
 /**
- * Shared fluent modifiers for count, sum and average definitions.
+ * Shared fluent modifiers for relation aggregate definitions.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

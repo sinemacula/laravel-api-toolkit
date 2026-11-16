@@ -57,9 +57,8 @@ final class QueryParameterValidatorTest extends TestCase
         yield 'no parameters' => [[]];
         yield 'fields string' => [['fields' => 'name,email']];
         yield 'fields array of strings' => [['fields' => ['user' => 'name,email']]];
-        yield 'counts array of strings' => [['counts' => ['user' => 'posts,comments']]];
-        yield 'sums nested arrays of strings' => [['sums' => ['account' => ['transaction' => 'amount']]]];
-        yield 'averages nested arrays of strings' => [['averages' => ['account' => ['transaction' => 'amount']]]];
+        yield 'aggregates array of strings' => [['aggregates' => ['user' => 'posts_count,orders_sum_total']]];
+        yield 'aggregates string' => [['aggregates' => 'posts_count']];
         yield 'valid json filters' => [['filters' => '{"status":"active"}']];
         yield 'order string' => [['order' => 'name:asc']];
         yield 'page of one' => [['page' => '1']];
@@ -104,11 +103,7 @@ final class QueryParameterValidatorTest extends TestCase
         yield 'array search' => [['search' => ['smith']]];
         yield 'integer search' => [['search' => 42]];
         yield 'array fields resource value' => [['fields' => ['user' => ['name', 'email']]]];
-        yield 'array counts resource value' => [['counts' => ['user' => ['posts', 'comments']]]];
-        yield 'string sums resource value' => [['sums' => ['account' => 'amount']]];
-        yield 'string averages resource value' => [['averages' => ['account' => 'amount']]];
-        yield 'integer sums field value' => [['sums' => ['account' => ['transaction' => 42]]]];
-        yield 'integer averages field value' => [['averages' => ['account' => ['transaction' => 42]]]];
+        yield 'array aggregates resource value' => [['aggregates' => ['user' => ['posts_count', 'orders_sum_total']]]];
     }
 
     /**

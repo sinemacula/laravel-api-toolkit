@@ -114,39 +114,15 @@ final class FieldResolver
     }
 
     /**
-     * Determine if the counts field should be included.
+     * Determine if the aggregates field should be included.
      *
      * @param  string  $resourceType
      * @param  array<int, string>  $defaultFields
      * @return bool
      */
-    public function shouldIncludeCountsField(string $resourceType, array $defaultFields): bool
+    public function shouldIncludeAggregatesField(string $resourceType, array $defaultFields): bool
     {
-        return $this->shouldIncludeVirtualField('counts', $resourceType, $defaultFields);
-    }
-
-    /**
-     * Determine if the sums field should be included.
-     *
-     * @param  string  $resourceType
-     * @param  array<int, string>  $defaultFields
-     * @return bool
-     */
-    public function shouldIncludeSumsField(string $resourceType, array $defaultFields): bool
-    {
-        return $this->shouldIncludeVirtualField('sums', $resourceType, $defaultFields);
-    }
-
-    /**
-     * Determine if the averages field should be included.
-     *
-     * @param  string  $resourceType
-     * @param  array<int, string>  $defaultFields
-     * @return bool
-     */
-    public function shouldIncludeAveragesField(string $resourceType, array $defaultFields): bool
-    {
-        return $this->shouldIncludeVirtualField('averages', $resourceType, $defaultFields);
+        return $this->shouldIncludeVirtualField('aggregates', $resourceType, $defaultFields);
     }
 
     /**
@@ -169,7 +145,7 @@ final class FieldResolver
     }
 
     /**
-     * Determine if a virtual metric field should be included.
+     * Determine if a virtual field should be included.
      *
      * @param  string  $fieldName
      * @param  string  $resourceType

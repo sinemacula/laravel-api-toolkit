@@ -36,9 +36,11 @@ final readonly class QuerySurfaceDocGenerator
     /** The fixed note saying when those two names come apart. */
     private const string ALIASES = 'The two differ wherever a field is presented under an alias.';
 
-    /** The fixed note saying what an index-backed order does and does not claim. */
+    /** The fixed note saying what an index-backed order claims and how pages stay whole. */
     private const string ORDERS = 'An order reads as Index-backed where the resource recorded no exemption for it; the index itself is proven by '
-        . 'schema validation, which reads the catalogue behind the model where a connection can be inspected.';
+        . 'schema validation, which reads the catalogue behind the model where a connection can be inspected. Every page is ordered by '
+        . 'the key last, in the last direction, so tied rows never repeat or go missing; a cursor-paginated read refuses random order '
+        . 'and any column that admits null.';
 
     /** The cell shown where a column answers nothing, or a row is undescribed. */
     private const string NO_VALUE = '-';
@@ -60,7 +62,7 @@ final readonly class QuerySurfaceDocGenerator
         QueryCostLimits::MAX_NODES         => 'The keys a filter visits in total.',
         QueryCostLimits::MAX_IN_ITEMS      => 'The items a single operator value list carries, such as the one `$in` reads.',
         QueryCostLimits::MAX_ORDER_KEYS    => 'The columns one request may order by.',
-        QueryCostLimits::MAX_AGGREGATES    => 'The relation counts, sums, and averages one request may ask for, combined.',
+        QueryCostLimits::MAX_AGGREGATES    => 'The relation aggregates one request may ask for.',
         QueryCostLimits::MAX_OFFSET        => 'The rows a paginated read may scan past to reach its page.',
         QueryParameterValidator::MAX_LIMIT => 'The records one page may carry, asked for with `limit`.',
     ];

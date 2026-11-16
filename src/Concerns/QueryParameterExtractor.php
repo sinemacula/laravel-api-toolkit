@@ -29,17 +29,15 @@ final class QueryParameterExtractor
         $parameters = [];
 
         $parsers = [
-            'page'     => fn ($value) => trim($value),
-            'limit'    => fn ($value) => trim($value),
-            'cursor'   => fn ($value) => $value,
-            'fields'   => fn ($value) => $this->parseFields($value),
-            'counts'   => fn ($value) => $this->parseCounts($value),
-            'sums'     => fn ($value) => $this->parseSums($value),
-            'averages' => fn ($value) => $this->parseAverages($value),
-            'filters'  => fn ($value) => $this->parseFilters($value),
-            'search'   => fn ($value) => SearchTerm::from(is_string($value) ? $value : ''),
-            'order'    => fn ($value) => $this->parseOrder($value),
-            'trashed'  => fn ($value) => $value,
+            'page'       => fn ($value) => trim($value),
+            'limit'      => fn ($value) => trim($value),
+            'cursor'     => fn ($value) => $value,
+            'fields'     => fn ($value) => $this->parseFields($value),
+            'aggregates' => fn ($value) => $this->parseAggregates($value),
+            'filters'    => fn ($value) => $this->parseFilters($value),
+            'search'     => fn ($value) => SearchTerm::from(is_string($value) ? $value : ''),
+            'order'      => fn ($value) => $this->parseOrder($value),
+            'trashed'    => fn ($value) => $value,
         ];
 
         foreach ($parsers as $key => $parser) {
@@ -65,12 +63,12 @@ final class QueryParameterExtractor
     }
 
     /**
-     * Extract the count parameters from the query string.
+     * Extract the aggregate parameters from the query string.
      *
      * @param  array<string, string>|string  $query
      * @return array<int, string>|array<string, array<int, string>>
      */
-    private function parseCounts(array|string $query): array
+    private function parseAggregates(array|string $query): array
     {
         return $this->parseCommaSeparatedValues($query);
     }
@@ -102,79 +100,6 @@ final class QueryParameterExtractor
     }
 
     /**
-     * Extract the sum parameters from the query string.
-     *
-     * @param  array<string, mixed>  $query
-     * @return array<string, mixed>
-     */
-    private function parseSums(array $query): array
-    {
-        return $this->parseAggregations($query);
-    }
-
-    /**
-     * Extract the average parameters from the query string.
-     *
-     * @param  array<string, mixed>  $query
-     * @return array<string, mixed>
-     */
-    private function parseAverages(array $query): array
-    {
-        return $this->parseAggregations($query);
-    }
-
-    /**
-     * Parse aggregation parameters (sums, averages) from the query string.
-     *
-     * @param  array<string, mixed>  $query
-     * @return array<string, mixed>
-     */
-    private function parseAggregations(array $query): array
-    {
-        $aggregations = [];
-
-        foreach ($query as $resource => $relations) {
-            if (!is_array($relations)) {
-                continue;
-            }
-
-            $aggregations[$resource] = $this->parseRelationFields($relations);
-        }
-
-        return $aggregations;
-    }
-
-    /**
-     * Parse relation fields for aggregations.
-     *
-     * @param  array<mixed>  $relations
-     * @return array<array<mixed>>
-     */
-    private function parseRelationFields(array $relations): array
-    {
-        return array_map(fn ($fields) => $this->normalizeFields($fields), $relations);
-    }
-
-    /**
-     * Normalize field values into an array format.
-     *
-     * @param  mixed  $fields
-     * @return array<mixed>
-     */
-    private function normalizeFields(mixed $fields): array
-    {
-        if (is_string($fields)) {
-            return $this->splitAndTrim($fields);
-        }
-
-        if (is_array($fields)) {
-            return $fields;
-        }
-
-        return [$fields];
-    }
-
-    /**
      * Extract the filter parameters from the query string.
      *
      * Anything but a JSON object is rejected, since coercing it to an empty set
@@ -200,7 +125,9 @@ final class QueryParameterExtractor
      * Extract the order parameters from the query string.
      *
      * @param  string  $query
-     * @return array<string, string>
+     * @return array<string, 'asc'|'desc'>
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
     private function parseOrder(string $query): array
     {
@@ -214,9 +141,31 @@ final class QueryParameterExtractor
                 continue;
             }
 
-            $order[$column] = $parts[1] ?? 'asc';
+            $order[$column] = $this->parseDirection($column, $parts[1] ?? 'asc');
         }
 
         return $order;
+    }
+
+    /**
+     * Normalise an order direction, rejecting anything but asc or desc.
+     *
+     * Dropping an unreadable direction would silently return an unsorted page.
+     *
+     * @param  string  $column
+     * @param  string  $suffix
+     * @return 'asc'|'desc'
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function parseDirection(string $column, string $suffix): string
+    {
+        $direction = strtolower(trim($suffix));
+
+        if ($direction !== 'asc' && $direction !== 'desc') {
+            throw Rejection::at('order.' . $column, 'order.unpermitted_direction', ['direction' => trim($suffix), 'key' => $column, 'accepts' => 'asc, desc']);
+        }
+
+        return $direction;
     }
 }

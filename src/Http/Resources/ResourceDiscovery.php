@@ -103,6 +103,29 @@ final readonly class ResourceDiscovery
     }
 
     /**
+     * Get the configured resource map without the merge-contributed bindings.
+     *
+     * @return array<class-string, class-string>
+     */
+    public function explicitMap(): array
+    {
+        $map = Config::get('api-toolkit.resources.resource_map');
+
+        if (!is_array($map)) {
+            return [];
+        }
+
+        $contributed = $this->contributedMap();
+
+        /** @var array<class-string, class-string> */
+        return array_filter(
+            $map,
+            static fn (mixed $resource, mixed $model): bool => ($contributed[$model] ?? null) !== $resource,
+            ARRAY_FILTER_USE_BOTH,
+        );
+    }
+
+    /**
      * Load the compiled discovery map, or null when there is none.
      *
      * Not require_once, so each boot in a long-lived process reads it afresh.
@@ -267,29 +290,6 @@ final readonly class ResourceDiscovery
         }
 
         return null;
-    }
-
-    /**
-     * Get the configured resource map without the merge-contributed bindings.
-     *
-     * @return array<class-string, class-string>
-     */
-    private function explicitMap(): array
-    {
-        $map = Config::get('api-toolkit.resources.resource_map');
-
-        if (!is_array($map)) {
-            return [];
-        }
-
-        $contributed = $this->contributedMap();
-
-        /** @var array<class-string, class-string> */
-        return array_filter(
-            $map,
-            static fn (mixed $resource, mixed $model): bool => ($contributed[$model] ?? null) !== $resource,
-            ARRAY_FILTER_USE_BOTH,
-        );
     }
 
     /**

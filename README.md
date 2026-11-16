@@ -142,10 +142,10 @@ The indexes belong in your own migrations:
 - `EXACT` needs an ordinary index leading with the column on either engine. On PostgreSQL that B-tree must use the
   column's own collation.
 
-`php artisan api-toolkit:validate-schemas` reports a searchable declaration with no index behind it; run it in CI.
-Because schema validation is off in production by default, the proof is also taken at request time, so a missing
-index refuses the request instead of scanning the table. On PostgreSQL a missing trigram index is not an error, so
-without this the search would silently run as a sequential scan.
+`php artisan api-toolkit:validate-schemas` reports a searchable declaration with no index behind it; run it in CI
+against a migrated database. Because schema validation is off in production by default, the proof is also taken at
+request time, so a missing index refuses the request instead of scanning the table. On PostgreSQL a missing trigram
+index is not an error, so without this the search would silently run as a sequential scan.
 
 The request-time proof is cached in the cache store for `api-toolkit.search.index_proof_ttl` seconds
 (`API_TOOLKIT_SEARCH_INDEX_PROOF_TTL`, default 60), keyed by the connection's schema and the declaration, and shared
@@ -178,6 +178,20 @@ connection may scan the whole table on every request; only list development conn
 GET /users?order=last_name,first_name:desc
 ```
 
+A direction is `asc` (the default) or `desc`, in any case; anything else, including an empty suffix, is rejected with
+a `422` on `order.{column}` rather than ignored. `paginate()` appends the model key in the last direction when the
+order does not already include it, so rows tied on the requested columns never repeat or go missing between pages. The
+appended key needs no `sortable()` declaration and does not count against `max_order_keys`. A grouped read takes its
+group columns instead; a read grouped by an expression, filtered by `having` without groups, `distinct` on columns, or
+`distinct` without selecting the columns it would take gets nothing appended and needs a unique order of its own.
+
+A cursor can only seek by a column that holds a value in every row, so a cursor-paginated read rejects `random` and
+any column the cached column catalogue reports as nullable, such as the `created_at` that `timestamps()` creates;
+declare the column `NOT NULL` to cursor-page by it. Offset pagination sorts by either. Columns a repository scope
+orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, or does not carry a value for every
+ordered column (the client changed `?order` and kept `?cursor`), is rejected with a `422` on `cursor`; restart from
+the first page.
+
 **Page-size ceiling** - a `?limit` above `api-toolkit.parser.max_limit` (default 100) is rejected with a `422` naming
 the ceiling and the requested size, not reduced to the ceiling. Set the ceiling to `0` to disable it:
 
@@ -186,18 +200,23 @@ GET /users?limit=200   // 422, the ceiling is 100
 GET /users?limit=25    // honoured as-is
 ```
 
-**Relation aggregates** - request counts, sums, or averages over declared relations:
+**Relation aggregates** - request declared aggregates per resource type by their keys. Requesting any aggregate replaces
+every default of that type, as `?fields` replaces `$default`, and the response renders them under the `aggregates` field:
 
 ```http
-GET /users?counts[user]=memberships,posts
-GET /accounts?sums[account][transaction]=amount
-GET /accounts?averages[account][order]=total
+GET /users?fields[user]=name,aggregates&aggregates[user]=posts_count,orders_sum_total,last_order_at
 ```
 
 ```php
-ApiQuery::getCounts('user');           // ['memberships', 'posts']
-ApiQuery::getSums('account');          // ['transaction' => ['amount']]
-ApiQuery::getAverages('account');      // ['order' => ['total']]
+ApiQuery::getAggregates('user');       // ['posts_count', 'orders_sum_total', 'last_order_at']
+```
+
+```json
+{
+    "_type": "user",
+    "name": "Ada",
+    "aggregates": {"posts_count": 3, "orders_sum_total": 120.5, "last_order_at": "2026-01-01T10:00:00.000000Z"}
+}
 ```
 
 **Pagination** - `?pagination=cursor` (or any `?cursor` token) selects cursor pagination; offset pagination is used
@@ -212,7 +231,7 @@ such as implicit route-model binding, only checks the value.
 
 ### Schema-Driven ApiResource
 
-Extend `ApiResource` and declare a `schema()` method using the `Field`, `Relation`, `Count`, `Sum`, and `Average`
+Extend `ApiResource` and declare a `schema()` method using the `Field` and `Relation` helpers and the relation aggregate
 helpers. The compiled schema drives field resolution, guards and eager-load planning.
 
 ```php
@@ -222,7 +241,9 @@ use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Count;
+use SineMacula\ApiToolkit\Schema\Exists;
 use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\Max;
 use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\Sum;
 
@@ -241,16 +262,44 @@ class UserResource extends ApiResource
             Field::timestamp('created_at')->sortable(),
             Field::compute('full_name', 'getFullName'),
             Relation::to('organization', OrganizationResource::class)->traversable(),
-            Count::of('memberships'),
+            Count::of('memberships')->default(),
             Sum::of('orders', 'total'),
+            Max::of('orders', 'created_at', 'last_order_at'),
+            Exists::of('messages', 'has_unread_messages')->constrain(fn ($query) => $query->whereNull('read_at')),
         );
     }
 }
 ```
 
+**Relation aggregates** - six helpers load an aggregate over a relation in the same query, through Laravel's
+`withAggregate()`. Each has one key, which names it in the declaration, the `?aggregates` request, the response and the
+exported schema. The key defaults to Laravel's own attribute name and `as()` or the last argument of `of()` replaces it:
+
+| Helper                            | Default key             | Value                                 |
+|-----------------------------------|-------------------------|---------------------------------------|
+| `Count::of('posts')`              | `posts_count`           | integer, `0` without related rows     |
+| `Exists::of('posts')`             | `posts_exists`          | boolean, `false` without related rows |
+| `Sum::of('orders', 'total')`      | `orders_sum_total`      | number                                |
+| `Average::of('orders', 'total')`  | `orders_avg_total`      | number                                |
+| `Min::of('variants', 'price')`    | `variants_min_price`    | the column's value                    |
+| `Max::of('orders', 'created_at')` | `orders_max_created_at` | the column's value                    |
+
+`constrain()` narrows the related rows, `default()` includes the aggregate when the request names none, and `guard()`
+and `transform()` work as on fields. A minimum or maximum is read the way the related model reads that column, so a
+timestamp renders as ISO 8601 and a cast enum as its value. Sum, average, minimum and maximum over zero related rows are
+omitted. `api-toolkit:schemas:validate` rejects an aggregate over a sensitive or missing column, a sum or average over a
+non-numeric column, a minimum or maximum the related model would read back through an accessor or a non-scalar cast, a
+`MorphTo` relation, and an `aggregate_<key>` attribute the owner model already uses as a column, cast or setter.
+
 Only fields marked `filterable()` or `sortable()` can be queried, and `?search=` matches only fields marked
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. `$default` lists the fields
 returned when the client sends no `?fields`.
+
+**Schema lifetime** - `schema()` runs once per resource class per worker, and its result is shared by every request
+the worker serves, under Octane and on queue workers alike. It must not read or capture the request, the user, the
+tenant, the query parser, the clock or runtime config, and the closures it declares must not retain them. Read
+per-request values when a closure runs instead: guards, accessors and compute closures receive the resource and the
+request, constraints the query, and transformers the resource and the value.
 
 **Declared column reads** - `needs()` names the base-table columns a field reads. Declare it on any field whose value
 does not come straight from the column of the same name, such as one over an Eloquent accessor or custom cast, or an
@@ -305,12 +354,41 @@ never required, so a model without a resource (a vendor model, say) keeps morphi
 alias, so renaming a `RESOURCE_TYPE`, or binding a second model to a resource (which withholds its alias), orphans
 rows already stored under the old alias.
 
-**Eager-load planning** - the resource builds `with()`/`withCount()`/`withSum()`/`withAvg()` maps from the resolved
-field set:
+**Generating a resource** - `php artisan api-toolkit:make:resource OrderResource` writes
+`app/Http/Resources/OrderResource.php`, bound by `#[ForModel]` to the model guessed from the class name
+(`App\Models\Order`). Pass `--model=` to name another model, including one outside your application, `--type=` to
+choose the `RESOURCE_TYPE` (the snake-cased model name by default), and `--force` to overwrite an existing file. The
+command reads no database. The draft exposes only the model key, as its one field and its default, so nothing else is
+returned and nothing is filterable, sortable or searchable: declare each further field and its query surface by hand.
+The command refuses a type another mapped resource already returns, and a model another discovered resource already
+binds without an explicit `resource_map` entry. It warns when discovery will not see the file (outside `paths`, or a
+compiled map in place), and notes the morph alias a model not yet mapped will gain. Run `php artisan stub:publish` to
+customise `stubs/api-toolkit.resource.stub`.
+
+**Eager-load planning** - the resource builds `with()` and `withAggregate()` maps from the resolved field set:
 
 ```php
 $with = UserResource::eagerLoadMapFor(UserResource::resolveFields());
 ```
+
+**Relation constraints and limits** - `constrain()` receives the relation itself, as a Laravel `with()` closure does, so
+`where()`, local scopes, `latest()` and pivot clauses such as `wherePivot()` all apply. A constraint may filter and
+order the relation but never bound it: a `limit()`, `take()` or `skip()` inside it that changes the relation's bound
+throws a `LogicException`. Bound a to-many relation with `limit()` instead:
+
+```php
+Relation::to('posts', PostResource::class)->limit(5)->constrain(fn ($query) => $query->latest()),
+```
+
+Each parent renders at most `limit` related records. The relation loads in one windowed query, ordered last by the
+related key so the window is deterministic. A relation declaring no limit takes `api-toolkit.resources.relation_limit`
+(`API_TOOLKIT_RESOURCES_RELATION_LIMIT`, default `25`; `0` or `null` leaves it unbounded). A record whose relation was
+cut lists the relation's response key in `_truncated`, and the exported schema documents the bound as `maxItems`.
+`HasMany`, `MorphMany`, `BelongsToMany` and `HasManyThrough` are bounded in SQL unless their query has unions; any other
+loaded collection, including one your own code loaded, is cut when it renders. A relation bounded in SQL keeps up to
+`limit + 1` rows on the model after the repository returns, the extra row being how a cut is detected; one with unions
+keeps every row and is cut only in the response. A collection your application loaded below the bound never carries
+`_truncated`, so its absence proves nothing about a relation you limited yourself.
 
 **Field-set control** at instantiation:
 
@@ -333,13 +411,24 @@ Validation checks that:
 - an ordered index leads with every `sortable()` column, unless the field carries `indexed()` or `unindexed()`.
 - an index on the connection serves every `searchable()` declaration in the shape its strategy needs.
 - no declaration names a column configured as sensitive.
+- every `limit()` sits on a to-many relation rendered through a child resource, every field over one relation shares
+  one limit, and no field is named `_truncated`.
 
-Checks that read the connection are skipped where it cannot be read, such as a boot with no database or before
-migrations have run.
+At boot, checks that read the connection are skipped where it cannot be read, such as a boot with no database or
+before migrations have run.
 
-The index catalogue is read only during validation, never while a filter or sort is served. Two schema reads do sit
-on the request path, both cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads
-the table's column listing, and search reads its index proof.
+The command is stricter, because it gates deployment. It fails when the resource map is empty, and when any check
+could not read the connection: each declaration it could not verify is listed under why its table's catalogue was
+unreadable, whether the connection cannot be resolved, the catalogue cannot be read, or the table is not migrated.
+Pass `--allow-empty` to accept an empty map, or `--allow-unverified` to accept declarations it could not verify;
+neither flag lets a defect pass. A searchable declaration on a connection listed under
+`api-toolkit.search.unverified_connections` is not reported, since that listing already waives its index proof. Boot
+skips schema validation while this command runs, so the command reports everything itself.
+
+The index catalogue is read only during validation, never while a filter or sort is served. Three schema reads do sit
+on the request path, all cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads
+the table's column listing, search reads its index proof, and a cursor-paginated sort reads the column definitions to
+refuse a nullable key.
 
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
@@ -407,6 +496,8 @@ the column's own order, so a MySQL prefix index (`name(20)`), or a PostgreSQL in
 class (`text_pattern_ops`) or a non-default collation, does not count for sorting. A MySQL prefix key still backs an
 exact or prefix search, and a PostgreSQL pattern-class key still backs an exact search, but a PostgreSQL key with a
 different collation backs neither. A connection that cannot be inspected skips the check rather than failing it.
+Because pages end on the model key, a composite `(column, key)` index serves the whole order; the leading-column rule
+is unchanged.
 
 Two overrides cover what the catalogue cannot show:
 
@@ -422,6 +513,14 @@ Two overrides cover what the catalogue cannot show:
 items it dispatches, the sort keys and relation aggregates requested, and how deep a request pages. A request over a
 cap is rejected before any SQL is issued, with a `422` naming the parameter, the position within it, the cap, the
 limit and the value supplied. Set a cap to `0` to disable it.
+
+**Writes** - `persist($model, $attributes)` creates or updates the model from an array or collection of attributes.
+Each key is written through Eloquent's `setAttribute()`, so casts, both mutator styles and JSON paths such as
+`options->theme` apply. A key naming a relation is written through it: a `BelongsTo` from a model, its key or `null`,
+a `MorphTo` from a model or `null`, and a `BelongsToMany` or `MorphToMany` from models or their keys, synced once the
+model is saved. A key naming any other relation throws an `InvalidArgumentException` before any key is assigned, and
+a key that is neither a column nor a mutator fails at save with the database's `QueryException`. A set mutator named
+like a relation takes precedence over it. `$fillable` and `$guarded` are not applied, so pass only validated input.
 
 **Cacheable trait** - per-query caching for any `ApiRepository` subclass:
 
@@ -884,12 +983,19 @@ audience uses fails the export, as does a tag file that matches no tag, under th
 
 ### Metadata Invalidation
 
-Schema metadata (column listings and definitions, index catalogues, cast maps, relation lookups and the
+Schema metadata (column listings and definitions, index catalogues, relation lookups and the
 model-to-resource map) is cached in the application's cache store and shared by every process. The Octane and queue
-boundary flushes reset only each worker's in-process state, so a schema or mapping change needs the shared entries
+boundary flushes reset only each worker's per-operation state, so a schema or mapping change needs the shared entries
 retired explicitly. Every metadata key is stored under a generation held in the same store; replacing the generation
 makes every earlier entry unreachable in every process at once. A column listing that reads empty, as it does before
 its table exists, is never stored.
+
+Under Octane the boundary is the end of every request, task and tick; on a queue worker it is the end of every job
+attempt, including one that fails or is released for a retry. It drops the memoised generation, the per-operation
+index proofs, the in-memory column listings, column definitions and index catalogues, the field and eager-load memos
+and the query parser's state. The compiled schemas, search plans, field-to-column maps and cast reflections come from
+code alone, so they live for the worker and are rebuilt only when it restarts; reload Octane and queue workers on
+every deploy. An application that runs its own reset can call `CacheManager::flush()`; a second reset is harmless.
 
 Entries are stored as arrays and scalars, never objects, so the cache works under Laravel's default
 `cache.serializable_classes => false`. An entry that does not read back in the expected shape is treated as a miss
@@ -918,17 +1024,17 @@ The bypass limits how many store calls fail, not how long each takes, so give th
 
 Schema entries are keyed by the schema the connection actually reads (its name, database, table prefix, Postgres
 search path, database user and configured server), so a tenancy switcher that repoints one connection name reads each
-tenant's schema separately, provided it purges the connection when it switches. Casts, relation lookups and the
-resource map come from code and are shared across tenants. Where each tenant has its own cache prefix, each has its
-own generation, so invalidate per tenant.
+tenant's schema separately, provided it purges the connection when it switches. Relation lookups and the resource map
+come from code and are shared across tenants. Where each tenant has its own cache prefix, each has its own generation,
+so invalidate per tenant.
 
 The generation is replaced automatically when a migration run finishes. A run with nothing to migrate, or a
 `--pretend` run, leaves the metadata warm. If the cache store cannot be written, the hook logs a warning instead of
 failing the migration. Set `API_TOOLKIT_LIFECYCLE_MIGRATIONS=false` to turn the hook off.
 
 The hook is not enough on its own: migrations run before the new release takes traffic, so workers still on the old
-code can refill the new generation with their casts, resource mappings and relation lookups. Run this on every
-deploy, after the new release is live:
+code can refill the new generation with their resource mappings and relation lookups. Run this on every deploy,
+after the new release is live:
 
 ```bash
 php artisan api-toolkit:invalidate-metadata

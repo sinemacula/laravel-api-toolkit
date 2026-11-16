@@ -106,7 +106,7 @@ final class SearchPlanTest extends TestCase
      */
     public function testARepeatedStrategyDoesNotHideALaterOne(): void
     {
-        $plan = SearchPlan::build(new CompiledSchema([], [], [], [], [], [], [
+        $plan = SearchPlan::build(new CompiledSchema([], [], [], [], [], [
             'name'   => SearchStrategy::SUBSTRING,
             'email'  => SearchStrategy::SUBSTRING,
             'status' => SearchStrategy::EXACT,
@@ -185,7 +185,7 @@ final class SearchPlanTest extends TestCase
      */
     private function makeSchema(): CompiledSchema
     {
-        return new CompiledSchema([], [], [], [], [], [], [
+        return new CompiledSchema([], [], [], [], [], [
             'id'    => SearchStrategy::EXACT,
             'name'  => SearchStrategy::SUBSTRING,
             'email' => SearchStrategy::SUBSTRING,

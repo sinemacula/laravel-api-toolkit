@@ -76,6 +76,22 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
+     * Test that the order note says how every page keeps a total order.
+     *
+     * @return void
+     */
+    public function testOrderNoteSaysHowEveryPageKeepsATotalOrder(): void
+    {
+        $markdown = $this->combinedGenerator()->generate([], [], []);
+
+        self::assertStringContainsString(
+            'Every page is ordered by the key last, in the last direction, so tied rows never repeat or go missing; a cursor-paginated '
+            . 'read refuses random order and any column that admits null.',
+            $markdown,
+        );
+    }
+
+    /**
      * Test that the page-size ceiling is tabled with the structural caps.
      *
      * @return void

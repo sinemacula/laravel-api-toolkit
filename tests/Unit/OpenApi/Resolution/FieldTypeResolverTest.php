@@ -5,17 +5,23 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi\Resolution;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
+use Tests\Fixtures\Models\AggregateLine;
+use Tests\Fixtures\Models\AggregateOwner;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
@@ -431,6 +437,82 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
+     * Test that count, exists, sum and average take their function's type,
+     * whatever the related column.
+     *
+     * @return void
+     */
+    public function testColumnlessAndArithmeticAggregatesTakeTheFunctionType(): void
+    {
+        $introspector = self::createMock(SchemaIntrospectionProvider::class);
+        $introspector->expects(self::never())->method('resolveRelation');
+
+        $resolver = new FieldTypeResolver($introspector, new ColumnTypeMapper);
+
+        self::assertSame(['type' => 'integer', 'minimum' => 0], $resolver->resolveAggregate($this->aggregate(AggregateFunction::COUNT), AggregateOwner::class));
+        self::assertSame(['type' => 'boolean'], $resolver->resolveAggregate($this->aggregate(AggregateFunction::EXISTS), AggregateOwner::class));
+        self::assertSame(['type' => ['number', 'null']], $resolver->resolveAggregate($this->aggregate(AggregateFunction::SUM, 'total'), AggregateOwner::class));
+        self::assertSame(['type' => ['number', 'null']], $resolver->resolveAggregate($this->aggregate(AggregateFunction::AVG, 'total'), AggregateOwner::class));
+    }
+
+    /**
+     * Test that a minimum or maximum takes the related column's type, forced
+     * nullable since zero related rows yield null.
+     *
+     * @return void
+     */
+    public function testExtremesTakeTheRelatedColumnTypeAsNullable(): void
+    {
+        $enums    = new EnumSchemaRegistry;
+        $resolver = $this->makeAggregateResolver([
+            'placed_at' => new ColumnDefinition(name: 'placed_at', typeName: 'datetime', nullable: false),
+            'status'    => new ColumnDefinition(name: 'status', typeName: 'varchar', nullable: false),
+            'quantity'  => new ColumnDefinition(name: 'quantity', typeName: 'integer', nullable: false),
+        ], $enums);
+
+        self::assertSame(
+            ['type' => ['string', 'null'], 'format' => 'date-time'],
+            $resolver->resolveAggregate($this->aggregate(AggregateFunction::MAX, 'placed_at'), AggregateOwner::class),
+        );
+        self::assertSame(
+            ['type' => ['integer', 'null']],
+            $resolver->resolveAggregate($this->aggregate(AggregateFunction::MIN, 'quantity'), AggregateOwner::class),
+        );
+        self::assertSame(
+            ['anyOf' => [['$ref' => '#/components/schemas/UserStatus'], ['type' => 'null']]],
+            $resolver->resolveAggregate($this->aggregate(AggregateFunction::MIN, 'status'), AggregateOwner::class),
+        );
+        self::assertSame(
+            ['x-undocumented' => true],
+            $resolver->resolveAggregate($this->aggregate(AggregateFunction::MAX, 'unknown'), AggregateOwner::class),
+        );
+        self::assertContains(UserStatus::class, $enums->classes());
+    }
+
+    /**
+     * Test that a minimum or maximum whose related model is unknown is flagged
+     * undocumented.
+     *
+     * @return void
+     */
+    public function testExtremesWithoutAKnownRelatedModelAreUndocumented(): void
+    {
+        $morph    = self::createStub(MorphTo::class);
+        $resolver = $this->makeAggregateResolver([], relation: $morph);
+        $missing  = $this->makeAggregateResolver([], relation: null);
+
+        $introspector = self::createMock(SchemaIntrospectionProvider::class);
+        $introspector->expects(self::never())->method('resolveRelation');
+
+        $unbound = new FieldTypeResolver($introspector, new ColumnTypeMapper);
+
+        self::assertSame(['x-undocumented' => true], $resolver->resolveAggregate($this->aggregate(AggregateFunction::MAX, 'total'), AggregateOwner::class));
+        self::assertSame(['x-undocumented' => true], $missing->resolveAggregate($this->aggregate(AggregateFunction::MAX, 'total'), AggregateOwner::class));
+        self::assertSame(['x-undocumented' => true], $unbound->resolveAggregate($this->aggregate(AggregateFunction::MIN, 'total'), \stdClass::class));
+        self::assertSame(['x-undocumented' => true], $missing->resolveAggregate($this->aggregate(AggregateFunction::MIN), AggregateOwner::class));
+    }
+
+    /**
      * Test that a column with no field is inferred from its column and cast.
      *
      * @return void
@@ -533,6 +615,40 @@ final class FieldTypeResolverTest extends TestCase
 
         self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schema->toArray());
         self::assertSame([UserStatus::class], $enums->classes());
+    }
+
+    /**
+     * Build a resolver whose owner relation resolves to the aggregate lines.
+     *
+     * @param  array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>  $columns
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry|null  $enums
+     * @param  mixed  $relation
+     * @return \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver
+     */
+    private function makeAggregateResolver(array $columns, ?EnumSchemaRegistry $enums = null, mixed $relation = false): FieldTypeResolver
+    {
+        if ($relation === false) {
+            $relation = self::createStub(HasMany::class);
+            $relation->method('getRelated')->willReturn(new AggregateLine);
+        }
+
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
+        $introspector->method('getColumnDefinitions')->willReturn($columns);
+        $introspector->method('resolveRelation')->willReturn($relation);
+
+        return new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums ?? new EnumSchemaRegistry);
+    }
+
+    /**
+     * Build a compiled aggregate over the owner's lines.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\AggregateFunction  $function
+     * @param  string|null  $column
+     * @return \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition
+     */
+    private function aggregate(AggregateFunction $function, ?string $column = null): CompiledAggregateDefinition
+    {
+        return new CompiledAggregateDefinition('metric', 'lines', $function, $column, null, false, []);
     }
 
     /**

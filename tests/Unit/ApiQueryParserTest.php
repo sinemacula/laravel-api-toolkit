@@ -10,7 +10,6 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\ApiQueryParser;
-use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Concerns\InteractsWithNonPublicMembers;
@@ -137,100 +136,56 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getCounts returns null when no counts are set.
+     * Test that getAggregates returns null when no aggregates are set.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testGetCountsReturnsNullWhenNoCountsSet(): void
+    public function testGetAggregatesReturnsNullWhenNoAggregatesSet(): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        self::assertNull($this->parser->getCounts());
+        self::assertNull($this->parser->getAggregates());
     }
 
     /**
-     * Test that getCounts parses comma-separated counts.
+     * Test that getAggregates parses comma-separated aggregate keys.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testGetCountsParsesCommaSeparatedCounts(): void
+    public function testGetAggregatesParsesCommaSeparatedKeys(): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'counts' => ['user' => 'posts,comments'],
+            'aggregates' => ['user' => 'posts_count, orders_sum_total'],
         ]);
         $this->parser->parse($request);
 
-        self::assertSame(['posts', 'comments'], $this->parser->getCounts('user'));
+        self::assertSame(['posts_count', 'orders_sum_total'], $this->parser->getAggregates('user'));
     }
 
     /**
-     * Test that getSums parses aggregation format.
+     * Test that the retired counts, sums and averages parameters are no longer
+     * read.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testGetSumsParsesAggregationFormat(): void
+    public function testRetiredAggregateParametersAreNotRead(): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => [
-                'account' => [
-                    'transaction' => 'amount,fee',
-                ],
-            ],
+            'counts'   => ['user' => 'posts'],
+            'sums'     => ['user' => ['orders' => 'total']],
+            'averages' => ['user' => ['orders' => 'total']],
         ]);
         $this->parser->parse($request);
 
-        $result = $this->parser->getSums('account');
-
-        self::assertIsArray($result);
-        self::assertArrayHasKey('transaction', $result);
-        self::assertSame(['amount', 'fee'], $result['transaction']);
-    }
-
-    /**
-     * Test that getSums returns null when no sums are set.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testGetSumsReturnsNullWhenNotSet(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
-        $this->parser->parse($request);
-
-        self::assertNull($this->parser->getSums());
-    }
-
-    /**
-     * Test that getAverages parses aggregation format.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testGetAveragesParsesAggregationFormat(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'averages' => [
-                'account' => [
-                    'transaction' => 'amount',
-                ],
-            ],
-        ]);
-        $this->parser->parse($request);
-
-        $result = $this->parser->getAverages('account');
-
-        self::assertIsArray($result);
-        self::assertArrayHasKey('transaction', $result);
-        self::assertSame(['amount'], $result['transaction']);
+        self::assertNull($this->parser->getAggregates('user'));
+        self::assertSame([], $this->getProperty($this->parser, 'parameters'));
     }
 
     /**
@@ -341,19 +296,19 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getCounts tolerates a list-form parameter without a resource
-     * key.
+     * Test that getAggregates tolerates a list-form parameter without a
+     * resource key.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testGetCountsToleratesListFormParameter(): void
+    public function testGetAggregatesToleratesListFormParameter(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['counts' => ['posts', 'comments']]);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['aggregates' => ['posts_count', 'orders_sum_total']]);
         $this->parser->parse($request);
 
-        self::assertSame([], $this->parser->getCounts());
+        self::assertSame([], $this->parser->getAggregates());
     }
 
     /**
@@ -704,69 +659,6 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that normalizeFields returns an array value unchanged.
-     *
-     * Only reachable directly, since validation rejects non-string aggregation
-     * fields.
-     *
-     * @return void
-     */
-    public function testNormalizeFieldsPreservesArrayInput(): void
-    {
-        $result = $this->invokeMethod(new QueryParameterExtractor, 'normalizeFields', ['amount', 'fee']);
-
-        self::assertSame(['amount', 'fee'], $result);
-    }
-
-    /**
-     * Test that normalizeFields wraps non-string non-array input in an array.
-     *
-     * @return void
-     */
-    public function testNormalizeFieldsWrapsOtherInputInArray(): void
-    {
-        $result = $this->invokeMethod(new QueryParameterExtractor, 'normalizeFields', 42);
-
-        self::assertSame([42], $result);
-    }
-
-    /**
-     * Test that parseAggregations skips non-array relation entries.
-     *
-     * @return void
-     */
-    public function testParseAggregationsSkipsNonArrayRelations(): void
-    {
-        $result = $this->invokeMethod(new QueryParameterExtractor, 'parseAggregations', [
-            'valid'   => ['fields' => 'amount'],
-            'invalid' => 'not_an_array',
-        ]);
-
-        self::assertIsArray($result);
-        self::assertArrayHasKey('valid', $result);
-        self::assertArrayNotHasKey('invalid', $result);
-    }
-
-    /**
-     * Test that parseAggregations continues past a non-array entry and still
-     * parses subsequent valid entries.
-     *
-     * @return void
-     */
-    public function testParseAggregationsContinuesPastNonArrayRelations(): void
-    {
-        $result = $this->invokeMethod(new QueryParameterExtractor, 'parseAggregations', [
-            'invalid' => 'not_an_array',
-            'valid'   => ['fields' => 'amount'],
-        ]);
-
-        self::assertIsArray($result);
-        self::assertArrayNotHasKey('invalid', $result);
-        self::assertIsArray($result);
-        self::assertArrayHasKey('valid', $result);
-    }
-
-    /**
      * Test that getFields trims values stored directly in the parameter state.
      *
      * @return void
@@ -779,15 +671,16 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getCounts trims values stored directly in the parameter state.
+     * Test that getAggregates trims the string values stored in the parameter
+     * state, skipping any other value.
      *
      * @return void
      */
-    public function testGetCountsTrimsStoredParameterValues(): void
+    public function testGetAggregatesTrimsStoredParameterValues(): void
     {
-        $this->setProperty($this->parser, 'parameters', ['counts' => [' posts ', ' comments ']]);
+        $this->setProperty($this->parser, 'parameters', ['aggregates' => [' posts_count ', 7, ' orders_sum_total ']]);
 
-        self::assertSame(['posts', 'comments'], $this->parser->getCounts());
+        self::assertSame(['posts_count', 'orders_sum_total'], $this->parser->getAggregates());
     }
 
     /**
@@ -834,51 +727,6 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getSums trims whitespace around aggregation field values.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testGetSumsTrimsWhitespaceAroundFields(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => [
-                'account' => [
-                    'transaction' => ' amount , fee ',
-                ],
-            ],
-        ]);
-        $this->parser->parse($request);
-
-        $result = $this->parser->getSums('account');
-
-        self::assertIsArray($result);
-        self::assertSame(['amount', 'fee'], $result['transaction']);
-    }
-
-    /**
-     * Test that getSums parses every resource supplied in the query.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testGetSumsParsesAllResources(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => [
-                'account' => ['transaction' => 'amount'],
-                'user'    => ['posts' => 'votes'],
-            ],
-        ]);
-        $this->parser->parse($request);
-
-        self::assertSame(['transaction' => ['amount']], $this->parser->getSums('account'));
-        self::assertSame(['posts' => ['votes']], $this->parser->getSums('user'));
-    }
-
-    /**
      * Test that getOrder returns an empty array for an empty order string.
      *
      * @return void
@@ -894,19 +742,26 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getOrder treats everything after the first colon as the
-     * direction.
+     * Test that everything after the first colon is read as one direction, and
+     * rejected when it is not asc or desc.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testGetOrderTreatsEverythingAfterFirstColonAsDirection(): void
+    public function testParseRejectsEverythingAfterTheFirstColonAsOneDirection(): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => 'name:desc:extra']);
-        $this->parser->parse($request);
 
-        self::assertSame(['name' => 'desc:extra'], $this->parser->getOrder());
+        try {
+            $this->parser->parse($request);
+            self::fail('Expected a ValidationException for the order direction.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['order.name' => ['The "desc:extra" direction is not permitted on the "name" key, which accepts asc, desc.']],
+                $exception->errors(),
+            );
+        }
     }
 
     /**
@@ -927,53 +782,18 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that validation fails when a counts resource value is an array.
+     * Test that validation fails when an aggregates resource value is an array.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testValidationFailsWhenCountsResourceValueIsArray(): void
+    public function testValidationFailsWhenAggregatesResourceValueIsArray(): void
     {
         $this->expectException(ValidationException::class);
 
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'counts' => ['user' => ['posts', 'comments']],
-        ]);
-        $this->parser->parse($request);
-    }
-
-    /**
-     * Test that validation fails when a sums resource value is not an array.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testValidationFailsWhenSumsResourceValueIsNotArray(): void
-    {
-        $this->expectException(ValidationException::class);
-
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => ['account' => 'amount'],
-        ]);
-        $this->parser->parse($request);
-    }
-
-    /**
-     * Test that validation fails when an averages resource value is not an
-     * array.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testValidationFailsWhenAveragesResourceValueIsNotArray(): void
-    {
-        $this->expectException(ValidationException::class);
-
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'averages' => ['account' => 'amount'],
+            'aggregates' => ['user' => ['posts_count', 'orders_sum_total']],
         ]);
         $this->parser->parse($request);
     }

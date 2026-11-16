@@ -4,26 +4,65 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Schema;
 
+use Illuminate\Contracts\Validation\ParameterizedRule;
+use Illuminate\Validation\Rules\ArrayRule;
+use Illuminate\Validation\Rules\Confirmed;
+use Illuminate\Validation\Rules\Date;
+use Illuminate\Validation\Rules\Distinct;
+use Illuminate\Validation\Rules\Email;
 use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rules\ExcludeIf;
 use Illuminate\Validation\Rules\ExcludeUnless;
 use Illuminate\Validation\Rules\ExcludeWith;
 use Illuminate\Validation\Rules\ExcludeWithout;
+use Illuminate\Validation\Rules\File;
+use Illuminate\Validation\Rules\ImageFile;
 use Illuminate\Validation\Rules\In;
+use Illuminate\Validation\Rules\IpAddress;
+use Illuminate\Validation\Rules\NotIn;
+use Illuminate\Validation\Rules\Numeric;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Rules\Regex;
+use Illuminate\Validation\Rules\RequiredWith;
+use Illuminate\Validation\Rules\RequiredWithAll;
+use Illuminate\Validation\Rules\RequiredWithout;
+use Illuminate\Validation\Rules\RequiredWithoutAll;
+use Illuminate\Validation\Rules\StringRule;
+use Illuminate\Validation\Rules\Url;
+use Illuminate\Validation\Rules\Uuid;
 use SineMacula\ApiToolkit\Validation\Rules\PureEnum;
 
 /**
  * Flattens a Laravel rule definition into a list of string tokens.
  *
- * Rule objects are expanded best-effort; an untranslatable one is dropped,
- * keeping the field.
+ * A framework rule object is expanded as the validator reads it, matched on its
+ * exact class so no other rule's code runs; any other object is dropped.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class RuleNormaliser
 {
+    /** The fluent rule objects the validator splits on pipes */
+    private const array PIPED_RULES = [ArrayRule::class, Date::class, Numeric::class, StringRule::class];
+
+    /** The rule objects the validator reads as a single rule string */
+    private const array STRING_RULES = [In::class, NotIn::class, Regex::class, IpAddress::class];
+
+    /** The rule objects the validator reads through their parameters */
+    private const array PARAMETERISED_RULES = [
+        Url::class, Uuid::class, Distinct::class, Confirmed::class,
+        RequiredWith::class, RequiredWithAll::class, RequiredWithout::class, RequiredWithoutAll::class,
+        ExcludeWith::class, ExcludeWithout::class,
+    ];
+
+    /** The rule objects mapped to the rules they imply */
+    private const array IMPLIED_RULES = [
+        File::class      => ['file'],
+        ImageFile::class => ['file', 'image'],
+        Email::class     => ['email'],
+    ];
+
     /** The exclude rule objects mapped to the rule each expresses */
     private const array EXCLUDE_RULES = [
         ExcludeIf::class      => 'exclude_if',
@@ -91,17 +130,62 @@ final readonly class RuleNormaliser
      */
     private function expandObject(object $rule): array
     {
+        $class = $rule::class;
+
         return match (true) {
-            $rule instanceof Enum     => $this->enumTokens($rule),
-            $rule instanceof In       => [(string) $rule],
-            $rule instanceof PureEnum => $this->pureEnumTokens($rule),
-            $rule instanceof Password => $this->passwordTokens($rule),
-            default                   => $this->excludeTokens($rule),
+            $rule instanceof Enum                                                                   => $this->enumTokens($rule),
+            $rule instanceof PureEnum                                                               => $this->pureEnumTokens($rule),
+            $rule instanceof Password                                                               => $this->passwordTokens($rule),
+            $rule instanceof \Stringable       && in_array($class, self::PIPED_RULES, true)         => $this->splitPipes((string) $rule),
+            $rule instanceof \Stringable       && in_array($class, self::STRING_RULES, true)        => [(string) $rule],
+            $rule instanceof ParameterizedRule && in_array($class, self::PARAMETERISED_RULES, true) => [$this->parameterisedToken($rule)],
+            isset(self::IMPLIED_RULES[$class])                                                      => self::IMPLIED_RULES[$class],
+            default                                                                                 => $this->excludeTokens($rule),
         };
     }
 
     /**
-     * Expand an exclude rule object into the bare name of its rule.
+     * Format a parameterised rule as the rule string the validator parses.
+     *
+     * @param  \Illuminate\Contracts\Validation\ParameterizedRule  $rule
+     * @return string
+     */
+    private function parameterisedToken(ParameterizedRule $rule): string
+    {
+        $parameters = $rule->toArray();
+        $name       = $this->stringValue(array_shift($parameters));
+
+        return $parameters === [] ? $name : $name . ':' . implode(',', array_map($this->formatParameter(...), $parameters));
+    }
+
+    /**
+     * Quote a rule parameter holding a comma or quote, as the framework does.
+     *
+     * @param  mixed  $parameter
+     * @return string
+     */
+    private function formatParameter(mixed $parameter): string
+    {
+        $value = $this->stringValue($parameter);
+
+        return str_contains($value, ',') || str_contains($value, '"')
+            ? '"' . str_replace('"', '""', $value) . '"'
+            : $value;
+    }
+
+    /**
+     * Cast a rule parameter to its string form.
+     *
+     * @param  mixed  $value
+     * @return string
+     */
+    private function stringValue(mixed $value): string
+    {
+        return is_scalar($value) || $value instanceof \Stringable ? (string) $value : '';
+    }
+
+    /**
+     * Expand any other exclude rule object into the bare name of its rule.
      *
      * @param  object  $rule
      * @return list<string>

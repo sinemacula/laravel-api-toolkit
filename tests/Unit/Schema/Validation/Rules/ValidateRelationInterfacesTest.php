@@ -47,7 +47,6 @@ final class ValidateRelationInterfacesTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationInterfaces;
@@ -78,7 +77,6 @@ final class ValidateRelationInterfacesTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationInterfaces;
@@ -112,7 +110,6 @@ final class ValidateRelationInterfacesTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationInterfaces;
@@ -135,7 +132,7 @@ final class ValidateRelationInterfacesTest extends TestCase
             'ghost' => null,
             'bad'   => $this->makeField(\stdClass::class),
         ]);
-        $reflection->getProperty('counts')->setValue($schema, []);
+        $reflection->getProperty('aggregates')->setValue($schema, []);
 
         $rule   = new ValidateRelationInterfaces;
         $errors = [];
@@ -159,7 +156,6 @@ final class ValidateRelationInterfacesTest extends TestCase
                 'missing' => $this->makeField('App\NonExistent\Resource'),
                 'bad'     => $this->makeField(\stdClass::class),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationInterfaces;
@@ -181,7 +177,6 @@ final class ValidateRelationInterfacesTest extends TestCase
                 'good' => $this->makeField(OrganizationResource::class),
                 'bad'  => $this->makeField(\stdClass::class),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationInterfaces;
@@ -203,7 +198,6 @@ final class ValidateRelationInterfacesTest extends TestCase
                 'first'  => $this->makeField(\stdClass::class),
                 'second' => $this->makeField(\SplStack::class),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationInterfaces;

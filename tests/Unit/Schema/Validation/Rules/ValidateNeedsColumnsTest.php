@@ -10,6 +10,8 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateNeedsColumns;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -36,12 +38,13 @@ final class ValidateNeedsColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['full_name' => $this->makeField(['name', 'surname'])],
-            counts: [],
+            aggregates: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
 
         self::assertCount(1, $errors);
+        self::assertInstanceOf(SchemaValidationError::class, $errors[0]);
         self::assertSame(UserResource::class, $errors[0]->resourceClass);
         self::assertSame('full_name', $errors[0]->fieldKey);
         self::assertSame('Field declares needs() on "surname", and table "users" carries no such column', $errors[0]->defect);
@@ -61,7 +64,7 @@ final class ValidateNeedsColumnsTest extends TestCase
                 'avatar'    => $this->makeField([]),
                 'contact'   => $this->makeField(['phone']),
             ],
-            counts: [],
+            aggregates: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
@@ -72,7 +75,11 @@ final class ValidateNeedsColumnsTest extends TestCase
                 ['full_name', 'Field declares needs() on "surname", and table "users" carries no such column'],
                 ['contact', 'Field declares needs() on "phone", and table "users" carries no such column'],
             ],
-            array_map(static fn ($error): array => [$error->fieldKey, $error->defect], $errors),
+            array_map(static function (SchemaValidationError|UnverifiedDeclaration $error): array {
+                self::assertInstanceOf(SchemaValidationError::class, $error);
+
+                return [$error->fieldKey, $error->defect];
+            }, $errors),
         );
     }
 
@@ -85,7 +92,7 @@ final class ValidateNeedsColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['display_label' => $this->makeField(['name', 'email'])],
-            counts: [],
+            aggregates: [],
         );
 
         self::assertSame([], $this->rule(['id', 'name', 'email'])->validate(UserResource::class, User::class, $schema));
@@ -100,7 +107,7 @@ final class ValidateNeedsColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['display_label' => $this->makeField(['Name'])],
-            counts: [],
+            aggregates: [],
         );
 
         self::assertCount(1, $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
@@ -119,7 +126,7 @@ final class ValidateNeedsColumnsTest extends TestCase
 
         $schema = new CompiledSchema(
             fields: ['nickname' => $this->makeField([])],
-            counts: [],
+            aggregates: [],
         );
 
         self::assertSame([], (new ValidateNeedsColumns($introspector))->validate(UserResource::class, User::class, $schema));
@@ -141,25 +148,31 @@ final class ValidateNeedsColumnsTest extends TestCase
 
         $schema = new CompiledSchema(
             fields: ['full_name' => $this->makeField(['surname'])],
-            counts: [],
+            aggregates: [],
         );
 
         self::assertSame([], (new ValidateNeedsColumns($introspector))->validate(UserResource::class, $modelClass, $schema));
     }
 
     /**
-     * Test that an unreadable column listing proves nothing.
+     * Test that an unreadable column listing reports each needs() column as
+     * unverified rather than passing it.
      *
      * @return void
      */
-    public function testStaysSilentAgainstAnUnreadableColumnListing(): void
+    public function testReportsNeedsAsUnverifiedAgainstAnUnreadableColumnListing(): void
     {
         $schema = new CompiledSchema(
-            fields: ['full_name' => $this->makeField(['surname'])],
-            counts: [],
+            fields: ['full_name' => $this->makeField(['first_name', 'surname'])],
+            aggregates: [],
         );
 
-        self::assertSame([], $this->rule([])->validate(UserResource::class, User::class, $schema));
+        $results = $this->rule([])->validate(UserResource::class, User::class, $schema);
+
+        self::assertEquals([
+            new UnverifiedDeclaration(UserResource::class, 'full_name', 'table "users" carries the "first_name" column the needs() declaration names', User::class),
+            new UnverifiedDeclaration(UserResource::class, 'full_name', 'table "users" carries the "surname" column the needs() declaration names', User::class),
+        ], $results);
     }
 
     /**

@@ -158,7 +158,7 @@ final class ColumnNarrowingHttpTest extends TestCase
             }
 
             // Skip the row-count query and schema introspection statements
-            if (str_contains($unquoted, 'as aggregate') || str_contains($unquoted, 'pragma') || str_contains($unquoted, 'sqlite_master')) {
+            if (str_contains($unquoted, 'as aggregate from') || str_contains($unquoted, 'pragma') || str_contains($unquoted, 'sqlite_master')) {
                 continue;
             }
 

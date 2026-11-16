@@ -117,6 +117,11 @@ return [
         // code reads attributes outside the declared fields
         'narrow_columns' => env('API_TOOLKIT_RESOURCES_NARROW_COLUMNS', true),
 
+        // The most related records a to-many relation renders per parent when
+        // it declares no limit(). A capped relation is listed in `_truncated`;
+        // 0 or null leaves undeclared relations unbounded
+        'relation_limit' => env('API_TOOLKIT_RESOURCES_RELATION_LIMIT', 25),
+
     ],
 
     /*
@@ -260,7 +265,7 @@ return [
     | `max_nodes`       - total filter keys visited.
     | `max_in_items`    - items in one operator value list, such as `$in`.
     | `max_order_keys`  - sort columns.
-    | `max_aggregates`  - relation counts, sums and averages combined.
+    | `max_aggregates`  - relation aggregates.
     | `max_offset`      - rows skipped to reach a page, (page - 1) x page size;
     |                     cursor pagination is exempt.
     */
@@ -376,10 +381,9 @@ return [
     /*
     | Cache lifecycle
     |
-    | `octane` and `queue` reset the toolkit's in-process caches after every
-    | Octane operation or queue job, so long-lived workers do not grow and pick
-    | up invalidations made elsewhere. They only engage when actually serving
-    | under Octane or a non-sync queue worker.
+    | Under Octane and on a non-sync queue worker, the toolkit's per-operation
+    | state is reset after every Octane operation and queue job attempt, so
+    | long-lived workers do not grow and pick up invalidations made elsewhere.
     |
     | `migrations` invalidates the cached schema metadata whenever a migration
     | run applies or rolls back a migration. Old-code workers can refill it
@@ -388,10 +392,6 @@ return [
     */
 
     'lifecycle' => [
-
-        'octane' => env('API_TOOLKIT_LIFECYCLE_OCTANE', true),
-
-        'queue' => env('API_TOOLKIT_LIFECYCLE_QUEUE', true),
 
         'migrations' => env('API_TOOLKIT_LIFECYCLE_MIGRATIONS', true),
 

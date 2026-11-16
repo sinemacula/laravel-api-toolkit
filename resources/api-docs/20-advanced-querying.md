@@ -10,20 +10,18 @@ request looks like this:
 ?fields[user]=first_name,last_name&filters={"last_name":{"$eq":"Smith"}}&order=created_at:desc&limit=25&page=1
 ```
 
-| Parameter  | Example                         | Description                                             |
-|------------|---------------------------------|---------------------------------------------------------|
-| `fields`   | `?fields[user]=first_name`      | Choose the fields returned per resource type.           |
-| `counts`   | `?counts[user]=posts`           | Ask for a count of a declared relationship.             |
-| `sums`     | `?sums[user][orders]=total`     | Ask for a sum over a declared relationship.             |
-| `averages` | `?averages[user][orders]=total` | Ask for an average over a declared relationship.        |
-| `filters`  | `?filters={"age":{"$gt":18}}`   | Filter records with a structured JSON query.            |
-| `search`   | `?search=John Smith`            | Free-text search across a resource's searchable fields. |
-| `order`    | `?order=created_at:desc`        | Order results by a column and direction.                |
-| `limit`    | `?limit=25`                     | Set the page size of a paginated list.                  |
-| `page`     | `?page=2`                       | Request a specific page of a paginated list.            |
-| `trashed`  | `?trashed=with`                 | Widen a read to include soft-deleted records.           |
+| Parameter    | Example                         | Description                                                |
+|--------------|---------------------------------|------------------------------------------------------------|
+| `fields`     | `?fields[user]=first_name`      | Choose the fields returned per resource type.              |
+| `aggregates` | `?aggregates[user]=posts_count` | Choose the relation aggregates returned per resource type. |
+| `filters`    | `?filters={"age":{"$gt":18}}`   | Filter records with a structured JSON query.               |
+| `search`     | `?search=John Smith`            | Free-text search across a resource's searchable fields.    |
+| `order`      | `?order=created_at:desc`        | Order results by a column and direction.                   |
+| `limit`      | `?limit=25`                     | Set the page size of a paginated list.                     |
+| `page`       | `?page=2`                       | Request a specific page of a paginated list.               |
+| `trashed`    | `?trashed=with`                 | Widen a read to include soft-deleted records.              |
 
-The first four shape the representation of a resource that is returned, so they
+The first two shape the representation of a resource that is returned, so they
 are honoured wherever one is serialised, whatever the verb that produced it. The
 next five select, order, and page a collection, so only an endpoint returning a
 list answers them. `trashed` widens the scope a read is served from and so joins
@@ -54,6 +52,19 @@ type separately:
 ```text
 ?fields[user]=first_name&fields[organization]=name
 ```
+
+An embedded collection holds at most the `maxItems` its schema declares, per
+parent record. When a collection was cut to that size, the record lists the
+collection's key in `_truncated`:
+
+```json
+{"_type": "user", "id": 1, "posts": [...], "_truncated": ["posts"]}
+```
+
+`_truncated` is absent when nothing was cut, and cannot itself be requested
+with `fields`. Embedded collections are not paged; request the relation's
+count, where the resource offers one, for the total, and read the related
+records from their own endpoint to page through them.
 
 ## Filtering
 

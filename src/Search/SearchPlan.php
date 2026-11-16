@@ -58,6 +58,9 @@ final class SearchPlan
     /**
      * Clear the per-resource-class search plan cache.
      *
+     * Search plans live for the worker, so a lifecycle flush leaves them; this
+     * is for test isolation.
+     *
      * @return void
      */
     public static function clearCache(): void

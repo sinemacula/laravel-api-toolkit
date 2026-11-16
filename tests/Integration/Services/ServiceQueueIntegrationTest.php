@@ -5,12 +5,8 @@ declare(strict_types = 1);
 namespace Tests\Integration\Services;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Services\Actors\EloquentActor;
 use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
@@ -19,6 +15,7 @@ use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceContext;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
+use Tests\Concerns\UsesDatabaseQueue;
 use Tests\Fixtures\Actors\ActorUser;
 use Tests\Fixtures\Exceptions\ServiceExecutionException;
 use Tests\Fixtures\Services\Jobs\ConcernCapturingService;
@@ -39,6 +36,8 @@ use Tests\TestCase;
 #[CoversClass(Service::class)]
 final class ServiceQueueIntegrationTest extends TestCase
 {
+    use UsesDatabaseQueue;
+
     /**
      * Register the actor morph alias and reset the static concern capture.
      *
@@ -158,48 +157,5 @@ final class ServiceQueueIntegrationTest extends TestCase
         self::assertNotNull(ContextCapturingConcern::$captured);
         self::assertSame(0, DB::connection('queue_probe')->table('jobs')->count());
         self::assertSame(0, DB::connection('queue_probe')->table('failed_jobs')->count());
-    }
-
-    /**
-     * Give the database queue a private connection, apart from the suite's.
-     *
-     * @return void
-     */
-    private function useDatabaseQueue(): void
-    {
-        Config::set('database.connections.queue_probe', ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']);
-        Config::set('queue.default', 'database');
-        Config::set('queue.connections.database', ['driver' => 'database', 'connection' => 'queue_probe', 'table' => 'jobs', 'queue' => 'default', 'retry_after' => 90]);
-        Config::set('queue.failed', ['driver' => 'database-uuids', 'database' => 'queue_probe', 'table' => 'failed_jobs']);
-
-        Schema::connection('queue_probe')->create('jobs', function (Blueprint $table): void {
-            $table->id();
-            $table->string('queue')->index();
-            $table->longText('payload');
-            $table->unsignedTinyInteger('attempts');
-            $table->unsignedInteger('reserved_at')->nullable();
-            $table->unsignedInteger('available_at');
-            $table->unsignedInteger('created_at');
-        });
-
-        Schema::connection('queue_probe')->create('failed_jobs', function (Blueprint $table): void {
-            $table->id();
-            $table->string('uuid')->unique();
-            $table->text('connection');
-            $table->text('queue');
-            $table->longText('payload');
-            $table->longText('exception');
-            $table->timestamp('failed_at')->useCurrent();
-        });
-    }
-
-    /**
-     * Process the next job on the database queue, allowing two attempts.
-     *
-     * @return void
-     */
-    private function workOnce(): void
-    {
-        Artisan::call('queue:work', ['connection' => 'database', '--once' => true, '--tries' => 2, '--timeout' => 0]);
     }
 }

@@ -6,6 +6,7 @@ namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Schema\Sum;
 
 /**
@@ -19,75 +20,58 @@ use SineMacula\ApiToolkit\Schema\Sum;
 #[CoversClass(Sum::class)]
 final class SumTest extends TestCase
 {
-    /** @var string The schema key for posts/id without alias. */
-    private const string SUM_KEY_POSTS_ID = '__sum__:posts_id';
+    /** @var string The schema key for the unaliased definition. */
+    private const string DEFAULT_KEY = '__aggregate__:orders_sum_total';
 
     /**
-     * Test that of creates a sum definition with the correct metric.
+     * Test that the function is sum.
      *
      * @return void
      */
-    public function testOfCreatesSumDefinitionWithSumMetric(): void
+    public function testFunctionIsSUM(): void
     {
-        $sum   = Sum::of('posts', 'id');
-        $array = $sum->toArray();
-
-        self::assertArrayHasKey(self::SUM_KEY_POSTS_ID, $array);
-        self::assertSame('sum', $array[self::SUM_KEY_POSTS_ID]['metric']);
+        self::assertSame(AggregateFunction::SUM, Sum::of('orders', 'total')->function());
     }
 
     /**
-     * Test that the schema key carries the __sum__ prefix.
+     * Test that of keys the definition by Laravel's default aggregate key.
      *
      * @return void
      */
-    public function testSchemaKeyCarriesSumPrefix(): void
+    public function testOfKeysTheDefinitionByTheDefaultKey(): void
     {
-        $sum = Sum::of('posts', 'id');
-        $key = array_key_first($sum->toArray());
+        $array = Sum::of('orders', 'total')->toArray();
 
-        self::assertIsString($key);
-        self::assertStringStartsWith('__sum__:', $key);
+        self::assertSame([self::DEFAULT_KEY], array_keys($array));
+        self::assertSame('orders_sum_total', $array[self::DEFAULT_KEY]['key']);
+        self::assertSame('sum', $array[self::DEFAULT_KEY]['metric']);
+        self::assertSame('orders', $array[self::DEFAULT_KEY]['relation']);
+        self::assertSame('total', $array[self::DEFAULT_KEY]['column']);
     }
 
     /**
-     * Test that Sum is distinct from other aggregate types by its metric.
+     * Test that of with an alias keys the definition by the alias.
      *
      * @return void
      */
-    public function testSumMetricIsSumNotAvg(): void
+    public function testOfWithAliasKeysTheDefinitionByTheAlias(): void
     {
-        $sum   = Sum::of('posts', 'id');
-        $array = $sum->toArray();
+        $array = Sum::of('orders', 'total', 'headline')->toArray();
 
-        self::assertSame('sum', $array[self::SUM_KEY_POSTS_ID]['metric']);
-        self::assertNotSame('avg', $array[self::SUM_KEY_POSTS_ID]['metric']);
+        self::assertSame(['__aggregate__:headline'], array_keys($array));
+        self::assertSame('headline', $array['__aggregate__:headline']['key']);
+        self::assertSame('total', $array['__aggregate__:headline']['column']);
     }
 
     /**
-     * Test that of with an alias produces the correct schema key.
+     * Test that default() marks the aggregate as a default.
      *
      * @return void
      */
-    public function testOfWithAliasProducesAliasedKey(): void
+    public function testDefaultMarksTheAggregateAsDefault(): void
     {
-        $sum   = Sum::of('posts', 'id', 'post_id_sum');
-        $array = $sum->toArray();
+        $array = Sum::of('orders', 'total')->default()->toArray();
 
-        self::assertArrayHasKey('__sum__:post_id_sum', $array);
-        self::assertSame('post_id_sum', $array['__sum__:post_id_sum']['key']);
-    }
-
-    /**
-     * Test that default() marks the sum as a default metric.
-     *
-     * @return void
-     */
-    public function testDefaultMarksSumAsDefault(): void
-    {
-        $sum   = Sum::of('posts', 'id')->default();
-        $array = $sum->toArray();
-
-        self::assertTrue($array[self::SUM_KEY_POSTS_ID]['default']);
+        self::assertTrue($array[self::DEFAULT_KEY]['default']);
     }
 }

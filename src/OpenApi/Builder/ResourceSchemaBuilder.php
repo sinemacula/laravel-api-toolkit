@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
+use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
@@ -35,6 +36,9 @@ final readonly class ResourceSchemaBuilder
 {
     /** The property an API resource's schema pins to its resource type */
     public const string TYPE_PROPERTY = '_type';
+
+    /** The property a resource's relation aggregates are rendered under */
+    private const string AGGREGATES_PROPERTY = 'aggregates';
 
     /** The path prefix under which resource component schemas are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
@@ -125,6 +129,7 @@ final readonly class ResourceSchemaBuilder
         $compiled   = SchemaCompiler::compile($resourceClass);
         $properties = [];
         $required   = [];
+        $limited    = [];
 
         foreach ($compiled->getFieldKeys() as $fieldKey) {
             $field = $compiled->getField($fieldKey);
@@ -133,11 +138,13 @@ final readonly class ResourceSchemaBuilder
                 continue;
             }
 
-            $properties[$fieldKey] = $this->withQuerySurface(
-                $this->buildFieldProperty($fieldKey, $field, $modelClass, $built),
-                $field,
-                $compiled,
-            );
+            $property = $this->buildFieldProperty($fieldKey, $field, $modelClass, $built);
+
+            if ($this->isBoundedArray($property)) {
+                $limited[] = $fieldKey;
+            }
+
+            $properties[$fieldKey] = $this->withQuerySurface($property, $field, $compiled);
 
             if (!$this->isRequired($field)) {
                 continue;
@@ -146,8 +153,12 @@ final readonly class ResourceSchemaBuilder
             $required[] = $fieldKey;
         }
 
-        foreach (array_keys($compiled->getCountDefinitions()) as $presentKey) {
-            $properties[$presentKey] ??= $this->buildCountProperty();
+        if ($compiled->getAggregateDefinitions() !== []) {
+            $properties[self::AGGREGATES_PROPERTY] ??= $this->buildAggregatesProperty($compiled, $modelClass);
+        }
+
+        if ($limited !== []) {
+            $properties[RelationLimit::TRUNCATED_KEY] = $this->buildTruncatedProperty($limited);
         }
 
         if (is_a($resourceClass, ApiResourceInterface::class, true)) {
@@ -170,7 +181,7 @@ final readonly class ResourceSchemaBuilder
     private function buildFieldProperty(string $fieldKey, CompiledFieldDefinition $field, string $modelClass, array $built): array
     {
         if ($field->relation !== null && $field->resource !== null) {
-            return $this->buildRelationProperty($field->relation, $field->resource, $modelClass, $built);
+            return $this->buildRelationProperty($field, $field->relation, $field->resource, $modelClass, $built);
         }
 
         if (!is_subclass_of($modelClass, Model::class)) {
@@ -186,26 +197,27 @@ final readonly class ResourceSchemaBuilder
      * An unmapped resource has no component, so it becomes an undocumented
      * object, never a dangling $ref.
      *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  string  $relation
      * @param  string  $childResource
      * @param  class-string  $modelClass
      * @param  array<string, true>  $built
      * @return array<string, mixed>
      */
-    private function buildRelationProperty(string $relation, string $childResource, string $modelClass, array $built): array
+    private function buildRelationProperty(CompiledFieldDefinition $field, string $relation, string $childResource, string $modelClass, array $built): array
     {
         $target = isset($built[$childResource]) && class_exists($childResource)
             ? ['$ref' => self::SCHEMA_REF_PREFIX . SchemaComponentName::fromResource($childResource)]
             : ['type' => 'object', self::UNDOCUMENTED_KEY => true];
+        $limit    = RelationLimit::for($field);
+        $array    = ['type' => 'array', 'items' => $target] + ($limit > 0 ? ['maxItems' => $limit] : []);
         $instance = $this->resolveRelation($relation, $modelClass);
 
         if ($instance === null) {
-            return $this->conservativeRelationProperty($target);
+            return $this->conservativeRelationProperty($target, $array);
         }
 
-        return $this->isToOne($instance)
-            ? $target
-            : ['type' => 'array', 'items' => $target];
+        return $this->isToOne($instance) ? $target : $array;
     }
 
     /**
@@ -247,14 +259,15 @@ final readonly class ResourceSchemaBuilder
      * Build the relation property for an unknown cardinality.
      *
      * @param  array<string, mixed>  $target
+     * @param  array<string, mixed>  $array
      * @return array<string, mixed>
      */
-    private function conservativeRelationProperty(array $target): array
+    private function conservativeRelationProperty(array $target, array $array): array
     {
         return [
             'oneOf' => [
                 $target,
-                ['type' => 'array', 'items' => $target],
+                $array,
                 ['type' => 'null'],
             ],
             'x-cardinality' => 'unknown',
@@ -262,13 +275,56 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Build the count property: a non-negative integer.
+     * Determine whether the relation property may render as a bounded array.
      *
+     * @param  array<string, mixed>  $property
+     * @return bool
+     */
+    private function isBoundedArray(array $property): bool
+    {
+        $members = is_array($property['oneOf'] ?? null) ? $property['oneOf'] : [$property];
+
+        foreach ($members as $member) {
+            if (is_array($member) && isset($member['maxItems'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Build the optional property naming the relations a response truncated.
+     *
+     * @param  array<int, string>  $limited
      * @return array<string, mixed>
      */
-    private function buildCountProperty(): array
+    private function buildTruncatedProperty(array $limited): array
     {
-        return ['type' => 'integer', 'minimum' => 0];
+        return [
+            'type'        => 'array',
+            'items'       => ['type' => 'string', 'enum' => $limited],
+            'uniqueItems' => true,
+            'minItems'    => 1,
+        ];
+    }
+
+    /**
+     * Build the aggregates property, keyed by each aggregate's present key.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
+     * @param  class-string  $modelClass
+     * @return array<string, mixed>
+     */
+    private function buildAggregatesProperty(CompiledSchema $compiled, string $modelClass): array
+    {
+        $properties = [];
+
+        foreach ($compiled->getAggregateDefinitions() as $presentKey => $definition) {
+            $properties[$presentKey] = $this->resolver->resolveAggregate($definition, $modelClass);
+        }
+
+        return ['type' => 'object', 'properties' => $properties];
     }
 
     /**

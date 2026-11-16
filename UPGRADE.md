@@ -1229,29 +1229,29 @@ flush or rely on the TTL. To turn the invalidation off:
 API_TOOLKIT_DEFERRED_WRITES_INVALIDATE_QUERY_CACHE=false
 ```
 
-### Changed: the lifecycle metadata flush is on by default on serving runtimes
+### Changed: the lifecycle metadata flush always runs on serving runtimes
 
-The lifecycle flush, which resets the toolkit's in-process state between requests and jobs, is **on by default** when
+The lifecycle flush, which resets the toolkit's per-operation state between requests and jobs, is **always on** when
 serving under Octane or running as a queue worker. PHP-FPM is unaffected; the runtime check does not fire there even
 when Octane is installed.
 
 - Octane: the flush engages only when `$_SERVER['LARAVEL_OCTANE']` is set, which a booted Octane worker does.
-- Queue worker: `JobProcessed` and `JobFailed` trigger it, except on the `sync` driver, where those events fire inside
-  the originating request.
+- Queue worker: `JobAttempted` triggers it after every attempt, including one released for a retry, except on the
+  `sync` driver, where the event fires inside the originating request.
 
 The boundary resets:
 
-- the process-static memos: the schema compile cache (`SchemaCompiler`), the serialisation, eager-load, field and
-  field-to-column memos, the compiled search plans, and the per-operation index proofs;
+- the eager-load and field memos and the per-operation index proofs;
 - the `SchemaIntrospector` singleton's in-memory column listings, column definitions and index catalogues;
 - the memoised metadata generation, so the worker picks up an invalidation made elsewhere;
 - the bound query parser's state.
 
 `CacheManager::flush()` resets all of it and is called by the Octane and queue listeners at every boundary. Octane
-fires it after every request, task and tick.
+fires it after every request, task and tick. The compiled schemas, search plans, field-to-column maps and cast
+reflections come from code alone, so they live for the worker and are rebuilt only when it restarts.
 
 The boundary does not touch the cache store. Toolkit metadata (schema columns, column definitions, index catalogues,
-relation lookups, search index proofs, resources and repository model casts) is read and written through
+relation lookups, search index proofs and resources) is read and written through
 `Cache::memo()` on the application's cache store, which is usually shared by every worker, and is retired only by
 replacing the generation (see the metadata invalidation section below) or by its expiry. Any new toolkit metadata key
 must go through `MetadataCacheWriter` so it is namespaced by the generation. Because stored metadata survives the
@@ -1260,24 +1260,8 @@ table exists, is never stored.
 
 **Action required.** None for most applications.
 
-**Opt out** (in-process memos then grow for the life of the worker, and an invalidation made elsewhere is not picked
-up until it restarts):
-
-```dotenv
-API_TOOLKIT_LIFECYCLE_OCTANE=false
-API_TOOLKIT_LIFECYCLE_QUEUE=false
-```
-
-Or in a published `config/api-toolkit.php`:
-
-```php
-'lifecycle' => [
-    'octane' => false,
-    'queue'  => false,
-],
-```
-
-When a serving runtime is detected but the flush is off, the toolkit logs a one-line `info` message saying so.
+There is no opt-out. An application that runs its own reset can call `CacheManager::flush()`; a second reset is
+harmless.
 
 ### Added: metadata is invalidated across processes after migrations
 
@@ -1318,11 +1302,11 @@ connection object, never by a query, so:
   connection, so workers may cache under several correct keys that fill separately; prefer one entry with a host
   list.
 
-Casts, relation lookups and the model-to-resource map come from code, so they are keyed by class and shared across
-tenants. Where each tenant has its own cache prefix, each has its own generation, so run the invalidation per tenant.
+Relation lookups and the model-to-resource map come from code, so they are keyed by class and shared across tenants.
+Where each tenant has its own cache prefix, each has its own generation, so run the invalidation per tenant.
 
 The migration hook is not enough on its own: migrations run before the new release takes traffic, so workers still on
-the old code can refill the new generation with their casts, resource mappings and relation lookups.
+the old code can refill the new generation with their resource mappings and relation lookups.
 
 **Action required.** Run `php artisan api-toolkit:invalidate-metadata` on every deploy, after the new release is
 live. Code that read toolkit metadata keys straight from the store must go through `MetadataCacheWriter`, since the

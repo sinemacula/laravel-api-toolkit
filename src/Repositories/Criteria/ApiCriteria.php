@@ -86,7 +86,7 @@ final class ApiCriteria implements CriteriaInterface
         /** Source of query parameters for criteria resolution */
         protected Request $request,
 
-        /** Resolves fields, eager loads, and counts from resource schemas */
+        /** Resolves fields, eager loads, and aggregates from resource schemas */
         private readonly ResourceMetadataProvider $metadataProvider,
 
         /** Resolves model columns and relation existence */
@@ -102,7 +102,7 @@ final class ApiCriteria implements CriteriaInterface
         private readonly MetadataCacheWriter $metadataCacheWriter,
     ) {
         $this->filterApplier               = new FilterApplier;
-        $this->orderApplier                = new OrderApplier;
+        $this->orderApplier                = new OrderApplier($this->schemaIntrospector);
         $this->eagerLoadApplier            = new EagerLoadApplier;
         $this->limitApplier                = new LimitApplier;
         $this->columnProjectionApplier     = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector), $this->schemaIntrospector);
@@ -245,7 +245,7 @@ final class ApiCriteria implements CriteriaInterface
     /**
      * Get the order to be applied to the query.
      *
-     * @return array<string, string>
+     * @return array<string, 'asc'|'desc'>
      */
     private function getOrder(): array
     {

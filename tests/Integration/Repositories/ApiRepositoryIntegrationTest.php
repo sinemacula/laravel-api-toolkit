@@ -4,13 +4,16 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\Repositories;
 
+use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
-use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
+use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\UserResource;
@@ -25,6 +28,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiRepository::class)]
+#[CoversClass(PageOrder::class)]
 final class ApiRepositoryIntegrationTest extends TestCase
 {
     /** @var \Tests\Fixtures\Repositories\UserRepository */
@@ -69,30 +73,32 @@ final class ApiRepositoryIntegrationTest extends TestCase
     }
 
     /**
-     * Test that persist saves model changes to the database.
-     *
-     * @SuppressWarnings("php:S3011")
+     * Test that persist writes uncast columns on an existing model.
      *
      * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
-    public function testPersistSavesModelChanges(): void
+    public function testPersistWritesUncastColumnsOnUpdate(): void
     {
         /** @var \Tests\Fixtures\Models\User $user */
         $user = User::where('name', 'Alice')->first();
 
-        $reflection      = new \ReflectionClass(ApiRepository::class);
-        $attributeSetter = $reflection->getProperty('attributeSetter')->getValue($this->repository);
+        self::assertTrue($this->repository->persist($user, ['name' => 'Alice Updated', 'email' => 'alice.updated@example.com']));
 
-        self::assertInstanceOf(AttributeSetter::class, $attributeSetter);
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Alice Updated', 'email' => 'alice.updated@example.com']);
+    }
 
-        (new \ReflectionProperty($attributeSetter, 'casts'))->setValue($attributeSetter, ['name' => 'string']);
+    /**
+     * Test that persist writes uncast columns when creating a model.
+     *
+     * @return void
+     */
+    public function testPersistWritesUncastColumnsOnCreate(): void
+    {
+        $user = new User;
 
-        $result = $this->repository->persist($user, ['name' => 'Alice Updated']);
+        self::assertTrue($this->repository->persist($user, ['name' => 'Carol', 'email' => 'carol@example.com']));
 
-        self::assertTrue($result);
-        $this->assertDatabaseHas('users', ['name' => 'Alice Updated']);
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Carol', 'email' => 'carol@example.com']);
     }
 
     /**
@@ -152,6 +158,111 @@ final class ApiRepositoryIntegrationTest extends TestCase
         $first = $results->first();
 
         self::assertSame('Alice', $first->name);
+    }
+
+    /**
+     * Test that offset pages over a grouped scope return every group once.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testOffsetPagesOverAGroupedScopeReturnEveryGroupOnce(): void
+    {
+        $groups = [];
+
+        foreach ([1, 2, 3] as $page) {
+
+            ApiQuery::parse(Request::create('/test', HttpMethod::GET->getVerb(), ['limit' => '1', 'page' => (string) $page]));
+
+            $results = $this->groupedByStatus()->paginate();
+
+            self::assertInstanceOf(LengthAwarePaginator::class, $results);
+
+            $groups = array_merge($groups, $results->items());
+        }
+
+        self::assertSame([['active', 2], ['inactive', 1]], array_map($this->statusCount(...), $groups));
+    }
+
+    /**
+     * Test that cursor pages over a grouped scope return every group once.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testCursorPagesOverAGroupedScopeReturnEveryGroupOnce(): void
+    {
+        $groups = [];
+        $cursor = '';
+
+        do {
+
+            ApiQuery::parse(Request::create('/test', HttpMethod::GET->getVerb(), ['pagination' => 'cursor', 'limit' => '1', 'cursor' => $cursor]));
+
+            $page = $this->groupedByStatus()->paginate();
+
+            self::assertInstanceOf(CursorPaginator::class, $page);
+
+            $groups = array_merge($groups, $page->items());
+            $cursor = $page->nextCursor()?->encode();
+        } while ($cursor !== null);
+
+        self::assertSame([['active', 2], ['inactive', 1]], array_map($this->statusCount(...), $groups));
+    }
+
+    /**
+     * Test that a distinct projection without the key pages without an engine
+     * error.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testDistinctProjectionWithoutTheKeyPages(): void
+    {
+        ApiQuery::parse(Request::create('/test', HttpMethod::GET->getVerb(), ['limit' => '10']));
+
+        $results = $this->repository
+            ->addScope(static function (Builder $query): void {
+                $query->getQuery()->distinct()->select('status');
+            })
+            ->paginate();
+
+        self::assertInstanceOf(LengthAwarePaginator::class, $results);
+        self::assertCount(2, $results->items());
+    }
+
+    /**
+     * Scope the repository to one row per status with its count.
+     *
+     * @return \Tests\Fixtures\Repositories\UserRepository
+     */
+    private function groupedByStatus(): UserRepository
+    {
+        return $this->repository->addScope(static function (Builder $query): void {
+            $query->getQuery()->select('status')->selectRaw('count(*) as total')->groupBy('status');
+        });
+    }
+
+    /**
+     * Read a grouped row as its status and count.
+     *
+     * @param  mixed  $user
+     * @return array{string, int}
+     */
+    private function statusCount(mixed $user): array
+    {
+        self::assertInstanceOf(User::class, $user);
+
+        $status = $user->getAttribute('status');
+        $total  = $user->getAttribute('total');
+
+        self::assertInstanceOf(UserStatus::class, $status);
+        self::assertIsNumeric($total);
+
+        return [$status->value, (int) $total];
     }
 
     /**

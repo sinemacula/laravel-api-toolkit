@@ -4,13 +4,19 @@ declare(strict_types = 1);
 
 namespace Tests\Feature\Query;
 
+use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Pagination\Cursor;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ProvidesApiEnvelope;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
+use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
@@ -27,6 +33,8 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiRepository::class)]
 #[CoversClass(ApiResourceCollection::class)]
+#[CoversClass(OrderApplier::class)]
+#[CoversClass(PageOrder::class)]
 #[CoversTrait(ProvidesApiEnvelope::class)]
 final class CursorPaginationTest extends TestCase
 {
@@ -47,6 +55,18 @@ final class CursorPaginationTest extends TestCase
         Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($users, FilterableUserResource::class);
+        });
+
+        Route::middleware(ParseApiQuery::class)->get('/users-by-status', function (UserRepository $repository): ApiResourceCollection {
+
+            $users = $repository->usingResource(FilterableUserResource::class)
+                ->withApiCriteria()
+                ->addScope(static function (Builder $query): void {
+                    $query->getQuery()->orderBy('status', 'desc');
+                })
+                ->paginate();
 
             return new ApiResourceCollection($users, FilterableUserResource::class);
         });
@@ -199,5 +219,217 @@ final class CursorPaginationTest extends TestCase
         self::assertFalse($response->json('meta.continue'));
         self::assertNull($response->json('links.next'));
         self::assertNull($response->json('links.prev'));
+    }
+
+    /**
+     * Test that rows tied on the order are each paged once, both ways.
+     *
+     * @return void
+     */
+    public function testTiedRowsArePagedOnceInEachDirection(): void
+    {
+        User::query()->update(['name' => 'Same']);
+
+        $pages = [$this->getJson('/users?pagination=cursor&order=name&limit=2')];
+
+        while (is_string($next = end($pages)->json('links.next'))) {
+            $pages[] = $this->follow($next);
+        }
+
+        self::assertSame([['anna', 'ben'], ['cara', 'dan'], ['evan']], array_map($this->emails(...), $pages));
+
+        $back = [end($pages)];
+
+        while (is_string($prev = end($back)->json('links.prev'))) {
+            $back[] = $this->follow($prev);
+        }
+
+        self::assertSame([['evan'], ['cara', 'dan'], ['anna', 'ben']], array_map($this->emails(...), $back));
+    }
+
+    /**
+     * Test that a descending order pages its tied rows by descending key.
+     *
+     * @return void
+     */
+    public function testDescendingOrderPagesTiedRowsByDescendingKey(): void
+    {
+        User::query()->update(['name' => 'Same']);
+
+        $first = $this->getJson('/users?pagination=cursor&order=name:desc&limit=2');
+        $next  = $first->json('links.next');
+
+        self::assertIsString($next);
+        self::assertSame(['evan', 'dan'], $this->emails($first));
+        self::assertSame(['cara', 'ben'], $this->emails($this->follow($next)));
+    }
+
+    /**
+     * Test that random order is refused on a cursor-paginated read.
+     *
+     * @return void
+     */
+    public function testRandomOrderIsRejected(): void
+    {
+        Config::set('api-toolkit.repositories.allow_random_order', true);
+
+        $response = $this->getJson('/users?pagination=cursor&order=random');
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.meta', ['order.random' => ['Random order cannot be paged by cursor; use offset pagination.']]);
+    }
+
+    /**
+     * Test that a column that admits null is refused on a cursor-paginated
+     * read.
+     *
+     * @return void
+     */
+    public function testNullableColumnIsRejected(): void
+    {
+        $response = $this->getJson('/users?pagination=cursor&order=created_at');
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.meta', [
+            'order.created_at' => ['The "created_at" key admits null, so it cannot order a cursor-paginated read; use offset pagination.'],
+        ]);
+    }
+
+    /**
+     * Test that a cursor replayed under a different order is refused.
+     *
+     * @return void
+     */
+    public function testCursorReplayedUnderADifferentOrderIsRejected(): void
+    {
+        $next = $this->getJson('/users?pagination=cursor&order=name&limit=2')->json('links.next');
+
+        self::assertIsString($next);
+
+        $cursor   = $this->cursorOf($next);
+        $response = $this->getJson('/users?order=id&limit=2&cursor=' . urlencode($cursor));
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.meta', ['cursor' => ['The cursor does not match the requested order; restart from the first page.']]);
+    }
+
+    /**
+     * Test that a cursor that does not decode is refused rather than read as
+     * the first page.
+     *
+     * @return void
+     */
+    public function testUndecodableCursorIsRejected(): void
+    {
+        $response = $this->getJson('/users?limit=2&cursor=garbage');
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.meta', ['cursor' => ['The cursor could not be read; restart from the first page.']]);
+    }
+
+    /**
+     * Test that a cursor carrying a null boundary is refused.
+     *
+     * @return void
+     */
+    public function testCursorWithANullBoundaryIsRejected(): void
+    {
+        $cursor   = (new Cursor(['name' => null, 'users.id' => 2]))->encode();
+        $response = $this->getJson('/users?order=name&limit=2&cursor=' . $cursor);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.meta', ['cursor' => ['The cursor does not match the requested order; restart from the first page.']]);
+    }
+
+    /**
+     * Test that a repository scope's order is kept ahead of the key.
+     *
+     * @return void
+     */
+    public function testRepositoryScopeOrderIsKeptAheadOfTheKey(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', false);
+
+        User::query()->whereIn('email', ['ben@example.com', 'dan@example.com'])->update(['status' => 'inactive']);
+
+        $pages = [$this->getJson('/users-by-status?pagination=cursor&limit=2')];
+
+        while (is_string($next = end($pages)->json('links.next'))) {
+            $pages[] = $this->follow($next);
+        }
+
+        self::assertSame([['dan', 'ben'], ['evan', 'cara'], ['anna']], array_map($this->emails(...), $pages));
+    }
+
+    /**
+     * Test that a narrowed projection still pages tied rows by the key.
+     *
+     * @return void
+     */
+    public function testNarrowedProjectionPagesTiedRowsByTheKey(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        User::query()->whereIn('email', ['anna@example.com', 'ben@example.com', 'cara@example.com'])->update(['name' => 'Same']);
+
+        $pages = [$this->getJson('/users?pagination=cursor&order=name&limit=2&fields[filterable_users]=email')];
+
+        while (is_string($next = end($pages)->json('links.next'))) {
+            $pages[] = $this->follow($next);
+        }
+
+        self::assertSame([['dan', 'evan'], ['anna', 'ben'], ['cara']], array_map($this->emails(...), $pages));
+        end($pages)->assertJsonMissingPath('data.0.name');
+    }
+
+    /**
+     * Follow a pagination link through the kernel.
+     *
+     * @param  string  $link
+     * @return \Illuminate\Testing\TestResponse<\Symfony\Component\HttpFoundation\Response>
+     */
+    private function follow(string $link): TestResponse
+    {
+        $parts = parse_url($link);
+
+        self::assertIsArray($parts);
+        self::assertArrayHasKey('query', $parts);
+
+        $response = $this->getJson(($parts['path'] ?? '/users') . '?' . $parts['query']);
+
+        $response->assertOk();
+
+        return $response;
+    }
+
+    /**
+     * Read the cursor token a pagination link carries.
+     *
+     * @param  string  $link
+     * @return string
+     */
+    private function cursorOf(string $link): string
+    {
+        parse_str((string) parse_url($link, PHP_URL_QUERY), $parameters);
+
+        self::assertIsString($parameters['cursor'] ?? null);
+
+        return $parameters['cursor'];
+    }
+
+    /**
+     * Read the local part of each email on the page, in order.
+     *
+     * @param  \Illuminate\Testing\TestResponse<\Symfony\Component\HttpFoundation\Response>  $response
+     * @return array<int, string>
+     */
+    private function emails(TestResponse $response): array
+    {
+        $response->assertOk();
+
+        /** @var array<int, array{email: string}> $data */
+        $data = $response->json('data');
+
+        return array_map(static fn (array $user): string => strstr($user['email'], '@', true) ?: '', $data);
     }
 }

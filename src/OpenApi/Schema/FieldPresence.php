@@ -7,14 +7,17 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
 /**
  * Reads how a field's normalised rule tokens govern its presence.
  *
- * Laravel runs required and present rules on a missing field unless sometimes
- * skips it or an exclude rule drops it.
+ * Laravel runs required, present, accepted and declined rules on a missing
+ * field unless sometimes skips it or an exclude rule drops it.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class FieldPresence
 {
+    /** The implicit rules a missing or empty value fails, as required does */
+    private const array REQUIRING_RULES = ['required', 'accepted', 'declined'];
+
     /**
      * Determine whether the field is required.
      *
@@ -23,7 +26,7 @@ final readonly class FieldPresence
      */
     public function isRequired(array $tokens): bool
     {
-        return ($this->hasToken($tokens, 'required') || $this->hasToken($tokens, 'present'))
+        return $this->hasAnyToken($tokens, [...self::REQUIRING_RULES, 'present'])
             && !$this->hasToken($tokens, 'sometimes')
             && !$this->isExcludable($tokens);
     }
@@ -36,7 +39,7 @@ final readonly class FieldPresence
      */
     public function rejectsEmpty(array $tokens): bool
     {
-        return ($this->hasToken($tokens, 'required') || $this->hasToken($tokens, 'filled')) && !$this->isExcludable($tokens);
+        return $this->hasAnyToken($tokens, [...self::REQUIRING_RULES, 'filled']) && !$this->isExcludable($tokens);
     }
 
     /**
@@ -119,13 +122,32 @@ final readonly class FieldPresence
             $absent = array_filter($arguments, $missing);
 
             $demands = match ($rule) {
-                'required', 'present'  => true,
-                'required_without'     => $absent !== [],
-                'required_without_all' => count($absent) === count($arguments),
-                default                => false,
+                'required', 'present', 'accepted', 'declined' => true,
+                'required_without'                            => $absent !== [],
+                'required_without_all'                        => count($absent) === count($arguments),
+                default                                       => false,
             };
 
             if ($demands) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine whether a token carrying any of the given rule names is
+     * present.
+     *
+     * @param  list<string>  $tokens
+     * @param  list<string>  $names
+     * @return bool
+     */
+    private function hasAnyToken(array $tokens, array $names): bool
+    {
+        foreach ($tokens as $token) {
+            if (in_array($this->parse($token)[0], $names, true)) {
                 return true;
             }
         }
@@ -142,13 +164,7 @@ final readonly class FieldPresence
      */
     private function hasToken(array $tokens, string $name): bool
     {
-        foreach ($tokens as $token) {
-            if ($this->parse($token)[0] === $name) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->hasAnyToken($tokens, [$name]);
     }
 
     /**

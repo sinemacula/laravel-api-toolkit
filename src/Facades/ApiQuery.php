@@ -14,12 +14,10 @@ use Illuminate\Support\Facades\Facade;
  * @copyright   2026 Sine Macula Limited.
  *
  * @method static array<int, string>|null getFields(?string $resource = null)
- * @method static array<int, string>|null getCounts(?string $resource = null)
- * @method static array<string, mixed>|null getSums(?string $resource = null)
- * @method static array<string, mixed>|null getAverages(?string $resource = null)
+ * @method static array<int, string>|null getAggregates(?string $resource = null)
  * @method static array<string, mixed>|null getFilters()
  * @method static \SineMacula\ApiToolkit\Search\SearchTerm|null getSearch()
- * @method static array<string, string> getOrder()
+ * @method static array<string, 'asc'|'desc'> getOrder()
  * @method static int|null getLimit()
  * @method static int getResolvedLimit()
  * @method static bool isCursorPaginated()

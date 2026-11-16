@@ -47,6 +47,21 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
+     * Test that extract keeps the trashed parameter exactly as sent, so the
+     * validator refuses anything but an exact state.
+     *
+     * @return void
+     */
+    public function testExtractKeepsTheTrashedParameterAsSent(): void
+    {
+        $padded = $this->extractor->extract(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['trashed' => ' WITH ']));
+        $listed = $this->extractor->extract(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['trashed' => ['with']]));
+
+        self::assertSame(' WITH ', $padded['trashed']);
+        self::assertSame(['with'], $listed['trashed']);
+    }
+
+    /**
      * Test that extract returns an empty array when no parameters are supplied.
      *
      * @return void
@@ -137,157 +152,37 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that extract splits and trims a comma-separated counts string.
+     * Test that extract splits and trims a comma-separated aggregates string.
      *
      * @return void
      */
-    public function testExtractSplitsAndTrimsCountsString(): void
+    public function testExtractSplitsAndTrimsAggregatesString(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['counts' => ' posts , comments ']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['aggregates' => ' posts_count , orders_sum_total ']);
 
         $parameters = $this->extractor->extract($request);
 
-        self::assertSame(['posts', 'comments'], $parameters['counts']);
+        self::assertSame(['posts_count', 'orders_sum_total'], $parameters['aggregates']);
     }
 
     /**
-     * Test that extract parses a counts array per resource.
+     * Test that extract parses an aggregates array per resource, and reads none
+     * of the retired counts, sums and averages parameters.
      *
      * @return void
      */
-    public function testExtractParsesCountsArrayPerResource(): void
+    public function testExtractParsesAggregatesArrayPerResource(): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'counts' => ['user' => 'posts,comments'],
+            'aggregates' => ['user' => 'posts_count,orders_sum_total'],
+            'counts'     => ['user' => 'posts'],
+            'sums'       => ['user' => ['orders' => 'total']],
+            'averages'   => ['user' => ['orders' => 'total']],
         ]);
 
         $parameters = $this->extractor->extract($request);
 
-        self::assertSame(['user' => ['posts', 'comments']], $parameters['counts']);
-    }
-
-    /**
-     * Test that extract splits and trims sum aggregation field strings.
-     *
-     * @return void
-     */
-    public function testExtractSplitsAndTrimsSumAggregationFields(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => [
-                'account' => [
-                    'transaction' => ' amount , fee ',
-                ],
-            ],
-        ]);
-
-        $parameters = $this->extractor->extract($request);
-
-        self::assertSame(['account' => ['transaction' => ['amount', 'fee']]], $parameters['sums']);
-    }
-
-    /**
-     * Test that extract parses average aggregation fields.
-     *
-     * @return void
-     */
-    public function testExtractParsesAverageAggregationFields(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'averages' => [
-                'account' => [
-                    'transaction' => 'amount',
-                ],
-            ],
-        ]);
-
-        $parameters = $this->extractor->extract($request);
-
-        self::assertSame(['account' => ['transaction' => ['amount']]], $parameters['averages']);
-    }
-
-    /**
-     * Test that extract skips non-array aggregation relations and parses the
-     * rest.
-     *
-     * @return void
-     */
-    public function testExtractSkipsNonArrayAggregationRelations(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => [
-                'invalid' => 'not_an_array',
-                'account' => ['transaction' => 'amount'],
-            ],
-        ]);
-
-        $parameters = $this->extractor->extract($request);
-
-        self::assertSame(['account' => ['transaction' => ['amount']]], $parameters['sums']);
-    }
-
-    /**
-     * Test that extract preserves aggregation field values that are already
-     * arrays.
-     *
-     * @return void
-     */
-    public function testExtractPreservesArrayAggregationFields(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => [
-                'account' => [
-                    'transaction' => ['amount', 'fee'],
-                ],
-            ],
-        ]);
-
-        $parameters = $this->extractor->extract($request);
-
-        self::assertSame(['account' => ['transaction' => ['amount', 'fee']]], $parameters['sums']);
-    }
-
-    /**
-     * Test that extract wraps scalar non-string aggregation field values in an
-     * array.
-     *
-     * @return void
-     */
-    public function testExtractWrapsScalarAggregationFieldsInArray(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => [
-                'account' => [
-                    'transaction' => 42,
-                ],
-            ],
-        ]);
-
-        $parameters = $this->extractor->extract($request);
-
-        self::assertSame(['account' => ['transaction' => [42]]], $parameters['sums']);
-    }
-
-    /**
-     * Test that extract retains every aggregation resource.
-     *
-     * @return void
-     */
-    public function testExtractParsesEveryAggregationResource(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => [
-                'account' => ['transaction' => 'amount'],
-                'user'    => ['posts' => 'votes'],
-            ],
-        ]);
-
-        $parameters = $this->extractor->extract($request);
-
-        self::assertSame([
-            'account' => ['transaction' => ['amount']],
-            'user'    => ['posts' => ['votes']],
-        ], $parameters['sums']);
+        self::assertSame(['aggregates' => ['user' => ['posts_count', 'orders_sum_total']]], $parameters);
     }
 
     /**
@@ -423,7 +318,9 @@ final class QueryParameterExtractorTest extends TestCase
         yield 'default ascending direction' => ['name', ['name' => 'asc']];
         yield 'multiple fields' => ['name:asc,created_at:desc', ['name' => 'asc', 'created_at' => 'desc']];
         yield 'mixed directions' => ['first_name,last_name:desc', ['first_name' => 'asc', 'last_name' => 'desc']];
-        yield 'direction containing colons' => ['name:desc:extra', ['name' => 'desc:extra']];
+        yield 'upper-case direction' => ['name:DESC', ['name' => 'desc']];
+        yield 'padded mixed-case direction' => [' name : Desc ', ['name' => 'desc']];
+        yield 'padded ascending direction' => ['name: ASC ', ['name' => 'asc']];
         yield 'empty order string' => ['', []];
         yield 'order string of empty values' => [',,', []];
         yield 'trailing empty segment' => ['name,', ['name' => 'asc']];
@@ -462,6 +359,42 @@ final class QueryParameterExtractorTest extends TestCase
 
         self::assertSame(['name' => 'asc'], $parameters['order']);
         self::assertArrayNotHasKey('', $parameters['order']);
+    }
+
+    /**
+     * Provide order directions that are neither asc nor desc.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function unpermittedDirectionProvider(): iterable
+    {
+        yield 'empty direction' => ['name:', ''];
+        yield 'unknown direction' => ['name:sideways', 'sideways'];
+        yield 'padded unknown direction' => ['name: SIDEWAYS ', 'SIDEWAYS'];
+        yield 'direction containing colons' => ['name:desc:extra', 'desc:extra'];
+    }
+
+    /**
+     * Test that a direction other than asc or desc is rejected on its key.
+     *
+     * @param  string  $orderString
+     * @param  string  $direction
+     * @return void
+     */
+    #[DataProvider('unpermittedDirectionProvider')]
+    public function testExtractRejectsAnUnpermittedOrderDirection(string $orderString, string $direction): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => 'email:desc,' . $orderString]);
+
+        try {
+            $this->extractor->extract($request);
+            self::fail('Expected a ValidationException for the order direction.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['order.name' => ['The "' . $direction . '" direction is not permitted on the "name" key, which accepts asc, desc.']],
+                $exception->errors(),
+            );
+        }
     }
 
     /**

@@ -12,6 +12,7 @@ use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
+use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
 use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\Repositories\Repository;
@@ -32,6 +33,9 @@ abstract class ApiRepository extends Repository
 
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter */
     private AttributeSetter $attributeSetter;
+
+    /** @var \SineMacula\ApiToolkit\Repositories\Concerns\PageOrder */
+    private PageOrder $pageOrder;
 
     /**
      * Set a custom resource class to be used.
@@ -91,26 +95,39 @@ abstract class ApiRepository extends Repository
     /**
      * Return a paginated collection.
      *
+     * The order is completed with a unique key first, so no page boundary falls
+     * between tied rows. A failure resets the composition, as a forwarded call
+     * does.
+     *
      * @return mixed
      *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     * @throws \Throwable
      */
     public function paginate(): mixed
     {
-        $query  = $this->prepareQueryBuilder();
-        $method = $this->resolvePaginationMethod();
-        $limit  = ApiQuery::getResolvedLimit();
+        try {
 
-        if ($method === 'cursorPaginate') {
-            $results = $query->cursorPaginate($limit, '*', 'cursor', ApiQuery::getCursor());
-        } else {
-            $results = $query->paginate($limit, '*', 'page', ApiQuery::getPage());
+            /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
+            $query = $this->prepareQueryBuilder();
+            $query = $this->pageOrder->complete($query);
+            $limit = ApiQuery::getResolvedLimit();
+
+            if ($this->resolvePaginationMethod() === 'cursorPaginate') {
+                // A null cursor would make the paginator re-read the request
+                $results = $query->cursorPaginate($limit, '*', 'cursor', $this->pageOrder->cursor($query, ApiQuery::getCursor() ?? '') ?? '');
+            } else {
+                $results = $query->paginate($limit, '*', 'page', ApiQuery::getPage());
+            }
+
+            $results->appends(Request::query());
+
+            return $this->resetAndReturn($results);
+        } catch (\Throwable $exception) {
+
+            $this->resetAfterFailure();
+
+            throw $exception;
         }
-
-        $results->appends(Request::query());
-
-        return $this->resetAndReturn($results);
     }
 
     /**
@@ -122,14 +139,14 @@ abstract class ApiRepository extends Repository
      * @param  array<string, mixed>|\Illuminate\Support\Collection<string, mixed>  $attributes
      * @return bool
      *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     * @throws \InvalidArgumentException
      * @throws \ValueError
      */
     public function persist(Model $model, array|Collection $attributes): bool
     {
         $attributes = $attributes instanceof Collection ? $attributes->all() : $attributes;
 
-        return $this->attributeSetter->persist($model, $attributes, $this->model());
+        return $this->attributeSetter->persist($model, $attributes);
     }
 
     /**
@@ -166,16 +183,12 @@ abstract class ApiRepository extends Repository
      * Boot the repository instance.
      *
      * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     #[\Override]
     protected function boot(): void
     {
-        $schemaIntrospector = $this->app->make(SchemaIntrospectionProvider::class);
-
-        $this->attributeSetter = new AttributeSetter($schemaIntrospector, $this->app->make(MetadataCacheWriter::class));
-        $this->attributeSetter->resolveAttributeCasts($this->getModel(), $this->model());
+        $this->pageOrder       = new PageOrder;
+        $this->attributeSetter = new AttributeSetter($this->app->make(SchemaIntrospectionProvider::class));
     }
 
     /**

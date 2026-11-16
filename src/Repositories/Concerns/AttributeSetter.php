@@ -8,187 +8,172 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
-use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
-use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Support\PureEnumCast;
 use SineMacula\ApiToolkit\Support\PureEnumName;
 
 /**
- * Encapsulates cast resolution and attribute setting for repository models.
+ * Writes request attributes to a model through Eloquent.
+ *
+ * Every key is written with the model's own setAttribute(), so casts, mutators
+ * and JSON paths apply. Only object casts, pure-enum casts and relations are
+ * converted first.
+ *
+ * @phpstan-type Association \Illuminate\Database\Eloquent\Relations\BelongsTo<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model>
+ * @phpstan-type Synchronisation \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model>
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class AttributeSetter
+final readonly class AttributeSetter
 {
-    /** @var array<string, string|null> Resolved cast map keyed by attribute name */
-    private array $casts = [];
+    /** @var string A key written with the model's setAttribute() as given */
+    private const string PLAIN = 'plain';
+
+    /** @var string A key cast to an object, converted from an array first */
+    private const string OBJECT = 'object';
+
+    /** @var string A key cast to a pure enum, converted from its wire name first */
+    private const string PURE_ENUM = 'pure_enum';
 
     /**
      * Create a new attribute setter instance.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
-     * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $metadataCacheWriter
      * @return void
      */
     public function __construct(
 
         /** The schema introspection provider for relation resolution. */
-        private readonly SchemaIntrospectionProvider $schemaIntrospector,
-
-        /** Writes resolved cast metadata to the persistent cache. */
-        private readonly MetadataCacheWriter $metadataCacheWriter,
+        private SchemaIntrospectionProvider $schemaIntrospector,
     ) {}
 
     /**
      * Persist the given attributes, syncing relations once the model is saved.
      *
+     * Every key is classified before any is assigned, so a key naming a
+     * relation that cannot be written leaves the model untouched.
+     *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>  $attributes
-     * @param  string  $modelClass
      * @return bool
      *
+     * @throws \InvalidArgumentException
      * @throws \ValueError
      */
-    public function persist(Model $model, array $attributes, string $modelClass): bool
+    public function persist(Model $model, array $attributes): bool
     {
-        $syncAttributes = [];
+        $casts  = $model->getCasts();
+        $writes = [];
 
-        foreach ($attributes as $attribute => $value) {
+        foreach (array_keys($attributes) as $attribute) {
+            $writes[$attribute] = $this->classify($model, $attribute, $casts);
+        }
 
-            $cast = $this->casts[$attribute] ?? $this->resolveCastForAttribute($attribute, null, $model);
+        $syncs = [];
 
-            if (!$cast) {
+        foreach ($writes as $attribute => $write) {
+
+            if ($write instanceof BelongsToMany) {
+                $syncs[$attribute] = $write;
                 continue;
             }
 
-            $this->casts[$attribute] = $cast;
-
-            if ($cast === 'sync') {
-                $syncAttributes[$attribute] = $value;
-            } else {
-                $this->setAttribute($model, $attribute, $value, $cast);
-            }
+            $this->write($model, $attribute, $attributes[$attribute], $write);
         }
 
         $saved = $model->save();
 
-        foreach ($syncAttributes as $attribute => $value) {
-            $this->setAttribute($model, $attribute, $value, 'sync');
+        foreach ($syncs as $attribute => $relation) {
+            $this->sync($model, $attribute, $attributes[$attribute], $relation);
         }
-
-        $this->storeCastsInCache($modelClass);
 
         return $saved;
     }
 
     /**
-     * Resolve the attribute casts for the given model.
+     * Classify how the given key is written, first match wins.
+     *
+     * A cast outranks a set mutator, and a set mutator outranks a relation of
+     * the same name.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $modelClass
-     * @return void
-     */
-    public function resolveAttributeCasts(Model $model, string $modelClass): void
-    {
-        if ($this->casts = $this->resolveCastsFromCache($modelClass)) {
-            return;
-        }
-
-        foreach ($model->getCasts() as $attribute => $cast) {
-            $this->casts[$attribute] = $this->resolveCastForAttribute($attribute, $cast, $model);
-        }
-
-        $this->storeCastsInCache($modelClass);
-    }
-
-    /**
-     * Resolve the native cast key for the given attribute.
-     *
-     * An attribute with no cast is treated as a possible relation.
-     *
      * @param  string  $attribute
-     * @param  string|null  $cast
-     * @param  \Illuminate\Database\Eloquent\Model|null  $model
-     * @return string|null
-     */
-    private function resolveCastForAttribute(string $attribute, ?string $cast = null, ?Model $model = null): ?string
-    {
-        $cast ??= $model?->getCasts()[$attribute] ?? null;
-
-        if (!$cast) {
-            return $this->resolveCastForRelation($attribute, $model);
-        }
-
-        if (PureEnumCast::enumOf($cast) !== null) {
-            return 'pure_enum';
-        }
-
-        return $this->isObjectCast($cast) ? 'object' : 'string';
-    }
-
-    /**
-     * Map a relation type to its sync/associate cast, or null.
+     * @param  array<string, mixed>  $casts
+     * @return Association|string|Synchronisation
      *
-     * @param  string  $attribute
-     * @param  \Illuminate\Database\Eloquent\Model|null  $model
-     * @return string|null
+     * @throws \InvalidArgumentException
      */
-    private function resolveCastForRelation(string $attribute, ?Model $model): ?string
+    private function classify(Model $model, string $attribute, array $casts): BelongsTo|BelongsToMany|string
     {
-        if ($model === null) {
-            return null;
+        $cast = $casts[$attribute] ?? null;
+
+        if (is_string($cast)) {
+            return $this->classifyCast($cast);
         }
 
-        $relation = $this->schemaIntrospector->resolveRelation($attribute, $model);
-
-        if (!$relation) {
-            return null;
+        if ($model->hasSetMutator($attribute) || $model->hasAttributeSetMutator($attribute)) {
+            return self::PLAIN;
         }
 
-        return match (true) {
-            $relation instanceof MorphTo       => 'associate',
-            $relation instanceof BelongsTo     => 'associate',
-            $relation instanceof MorphToMany   => 'sync',
-            $relation instanceof BelongsToMany => 'sync',
-            default                            => null,
-        };
+        return $this->classifyRelation($model, $attribute) ?? self::PLAIN;
     }
 
     /**
-     * Determine whether the given model cast is one of Laravel's object casts.
+     * Classify a key by its model cast.
      *
      * @param  string  $cast
-     * @return bool
+     * @return string
      */
-    private function isObjectCast(string $cast): bool
+    private function classifyCast(string $cast): string
     {
-        return in_array($cast, ['object', 'encrypted:object'], true);
+        if (PureEnumCast::enumOf($cast) !== null) {
+            return self::PURE_ENUM;
+        }
+
+        return in_array($cast, ['object', 'encrypted:object'], true) ? self::OBJECT : self::PLAIN;
     }
 
     /**
-     * Dispatch to the appropriate setter based on the resolved cast type.
+     * Resolve the writable relation the key names, or null when it names none.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $attribute
+     * @return Association|Synchronisation|null
+     *
+     * @throws \InvalidArgumentException
+     */
+    private function classifyRelation(Model $model, string $attribute): BelongsTo|BelongsToMany|null
+    {
+        $relation = $this->schemaIntrospector->resolveRelation($attribute, $model);
+
+        if ($relation === null || $relation instanceof BelongsTo || $relation instanceof BelongsToMany) {
+            return $relation;
+        }
+
+        throw new \InvalidArgumentException(sprintf('Attribute "%s" on %s is a %s relation, which persist() cannot write', $attribute, $model::class, class_basename($relation)));
+    }
+
+    /**
+     * Assign the given value to the model as its key was classified.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
      * @param  mixed  $value
-     * @param  string  $cast
+     * @param  Association|string  $write
      * @return void
      *
+     * @throws \InvalidArgumentException
      * @throws \ValueError
      */
-    private function setAttribute(Model $model, string $attribute, mixed $value, string $cast): void
+    private function write(Model $model, string $attribute, mixed $value, BelongsTo|string $write): void
     {
-        match ($cast) {
-            'object'    => $model->setAttribute($attribute, $value ? (object) $value : null),
-            'pure_enum' => $model->setAttribute($attribute, $this->resolvePureEnumCase($model, $attribute, $value)),
-            'associate' => $this->setAssociateAttribute($model, $attribute, $value),
-            'sync'      => $this->setSyncAttribute($model, $attribute, $value),
-            default     => $model->setAttribute($attribute, $value),
+        match (true) {
+            $write instanceof BelongsTo => $this->associate($model, $attribute, $value, $write),
+            $write === self::OBJECT     => $model->setAttribute($attribute, is_array($value) ? (object) $value : $value),
+            $write === self::PURE_ENUM  => $model->setAttribute($attribute, $this->resolvePureEnumCase($model, $attribute, $value)),
+            default                     => $model->setAttribute($attribute, $value),
         };
     }
 
@@ -218,25 +203,30 @@ final class AttributeSetter
     }
 
     /**
-     * Associate a BelongsTo or MorphTo relation by its foreign key value.
+     * Associate a BelongsTo relation from a model or its key, or a MorphTo
+     * relation from a model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
      * @param  mixed  $value
+     * @param  Association  $relation
      * @return void
      *
      * @throws \InvalidArgumentException
-     * @throws \LogicException
      */
-    private function setAssociateAttribute(Model $model, string $attribute, mixed $value): void
+    private function associate(Model $model, string $attribute, mixed $value, BelongsTo $relation): void
     {
-        $relation = $this->resolveRelationInstance($model, $attribute);
+        if ($value === null || $value instanceof Model) {
+            $relation->associate($value);
 
-        if (!($relation instanceof BelongsTo)) {
-            throw new \LogicException(sprintf('Attribute "%s" on %s does not resolve to a BelongsTo relation', $attribute, $model::class));
+            return;
         }
 
-        if ($value !== null && !$value instanceof Model && !is_int($value) && !is_string($value)) {
+        if ($relation instanceof MorphTo) {
+            throw new \InvalidArgumentException(sprintf('Attribute "%s" on %s is a MorphTo relation and must be given a model', $attribute, $model::class));
+        }
+
+        if (!is_int($value) && !is_string($value)) {
             throw new \InvalidArgumentException(sprintf('Attribute "%s" on %s must be given a model or its key', $attribute, $model::class));
         }
 
@@ -249,19 +239,13 @@ final class AttributeSetter
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
      * @param  mixed  $value
+     * @param  Synchronisation  $relation
      * @return void
      *
      * @throws \InvalidArgumentException
-     * @throws \LogicException
      */
-    private function setSyncAttribute(Model $model, string $attribute, mixed $value): void
+    private function sync(Model $model, string $attribute, mixed $value, BelongsToMany $relation): void
     {
-        $relation = $this->resolveRelationInstance($model, $attribute);
-
-        if (!($relation instanceof BelongsToMany)) {
-            throw new \LogicException(sprintf('Attribute "%s" on %s does not resolve to a BelongsToMany relation', $attribute, $model::class));
-        }
-
         if ($value instanceof Model) {
             $value = collect([$value]);
         }
@@ -275,48 +259,5 @@ final class AttributeSetter
         }
 
         $relation->sync($value);
-    }
-
-    /**
-     * Resolve the relation by calling the attribute's camel-cased method.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $attribute
-     * @return mixed
-     *
-     * @throws \LogicException
-     */
-    private function resolveRelationInstance(Model $model, string $attribute): mixed
-    {
-        $method = [$model, Str::camel($attribute)];
-
-        if (!is_callable($method)) {
-            throw new \LogicException(sprintf('Attribute "%s" on %s does not resolve to a relation method', $attribute, $model::class));
-        }
-
-        return $method();
-    }
-
-    /**
-     * Persist the resolved casts to the metadata cache.
-     *
-     * @param  string  $modelClass
-     * @return void
-     */
-    private function storeCastsInCache(string $modelClass): void
-    {
-        $this->metadataCacheWriter->rememberMetadataForever(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), fn () => $this->casts);
-    }
-
-    /**
-     * Load the resolved casts from the metadata cache, or an empty array.
-     *
-     * @param  string  $modelClass
-     * @return array<string, string|null>
-     */
-    private function resolveCastsFromCache(string $modelClass): array
-    {
-        /** @var array<string, string|null> */
-        return $this->metadataCacheWriter->readMetadata(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([$modelClass]), []);
     }
 }

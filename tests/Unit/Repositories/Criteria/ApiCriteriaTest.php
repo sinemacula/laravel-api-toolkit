@@ -601,24 +601,24 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that order with an invalid direction is ignored.
+     * Test that an order with an invalid direction is rejected before it can
+     * reach the query.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testOrderWithInvalidDirectionIsIgnored(): void
+    public function testOrderWithInvalidDirectionIsRejected(): void
     {
-        $this->parseRequest(new Request([
-            'order' => 'name:invalid',
-        ]));
-
-        $model = new User;
-        $query = $this->criteria->apply($model);
-
-        $orders = $query->getQuery()->orders ?? [];
-
-        self::assertEmpty($orders);
+        try {
+            $this->parseRequest(new Request(['order' => 'name:invalid']));
+            self::fail('Expected a ValidationException for the order direction.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['order.name' => ['The "invalid" direction is not permitted on the "name" key, which accepts asc, desc.']],
+                $exception->errors(),
+            );
+        }
     }
 
     /**
@@ -969,7 +969,7 @@ final class ApiCriteriaTest extends TestCase
         $provider->method('eagerLoadMapFor')
             ->willReturn([]);
 
-        $provider->method('eagerLoadCountsFor')
+        $provider->method('eagerLoadAggregatesFor')
             ->willReturn([]);
 
         $this->app->instance(ResourceMetadataProvider::class, $provider);
@@ -1009,7 +1009,7 @@ final class ApiCriteriaTest extends TestCase
         $provider->method('eagerLoadMapFor')
             ->willReturn([]);
 
-        $provider->method('eagerLoadCountsFor')
+        $provider->method('eagerLoadAggregatesFor')
             ->willReturn([]);
 
         $this->app->instance(ResourceMetadataProvider::class, $provider);
@@ -1049,7 +1049,7 @@ final class ApiCriteriaTest extends TestCase
             ->with(UserResource::class, ['id', 'name', 'organization'])
             ->willReturn(['organization' => fn () => null]);
 
-        $provider->method('eagerLoadCountsFor')
+        $provider->method('eagerLoadAggregatesFor')
             ->willReturn([]);
 
         $this->app->instance(ResourceMetadataProvider::class, $provider);
@@ -1066,13 +1066,13 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that eager loading calls eagerLoadCountsFor on the provider.
+     * Test that eager loading calls eagerLoadAggregatesFor on the provider.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyEagerLoadingUsesMetadataProviderForCountMap(): void
+    public function testApplyEagerLoadingUsesMetadataProviderForAggregateMap(): void
     {
         assert($this->app !== null);
 
@@ -1088,7 +1088,7 @@ final class ApiCriteriaTest extends TestCase
             ->willReturn([]);
 
         $provider->expects(self::once())
-            ->method('eagerLoadCountsFor')
+            ->method('eagerLoadAggregatesFor')
             ->with(UserResource::class, [])
             ->willReturn([]);
 
@@ -1263,6 +1263,7 @@ final class ApiCriteriaTest extends TestCase
      * @param  \Illuminate\Http\Request  $request
      * @return void
      *
+     * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function parseRequest(Request $request): void

@@ -6,14 +6,14 @@ namespace Tests\Unit\Listeners;
 
 use Illuminate\Contracts\Queue\Job;
 use Illuminate\Events\Dispatcher;
-use Illuminate\Queue\Events\JobFailed;
-use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobAttempted;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
@@ -36,11 +36,11 @@ final class QueueFlushSubscriberTest extends TestCase
     use SwapsExceptionHandler;
 
     /**
-     * Test that subscribe registers JobProcessed and JobFailed listeners.
+     * Test that subscribe registers only the job attempted listener.
      *
      * @return void
      */
-    public function testSubscribeRegistersJobProcessedAndJobFailedListeners(): void
+    public function testSubscribeRegistersOnlyTheJobAttemptedListener(): void
     {
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $dispatcher   = \Mockery::mock(Dispatcher::class);
@@ -48,13 +48,46 @@ final class QueueFlushSubscriberTest extends TestCase
 
         $dispatcher->shouldReceive('listen')
             ->once()
-            ->with(JobProcessed::class, [$subscriber, 'handleFlush']);
-
-        $dispatcher->shouldReceive('listen')
-            ->once()
-            ->with(JobFailed::class, [$subscriber, 'handleFlush']);
+            ->with(JobAttempted::class, [$subscriber, 'handleFlush']);
 
         $subscriber->subscribe($dispatcher);
+    }
+
+    /**
+     * Provide job attempts that ended with and without an exception.
+     *
+     * @return iterable<string, array{0: \Throwable|null}>
+     */
+    public static function attemptOutcomeProvider(): iterable
+    {
+        yield 'attempt without an exception' => [null];
+        yield 'attempt with an exception' => [new \RuntimeException('Job failure')];
+    }
+
+    /**
+     * Test that handleFlush resets in-process state after every attempt,
+     * whether or not it threw.
+     *
+     * @param  \Throwable|null  $exception
+     * @return void
+     */
+    #[DataProvider('attemptOutcomeProvider')]
+    public function testHandleFlushEngagesAfterEveryAttempt(?\Throwable $exception): void
+    {
+        Config::set('queue.connections.database.driver', 'database');
+
+        Event::fake();
+
+        $this->mock(SchemaIntrospectionProvider::class)
+            ->shouldReceive('flush')
+            ->once();
+
+        $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
+        $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
+
+        $subscriber->handleFlush(new JobAttempted('database', self::createStub(Job::class), $exception));
+
+        Event::assertDispatchedTimes(CacheFlushed::class, 1);
     }
 
     /**
@@ -80,7 +113,7 @@ final class QueueFlushSubscriberTest extends TestCase
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
-        $event        = new JobProcessed('database', self::createStub(Job::class));
+        $event        = new JobAttempted('database', self::createStub(Job::class));
 
         $subscriber->handleFlush($event);
 
@@ -108,7 +141,7 @@ final class QueueFlushSubscriberTest extends TestCase
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
-        $event        = new JobProcessed('sync', self::createStub(Job::class));
+        $event        = new JobAttempted('sync', self::createStub(Job::class));
 
         $subscriber->handleFlush($event);
 
@@ -139,7 +172,7 @@ final class QueueFlushSubscriberTest extends TestCase
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
-        $event        = new JobProcessed('database', self::createStub(Job::class));
+        $event        = new JobAttempted('database', self::createStub(Job::class));
 
         $subscriber->handleFlush($event);
 
@@ -169,7 +202,7 @@ final class QueueFlushSubscriberTest extends TestCase
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
-        $event        = new JobProcessed('database', self::createStub(Job::class));
+        $event        = new JobAttempted('database', self::createStub(Job::class));
 
         $subscriber->handleFlush($event);
 
@@ -204,7 +237,7 @@ final class QueueFlushSubscriberTest extends TestCase
 
         $cacheManager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $subscriber   = new QueueFlushSubscriber($cacheManager, new RuntimeContext);
-        $event        = new JobProcessed('database', self::createStub(Job::class));
+        $event        = new JobAttempted('database', self::createStub(Job::class));
 
         $subscriber->handleFlush($event);
 

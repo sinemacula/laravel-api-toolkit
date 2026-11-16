@@ -22,7 +22,7 @@ final readonly class QueryParameterBuilder
     private const string PARAMETER_REF_PREFIX = '#/components/parameters/';
 
     /** The component names shaping the representation of a serialised resource */
-    private const array SHAPING_PARAMETERS = ['Fields', 'Counts', 'Sums', 'Averages'];
+    private const array SHAPING_PARAMETERS = ['Fields', 'Aggregates'];
 
     /** The component names selecting, ordering, and paging a collection */
     private const array SELECTION_PARAMETERS = ['Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'];
@@ -60,9 +60,7 @@ final readonly class QueryParameterBuilder
             'Page'       => $this->buildPageParameter(),
             'Cursor'     => $this->buildCursorParameter(),
             'Pagination' => $this->buildPaginationParameter(),
-            'Counts'     => $this->buildCountsParameter(),
-            'Sums'       => $this->buildSumsParameter(),
-            'Averages'   => $this->buildAveragesParameter(),
+            'Aggregates' => $this->buildAggregatesParameter(),
             'Trashed'    => $this->buildTrashedParameter(),
         ];
     }
@@ -192,7 +190,9 @@ final readonly class QueryParameterBuilder
     {
         return $this->parameter(
             'order',
-            'Ordering: a comma-separated list of fields, each optionally suffixed with :desc, e.g. order=name,created_at:desc.',
+            'Ordering: a comma-separated list of fields, each optionally suffixed with :asc or :desc in any case, e.g. order=name,created_at:desc. '
+            . 'Any other direction is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
+            . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read.',
             ['type' => 'string'],
         );
     }
@@ -241,7 +241,8 @@ final readonly class QueryParameterBuilder
     {
         return $this->parameter(
             'cursor',
-            'Opaque cursor token for cursor pagination.',
+            'Opaque cursor token for cursor pagination. A token that does not decode, or does not match the requested order, is rejected; '
+            . 'restart from the first page.',
             ['type' => 'string'],
         );
     }
@@ -264,46 +265,17 @@ final readonly class QueryParameterBuilder
     }
 
     /**
-     * Build the relation-counts parameter.
+     * Build the relation-aggregates parameter.
      *
      * @return array<string, mixed>
      */
-    private function buildCountsParameter(): array
+    private function buildAggregatesParameter(): array
     {
         return $this->parameter(
-            'counts',
-            'Relation counts: request count keys per resource type, e.g. counts[users]=posts.',
+            'aggregates',
+            'Relation aggregates: request the keys of the resource\'s aggregates object per resource type, e.g. aggregates[users]=posts_count. '
+            . 'Requesting any aggregate replaces the defaults of that type.',
             ['type' => 'object', 'additionalProperties' => ['type' => 'string']],
-            'deepObject',
-        );
-    }
-
-    /**
-     * Build the relation-sums parameter.
-     *
-     * @return array<string, mixed>
-     */
-    private function buildSumsParameter(): array
-    {
-        return $this->parameter(
-            'sums',
-            'Relation sums: request sum aggregates per resource type and relation, e.g. sums[users][posts]=id.',
-            ['type' => 'object', 'additionalProperties' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']]],
-            'deepObject',
-        );
-    }
-
-    /**
-     * Build the relation-averages parameter.
-     *
-     * @return array<string, mixed>
-     */
-    private function buildAveragesParameter(): array
-    {
-        return $this->parameter(
-            'averages',
-            'Relation averages: request average aggregates per resource type and relation, e.g. averages[users][posts]=id.',
-            ['type' => 'object', 'additionalProperties' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']]],
             'deepObject',
         );
     }

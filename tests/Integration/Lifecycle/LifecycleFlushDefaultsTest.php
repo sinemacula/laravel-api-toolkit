@@ -6,7 +6,7 @@ namespace Tests\Integration\Lifecycle;
 
 use Illuminate\Contracts\Queue\Job;
 use Illuminate\Events\Dispatcher;
-use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobAttempted;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
@@ -74,7 +74,6 @@ final class LifecycleFlushDefaultsTest extends TestCase
     public function testOctaneBoundaryKeepsSharedMetadataUntilInvalidated(): void
     {
         $_SERVER['LARAVEL_OCTANE'] = 1;
-        Config::set('api-toolkit.lifecycle.octane', true);
 
         Event::fake();
 
@@ -99,7 +98,6 @@ final class LifecycleFlushDefaultsTest extends TestCase
     public function testQueueBoundaryKeepsSharedMetadataUntilInvalidated(): void
     {
         Config::set('queue.connections.database.driver', 'database');
-        Config::set('api-toolkit.lifecycle.queue', true);
 
         Event::fake();
 
@@ -107,7 +105,7 @@ final class LifecycleFlushDefaultsTest extends TestCase
 
         $this->remember($key, 'old-shape');
 
-        $event = new JobProcessed('database', self::createStub(Job::class));
+        $event = new JobAttempted('database', self::createStub(Job::class));
         $this->queueSubscriber()->handleFlush($event);
 
         self::assertSame('old-shape', $this->remember($key, 'new-shape'));
@@ -126,7 +124,6 @@ final class LifecycleFlushDefaultsTest extends TestCase
     {
         // No LARAVEL_OCTANE signal, as under php-fpm
         unset($_SERVER['LARAVEL_OCTANE']);
-        Config::set('api-toolkit.lifecycle.octane', true);
 
         Event::fake();
 
@@ -142,35 +139,23 @@ final class LifecycleFlushDefaultsTest extends TestCase
     }
 
     /**
-     * Test that the opt-out flag stops the lifecycle flush being subscribed.
-     *
-     * The queue gate is the oracle because the Octane path also gates on
-     * interface_exists().
+     * Test that the lifecycle flush is subscribed whatever the published
+     * lifecycle config holds.
      *
      * @return void
      */
-    public function testOptOutDisablesLifecycleFlushSubscription(): void
+    public function testLifecycleFlushIsSubscribedUnconditionally(): void
     {
         // Reset the dispatcher so boot-time wiring does not skew the baseline
         Event::swap(new Dispatcher($this->app));
 
-        Config::set('api-toolkit.lifecycle.queue', false);
-
-        (new LifecycleRegistrar)->register();
-
-        self::assertFalse(
-            $this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class),
-            'QueueFlushSubscriber must not be wired when lifecycle.queue is false',
-        );
-
-        // Control: the flag on wires it, so the opt-out is not vacuous
-        Config::set('api-toolkit.lifecycle.queue', true);
+        Config::set('api-toolkit.lifecycle', ['queue' => false]);
 
         (new LifecycleRegistrar)->register();
 
         self::assertTrue(
-            $this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class),
-            'QueueFlushSubscriber must be wired when lifecycle.queue is true',
+            $this->hasSubscriberListener(JobAttempted::class, QueueFlushSubscriber::class),
+            'QueueFlushSubscriber must be wired whatever the lifecycle config holds',
         );
     }
 
@@ -182,7 +167,6 @@ final class LifecycleFlushDefaultsTest extends TestCase
     public function testSharedStoreKeysSurviveBoundary(): void
     {
         $_SERVER['LARAVEL_OCTANE'] = 1;
-        Config::set('api-toolkit.lifecycle.octane', true);
 
         Event::fake();
 

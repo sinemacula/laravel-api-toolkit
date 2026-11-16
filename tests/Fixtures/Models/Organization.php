@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 /**
  * Fixture organization model.
@@ -33,5 +34,15 @@ final class Organization extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    /**
+     * Get the posts written by the organization's users.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasManyThrough<\Tests\Fixtures\Models\Post, \Tests\Fixtures\Models\User, $this>
+     */
+    public function posts(): HasManyThrough
+    {
+        return $this->hasManyThrough(Post::class, User::class);
     }
 }

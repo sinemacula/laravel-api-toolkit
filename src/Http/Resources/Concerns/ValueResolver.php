@@ -5,17 +5,21 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Collection;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Support\PureEnumName;
 
 /**
- * Resolves field values and metric payloads from compiled schema definitions.
+ * Resolves field values and the aggregates payload from compiled definitions.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -27,8 +31,11 @@ final class ValueResolver
     /** @var array<string, array<string, bool>> Cast-accessor reflection results, keyed by [class][field] */
     private static array $castAccessorCache = [];
 
-    /** @var \WeakMap<\SineMacula\ApiToolkit\Schema\CompiledFieldDefinition, array<int, string>|null>|null Resolved child field sets, keyed by compiled definition */
-    private static ?\WeakMap $relationFieldsCache = null;
+    /** @var bool Whether the last resolved field cut its related collection */
+    private bool $truncated = false;
+
+    /** @var array<string, array<string, class-string<\Illuminate\Database\Eloquent\Model>|null>> Related model classes, keyed by [owner class][relation] */
+    private static array $relatedModelCache = [];
 
     /**
      * Create a new value resolver instance.
@@ -42,14 +49,17 @@ final class ValueResolver
     ) {}
 
     /**
-     * Clear the static serialization memo caches.
+     * Clear the cast-accessor reflection memo.
+     *
+     * The memo lives for the worker, so a lifecycle flush leaves it; this is
+     * for test isolation.
      *
      * @return void
      */
     public static function clearCache(): void
     {
-        self::$castAccessorCache   = [];
-        self::$relationFieldsCache = null;
+        self::$castAccessorCache = [];
+        self::$relatedModelCache = [];
     }
 
     /**
@@ -65,6 +75,8 @@ final class ValueResolver
      */
     public function resolveFieldValue(string $field, CompiledFieldDefinition $definition, mixed $resource, ?Request $request): mixed
     {
+        $this->truncated = false;
+
         if (!$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
             return new MissingValue;
         }
@@ -84,7 +96,19 @@ final class ValueResolver
     }
 
     /**
-     * Resolve the counts payload from compiled count definitions.
+     * Determine whether the last resolved field cut its related collection.
+     *
+     * @return bool
+     */
+    public function wasTruncated(): bool
+    {
+        return $this->truncated;
+    }
+
+    /**
+     * Resolve the aggregates payload from compiled aggregate definitions.
+     *
+     * Each value is read raw, never through the owner's accessors or casts.
      *
      * @param  mixed  $resource
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
@@ -92,82 +116,32 @@ final class ValueResolver
      * @param  \Illuminate\Http\Request|null  $request
      * @return array<string, mixed>
      */
-    public function resolveCountsPayload(mixed $resource, CompiledSchema $schema, string $resourceType, ?Request $request): array
+    public function resolveAggregatesPayload(mixed $resource, CompiledSchema $schema, string $resourceType, ?Request $request): array
     {
         $owner = $this->unwrapResource($resource);
 
-        if (!is_object($owner)) {
+        if (!is_object($owner) || !method_exists($owner, 'getAttributes')) {
             return [];
         }
 
-        $requested = (array) ApiQuery::getCounts($resourceType);
-        $result    = [];
+        /** @var array<string, mixed> $attributes */
+        $attributes = $owner->getAttributes();
+        $requested  = (array) ApiQuery::getAggregates($resourceType);
+        $result     = [];
 
-        foreach ($schema->getCountDefinitions() as $presentKey => $definition) {
+        foreach ($schema->getAggregateDefinitions() as $presentKey => $definition) {
 
             $include = $requested !== []
                 ? in_array($presentKey, $requested, true)
                 : $definition->isDefault;
 
-            if (!$include || !$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
+            $raw = $attributes[$definition->attribute()] ?? null;
+
+            if (!$include || $raw === null || !$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
                 continue;
             }
 
-            $value = $this->getAttributeIfLoaded($owner, $definition->presentKey . '_count');
-
-            if ($value === null) {
-                continue;
-            }
-
-            $count = (int) $value; // @phpstan-ignore cast.int
-
-            $result[$presentKey] = $this->applyTransformers($definition->transformers, $resource, $count);
-        }
-
-        return $result;
-    }
-
-    /**
-     * Resolve the sums or averages payload from compiled aggregate definitions.
-     *
-     * @param  string  $metric
-     * @param  mixed  $resource
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @param  string  $resourceType
-     * @param  \Illuminate\Http\Request|null  $request
-     * @return array<string, mixed>
-     */
-    public function resolveAggregatesPayload(string $metric, mixed $resource, CompiledSchema $schema, string $resourceType, ?Request $request): array
-    {
-        $owner = $this->unwrapResource($resource);
-
-        if (!is_object($owner)) {
-            return [];
-        }
-
-        $requested = (array) ($metric === 'sum' ? ApiQuery::getSums($resourceType) : ApiQuery::getAverages($resourceType));
-
-        $result = [];
-
-        foreach ($schema->getAggregateDefinitionsByMetric($metric) as $definition) {
-
-            $include = $requested === []
-                ? $definition->isDefault
-                : in_array($definition->column, (array) ($requested[$definition->relation] ?? []), true);
-
-            if (!$include || !$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
-                continue;
-            }
-
-            $value = $this->getAttributeIfLoaded($owner, $definition->presentKey . '_' . $metric . '_' . $definition->column);
-
-            if ($value === null) {
-                continue;
-            }
-
-            $aggregate = (float) $value; // @phpstan-ignore cast.double
-
-            $result[$definition->presentKey] = $this->applyTransformers($definition->transformers, $resource, $aggregate);
+            $result[$presentKey] = $this->applyTransformers($definition->transformers, $resource, $this->readAggregate($owner, $definition, $raw));
         }
 
         return $result;
@@ -316,7 +290,11 @@ final class ValueResolver
         $name  = $definition->relation;
         $owner = $this->unwrapResource($resource);
 
-        if ($name === null || !is_object($owner) || !method_exists($owner, 'getRelation') || !$this->isRelationLoaded($name, $resource)) {
+        if ($name === null || !is_object($owner) || !method_exists($owner, 'getRelation')) {
+            return new MissingValue;
+        }
+
+        if (!method_exists($owner, 'relationLoaded') || !$owner->relationLoaded($name)) {
             return new MissingValue;
         }
 
@@ -347,7 +325,14 @@ final class ValueResolver
         $childClass  = $definition->resource;
         $childFields = $this->getRelationFields($definition);
 
-        return $childClass === null ? $related : $this->wrapRelatedWithResource($related, $childClass, $childFields);
+        if ($childClass === null) {
+            return $related;
+        }
+
+        $capped          = RelationLimit::cap($definition, $related);
+        $this->truncated = $capped !== $related;
+
+        return $this->wrapRelatedWithResource($capped, $childClass, $childFields);
     }
 
     /**
@@ -366,22 +351,6 @@ final class ValueResolver
     }
 
     /**
-     * Check whether a relation is already loaded on the model that owns it.
-     *
-     * @param  string  $name
-     * @param  mixed  $resource
-     * @return bool
-     */
-    private function isRelationLoaded(string $name, mixed $resource): bool
-    {
-        $owner = $this->unwrapResource($resource);
-
-        return is_object($owner)
-            && method_exists($owner, 'relationLoaded')
-            && $owner->relationLoaded($name);
-    }
-
-    /**
      * Get explicit child fields from a relation definition, if provided.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
@@ -389,21 +358,13 @@ final class ValueResolver
      */
     private function getRelationFields(CompiledFieldDefinition $definition): ?array
     {
-        self::$relationFieldsCache ??= new \WeakMap;
-
-        if (isset(self::$relationFieldsCache[$definition])) {
-            return self::$relationFieldsCache[$definition];
-        }
-
         $fields = $definition->fields;
 
-        if (is_array($fields)) {
-            $fields = array_values(array_filter($fields, static fn ($f) => is_string($f) && $f !== '')); // @phpstan-ignore function.alreadyNarrowedType
-        } else {
-            $fields = null;
+        if (!is_array($fields)) {
+            return null;
         }
 
-        return self::$relationFieldsCache[$definition] = $fields;
+        return array_values(array_filter($fields, static fn ($f) => is_string($f) && $f !== '')); // @phpstan-ignore function.alreadyNarrowedType
     }
 
     /**
@@ -446,27 +407,49 @@ final class ValueResolver
     }
 
     /**
-     * Safely read an attribute without triggering lazy loads.
+     * Read a raw aggregate value the way its function defines it.
      *
      * @param  object  $owner
-     * @param  string  $attr
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $definition
+     * @param  mixed  $raw
      * @return mixed
      */
-    private function getAttributeIfLoaded(object $owner, string $attr): mixed
+    private function readAggregate(object $owner, CompiledAggregateDefinition $definition, mixed $raw): mixed
     {
-        if (method_exists($owner, 'getAttributes')) {
+        return match ($definition->function) {
+            AggregateFunction::COUNT                       => (int) $raw, // @phpstan-ignore cast.int
+            AggregateFunction::EXISTS                      => (bool) $raw,
+            AggregateFunction::SUM, AggregateFunction::AVG => (float) $raw, // @phpstan-ignore cast.double
+            AggregateFunction::MIN, AggregateFunction::MAX => $this->readRelatedValue($owner, $definition->relation, (string) $definition->column, $raw),
+        };
+    }
 
-            $attrs = $owner->getAttributes();
+    /**
+     * Read a raw minimum or maximum the way the related model reads its column.
+     *
+     * The related model's cast, date format and dates apply in its own context;
+     * an owner without the relation returns the raw value.
+     *
+     * @param  object  $owner
+     * @param  string  $relation
+     * @param  string  $column
+     * @param  mixed  $raw
+     * @return mixed
+     */
+    private function readRelatedValue(object $owner, string $relation, string $column, mixed $raw): mixed
+    {
+        if (!array_key_exists($relation, self::$relatedModelCache[$owner::class] ?? [])) {
+            $instance = method_exists($owner, $relation) ? $owner->{$relation}() : null; // @phpstan-ignore method.dynamicName
 
-            if (array_key_exists($attr, $attrs)) {
-                return $owner->{$attr}; // @phpstan-ignore property.dynamicName
-            }
+            self::$relatedModelCache[$owner::class][$relation] = $instance instanceof Relation ? $instance->getRelated()::class : null;
         }
 
-        if (method_exists($owner, '__isset') && $owner->__isset($attr)) {
-            return $owner->{$attr}; // @phpstan-ignore property.dynamicName
+        $relatedClass = self::$relatedModelCache[$owner::class][$relation];
+
+        if ($relatedClass === null) {
+            return $raw;
         }
 
-        return null;
+        return (new $relatedClass)->setRawAttributes([$column => $raw])->getAttribute($column);
     }
 }

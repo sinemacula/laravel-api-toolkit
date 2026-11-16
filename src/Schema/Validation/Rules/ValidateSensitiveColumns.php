@@ -6,12 +6,14 @@ namespace SineMacula\ApiToolkit\Schema\Validation\Rules;
 
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
- * Validate that no field declares a sensitive column queryable.
+ * Validate that no field declares a sensitive column queryable or aggregated.
  *
- * A queryable secret is an oracle even when its value is never returned.
+ * A queryable secret is an oracle even when its value is never returned, and a
+ * minimum or maximum returns a real row's value.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -28,6 +30,36 @@ final class ValidateSensitiveColumns extends ValidatesEachField
         'two_factor_confirmed_at',
         'email_verified_at',
     ];
+
+    /**
+     * Validate the compiled schema for the given resource class.
+     *
+     * @param  string  $resourceClass
+     * @param  string|null  $modelClass
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     */
+    #[\Override]
+    public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
+    {
+        $errors    = parent::validate($resourceClass, $modelClass, $schema);
+        $sensitive = $this->sensitiveColumns();
+
+        foreach ($schema->getAggregateDefinitions() as $key => $aggregate) {
+
+            if ($aggregate->column === null || !in_array($aggregate->column, $sensitive, true)) {
+                continue;
+            }
+
+            $errors[] = new SchemaValidationError(
+                resourceClass: $resourceClass,
+                fieldKey: $key,
+                defect: sprintf('Aggregate is declared over "%s", which is configured as a sensitive column and may never be aggregated', $aggregate->column),
+            );
+        }
+
+        return $errors;
+    }
 
     /**
      * Return the validation errors for a single compiled field.
