@@ -189,8 +189,8 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
     {
         $filters = json_encode([
             '$or' => [
-                'status' => ['$eq' => 'archived'],
-                'views'  => ['$eq' => 99],
+                ['status' => ['$eq' => 'archived']],
+                ['views' => ['$eq' => 99]],
             ],
         ]);
 

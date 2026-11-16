@@ -53,16 +53,20 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use SineMacula\ApiToolkit\Validation\Rejection;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
+use Tests\Fixtures\Models\CatalogueRow;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BrokenResource;
+use Tests\Fixtures\Resources\CatalogueRowResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -82,7 +86,7 @@ use Tests\TestCase;
 #[CoversClass(MorphMapRegistrar::class)]
 final class ApiServiceProviderTest extends TestCase
 {
-    use InteractsWithNonPublicMembers;
+    use InteractsWithNonPublicMembers, LocalisesToolkitMessages;
 
     /**
      * Test that the package config is merged.
@@ -134,6 +138,7 @@ final class ApiServiceProviderTest extends TestCase
         $translator = $this->getApplication()->make('translator');
 
         self::assertTrue($translator->hasForLocale('api-toolkit::exceptions', 'en'));
+        self::assertTrue($translator->hasForLocale('api-toolkit::validation', 'en'));
     }
 
     /**
@@ -660,6 +665,93 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
+     * Test that a table that is not migrated does not fail boot, since boot
+     * passes over a catalogue it cannot read.
+     *
+     * @return void
+     */
+    public function testValidateSchemasBootsAgainstATableThatIsNotMigrated(): void
+    {
+        $this->getConfig()->set('database.connections.catalogue', $this->getConfig()->get('database.connections.testing'));
+        $this->getConfig()->set('api-toolkit.search.unverified_connections', ['catalogue']);
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            CatalogueRow::class => CatalogueRowResource::class,
+        ]);
+
+        $this->bootWithArgv(null);
+
+        self::assertSame([CatalogueRow::class => CatalogueRowResource::class], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Provide the arguments of the validation command.
+     *
+     * @return iterable<string, array{0: array<int, string>}>
+     */
+    public static function validationCommandArgvProvider(): iterable
+    {
+        yield 'bare' => [['artisan', 'api-toolkit:validate-schemas']];
+        yield 'with an environment' => [['artisan', '--env', 'ci', 'api-toolkit:validate-schemas']];
+        yield 'with an inline environment' => [['artisan', '--env=ci', 'api-toolkit:validate-schemas']];
+        yield 'with options around it' => [['artisan', '-v', 'api-toolkit:validate-schemas', '--allow-unverified']];
+    }
+
+    /**
+     * Test that boot leaves schema validation to the validation command.
+     *
+     * @param  array<int, string>  $argv
+     * @return void
+     */
+    #[DataProvider('validationCommandArgvProvider')]
+    public function testValidateSchemasIsLeftToTheValidationCommand(array $argv): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => BrokenResource::class,
+        ]);
+
+        $this->bootWithArgv($argv);
+
+        self::assertSame([User::class => BrokenResource::class], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that boot still validates schemas for every other command.
+     *
+     * @return void
+     */
+    public function testValidateSchemasStillRunsForOtherCommands(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => BrokenResource::class,
+        ]);
+
+        $this->expectException(InvalidSchemaException::class);
+
+        $this->bootWithArgv(['artisan', 'migrate']);
+    }
+
+    /**
+     * Test that a discovery conflict still fails boot for the validation
+     * command.
+     *
+     * @return void
+     */
+    public function testDiscoveryConflictStillFailsBootForTheValidationCommand(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Conflict']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Resource discovery found multiple resources for model [' . User::class . ']');
+
+        $this->bootWithArgv(['artisan', 'api-toolkit:validate-schemas']);
+    }
+
+    /**
      * Test that an invalid exception map fails the booted application.
      *
      * @return void
@@ -1066,13 +1158,13 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the config file is publishable under the config group.
+     * Test that the config file is publishable under the toolkit's own tag.
      *
      * @return void
      */
-    public function testConfigIsPublishableUnderConfigGroup(): void
+    public function testConfigIsPublishableUnderItsOwnTag(): void
     {
-        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'config');
+        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'api-toolkit-config');
 
         self::assertSame(
             [$this->getProviderPath('/../config/api-toolkit.php') => config_path('api-toolkit.php')],
@@ -1081,18 +1173,57 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the translations are publishable under the translations group.
+     * Test that the translations publish beneath the application's lang path.
      *
      * @return void
      */
-    public function testTranslationsArePublishableUnderTranslationsGroup(): void
+    public function testTranslationsArePublishableToTheApplicationLangPath(): void
     {
-        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'translations');
+        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'api-toolkit-lang');
 
         self::assertSame(
-            [$this->getProviderPath('/../resources/lang') => resource_path('lang/vendor/api-toolkit')],
+            [$this->getProviderPath('/../resources/lang') => $this->getApplication()->langPath('vendor/api-toolkit')],
             $paths,
         );
+    }
+
+    /**
+     * Test that nothing is published under the generic tags.
+     *
+     * @return void
+     */
+    public function testNothingIsPublishedUnderTheGenericTags(): void
+    {
+        self::assertSame([], ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'translations'));
+        self::assertSame([], ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'config'));
+    }
+
+    /**
+     * Test that a vendor override replaces only the lines it holds.
+     *
+     * @return void
+     */
+    public function testVendorOverrideReplacesOnlyTheLinesItHolds(): void
+    {
+        $this->overrideToolkitMessages(['search' => ['not_permitted' => 'Die Suche ist für diese Ressource nicht zulässig.']]);
+
+        $this->getApplication()->setLocale('de');
+
+        self::assertSame('Die Suche ist für diese Ressource nicht zulässig.', Rejection::message('search.not_permitted'));
+        self::assertSame('The search term may not be longer than 64 characters.', Rejection::message('search.too_long', ['max' => '64']));
+    }
+
+    /**
+     * Test that a vendor override of a shipped locale merges over its lines.
+     *
+     * @return void
+     */
+    public function testVendorOverrideOfTheShippedLocaleKeepsItsOtherLines(): void
+    {
+        $this->overrideToolkitMessages(['search' => ['not_permitted' => 'Search is switched off here.']], 'en');
+
+        self::assertSame('Search is switched off here.', Rejection::message('search.not_permitted'));
+        self::assertSame('The search term may not be longer than 64 characters.', Rejection::message('search.too_long', ['max' => '64']));
     }
 
     /**

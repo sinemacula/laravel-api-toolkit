@@ -134,8 +134,8 @@ final class SearchHttpTest extends TestCase
     {
         $filters = json_encode([
             '$or' => [
-                'name'   => ['$eq' => 'Goldsmith'],
-                'status' => ['$eq' => 'inactive'],
+                ['name' => ['$eq' => 'Goldsmith']],
+                ['status' => ['$eq' => 'inactive']],
             ],
         ]);
 

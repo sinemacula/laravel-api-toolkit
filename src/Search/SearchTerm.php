@@ -5,8 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Search;
 
 use Illuminate\Support\Facades\Config;
-use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
  * Normalised and bounded free-text search term.
@@ -57,7 +57,7 @@ final readonly class SearchTerm
      * @param  string  $term
      * @return self
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
     public static function from(string $term): self
     {
@@ -72,15 +72,15 @@ final readonly class SearchTerm
                 continue;
             }
 
-            self::reject(sprintf('Every word in the search term must be at least %d characters.', $minimum));
+            throw Rejection::at('search', 'search.word_too_short', ['min' => $minimum]);
         }
 
         if (mb_strlen($value) > $maximum) {
-            self::reject(sprintf('The search term may not be longer than %d characters.', $maximum));
+            throw Rejection::at('search', 'search.too_long', ['max' => $maximum]);
         }
 
         if (count($words) > ($ceiling = self::maximumWords())) {
-            self::reject(sprintf('The search term may not carry more than %d words.', $ceiling));
+            throw Rejection::at('search', 'search.too_many_words', ['max' => $ceiling]);
         }
 
         return new self($value);
@@ -194,18 +194,5 @@ final readonly class SearchTerm
             [$escape . $escape, $escape . '%', $escape . '_'],
             $this->value,
         );
-    }
-
-    /**
-     * Reject the term with a validation error naming the search parameter.
-     *
-     * @param  string  $message
-     * @return never
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
-    private static function reject(string $message): never
-    {
-        throw ValidationException::withMessages(['search' => $message]);
     }
 }

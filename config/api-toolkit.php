@@ -253,7 +253,8 @@ return [
     | your own traffic; 0 or null disables a cap.
     |
     | `max_bytes`       - byte length of the filter document.
-    | `max_parse_depth` - nested object levels in the filter document.
+    | `max_parse_depth` - levels the filter document nests, objects and lists
+    |                     alike.
     | `max_depth`       - levels the filter dispatcher descends; a logical group
     |                     or a relation subquery is one level.
     | `max_nodes`       - total filter keys visited.

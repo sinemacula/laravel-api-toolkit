@@ -7,7 +7,6 @@ namespace Tests\Unit\Repositories\Criteria;
 use Illuminate\Database\Eloquent\Builder;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
@@ -158,7 +157,7 @@ final class OperatorRegistryTest extends TestCase
      */
     public function testRegisterWithClosureWrapsInFilterOperator(): void
     {
-        $this->registry->register(self::OPERATOR_CUSTOM, function (Builder $query, string $column, mixed $value, FilterContext $context): void {
+        $this->registry->register(self::OPERATOR_CUSTOM, function (Builder $query, string $column, mixed $value): void {
             $query->where($column, '=', $value);
         });
 
@@ -168,7 +167,7 @@ final class OperatorRegistryTest extends TestCase
 
         $query = (new User)->newQuery();
 
-        $resolved->apply($query, 'name', 'Alice', FilterContext::root());
+        $resolved->apply($query, 'name', 'Alice');
 
         $wheres = $query->getQuery()->wheres;
 
@@ -184,7 +183,7 @@ final class OperatorRegistryTest extends TestCase
      */
     public function testOverrideWithClosureWrapsInFilterOperator(): void
     {
-        $this->registry->override(self::OPERATOR_CUSTOM, function (Builder $query, string $column, mixed $value, FilterContext $context): void {
+        $this->registry->override(self::OPERATOR_CUSTOM, function (Builder $query, string $column, mixed $value): void {
             $query->where($column, '=', $value);
         });
 
@@ -285,11 +284,10 @@ final class OperatorRegistryTest extends TestCase
              * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
              * @param  string  $column
              * @param  mixed  $value
-             * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
              * @return void
              */
             #[\Override]
-            public function apply(Builder $query, string $column, mixed $value, FilterContext $context): void
+            public function apply(Builder $query, string $column, mixed $value): void
             {
                 // Intentionally empty
             }

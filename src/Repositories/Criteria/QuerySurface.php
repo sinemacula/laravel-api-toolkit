@@ -5,11 +5,11 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
  * Per-query enforcement policy for a resource's declared query surface.
@@ -21,12 +21,6 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  */
 final readonly class QuerySurface
 {
-    /** @var string Rejection naming a key the governing resource never declared */
-    private const string UNDECLARED_KEY = 'The "%s" key is not a permitted query parameter for this resource.';
-
-    /** @var string Rejection naming an operator the declaring column's capability does not answer */
-    private const string UNPERMITTED_OPERATOR = 'The "%s" operator is not permitted on the "%s" key for this resource, which accepts %s.';
-
     /**
      * Create a new query surface bound to the root query's model.
      *
@@ -78,21 +72,21 @@ final readonly class QuerySurface
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return void
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
     public function guardFilterOperator(string $column, string $operator, Model $model): void
     {
         $capability = $this->capabilityFor($column, $model);
 
         if ($capability === null) {
-            throw $this->rejection('filters.' . $column, sprintf(self::UNDECLARED_KEY, $column));
+            throw Rejection::at('filters.' . $column, 'query.undeclared_key', ['key' => $column]);
         }
 
         if (Capability::governs($operator) && !$capability->permits($operator)) {
 
             $accepts = implode(', ', $capability->permittedOperators());
 
-            throw $this->rejection('filters.' . $column . '.' . $operator, sprintf(self::UNPERMITTED_OPERATOR, $operator, $column, $accepts));
+            throw Rejection::at('filters.' . $column . '.' . $operator, 'filters.unpermitted_operator', ['operator' => $operator, 'key' => $column, 'accepts' => $accepts]);
         }
     }
 
@@ -248,24 +242,12 @@ final readonly class QuerySurface
      * @param  string  $key
      * @return void
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
     private function guard(bool $permitted, string $parameter, string $key): void
     {
         if (!$permitted) {
-            throw $this->rejection($parameter . '.' . $key, sprintf(self::UNDECLARED_KEY, $key));
+            throw Rejection::at($parameter . '.' . $key, 'query.undeclared_key', ['key' => $key]);
         }
-    }
-
-    /**
-     * Build the validation error naming the rejected position and the reason.
-     *
-     * @param  string  $key
-     * @param  string  $message
-     * @return \Illuminate\Validation\ValidationException
-     */
-    private function rejection(string $key, string $message): ValidationException
-    {
-        return ValidationException::withMessages([$key => $message]);
     }
 }
