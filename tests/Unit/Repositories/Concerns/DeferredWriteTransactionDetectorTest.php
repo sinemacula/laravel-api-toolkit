@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Concerns;
 
 use Illuminate\Database\DatabaseTransactionsManager;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Repositories\Concerns\DeferredWriteTransactionDetector;
@@ -126,6 +127,19 @@ final class DeferredWriteTransactionDetectorTest extends TestCase
 
         self::assertFalse($detector->hasOpenTransaction('testing'));
         self::assertTrue($detector->hasOpenTransaction('testing'));
+    }
+
+    /**
+     * Test that a connection whose configuration cannot be built holds no
+     * transaction.
+     *
+     * @return void
+     */
+    public function testAConnectionThatCannotBeBuiltHoldsNoTransaction(): void
+    {
+        Config::set('database.connections.broken', ['driver' => 'sqlite', 'database' => ':memory:', 'read' => [], 'write' => false]);
+
+        self::assertFalse((new DeferredWriteTransactionDetector)->hasOpenTransaction('broken'));
     }
 
     /**

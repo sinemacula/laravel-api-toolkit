@@ -43,8 +43,8 @@ final readonly class DeferredWriteTransactionDetector
     {
         try {
             $level = DB::connection($connection)->transactionLevel();
-        } catch (\InvalidArgumentException) { // @phpstan-ignore catch.neverThrown
-            // An unconfigured connection holds no transaction to wait for
+        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
+            // An unresolvable connection holds no transaction to wait for
             return false;
         }
 
