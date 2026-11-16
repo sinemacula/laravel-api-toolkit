@@ -394,6 +394,8 @@ final class RulesToSchemaTranslatorTest extends TestCase
 
         yield 'quoted strict distinct' => [['ids' => 'array', 'ids.*' => 'numeric|distinct:"strict"'], ['{"ids":[1,1.0]}', '{"ids":[1,2]}']];
 
+        yield 'not in integral float' => [['count' => 'integer|not_in:1.0E+14,-1.5'], ['{"count":100000000000000}', '{"count":-100000000000000}']];
+
         yield 'not in zero' => [['count' => 'numeric|not_in:0,5'], ['{"count":-0.0}', '{"count":5}', '{"count":5.0}', '{"count":6}']];
 
         yield 'overflowing bound' => [['count' => 'integer|lt:100000000000000000000'], ['{"count":9223372036854775807}']];

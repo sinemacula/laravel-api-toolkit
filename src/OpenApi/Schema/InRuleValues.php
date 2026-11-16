@@ -22,8 +22,8 @@ final readonly class InRuleValues
      * Resolve the enum a field must not match, using exact numbers on a numeric
      * field.
      *
-     * A JSON-equal float renders zero as -0 and a large integer in exponent
-     * form, so the validator lets either through and neither is excluded.
+     * The validator lets through a JSON-equal value written differently, so an
+     * integral number is excluded only when every equal value renders alike.
      *
      * @param  string  $argument
      * @param  string|null  $type
@@ -31,10 +31,7 @@ final readonly class InRuleValues
      */
     public function forExclusion(string $argument, ?string $type): array
     {
-        return array_values(array_filter(
-            $this->forField($argument, $type),
-            static fn (float|int|string $value): bool => !is_int($value) || ($value !== 0 && abs($value) < self::EXPONENT_FORM_FROM),
-        ));
+        return array_values(array_filter($this->forField($argument, $type), $this->rendersAlike(...)));
     }
 
     /**
@@ -77,6 +74,24 @@ final readonly class InRuleValues
         }
 
         return $enum;
+    }
+
+    /**
+     * Determine whether every JSON-equal value renders as the given value.
+     *
+     * A float renders zero as -0 and a large integer in exponent form, and an
+     * integer never renders as an integral float's exponent form.
+     *
+     * @param  float|int|string  $value
+     * @return bool
+     */
+    private function rendersAlike(float|int|string $value): bool
+    {
+        return match (true) {
+            is_string($value) => true,
+            is_float($value)  => fmod($value, 1.0) !== 0.0,
+            default           => abs($value) >= 1 && abs($value) < self::EXPONENT_FORM_FROM,
+        };
     }
 
     /**

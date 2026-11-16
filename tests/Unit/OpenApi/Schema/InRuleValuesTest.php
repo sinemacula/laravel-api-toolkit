@@ -69,6 +69,7 @@ final class InRuleValuesTest extends TestCase
             'zero dropped'       => ['0,5', 'integer', [5]],
             'large integers'     => ['99999999999999,100000000000000,-100000000000000,-7', 'number', [99999999999999, -7]],
             'fractions kept'     => ['0.5,a', 'number', [0.5, 'a']],
+            'integral floats'    => ['1.0E+14,-1.0E+14,-1.5,1.0E-7', 'integer', [-1.5, 1.0E-7]],
             'strings keep zero'  => ['0,a', 'string', ['0', 'a']],
             'untyped keeps zero' => ['0', null, ['0']],
             'empty argument'     => ['', 'integer', []],

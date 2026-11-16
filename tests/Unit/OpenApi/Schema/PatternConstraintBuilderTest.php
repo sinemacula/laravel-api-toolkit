@@ -40,6 +40,8 @@ final class PatternConstraintBuilderTest extends TestCase
             'regex angle delimiters' => [['regex:<a>'], null, ['pattern' => 'a']],
             'regex bracket modifier' => [['regex:{a}i'], null, []],
             'regex leading space'    => [["regex: \t/^a$/"], null, ['pattern' => '^a$']],
+            'regex leading breaks'   => [["regex:\n\v\f\r/^a$/D"], null, ['pattern' => '^a$']],
+            'regex modifier newline' => [["regex:/^a$/D\nu"], null, ['pattern' => '^a$']],
             'regex modifier spacing' => [["regex:/^a$/u \r\n"], null, ['pattern' => '^a$']],
             'regex spaced modifier'  => [['regex:/^a$/ i'], null, []],
             'digits after malformed' => [['digits:x', 'digits:4'], null, ['pattern' => '^[0-9]{4}$']],
