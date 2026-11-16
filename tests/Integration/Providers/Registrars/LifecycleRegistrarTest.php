@@ -10,7 +10,7 @@ use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Events\RequestHandled;
-use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobAttempted;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -69,38 +69,51 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the lifecycle subscribers register with the queue enabled.
+     * Test that the lifecycle subscribers register.
      *
      * @return void
      */
     public function testRegisterBindsLifecycleSubscribers(): void
     {
-        $app = $this->getApplication();
-
-        /** @var \Illuminate\Config\Repository $config */
-        $config = $app->make('config');
-
-        $config->set('api-toolkit.lifecycle.queue', true);
+        Event::swap(new Dispatcher($this->getApplication()));
 
         (new LifecycleRegistrar)->register();
 
         self::assertTrue($this->hasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
-        self::assertTrue($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(JobAttempted::class, QueueFlushSubscriber::class));
     }
 
     /**
-     * Test that the Octane flush listener is wired when enabled and available.
+     * Test that a published config carrying the removed lifecycle switches
+     * still wires both flush listeners.
      *
      * @return void
      */
-    public function testOctaneFlushListenerRegisteredWhenInterfacePresentAndEnabled(): void
+    public function testRemovedLifecycleSwitchesDoNotUnwireTheFlushListeners(): void
     {
-        unset($_SERVER['LARAVEL_OCTANE']);
-
         /** @var \Illuminate\Config\Repository $config */
         $config = $this->getApplication()->make('config');
-        $config->set('api-toolkit.lifecycle.octane', true);
-        $config->set('api-toolkit.lifecycle.queue', false);
+        $config->set('api-toolkit.lifecycle', ['octane' => false, 'queue' => false, 'migrations' => true]);
+
+        Event::swap(new Dispatcher($this->getApplication()));
+
+        (new LifecycleRegistrar)->register();
+
+        /** @var \Illuminate\Events\Dispatcher $events */
+        $events = $this->getApplication()->make('events');
+
+        self::assertTrue($events->hasListeners(OperationTerminated::class));
+        self::assertTrue($this->hasSubscriberListener(JobAttempted::class, QueueFlushSubscriber::class));
+    }
+
+    /**
+     * Test that the Octane flush listener is wired when Octane is available.
+     *
+     * @return void
+     */
+    public function testOctaneFlushListenerRegisteredWhenInterfacePresent(): void
+    {
+        unset($_SERVER['LARAVEL_OCTANE']);
 
         // Reset the dispatcher so Octane's own listeners cannot mask the result
         Event::swap(new Dispatcher($this->getApplication()));
@@ -121,11 +134,6 @@ final class LifecycleRegistrarTest extends TestCase
     public function testOctaneFlushListenerNotRegisteredWhenInterfaceAbsent(): void
     {
         unset($_SERVER['LARAVEL_OCTANE']);
-
-        /** @var \Illuminate\Config\Repository $config */
-        $config = $this->getApplication()->make('config');
-        $config->set('api-toolkit.lifecycle.octane', true);
-        $config->set('api-toolkit.lifecycle.queue', false);
 
         // Simulate laravel/octane being absent
         FunctionOverrides::set(
@@ -176,7 +184,7 @@ final class LifecycleRegistrarTest extends TestCase
     {
         /** @var \Illuminate\Config\Repository $config */
         $config = $this->getApplication()->make('config');
-        $config->set('api-toolkit.lifecycle', ['octane' => true, 'queue' => true]);
+        $config->set('api-toolkit.lifecycle', []);
 
         Event::swap(new Dispatcher($this->getApplication()));
 
@@ -335,87 +343,16 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that an off-state diagnostic is logged under Octane when opted out.
+     * Test that registering on a serving runtime logs nothing.
      *
      * @return void
      */
-    public function testOffStateDiagnosticLogsWhenServingUnderOctaneButFlushOptedOut(): void
+    public function testRegisterLogsNothingOnAServingRuntime(): void
     {
         $_SERVER['LARAVEL_OCTANE'] = 1;
 
-        /** @var \Illuminate\Config\Repository $config */
-        $config = $this->getApplication()->make('config');
-        $config->set('api-toolkit.lifecycle.octane', false);
-
-        $expected = 'API Toolkit: serving under Octane but the lifecycle cache flush is disabled'
-            . ' (API_TOOLKIT_LIFECYCLE_OCTANE=false); in-process metadata memos grow unbounded'
-            . ' per worker and the worker never re-reads the metadata generation, so an'
-            . ' invalidation made elsewhere is not picked up.';
-
-        Log::shouldReceive('info')->once()->with(\Mockery::on(
-            fn (string $message): bool => $message === $expected,
-        ));
-
-        (new LifecycleRegistrar)->register();
-    }
-
-    /**
-     * Test that an off-state diagnostic is logged on a worker when opted out.
-     *
-     * @return void
-     */
-    public function testOffStateDiagnosticLogsWhenServingAsQueueWorkerButFlushOptedOut(): void
-    {
-        unset($_SERVER['LARAVEL_OCTANE']);
-
         $argv            = $_SERVER['argv'] ?? null;
         $_SERVER['argv'] = ['artisan', 'queue:work'];
-
-        /** @var \Illuminate\Config\Repository $config */
-        $config = $this->getApplication()->make('config');
-        $config->set('api-toolkit.lifecycle.queue', false);
-
-        $expected = 'API Toolkit: serving as a queue worker but the lifecycle cache flush is disabled'
-            . ' (API_TOOLKIT_LIFECYCLE_QUEUE=false); in-process metadata memos grow unbounded'
-            . ' per worker and the worker never re-reads the metadata generation, so an'
-            . ' invalidation made elsewhere is not picked up.';
-
-        Log::shouldReceive('info')->once()->with(\Mockery::on(
-            fn (string $message): bool => $message === $expected,
-        ));
-
-        try {
-            (new LifecycleRegistrar)->register();
-        } finally {
-            if ($argv === null) {
-                unset($_SERVER['argv']);
-            } else {
-                $_SERVER['argv'] = $argv;
-            }
-        }
-    }
-
-    /**
-     * Test that no off-state diagnostic is logged under php-fpm.
-     *
-     * A web request is not a worker, even when the default queue driver is
-     * non-sync.
-     *
-     * @return void
-     */
-    public function testOffStateDiagnosticIsSilentUnderPhpFpm(): void
-    {
-        unset($_SERVER['LARAVEL_OCTANE']);
-
-        $argv            = $_SERVER['argv'] ?? null;
-        $_SERVER['argv'] = ['artisan', 'route:list'];
-
-        /** @var \Illuminate\Config\Repository $config */
-        $config = $this->getApplication()->make('config');
-        $config->set('queue.default', 'database');
-        $config->set('queue.connections.database.driver', 'database');
-        $config->set('api-toolkit.lifecycle.octane', false);
-        $config->set('api-toolkit.lifecycle.queue', false);
 
         Log::shouldReceive('info')->never();
 

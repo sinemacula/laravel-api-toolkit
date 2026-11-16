@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Integration\Lifecycle;
 
 use Illuminate\Contracts\Queue\Job;
-use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobAttempted;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
@@ -21,10 +21,8 @@ use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\TestCase;
 
 /**
- * Integration tests that the shipped default config engages the flush.
- *
- * No lifecycle config is set here, so the merged package default is what is
- * read.
+ * Integration tests that the flush engages on a serving runtime out of the box
+ * while the code-derived memos stay warm.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -72,15 +70,12 @@ final class LifecycleDefaultEngagementTest extends TestCase
     }
 
     /**
-     * Test that the shipped defaults are on and engage the Octane flush.
+     * Test that the Octane flush engages on a serving runtime.
      *
      * @return void
      */
     public function testShippedDefaultEngagesOctaneFlushOnServingRuntime(): void
     {
-        self::assertTrue((bool) config('api-toolkit.lifecycle.octane'));
-        self::assertTrue((bool) config('api-toolkit.lifecycle.queue'));
-
         $_SERVER['LARAVEL_OCTANE'] = 1;
 
         Event::fake();
@@ -92,20 +87,18 @@ final class LifecycleDefaultEngagementTest extends TestCase
 
         $this->octaneListener()->handle(new \stdClass);
 
-        self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
+        self::assertSame(['FakeResource' => 'compiled'], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
         self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
         Event::assertDispatched(CacheFlushed::class);
     }
 
     /**
-     * Test that the shipped queue default engages the flush on a real worker.
+     * Test that the queue flush engages on a real worker.
      *
      * @return void
      */
     public function testShippedDefaultEngagesQueueFlushOnServingRuntime(): void
     {
-        self::assertTrue((bool) config('api-toolkit.lifecycle.queue'));
-
         // A non-sync connection signals a real worker
         Config::set('queue.connections.database.driver', 'database');
 
@@ -116,10 +109,10 @@ final class LifecycleDefaultEngagementTest extends TestCase
         $this->writer()->rememberMetadataForever($key, static fn () => 'value');
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
 
-        $event = new JobProcessed('database', self::createStub(Job::class));
+        $event = new JobAttempted('database', self::createStub(Job::class));
         $this->queueSubscriber()->handleFlush($event);
 
-        self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
+        self::assertSame(['FakeResource' => 'compiled'], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
         self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
         Event::assertDispatched(CacheFlushed::class);
     }

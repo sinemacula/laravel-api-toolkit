@@ -15,6 +15,7 @@ use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as Fr
 use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
+use Illuminate\Queue\Events\JobAttempted;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Routing\Router;
@@ -797,15 +798,13 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the Octane flush listener is registered when config is enabled.
+     * Test that the Octane flush listener is registered.
      *
      * @return void
      */
-    public function testOctaneFlushListenerRegisteredWhenConfigEnabled(): void
+    public function testOctaneFlushListenerRegistered(): void
     {
         $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.lifecycle.octane', true);
 
         // Reset the dispatcher so Octane's own listeners cannot mask the result
         Event::swap(new Dispatcher($app));
@@ -820,17 +819,15 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the Octane flush listener is not registered when disabled.
+     * Test that the queue flush subscriber is registered.
      *
      * @return void
      */
-    public function testOctaneFlushListenerNotRegisteredWhenConfigDisabled(): void
+    public function testQueueFlushSubscriberRegistered(): void
     {
         $app = $this->getApplication();
 
-        $this->getConfig()->set('api-toolkit.lifecycle.octane', false);
-
-        // Reset the dispatcher so Octane's own listeners cannot mask the result
+        // Reset the dispatcher so boot-time wiring does not skew the baseline
         Event::swap(new Dispatcher($app));
 
         $provider = new ApiServiceProvider($app);
@@ -839,48 +836,7 @@ final class ApiServiceProviderTest extends TestCase
         /** @var \Illuminate\Events\Dispatcher $events */
         $events = $app->make('events');
 
-        self::assertFalse($events->hasListeners(OperationTerminated::class));
-    }
-
-    /**
-     * Test that the queue flush subscriber is registered when enabled.
-     *
-     * @return void
-     */
-    public function testQueueFlushSubscriberRegisteredWhenConfigEnabled(): void
-    {
-        $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.lifecycle.queue', true);
-
-        $provider = new ApiServiceProvider($app);
-        $provider->boot();
-
-        /** @var \Illuminate\Events\Dispatcher $events */
-        $events = $app->make('events');
-
-        self::assertTrue($events->hasListeners(JobProcessed::class));
-    }
-
-    /**
-     * Test that the queue flush subscriber is not registered when disabled.
-     *
-     * @return void
-     */
-    public function testQueueFlushSubscriberNotRegisteredWhenConfigDisabled(): void
-    {
-        $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.lifecycle.octane', false);
-        $this->getConfig()->set('api-toolkit.lifecycle.queue', false);
-        $this->getConfig()->set('api-toolkit.notifications.enable_logging', false);
-
-        $provider = new ApiServiceProvider($app);
-        $provider->boot();
-
-        // Smoke test only: both subscribers hear JobProcessed, so this only
-        // proves boot completes with the queue lifecycle off
-        self::assertFalse((bool) $this->getConfig()->get('api-toolkit.lifecycle.queue'));
+        self::assertTrue($events->hasListeners(JobAttempted::class));
     }
 
     /**
@@ -1207,40 +1163,18 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the queue flush subscriber is subscribed when enabled.
+     * Test that the queue flush subscriber is subscribed to job attempts only.
      *
      * @return void
      */
-    public function testQueueFlushSubscriberIsSubscribedWhenQueueLifecycleEnabled(): void
+    public function testQueueFlushSubscriberIsSubscribedToJobAttemptsOnly(): void
     {
         $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.lifecycle.queue', true);
 
         $provider = new ApiServiceProvider($app);
         $provider->boot();
 
-        self::assertTrue($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
-        self::assertTrue($this->hasSubscriberListener(JobFailed::class, QueueFlushSubscriber::class));
-    }
-
-    /**
-     * Test that the queue flush subscriber is not subscribed when disabled.
-     *
-     * @return void
-     */
-    public function testQueueFlushSubscriberIsNotSubscribedWhenQueueLifecycleDisabled(): void
-    {
-        $app = $this->getApplication();
-
-        // Reset the dispatcher so boot-time wiring does not skew the baseline
-        Event::swap(new Dispatcher($app));
-
-        $this->getConfig()->set('api-toolkit.lifecycle.queue', false);
-
-        $provider = new ApiServiceProvider($app);
-        $provider->boot();
-
+        self::assertTrue($this->hasSubscriberListener(JobAttempted::class, QueueFlushSubscriber::class));
         self::assertFalse($this->hasSubscriberListener(JobProcessed::class, QueueFlushSubscriber::class));
         self::assertFalse($this->hasSubscriberListener(JobFailed::class, QueueFlushSubscriber::class));
     }

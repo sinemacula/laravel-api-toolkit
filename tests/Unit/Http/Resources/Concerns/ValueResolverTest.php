@@ -214,66 +214,70 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that the resolved child field set is memoised per compiled
-     * definition.
+     * Test that the child field set drops empty entries and is re-indexed.
      *
      * @return void
      */
-    public function testRelationFieldsAreMemoisedPerDefinition(): void
+    public function testRelationFieldsDropEmptyEntries(): void
     {
         // A leading empty entry makes the array_values re-index observable
         $definition = $this->makeFieldDefinition(fields: ['', 'id', 'name']);
 
-        $first  = $this->invokeMethod($this->resolver, 'getRelationFields', $definition);
-        $second = $this->invokeMethod($this->resolver, 'getRelationFields', $definition);
-
-        self::assertSame(['id', 'name'], $first);
-        self::assertSame($first, $second);
-
-        $cache = $this->getStaticProperty(ValueResolver::class, 'relationFieldsCache');
-
-        self::assertInstanceOf(\WeakMap::class, $cache);
-        self::assertCount(1, $cache);
-        self::assertTrue($cache->offsetExists($definition));
+        self::assertSame(['id', 'name'], $this->invokeMethod($this->resolver, 'getRelationFields', $definition));
     }
 
     /**
-     * Test that a seeded child-field memo is consulted rather than recomputed.
+     * Test that a relation without explicit child fields yields none.
      *
      * @return void
      */
-    public function testRelationFieldsMemoIsConsulted(): void
+    public function testRelationFieldsAreNullWithoutExplicitChildFields(): void
     {
-        $definition = $this->makeFieldDefinition(fields: ['id', 'name']);
+        $definition = $this->makeFieldDefinition(fields: null);
 
-        $weakMap              = new \WeakMap;
-        $weakMap[$definition] = ['sentinel_field'];
-
-        $this->setStaticProperty(ValueResolver::class, 'relationFieldsCache', $weakMap);
-
-        $result = $this->invokeMethod($this->resolver, 'getRelationFields', $definition);
-
-        self::assertSame(['sentinel_field'], $result);
+        self::assertNull($this->invokeMethod($this->resolver, 'getRelationFields', $definition));
     }
 
     /**
-     * Test that clearing the cache empties both serialization memo caches.
+     * Test that a relation's explicit child fields render without the empty
+     * entries among them.
      *
      * @return void
      */
-    public function testClearCacheEmptiesMemoCaches(): void
+    public function testResolveFieldValueRendersExplicitChildFieldsAroundAnEmptyEntry(): void
     {
-        $definition           = $this->makeFieldDefinition(fields: ['id']);
-        $weakMap              = new \WeakMap;
-        $weakMap[$definition] = ['id'];
+        $rendered = $this->renderOrganizationWithChildFields(['name', '', 'slug']);
 
+        self::assertSame('ChildFieldsOrg', $rendered['name']);
+        self::assertSame('child-fields-org', $rendered['slug']);
+        self::assertArrayNotHasKey('created_at', $rendered);
+    }
+
+    /**
+     * Test that a relation whose only child field is empty renders the fixed
+     * fields alone.
+     *
+     * @return void
+     */
+    public function testResolveFieldValueRendersAnEmptyOnlyChildFieldSetAsTheFixedFields(): void
+    {
+        $rendered = $this->renderOrganizationWithChildFields(['']);
+
+        self::assertSame(['_type', 'id'], array_keys($rendered));
+    }
+
+    /**
+     * Test that clearing the cache empties the cast-accessor memo.
+     *
+     * @return void
+     */
+    public function testClearCacheEmptiesTheCastAccessorMemo(): void
+    {
         $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', ['Foo' => ['bar' => true]]);
-        $this->setStaticProperty(ValueResolver::class, 'relationFieldsCache', $weakMap);
 
         ValueResolver::clearCache();
 
         self::assertSame([], $this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
-        self::assertNull($this->getStaticProperty(ValueResolver::class, 'relationFieldsCache'));
     }
 
     /**
@@ -2253,6 +2257,38 @@ final class ValueResolverTest extends TestCase
                 return $this->related;
             }
         };
+    }
+
+    /**
+     * Render a loaded organization relation with the given explicit child
+     * fields.
+     *
+     * @param  array<int, string>  $fields
+     * @return array<string, mixed>
+     */
+    private function renderOrganizationWithChildFields(array $fields): array
+    {
+        $organization = Organization::create(['name' => 'ChildFieldsOrg', 'slug' => 'child-fields-org']);
+
+        $user = User::create([
+            'name'            => 'ChildFieldsUser',
+            'email'           => 'child-fields-user@example.com',
+            'organization_id' => $organization->id,
+        ]);
+
+        $user->load('organization');
+
+        $definition = $this->makeFieldDefinition(
+            relation: 'organization',
+            resource: OrganizationResource::class,
+            fields: $fields,
+        );
+
+        $result = $this->resolver->resolveFieldValue('organization', $definition, new JsonResource($user), null);
+
+        self::assertInstanceOf(OrganizationResource::class, $result);
+
+        return $result->resolve();
     }
 
     /**

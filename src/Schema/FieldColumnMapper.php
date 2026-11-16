@@ -56,6 +56,9 @@ final class FieldColumnMapper
     /**
      * Clear the per-resource-class field-column map cache.
      *
+     * Field-column maps live for the worker, so a lifecycle flush leaves them;
+     * this is for test isolation.
+     *
      * @return void
      */
     public static function clearCache(): void
