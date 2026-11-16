@@ -15,7 +15,10 @@ use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
+use SineMacula\ApiToolkit\Exceptions\GoneException;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Exceptions\NotFoundException;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
@@ -33,6 +36,7 @@ use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
 use SineMacula\ApiToolkit\Search\Drivers\SqliteSearchDriver;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Fixtures\Input\StorePayload;
 use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\User;
@@ -102,6 +106,30 @@ final class ContainerBindingRegistrarTest extends TestCase
         self::assertSame($app->make(ServiceRunner::class), $app->make(ServiceRunner::class));
         self::assertSame($app->make(EnumSchemaRegistry::class), $app->make(EnumSchemaRegistry::class));
         self::assertSame($app->make(DefinedSchemaRegistry::class), $app->make(DefinedSchemaRegistry::class));
+    }
+
+    /**
+     * Test that the exception map is built from the config on every resolution.
+     *
+     * @return void
+     */
+    public function testRegisterBindsTheExceptionMapToTheCurrentConfig(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        $default = $app->make(ExceptionMap::class);
+
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $app->make('config');
+        $config->set('api-toolkit.exceptions.map', [NotFoundHttpException::class => GoneException::class]);
+
+        $configured = $app->make(ExceptionMap::class);
+
+        self::assertNotSame($default, $configured);
+        self::assertSame(NotFoundException::class, $default->targetFor(NotFoundHttpException::class));
+        self::assertSame(GoneException::class, $configured->targetFor(NotFoundHttpException::class));
     }
 
     /**

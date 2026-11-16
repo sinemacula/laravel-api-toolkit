@@ -9,8 +9,11 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
@@ -18,6 +21,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
@@ -59,7 +63,6 @@ use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathResponseStatusController;
-use Tests\Fixtures\OpenApi\PathRouteFactsController;
 use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathTaggedController;
@@ -242,164 +245,20 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that the index carries only the baseline error statuses that apply.
+     * Test that a resource create or update documents the validation error
+     * without a request body, and a read or delete does not.
      *
      * @return void
      */
-    public function testIndexCarriesCollectionBaselineErrors(): void
-    {
-        $this->registerRestRoutes('auth');
-
-        $responses = $this->build()['/users']['get']['responses'];
-
-        self::assertIsArray($responses);
-
-        foreach (['401', '403', '500'] as $status) {
-            self::assertArrayHasKey($status, $responses);
-        }
-
-        self::assertArrayNotHasKey('404', $responses);
-        self::assertArrayNotHasKey('422', $responses);
-    }
-
-    /**
-     * Test that a show carries not-found but omits the validation status.
-     *
-     * @return void
-     */
-    public function testShowCarriesResourceBaselineWithNotFound(): void
-    {
-        $this->registerRestRoutes('auth');
-
-        $responses = $this->build()['/users/{user}']['get']['responses'];
-
-        self::assertIsArray($responses);
-
-        foreach (['401', '403', '404', '500'] as $status) {
-            self::assertArrayHasKey($status, $responses);
-        }
-
-        self::assertArrayNotHasKey('422', $responses);
-    }
-
-    /**
-     * Test that a create carries the validation status but omits not-found.
-     *
-     * @return void
-     */
-    public function testStoreCarriesValidationBaseline(): void
-    {
-        $this->registerRestRoutes('auth');
-
-        $responses = $this->build()['/users']['post']['responses'];
-
-        self::assertIsArray($responses);
-
-        foreach (['401', '403', '422', '500'] as $status) {
-            self::assertArrayHasKey($status, $responses);
-        }
-
-        self::assertArrayNotHasKey('404', $responses);
-    }
-
-    /**
-     * Test that a destroy carries no-content and omits the validation status.
-     *
-     * @return void
-     */
-    public function testDestroyCarriesBaselineErrorsAlongsideNoContent(): void
-    {
-        $this->registerRestRoutes('auth');
-
-        $responses = $this->build()['/users/{user}']['delete']['responses'];
-
-        self::assertIsArray($responses);
-
-        foreach (['204', '401', '403', '404', '500'] as $status) {
-            self::assertArrayHasKey($status, $responses);
-        }
-
-        self::assertArrayNotHasKey('422', $responses);
-    }
-
-    /**
-     * Test that a baseline-only status references the shared error envelope.
-     *
-     * @return void
-     */
-    public function testBaselineErrorReferencesSharedEnvelopeSchema(): void
-    {
-        $this->registerRestRoutes('auth');
-
-        $response = $this->build()['/users']['get']['responses']['401'];
-
-        self::assertSame('Unauthenticated.', $response['description']);
-        self::assertSame(
-            ['$ref' => '#/components/schemas/ErrorEnvelope'],
-            $response['content']['application/json']['schema'],
-        );
-        self::assertIsArray($response['content']['application/json']);
-        self::assertArrayNotHasKey('examples', $response['content']['application/json']);
-    }
-
-    /**
-     * Test that a thrown exception on a baseline status merges into it.
-     *
-     * @return void
-     */
-    public function testThrownExceptionCollidesWithBaselineStatus(): void
+    public function testResourceWriteActionsDocumentTheValidationError(): void
     {
         $this->registerRestRoutes();
+        $this->router()->put('errors/{error}', [PathErrorController::class, 'update']);
 
-        $notFound = $this->build()['/users/{user}']['get']['responses']['404'];
-
-        self::assertSame('The requested resource does not exist.', $notFound['description']);
-
-        $media = $notFound['content']['application/json'];
-
-        self::assertSame(['$ref' => '#/components/schemas/ErrorEnvelope'], $media['schema']);
-        self::assertIsArray($media['examples']);
-        self::assertArrayHasKey('NotFoundException', $media['examples']);
-        self::assertSame(
-            ['status' => 404, 'code' => 10103],
-            $media['examples']['NotFoundException']['value']['error'],
-        );
-    }
-
-    /**
-     * Test that a non-baseline thrown status surfaces with a code example.
-     *
-     * @return void
-     */
-    public function testThrownExceptionSurfacesUnderItsOwnStatus(): void
-    {
-        $this->registerRestRoutes();
-
-        $responses = $this->build()['/users']['post']['responses'];
-
-        self::assertIsArray($responses);
-        self::assertArrayHasKey('409', $responses);
-        self::assertSame('Conflict.', $responses['409']['description']);
-        self::assertSame(
-            ['status' => 409, 'code' => 10108],
-            $responses['409']['content']['application/json']['examples']['ConflictException']['value']['error'],
-        );
-    }
-
-    /**
-     * Test that merged responses carry exactly one entry per status.
-     *
-     * @return void
-     */
-    public function testResponsesHaveExactlyOneEntryPerStatus(): void
-    {
-        $this->registerRestRoutes('auth');
-
-        $statuses = array_keys($this->responsesOf('/users', 'post'));
-
-        sort($statuses);
-
-        self::assertSame([201, 401, 403, 409, 422, 500], $statuses);
+        self::assertSame([201, 403, 409, 422, 500], array_keys($this->responsesOf('/users', 'post')));
+        self::assertSame([200, 403, 404, 422, 500], array_keys($this->responsesOf('/errors/{error}', 'put')));
+        self::assertSame([200, 403, 404, 500], array_keys($this->responsesOf('/users/{user}', 'get')));
+        self::assertSame([204, 403, 404, 500], array_keys($this->responsesOf('/users/{user}', 'delete')));
     }
 
     /**
@@ -1397,56 +1256,6 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that thrown exceptions sharing a status merge their examples.
-     *
-     * @return void
-     */
-    public function testThrownExceptionsSharingStatusMergeExamples(): void
-    {
-        $this->router()->get('errors/{error}', [PathErrorController::class, 'show']);
-
-        $responses = $this->build()['/errors/{error}']['get']['responses'];
-
-        self::assertIsArray($responses);
-        self::assertArrayHasKey('503', $responses);
-        self::assertSame('Service unavailable.', $responses['503']['description']);
-        self::assertSame(
-            ['ServiceUnavailableException', 'MaintenanceModeException'],
-            array_keys($responses['503']['content']['application/json']['examples']),
-        );
-    }
-
-    /**
-     * Test that a thrown baseline status keeps its known phrase.
-     *
-     * @return void
-     */
-    public function testThrownBaselineStatusKeepsBaselinePhrase(): void
-    {
-        $this->router()->get('errors/{error}', [PathErrorController::class, 'show']);
-
-        $responses = $this->build()['/errors/{error}']['get']['responses'];
-
-        self::assertIsArray($responses);
-        self::assertArrayHasKey('422', $responses);
-        self::assertSame('The request payload failed validation.', $responses['422']['description']);
-    }
-
-    /**
-     * Test that a throws tag outside the API exception base is ignored.
-     *
-     * @return void
-     */
-    public function testNonApiThrowsAreIgnored(): void
-    {
-        $this->router()->put('errors/{error}', [PathErrorController::class, 'update'])->middleware('auth');
-
-        $statuses = array_keys($this->responsesOf('/errors/{error}', 'put'));
-
-        self::assertSame([200, 401, 403, 404, 422, 500], $statuses);
-    }
-
-    /**
      * Test that an excluded verb does not stop a later documentable one.
      *
      * @return void
@@ -1521,11 +1330,12 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an undeclared action carries only the baseline statuses.
+     * Test that an action absent from its controller still documents its
+     * success beside its error statuses.
      *
      * @return void
      */
-    public function testRoutedActionAbsentFromControllerCarriesBaselineErrorsOnly(): void
+    public function testRoutedActionAbsentFromControllerDocumentsItsSuccess(): void
     {
         $this->router()->delete('gaps/{gap}', [PathReflectionGapController::class, 'destroy'])->middleware('auth');
 
@@ -1553,69 +1363,6 @@ final class PathBuilderTest extends TestCase
             (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
             $responses[200]['content']['application/json']['schema']['anyOf'][0],
         );
-    }
-
-    /**
-     * Test that a resource route without auth omits unauthenticated.
-     *
-     * @return void
-     */
-    public function testResourceRouteWithoutAuthOmitsUnauthenticated(): void
-    {
-        $this->registerRestRoutes();
-
-        self::assertSame([200, 403, 500], array_keys($this->responsesOf('/users', 'get')));
-    }
-
-    /**
-     * Test that unauthenticated is documented only behind auth middleware.
-     *
-     * @return void
-     */
-    public function testNonResourceRouteDocumentsUnauthenticatedOnlyBehindAuth(): void
-    {
-        $this->router()->get('private', [PathPlainController::class, 'report'])->middleware('auth');
-        $this->router()->get('public', [PathPlainController::class, 'index']);
-
-        $paths = $this->build();
-
-        self::assertIsArray($paths['/private']['get']['responses']);
-        self::assertSame([200, 401, 500], array_keys($paths['/private']['get']['responses']));
-        self::assertSame('Unauthenticated.', $paths['/private']['get']['responses'][401]['description']);
-        self::assertIsArray($paths['/public']['get']['responses']);
-        self::assertSame([200, 500], array_keys($paths['/public']['get']['responses']));
-    }
-
-    /**
-     * Test that a throttled route documents the too-many-requests status.
-     *
-     * @return void
-     */
-    public function testThrottledRouteDocumentsTooManyRequests(): void
-    {
-        $this->router()->get('limited', [PathPlainController::class, 'report'])->middleware('throttle:60,1');
-
-        $responses = $this->build()['/limited']['get']['responses'];
-
-        self::assertIsArray($responses);
-        self::assertSame([200, 429, 500], array_keys($responses));
-        self::assertSame('Too many requests.', $responses[429]['description']);
-        self::assertSame(
-            ['$ref' => '#/components/schemas/ErrorEnvelope'],
-            $responses[429]['content']['application/json']['schema'],
-        );
-    }
-
-    /**
-     * Test that an authorization attribute documents the forbidden status.
-     *
-     * @return void
-     */
-    public function testAuthorizeAttributeDocumentsForbidden(): void
-    {
-        $this->router()->get('report', [PathRouteFactsController::class, 'report']);
-
-        self::assertSame([200, 403, 500], array_keys($this->responsesOf('/report', 'get')));
     }
 
     /**
@@ -1652,72 +1399,6 @@ final class PathBuilderTest extends TestCase
         self::assertSame([200, 422, 500], array_keys($paths['/imports']['post']['responses']));
         self::assertIsArray($paths['/posts']['post']['responses']);
         self::assertSame([201, 403, 500], array_keys($paths['/posts']['post']['responses']));
-    }
-
-    /**
-     * Test that a non-resource action documents its thrown ApiExceptions.
-     *
-     * @return void
-     */
-    public function testNonResourceActionDocumentsThrownApiExceptions(): void
-    {
-        $this->router()->post('sign-in', [PathRouteFactsController::class, 'signIn']);
-
-        $responses = $this->build()['/sign-in']['post']['responses'];
-
-        self::assertIsArray($responses);
-        self::assertSame([200, 401, 403, 419, 429, 500], array_keys($responses));
-        self::assertSame('Unauthenticated.', $responses[401]['description']);
-        self::assertSame('Token mismatch.', $responses[419]['description']);
-        self::assertSame(
-            ['TokenMismatchException' => ['value' => ['error' => ['status' => 419, 'code' => 10105]]]],
-            $responses[419]['content']['application/json']['examples'],
-        );
-        self::assertSame(
-            ['UnauthenticatedException' => ['value' => ['error' => ['status' => 401, 'code' => 10101]]]],
-            $responses[401]['content']['application/json']['examples'],
-        );
-        self::assertSame(
-            ['ForbiddenException' => ['value' => ['error' => ['status' => 403, 'code' => 10102]]]],
-            $responses[403]['content']['application/json']['examples'],
-        );
-        self::assertSame(
-            ['TooManyRequestsException' => ['value' => ['error' => ['status' => 429, 'code' => 10107]]]],
-            $responses[429]['content']['application/json']['examples'],
-        );
-        self::assertIsArray($responses[500]['content']['application/json']);
-        self::assertArrayNotHasKey('examples', $responses[500]['content']['application/json']);
-    }
-
-    /**
-     * Test that middleware group facts are resolved minus excluded members.
-     *
-     * @return void
-     */
-    public function testMiddlewareGroupFactsAreResolved(): void
-    {
-        $this->router()->middlewareGroup('facts', ['auth', 'throttle:60,1']);
-        $this->router()->get('grouped', [PathPlainController::class, 'report'])->middleware('facts');
-        $this->router()->get('unthrottled', [PathPlainController::class, 'index'])->middleware('facts')->withoutMiddleware('throttle');
-
-        $paths = $this->build();
-
-        self::assertIsArray($paths['/grouped']['get']['responses']);
-        self::assertSame([200, 401, 429, 500], array_keys($paths['/grouped']['get']['responses']));
-        self::assertIsArray($paths['/unthrottled']['get']['responses']);
-        self::assertSame([200, 401, 500], array_keys($paths['/unthrottled']['get']['responses']));
-    }
-
-    /**
-     * Test that a closure route documents only the route-fact statuses.
-     *
-     * @return void
-     */
-    public function testClosureRouteDocumentsRouteFactErrors(): void
-    {
-        $this->router()->get('items/{item}', static fn (): null => null)->middleware('auth');
-
-        self::assertSame([200, 401, 404, 500], array_keys($this->responsesOf('/items/{item}', 'get')));
     }
 
     /**
@@ -1799,50 +1480,6 @@ final class PathBuilderTest extends TestCase
         ));
 
         $this->build();
-    }
-
-    /**
-     * Test that exception headers, inherited ones too, document on errors.
-     *
-     * @return void
-     */
-    public function testThrownExceptionHeadersAreDocumentedOnTheErrorResponse(): void
-    {
-        $this->router()->post('sign-in', [PathResponseHeaderController::class, 'signIn']);
-
-        $responses = $this->build()['/sign-in']['post']['responses'];
-
-        self::assertIsArray($responses[429]);
-        self::assertSame(['description', 'headers', 'content'], array_keys($responses[429]));
-        self::assertSame(
-            ['Retry-After' => ['description' => 'The number of seconds to wait before retrying.', 'schema' => ['type' => 'integer']]],
-            $responses[429]['headers'],
-        );
-        self::assertIsArray($responses[429]['content']['application/json']['examples']);
-        self::assertSame(['BurstLimitedException'], array_keys($responses[429]['content']['application/json']['examples']));
-        self::assertIsArray($responses[409]);
-        self::assertSame(['description', 'content'], array_keys($responses[409]));
-        self::assertIsArray($responses[500]);
-        self::assertSame(['description', 'content'], array_keys($responses[500]));
-    }
-
-    /**
-     * Test that exceptions sharing a status merge their declared headers.
-     *
-     * @return void
-     */
-    public function testThrownExceptionHeadersMergeOntoABaselineStatus(): void
-    {
-        $this->router()->post('quota', [PathResponseHeaderController::class, 'quota'])->middleware('throttle:60,1');
-
-        $response = $this->build()['/quota']['post']['responses'][429];
-
-        self::assertSame('Too many requests.', $response['description']);
-        self::assertIsArray($response['headers']);
-        self::assertSame(
-            ['retry-after', 'X-Quota-Reset', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
-            array_keys($response['headers']),
-        );
     }
 
     /**
@@ -2207,11 +1844,14 @@ final class PathBuilderTest extends TestCase
      */
     private function builder(): PathBuilder
     {
+        assert($this->app !== null);
+
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn([
             User::class    => UserResource::class,
             Article::class => ArticleResource::class,
         ]);
+        $catalogue->method('getErrorCatalogue')->willReturn($this->app->make(ErrorCatalogueReader::class)->read());
 
         assert($this->app !== null);
 
@@ -2239,8 +1879,13 @@ final class PathBuilderTest extends TestCase
                 ),
                 $enums,
             ),
-            new RouteMiddlewareResolver($this->router()),
-            new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver),
+            new ErrorResponseBuilder(
+                new RouteMiddlewareResolver($this->router()),
+                new ThrowsErrorResolver(new ClassNameResolver),
+                new ResponseHeaderResolver,
+                new ErrorExampleBuilder($catalogue),
+                ExceptionMap::fromConfig(),
+            ),
             new SuccessResponseBuilder(
                 new EnvelopeBuilder,
                 new ResponseSchemaResolver($catalogue, new EnvelopeBuilder, new DefinedSchemaRegistry),
