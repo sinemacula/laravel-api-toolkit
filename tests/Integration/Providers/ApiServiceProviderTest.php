@@ -59,16 +59,22 @@ use SineMacula\ApiToolkit\Validation\Rejection;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Concerns\LocalisesToolkitMessages;
+use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\CatalogueRow;
+use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BrokenResource;
 use Tests\Fixtures\Resources\CatalogueRowResource;
+use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -88,7 +94,7 @@ use Tests\TestCase;
 #[CoversClass(MorphMapRegistrar::class)]
 final class ApiServiceProviderTest extends TestCase
 {
-    use InteractsWithNonPublicMembers, LocalisesToolkitMessages;
+    use InteractsWithNonPublicMembers, LocalisesToolkitMessages, RecordsStatements;
 
     /**
      * Test that the package config is merged.
@@ -642,6 +648,65 @@ final class ApiServiceProviderTest extends TestCase
 
         // Smoke test only: boot completes with schema validation disabled
         self::assertFalse((bool) $this->getConfig()->get('api-toolkit.resources.validate_schemas'));
+    }
+
+    /**
+     * Provide resource maps holding one resource that declares a sort.
+     *
+     * @return iterable<string, array{0: array<class-string, class-string>}>
+     */
+    public static function sortableResourceMapProvider(): iterable
+    {
+        yield 'alone' => [[User::class => UserResource::class]];
+        yield 'beside three that declare none' => [[
+            User::class         => UserResource::class,
+            Post::class         => PostResource::class,
+            Tag::class          => TagResource::class,
+            Organization::class => OrganizationResource::class,
+        ]];
+    }
+
+    /**
+     * Test that a warm boot validates against cached metadata, reading only the
+     * index eligibility of the one resource that declares a sort.
+     *
+     * @param  array<class-string, class-string>  $resourceMap
+     * @return void
+     */
+    #[DataProvider('sortableResourceMapProvider')]
+    public function testWarmBootValidationReadsOnlyTheEligibilityOfEachSortableResource(array $resourceMap): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', $resourceMap);
+
+        $this->bootWithArgv(null);
+        $this->getApplication()->make(CacheManager::class)->flush();
+
+        $statements = $this->recordStatements(fn () => $this->bootWithArgv(null));
+
+        self::assertStatementCount(1, $statements);
+        self::assertMatchesRegularExpression('/pragma_index_list|information_schema\.statistics|pg_index/', $statements[0]);
+    }
+
+    /**
+     * Test that a boot without validation runs no statements, even cold and
+     * with a compiled discovery map to merge.
+     *
+     * @return void
+     */
+    public function testBootWithoutValidationRunsNoStatements(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', false);
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+
+        $this->useIsolatedBootstrapPath();
+        $this->writeCompiledMap([Tag::class => TagResource::class]);
+
+        $statements = $this->recordStatements(fn () => $this->bootWithArgv(null));
+
+        self::assertStatementCount(0, $statements);
+        self::assertSame([User::class => UserResource::class, Tag::class => TagResource::class], $this->getConfig()->get('api-toolkit.resources.resource_map'));
     }
 
     /**
