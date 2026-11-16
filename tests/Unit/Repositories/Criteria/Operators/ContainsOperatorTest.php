@@ -7,7 +7,6 @@ namespace Tests\Unit\Repositories\Criteria\Operators;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
@@ -53,7 +52,7 @@ final class ContainsOperatorTest extends TestCase
     {
         $query = (new User)->newQuery();
 
-        $this->operator->apply($query, 'tags', ['Alice'], FilterContext::root());
+        $this->operator->apply($query, 'tags', ['Alice']);
 
         $wheres = $query->getQuery()->wheres;
 
@@ -75,7 +74,7 @@ final class ContainsOperatorTest extends TestCase
         $query = (new User)->newQuery();
         $value = (object) ['key' => 'value'];
 
-        $this->operator->apply($query, 'tags', $value, FilterContext::root());
+        $this->operator->apply($query, 'tags', $value);
 
         $wheres = $query->getQuery()->wheres;
 
@@ -94,7 +93,7 @@ final class ContainsOperatorTest extends TestCase
     {
         $query = (new User)->newQuery();
 
-        $this->operator->apply($query, 'tags', 'Alice,Bob', FilterContext::root());
+        $this->operator->apply($query, 'tags', 'Alice,Bob');
 
         $wheres = $query->getQuery()->wheres;
 
@@ -122,7 +121,7 @@ final class ContainsOperatorTest extends TestCase
     {
         $query = (new User)->newQuery();
 
-        $this->operator->apply($query, 'tags', ' Alice , , Bob ', FilterContext::root());
+        $this->operator->apply($query, 'tags', ' Alice , , Bob ');
 
         $wheres = $query->getQuery()->wheres;
 
@@ -143,7 +142,7 @@ final class ContainsOperatorTest extends TestCase
     {
         $query = (new User)->newQuery();
 
-        $this->operator->apply($query, 'tags', ',,', FilterContext::root());
+        $this->operator->apply($query, 'tags', ',,');
 
         self::assertSame([], $query->getQuery()->wheres);
     }
@@ -157,7 +156,7 @@ final class ContainsOperatorTest extends TestCase
     {
         $query = (new User)->newQuery();
 
-        $this->operator->apply($query, 'tags', 'Alice', FilterContext::root());
+        $this->operator->apply($query, 'tags', 'Alice');
 
         $wheres = $query->getQuery()->wheres;
 
@@ -177,7 +176,7 @@ final class ContainsOperatorTest extends TestCase
     {
         $query = (new User)->newQuery();
 
-        $this->operator->apply($query, 'tags', '["a"]', FilterContext::root());
+        $this->operator->apply($query, 'tags', '["a"]');
 
         $wheres = $query->getQuery()->wheres;
 
@@ -196,7 +195,7 @@ final class ContainsOperatorTest extends TestCase
     {
         $query = (new User)->newQuery();
 
-        $this->operator->apply($query, 'tags', '["a","b"]', FilterContext::root());
+        $this->operator->apply($query, 'tags', '["a","b"]');
 
         $wheres = $query->getQuery()->wheres;
 
@@ -214,7 +213,7 @@ final class ContainsOperatorTest extends TestCase
     {
         $query = (new User)->newQuery();
 
-        $this->operator->apply($query, 'tags', null, FilterContext::root());
+        $this->operator->apply($query, 'tags', null);
 
         $wheres = $query->getQuery()->wheres;
 
@@ -240,7 +239,7 @@ final class ContainsOperatorTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('grammar rejects json-contains');
 
-        $this->operator->apply($query, 'tags', null, FilterContext::root());
+        $this->operator->apply($query, 'tags', null);
     }
 
     /**
@@ -252,7 +251,7 @@ final class ContainsOperatorTest extends TestCase
     {
         $query = (new User)->newQuery();
 
-        $this->operator->apply($query, 'tags', 123, FilterContext::root());
+        $this->operator->apply($query, 'tags', 123);
 
         $wheres = $query->getQuery()->wheres;
 
@@ -279,7 +278,7 @@ final class ContainsOperatorTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('grammar rejects json-contains');
 
-        $this->operator->apply($query, 'tags', ['Alice'], FilterContext::root());
+        $this->operator->apply($query, 'tags', ['Alice']);
     }
 
     /**
@@ -293,7 +292,7 @@ final class ContainsOperatorTest extends TestCase
 
         $query->where('name', 'Alice');
 
-        $this->operator->apply($query, 'tags', 'php,laravel', FilterContext::root());
+        $this->operator->apply($query, 'tags', 'php,laravel');
 
         $wheres = $query->getQuery()->wheres;
 
@@ -303,43 +302,44 @@ final class ContainsOperatorTest extends TestCase
     }
 
     /**
-     * Test that a direct $contains honours the OR boolean of the context.
+     * Test that a direct $contains joins an earlier clause with AND.
      *
      * @return void
      */
-    public function testApplyInOrContextUsesOrBoolean(): void
+    public function testApplyJoinsAnEarlierClauseWithAnd(): void
     {
         $query = (new User)->newQuery();
 
         $query->where('name', 'Alice');
 
-        $this->operator->apply($query, 'tags', ['php'], FilterContext::nested('$or'));
+        $this->operator->apply($query, 'tags', ['php']);
 
         $wheres = $query->getQuery()->wheres;
 
         self::assertCount(2, $wheres);
         self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[1]['type']);
-        self::assertSame('or', $wheres[1]['boolean']);
+        self::assertSame('and', $wheres[1]['boolean']);
     }
 
     /**
-     * Test that a comma-separated $contains group honours the OR boolean.
+     * Test that a comma-separated $contains group joins an earlier clause with
+     * AND.
      *
      * @return void
      */
-    public function testApplyCommaSeparatedInOrContextUsesOrBoolean(): void
+    public function testApplyCommaSeparatedJoinsAnEarlierClauseWithAnd(): void
     {
         $query = (new User)->newQuery();
 
         $query->where('name', 'Alice');
 
-        $this->operator->apply($query, 'tags', 'php,laravel', FilterContext::nested('$or'));
+        $this->operator->apply($query, 'tags', 'php,laravel');
 
         $wheres = $query->getQuery()->wheres;
 
         self::assertCount(2, $wheres);
         self::assertSame('Nested', $wheres[1]['type']);
-        self::assertSame('or', $wheres[1]['boolean']);
+        self::assertSame('and', $wheres[1]['boolean']);
     }
 
     /**

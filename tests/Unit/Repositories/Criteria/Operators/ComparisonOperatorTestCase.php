@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
@@ -26,17 +25,17 @@ abstract class ComparisonOperatorTestCase extends TestCase
      */
     public function testApplyAddsBasicWhereClause(): void
     {
-        $this->assertAppliedWhere(FilterContext::root(), 10, 'and');
+        $this->assertAppliedWhere(10);
     }
 
     /**
-     * Test that apply in an $or context uses orWhere.
+     * Test that apply adds a string comparison the same way.
      *
      * @return void
      */
-    public function testApplyInOrContextUsesOrWhere(): void
+    public function testApplyAddsAStringComparison(): void
     {
-        $this->assertAppliedWhere(FilterContext::nested('$or'), 'Alice', 'or');
+        $this->assertAppliedWhere('Alice');
     }
 
     /**
@@ -54,19 +53,16 @@ abstract class ComparisonOperatorTestCase extends TestCase
     abstract protected function sqlOperator(): string;
 
     /**
-     * Apply the operator in the given context and assert the single where it
-     * adds.
+     * Apply the operator and assert the single and-joined where it adds.
      *
-     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @param  int|string  $value
-     * @param  string  $boolean
      * @return void
      */
-    private function assertAppliedWhere(FilterContext $context, int|string $value, string $boolean): void
+    private function assertAppliedWhere(int|string $value): void
     {
         $query = (new User)->newQuery();
 
-        $this->operator()->apply($query, 'name', $value, $context);
+        $this->operator()->apply($query, 'name', $value);
 
         $wheres = $query->getQuery()->wheres;
 
@@ -75,6 +71,6 @@ abstract class ComparisonOperatorTestCase extends TestCase
         static::assertSame('name', $wheres[0]['column']);
         static::assertSame($this->sqlOperator(), $wheres[0]['operator']);
         static::assertSame($value, $wheres[0]['value']);
-        static::assertSame($boolean, $wheres[0]['boolean']);
+        static::assertSame('and', $wheres[0]['boolean']);
     }
 }

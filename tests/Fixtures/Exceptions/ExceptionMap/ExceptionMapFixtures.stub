@@ -1,0 +1,211 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace Tests\Fixtures\Exceptions\ExceptionMap;
+
+use SineMacula\ApiToolkit\Enums\ErrorCode;
+use SineMacula\ApiToolkit\Exceptions\ApiException;
+use SineMacula\Http\Enums\HttpStatus;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+
+/*
+ * Fixture keys and targets for the exception map.
+ *
+ * Kept out of the scanned sources, since the error catalogue reads the CODE of
+ * every ApiException it discovers and InvalidCodeException's is not an error
+ * code.
+ */
+
+/**
+ * A subtype of a built-in key.
+ */
+class MissingWidgetHttpException extends NotFoundHttpException {}
+
+/**
+ * A subtype of a configured key that is itself a subtype of a built-in key.
+ */
+final class MissingGadgetHttpException extends MissingWidgetHttpException {}
+
+/**
+ * A target whose CODE is not an error code.
+ */
+final class InvalidCodeException extends ApiException
+{
+    /** @var string The internal error code */
+    public const string CODE = 'conflict';
+
+    /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
+    public const HttpStatus HTTP_STATUS = HttpStatus::CONFLICT;
+}
+
+/**
+ * A target whose HTTP_STATUS is not an HttpStatus case.
+ */
+final class IntegerStatusException extends ApiException
+{
+    /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::CONFLICT;
+
+    /** @var int The HTTP status code */
+    public const int HTTP_STATUS = 409;
+}
+
+/**
+ * A target whose non-public HTTP_STATUS is not an HttpStatus case, behind a
+ * static status that is.
+ */
+final class HiddenIntegerStatusException extends ApiException
+{
+    /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::CONFLICT;
+
+    /** @var int The HTTP status code */
+    protected const int HTTP_STATUS = 409;
+
+    /**
+     * Get HTTP status code.
+     *
+     * @return int
+     */
+    #[\Override]
+    public static function getHttpStatusCode(): int
+    {
+        return 409;
+    }
+}
+
+/**
+ * A target whose private HTTP_STATUS is not an HttpStatus case, behind a static
+ * status that is.
+ */
+final class PrivateIntegerStatusException extends ApiException
+{
+    /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::CONFLICT;
+
+    /** @var int The HTTP status code */
+    private const int HTTP_STATUS = 409;
+
+    /**
+     * Get HTTP status code.
+     *
+     * @return int
+     */
+    #[\Override]
+    public static function getHttpStatusCode(): int
+    {
+        return self::HTTP_STATUS;
+    }
+}
+
+/**
+ * A target whose static status raises an error.
+ */
+final class UnknownStatusException extends ApiException
+{
+    /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::CONFLICT;
+
+    /**
+     * Get HTTP status code.
+     *
+     * @return int
+     */
+    #[\Override]
+    public static function getHttpStatusCode(): int
+    {
+        return HttpStatus::from(599)->getCode();
+    }
+}
+
+/**
+ * A target answering with a success status.
+ */
+final class AcceptedException extends ApiException
+{
+    /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::CONFLICT;
+
+    /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
+    public const HttpStatus HTTP_STATUS = HttpStatus::ACCEPTED;
+}
+
+/**
+ * A target answering with a redirection status.
+ */
+final class FoundException extends ApiException
+{
+    /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::CONFLICT;
+
+    /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
+    public const HttpStatus HTTP_STATUS = HttpStatus::FOUND;
+}
+
+/**
+ * A target answering with the last server error status.
+ */
+final class NetworkTimeoutException extends ApiException
+{
+    /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::SERVICE_UNAVAILABLE;
+
+    /**
+     * Get HTTP status code.
+     *
+     * @return int
+     */
+    #[\Override]
+    public static function getHttpStatusCode(): int
+    {
+        return 599;
+    }
+}
+
+/**
+ * A target overriding the constructor with a compatible signature.
+ */
+final class ConstructedException extends ApiException
+{
+    /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::CONFLICT;
+
+    /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
+    public const HttpStatus HTTP_STATUS = HttpStatus::CONFLICT;
+
+    /**
+     * Constructor.
+     *
+     * @param  array<string, mixed>|null  $meta
+     * @param  array<string, mixed>|null  $headers
+     * @param  \Throwable|null  $previous
+     */
+    public function __construct(?array $meta = null, ?array $headers = null, ?\Throwable $previous = null)
+    {
+        parent::__construct($meta, $headers, $previous);
+    }
+}
+
+/**
+ * A target overriding the instance status.
+ */
+final class RestatedException extends ApiException
+{
+    /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
+    public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::CONFLICT;
+
+    /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
+    public const HttpStatus HTTP_STATUS = HttpStatus::CONFLICT;
+
+    /**
+     * Get the HTTP status code for this exception instance.
+     *
+     * @return int
+     */
+    #[\Override]
+    public function getStatusCode(): int
+    {
+        return parent::getStatusCode();
+    }
+}

@@ -9,7 +9,8 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
 /**
  * Raised when a WritePool flush fails to persist non-disposable writes.
  *
- * The report context carries counts and table names, never the records.
+ * The report context carries counts and the failing tables keyed by connection,
+ * never the records.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -55,7 +56,7 @@ final class WritePoolFlushException extends \RuntimeException
     /**
      * Get the exception's context information for reporting.
      *
-     * @return array{failure_count: int, total_count: int, failed_record_count: int, retained_record_count: int, dropped_record_count: int, tables: list<string>}
+     * @return array{failure_count: int, total_count: int, failed_record_count: int, retained_record_count: int, dropped_record_count: int, tables: array<string, list<string>>}
      */
     public function context(): array
     {
@@ -65,7 +66,7 @@ final class WritePoolFlushException extends \RuntimeException
             'failed_record_count'   => $this->flushResult->failedRecordCount(),
             'retained_record_count' => $this->flushResult->retainedRecordCount(),
             'dropped_record_count'  => $this->flushResult->droppedRecordCount(),
-            'tables'                => array_keys($this->flushResult->failures()),
+            'tables'                => array_map(array_keys(...), $this->flushResult->failures()),
         ];
     }
 }

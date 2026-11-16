@@ -105,7 +105,7 @@ final class ApiCriteria implements CriteriaInterface
         $this->orderApplier                = new OrderApplier;
         $this->eagerLoadApplier            = new EagerLoadApplier;
         $this->limitApplier                = new LimitApplier;
-        $this->columnProjectionApplier     = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector));
+        $this->columnProjectionApplier     = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector), $this->schemaIntrospector);
         $this->softDeleteVisibilityApplier = new SoftDeleteVisibilityApplier;
         $this->searchApplier               = new SearchApplier($this->searchDriverRegistry, new IndexProof($this->metadataCacheWriter));
         $this->queryCostGuard              = new QueryCostGuard;

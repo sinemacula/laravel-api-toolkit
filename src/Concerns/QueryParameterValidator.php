@@ -154,7 +154,7 @@ final class QueryParameterValidator
     }
 
     /**
-     * Measure how many object levels the given document nests.
+     * Measure the levels the given document nests, objects and lists alike.
      *
      * @param  array<mixed>  $document
      * @return int

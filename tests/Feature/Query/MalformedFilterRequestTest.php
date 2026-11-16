@@ -116,22 +116,24 @@ final class MalformedFilterRequestTest extends TestCase
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);
 
-        self::assertArrayHasKey('name', (array) $response->json('error.meta'));
+        self::assertArrayHasKey('filters.name', (array) $response->json('error.meta'));
     }
 
     /**
-     * Test that a logical group given a bare list is rejected rather than
-     * raising a type error.
+     * Test that a logical group given an object rather than a list of documents
+     * is rejected at the group.
      *
      * @return void
      */
-    public function testLogicalGroupGivenABareListIsRejected(): void
+    public function testLogicalGroupGivenAnObjectIsRejected(): void
     {
-        $filters = '{"$or":[{"name":"Alice"},{"name":"Bob"}]}';
+        $filters = '{"$or":{"name":"Alice","email":"bob@example.com"}}';
 
         $response = $this->getJson('/users?filters=' . urlencode($filters));
 
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);
+
+        self::assertArrayHasKey('filters.$or', (array) $response->json('error.meta'));
     }
 }

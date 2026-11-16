@@ -95,11 +95,11 @@ final class QueryCostRejectionTest extends TestCase
      */
     public function testFilterNestedBeyondTheDepthCapIssuesNoSql(): void
     {
-        $filters = json_encode(['$or' => ['$and' => ['$or' => ['$and' => ['name' => 'Alice']]]]]);
+        $filters = json_encode(['$or' => [['$and' => [['$or' => [['$and' => [['name' => 'Alice']]]]]]]]]);
 
         $response = $this->recordQueries('/users?filters=' . urlencode((string) $filters));
 
-        $this->assertRejectionEnvelope($response, 'filters', '/$or/$and/$or/$and', 'max_depth', 3, 4);
+        $this->assertRejectionEnvelope($response, 'filters', '/$or/0/$and/0/$or/0/$and', 'max_depth', 3, 4);
     }
 
     /**
@@ -114,8 +114,8 @@ final class QueryCostRejectionTest extends TestCase
     {
         $filters = ['name' => 'Alice'];
 
-        for ($level = 0; $level < 16; $level++) {
-            $filters = ['$or' => $filters];
+        for ($level = 0; $level < 8; $level++) {
+            $filters = ['$or' => [$filters]];
         }
 
         $response = $this->recordQueries('/users?filters=' . urlencode((string) json_encode($filters)));
@@ -334,7 +334,7 @@ final class QueryCostRejectionTest extends TestCase
      */
     public function testRequestWithinEveryCapIsAnswered(): void
     {
-        $filters = json_encode(['$or' => ['$and' => ['name' => 'Alice']]]);
+        $filters = json_encode(['$or' => [['$and' => [['name' => 'Alice']]]]]);
 
         $response = $this->recordQueries('/users?filters=' . urlencode((string) $filters));
 

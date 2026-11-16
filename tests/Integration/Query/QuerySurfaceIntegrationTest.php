@@ -239,9 +239,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
     public function testNestedUndeclaredRelationTraversalIsRejectedFailClosed(): void
     {
         $this->parseQuery(['filters' => json_encode([
-            'posts' => [
-                'nested' => ['user' => ['name' => 'Alice']],
-            ],
+            'posts' => ['user' => ['name' => 'Alice']],
         ], JSON_THROW_ON_ERROR)]);
 
         try {
@@ -267,9 +265,7 @@ final class QuerySurfaceIntegrationTest extends TestCase
         ]);
 
         $this->parseQuery(['filters' => json_encode([
-            'posts' => [
-                'nested' => ['user' => ['name' => 'Alice']],
-            ],
+            'posts' => ['user' => ['name' => 'Alice']],
         ], JSON_THROW_ON_ERROR)]);
 
         $results = $this->declaredCriteria()->apply(new User)->get();

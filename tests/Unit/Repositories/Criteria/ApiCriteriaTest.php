@@ -381,19 +381,13 @@ final class ApiCriteriaTest extends TestCase
     {
         $this->parseRequest(new Request([
             'filters' => json_encode([
-                '$or' => [
-                    'name'  => 'Alice',
-                    'email' => 'bob@example.com',
-                ],
+                '$or' => [['name' => 'Alice'], ['email' => 'bob@example.com']],
             ]),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
+        $query = $this->metricFreeCriteria()->apply(new User);
 
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertNotEmpty($wheres);
+        self::assertSame('select * from "users" where ((("name" = ?) or ("email" = ?)))', $this->sqlOf($query));
     }
 
     /**
@@ -407,17 +401,14 @@ final class ApiCriteriaTest extends TestCase
     {
         $this->parseRequest(new Request([
             'filters' => json_encode([
-                '$or' => [
-                    'name'  => 'Alice',
-                    'email' => 'charlie@example.com',
-                ],
+                '$or' => [['name' => 'Alice'], ['email' => 'charlie@example.com']],
             ]),
         ]));
 
         $query = $this->metricFreeCriteria()->apply(User::query()->where('status', 'active'));
 
         self::assertSame(
-            'select * from "users" where "status" = ? and (("name" = ? or "email" = ?))',
+            'select * from "users" where "status" = ? and ((("name" = ?) or ("email" = ?)))',
             $this->sqlOf($query),
         );
 
@@ -435,19 +426,13 @@ final class ApiCriteriaTest extends TestCase
     {
         $this->parseRequest(new Request([
             'filters' => json_encode([
-                '$and' => [
-                    'name'  => 'Alice',
-                    'email' => 'alice@example.com',
-                ],
+                '$and' => [['name' => 'Alice'], ['email' => 'alice@example.com']],
             ]),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
+        $query = $this->metricFreeCriteria()->apply(new User);
 
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertNotEmpty($wheres);
+        self::assertSame('select * from "users" where ((("name" = ?) and ("email" = ?)))', $this->sqlOf($query));
     }
 
     /**
@@ -661,23 +646,25 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that a condition operator inside a logical group is handled.
+     * Test that a condition with no field inside a logical group is refused.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testConditionOperatorInsideLogicalGroupIsHandled(): void
+    public function testConditionOperatorInsideLogicalGroupIsRefused(): void
     {
         $this->parseRequest(new Request([
-            'filters' => json_encode(['$or' => ['$eq' => 'anything']]),
+            'filters' => json_encode(['$or' => [['$eq' => 'anything']]]),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
+        try {
+            $this->metricFreeCriteria()->apply(new User);
 
-        self::assertInstanceOf(Builder::class, $query);
-        self::assertIsArray($query->getQuery()->wheres);
+            self::fail('A condition with no field must be refused.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['filters.$or.0.$eq' => ['The filters.$or.0.$eq condition must be given under a field.']], $exception->errors());
+        }
     }
 
     /**
@@ -691,23 +678,17 @@ final class ApiCriteriaTest extends TestCase
     {
         $this->parseRequest(new Request([
             'filters' => json_encode([
-                '$and' => [
-                    '$or' => [
-                        'name'  => 'Alice',
-                        'email' => 'alice@example.com',
-                    ],
-                ],
+                '$and' => [['$or' => [['name' => 'Alice'], ['email' => 'alice@example.com']]]],
             ]),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
+        $query = $this->metricFreeCriteria()->apply(new User);
 
-        self::assertNotEmpty($query->getQuery()->wheres);
+        self::assertSame('select * from "users" where ((((("name" = ?) or ("email" = ?)))))', $this->sqlOf($query));
     }
 
     /**
-     * Test that $or inside a relation filter creates a grouped orWhere.
+     * Test that $or inside a relation filter is grouped beside the correlation.
      *
      * @return void
      *
@@ -718,17 +699,17 @@ final class ApiCriteriaTest extends TestCase
         $this->parseRequest(new Request([
             'filters' => json_encode([
                 'posts' => [
-                    '$or' => [
-                        'title' => [self::OPERATOR_EQUAL => 'test'],
-                    ],
+                    '$or' => [['title' => [self::OPERATOR_EQUAL => 'test']], ['title' => 'other']],
                 ],
             ]),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
+        $query = $this->metricFreeCriteria()->apply(new User);
 
-        self::assertNotEmpty($query->getQuery()->wheres);
+        self::assertSame(
+            'select * from "users" where (exists (select * from "posts" where "users"."id" = "posts"."user_id" and (("title" = ?) or ("title" = ?))))',
+            $this->sqlOf($query),
+        );
     }
 
     /**
@@ -784,7 +765,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that $or combined with $has uses orWhereHas.
+     * Test that $has inside an $or document attaches with OR.
      *
      * @return void
      *
@@ -794,35 +775,38 @@ final class ApiCriteriaTest extends TestCase
     {
         $this->parseRequest(new Request([
             'filters' => json_encode([
-                '$or' => [
-                    '$has' => ['posts'],
-                ],
+                '$or' => [['name' => 'Alice'], ['$has' => ['posts']]],
             ]),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
+        $query = $this->metricFreeCriteria()->apply(new User);
 
-        self::assertNotEmpty($query->getQuery()->wheres);
+        self::assertSame(
+            'select * from "users" where ((("name" = ?) or (exists (select * from "posts" where "users"."id" = "posts"."user_id"))))',
+            $this->sqlOf($query),
+        );
     }
 
     /**
-     * Test that $between with a single-element array is ignored.
+     * Test that $between with a single-element array is refused.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testBetweenWithWrongArraySizeIsIgnored(): void
+    public function testBetweenWithWrongArraySizeIsRefused(): void
     {
         $this->parseRequest(new Request([
             'filters' => json_encode(['id' => ['$between' => [1]]]),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
+        try {
+            $this->metricFreeCriteria()->apply(new User);
 
-        self::assertEmpty($query->getQuery()->wheres);
+            self::fail('A $between without two values must be refused.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['filters.id.$between' => ['The filters.id.$between filter adds no condition, so it would match every row.']], $exception->errors());
+        }
     }
 
     /**
@@ -880,7 +864,7 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that $notNull with $or logical operator uses orWhereNotNull.
+     * Test that $notNull inside an $or document is applied.
      *
      * @return void
      *
@@ -890,16 +874,13 @@ final class ApiCriteriaTest extends TestCase
     {
         $this->parseRequest(new Request([
             'filters' => json_encode([
-                '$or' => [
-                    'organization_id' => ['$notNull' => true],
-                ],
+                '$or' => [['organization_id' => ['$notNull' => true]]],
             ]),
         ]));
 
-        $model = new User;
-        $query = $this->criteria->apply($model);
+        $query = $this->criteria->apply(new User);
 
-        self::assertNotEmpty($query->getQuery()->wheres);
+        self::assertStringContainsString('((("organization_id" is not null)))', $this->sqlOf($query));
     }
 
     /**

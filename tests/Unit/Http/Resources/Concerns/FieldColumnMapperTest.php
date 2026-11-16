@@ -64,6 +64,7 @@ final class FieldColumnMapperTest extends TestCase
         $map = FieldColumnMapper::build($schema);
 
         self::assertTrue($map->isMapped('email'));
+        self::assertTrue($map->isInferred('email'));
         self::assertSame(['email'], $map->columnsFor('email'));
     }
 
@@ -81,6 +82,7 @@ final class FieldColumnMapperTest extends TestCase
         $map = FieldColumnMapper::build($schema);
 
         self::assertTrue($map->isMapped('full_name'));
+        self::assertFalse($map->isInferred('full_name'));
         self::assertSame(['first_name', 'last_name'], $map->columnsFor('full_name'));
     }
 

@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Integration\Query;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
@@ -18,9 +19,12 @@ use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\SluggedTitleArticle;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AliasedScalarUserResource;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\DeclaredSluggedTitleArticleResource;
+use Tests\Fixtures\Resources\SluggedTitleArticleResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -306,6 +310,118 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         self::assertNotContains('email_address', $columns);
         self::assertSame($off, $this->serialiseAliasedUsers('id,name,email'));
         self::assertStringContainsString('alice@example.com', $this->serialiseAliasedUsers('id,name,email'));
+    }
+
+    /**
+     * Test that a plain field over a model accessor falls back to select *.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testFallsBackForAPlainFieldOverAModelAccessor(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', false);
+
+        $off = $this->serialiseArticles('id,title,headline', null);
+
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        self::assertSame(['*'], $this->captureArticleColumns('id,headline', null));
+        self::assertSame(['*'], $this->captureArticleColumns('id,title,headline', null));
+        self::assertStringContainsString('"headline":"WIDE ARTICLE"', $this->serialiseArticles('id,headline', null));
+        self::assertSame($off, $this->serialiseArticles('id,title,headline', null));
+    }
+
+    /**
+     * Test that a real column whose accessor reads another column falls back.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testFallsBackForARealColumnWhoseAccessorReadsAnotherColumn(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', false);
+
+        $off = $this->serialiseThrough(SluggedTitleArticleResource::class, new SluggedTitleArticle, 'id,title');
+
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        self::assertSame(['*'], $this->captureColumnsThrough(SluggedTitleArticleResource::class, new SluggedTitleArticle, 'id,title'));
+        self::assertStringContainsString('"title":"Wide Article \/ wide-article"', $off);
+        self::assertSame($off, $this->serialiseThrough(SluggedTitleArticleResource::class, new SluggedTitleArticle, 'id,title'));
+    }
+
+    /**
+     * Test that declaring the accessor's columns narrows to exactly those.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testNarrowsAnAccessorBackedColumnToItsDeclaredNeeds(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', false);
+
+        $off = $this->serialiseThrough(DeclaredSluggedTitleArticleResource::class, new SluggedTitleArticle, 'id,title');
+
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        self::assertSame(['id', 'title', 'slug'], $this->captureColumnsThrough(DeclaredSluggedTitleArticleResource::class, new SluggedTitleArticle, 'id,title'));
+        self::assertSame($off, $this->serialiseThrough(DeclaredSluggedTitleArticleResource::class, new SluggedTitleArticle, 'id,title'));
+    }
+
+    /**
+     * Serialise the given model's rows through the resource for a field set.
+     *
+     * @param  class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>  $resource
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $fields
+     * @return string
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function serialiseThrough(string $resource, Model $model, string $fields): string
+    {
+        $rows = $this->applyCriteriaThrough($resource, $model, $fields)->get();
+
+        return $this->encode($resource::collection($rows)->resolve(Request::create(self::TEST_URL)));
+    }
+
+    /**
+     * Capture the narrowed columns set on the model's query for a field set.
+     *
+     * @param  class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>  $resource
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $fields
+     * @return array<int, string>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function captureColumnsThrough(string $resource, Model $model, string $fields): array
+    {
+        return $this->normaliseColumns($this->applyCriteriaThrough($resource, $model, $fields)->getQuery()->columns);
+    }
+
+    /**
+     * Parse a request for the resource's type and apply the criteria chain.
+     *
+     * @param  class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>  $resource
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $fields
+     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function applyCriteriaThrough(string $resource, Model $model, string $fields): Builder
+    {
+        ApiQuery::parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'fields' => [$resource::RESOURCE_TYPE => $fields],
+        ]));
+
+        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> */
+        return $this->makeCriteria()->usingResource($resource)->apply($model);
     }
 
     /**

@@ -32,16 +32,18 @@ final class WritePoolFlushExceptionTest extends TestCase
             successCount: 3,
             failureCount: 2,
             failures: [
-                'orders' => [
-                    [
-                        'records'         => [['name' => 'a']],
-                        'exception'       => 'Insert failed',
-                        'exception_class' => \RuntimeException::class,
-                    ],
-                    [
-                        'records'         => [['name' => 'b']],
-                        'exception'       => 'Insert failed',
-                        'exception_class' => \RuntimeException::class,
+                'main' => [
+                    'orders' => [
+                        [
+                            'records'         => [['name' => 'a']],
+                            'exception'       => 'Insert failed',
+                            'exception_class' => \RuntimeException::class,
+                        ],
+                        [
+                            'records'         => [['name' => 'b']],
+                            'exception'       => 'Insert failed',
+                            'exception_class' => \RuntimeException::class,
+                        ],
                     ],
                 ],
             ],
@@ -64,11 +66,13 @@ final class WritePoolFlushExceptionTest extends TestCase
             successCount: 1,
             failureCount: 1,
             failures: [
-                'users' => [
-                    [
-                        'records'         => [['name' => 'foo']],
-                        'exception'       => 'Duplicate entry',
-                        'exception_class' => \RuntimeException::class,
+                'main' => [
+                    'users' => [
+                        [
+                            'records'         => [['name' => 'foo']],
+                            'exception'       => 'Duplicate entry',
+                            'exception_class' => \RuntimeException::class,
+                        ],
                     ],
                 ],
             ],
@@ -140,8 +144,8 @@ final class WritePoolFlushExceptionTest extends TestCase
     }
 
     /**
-     * Test that the report context carries the flush counts and failing table
-     * names only, never the buffered records.
+     * Test that the report context carries the flush counts and the failing
+     * table names keyed by connection, never the buffered records.
      *
      * @return void
      */
@@ -151,18 +155,29 @@ final class WritePoolFlushExceptionTest extends TestCase
             successCount: 3,
             failureCount: 2,
             failures: [
-                'orders' => [
-                    [
-                        'records'         => [['name' => 'a']],
-                        'exception'       => 'Insert failed',
-                        'exception_class' => \RuntimeException::class,
+                'main' => [
+                    'orders' => [
+                        [
+                            'records'         => [['name' => 'a']],
+                            'exception'       => 'Insert failed',
+                            'exception_class' => \RuntimeException::class,
+                        ],
+                    ],
+                    'payments' => [
+                        [
+                            'records'         => [['name' => 'b']],
+                            'exception'       => 'Insert failed',
+                            'exception_class' => \RuntimeException::class,
+                        ],
                     ],
                 ],
-                'payments' => [
-                    [
-                        'records'         => [['name' => 'b']],
-                        'exception'       => 'Insert failed',
-                        'exception_class' => \RuntimeException::class,
+                'audit' => [
+                    'orders' => [
+                        [
+                            'records'         => [['name' => 'c']],
+                            'exception'       => 'Insert failed',
+                            'exception_class' => \RuntimeException::class,
+                        ],
                     ],
                 ],
             ],
@@ -180,7 +195,7 @@ final class WritePoolFlushExceptionTest extends TestCase
             'failed_record_count'   => 4,
             'retained_record_count' => 5,
             'dropped_record_count'  => 7,
-            'tables'                => ['orders', 'payments'],
+            'tables'                => ['main' => ['orders', 'payments'], 'audit' => ['orders']],
         ], $exception->context());
     }
 }
