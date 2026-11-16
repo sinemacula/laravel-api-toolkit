@@ -685,6 +685,27 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Test that a negated OR clause is grouped on its own, keeping the bindings
+     * of the conditions after it in order.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testCustomOperatorJoiningWithOrNotIsGroupedOnItsOwn(): void
+    {
+        $this->operatorRegistry->register('$neither', static function (Builder $query, string $column, mixed $value): void {
+            $query->orWhereNot($column, '=', $value);
+        });
+
+        $this->assertCompilesTo(
+            ['name' => 'Alice', 'email' => ['$neither' => 'b', '$in' => ['c']]],
+            '"name" = ? and (not "email" = ?) and "email" in (?)',
+            ['Alice', 'b', 'c'],
+        );
+    }
+
+    /**
      * Test that an AND-joined custom clause is left ungrouped.
      *
      * @return void
