@@ -9,11 +9,14 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Str;
+use SineMacula\ApiToolkit\Http\Middleware\EnsureActionIsAuthorized;
 use SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource;
+use SineMacula\ApiToolkit\Http\Routing\Attributes\CustomAuthorization;
 use SineMacula\ApiToolkit\Http\Routing\Attributes\SkipAuthorization;
 
 /**
- * API controller that gates its REST actions through #[AuthorizesResource].
+ * API controller that gates its resource actions through #[AuthorizesResource]
+ * and refuses any routed action that declares no authorization.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -24,17 +27,17 @@ abstract class AuthorizedController extends Controller implements HasMiddleware
 
     /** The map of resource actions to their gate abilities. */
     private const array RESOURCE_ABILITY_MAP = [
-        'index'   => 'viewAny',
-        'show'    => 'view',
-        'create'  => 'create',
-        'store'   => 'create',
-        'edit'    => 'update',
-        'update'  => 'update',
-        'destroy' => 'delete',
+        'index'        => 'viewAny',
+        'show'         => 'view',
+        'store'        => 'create',
+        'update'       => 'update',
+        'destroy'      => 'delete',
+        'restore'      => 'restore',
+        'forceDestroy' => 'forceDelete',
     ];
 
     /** The resource actions authorized against the model class, not an instance. */
-    private const array RESOURCE_METHODS_WITHOUT_MODELS = ['index', 'create', 'store'];
+    private const array RESOURCE_METHODS_WITHOUT_MODELS = ['index', 'store'];
 
     /**
      * Get the resource model.
@@ -122,27 +125,29 @@ abstract class AuthorizedController extends Controller implements HasMiddleware
     }
 
     /**
-     * Resolve the except list plus every action marked #[SkipAuthorization].
+     * Resolve the except list plus every action carrying an authorization
+     * marker.
      *
      * @param  \SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource  $attribute
      * @return array<int, string>
      */
     private static function resolveExclusions(AuthorizesResource $attribute): array
     {
-        return array_merge($attribute->except, self::skippedMethods());
+        return array_merge($attribute->except, self::markedMethods());
     }
 
     /**
-     * List the public action methods marked with #[SkipAuthorization].
+     * List the public action methods marked #[SkipAuthorization] or
+     * #[CustomAuthorization].
      *
      * @return array<int, string>
      */
-    private static function skippedMethods(): array
+    private static function markedMethods(): array
     {
         $methods = [];
 
         foreach ((new \ReflectionClass(static::class))->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
-            if ($method->getAttributes(SkipAuthorization::class) === []) {
+            if ($method->getAttributes(SkipAuthorization::class) === [] && $method->getAttributes(CustomAuthorization::class) === []) {
                 continue;
             }
 
@@ -153,7 +158,8 @@ abstract class AuthorizedController extends Controller implements HasMiddleware
     }
 
     /**
-     * Build the gate middleware, grouping actions that share a check.
+     * Build the gate middleware, grouping actions that share a check, then the
+     * guard refusing any action that declares no authorization.
      *
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
      * @param  string  $parameter
@@ -175,10 +181,14 @@ abstract class AuthorizedController extends Controller implements HasMiddleware
             $groups["can:{$ability},{$target}"][] = $method;
         }
 
-        return array_map(
+        $middleware = array_map(
             static fn (array $methods, string $definition): Middleware => new Middleware($definition, only: $methods),
             $groups,
             array_keys($groups),
         );
+
+        $middleware[] = new Middleware(EnsureActionIsAuthorized::class, except: $exclusions);
+
+        return $middleware;
     }
 }
