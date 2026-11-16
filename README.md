@@ -142,10 +142,10 @@ The indexes belong in your own migrations:
 - `EXACT` needs an ordinary index leading with the column on either engine. On PostgreSQL that B-tree must use the
   column's own collation.
 
-`php artisan api-toolkit:validate-schemas` reports a searchable declaration with no index behind it; run it in CI.
-Because schema validation is off in production by default, the proof is also taken at request time, so a missing
-index refuses the request instead of scanning the table. On PostgreSQL a missing trigram index is not an error, so
-without this the search would silently run as a sequential scan.
+`php artisan api-toolkit:validate-schemas` reports a searchable declaration with no index behind it; run it in CI
+against a migrated database. Because schema validation is off in production by default, the proof is also taken at
+request time, so a missing index refuses the request instead of scanning the table. On PostgreSQL a missing trigram
+index is not an error, so without this the search would silently run as a sequential scan.
 
 The request-time proof is cached in the cache store for `api-toolkit.search.index_proof_ttl` seconds
 (`API_TOOLKIT_SEARCH_INDEX_PROOF_TTL`, default 60), keyed by the connection's schema and the declaration, and shared
@@ -331,8 +331,16 @@ Validation checks that:
 - an index on the connection serves every `searchable()` declaration in the shape its strategy needs.
 - no declaration names a column configured as sensitive.
 
-Checks that read the connection are skipped where it cannot be read, such as a boot with no database or before
-migrations have run.
+At boot, checks that read the connection are skipped where it cannot be read, such as a boot with no database or
+before migrations have run.
+
+The command is stricter, because it gates deployment. It fails when the resource map is empty, and when any check
+could not read the connection: each declaration it could not verify is listed under why its table's catalogue was
+unreadable, whether the connection cannot be resolved, the catalogue cannot be read, or the table is not migrated.
+Pass `--allow-empty` to accept an empty map, or `--allow-unverified` to accept declarations it could not verify;
+neither flag lets a defect pass. A searchable declaration on a connection listed under
+`api-toolkit.search.unverified_connections` is not reported, since that listing already waives its index proof. Boot
+skips schema validation while this command runs, so the command reports everything itself.
 
 The index catalogue is read only during validation, never while a filter or sort is served. Two schema reads do sit
 on the request path, both cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads

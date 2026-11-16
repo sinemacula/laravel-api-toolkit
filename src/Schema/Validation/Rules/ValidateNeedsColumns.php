@@ -9,6 +9,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 
 /**
  * Validate that every needs() declaration names a column the table carries.
@@ -38,7 +39,7 @@ final readonly class ValidateNeedsColumns implements SchemaValidationRule
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|\SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>
      */
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
@@ -52,14 +53,16 @@ final readonly class ValidateNeedsColumns implements SchemaValidationRule
 
         $columns = $this->introspector->getColumns($model);
 
-        // An empty listing means the columns are unknown
-        if ($columns === []) {
-            return [];
-        }
-
         $errors = [];
 
         foreach ($declared as $key => $needs) {
+
+            // An empty listing means the columns are unknown
+            if ($columns === []) {
+                $errors = [...$errors, ...$this->unverified($resourceClass, $key, $needs, $model)];
+
+                continue;
+            }
 
             foreach (array_diff($needs, $columns) as $column) {
                 $errors[] = new SchemaValidationError(
@@ -111,5 +114,25 @@ final readonly class ValidateNeedsColumns implements SchemaValidationRule
 
         /** @var \Illuminate\Database\Eloquent\Model */
         return new $modelClass;
+    }
+
+    /**
+     * Report each needs() column of a field as unverified, since the table's
+     * columns could not be listed.
+     *
+     * @param  string  $resourceClass
+     * @param  string  $key
+     * @param  array<int, string>  $needs
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>
+     */
+    private function unverified(string $resourceClass, string $key, array $needs, Model $model): array
+    {
+        return array_map(static fn (string $column): UnverifiedDeclaration => new UnverifiedDeclaration(
+            resourceClass: $resourceClass,
+            fieldKey: $key,
+            check: sprintf('table "%s" carries the "%s" column the needs() declaration names', $model->getTable(), $column),
+            modelClass: $model::class,
+        ), array_values($needs));
     }
 }

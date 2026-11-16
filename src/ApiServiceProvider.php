@@ -40,6 +40,9 @@ final class ApiServiceProvider extends ServiceProvider
         'api-toolkit:resources:clear',
     ];
 
+    /** @var string The console command that runs schema validation itself */
+    private const string VALIDATING_COMMAND = 'api-toolkit:validate-schemas';
+
     /**
      * Bootstrap any application services.
      *
@@ -204,11 +207,13 @@ final class ApiServiceProvider extends ServiceProvider
     /**
      * Validate all registered resource schemas.
      *
+     * Skipped for the validation command, so it reports what it found itself.
+     *
      * @return void
      */
     private function validateSchemas(): void
     {
-        if (Config::get('api-toolkit.resources.validate_schemas', false) !== true) {
+        if (Config::get('api-toolkit.resources.validate_schemas', false) !== true || $this->consoleCommand() === self::VALIDATING_COMMAND) {
             return;
         }
 
