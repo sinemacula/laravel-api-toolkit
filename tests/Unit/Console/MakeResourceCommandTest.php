@@ -378,13 +378,17 @@ final class MakeResourceCommandTest extends TestCase
     }
 
     /**
-     * Test that a type an explicitly mapped resource returns fails.
+     * Test that a type an explicitly mapped resource returns fails, checked
+     * past an entry for the resource itself.
      *
      * @return void
      */
     public function testTypeOfAnExplicitlyMappedResourceFails(): void
     {
-        Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+        Config::set('api-toolkit.resources.resource_map', [
+            Tag::class  => self::NAMESPACE . 'PostResource',
+            User::class => UserResource::class,
+        ]);
 
         $this->pendingArtisan(self::COMMAND, ['name' => 'PostResource', '--model' => Post::class, '--type' => 'users'])
             ->expectsOutputToContain(sprintf('The resource type [users] is already used by [%s].', UserResource::class))
@@ -636,7 +640,7 @@ final class MakeResourceCommandTest extends TestCase
      */
     public function testResourceNestedBeneathAConfiguredPathDoesNotWarn(): void
     {
-        Config::set('api-toolkit.resources.paths', [42, $this->root . '/app/Http/Resources/']);
+        Config::set('api-toolkit.resources.paths', [42, null, $this->root . '/app/Http/Resources/']);
 
         $this->pendingArtisan(self::COMMAND, ['name' => 'Admin/PostResource', '--model' => Post::class])
             ->doesntExpectOutputToContain('discovery')
