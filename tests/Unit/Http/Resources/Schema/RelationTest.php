@@ -328,4 +328,53 @@ final class RelationTest extends TestCase
 
         self::assertSame(['a', 'b'], $array['organization']['needs']);
     }
+
+    /**
+     * Test that a declared limit is carried into the normalized array.
+     *
+     * @return void
+     */
+    public function testLimitIsEmittedWhenDeclared(): void
+    {
+        $array = Relation::to('posts', OrganizationResource::class)->limit(5)->toArray();
+
+        self::assertSame(5, $array['posts']['limit']);
+    }
+
+    /**
+     * Test that the smallest permitted limit is accepted.
+     *
+     * @return void
+     */
+    public function testLimitOfOneIsAccepted(): void
+    {
+        $array = Relation::to('posts', OrganizationResource::class)->limit(1)->toArray();
+
+        self::assertSame(1, $array['posts']['limit']);
+    }
+
+    /**
+     * Test that a relation without a declared limit omits the key.
+     *
+     * @return void
+     */
+    public function testLimitIsOmittedWhenNotDeclared(): void
+    {
+        $array = Relation::to('posts', OrganizationResource::class)->toArray();
+
+        self::assertArrayNotHasKey('limit', $array['posts']);
+    }
+
+    /**
+     * Test that a limit below one is refused at declaration.
+     *
+     * @return void
+     */
+    public function testLimitBelowOneIsRefused(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('A relation limit must be at least 1');
+
+        Relation::to('posts', OrganizationResource::class)->limit(0);
+    }
 }

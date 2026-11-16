@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\GatesTrashedVisibility;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
@@ -101,6 +102,8 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
             $this->fixed,
         );
 
+        $truncated = [];
+
         foreach ($fields as $field) {
 
             $definition = $schema->getField($field);
@@ -116,6 +119,16 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
             }
 
             $data[$field] = $value;
+
+            if (!$this->valueResolver->wasTruncated()) {
+                continue;
+            }
+
+            $truncated[] = $field;
+        }
+
+        if ($truncated !== []) {
+            $data[RelationLimit::TRUNCATED_KEY] = $truncated;
         }
 
         $this->appendAggregatesPayload($data, $schema, $request);

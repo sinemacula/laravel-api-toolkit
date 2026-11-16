@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Support\PureEnumName;
 
 /**
@@ -30,8 +31,8 @@ final class ValueResolver
     /** @var array<string, array<string, bool>> Cast-accessor reflection results, keyed by [class][field] */
     private static array $castAccessorCache = [];
 
-    /** @var \WeakMap<\SineMacula\ApiToolkit\Schema\CompiledFieldDefinition, array<int, string>|null>|null Resolved child field sets, keyed by compiled definition */
-    private static ?\WeakMap $relationFieldsCache = null;
+    /** @var bool Whether the last resolved field cut its related collection */
+    private bool $truncated = false;
 
     /** @var array<string, array<string, class-string<\Illuminate\Database\Eloquent\Model>|null>> Related model classes, keyed by [owner class][relation] */
     private static array $relatedModelCache = [];
@@ -48,15 +49,17 @@ final class ValueResolver
     ) {}
 
     /**
-     * Clear the static serialization memo caches.
+     * Clear the cast-accessor reflection memo.
+     *
+     * The memo lives for the worker, so a lifecycle flush leaves it; this is
+     * for test isolation.
      *
      * @return void
      */
     public static function clearCache(): void
     {
-        self::$castAccessorCache   = [];
-        self::$relationFieldsCache = null;
-        self::$relatedModelCache   = [];
+        self::$castAccessorCache = [];
+        self::$relatedModelCache = [];
     }
 
     /**
@@ -72,6 +75,8 @@ final class ValueResolver
      */
     public function resolveFieldValue(string $field, CompiledFieldDefinition $definition, mixed $resource, ?Request $request): mixed
     {
+        $this->truncated = false;
+
         if (!$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
             return new MissingValue;
         }
@@ -88,6 +93,16 @@ final class ValueResolver
         }
 
         return $value instanceof \UnitEnum && !$value instanceof \BackedEnum ? PureEnumName::of($value) : $value;
+    }
+
+    /**
+     * Determine whether the last resolved field cut its related collection.
+     *
+     * @return bool
+     */
+    public function wasTruncated(): bool
+    {
+        return $this->truncated;
     }
 
     /**
@@ -275,7 +290,11 @@ final class ValueResolver
         $name  = $definition->relation;
         $owner = $this->unwrapResource($resource);
 
-        if ($name === null || !is_object($owner) || !method_exists($owner, 'getRelation') || !$this->isRelationLoaded($name, $resource)) {
+        if ($name === null || !is_object($owner) || !method_exists($owner, 'getRelation')) {
+            return new MissingValue;
+        }
+
+        if (!method_exists($owner, 'relationLoaded') || !$owner->relationLoaded($name)) {
             return new MissingValue;
         }
 
@@ -306,7 +325,14 @@ final class ValueResolver
         $childClass  = $definition->resource;
         $childFields = $this->getRelationFields($definition);
 
-        return $childClass === null ? $related : $this->wrapRelatedWithResource($related, $childClass, $childFields);
+        if ($childClass === null) {
+            return $related;
+        }
+
+        $capped          = RelationLimit::cap($definition, $related);
+        $this->truncated = $capped !== $related;
+
+        return $this->wrapRelatedWithResource($capped, $childClass, $childFields);
     }
 
     /**
@@ -325,22 +351,6 @@ final class ValueResolver
     }
 
     /**
-     * Check whether a relation is already loaded on the model that owns it.
-     *
-     * @param  string  $name
-     * @param  mixed  $resource
-     * @return bool
-     */
-    private function isRelationLoaded(string $name, mixed $resource): bool
-    {
-        $owner = $this->unwrapResource($resource);
-
-        return is_object($owner)
-            && method_exists($owner, 'relationLoaded')
-            && $owner->relationLoaded($name);
-    }
-
-    /**
      * Get explicit child fields from a relation definition, if provided.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
@@ -348,21 +358,13 @@ final class ValueResolver
      */
     private function getRelationFields(CompiledFieldDefinition $definition): ?array
     {
-        self::$relationFieldsCache ??= new \WeakMap;
-
-        if (isset(self::$relationFieldsCache[$definition])) {
-            return self::$relationFieldsCache[$definition];
-        }
-
         $fields = $definition->fields;
 
-        if (is_array($fields)) {
-            $fields = array_values(array_filter($fields, static fn ($f) => is_string($f) && $f !== '')); // @phpstan-ignore function.alreadyNarrowedType
-        } else {
-            $fields = null;
+        if (!is_array($fields)) {
+            return null;
         }
 
-        return self::$relationFieldsCache[$definition] = $fields;
+        return array_values(array_filter($fields, static fn ($f) => is_string($f) && $f !== '')); // @phpstan-ignore function.alreadyNarrowedType
     }
 
     /**

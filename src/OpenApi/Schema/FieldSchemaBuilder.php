@@ -32,8 +32,17 @@ final readonly class FieldSchemaBuilder
         'uuid'  => 'uuid',
         'ulid'  => 'ulid',
         'url'   => 'uri',
-        'ip'    => 'ipv4',
-        'date'  => 'date',
+        'ipv4'  => 'ipv4',
+        'ipv6'  => 'ipv6',
+    ];
+
+    /** The rule tokens accepting only a string, beyond the format tokens */
+    private const array STRING_RULES = ['date', 'ip'];
+
+    /** The values the accepted and declined rules admit */
+    private const array ACCEPTANCE_VALUES = [
+        'accepted' => ['yes', 'on', '1', 1, true, 'true'],
+        'declined' => ['no', 'off', '0', 0, false, 'false'],
     ];
 
     /**
@@ -43,6 +52,8 @@ final readonly class FieldSchemaBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\InRuleValues  $inValues
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumValuesToken  $exactValues
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\FieldPresence  $presence
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\PatternConstraintBuilder  $patterns
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\RangeConstraintBuilder  $ranges
      */
     public function __construct(
 
@@ -57,6 +68,12 @@ final readonly class FieldSchemaBuilder
 
         /** The reader of how the field's rules govern its presence. */
         private FieldPresence $presence = new FieldPresence,
+
+        /** The builder of the field's pattern keywords. */
+        private PatternConstraintBuilder $patterns = new PatternConstraintBuilder,
+
+        /** The builder of the field's size, bound and divisor keywords. */
+        private RangeConstraintBuilder $ranges = new RangeConstraintBuilder,
     ) {}
 
     /**
@@ -83,10 +100,19 @@ final readonly class FieldSchemaBuilder
         $schema = $type === null ? [] : ['type' => $type];
 
         $this->applyEnum($schema, $tokens, $type);
+        $this->applyAcceptance($schema, $tokens, $type);
+        $this->applyExclusion($schema, $tokens, $type);
         $this->applyFormat($schema, $tokens);
-        $this->applyPattern($schema, $tokens);
+
+        $schema = [...$schema, ...$this->patterns->build($tokens, $type)];
+
         $this->applyBinary($schema, $tokens);
-        $this->applySize($schema, $tokens, $type);
+
+        // A file's size is its kilobytes, which no keyword expresses
+        if ($type !== null && !$this->isFile($tokens)) {
+            $schema = [...$schema, ...$this->ranges->build($tokens, $type)];
+        }
+
         $this->applyNullable($schema, $tokens);
 
         return ['schema' => $schema, 'required' => $this->presence->isRequired($tokens)];
@@ -128,22 +154,22 @@ final readonly class FieldSchemaBuilder
             }
         }
 
-        return $this->hasFormatToken($tokens) ? 'string' : null;
+        return $this->impliesString($tokens) ? 'string' : null;
     }
 
     /**
-     * Determine whether the field carries a format token, implying a string.
+     * Determine whether the field carries a token accepting only a string.
      *
      * @param  list<string>  $tokens
      * @return bool
      */
-    private function hasFormatToken(array $tokens): bool
+    private function impliesString(array $tokens): bool
     {
         if ($this->argument($tokens, 'date_format') !== null) {
             return true;
         }
 
-        foreach (array_keys(self::FORMAT_MAP) as $token) {
+        foreach ([...array_keys(self::FORMAT_MAP), ...self::STRING_RULES] as $token) {
             if ($this->hasToken($tokens, $token)) {
                 return true;
             }
@@ -188,8 +214,78 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
+     * Narrow the field's enum to the values an accepted or declined rule
+     * admits.
+     *
+     * @param  array<string, mixed>  $schema
+     * @param  list<string>  $tokens
+     * @param  string|null  $type
+     * @return void
+     */
+    private function applyAcceptance(array &$schema, array $tokens, ?string $type): void
+    {
+        foreach (self::ACCEPTANCE_VALUES as $rule => $values) {
+            if (!$this->hasToken($tokens, $rule)) {
+                continue;
+            }
+
+            $admitted = $type === null ? $values : array_values(array_filter($values, fn (bool|int|string $value): bool => $this->isOfType($value, $type)));
+
+            $schema['enum'] = is_array($schema['enum'] ?? null)
+                ? array_values(array_filter($schema['enum'], static fn (mixed $value): bool => in_array($value, $admitted, true)))
+                : $admitted;
+        }
+    }
+
+    /**
+     * Determine whether an acceptance value is of the field's JSON type.
+     *
+     * @param  bool|int|string  $value
+     * @param  string  $type
+     * @return bool
+     */
+    private function isOfType(bool|int|string $value, string $type): bool
+    {
+        return match ($type) {
+            'string'            => is_string($value),
+            'integer', 'number' => is_int($value),
+            'boolean'           => is_bool($value),
+            default             => false,
+        };
+    }
+
+    /**
+     * Apply a `not_in:` token's values as the enum the field must not match.
+     *
+     * An array is refused only when wholly inside the list, so it is skipped.
+     *
+     * @param  array<string, mixed>  $schema
+     * @param  list<string>  $tokens
+     * @param  string|null  $type
+     * @return void
+     */
+    private function applyExclusion(array &$schema, array $tokens, ?string $type): void
+    {
+        $values = $this->argument($tokens, 'not_in');
+
+        if ($values === null || $type === 'array') {
+            return;
+        }
+
+        $excluded = $this->inValues->forExclusion($values, $type);
+
+        if ($excluded === []) {
+            return;
+        }
+
+        $schema['not'] = ['enum' => $excluded];
+    }
+
+    /**
      * Apply the field's format tokens, mapping the date_format token to a
      * date-time format.
+     *
+     * The ip rule admits either address family, and json any encoded value.
      *
      * @param  array<string, mixed>  $schema
      * @param  list<string>  $tokens
@@ -205,29 +301,19 @@ final readonly class FieldSchemaBuilder
             $schema['format'] = $format;
         }
 
-        if ($this->argument($tokens, 'date_format') === null) {
+        if ($this->hasToken($tokens, 'ip')) {
+            $schema['anyOf'] = [['format' => 'ipv4'], ['format' => 'ipv6']];
+        }
+
+        if ($this->argument($tokens, 'date_format') !== null) {
+            $schema['format'] = 'date-time';
+        }
+
+        if (!$this->hasToken($tokens, 'json')) {
             return;
         }
 
-        $schema['format'] = 'date-time';
-    }
-
-    /**
-     * Apply a regex token as a JSON-Schema pattern, stripping the delimiters.
-     *
-     * @param  array<string, mixed>  $schema
-     * @param  list<string>  $tokens
-     * @return void
-     */
-    private function applyPattern(array &$schema, array $tokens): void
-    {
-        $regex = $this->argument($tokens, 'regex');
-
-        if ($regex === null) {
-            return;
-        }
-
-        $schema['pattern'] = $this->stripDelimiters($regex);
+        $schema['contentMediaType'] = 'application/json';
     }
 
     /**
@@ -239,7 +325,7 @@ final readonly class FieldSchemaBuilder
      */
     private function applyBinary(array &$schema, array $tokens): void
     {
-        if (!$this->hasToken($tokens, 'file') && !$this->hasToken($tokens, 'image')) {
+        if (!$this->isFile($tokens)) {
             return;
         }
 
@@ -248,40 +334,14 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Apply the size tokens as the keyword pair matching the field's type.
+     * Determine whether the field is an uploaded file.
      *
-     * @param  array<string, mixed>  $schema
      * @param  list<string>  $tokens
-     * @param  string|null  $type
-     * @return void
+     * @return bool
      */
-    private function applySize(array &$schema, array $tokens, ?string $type): void
+    private function isFile(array $tokens): bool
     {
-        if ($type === null) {
-            return;
-        }
-
-        $keys = $this->sizeKeys($type);
-
-        if ($keys === null) {
-            return;
-        }
-
-        [$min, $max] = $this->bounds($tokens);
-
-        if ($type === 'array' && $this->presence->rejectsEmpty($tokens)) {
-            $min = (string) max((int) $min, 1);
-        }
-
-        if ($min !== null) {
-            $schema[$keys[0]] = $this->cast($min, $type);
-        }
-
-        if ($max === null) {
-            return;
-        }
-
-        $schema[$keys[1]] = $this->cast($max, $type);
+        return $this->hasToken($tokens, 'file') || $this->hasToken($tokens, 'image');
     }
 
     /**
@@ -306,82 +366,6 @@ final readonly class FieldSchemaBuilder
         }
 
         $schema['enum'] = [...$schema['enum'], null];
-    }
-
-    /**
-     * Map a resolved type to its minimum/maximum keyword pair.
-     *
-     * @param  string  $type
-     * @return array{0: string, 1: string}|null
-     */
-    private function sizeKeys(string $type): ?array
-    {
-        return match ($type) {
-            'string'            => ['minLength', 'maxLength'],
-            'integer', 'number' => ['minimum', 'maximum'],
-            'array'             => ['minItems', 'maxItems'],
-            default             => null,
-        };
-    }
-
-    /**
-     * Resolve the minimum and maximum bounds from the size tokens.
-     *
-     * @param  list<string>  $tokens
-     * @return array{0: string|null, 1: string|null}
-     */
-    private function bounds(array $tokens): array
-    {
-        $min = $this->argument($tokens, 'min');
-        $max = $this->argument($tokens, 'max');
-
-        if (($between = $this->argument($tokens, 'between')) !== null) {
-            [$min, $max] = array_pad(explode(',', $between), 2, null);
-        }
-
-        if (($size = $this->argument($tokens, 'size')) !== null) {
-            $min = $max = $size;
-        }
-
-        return [$min, $max];
-    }
-
-    /**
-     * Cast a size argument to the numeric shape matching the field's type.
-     *
-     * @param  string  $value
-     * @param  string  $type
-     * @return float|int
-     */
-    private function cast(string $value, string $type): float|int
-    {
-        return $type === 'number' ? $this->numericValue($value) : (int) $value;
-    }
-
-    /**
-     * Cast a numeric string to a float when fractional, otherwise an integer.
-     *
-     * @param  string  $value
-     * @return float|int
-     */
-    private function numericValue(string $value): float|int
-    {
-        return str_contains($value, '.') ? (float) $value : (int) $value;
-    }
-
-    /**
-     * Strip the surrounding delimiters and trailing modifiers from a regex.
-     *
-     * @param  string  $pattern
-     * @return string
-     */
-    private function stripDelimiters(string $pattern): string
-    {
-        if (strlen($pattern) >= 2 && preg_match('/^(.)(.*)\1[a-zA-Z]*$/s', $pattern, $matches) === 1) {
-            return $matches[2];
-        }
-
-        return $pattern;
     }
 
     /**

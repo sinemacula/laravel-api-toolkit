@@ -10,6 +10,8 @@ use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateQueryableFields;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -70,7 +72,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             fields: ['full_name' => $this->makeField(compute: 'getFullName', filterable: 'full_name')],
         );
 
-        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame(UserResource::class, $errors[0]->resourceClass);
@@ -92,7 +94,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             fields: ['full_name' => $this->makeField(compute: 'getFullName', sortable: 'full_name')],
         );
 
-        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -112,7 +114,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             fields: ['full_name' => $this->makeField(compute: 'getFullName', filterable: 'full_name', sortable: 'full_name')],
         );
 
-        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(2, $errors);
         self::assertSame(
@@ -136,7 +138,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             fields: ['display_name' => $this->makeField(accessor: 'name', filterable: 'display_name')],
         );
 
-        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -184,7 +186,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             fields: ['legacy_name' => $this->makeField(accessor: static fn ($resource) => $resource->name, sortable: 'legacy_name')],
         );
 
-        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame('legacy_name', $errors[0]->fieldKey);
@@ -205,7 +207,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             fields: ['nickname' => $this->makeField(filterable: 'nickname')],
         );
 
-        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -227,7 +229,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             fields: ['name' => $this->makeField(filterable: 'name', capability: null)],
         );
 
-        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame('name', $errors[0]->fieldKey);
@@ -248,7 +250,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             fields: ['name' => $this->makeField(filterable: 'name', sortable: 'name', capability: null)],
         );
 
-        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -273,7 +275,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             ],
         );
 
-        $errors = $this->rule(['id', 'status'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'status'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame('state', $errors[0]->fieldKey);
@@ -301,7 +303,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             ],
         );
 
-        $errors = $this->rule(['id', 'status', 'kind', 'created_at'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'status', 'kind', 'created_at'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(2, $errors);
         self::assertSame('state', $errors[0]->fieldKey);
@@ -323,7 +325,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             ],
         );
 
-        $errors = $this->rule(['id', 'status'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'status'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame('condition', $errors[0]->fieldKey);
@@ -343,7 +345,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             ],
         );
 
-        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame('name', $errors[0]->fieldKey);
@@ -364,7 +366,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             fields: ['name' => $this->makeField(filterable: 'name', sortable: 'nickname')],
         );
 
-        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -391,19 +393,105 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that an unreadable column listing proves nothing.
+     * Test that an unreadable column listing leaves every declaration it would
+     * decide unverified, one entry per declaration.
      *
      * Only a missing table or uninspectable connection gives an empty listing.
      *
      * @return void
      */
-    public function testStaysSilentAgainstAnUnreadableColumnListing(): void
+    public function testLeavesEveryDeclarationUnverifiedAgainstAnUnreadableColumnListing(): void
     {
         $schema = new CompiledSchema(
-            fields: ['nickname' => $this->makeField(filterable: 'nickname')],
+            fields: [
+                'nickname' => $this->makeField(filterable: 'nickname', sortable: 'nickname'),
+                'email'    => $this->makeField(sortable: 'email'),
+            ],
         );
 
-        self::assertSame([], $this->rule([])->validate(UserResource::class, User::class, $schema));
+        $findings = $this->rule([])->validate(UserResource::class, User::class, $schema);
+
+        self::assertEquals([
+            new UnverifiedDeclaration(UserResource::class, 'nickname', 'table "users" carries the "nickname" column the filterable declaration names', User::class),
+            new UnverifiedDeclaration(UserResource::class, 'nickname', 'table "users" carries the "nickname" column the sortable declaration names', User::class),
+            new UnverifiedDeclaration(UserResource::class, 'email', 'table "users" carries the "email" column the sortable declaration names', User::class),
+        ], $findings);
+    }
+
+    /**
+     * Test that the defects the schema alone proves stay errors against an
+     * unreadable column listing, leaving nothing unverified.
+     *
+     * @return void
+     */
+    public function testKeepsSchemaDefectsAsErrorsAgainstAnUnreadableColumnListing(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'full_name' => $this->makeField(compute: 'getFullName', filterable: 'full_name'),
+                'nickname'  => $this->makeField(accessor: 'profile.nickname', sortable: 'nickname'),
+                'status'    => $this->makeField(filterable: 'status', capability: null),
+            ],
+            aggregates: [],
+        );
+
+        $findings = $this->rule([])->validate(UserResource::class, User::class, $schema);
+
+        self::assertEquals([
+            new SchemaValidationError(UserResource::class, 'full_name', 'Field is declared filterable but is computed, so there is no "full_name" column to query'),
+            new SchemaValidationError(UserResource::class, 'nickname', 'Field is declared sortable but is read through an accessor, so there is no "nickname" column to query'),
+            new SchemaValidationError(UserResource::class, 'status', 'Field is declared filterable against "status" without a capability, so the declaration would be dropped'),
+        ], $findings);
+    }
+
+    /**
+     * Test that a schema defect on one field and an unverified declaration on
+     * the next are both reported, in declaration order.
+     *
+     * @return void
+     */
+    public function testReportsAnUnverifiedDeclarationPastASchemaDefect(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'full_name' => $this->makeField(compute: 'getFullName', filterable: 'full_name'),
+                'email'     => $this->makeField(filterable: 'email'),
+            ],
+            aggregates: [],
+        );
+
+        $findings = $this->rule([])->validate(UserResource::class, User::class, $schema);
+
+        self::assertCount(2, $findings);
+        self::assertInstanceOf(SchemaValidationError::class, $findings[0]);
+        self::assertEquals(
+            new UnverifiedDeclaration(UserResource::class, 'email', 'table "users" carries the "email" column the filterable declaration names', User::class),
+            $findings[1],
+        );
+    }
+
+    /**
+     * Test that a resource with no model behind it leaves nothing unverified,
+     * since there is no catalogue to read, while its schema defects are still
+     * reported for every field.
+     *
+     * @return void
+     */
+    public function testLeavesNothingUnverifiedWithNoModelBehindTheResource(): void
+    {
+        $schema = new CompiledSchema(
+            fields: [
+                'nickname'  => $this->makeField(filterable: 'nickname'),
+                'full_name' => $this->makeField(compute: 'getFullName', filterable: 'full_name'),
+                'initials'  => $this->makeField(compute: 'getInitials', sortable: 'initials'),
+            ],
+            aggregates: [],
+        );
+
+        $findings = $this->rule([])->validate(UserResource::class, null, $schema);
+
+        self::assertSame(['full_name', 'initials'], array_map(static fn ($finding): string => $finding->fieldKey, $findings));
+        self::assertContainsOnlyInstancesOf(SchemaValidationError::class, $findings);
     }
 
     /**
@@ -445,7 +533,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             fields: ['full_name' => $this->makeField(compute: 'getFullName', filterable: 'full_name')],
         );
 
-        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, null, $schema);
+        $errors = self::defects($this->rule(['id', 'name'])->validate(UserResource::class, null, $schema));
 
         self::assertCount(1, $errors);
         self::assertSame(
@@ -470,7 +558,7 @@ final class ValidateQueryableFieldsTest extends TestCase
             ],
         );
 
-        $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
+        $errors = self::defects($this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
 
         self::assertCount(2, $errors);
         self::assertSame('full_name', $errors[0]->fieldKey);
@@ -524,5 +612,27 @@ final class ValidateQueryableFieldsTest extends TestCase
             filterCapability: $filterable === null ? null : $capability,
             sortable: $sortable,
         );
+    }
+
+    /**
+     * Narrow the findings to defects, failing on anything left unverified.
+     *
+     * @param  array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|\SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>  $findings
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     */
+    private static function defects(array $findings): array
+    {
+        $defects = [];
+
+        foreach ($findings as $finding) {
+
+            if (!$finding instanceof SchemaValidationError) {
+                self::fail(sprintf('Expected only defects, found: %s', $finding));
+            }
+
+            $defects[] = $finding;
+        }
+
+        return $defects;
     }
 }

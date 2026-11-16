@@ -24,6 +24,9 @@ final class Relation extends BaseDefinition
     /** @var (callable(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null Eager-load constraint callback */
     private mixed $constraint = null;
 
+    /** @var int|null Most related records rendered per parent */
+    private ?int $limit = null;
+
     /** @var bool Whether this relation is declared externally traversable */
     private bool $traversable = false;
 
@@ -97,7 +100,9 @@ final class Relation extends BaseDefinition
     /**
      * Apply an eager-load constraint callback to this relation.
      *
-     * A MorphTo receives itself, since it replays the calls per loaded type.
+     * The callback receives the relation itself, so pivot clauses apply. It may
+     * filter and order the relation but never bound it; declare limit() for
+     * that.
      *
      * @param  callable(\Illuminate\Contracts\Database\Eloquent\Builder): void  $constraint
      * @return self
@@ -105,6 +110,25 @@ final class Relation extends BaseDefinition
     public function constrain(callable $constraint): self
     {
         $this->constraint = $constraint;
+
+        return $this;
+    }
+
+    /**
+     * Bound the related records rendered for each parent of this relation.
+     *
+     * @param  int  $limit
+     * @return self
+     *
+     * @throws \InvalidArgumentException
+     */
+    public function limit(int $limit): self
+    {
+        if ($limit < 1) {
+            throw new \InvalidArgumentException('A relation limit must be at least 1');
+        }
+
+        $this->limit = $limit;
 
         return $this;
     }
@@ -141,6 +165,7 @@ final class Relation extends BaseDefinition
                 'needs'       => $this->needs ?: null,
                 'fields'      => $this->fields,
                 'constraint'  => $this->constraint,
+                'limit'       => $this->limit,
                 ...$this->commonAttributes(),
             ], static fn ($value) => $value !== null),
         ];

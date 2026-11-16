@@ -14,6 +14,8 @@ use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateAggregateColumns;
+use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 use Tests\Fixtures\Models\AggregateLine;
 use Tests\Fixtures\Models\AggregateOwner;
 use Tests\Fixtures\Resources\UserResource;
@@ -123,24 +125,28 @@ final class ValidateAggregateColumnsTest extends TestCase
         ));
 
         self::assertCount(1, $errors);
+        self::assertInstanceOf(SchemaValidationError::class, $errors[0]);
         self::assertSame(UserResource::class, $errors[0]->resourceClass);
         self::assertSame('lines_sum_totl', $errors[0]->fieldKey);
         self::assertSame('Aggregate column "totl" does not exist on table "aggregate_lines"', $errors[0]->defect);
     }
 
     /**
-     * Test that an empty listing means the columns are unknown, so a column it
-     * cannot confirm is not reported.
+     * Test that an empty listing means the columns are unknown, so the column
+     * is reported as unverified rather than missing or passed.
      *
      * @return void
      */
-    public function testAnEmptyListingProvesNothing(): void
+    public function testAnEmptyListingReportsTheColumnAsUnverified(): void
     {
         $errors = $this->rule([], [])->validate(UserResource::class, AggregateOwner::class, $this->schema(
             $this->aggregate('lines_sum_totl', AggregateFunction::SUM, 'lines', 'totl'),
+            $this->aggregate('lines_count', AggregateFunction::COUNT, 'lines'),
         ));
 
-        self::assertSame([], $errors);
+        self::assertEquals([
+            new UnverifiedDeclaration(UserResource::class, 'lines_sum_totl', 'table "aggregate_lines" carries the "totl" column the sum aggregate names', AggregateLine::class),
+        ], $errors);
     }
 
     /**
@@ -356,7 +362,11 @@ final class ValidateAggregateColumnsTest extends TestCase
             ['cast_claimed', 'Aggregate relation "subject" is a MorphTo, whose related model is unknown until each row is read'],
             ['column_claimed', sprintf($claimed, 'column_claimed', 'column', AggregateOwner::class)],
             ['column_claimed', 'Aggregate column "totl" does not exist on table "aggregate_lines"'],
-        ], array_map(static fn ($error): array => [$error->fieldKey, $error->defect], $errors));
+        ], array_map(static function (SchemaValidationError|UnverifiedDeclaration $error): array {
+            self::assertInstanceOf(SchemaValidationError::class, $error);
+
+            return [$error->fieldKey, $error->defect];
+        }, $errors));
     }
 
     /**

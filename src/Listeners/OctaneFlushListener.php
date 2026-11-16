@@ -9,7 +9,7 @@ use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 
 /**
- * Resets the toolkit's in-process state after each Octane request, task and
+ * Resets the toolkit's per-operation state after each Octane request, task and
  * tick, so in-process memos do not grow without bound.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>

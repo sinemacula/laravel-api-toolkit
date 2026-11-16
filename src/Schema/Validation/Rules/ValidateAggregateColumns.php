@@ -12,6 +12,7 @@ use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 
 /**
  * Validate that each relation aggregate names a column the database can
@@ -65,7 +66,7 @@ final readonly class ValidateAggregateColumns implements SchemaValidationRule
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|\SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>
      */
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
@@ -86,9 +87,45 @@ final readonly class ValidateAggregateColumns implements SchemaValidationRule
                     defect: $defect,
                 );
             }
+
+            $unverified = $this->unverified($resourceClass, $key, $owner, $aggregate);
+
+            if ($unverified === null) {
+                continue;
+            }
+
+            $errors[] = $unverified;
         }
 
         return $errors;
+    }
+
+    /**
+     * Report an aggregate column as unverified when the related table's columns
+     * could not be listed.
+     *
+     * @param  string  $resourceClass
+     * @param  string  $key
+     * @param  \Illuminate\Database\Eloquent\Model  $owner
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $aggregate
+     * @return \SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration|null
+     */
+    private function unverified(string $resourceClass, string $key, Model $owner, CompiledAggregateDefinition $aggregate): ?UnverifiedDeclaration
+    {
+        $relation = $aggregate->column === null ? null : $this->introspector->resolveRelation($aggregate->relation, $owner);
+
+        if ($relation === null || $relation instanceof MorphTo || $this->introspector->getColumns($relation->getRelated()) !== []) {
+            return null;
+        }
+
+        $related = $relation->getRelated();
+
+        return new UnverifiedDeclaration(
+            resourceClass: $resourceClass,
+            fieldKey: $key,
+            check: sprintf('table "%s" carries the "%s" column the %s aggregate names', $related->getTable(), $aggregate->column, $aggregate->function->value),
+            modelClass: $related::class,
+        );
     }
 
     /**

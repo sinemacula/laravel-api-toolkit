@@ -152,8 +152,9 @@ final class ApiResourceIntegrationTest extends TestCase
 
         $map = UserResource::eagerLoadMapFor($fields);
 
-        self::assertContains('organization', $map);
-        self::assertContains('posts', $map);
+        // The default limit bounds every resource relation, so each is scoped
+        self::assertInstanceOf(\Closure::class, $map['organization'] ?? null);
+        self::assertInstanceOf(\Closure::class, $map['posts'] ?? null);
     }
 
     /**

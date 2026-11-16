@@ -33,7 +33,7 @@ final class RestrictedRequestInput implements DefinesInputSchema
             'email'    => ['required', 'prohibited'],
             'role'     => ['required', 'string', 'prohibited_if:name,root'],
             'nickname' => ['string', 'prohibited_unless:name,guest'],
-            'terms'    => ['accepted'],
+            'zone'     => ['timezone'],
             'labels'   => ['array'],
             'labels.*' => ['nullable'],
         ];

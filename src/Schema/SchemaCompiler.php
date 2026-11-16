@@ -46,6 +46,9 @@ final class SchemaCompiler
     /**
      * Clear all cached compiled schemas.
      *
+     * Compiled schemas live for the worker, so a lifecycle flush leaves them;
+     * this is for test isolation.
+     *
      * @return void
      */
     public static function clearCache(): void
@@ -287,6 +290,7 @@ final class SchemaCompiler
             unindexedReason : self::declaredColumn($definition, 'unindexed'),
             searchable      : self::declaredColumn($definition, 'searchable'),
             searchStrategy  : self::resolveSearchStrategy($definition),
+            limit           : is_int($definition['limit'] ?? null) ? $definition['limit'] : null,
         );
     }
 

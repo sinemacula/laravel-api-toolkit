@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Builder;
 
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Enums\Capability;
@@ -571,8 +572,9 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         self::assertSame(['$ref' => '#/components/schemas/Organization'], $properties['organization']);
         self::assertSame([
-            'type'  => 'array',
-            'items' => ['$ref' => '#/components/schemas/Post'],
+            'type'     => 'array',
+            'items'    => ['$ref' => '#/components/schemas/Post'],
+            'maxItems' => 25,
         ], $properties['posts']);
     }
 
@@ -764,7 +766,7 @@ final class ResourceSchemaBuilderTest extends TestCase
 
         self::assertSame(['type' => 'object', 'x-undocumented' => true], $properties['organization']);
         self::assertSame(
-            ['type' => 'array', 'items' => ['type' => 'object', 'x-undocumented' => true]],
+            ['type' => 'array', 'items' => ['type' => 'object', 'x-undocumented' => true], 'maxItems' => 25],
             $properties['posts'],
         );
     }
@@ -779,7 +781,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $properties = $this->makeBuilder($this->fullResourceMap())->build()['User']['properties'];
 
         self::assertSame(['$ref' => '#/components/schemas/Organization'], $properties['organization']);
-        self::assertSame(['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Post']], $properties['posts']);
+        self::assertSame(['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Post'], 'maxItems' => 25], $properties['posts']);
     }
 
     /**
@@ -859,6 +861,92 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
+     * Test that a declared limit bounds the array property of a to-many.
+     *
+     * @return void
+     */
+    public function testDeclaredLimitBoundsTheToManyArray(): void
+    {
+        $properties = $this->buildGhost(new CompiledSchema(['posts' => $this->relationField(5)], []))['properties'];
+
+        self::assertIsArray($properties);
+        self::assertSame(['type' => 'array', 'items' => ['type' => 'object', 'x-undocumented' => true], 'maxItems' => 5], $properties['posts']);
+    }
+
+    /**
+     * Test that a limit bounds the array member of an unknown cardinality.
+     *
+     * @return void
+     */
+    public function testLimitBoundsTheConservativeArrayMember(): void
+    {
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => new CompiledSchema(['posts' => $this->relationField(5)], [])]);
+
+        $schema = $this->makeGhostBuilder(['GhostModel' => 'GhostResource', Post::class => PostResource::class])->build()['Ghost'];
+
+        self::assertSame(
+            ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Post'], 'maxItems' => 5],
+            $schema['properties']['posts']['oneOf'][1],
+        );
+        self::assertSame(['posts'], $schema['properties']['_truncated']['items']['enum']);
+    }
+
+    /**
+     * Test that a to-one relation carries no bound however it is limited.
+     *
+     * @return void
+     */
+    public function testToOneRelationCarriesNoBound(): void
+    {
+        $properties = $this->buildGhost(new CompiledSchema(['organization' => $this->relationField(5, 'organization', OrganizationResource::class)], []))['properties'];
+
+        self::assertIsArray($properties);
+        self::assertSame(['type' => 'object', 'x-undocumented' => true], $properties['organization']);
+        self::assertArrayNotHasKey('_truncated', $properties);
+    }
+
+    /**
+     * Test that a resource with a limited relation documents the optional
+     * truncation list of its limited keys.
+     *
+     * @return void
+     */
+    public function testLimitedRelationsAreDocumentedAsAnOptionalTruncationList(): void
+    {
+        $schema = $this->makeBuilder($this->fullResourceMap())->build()['User'];
+
+        self::assertSame([
+            'type'        => 'array',
+            'items'       => ['type' => 'string', 'enum' => ['posts']],
+            'uniqueItems' => true,
+            'minItems'    => 1,
+        ], $schema['properties']['_truncated']);
+        self::assertIsArray($schema['required']);
+        self::assertNotContains('_truncated', $schema['required']);
+    }
+
+    /**
+     * Test that no truncation list is documented when nothing is limited.
+     *
+     * @return void
+     */
+    public function testNoTruncationListWhenNothingIsLimited(): void
+    {
+        Config::set('api-toolkit.resources.relation_limit', 0);
+
+        $schemas = $this->makeBuilder($this->fullResourceMap())->build();
+
+        $user = $schemas['User']['properties'];
+        $tag  = $schemas['Tag']['properties'];
+
+        self::assertIsArray($user);
+        self::assertIsArray($tag);
+        self::assertSame(['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Post']], $user['posts']);
+        self::assertArrayNotHasKey('_truncated', $user);
+        self::assertArrayNotHasKey('_truncated', $tag);
+    }
+
+    /**
      * Build the schema of a synthetic resource compiled from the given schema.
      *
      * The user model backs it so scalar properties resolve against a table.
@@ -926,6 +1014,31 @@ final class ResourceSchemaBuilderTest extends TestCase
     private function aggregate(string $key, AggregateFunction $function, ?string $column = null, string $relation = 'posts'): CompiledAggregateDefinition
     {
         return new CompiledAggregateDefinition($key, $relation, $function, $column, null, false, []);
+    }
+
+    /**
+     * Build a compiled relation field rendered through a child resource.
+     *
+     * @param  int|null  $limit
+     * @param  string  $relation
+     * @param  string  $resource
+     * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
+     */
+    private function relationField(?int $limit, string $relation = 'posts', string $resource = PostResource::class): CompiledFieldDefinition
+    {
+        return new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: $relation,
+            resource: $resource,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+            limit: $limit,
+        );
     }
 
     /**

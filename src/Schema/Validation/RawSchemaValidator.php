@@ -65,7 +65,8 @@ final class RawSchemaValidator
     }
 
     /**
-     * Collect the defects in a raw definition's constraint and callable lists.
+     * Collect the defects in a raw definition's constraint, limit and callable
+     * lists.
      *
      * @param  array<string, mixed>  $definition
      * @return list<string>
@@ -77,6 +78,12 @@ final class RawSchemaValidator
 
         if ($constraint !== null && !$constraint instanceof \Closure) {
             $defects[] = 'Constraint must be a Closure';
+        }
+
+        $limit = $definition['limit'] ?? null;
+
+        if ($limit !== null && (!is_int($limit) || $limit < 1)) {
+            $defects[] = 'Limit must be an integer of at least 1';
         }
 
         foreach (self::CALLABLE_LISTS as $list => $label) {

@@ -13,11 +13,16 @@ use Laravel\Octane\Events\RequestTerminated;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Models\Organization;
+use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\SchemaCountingUserResource;
 use Tests\TestCase;
 
 /**
@@ -71,13 +76,13 @@ final class OctaneBoundaryFlushTest extends TestCase
     }
 
     /**
-     * Test that dispatching OperationTerminated resets in-process state only.
+     * Test that dispatching OperationTerminated resets only per-operation
+     * state.
      *
      * @return void
      */
-    public function testDispatchingOperationTerminatedResetsInProcessStateOnly(): void
+    public function testDispatchingOperationTerminatedResetsPerOperationStateOnly(): void
     {
-        self::assertTrue((bool) config('api-toolkit.lifecycle.octane'));
         self::assertTrue($this->events()->hasListeners(OperationTerminated::class));
 
         // Simulate a serving Octane worker so the runtime gate opens.
@@ -93,9 +98,40 @@ final class OctaneBoundaryFlushTest extends TestCase
 
         $this->events()->dispatch($this->operationTerminated());
 
-        self::assertSame([], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
+        self::assertSame(['FakeResource' => 'compiled'], $this->getStaticProperty(SchemaCompiler::class, 'cache'));
         self::assertSame('toolkit-value', Cache::store()->get($this->metadataStorageKey($toolkitKey)));
         self::assertSame('keep-me', Cache::store()->get($nonToolkitKey));
+    }
+
+    /**
+     * Test that a schema is compiled once across Octane operations while each
+     * operation renders its own child field selection.
+     *
+     * @return void
+     */
+    public function testSchemaIsCompiledOnceAcrossOperations(): void
+    {
+        $_SERVER['LARAVEL_OCTANE'] = 1;
+
+        SchemaCountingUserResource::$schemaCalls = 0;
+
+        $organization = Organization::create(['name' => 'Acme Corp', 'slug' => 'acme-corp']);
+
+        User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active', 'organization_id' => $organization->id]);
+
+        $first = $this->renderOrganization('name');
+
+        $this->events()->dispatch($this->operationTerminated());
+
+        $second = $this->renderOrganization('slug');
+
+        $this->events()->dispatch($this->operationTerminated());
+
+        self::assertSame(1, SchemaCountingUserResource::$schemaCalls);
+        self::assertSame('Acme Corp', $first['name']);
+        self::assertArrayNotHasKey('slug', $first);
+        self::assertSame('acme-corp', $second['slug']);
+        self::assertArrayNotHasKey('name', $second);
     }
 
     /**
@@ -115,6 +151,26 @@ final class OctaneBoundaryFlushTest extends TestCase
         $this->app->forgetScopedInstances();
 
         self::assertNotSame($before, Cache::memo());
+    }
+
+    /**
+     * Parse an operation selecting the given organization field and render the
+     * user's organization.
+     *
+     * @param  string  $field
+     * @return array<string, mixed>
+     */
+    private function renderOrganization(string $field): array
+    {
+        ApiQuery::parse(Request::create('/users', 'GET', [
+            'fields' => ['users' => 'name,organization', 'organizations' => $field],
+        ]));
+
+        $data = (new SchemaCountingUserResource(User::with('organization')->firstOrFail()))->resolve();
+
+        self::assertInstanceOf(OrganizationResource::class, $data['organization']);
+
+        return $data['organization']->resolve();
     }
 
     /**
