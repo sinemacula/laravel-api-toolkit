@@ -676,6 +676,30 @@ final class MakeResourceCommandTest extends TestCase
     }
 
     /**
+     * Test that a module root beneath a path holding pattern characters warns,
+     * since discovery globs the module roots and misses it.
+     *
+     * @return void
+     */
+    public function testModuleRootBeneathAPathHoldingPatternCharactersWarns(): void
+    {
+        assert($this->app !== null);
+
+        $app = $this->root . '/[x]/app';
+
+        mkdir($app, 0o755, true);
+
+        $this->app->useAppPath($app);
+
+        $this->pendingArtisan(self::COMMAND, ['name' => 'App\Blog\Http\Resources\PostResource', '--model' => Post::class])
+            ->expectsOutputToContain('is outside every resource discovery path')
+            ->assertExitCode(0)
+            ->run();
+
+        self::assertSame([], glob(app_path('*/Http/Resources')));
+    }
+
+    /**
      * Test that the default module pattern matches a single directory level.
      *
      * @return void

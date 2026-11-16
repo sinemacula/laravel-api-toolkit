@@ -333,7 +333,8 @@ final class MakeResourceCommand extends GeneratorCommand
      * Warn when the resource lies outside every discovery path.
      *
      * The default roots are compared as patterns, since the directory may not
-     * exist yet, and every path is matched literally.
+     * exist yet. Paths are matched literally, except the module roots, which
+     * are matched as discovery globs them.
      *
      * @param  string  $directory
      * @return string|null
@@ -343,7 +344,7 @@ final class MakeResourceCommand extends GeneratorCommand
         $configured = Config::get('api-toolkit.resources.paths');
 
         $patterns = match (true) {
-            $configured === null  => [$this->pattern(app_path('Http/Resources')), $this->pattern(app_path()) . '/*/Http/Resources'],
+            $configured === null  => [$this->pattern(app_path('Http/Resources')), app_path('*/Http/Resources')],
             is_array($configured) => array_map(fn (string $root): string => $this->pattern(rtrim($root, '/')), array_filter($configured, is_string(...))),
             default               => [],
         };
