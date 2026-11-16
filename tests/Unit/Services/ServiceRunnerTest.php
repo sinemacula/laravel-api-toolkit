@@ -4,10 +4,12 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Exceptions\LockOperationException;
 use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
 use SineMacula\ApiToolkit\Services\Actors\SystemActor;
@@ -26,6 +28,7 @@ use Tests\Fixtures\Services\Input\ScrubbedInput;
 use Tests\Fixtures\Services\Input\SensitiveInput;
 use Tests\Fixtures\Services\OutputService;
 use Tests\Fixtures\Services\StubActor;
+use Tests\Fixtures\Services\TransactionAttemptsService;
 use Tests\TestCase;
 
 /**
@@ -345,6 +348,58 @@ final class ServiceRunnerTest extends TestCase
 
         self::assertTrue($result->failed());
         self::assertInstanceOf(LockOperationException::class, $result->exception);
+    }
+
+    /**
+     * Provide transaction attempt counts that would never run the transaction.
+     *
+     * @return iterable<string, array{int}>
+     */
+    public static function unusableTransactionAttemptsProvider(): iterable
+    {
+        yield 'zero' => [0];
+        yield 'negative' => [-1];
+    }
+
+    /**
+     * Test that a transactional service with fewer than one transaction attempt
+     * fails after validation and before the lock, without running handle().
+     *
+     * @param  int  $attempts
+     * @return void
+     */
+    #[DataProvider('unusableTransactionAttemptsProvider')]
+    public function testTransactionAttemptsBelowOneFailTheRunBeforeTheLock(int $attempts): void
+    {
+        $service = new TransactionAttemptsService($attempts);
+        $held    = Cache::lock($service->getLockKey(), 10);
+
+        self::assertTrue($held->get());
+
+        $result = (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
+
+        self::assertTrue($result->failed());
+        self::assertInstanceOf(\LogicException::class, $result->exception);
+        self::assertSame(sprintf('Service is transactional but $transactionAttempts is %d; it must be at least 1.', $attempts), $result->exception->getMessage());
+        self::assertTrue($service->validated);
+        self::assertFalse($service->handled);
+
+        $held->release();
+    }
+
+    /**
+     * Test that a non-transactional service ignores its transaction attempts.
+     *
+     * @return void
+     */
+    public function testTransactionAttemptsAreIgnoredWithoutATransaction(): void
+    {
+        $service = new TransactionAttemptsService(0, false);
+
+        $result = (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
+
+        self::assertTrue($result->succeeded());
+        self::assertTrue($service->handled);
     }
 
     /**
