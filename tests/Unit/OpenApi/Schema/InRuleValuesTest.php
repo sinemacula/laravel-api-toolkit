@@ -67,6 +67,7 @@ final class InRuleValuesTest extends TestCase
     {
         yield from [
             'zero dropped'       => ['0,5', 'integer', [5]],
+            'unit values kept'   => ['1,-1', 'integer', [1, -1]],
             'large integers'     => ['99999999999999,100000000000000,-100000000000000,-7', 'number', [99999999999999, -7]],
             'fractions kept'     => ['0.5,a', 'number', [0.5, 'a']],
             'integral floats'    => ['1.0E+14,-1.0E+14,-1.5,1.0E-7', 'integer', [-1.5, 1.0E-7]],
