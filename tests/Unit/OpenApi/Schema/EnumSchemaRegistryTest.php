@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
+use Tests\Fixtures\Enums\Alternate\Tier;
 use Tests\Fixtures\Enums\UserLevel;
 use Tests\Fixtures\Enums\UserStatus;
 
@@ -45,6 +46,21 @@ final class EnumSchemaRegistryTest extends TestCase
         $registry->register(UserStatus::class);
 
         self::assertSame([UserStatus::class, UserLevel::class], $registry->classes());
+    }
+
+    /**
+     * Test that a reference registers the enum and points at its named
+     * component.
+     *
+     * @return void
+     */
+    public function testReferenceRegistersTheEnumAndNamesItsComponent(): void
+    {
+        $registry = new EnumSchemaRegistry;
+
+        self::assertSame('#/components/schemas/UserStatus', $registry->reference(UserStatus::class));
+        self::assertSame('#/components/schemas/AlternateTier', $registry->reference(Tier::class));
+        self::assertSame([UserStatus::class, Tier::class], $registry->classes());
     }
 
     /**

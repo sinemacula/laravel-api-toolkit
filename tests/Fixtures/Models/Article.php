@@ -16,8 +16,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * Fixture article model.
  *
  * A wide-table, soft-deleting model used to exercise the column-narrowing
- * safety set (primary key, soft-delete column, relation parent key, append
- * source) and the columns/bytes reduction assertion in isolation from User.
+ * safety set (primary key, soft-delete column, relation parent key), the
+ * accessor fall-back and the columns/bytes reduction assertion in isolation
+ * from User.
  *
  * @property int $id
  * @property int $user_id
