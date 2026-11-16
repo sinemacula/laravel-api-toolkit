@@ -13,9 +13,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProviderExternal;
 use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Input\Payload;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Fixtures\Enums\Magnitude;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Input\SampleInput;
+use Tests\Fixtures\Input\StorePayload;
 use Tests\Fixtures\Services\Input\BackedEnumInput;
 use Tests\Fixtures\Services\Input\Concerns\DescribesInput;
 use Tests\Fixtures\Services\Input\Concerns\SensitiveCredentials;
@@ -443,14 +445,15 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that an enum parameter ruled only through nested keys still refuses
-     * a value that names no case.
+     * Test that a rule nested under an enum property's body key is refused.
      *
      * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
      */
-    public function testEnumParameterRuledOnlyThroughNestedKeysRefusesAnUnmatchedValue(): void
+    public function testEnumPropertyWithANestedRuleThrows(): void
     {
-        $definition = new class extends Payload {
+        $nested = new class extends Payload {
             /**
              * Create a new instance with an enum ruled by a nested key.
              *
@@ -498,15 +501,84 @@ final class PayloadTest extends TestCase
             }
         };
 
-        foreach ([[$definition, ['value' => 1]], [$wildcard, [1]]] as [$payload, $magnitude]) {
-            try {
-                $payload::from(['magnitude' => $magnitude]);
+        $parent = new class extends Payload {
+            /**
+             * Create a new instance with an enum ruled whole and nested.
+             *
+             * @param  \Tests\Fixtures\Services\Input\Enums\StubStatusEnum|null  $clientStatus
+             */
+            public function __construct(
 
-                self::fail('Expected a ValidationException for the nested magnitude.');
-            } catch (ValidationException $exception) {
-                self::assertSame(['magnitude' => ['The selected magnitude is invalid.']], $exception->errors());
+                /** An enum property read from client_status. */
+                public readonly ?StubStatusEnum $clientStatus = null,
+            ) {}
+
+            /**
+             * Rule the status whole and through a nested key.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['client_status' => ['sometimes'], 'client_status.name' => ['sometimes', 'string']];
+            }
+        };
+
+        $cases = [
+            [$nested, ['magnitude' => ['value' => 1]], 'magnitude.value', 'magnitude'],
+            [$wildcard, ['magnitude' => [1]], 'magnitude.*', 'magnitude'],
+            [$parent, ['client_status' => StubStatusEnum::ACTIVE], 'client_status.name', 'clientStatus'],
+        ];
+
+        foreach ($cases as [$payload, $data, $rule, $property]) {
+            try {
+                $payload::from($data);
+
+                self::fail('Expected a LogicException for the nested enum rule.');
+            } catch (\LogicException $exception) {
+                self::assertSame(
+                    sprintf('The rule "%s" nests under %s::$%s, an enum read from the whole value', $rule, $payload::class, $property),
+                    $exception->getMessage(),
+                );
             }
         }
+    }
+
+    /**
+     * Test that a rule key sharing an enum key's prefix is not nested under it.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function testRuleKeySharingAnEnumKeyPrefixIsNotNested(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with an enum beside a similarly named key.
+             *
+             * @param  \Tests\Fixtures\Enums\Magnitude|null  $magnitude
+             */
+            public function __construct(
+
+                /** An enum property ruled whole. */
+                public readonly ?Magnitude $magnitude = null,
+            ) {}
+
+            /**
+             * Rule the magnitude beside a key that only shares its prefix.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['magnitude' => ['sometimes'], 'magnitudes.value' => ['sometimes']];
+            }
+        };
+
+        self::assertSame(Magnitude::ONE, $definition::from(['magnitude' => 1])->magnitude);
     }
 
     /**
@@ -1637,5 +1709,274 @@ final class PayloadTest extends TestCase
         } catch (ValidationException $exception) {
             self::assertSame(['0'], array_map(strval(...), array_keys($exception->errors())));
         }
+    }
+
+    /**
+     * Test that messages() overrides a field's rule and a rule everywhere.
+     *
+     * @return void
+     */
+    public function testMessagesOverrideAFieldRuleAndARule(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with two required fields.
+             *
+             * @param  string  $title
+             * @param  string  $summary
+             */
+            public function __construct(
+
+                /** A required title. */
+                public readonly string $title = '',
+
+                /** A required summary. */
+                public readonly string $summary = '',
+            ) {}
+
+            /**
+             * Require both fields.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['title' => ['required'], 'summary' => ['required']];
+            }
+
+            /**
+             * Reword the title's required rule and every other required rule.
+             *
+             * @return array<string, string>
+             */
+            #[\Override]
+            public static function messages(): array
+            {
+                return ['title.required' => 'Name the widget.', 'required' => 'Fill in the :attribute.'];
+            }
+        };
+
+        try {
+            $definition::from([]);
+
+            self::fail('Expected a ValidationException for both missing fields.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['title' => ['Name the widget.'], 'summary' => ['Fill in the summary.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that attributes() renames a field in its messages.
+     *
+     * @return void
+     */
+    public function testAttributesRenameTheFieldInItsMessages(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with a mapped required field.
+             *
+             * @param  string  $clientName
+             */
+            public function __construct(
+
+                /** The client name, read from client_name. */
+                public readonly string $clientName = '',
+            ) {}
+
+            /**
+             * Require the client name.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['client_name' => ['required']];
+            }
+
+            /**
+             * Name the client name field for messages.
+             *
+             * @return array<string, string>
+             */
+            #[\Override]
+            public static function attributes(): array
+            {
+                return ['client_name' => 'organisation name'];
+            }
+        };
+
+        try {
+            $definition::from([]);
+
+            self::fail('Expected a ValidationException for the missing client name.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['client_name' => ['The organisation name field is required.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that one enum message rewords the declared rule and the cast.
+     *
+     * @return void
+     */
+    public function testEnumMessageRewordsTheDeclaredRuleAndTheCast(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with an int-backed enum.
+             *
+             * @param  \Tests\Fixtures\Enums\Magnitude|null  $magnitude
+             */
+            public function __construct(
+
+                /** An int-backed enum checked by Laravel's enum rule. */
+                public readonly ?Magnitude $magnitude = null,
+            ) {}
+
+            /**
+             * Declare the enum rule on the magnitude.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['magnitude' => [Rule::enum(Magnitude::class)]];
+            }
+
+            /**
+             * Reword the magnitude's enum failure.
+             *
+             * @return array<string, string>
+             */
+            #[\Override]
+            public static function messages(): array
+            {
+                return ['magnitude.enum' => 'Pick a known :attribute.'];
+            }
+
+            /**
+             * Name the magnitude field for messages.
+             *
+             * @return array<string, string>
+             */
+            #[\Override]
+            public static function attributes(): array
+            {
+                return ['magnitude' => 'size'];
+            }
+        };
+
+        // Laravel's rule refuses 7 and passes "01", which only the cast refuses
+        foreach ([7, '01'] as $magnitude) {
+            try {
+                $definition::from(['magnitude' => $magnitude]);
+
+                self::fail('Expected a ValidationException for the unknown magnitude.');
+            } catch (ValidationException $exception) {
+                self::assertSame(['magnitude' => ['Pick a known size.']], $exception->errors());
+            }
+        }
+    }
+
+    /**
+     * Test that the base messages() and attributes() are empty.
+     *
+     * @return void
+     */
+    public function testBaseMessagesAndAttributesAreEmpty(): void
+    {
+        self::assertSame([], SampleInput::messages());
+        self::assertSame([], SampleInput::attributes());
+    }
+
+    /**
+     * Test that a precognitive request validates only the fields it names.
+     *
+     * @return void
+     */
+    public function testPrecognitiveRequestValidatesOnlyTheNamedFields(): void
+    {
+        try {
+            StorePayload::from(self::precognitiveRequest(['quantity' => 'x'], 'quantity'));
+
+            self::fail('Expected a ValidationException for the named quantity.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['quantity' => ['The quantity field must be an integer.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that a precognitive request keeps the enum check on a named field.
+     *
+     * @return void
+     */
+    public function testPrecognitiveRequestKeepsTheEnumCheckOnANamedField(): void
+    {
+        try {
+            BackedEnumInput::from(self::precognitiveRequest(['magnitude' => '01'], 'magnitude'));
+
+            self::fail('Expected a ValidationException for the named magnitude.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['magnitude' => ['The selected magnitude is invalid.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that a precognitive request whose named fields pass aborts with a
+     * Precognition success.
+     *
+     * @return void
+     */
+    public function testPrecognitiveRequestWhoseNamedFieldsPassAbortsWithSuccess(): void
+    {
+        try {
+            StorePayload::from(self::precognitiveRequest(['quantity' => 3], 'quantity'));
+
+            self::fail('Expected the Precognition success abort.');
+        } catch (HttpException $exception) {
+            self::assertSame(204, $exception->getStatusCode());
+            self::assertSame(['Precognition-Success' => 'true'], $exception->getHeaders());
+        }
+    }
+
+    /**
+     * Test that the Validate-Only header is ignored on a request that is not
+     * precognitive.
+     *
+     * @return void
+     */
+    public function testValidateOnlyHeaderIsIgnoredWithoutPrecognition(): void
+    {
+        $request = Request::create('/', 'POST', ['quantity' => 3]);
+        $request->headers->set('Precognition-Validate-Only', 'quantity');
+
+        try {
+            StorePayload::from($request);
+
+            self::fail('Expected a ValidationException for the missing title.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['title' => ['The title field is required.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Build a precognitive request that validates only the given fields.
+     *
+     * @param  array<string, mixed>  $body
+     * @param  string  $validateOnly
+     * @return \Illuminate\Http\Request
+     */
+    private static function precognitiveRequest(array $body, string $validateOnly): Request
+    {
+        $request = Request::create('/', 'POST', $body);
+
+        $request->attributes->set('precognitive', true);
+        $request->headers->set('Precognition-Validate-Only', $validateOnly);
+
+        return $request;
     }
 }
