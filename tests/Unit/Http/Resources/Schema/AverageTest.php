@@ -6,6 +6,7 @@ namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Schema\Average;
 
 /**
@@ -19,92 +20,58 @@ use SineMacula\ApiToolkit\Schema\Average;
 #[CoversClass(Average::class)]
 final class AverageTest extends TestCase
 {
-    /** @var string The schema key for posts/id without alias. */
-    private const string AVG_KEY_POSTS_ID = '__avg__:posts_id';
+    /** @var string The schema key for the unaliased definition. */
+    private const string DEFAULT_KEY = '__aggregate__:orders_avg_total';
 
     /**
-     * Test that of creates an average definition with the correct metric.
+     * Test that the function is avg.
      *
      * @return void
      */
-    public function testOfCreatesAverageDefinitionWithAvgMetric(): void
+    public function testFunctionIsAVG(): void
     {
-        $avg   = Average::of('posts', 'id');
-        $array = $avg->toArray();
-
-        self::assertArrayHasKey(self::AVG_KEY_POSTS_ID, $array);
-        self::assertSame('avg', $array[self::AVG_KEY_POSTS_ID]['metric']);
+        self::assertSame(AggregateFunction::AVG, Average::of('orders', 'total')->function());
     }
 
     /**
-     * Test that the schema key carries the __avg__ prefix.
+     * Test that of keys the definition by Laravel's default aggregate key.
      *
      * @return void
      */
-    public function testSchemaKeyCarriesAvgPrefix(): void
+    public function testOfKeysTheDefinitionByTheDefaultKey(): void
     {
-        $avg = Average::of('posts', 'id');
-        $key = array_key_first($avg->toArray());
+        $array = Average::of('orders', 'total')->toArray();
 
-        self::assertIsString($key);
-        self::assertStringStartsWith('__avg__:', $key);
+        self::assertSame([self::DEFAULT_KEY], array_keys($array));
+        self::assertSame('orders_avg_total', $array[self::DEFAULT_KEY]['key']);
+        self::assertSame('avg', $array[self::DEFAULT_KEY]['metric']);
+        self::assertSame('orders', $array[self::DEFAULT_KEY]['relation']);
+        self::assertSame('total', $array[self::DEFAULT_KEY]['column']);
     }
 
     /**
-     * Test that Average is distinct from other aggregate types by its metric.
+     * Test that of with an alias keys the definition by the alias.
      *
      * @return void
      */
-    public function testAverageMetricIsAvgNotSum(): void
+    public function testOfWithAliasKeysTheDefinitionByTheAlias(): void
     {
-        $avg   = Average::of('posts', 'id');
-        $array = $avg->toArray();
+        $array = Average::of('orders', 'total', 'headline')->toArray();
 
-        self::assertSame('avg', $array[self::AVG_KEY_POSTS_ID]['metric']);
-        self::assertNotSame('sum', $array[self::AVG_KEY_POSTS_ID]['metric']);
+        self::assertSame(['__aggregate__:headline'], array_keys($array));
+        self::assertSame('headline', $array['__aggregate__:headline']['key']);
+        self::assertSame('total', $array['__aggregate__:headline']['column']);
     }
 
     /**
-     * Test that of with an alias produces the correct schema key.
+     * Test that default() marks the aggregate as a default.
      *
      * @return void
      */
-    public function testOfWithAliasProducesAliasedKey(): void
+    public function testDefaultMarksTheAggregateAsDefault(): void
     {
-        $avg   = Average::of('posts', 'id', 'post_id_avg');
-        $array = $avg->toArray();
+        $array = Average::of('orders', 'total')->default()->toArray();
 
-        self::assertArrayHasKey('__avg__:post_id_avg', $array);
-        self::assertSame('post_id_avg', $array['__avg__:post_id_avg']['key']);
-    }
-
-    /**
-     * Test that default() marks the average as a default metric.
-     *
-     * @return void
-     */
-    public function testDefaultMarksAverageAsDefault(): void
-    {
-        $avg   = Average::of('posts', 'id')->default();
-        $array = $avg->toArray();
-
-        self::assertTrue($array[self::AVG_KEY_POSTS_ID]['default']);
-    }
-
-    /**
-     * Test that as() with an average re-keys the output under the new alias.
-     *
-     * @return void
-     */
-    public function testAsSetsAliasAndRekeysOutput(): void
-    {
-        $avg = Average::of('posts', 'id');
-
-        $avg->as('avg_alias');
-
-        $array = $avg->toArray();
-
-        self::assertArrayHasKey('__avg__:avg_alias', $array);
-        self::assertSame('avg_alias', $array['__avg__:avg_alias']['key']);
+        self::assertTrue($array[self::DEFAULT_KEY]['default']);
     }
 }

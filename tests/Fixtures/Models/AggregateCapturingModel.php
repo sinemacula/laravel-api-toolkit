@@ -5,12 +5,10 @@ declare(strict_types = 1);
 namespace Tests\Fixtures\Models;
 
 /**
- * Minimal fake model that captures loadSum/loadAvg calls for unit testing.
+ * Minimal fake model that captures loadAggregate calls for unit testing.
  *
- * Converts the 'relation as alias' relation argument to the
- * presentKey_metric_column attribute name that ValueResolver expects, then
- * stores a fixed sentinel value. Satisfies all method_exists guards in
- * ApiResource without requiring a real Eloquent database connection.
+ * Stores a fixed sentinel per function under the 'relation as alias' alias, as
+ * Eloquent does, so the resolver reads it back without a database connection.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -19,33 +17,27 @@ namespace Tests\Fixtures\Models;
  */
 final class AggregateCapturingModel
 {
-    /** @var array<string, mixed> */
-    private array $attributes = [];
+    /** @var array<string, float|int> The sentinel stored for each function */
+    private const array SENTINELS = ['count' => 2, 'sum' => 42, 'avg' => 3.5];
+
+    /** @var array<int, array{mixed, string, string}> The loadAggregate calls, in order */
+    public array $calls = [];
 
     /**
-     * Magic getter for attribute access.
+     * Create the fake with the given attributes already loaded.
      *
-     * @param  string  $key
-     * @return mixed
+     * @param  array<string, mixed>  $attributes
      */
-    public function __get(string $key): mixed
-    {
-        return $this->attributes[$key] ?? null;
-    }
+    public function __construct(
 
-    /**
-     * Magic isset for attribute existence check.
-     *
-     * @param  string  $key
-     * @return bool
-     */
-    public function __isset(string $key): bool
-    {
-        return isset($this->attributes[$key]);
-    }
+        /** The loaded attributes */
+        private array $attributes = [],
+    ) {}
 
     /**
      * No-op for the eager-load relations path.
+     *
+     * @SuppressWarnings("php:S1172")
      *
      * @param  mixed  $with
      * @return self
@@ -56,50 +48,18 @@ final class AggregateCapturingModel
     }
 
     /**
-     * No-op; the counts field is not requested in aggregate tests.
-     *
-     * @param  mixed  $relations
-     * @return self
-     */
-    public function loadCount(mixed $relations): self
-    {
-        return $this;
-    }
-
-    /**
-     * Capture a sum aggregate call and store a fixed sentinel value.
-     *
-     * Mirrors Eloquent, which uses the "as" alias verbatim as the result
-     * attribute, so the alias is stored as-is for ValueResolver to read back.
-     *
-     * @SuppressWarnings("php:S1172")
+     * Capture an aggregate call and store the function's sentinel value.
      *
      * @param  mixed  $relations
      * @param  string  $column
+     * @param  string  $function
      * @return self
      */
-    public function loadSum(mixed $relations, string $column): self
+    public function loadAggregate(mixed $relations, string $column, string $function): self
     {
-        $this->attributes[$this->resolveAlias($relations)] = 42.0;
+        $this->calls[] = [$relations, $column, $function];
 
-        return $this;
-    }
-
-    /**
-     * Capture an average aggregate call and store a fixed sentinel value.
-     *
-     * Mirrors Eloquent, which uses the "as" alias verbatim as the result
-     * attribute, so the alias is stored as-is for ValueResolver to read back.
-     *
-     * @SuppressWarnings("php:S1172")
-     *
-     * @param  mixed  $relations
-     * @param  string  $column
-     * @return self
-     */
-    public function loadAvg(mixed $relations, string $column): self
-    {
-        $this->attributes[$this->resolveAlias($relations)] = 3.5;
+        $this->attributes[$this->resolveAlias($relations)] = self::SENTINELS[$function] ?? 1;
 
         return $this;
     }
@@ -115,23 +75,15 @@ final class AggregateCapturingModel
     }
 
     /**
-     * Derive the present-key alias from the relation argument.
-     *
-     * The 'relation as alias' string form yields the alias segment after ' as
-     * '. An array uses the key in the same format.
+     * Derive the alias from the 'relation as alias' relation argument.
      *
      * @param  mixed  $relations
      * @return string
      */
     private function resolveAlias(mixed $relations): string
     {
-        if (is_array($relations)) {
-            $first = array_key_first($relations);
-            $rel   = $first !== null ? (string) $first : '';
-        } else {
-            $rel = is_string($relations) ? $relations : '';
-        }
+        $specification = is_array($relations) ? (string) array_key_first($relations) : (is_string($relations) ? $relations : '');
 
-        return explode(' as ', $rel)[1] ?? $rel;
+        return explode(' as ', $specification)[1] ?? $specification;
     }
 }

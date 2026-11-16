@@ -224,7 +224,7 @@ return [
     | `max_nodes`       - total filter keys visited.
     | `max_in_items`    - items in one operator value list, such as `$in`.
     | `max_order_keys`  - sort columns.
-    | `max_aggregates`  - relation counts, sums and averages combined.
+    | `max_aggregates`  - relation aggregates.
     | `max_offset`      - rows skipped to reach a page, (page - 1) x page size;
     |                     cursor pagination is exempt.
     */

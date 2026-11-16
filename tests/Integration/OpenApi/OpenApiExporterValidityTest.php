@@ -339,7 +339,7 @@ final class OpenApiExporterValidityTest extends TestCase
         $paths = $this->export()->document['paths'];
 
         self::assertSame(
-            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
             $this->referencedParameterNames($paths['/users']['get']),
         );
     }

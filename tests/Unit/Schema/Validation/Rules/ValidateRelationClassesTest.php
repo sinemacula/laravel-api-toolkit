@@ -46,7 +46,6 @@ final class ValidateRelationClassesTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationClasses;
@@ -77,7 +76,6 @@ final class ValidateRelationClassesTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationClasses;
@@ -111,7 +109,6 @@ final class ValidateRelationClassesTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationClasses;
@@ -132,7 +129,6 @@ final class ValidateRelationClassesTest extends TestCase
                 'clean' => $this->makeField(null),
                 'bad'   => $this->makeField('App\NonExistent\Resource'),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationClasses;
@@ -154,7 +150,6 @@ final class ValidateRelationClassesTest extends TestCase
                 'clean' => $this->makeField(OrganizationResource::class),
                 'bad'   => $this->makeField('App\NonExistent\Resource'),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationClasses;
@@ -176,7 +171,6 @@ final class ValidateRelationClassesTest extends TestCase
                 'first'  => $this->makeField('App\NonExistent\FirstResource'),
                 'second' => $this->makeField('App\NonExistent\SecondResource'),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateRelationClasses;

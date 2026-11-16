@@ -32,7 +32,6 @@ final class ValidateSearchableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField(searchable: 'name', strategy: SearchStrategy::SUBSTRING)],
-            counts: [],
         );
 
         self::assertSame([], (new ValidateSearchableFields)->validate(UserResource::class, null, $schema));
@@ -47,7 +46,6 @@ final class ValidateSearchableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['full_name' => $this->makeField(compute: 'getFullName')],
-            counts: [],
         );
 
         self::assertSame([], (new ValidateSearchableFields)->validate(UserResource::class, null, $schema));
@@ -62,7 +60,6 @@ final class ValidateSearchableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['full_name' => $this->makeField(compute: 'getFullName', searchable: 'full_name', strategy: SearchStrategy::SUBSTRING)],
-            counts: [],
         );
 
         $errors = (new ValidateSearchableFields)->validate(UserResource::class, null, $schema);
@@ -84,7 +81,6 @@ final class ValidateSearchableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['display_name' => $this->makeField(accessor: 'name', searchable: 'display_name', strategy: SearchStrategy::PREFIX)],
-            counts: [],
         );
 
         $errors = (new ValidateSearchableFields)->validate(UserResource::class, null, $schema);
@@ -105,7 +101,6 @@ final class ValidateSearchableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['display_name' => $this->makeField(accessor: 'name', searchable: 'name', strategy: SearchStrategy::SUBSTRING)],
-            counts: [],
         );
 
         self::assertSame([], (new ValidateSearchableFields)->validate(UserResource::class, null, $schema));
@@ -120,7 +115,6 @@ final class ValidateSearchableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField(accessor: static fn ($resource) => $resource->name, searchable: 'name', strategy: SearchStrategy::SUBSTRING)],
-            counts: [],
         );
 
         self::assertSame([], (new ValidateSearchableFields)->validate(UserResource::class, null, $schema));
@@ -135,7 +129,6 @@ final class ValidateSearchableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField(searchable: 'name')],
-            counts: [],
         );
 
         $errors = (new ValidateSearchableFields)->validate(UserResource::class, null, $schema);
@@ -156,7 +149,6 @@ final class ValidateSearchableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['full_name' => $this->makeField(compute: 'getFullName', searchable: 'full_name')],
-            counts: [],
         );
 
         $errors = (new ValidateSearchableFields)->validate(UserResource::class, null, $schema);
@@ -181,7 +173,6 @@ final class ValidateSearchableFieldsTest extends TestCase
                 'full_name' => $this->makeField(compute: 'getFullName', searchable: 'full_name', strategy: SearchStrategy::SUBSTRING),
                 'initials'  => $this->makeField(compute: 'getInitials', searchable: 'initials', strategy: SearchStrategy::PREFIX),
             ],
-            counts: [],
         );
 
         $errors = (new ValidateSearchableFields)->validate(UserResource::class, null, $schema);

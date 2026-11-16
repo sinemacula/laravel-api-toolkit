@@ -6,13 +6,19 @@ namespace Tests\Integration\Resources;
 
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\AggregatingUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -151,65 +157,138 @@ final class ApiResourceIntegrationTest extends TestCase
     }
 
     /**
-     * Test that counts are included in the response.
+     * Test that a requested count is included and replaces the default sum.
      *
      * @return void
      */
-    public function testCountsAreIncludedInResponse(): void
+    public function testARequestedCountReplacesTheDefaultSum(): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'fields' => ['users' => 'name,counts'],
-            'counts' => ['users' => 'posts'],
+            'fields'     => ['users' => 'name,aggregates'],
+            'aggregates' => ['users' => 'posts_count'],
         ]);
         ApiQuery::parse($request);
 
-        $user = User::withCount('posts')->first();
+        $alice = User::query()->where('name', 'Alice')->firstOrFail();
 
-        $resource = new UserResource($user);
-        $data     = $resource->resolve();
+        $data = (new UserResource($alice, true))->resolve();
 
-        self::assertArrayHasKey('counts', $data);
-        self::assertIsArray($data['counts']);
-        self::assertArrayHasKey('posts', $data['counts']);
+        self::assertSame(['posts_count' => 2], $data['aggregates']);
+        self::assertArrayNotHasKey('aggregate_posts_sum_id', $alice->getAttributes());
     }
 
     /**
-     * Test that sums and averages resolve through the real aggregate path.
-     *
-     * The alias EagerLoadPlanner uses must match the attribute the resolver
-     * reads back.
+     * Test that every function resolves identically through withAggregate() on
+     * the query and through loadAggregate() on a loaded model.
      *
      * @return void
      */
-    public function testSumsAndAveragesAreIncludedInResponse(): void
+    public function testEveryFunctionResolvesIdenticallyOnTheQueryAndLoadPaths(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'fields'   => ['users' => 'name,sums,averages'],
-            'sums'     => ['users' => ['posts' => 'id']],
-            'averages' => ['users' => ['posts' => 'id']],
-        ]);
-        ApiQuery::parse($request);
+        ApiQuery::parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb()));
 
-        $alice = User::query()->where('name', 'Alice')->first();
+        $alice = User::query()->where('name', 'Alice')->firstOrFail();
+        $posts = $alice->posts()->get();
 
-        self::assertNotNull($alice);
+        $queryPath = array_map(static fn (User $user): array => (new AggregatingUserResource($user))->resolve(), $this->usersWithAggregates());
+        $loadPath  = array_map(static fn (User $user): array => (new AggregatingUserResource($user, true))->resolve(), $this->users());
 
-        $postIds     = $alice->posts()->get()->pluck('id');
-        $expectedSum = (float) $postIds->sum(); // @phpstan-ignore cast.double
-        $expectedAvg = (float) $postIds->avg(); // @phpstan-ignore cast.double
+        self::assertSame(json_encode($queryPath), json_encode($loadPath));
 
-        $resource = new UserResource($alice, true);
-        $data     = $resource->resolve();
+        $aggregates = $queryPath[0]['aggregates'];
 
-        self::assertArrayHasKey('sums', $data);
-        self::assertIsArray($data['sums']);
-        self::assertArrayHasKey('posts_id', $data['sums']);
-        self::assertSame($expectedSum, $data['sums']['posts_id']);
+        self::assertIsArray($aggregates);
+        self::assertSame(
+            ['posts_count', 'has_published_posts', 'posts_sum_id', 'posts_avg_id', 'posts_min_created_at', 'last_posted_at'],
+            array_keys($aggregates),
+        );
+        self::assertSame(2, $aggregates['posts_count']);
+        self::assertTrue($aggregates['has_published_posts']);
+        self::assertSame((float) $posts->sum('id'), $aggregates['posts_sum_id']); // @phpstan-ignore cast.double
+        self::assertSame((float) $posts->avg('id'), $aggregates['posts_avg_id']); // @phpstan-ignore cast.double
+        self::assertInstanceOf(\DateTimeInterface::class, $aggregates['posts_min_created_at']);
+        self::assertInstanceOf(\DateTimeInterface::class, $aggregates['last_posted_at']);
+        self::assertSame(
+            (string) Post::query()->where('user_id', $alice->id)->max('created_at'), // @phpstan-ignore cast.string
+            $aggregates['last_posted_at']->format('Y-m-d H:i:s'),
+        );
 
-        self::assertArrayHasKey('averages', $data);
-        self::assertIsArray($data['averages']);
-        self::assertArrayHasKey('posts_id', $data['averages']);
-        self::assertSame($expectedAvg, $data['averages']['posts_id']);
+        // Bob has no posts, so only the count and the existence check render
+        self::assertSame(['posts_count' => 0, 'has_published_posts' => false], $queryPath[1]['aggregates']);
+    }
+
+    /**
+     * Test that a constrained existence check is true only for the rows whose
+     * related rows match the constraint.
+     *
+     * @return void
+     */
+    public function testAConstrainedExistsIsTrueOnlyForMatchingRows(): void
+    {
+        ApiQuery::parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'aggregates' => ['aggregating_users' => 'posts_count,has_published_posts'],
+        ]));
+
+        $bob = User::query()->where('name', 'Bob')->firstOrFail();
+
+        Post::create(['user_id' => $bob->id, 'title' => 'Draft', 'body' => 'Content', 'published' => false]);
+
+        $flags = array_map(static fn (User $user): mixed => (new AggregatingUserResource($user))->resolve()['aggregates'], $this->usersWithAggregates());
+
+        self::assertSame([
+            ['posts_count' => 2, 'has_published_posts' => true],
+            ['posts_count' => 1, 'has_published_posts' => false],
+        ], $flags);
+    }
+
+    /**
+     * Test that each default key is the attribute Laravel itself aliases the
+     * aggregate under.
+     *
+     * @return void
+     */
+    public function testDefaultKeysMatchLaravelsOwnAliases(): void
+    {
+        $sql = User::query()->withCount('posts')->withExists('posts')->withSum('posts', 'id')->withMax('posts', 'created_at')->toSql();
+
+        $keys = [
+            AggregateFunction::COUNT->defaultKey('posts', null),
+            AggregateFunction::EXISTS->defaultKey('posts', null),
+            AggregateFunction::SUM->defaultKey('posts', 'id'),
+            AggregateFunction::MAX->defaultKey('posts', 'created_at'),
+        ];
+
+        foreach ($keys as $key) {
+            self::assertStringContainsString(sprintf('as "%s"', $key), str_replace('`', '"', $sql));
+        }
+    }
+
+    /**
+     * Read the users, in key order, through a query carrying the planned
+     * aggregates of the fixture.
+     *
+     * @return array<int, \Tests\Fixtures\Models\User>
+     */
+    private function usersWithAggregates(): array
+    {
+        assert($this->app !== null);
+
+        $gate  = new RelationTrashedGate($this->app->make(SchemaIntrospectionProvider::class), new Request, []);
+        $query = User::query();
+
+        (new EagerLoadApplier)->apply($query, new ResourceMetadataService, AggregatingUserResource::class, AggregatingUserResource::getResourceType(), $gate);
+
+        return $query->get()->sortBy('id')->values()->all();
+    }
+
+    /**
+     * Read the users, in key order, without any aggregate.
+     *
+     * @return array<int, \Tests\Fixtures\Models\User>
+     */
+    private function users(): array
+    {
+        return User::query()->get()->sortBy('id')->values()->all();
     }
 
     /**

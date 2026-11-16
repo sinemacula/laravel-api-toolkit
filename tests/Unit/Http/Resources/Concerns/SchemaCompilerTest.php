@@ -6,15 +6,22 @@ namespace Tests\Unit\Http\Resources\Concerns;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Schema\Average;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledCountDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\Count;
+use SineMacula\ApiToolkit\Schema\Exists;
+use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\Max;
+use SineMacula\ApiToolkit\Schema\Min;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Schema\Sum;
 use Tests\Fixtures\Resources\UserResource;
 
 /**
@@ -401,7 +408,7 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileCreatesCompiledCountDefinitionsForCountMetrics(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            '__count__:posts' => [
+            '__aggregate__:posts' => [
                 'key'      => 'posts',
                 'metric'   => 'count',
                 'relation' => 'posts',
@@ -413,12 +420,12 @@ final class SchemaCompilerTest extends TestCase
 
         self::assertSame([], $schema->getFieldKeys());
 
-        $counts = $schema->getCountDefinitions();
+        $counts = $schema->getAggregateDefinitions();
         self::assertCount(1, $counts);
         self::assertArrayHasKey('posts', $counts);
 
         $count = $counts['posts'];
-        self::assertInstanceOf(CompiledCountDefinition::class, $count);
+        self::assertInstanceOf(CompiledAggregateDefinition::class, $count);
         self::assertSame('posts', $count->presentKey);
         self::assertSame('posts', $count->relation);
         self::assertTrue($count->isDefault);
@@ -475,7 +482,7 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
 
         self::assertSame([], $schema->getFieldKeys());
-        self::assertSame([], $schema->getCountDefinitions());
+        self::assertSame([], $schema->getAggregateDefinitions());
     }
 
     /**
@@ -521,7 +528,7 @@ final class SchemaCompilerTest extends TestCase
                 'resource'   => self::STUB_ORGANIZATION_RESOURCE,
                 'constraint' => $fieldConstraint,
             ],
-            '__count__:articles' => [
+            '__aggregate__:articles' => [
                 'key'        => 'articles',
                 'metric'     => 'count',
                 'relation'   => 'articles',
@@ -535,7 +542,7 @@ final class SchemaCompilerTest extends TestCase
         self::assertInstanceOf(CompiledFieldDefinition::class, $field);
         self::assertSame($fieldConstraint, $field->constraint);
 
-        $counts = $schema->getCountDefinitions();
+        $counts = $schema->getAggregateDefinitions();
         self::assertSame($countConstraint, $counts['articles']->constraint);
     }
 
@@ -607,7 +614,7 @@ final class SchemaCompilerTest extends TestCase
                 'resource'   => self::STUB_ORGANIZATION_RESOURCE,
                 'constraint' => fn ($query) => $query,
             ],
-            '__count__:articles' => [
+            '__aggregate__:articles' => [
                 'metric'     => 'count',
                 'relation'   => 'articles',
                 'constraint' => fn ($query) => $query,
@@ -627,9 +634,9 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileSucceedsForNullOrAbsentConstraints(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            'name'            => [],
-            'organization'    => ['constraint' => null],
-            '__count__:posts' => [
+            'name'                => [],
+            'organization'        => ['constraint' => null],
+            '__aggregate__:posts' => [
                 'metric'   => 'count',
                 'relation' => 'posts',
             ],
@@ -641,15 +648,15 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that a count with a __count__: prefix is normalized to the correct
-     * present key when no explicit key is provided.
+     * Test that a count with an __aggregate__: prefix is normalized to the
+     * correct present key when no explicit key is provided.
      *
      * @return void
      */
     public function testCompileHandlesCountWithPrefixedKey(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            '__count__:comments' => [
+            '__aggregate__:comments' => [
                 'metric'   => 'count',
                 'relation' => 'comments',
             ],
@@ -657,7 +664,7 @@ final class SchemaCompilerTest extends TestCase
 
         $schema = SchemaCompiler::compile($resourceClass);
 
-        $counts = $schema->getCountDefinitions();
+        $counts = $schema->getAggregateDefinitions();
         self::assertCount(1, $counts);
         self::assertArrayHasKey('comments', $counts);
         self::assertSame('comments', $counts['comments']->presentKey);
@@ -672,7 +679,7 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileProcessesFieldsDeclaredAfterCountEntries(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            '__count__:posts' => [
+            '__aggregate__:posts' => [
                 'metric'   => 'count',
                 'relation' => 'posts',
             ],
@@ -682,7 +689,7 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
 
         self::assertInstanceOf(CompiledFieldDefinition::class, $schema->getField('name'));
-        self::assertArrayHasKey('posts', $schema->getCountDefinitions());
+        self::assertArrayHasKey('posts', $schema->getAggregateDefinitions());
     }
 
     /**
@@ -694,7 +701,7 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileUsesExplicitCountKeyOverSchemaKey(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            '__count__:posts' => [
+            '__aggregate__:posts' => [
                 'key'      => 'published_posts',
                 'metric'   => 'count',
                 'relation' => 'posts',
@@ -702,7 +709,7 @@ final class SchemaCompilerTest extends TestCase
         ]);
 
         $schema = SchemaCompiler::compile($resourceClass);
-        $counts = $schema->getCountDefinitions();
+        $counts = $schema->getAggregateDefinitions();
 
         self::assertArrayHasKey('published_posts', $counts);
         self::assertSame('published_posts', $counts['published_posts']->presentKey);
@@ -720,7 +727,7 @@ final class SchemaCompilerTest extends TestCase
         $guard = fn ($resource, $request) => true;
 
         $resourceClass = $this->createStubResourceClass([
-            '__count__:comments' => [
+            '__aggregate__:comments' => [
                 'metric'   => 'count',
                 'relation' => 'comments',
                 'guards'   => [$guard],
@@ -728,7 +735,7 @@ final class SchemaCompilerTest extends TestCase
         ]);
 
         $schema = SchemaCompiler::compile($resourceClass);
-        $count  = $schema->getCountDefinitions()['comments'];
+        $count  = $schema->getAggregateDefinitions()['comments'];
 
         self::assertFalse($count->isDefault);
         self::assertSame([$guard], $count->guards);
@@ -745,7 +752,7 @@ final class SchemaCompilerTest extends TestCase
         $transformer = fn ($resource, $value) => $value + 1;
 
         $resourceClass = $this->createStubResourceClass([
-            '__count__:comments' => [
+            '__aggregate__:comments' => [
                 'metric'       => 'count',
                 'relation'     => 'comments',
                 'transformers' => [$transformer],
@@ -753,7 +760,7 @@ final class SchemaCompilerTest extends TestCase
         ]);
 
         $schema = SchemaCompiler::compile($resourceClass);
-        $count  = $schema->getCountDefinitions()['comments'];
+        $count  = $schema->getAggregateDefinitions()['comments'];
 
         self::assertSame([$transformer], $count->transformers);
     }
@@ -767,7 +774,7 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileCastsTruthyCountDefaultToBoolean(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            '__count__:likes' => [
+            '__aggregate__:likes' => [
                 'metric'   => 'count',
                 'relation' => 'likes',
                 'default'  => ['truthy'],
@@ -776,7 +783,7 @@ final class SchemaCompilerTest extends TestCase
 
         $schema = SchemaCompiler::compile($resourceClass);
 
-        self::assertTrue($schema->getCountDefinitions()['likes']->isDefault);
+        self::assertTrue($schema->getAggregateDefinitions()['likes']->isDefault);
     }
 
     /**
@@ -958,7 +965,7 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileCreatesCompiledAggregateDefinitionsForSumMetrics(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            '__sum__:posts_id' => [
+            '__aggregate__:posts_id' => [
                 'key'      => 'posts_id',
                 'metric'   => 'sum',
                 'relation' => 'posts',
@@ -970,18 +977,16 @@ final class SchemaCompilerTest extends TestCase
         $schema = SchemaCompiler::compile($resourceClass);
 
         self::assertSame([], $schema->getFieldKeys());
-        self::assertSame([], $schema->getCountDefinitions());
-
         $aggregates = $schema->getAggregateDefinitions();
         self::assertCount(1, $aggregates);
-        self::assertArrayHasKey('sum:posts_id', $aggregates);
+        self::assertArrayHasKey('posts_id', $aggregates);
 
-        $agg = $aggregates['sum:posts_id'];
+        $agg = $aggregates['posts_id'];
         self::assertInstanceOf(CompiledAggregateDefinition::class, $agg);
         self::assertSame('posts_id', $agg->presentKey);
         self::assertSame('posts', $agg->relation);
         self::assertSame('id', $agg->column);
-        self::assertSame('sum', $agg->metric);
+        self::assertSame(AggregateFunction::SUM, $agg->function);
         self::assertTrue($agg->isDefault);
     }
 
@@ -994,7 +999,7 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileCreatesCompiledAggregateDefinitionsForAvgMetrics(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            '__avg__:posts_id' => [
+            '__aggregate__:posts_id' => [
                 'key'      => 'posts_id',
                 'metric'   => 'avg',
                 'relation' => 'posts',
@@ -1008,9 +1013,9 @@ final class SchemaCompilerTest extends TestCase
         $aggregates = $schema->getAggregateDefinitions();
         self::assertCount(1, $aggregates);
 
-        $agg = $aggregates['avg:posts_id'];
+        $agg = $aggregates['posts_id'];
         self::assertInstanceOf(CompiledAggregateDefinition::class, $agg);
-        self::assertSame('avg', $agg->metric);
+        self::assertSame(AggregateFunction::AVG, $agg->function);
         self::assertFalse($agg->isDefault);
     }
 
@@ -1023,7 +1028,7 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileUsesExplicitAggregateKeyOverSchemaKey(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            '__sum__:posts_id' => [
+            '__aggregate__:posts_id' => [
                 'key'      => 'my_sum',
                 'metric'   => 'sum',
                 'relation' => 'posts',
@@ -1034,9 +1039,9 @@ final class SchemaCompilerTest extends TestCase
         $schema     = SchemaCompiler::compile($resourceClass);
         $aggregates = $schema->getAggregateDefinitions();
 
-        self::assertArrayHasKey('sum:my_sum', $aggregates);
-        self::assertSame('my_sum', $aggregates['sum:my_sum']->presentKey);
-        self::assertSame('posts', $aggregates['sum:my_sum']->relation);
+        self::assertArrayHasKey('my_sum', $aggregates);
+        self::assertSame('my_sum', $aggregates['my_sum']->presentKey);
+        self::assertSame('posts', $aggregates['my_sum']->relation);
     }
 
     /**
@@ -1050,7 +1055,7 @@ final class SchemaCompilerTest extends TestCase
         $guard = fn ($resource, $request) => true;
 
         $resourceClass = $this->createStubResourceClass([
-            '__sum__:posts_id' => [
+            '__aggregate__:posts_id' => [
                 'metric'   => 'sum',
                 'relation' => 'posts',
                 'column'   => 'id',
@@ -1059,7 +1064,7 @@ final class SchemaCompilerTest extends TestCase
         ]);
 
         $schema = SchemaCompiler::compile($resourceClass);
-        $agg    = $schema->getAggregateDefinitions()['sum:posts_id'];
+        $agg    = $schema->getAggregateDefinitions()['posts_id'];
 
         self::assertFalse($agg->isDefault);
         self::assertSame([$guard], $agg->guards);
@@ -1076,7 +1081,7 @@ final class SchemaCompilerTest extends TestCase
         $transformer = fn ($resource, $value) => $value * 2;
 
         $resourceClass = $this->createStubResourceClass([
-            '__sum__:posts_id' => [
+            '__aggregate__:posts_id' => [
                 'metric'       => 'sum',
                 'relation'     => 'posts',
                 'column'       => 'id',
@@ -1085,7 +1090,7 @@ final class SchemaCompilerTest extends TestCase
         ]);
 
         $schema = SchemaCompiler::compile($resourceClass);
-        $agg    = $schema->getAggregateDefinitions()['sum:posts_id'];
+        $agg    = $schema->getAggregateDefinitions()['posts_id'];
 
         self::assertSame([$transformer], $agg->transformers);
     }
@@ -1099,7 +1104,7 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileThrowsForNonClosureAggregateConstraint(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            '__sum__:posts_id' => [
+            '__aggregate__:posts_id' => [
                 'metric'     => 'sum',
                 'relation'   => 'posts',
                 'column'     => 'id',
@@ -1138,8 +1143,8 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileValidationContinuesPastValidConstraintsToFindInvalidOnes(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            'name'             => [],
-            '__sum__:posts_id' => [
+            'name'                   => [],
+            '__aggregate__:posts_id' => [
                 'metric'     => 'sum',
                 'relation'   => 'posts',
                 'column'     => 'id',
@@ -1187,7 +1192,7 @@ final class SchemaCompilerTest extends TestCase
     public function testCompileProcessesFieldsDeclaredAfterSumEntry(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            '__sum__:posts_id' => [
+            '__aggregate__:posts_id' => [
                 'metric'   => 'sum',
                 'relation' => 'posts',
                 'column'   => 'id',
@@ -1221,20 +1226,20 @@ final class SchemaCompilerTest extends TestCase
         $schema     = SchemaCompiler::compile($resourceClass);
         $aggregates = $schema->getAggregateDefinitions();
 
-        self::assertArrayHasKey('sum:my_sum_key', $aggregates, 'non-prefixed schema key must become the presentKey as-is');
-        self::assertSame('my_sum_key', $aggregates['sum:my_sum_key']->presentKey);
+        self::assertArrayHasKey('my_sum_key', $aggregates, 'non-prefixed schema key must become the presentKey as-is');
+        self::assertSame('my_sum_key', $aggregates['my_sum_key']->presentKey);
     }
 
     /**
-     * Test that the __avg__: prefix is stripped from the schema key when no
-     * explicit key override is provided.
+     * Test that the __aggregate__: prefix is stripped from an average's schema
+     * key when no explicit key override is provided.
      *
      * @return void
      */
     public function testCompileStripsAvgPrefixWhenNoExplicitKeyProvided(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            '__avg__:comments_id' => [
+            '__aggregate__:comments_id' => [
                 'metric'   => 'avg',
                 'relation' => 'comments',
                 'column'   => 'id',
@@ -1244,20 +1249,20 @@ final class SchemaCompilerTest extends TestCase
         $schema     = SchemaCompiler::compile($resourceClass);
         $aggregates = $schema->getAggregateDefinitions();
 
-        self::assertArrayHasKey('avg:comments_id', $aggregates, '__avg__: prefix must be stripped to derive the presentKey');
-        self::assertSame('comments_id', $aggregates['avg:comments_id']->presentKey);
+        self::assertArrayHasKey('comments_id', $aggregates, '__aggregate__: prefix must be stripped to derive the presentKey');
+        self::assertSame('comments_id', $aggregates['comments_id']->presentKey);
     }
 
     /**
-     * Test that the __sum__: prefix is stripped from the schema key when no
-     * explicit key override is provided.
+     * Test that the __aggregate__: prefix is stripped from a sum's schema key
+     * when no explicit key override is provided.
      *
      * @return void
      */
     public function testCompileStripsSumPrefixWhenNoExplicitKeyProvided(): void
     {
         $resourceClass = $this->createStubResourceClass([
-            '__sum__:comments_id' => [
+            '__aggregate__:comments_id' => [
                 'metric'   => 'sum',
                 'relation' => 'comments',
                 'column'   => 'id',
@@ -1267,8 +1272,8 @@ final class SchemaCompilerTest extends TestCase
         $schema     = SchemaCompiler::compile($resourceClass);
         $aggregates = $schema->getAggregateDefinitions();
 
-        self::assertArrayHasKey('sum:comments_id', $aggregates, '__sum__: prefix must be stripped to derive the presentKey');
-        self::assertSame('comments_id', $aggregates['sum:comments_id']->presentKey);
+        self::assertArrayHasKey('comments_id', $aggregates, '__aggregate__: prefix must be stripped to derive the presentKey');
+        self::assertSame('comments_id', $aggregates['comments_id']->presentKey);
     }
 
     /**
@@ -1282,7 +1287,7 @@ final class SchemaCompilerTest extends TestCase
         $constraint = fn ($query) => $query->where('active', true);
 
         $resourceClass = $this->createStubResourceClass([
-            '__sum__:posts_id' => [
+            '__aggregate__:posts_id' => [
                 'metric'     => 'sum',
                 'relation'   => 'posts',
                 'column'     => 'id',
@@ -1291,9 +1296,96 @@ final class SchemaCompilerTest extends TestCase
         ]);
 
         $schema = SchemaCompiler::compile($resourceClass);
-        $agg    = $schema->getAggregateDefinitions()['sum:posts_id'];
+        $agg    = $schema->getAggregateDefinitions()['posts_id'];
 
         self::assertSame($constraint, $agg->constraint);
+    }
+
+    /**
+     * Test that every aggregate helper compiles to one definition keyed by its
+     * present key, carrying its function, column and loaded attribute.
+     *
+     * @return void
+     */
+    public function testCompileKeysEveryAggregateFunctionByPresentKey(): void
+    {
+        $resourceClass = $this->createStubResourceClass(Field::set(
+            Count::of('posts'),
+            Exists::of('posts', 'has_posts'),
+            Sum::of('orders', 'total'),
+            Average::of('orders', 'total'),
+            Min::of('variants', 'price'),
+            Max::of('orderItems', 'created_at'),
+        ));
+
+        $aggregates = SchemaCompiler::compile($resourceClass)->getAggregateDefinitions();
+
+        $shape = array_map(
+            static fn (CompiledAggregateDefinition $definition): array => [$definition->function, $definition->relation, $definition->column, $definition->attribute()],
+            $aggregates,
+        );
+
+        self::assertSame([
+            'posts_count'                => [AggregateFunction::COUNT, 'posts', null, 'aggregate_posts_count'],
+            'has_posts'                  => [AggregateFunction::EXISTS, 'posts', null, 'aggregate_has_posts'],
+            'orders_sum_total'           => [AggregateFunction::SUM, 'orders', 'total', 'aggregate_orders_sum_total'],
+            'orders_avg_total'           => [AggregateFunction::AVG, 'orders', 'total', 'aggregate_orders_avg_total'],
+            'variants_min_price'         => [AggregateFunction::MIN, 'variants', 'price', 'aggregate_variants_min_price'],
+            'order_items_max_created_at' => [AggregateFunction::MAX, 'orderItems', 'created_at', 'aggregate_order_items_max_created_at'],
+        ], $shape);
+    }
+
+    /**
+     * Test that a raw definition with an unrecognised metric and no aggregate
+     * prefix compiles as a plain field.
+     *
+     * @return void
+     */
+    public function testCompileTreatsAnUnknownMetricOutsideTheAggregatePrefixAsAField(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'score' => ['metric' => 'median'],
+            'level' => ['metric' => 42],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+
+        self::assertSame(['score', 'level'], $schema->getFieldKeys());
+        self::assertSame([], $schema->getAggregateDefinitions());
+    }
+
+    /**
+     * Test that a count carries no column, a non-string column is dropped, and
+     * a missing relation falls back to the present key.
+     *
+     * @return void
+     */
+    public function testCompileCarriesOnlyAStringColumn(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'posts' => ['metric' => 'count'],
+            'stock' => ['metric' => 'max', 'relation' => 'variants', 'column' => 'stock'],
+        ]);
+
+        $aggregates = SchemaCompiler::compile($resourceClass)->getAggregateDefinitions();
+
+        self::assertNull($aggregates['posts']->column);
+        self::assertSame('posts', $aggregates['posts']->relation);
+        self::assertSame('stock', $aggregates['stock']->column);
+    }
+
+    /**
+     * Test that the present key resolves from an explicit key, then the
+     * prefixed schema key, then the bare schema key.
+     *
+     * @return void
+     */
+    public function testResolveAggregateKeyPrefersTheExplicitKey(): void
+    {
+        self::assertSame('revenue', SchemaCompiler::resolveAggregateKey('__aggregate__:orders_sum_total', ['key' => 'revenue']));
+        self::assertSame('orders_sum_total', SchemaCompiler::resolveAggregateKey('__aggregate__:orders_sum_total', ['key' => 7]));
+        self::assertSame('orders', SchemaCompiler::resolveAggregateKey('orders', []));
+        self::assertSame('x__aggregate__:orders', SchemaCompiler::resolveAggregateKey('x__aggregate__:orders', []));
     }
 
     /**

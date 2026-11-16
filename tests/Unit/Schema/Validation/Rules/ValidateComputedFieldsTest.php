@@ -44,7 +44,6 @@ final class ValidateComputedFieldsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateComputedFields;
@@ -75,7 +74,6 @@ final class ValidateComputedFieldsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateComputedFields;
@@ -106,7 +104,6 @@ final class ValidateComputedFieldsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateComputedFields;
@@ -131,7 +128,6 @@ final class ValidateComputedFieldsTest extends TestCase
             fields: [
                 'length' => $this->makeField('strlen'),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateComputedFields;
@@ -152,7 +148,6 @@ final class ValidateComputedFieldsTest extends TestCase
                 'clean' => $this->makeField(null),
                 'bad'   => $this->makeField('nonExistentMethod'),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateComputedFields;
@@ -174,7 +169,6 @@ final class ValidateComputedFieldsTest extends TestCase
                 'clean' => $this->makeField(static fn ($resource) => $resource->name),
                 'bad'   => $this->makeField('nonExistentMethod'),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateComputedFields;
@@ -196,7 +190,6 @@ final class ValidateComputedFieldsTest extends TestCase
                 'clean' => $this->makeField('schema'),
                 'bad'   => $this->makeField('nonExistentMethod'),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateComputedFields;
@@ -218,7 +211,6 @@ final class ValidateComputedFieldsTest extends TestCase
                 'first'  => $this->makeField('nonExistentMethod'),
                 'second' => $this->makeField('anotherMissingMethod'),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateComputedFields;
@@ -251,7 +243,6 @@ final class ValidateComputedFieldsTest extends TestCase
                     transformers: [],
                 ),
             ],
-            counts: [],
         );
 
         $rule   = new ValidateComputedFields;

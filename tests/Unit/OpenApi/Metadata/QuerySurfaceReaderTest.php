@@ -334,7 +334,7 @@ final class QuerySurfaceReaderTest extends TestCase
             filterCapability: Capability::EXACT,
         );
 
-        $schema = new CompiledSchema(['ghost' => null, 'name' => $field], [], [], ['name' => Capability::EXACT]); // @phpstan-ignore argument.type
+        $schema = new CompiledSchema(['ghost' => null, 'name' => $field], [], ['name' => Capability::EXACT]); // @phpstan-ignore argument.type
 
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
 

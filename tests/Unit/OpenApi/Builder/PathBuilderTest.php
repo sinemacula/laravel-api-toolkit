@@ -453,7 +453,7 @@ final class PathBuilderTest extends TestCase
         $this->registerSoftDeletingRoutes();
 
         self::assertSame(
-            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
+            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
             $this->referencedParameterNames($this->build()['/articles']['get']),
         );
     }
@@ -470,11 +470,11 @@ final class PathBuilderTest extends TestCase
         $paths = $this->build();
 
         self::assertSame(
-            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
             $this->referencedParameterNames($paths['/users']['get']),
         );
         self::assertSame(
-            ['Fields', 'Counts', 'Sums', 'Averages'],
+            ['Fields', 'Aggregates'],
             $this->referencedParameterNames($paths['/users/{user}']['get']),
         );
     }
@@ -489,7 +489,7 @@ final class PathBuilderTest extends TestCase
         $this->registerSoftDeletingRoutes();
 
         self::assertSame(
-            ['Fields', 'Counts', 'Sums', 'Averages', 'Trashed'],
+            ['Fields', 'Aggregates', 'Trashed'],
             $this->referencedParameterNames($this->build()['/articles/{article}']['get']),
         );
     }
@@ -504,7 +504,7 @@ final class PathBuilderTest extends TestCase
         $this->registerRestRoutes();
 
         $paths    = $this->build();
-        $expected = ['Fields', 'Counts', 'Sums', 'Averages'];
+        $expected = ['Fields', 'Aggregates'];
 
         self::assertSame($expected, $this->referencedParameterNames($paths['/users']['post']));
         self::assertSame($expected, $this->referencedParameterNames($paths['/users/{user}']['patch']));
@@ -959,7 +959,7 @@ final class PathBuilderTest extends TestCase
         $operation = $paths['/users']['post'];
 
         self::assertSame(['User'], $operation['tags']);
-        self::assertSame(['Fields', 'Counts', 'Sums', 'Averages'], $this->referencedParameterNames($operation));
+        self::assertSame(['Fields', 'Aggregates'], $this->referencedParameterNames($operation));
         self::assertIsArray($operation['responses']);
         self::assertSame([201, 403, 409, 422, 500], array_keys($operation['responses']));
         self::assertSame([
@@ -989,7 +989,7 @@ final class PathBuilderTest extends TestCase
         self::assertSame($paths['/members']['get'], $operation);
         self::assertSame(['User'], $operation['tags']);
         self::assertSame(
-            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
             $this->referencedParameterNames($operation),
         );
         self::assertSame(
@@ -1025,7 +1025,7 @@ final class PathBuilderTest extends TestCase
         self::assertIsArray($responses);
 
         self::assertSame(['User'], $operation['tags']);
-        self::assertSame(['Fields', 'Counts', 'Sums', 'Averages'], $this->referencedParameterNames($operation));
+        self::assertSame(['Fields', 'Aggregates'], $this->referencedParameterNames($operation));
         self::assertSame([200, 403, 404, 500], array_keys($responses));
         self::assertSame([
             'description' => 'The requested resource.',

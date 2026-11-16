@@ -36,7 +36,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField(filterable: 'name', sortable: 'name')],
-            counts: [],
         );
 
         self::assertSame([], $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
@@ -55,7 +54,6 @@ final class ValidateQueryableFieldsTest extends TestCase
 
         $schema = new CompiledSchema(
             fields: ['full_name' => $this->makeField(compute: 'getFullName')],
-            counts: [],
         );
 
         self::assertSame([], (new ValidateQueryableFields($introspector))->validate(UserResource::class, User::class, $schema));
@@ -70,7 +68,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['full_name' => $this->makeField(compute: 'getFullName', filterable: 'full_name')],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
@@ -93,7 +90,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['full_name' => $this->makeField(compute: 'getFullName', sortable: 'full_name')],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
@@ -114,7 +110,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['full_name' => $this->makeField(compute: 'getFullName', filterable: 'full_name', sortable: 'full_name')],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
@@ -139,7 +134,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['display_name' => $this->makeField(accessor: 'name', filterable: 'display_name')],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
@@ -160,7 +154,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['display_name' => $this->makeField(accessor: 'name', filterable: 'name')],
-            counts: [],
         );
 
         self::assertSame([], $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
@@ -175,7 +168,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['created_at' => $this->makeField(accessor: static fn ($resource) => $resource->created_at, sortable: 'created_at')],
-            counts: [],
         );
 
         self::assertSame([], $this->rule(['id', 'created_at'])->validate(UserResource::class, User::class, $schema));
@@ -190,7 +182,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['legacy_name' => $this->makeField(accessor: static fn ($resource) => $resource->name, sortable: 'legacy_name')],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
@@ -212,7 +203,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['nickname' => $this->makeField(filterable: 'nickname')],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
@@ -235,7 +225,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField(filterable: 'name', capability: null)],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
@@ -257,7 +246,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField(filterable: 'name', sortable: 'name', capability: null)],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
@@ -283,7 +271,6 @@ final class ValidateQueryableFieldsTest extends TestCase
                 'status' => $this->makeField(filterable: 'status', capability: Capability::EXACT),
                 'state'  => $this->makeField(filterable: 'status', capability: Capability::RANGE),
             ],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'status'])->validate(UserResource::class, User::class, $schema);
@@ -312,7 +299,6 @@ final class ValidateQueryableFieldsTest extends TestCase
                 'kind'       => $this->makeField(filterable: 'kind', capability: Capability::EXACT),
                 'sort'       => $this->makeField(filterable: 'kind', capability: Capability::ENUM),
             ],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'status', 'kind', 'created_at'])->validate(UserResource::class, User::class, $schema);
@@ -335,7 +321,6 @@ final class ValidateQueryableFieldsTest extends TestCase
                 'state'     => $this->makeField(filterable: 'status', capability: Capability::EXACT),
                 'condition' => $this->makeField(filterable: 'status', capability: Capability::RANGE),
             ],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'status'])->validate(UserResource::class, User::class, $schema);
@@ -356,7 +341,6 @@ final class ValidateQueryableFieldsTest extends TestCase
                 'name'  => $this->makeField(filterable: 'name', capability: null),
                 'label' => $this->makeField(filterable: 'name', capability: Capability::EXACT),
             ],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
@@ -378,7 +362,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField(filterable: 'name', sortable: 'nickname')],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);
@@ -402,7 +385,6 @@ final class ValidateQueryableFieldsTest extends TestCase
                 'status' => $this->makeField(filterable: 'status', capability: Capability::EXACT),
                 'state'  => $this->makeField(filterable: 'status', capability: Capability::EXACT),
             ],
-            counts: [],
         );
 
         self::assertSame([], $this->rule(['id', 'status'])->validate(UserResource::class, User::class, $schema));
@@ -419,7 +401,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['nickname' => $this->makeField(filterable: 'nickname')],
-            counts: [],
         );
 
         self::assertSame([], $this->rule([])->validate(UserResource::class, User::class, $schema));
@@ -434,7 +415,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['nickname' => $this->makeField(filterable: 'nickname')],
-            counts: [],
         );
 
         self::assertSame([], $this->rule(['id', 'name'])->validate(UserResource::class, null, $schema));
@@ -449,7 +429,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['nickname' => $this->makeField(filterable: 'nickname')],
-            counts: [],
         );
 
         self::assertSame([], $this->rule(['id', 'name'])->validate(UserResource::class, UserResource::class, $schema));
@@ -464,7 +443,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['full_name' => $this->makeField(compute: 'getFullName', filterable: 'full_name')],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, null, $schema);
@@ -490,7 +468,6 @@ final class ValidateQueryableFieldsTest extends TestCase
                 'full_name'  => $this->makeField(compute: 'getFullName', filterable: 'full_name'),
                 'initials'   => $this->makeField(compute: 'getInitials', sortable: 'initials'),
             ],
-            counts: [],
         );
 
         $errors = $this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema);

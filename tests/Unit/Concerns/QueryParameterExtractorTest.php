@@ -47,6 +47,21 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
+     * Test that extract lowercases and trims the trashed parameter, and blanks
+     * a value that is not a string.
+     *
+     * @return void
+     */
+    public function testExtractNormalisesTheTrashedParameter(): void
+    {
+        $padded = $this->extractor->extract(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['trashed' => ' WITH ']));
+        $listed = $this->extractor->extract(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['trashed' => ['with']]));
+
+        self::assertSame('with', $padded['trashed']);
+        self::assertSame('', $listed['trashed']);
+    }
+
+    /**
      * Test that extract returns an empty array when no parameters are supplied.
      *
      * @return void
@@ -137,157 +152,37 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that extract splits and trims a comma-separated counts string.
+     * Test that extract splits and trims a comma-separated aggregates string.
      *
      * @return void
      */
-    public function testExtractSplitsAndTrimsCountsString(): void
+    public function testExtractSplitsAndTrimsAggregatesString(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['counts' => ' posts , comments ']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['aggregates' => ' posts_count , orders_sum_total ']);
 
         $parameters = $this->extractor->extract($request);
 
-        self::assertSame(['posts', 'comments'], $parameters['counts']);
+        self::assertSame(['posts_count', 'orders_sum_total'], $parameters['aggregates']);
     }
 
     /**
-     * Test that extract parses a counts array per resource.
+     * Test that extract parses an aggregates array per resource, and reads none
+     * of the retired counts, sums and averages parameters.
      *
      * @return void
      */
-    public function testExtractParsesCountsArrayPerResource(): void
+    public function testExtractParsesAggregatesArrayPerResource(): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'counts' => ['user' => 'posts,comments'],
+            'aggregates' => ['user' => 'posts_count,orders_sum_total'],
+            'counts'     => ['user' => 'posts'],
+            'sums'       => ['user' => ['orders' => 'total']],
+            'averages'   => ['user' => ['orders' => 'total']],
         ]);
 
         $parameters = $this->extractor->extract($request);
 
-        self::assertSame(['user' => ['posts', 'comments']], $parameters['counts']);
-    }
-
-    /**
-     * Test that extract splits and trims sum aggregation field strings.
-     *
-     * @return void
-     */
-    public function testExtractSplitsAndTrimsSumAggregationFields(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => [
-                'account' => [
-                    'transaction' => ' amount , fee ',
-                ],
-            ],
-        ]);
-
-        $parameters = $this->extractor->extract($request);
-
-        self::assertSame(['account' => ['transaction' => ['amount', 'fee']]], $parameters['sums']);
-    }
-
-    /**
-     * Test that extract parses average aggregation fields.
-     *
-     * @return void
-     */
-    public function testExtractParsesAverageAggregationFields(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'averages' => [
-                'account' => [
-                    'transaction' => 'amount',
-                ],
-            ],
-        ]);
-
-        $parameters = $this->extractor->extract($request);
-
-        self::assertSame(['account' => ['transaction' => ['amount']]], $parameters['averages']);
-    }
-
-    /**
-     * Test that extract skips non-array aggregation relations and parses the
-     * rest.
-     *
-     * @return void
-     */
-    public function testExtractSkipsNonArrayAggregationRelations(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => [
-                'invalid' => 'not_an_array',
-                'account' => ['transaction' => 'amount'],
-            ],
-        ]);
-
-        $parameters = $this->extractor->extract($request);
-
-        self::assertSame(['account' => ['transaction' => ['amount']]], $parameters['sums']);
-    }
-
-    /**
-     * Test that extract preserves aggregation field values that are already
-     * arrays.
-     *
-     * @return void
-     */
-    public function testExtractPreservesArrayAggregationFields(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => [
-                'account' => [
-                    'transaction' => ['amount', 'fee'],
-                ],
-            ],
-        ]);
-
-        $parameters = $this->extractor->extract($request);
-
-        self::assertSame(['account' => ['transaction' => ['amount', 'fee']]], $parameters['sums']);
-    }
-
-    /**
-     * Test that extract wraps scalar non-string aggregation field values in an
-     * array.
-     *
-     * @return void
-     */
-    public function testExtractWrapsScalarAggregationFieldsInArray(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => [
-                'account' => [
-                    'transaction' => 42,
-                ],
-            ],
-        ]);
-
-        $parameters = $this->extractor->extract($request);
-
-        self::assertSame(['account' => ['transaction' => [42]]], $parameters['sums']);
-    }
-
-    /**
-     * Test that extract retains every aggregation resource.
-     *
-     * @return void
-     */
-    public function testExtractParsesEveryAggregationResource(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'sums' => [
-                'account' => ['transaction' => 'amount'],
-                'user'    => ['posts' => 'votes'],
-            ],
-        ]);
-
-        $parameters = $this->extractor->extract($request);
-
-        self::assertSame([
-            'account' => ['transaction' => ['amount']],
-            'user'    => ['posts' => ['votes']],
-        ], $parameters['sums']);
+        self::assertSame(['aggregates' => ['user' => ['posts_count', 'orders_sum_total']]], $parameters);
     }
 
     /**

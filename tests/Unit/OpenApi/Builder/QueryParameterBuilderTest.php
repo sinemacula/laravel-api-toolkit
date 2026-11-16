@@ -42,11 +42,11 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        foreach (['Fields', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Counts', 'Sums', 'Averages', 'Trashed'] as $name) {
+        foreach (['Fields', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Aggregates', 'Trashed'] as $name) {
             self::assertArrayHasKey($name, $parameters);
         }
 
-        self::assertCount(12, $parameters);
+        self::assertCount(10, $parameters);
     }
 
     /**
@@ -67,9 +67,7 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertSame('page', $parameters['Page']['name']);
         self::assertSame('cursor', $parameters['Cursor']['name']);
         self::assertSame('pagination', $parameters['Pagination']['name']);
-        self::assertSame('counts', $parameters['Counts']['name']);
-        self::assertSame('sums', $parameters['Sums']['name']);
-        self::assertSame('averages', $parameters['Averages']['name']);
+        self::assertSame('aggregates', $parameters['Aggregates']['name']);
         self::assertSame('trashed', $parameters['Trashed']['name']);
     }
 
@@ -279,7 +277,7 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        foreach (['Fields', 'Counts', 'Sums', 'Averages'] as $name) {
+        foreach (['Fields', 'Aggregates'] as $name) {
             self::assertSame('deepObject', $parameters[$name]['style'], $name);
             self::assertTrue($parameters[$name]['explode'], $name);
         }
@@ -300,12 +298,11 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertStringContainsString('search=John Smith', $parameters['Search']['description']);
         self::assertIsString($parameters['Order']['description']);
         self::assertStringContainsString('order=name,created_at:desc', $parameters['Order']['description']);
-        self::assertIsString($parameters['Counts']['description']);
-        self::assertStringContainsString('counts[users]=posts', $parameters['Counts']['description']);
-        self::assertIsString($parameters['Sums']['description']);
-        self::assertStringContainsString('sums[users][posts]=id', $parameters['Sums']['description']);
-        self::assertIsString($parameters['Averages']['description']);
-        self::assertStringContainsString('averages[users][posts]=id', $parameters['Averages']['description']);
+        self::assertSame(
+            'Relation aggregates: request the keys of the resource\'s aggregates object per resource type, e.g. aggregates[users]=posts_count. '
+            . 'Requesting any aggregate replaces the defaults of that type.',
+            $parameters['Aggregates']['description'],
+        );
         self::assertIsString($parameters['Filters']['description']);
         self::assertStringContainsString('filters={"status":{"$eq":"active"}}', $parameters['Filters']['description']);
         self::assertIsString($parameters['Trashed']['description']);
@@ -374,7 +371,8 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that relation-aggregate parameters describe nested object maps.
+     * Test that the relation-aggregates parameter describes a map of key lists
+     * per resource type.
      *
      * @return void
      */
@@ -384,15 +382,7 @@ final class QueryParameterBuilderTest extends TestCase
 
         self::assertSame(
             ['type' => 'object', 'additionalProperties' => ['type' => 'string']],
-            $parameters['Counts']['schema'],
-        );
-        self::assertSame(
-            ['type' => 'object', 'additionalProperties' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']]],
-            $parameters['Sums']['schema'],
-        );
-        self::assertSame(
-            ['type' => 'object', 'additionalProperties' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']]],
-            $parameters['Averages']['schema'],
+            $parameters['Aggregates']['schema'],
         );
     }
 
@@ -434,7 +424,7 @@ final class QueryParameterBuilderTest extends TestCase
     public function testIndexAcceptsTheWholeGrammar(): void
     {
         self::assertSame(
-            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
+            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
             $this->referencedNames('index', Article::class),
         );
     }
@@ -447,7 +437,7 @@ final class QueryParameterBuilderTest extends TestCase
     public function testShowAcceptsShapingAndVisibilityOnly(): void
     {
         self::assertSame(
-            ['Fields', 'Counts', 'Sums', 'Averages', 'Trashed'],
+            ['Fields', 'Aggregates', 'Trashed'],
             $this->referencedNames('show', Article::class),
         );
     }
@@ -460,12 +450,12 @@ final class QueryParameterBuilderTest extends TestCase
     public function testReadsOfAModelThatDoesNotSoftDeleteOmitVisibility(): void
     {
         self::assertSame(
-            ['Fields', 'Counts', 'Sums', 'Averages', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
             $this->referencedNames('index', User::class),
         );
 
         self::assertSame(
-            ['Fields', 'Counts', 'Sums', 'Averages'],
+            ['Fields', 'Aggregates'],
             $this->referencedNames('show', User::class),
         );
     }
@@ -488,8 +478,8 @@ final class QueryParameterBuilderTest extends TestCase
      */
     public function testWritesOfASoftDeletingModelStillAcceptShapingOnly(): void
     {
-        self::assertSame(['Fields', 'Counts', 'Sums', 'Averages'], $this->referencedNames('store', Article::class));
-        self::assertSame(['Fields', 'Counts', 'Sums', 'Averages'], $this->referencedNames('update', Article::class));
+        self::assertSame(['Fields', 'Aggregates'], $this->referencedNames('store', Article::class));
+        self::assertSame(['Fields', 'Aggregates'], $this->referencedNames('update', Article::class));
     }
 
     /**
@@ -499,7 +489,7 @@ final class QueryParameterBuilderTest extends TestCase
      */
     public function testWriteActionsAcceptShapingOnly(): void
     {
-        $expected = ['Fields', 'Counts', 'Sums', 'Averages'];
+        $expected = ['Fields', 'Aggregates'];
 
         self::assertSame($expected, $this->referencedNames('store'));
         self::assertSame($expected, $this->referencedNames('update'));

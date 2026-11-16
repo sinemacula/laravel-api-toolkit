@@ -277,9 +277,7 @@ final class QueryCostRejectionTest extends TestCase
     public function testAggregatesBeyondTheCapIssueNoSql(): void
     {
         $response = $this->recordQueries('/users?' . http_build_query([
-            'counts'   => [FilterableUserResource::RESOURCE_TYPE => 'posts,organization,profile'],
-            'sums'     => [FilterableUserResource::RESOURCE_TYPE => ['posts' => 'id,created_at']],
-            'averages' => [FilterableUserResource::RESOURCE_TYPE => ['posts' => 'id']],
+            'aggregates' => [FilterableUserResource::RESOURCE_TYPE => 'posts_count,organization_count,profile_count,posts_sum_id,posts_max_created_at,posts_avg_id'],
         ]));
 
         $this->assertRejectionEnvelope($response, 'aggregates', '', 'max_aggregates', 5, 6);
@@ -295,14 +293,14 @@ final class QueryCostRejectionTest extends TestCase
         $expected = $this->seedAuthorWithPosts();
 
         $response = $this->recordQueries('/aggregate-users?' . http_build_query([
-            'fields'   => [UserResource::RESOURCE_TYPE => 'name,averages'],
-            'filters'  => json_encode(['name' => 'Carol']),
-            'averages' => [UserResource::RESOURCE_TYPE => ['posts' => 'id']],
+            'fields'     => [UserResource::RESOURCE_TYPE => 'name,aggregates'],
+            'filters'    => json_encode(['name' => 'Carol']),
+            'aggregates' => [UserResource::RESOURCE_TYPE => 'posts_avg_id'],
         ]));
 
         $response->assertOk();
         $response->assertJsonCount(1, 'data');
-        $response->assertJsonPath('data.0.averages.posts_id', $expected);
+        $response->assertJsonPath('data.0.aggregates.posts_avg_id', $expected);
 
         self::assertCount(1, $this->aggregateStatements());
     }
@@ -317,11 +315,9 @@ final class QueryCostRejectionTest extends TestCase
         $this->seedAuthorWithPosts();
 
         $response = $this->recordQueries('/aggregate-users?' . http_build_query([
-            'fields'   => [UserResource::RESOURCE_TYPE => 'name,averages'],
-            'filters'  => json_encode(['name' => 'Carol']),
-            'counts'   => [FilterableUserResource::RESOURCE_TYPE => 'posts,organization,profile'],
-            'sums'     => [FilterableUserResource::RESOURCE_TYPE => ['posts' => 'id,created_at']],
-            'averages' => [FilterableUserResource::RESOURCE_TYPE => ['posts' => 'id']],
+            'fields'     => [UserResource::RESOURCE_TYPE => 'name'],
+            'filters'    => json_encode(['name' => 'Carol']),
+            'aggregates' => [FilterableUserResource::RESOURCE_TYPE => 'posts_count,organization_count,profile_count,posts_sum_id,posts_max_created_at,posts_avg_id'],
         ]));
 
         $response->assertOk();
@@ -376,7 +372,7 @@ final class QueryCostRejectionTest extends TestCase
 
             $sql = $query['query'] ?? null;
 
-            if (!is_string($sql) || !str_contains($sql, 'posts_id_avg_id')) {
+            if (!is_string($sql) || !str_contains($sql, 'aggregate_posts_avg_id')) {
                 continue;
             }
 

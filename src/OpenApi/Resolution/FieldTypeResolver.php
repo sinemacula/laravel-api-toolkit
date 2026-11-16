@@ -5,9 +5,12 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 
@@ -61,6 +64,52 @@ final readonly class FieldTypeResolver
         }
 
         return $this->inferScalar($fieldKey, $modelClass);
+    }
+
+    /**
+     * Resolve one relation aggregate's emitted schema from its function.
+     *
+     * A minimum or maximum takes the related column's type, and is null over
+     * zero related rows.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $definition
+     * @param  class-string  $modelClass
+     * @return array<string, mixed>
+     */
+    public function resolveAggregate(CompiledAggregateDefinition $definition, string $modelClass): array
+    {
+        return match ($definition->function) {
+            AggregateFunction::COUNT                       => ['type' => 'integer', 'minimum' => 0],
+            AggregateFunction::EXISTS                      => ['type' => 'boolean'],
+            AggregateFunction::SUM, AggregateFunction::AVG => ['type' => ['number', 'null']],
+            AggregateFunction::MIN, AggregateFunction::MAX => $this->resolveExtreme($definition, $modelClass)->toArray(),
+        };
+    }
+
+    /**
+     * Resolve a minimum or maximum from the related column, as nullable.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $definition
+     * @param  class-string  $modelClass
+     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
+     */
+    private function resolveExtreme(CompiledAggregateDefinition $definition, string $modelClass): OpenApiFieldSchema
+    {
+        $relation = is_subclass_of($modelClass, Model::class)
+            ? $this->introspector->resolveRelation($definition->relation, new $modelClass)
+            : null;
+
+        if ($relation === null || $relation instanceof MorphTo || $definition->column === null) {
+            return OpenApiFieldSchema::undocumented();
+        }
+
+        $schema = $this->inferScalar($definition->column, $relation->getRelated()::class);
+
+        return match (true) {
+            $schema->undocumented => $schema,
+            $schema->ref !== null => OpenApiFieldSchema::reference($schema->ref, true),
+            default               => new OpenApiFieldSchema(type: $schema->type, format: $schema->format, nullable: true),
+        };
     }
 
     /**

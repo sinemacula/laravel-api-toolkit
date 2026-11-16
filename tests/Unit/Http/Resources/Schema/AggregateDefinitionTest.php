@@ -6,11 +6,15 @@ namespace Tests\Unit\Http\Resources\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
 use SineMacula\ApiToolkit\Schema\AggregateDefinition;
+use SineMacula\ApiToolkit\Schema\Count;
+use SineMacula\ApiToolkit\Schema\Exists;
+use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Sum;
 
 /**
- * Tests for the AggregateDefinition abstract class, through Sum.
+ * Tests for the AggregateDefinition abstract class, through its subclasses.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -29,7 +33,7 @@ final class AggregateDefinitionTest extends TestCase
     {
         $sum   = Sum::of('posts', 'id');
         $array = $sum->toArray();
-        $key   = '__sum__:posts_id';
+        $key   = '__aggregate__:posts_sum_id';
 
         self::assertArrayHasKey($key, $array);
         self::assertSame('posts', $array[$key]['relation']);
@@ -46,8 +50,8 @@ final class AggregateDefinitionTest extends TestCase
         $sum   = Sum::of('posts', 'id', 'my_alias');
         $array = $sum->toArray();
 
-        self::assertArrayHasKey('__sum__:my_alias', $array);
-        self::assertSame('my_alias', $array['__sum__:my_alias']['key']);
+        self::assertArrayHasKey('__aggregate__:my_alias', $array);
+        self::assertSame('my_alias', $array['__aggregate__:my_alias']['key']);
     }
 
     /**
@@ -65,8 +69,8 @@ final class AggregateDefinitionTest extends TestCase
 
         $array = $sum->toArray();
 
-        self::assertArrayHasKey('__sum__:total_sum', $array);
-        self::assertSame('total_sum', $array['__sum__:total_sum']['key']);
+        self::assertArrayHasKey('__aggregate__:total_sum', $array);
+        self::assertSame('total_sum', $array['__aggregate__:total_sum']['key']);
     }
 
     /**
@@ -85,7 +89,7 @@ final class AggregateDefinitionTest extends TestCase
 
         $array = $sum->toArray();
 
-        self::assertSame($constraint, $array['__sum__:posts_id']['constraint']);
+        self::assertSame($constraint, $array['__aggregate__:posts_sum_id']['constraint']);
     }
 
     /**
@@ -103,22 +107,48 @@ final class AggregateDefinitionTest extends TestCase
 
         $array = $sum->toArray();
 
-        self::assertTrue($array['__sum__:posts_id']['default']);
+        self::assertTrue($array['__aggregate__:posts_sum_id']['default']);
     }
 
     /**
-     * Test that toArray uses relation_column as the present key when no alias
-     * is set.
+     * Test that toArray uses Laravel's default aggregate key as the present key
+     * when no alias is set.
      *
      * @return void
      */
-    public function testToArrayUsesRelationColumnAsPresentKeyWhenNoAlias(): void
+    public function testToArrayUsesTheDefaultKeyAsPresentKeyWhenNoAlias(): void
     {
         $sum   = Sum::of('posts', 'id');
         $array = $sum->toArray();
-        $key   = '__sum__:posts_id';
+        $key   = '__aggregate__:posts_sum_id';
 
-        self::assertSame('posts_id', $array[$key]['key']);
+        self::assertSame('posts_sum_id', $array[$key]['key']);
+    }
+
+    /**
+     * Test that a count and an existence check sharing one key collide in one
+     * schema, whatever their functions.
+     *
+     * @return void
+     */
+    public function testAggregatesSharingAKeyCollideAcrossFunctions(): void
+    {
+        $this->expectException(DuplicateSchemaKeyException::class);
+        $this->expectExceptionMessage('Duplicate schema key "__aggregate__:x" detected in Field::set()');
+
+        Field::set(Count::of('posts', 'x'), Exists::of('posts', 'x'));
+    }
+
+    /**
+     * Test that a count emits no column key.
+     *
+     * @return void
+     */
+    public function testCountEmitsNoColumn(): void
+    {
+        $array = Count::of('posts')->toArray();
+
+        self::assertSame(['key', 'metric', 'relation'], array_keys($array['__aggregate__:posts_count']));
     }
 
     /**
@@ -131,7 +161,7 @@ final class AggregateDefinitionTest extends TestCase
         $sum   = Sum::of('posts', 'id');
         $array = $sum->toArray();
 
-        self::assertSame('sum', $array['__sum__:posts_id']['metric']);
+        self::assertSame('sum', $array['__aggregate__:posts_sum_id']['metric']);
     }
 
     /**
@@ -143,7 +173,7 @@ final class AggregateDefinitionTest extends TestCase
     {
         $sum   = Sum::of('posts', 'id');
         $array = $sum->toArray();
-        $data  = $array['__sum__:posts_id'];
+        $data  = $array['__aggregate__:posts_sum_id'];
 
         self::assertArrayNotHasKey('constraint', $data);
         self::assertArrayNotHasKey('default', $data);
@@ -171,7 +201,7 @@ final class AggregateDefinitionTest extends TestCase
             ->extras('posts.comments');
 
         $array = $sum->toArray();
-        $data  = $array['__sum__:alias_sum'];
+        $data  = $array['__aggregate__:alias_sum'];
 
         self::assertSame('alias_sum', $data['key']);
         self::assertSame('sum', $data['metric']);
@@ -210,6 +240,6 @@ final class AggregateDefinitionTest extends TestCase
 
         $array = $sum->toArray();
 
-        self::assertArrayHasKey('openapi', $array['__sum__:posts_id']);
+        self::assertArrayHasKey('openapi', $array['__aggregate__:posts_sum_id']);
     }
 }

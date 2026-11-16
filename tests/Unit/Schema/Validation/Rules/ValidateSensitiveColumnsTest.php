@@ -6,8 +6,11 @@ namespace Tests\Unit\Schema\Validation\Rules;
 
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\Sum;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSensitiveColumns;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -35,7 +38,6 @@ final class ValidateSensitiveColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['name' => $this->makeField(filterable: 'name', sortable: 'name')],
-            counts: [],
         );
 
         self::assertSame([], (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema));
@@ -50,7 +52,6 @@ final class ValidateSensitiveColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['password' => $this->makeField()],
-            counts: [],
         );
 
         self::assertSame([], (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema));
@@ -65,7 +66,6 @@ final class ValidateSensitiveColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['password' => $this->makeField(filterable: 'password')],
-            counts: [],
         );
 
         $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
@@ -84,7 +84,6 @@ final class ValidateSensitiveColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['verified' => $this->makeField(sortable: 'email_verified_at')],
-            counts: [],
         );
 
         $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
@@ -105,7 +104,6 @@ final class ValidateSensitiveColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['password' => $this->makeField(filterable: 'password', sortable: 'password')],
-            counts: [],
         );
 
         $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
@@ -127,7 +125,6 @@ final class ValidateSensitiveColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['password' => $this->makeField(searchable: 'password')],
-            counts: [],
         );
 
         $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
@@ -153,7 +150,6 @@ final class ValidateSensitiveColumnsTest extends TestCase
                 'password' => $this->makeField(filterable: 'password'),
                 'token'    => $this->makeField(sortable: 'token'),
             ],
-            counts: [],
         );
 
         $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
@@ -161,6 +157,55 @@ final class ValidateSensitiveColumnsTest extends TestCase
         self::assertCount(2, $errors);
         self::assertSame('password', $errors[0]->fieldKey);
         self::assertSame('token', $errors[1]->fieldKey);
+    }
+
+    /**
+     * Test that an aggregate over a sensitive column is reported under its key,
+     * alongside the field defects, while a columnless or ordinary one passes.
+     *
+     * @return void
+     */
+    public function testReportsAnAggregateOverASensitiveColumn(): void
+    {
+        $schema = new CompiledSchema(
+            fields: ['password' => $this->makeField(filterable: 'password')],
+            aggregates: [
+                'users_sum_token' => $this->makeAggregate(AggregateFunction::SUM, 'token'),
+                'users_count'     => $this->makeAggregate(AggregateFunction::COUNT, null),
+                'users_max_name'  => $this->makeAggregate(AggregateFunction::MAX, 'name'),
+            ],
+        );
+
+        $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
+
+        self::assertCount(2, $errors);
+        self::assertSame('password', $errors[0]->fieldKey);
+        self::assertSame(self::PASSWORD_FILTERABLE_DEFECT, $errors[0]->defect);
+        self::assertSame(UserResource::class, $errors[1]->resourceClass);
+        self::assertSame('users_sum_token', $errors[1]->fieldKey);
+        self::assertSame('Aggregate is declared over "token", which is configured as a sensitive column and may never be aggregated', $errors[1]->defect);
+    }
+
+    /**
+     * Test that the aggregate check honours the configured list.
+     *
+     * @return void
+     */
+    public function testTheAggregateCheckHonoursTheConfiguredList(): void
+    {
+        Config::set('api-toolkit.resources.sensitive_columns', ['salary']);
+
+        $defaults = Sum::of('users', 'token')->toArray();
+
+        $schema = new CompiledSchema([], [
+            'users_sum_token'  => $this->makeAggregate(AggregateFunction::SUM, 'token'),
+            'users_sum_salary' => $this->makeAggregate(AggregateFunction::SUM, 'salary'),
+        ]);
+
+        $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
+
+        self::assertArrayHasKey('__aggregate__:users_sum_token', $defaults);
+        self::assertSame(['users_sum_salary'], array_column($errors, 'fieldKey'));
     }
 
     /**
@@ -172,7 +217,6 @@ final class ValidateSensitiveColumnsTest extends TestCase
     {
         $schema = new CompiledSchema(
             fields: ['password_set_at' => $this->makeField(filterable: 'password_set_at')],
-            counts: [],
         );
 
         self::assertSame([], (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema));
@@ -192,7 +236,6 @@ final class ValidateSensitiveColumnsTest extends TestCase
                 'password'   => $this->makeField(filterable: 'password'),
                 'api_secret' => $this->makeField(filterable: 'api_secret'),
             ],
-            counts: [],
         );
 
         $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
@@ -215,7 +258,6 @@ final class ValidateSensitiveColumnsTest extends TestCase
                 'code'     => $this->makeField(filterable: '42'),
                 'password' => $this->makeField(filterable: 'password'),
             ],
-            counts: [],
         );
 
         $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
@@ -235,7 +277,6 @@ final class ValidateSensitiveColumnsTest extends TestCase
 
         $schema = new CompiledSchema(
             fields: ['token' => $this->makeField(filterable: 'token')],
-            counts: [],
         );
 
         $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
@@ -258,7 +299,6 @@ final class ValidateSensitiveColumnsTest extends TestCase
 
         $schema = new CompiledSchema(
             fields: ['password' => $this->makeField(filterable: 'password')],
-            counts: [],
         );
 
         $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
@@ -301,6 +341,26 @@ final class ValidateSensitiveColumnsTest extends TestCase
             filterable: $filterable,
             sortable: $sortable,
             searchable: $searchable,
+        );
+    }
+
+    /**
+     * Build a compiled aggregate over the users relation.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\AggregateFunction  $function
+     * @param  string|null  $column
+     * @return \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition
+     */
+    private function makeAggregate(AggregateFunction $function, ?string $column): CompiledAggregateDefinition
+    {
+        return new CompiledAggregateDefinition(
+            presentKey: $function->defaultKey('users', $column),
+            relation: 'users',
+            function: $function,
+            column: $column,
+            constraint: null,
+            isDefault: false,
+            guards: [],
         );
     }
 }

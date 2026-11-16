@@ -57,41 +57,15 @@ class ApiQueryParser
     }
 
     /**
-     * Returns a list of relation counts set with the URL modifiers.
-     * - e.g. ?counts['user']=memberships.
+     * Returns a list of relation aggregate keys set with the URL modifiers.
+     * - e.g. ?aggregates['user']=posts_count,orders_sum_total.
      *
      * @param  string|null  $resource
      * @return array<int, string>|null
      */
-    public function getCounts(?string $resource = null): ?array
+    public function getAggregates(?string $resource = null): ?array
     {
-        return $this->trimStringList($this->getParameters('counts', $resource));
-    }
-
-    /**
-     * Returns a list of relation sums set with the URL modifiers.
-     * - e.g. ?sums['account'][transaction]=amount.
-     *
-     * @param  string|null  $resource
-     * @return array<string, mixed>|null
-     */
-    public function getSums(?string $resource = null): ?array
-    {
-        /** @var array<string, mixed>|null */
-        return $this->getParameters('sums', $resource);
-    }
-
-    /**
-     * Returns a list of relation averages set with the URL modifiers.
-     * - e.g. ?averages['account'][transaction]=amount.
-     *
-     * @param  string|null  $resource
-     * @return array<string, mixed>|null
-     */
-    public function getAverages(?string $resource = null): ?array
-    {
-        /** @var array<string, mixed>|null */
-        return $this->getParameters('averages', $resource);
+        return $this->trimStringList($this->getParameters('aggregates', $resource));
     }
 
     /**
