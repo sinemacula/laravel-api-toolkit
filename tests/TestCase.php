@@ -290,6 +290,7 @@ abstract class TestCase extends OrchestraTestCase
     #[\Override]
     protected function defineDatabaseMigrations(): void
     {
+        $this->dropForeignKeyTables();
         $this->createUsersTable();
         $this->createOrganizationsTable();
         $this->createPostsTable();
@@ -303,6 +304,13 @@ abstract class TestCase extends OrchestraTestCase
         $this->createCommentsTable();
         $this->createDevicesTable();
         $this->createImportRowsTable();
+        $this->createNotesTable();
+        $this->createLabelablesTable();
+        $this->createTypedWidgetsTable();
+        $this->createEventsTable();
+        $this->createReleasesTable();
+        $this->createProjectsTable();
+        $this->createProjectTagTable();
         $this->createSearchIndexes();
     }
 
@@ -365,9 +373,10 @@ abstract class TestCase extends OrchestraTestCase
                 'charset'  => 'utf8',
             ],
             default => [
-                'driver'   => 'sqlite',
-                'database' => ':memory:',
-                'prefix'   => '',
+                'driver'                  => 'sqlite',
+                'database'                => ':memory:',
+                'prefix'                  => '',
+                'foreign_key_constraints' => true,
             ],
         };
     }
@@ -476,6 +485,7 @@ abstract class TestCase extends OrchestraTestCase
         Schema::create('post_tag', function (Blueprint $table): void {
             $table->unsignedBigInteger('post_id');
             $table->unsignedBigInteger('tag_id');
+            $table->string('role')->nullable();
             $table->primary(['post_id', 'tag_id']);
         });
     }
@@ -607,6 +617,163 @@ abstract class TestCase extends OrchestraTestCase
             $table->string('reference');
             $table->string('payload');
         });
+    }
+
+    /**
+     * Create the notes table, attached to any model and tagged through
+     * labelables.
+     *
+     * @return void
+     */
+    private function createNotesTable(): void
+    {
+        Schema::dropIfExists('notes');
+        Schema::create('notes', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('owner_id')->nullable();
+            $table->nullableMorphs('noteable');
+            $table->unsignedBigInteger('primary_contact_id')->nullable();
+            $table->string('title')->nullable();
+            $table->string('slug')->nullable();
+            $table->string('kind')->nullable();
+            $table->integer('priority')->nullable();
+            $table->boolean('pinned')->nullable();
+            $table->string('status')->nullable();
+            $table->text('meta')->nullable();
+            $table->json('options')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Create the labelables pivot table, tagging any model.
+     *
+     * @return void
+     */
+    private function createLabelablesTable(): void
+    {
+        Schema::dropIfExists('labelables');
+        Schema::create('labelables', function (Blueprint $table): void {
+            $table->unsignedBigInteger('tag_id');
+            $table->morphs('labelable');
+        });
+    }
+
+    /**
+     * Create the typed widgets table, holding one column per common column type
+     * and cast, each with a nullable twin.
+     *
+     * @return void
+     */
+    private function createTypedWidgetsTable(): void
+    {
+        Schema::dropIfExists('typed_widgets');
+        Schema::create('typed_widgets', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('user_id')->nullable();
+
+            foreach (['' => false, 'nullable_' => true] as $prefix => $nullable) {
+                $columns = [
+                    $table->decimal($prefix . 'price', 10, 2),
+                    $table->decimal($prefix . 'weight', 10, 2),
+                    $table->date($prefix . 'released_on'),
+                    $table->dateTime($prefix . 'seen_at'),
+                    $table->time($prefix . 'opens_at'),
+                    $table->boolean($prefix . 'active'),
+                    $table->boolean($prefix . 'flagged'),
+                    $table->json($prefix . 'settings'),
+                    $table->json($prefix . 'aliases'),
+                    $table->json($prefix . 'metadata'),
+                    $table->uuid($prefix . 'reference'),
+                    $table->string($prefix . 'status'),
+                ];
+
+                foreach ($columns as $column) {
+                    $column->nullable($nullable);
+                }
+            }
+
+            $table->timestamps();
+
+            $table->index('user_id');
+        });
+    }
+
+    /**
+     * Create the events table, keyed in time by a NOT NULL microsecond
+     * timestamp.
+     *
+     * @return void
+     */
+    private function createEventsTable(): void
+    {
+        Schema::dropIfExists('events');
+        Schema::create('events', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->timestamp('occurred_at', 6);
+
+            $table->index('occurred_at');
+        });
+    }
+
+    /**
+     * Create the releases table, holding a NOT NULL indexed pure enum platform.
+     *
+     * @return void
+     */
+    private function createReleasesTable(): void
+    {
+        Schema::dropIfExists('releases');
+        Schema::create('releases', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('platform');
+            $table->timestamps();
+
+            $table->index('platform');
+        });
+    }
+
+    /**
+     * Create the projects table, whose owner is a foreign key to users.
+     *
+     * @return void
+     */
+    private function createProjectsTable(): void
+    {
+        Schema::create('projects', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('user_id')->constrained();
+            $table->string('name');
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Create the project_tag pivot table, both of whose keys are foreign keys.
+     *
+     * @return void
+     */
+    private function createProjectTagTable(): void
+    {
+        Schema::create('project_tag', function (Blueprint $table): void {
+            $table->foreignId('project_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('tag_id')->constrained();
+            $table->primary(['project_id', 'tag_id']);
+        });
+    }
+
+    /**
+     * Drop the foreign-key constrained tables, children first, so the tables
+     * they reference can be rebuilt.
+     *
+     * @return void
+     */
+    private function dropForeignKeyTables(): void
+    {
+        Schema::dropIfExists('project_tag');
+        Schema::dropIfExists('projects');
     }
 
     /**
