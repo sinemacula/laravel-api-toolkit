@@ -39,7 +39,6 @@
         "friendsofphp/php-cs-fixer": "^3.95.19",
         "infection/infection": "^0.33.2",
         "laravel/octane": "^2.0",
-        "league/csv": "^9.27",
         "mockery/mockery": "^1.6",
         "opis/json-schema": "^2.4",
         "orchestra/testbench": "^11.0",
@@ -52,7 +51,7 @@
         "phpstan/phpstan-strict-rules": "^2.0",
         "phpunit/phpunit": "^12.5",
         "sinemacula/coding-standards-laravel": "^1.7.1",
-        "sinemacula/laravel-resource-exporter": "^3.0",
+        "sinemacula/laravel-resource-exporter": "^3.1.2",
         "slevomat/coding-standard": "^8.28",
         "squizlabs/php_codesniffer": "^3.13.6 || ^4.0.2"
     },
