@@ -71,6 +71,7 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver  $requestBody
      * @param  \SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver  $security
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder  $queryParameters
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder  $pathParameters
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver  $middleware
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver  $throws
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder  $successResponse
@@ -103,6 +104,9 @@ final readonly class PathBuilder
 
         /** The builder naming the query parameters each action accepts. */
         private QueryParameterBuilder $queryParameters,
+
+        /** The builder typing each path parameter from its route. */
+        private PathParameterBuilder $pathParameters,
 
         /** The resolver reading a route's auth, authorization, and limits. */
         private RouteMiddlewareResolver $middleware,
@@ -299,7 +303,7 @@ final readonly class PathBuilder
     private function assembleOperation(string $tag, array $responses, Route $route, array $requestBody = [], array $queryParameters = []): array
     {
         $operation  = ['tags' => [$tag]];
-        $parameters = array_merge($this->pathParameters($route), $queryParameters);
+        $parameters = array_merge($this->pathParameters->build($route), $queryParameters);
 
         if ($parameters !== []) {
             $operation['parameters'] = $parameters;
@@ -471,28 +475,6 @@ final readonly class PathBuilder
         }
 
         return [...$response, 'content' => [self::MEDIA_TYPE => $media]];
-    }
-
-    /**
-     * Build the path parameter list from the route's parameter names.
-     *
-     * @param  \Illuminate\Routing\Route  $route
-     * @return array<int, array<string, mixed>>
-     */
-    private function pathParameters(Route $route): array
-    {
-        $parameters = [];
-
-        foreach ($route->parameterNames() as $name) {
-            $parameters[] = [
-                'name'     => $name,
-                'in'       => 'path',
-                'required' => true,
-                'schema'   => ['type' => 'string'],
-            ];
-        }
-
-        return $parameters;
     }
 
     /**
