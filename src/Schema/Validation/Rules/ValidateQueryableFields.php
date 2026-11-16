@@ -10,11 +10,14 @@ use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 
 /**
  * Validate that filterable and sortable declarations name a backing column.
  *
- * Column matching is exact, since quoted identifiers may be case-sensitive.
+ * Column matching is exact, since quoted identifiers may be case-sensitive. An
+ * empty listing proves nothing, so a declaration it would decide is reported as
+ * unverified.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -42,7 +45,7 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|\SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>
      */
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
@@ -54,17 +57,32 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
         }
 
         $model   = $this->resolveModel($modelClass);
-        $columns = $model === null ? [] : $this->introspector->getColumns($model);
+        $columns = $model === null ? null : $this->introspector->getColumns($model);
         $table   = $model?->getTable() ?? '';
         $errors  = [];
 
         foreach ($declared as $key => $field) {
 
-            foreach ($this->defects($field, $columns, $table) as $defect) {
+            [$defects, $unproven] = $this->defects($field, $columns, $table);
+
+            foreach ($defects as $defect) {
                 $errors[] = new SchemaValidationError(
                     resourceClass: $resourceClass,
                     fieldKey: $key,
                     defect: $defect,
+                );
+            }
+
+            if ($model === null) {
+                continue;
+            }
+
+            foreach ($unproven as $check) {
+                $errors[] = new UnverifiedDeclaration(
+                    resourceClass: $resourceClass,
+                    fieldKey: $key,
+                    check: $check,
+                    modelClass: $model::class,
                 );
             }
         }
@@ -165,16 +183,18 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
     }
 
     /**
-     * Return the defects a single field's declarations carry.
+     * Return the defects a field's declarations carry, then the claims an
+     * unread column listing leaves unproven.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
-     * @param  array<int, string>  $columns
+     * @param  array<int, string>|null  $columns
      * @param  string  $table
-     * @return array<int, string>
+     * @return array{array<int, string>, array<int, string>}
      */
-    private function defects(CompiledFieldDefinition $field, array $columns, string $table): array
+    private function defects(CompiledFieldDefinition $field, ?array $columns, string $table): array
     {
-        $defects = [];
+        $defects  = [];
+        $unproven = [];
 
         foreach ([self::FILTERABLE => $field->filterable, 'sortable' => $field->sortable] as $declaration => $column) {
 
@@ -182,16 +202,16 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
                 continue;
             }
 
-            $defect = $this->describeDefect($field, $declaration, $column, $columns, $table);
+            $defect = $this->describeDefect($field, $declaration, $column, $columns ?? [], $table);
 
-            if ($defect === null) {
-                continue;
+            if ($defect !== null) {
+                $defects[] = $defect;
+            } elseif ($columns === []) {
+                $unproven[] = sprintf('table "%s" carries the "%s" column the %s declaration names', $table, $column, $declaration);
             }
-
-            $defects[] = $defect;
         }
 
-        return $defects;
+        return [$defects, $unproven];
     }
 
     /**
