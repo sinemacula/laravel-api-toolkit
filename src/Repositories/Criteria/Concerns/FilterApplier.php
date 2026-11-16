@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use SineMacula\ApiToolkit\Contracts\ExpandsValueList;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
@@ -213,6 +214,8 @@ final class FilterApplier
 
             $this->applyCondition($query, $column, $token, $operand, $context);
 
+            $this->isolateCondition($query->getQuery(), $applied);
+
             $this->assertNarrowed($query, $applied, $context->at($token)->path());
         }
     }
@@ -322,9 +325,11 @@ final class FilterApplier
 
                 $child = $nested->at((string) $index);
 
-                if (!is_array($document) || $document === []) {
+                if ($document === []) {
                     throw Rejection::at($child->path(), 'filters.empty_document', ['position' => $child->path()]);
                 }
+
+                $document = $this->assertDocument($document, $child->path());
 
                 $group->where(function (Builder $query) use ($document, $child): void {
                     $this->applyDocument($query, $document, $child);
@@ -352,13 +357,13 @@ final class FilterApplier
         $method = $this->relationalMethodMap[$operator];
         $scope  = $context->at($operator);
 
-        foreach (is_string($value) ? [$value] : $this->assertDocument($value, $scope->path()) as $relation => $filters) {
+        foreach ($this->relationEntries($value, $scope->path()) as $relation => $filters) {
 
             $scope->admit((string) $relation);
 
             if (is_int($relation)) {
 
-                $relation = $this->assertRelationName($filters, $scope->path());
+                $relation = $this->assertRelationName($filters, $scope->at((string) $relation)->path());
 
                 $this->querySurface->guardRelation($relation, $query->getModel());
 
@@ -417,6 +422,32 @@ final class FilterApplier
     }
 
     /**
+     * Group the clauses a condition added when any of them is OR-joined.
+     *
+     * Keeps a handler's OR from disjoining the clauses beside it, such as the
+     * correlation predicate of a relation subquery.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  int  $applied
+     * @return void
+     */
+    private function isolateCondition(QueryBuilder $query, int $applied): void
+    {
+        $added = array_slice($query->wheres, $applied);
+
+        $disjoined = array_filter($added, static fn (array $where): bool => in_array($where['boolean'], ['or', 'or not'], true));
+
+        if ($disjoined === []) {
+            return;
+        }
+
+        $group         = $query->forNestedWhere();
+        $group->wheres = $added;
+
+        $query->wheres = [...array_slice($query->wheres, 0, $applied), ['type' => 'Nested', 'query' => $group, 'boolean' => 'and']];
+    }
+
+    /**
      * Assert that a document entry or condition added a clause to the query.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
@@ -464,6 +495,28 @@ final class FilterApplier
      */
     private function assertDocument(mixed $value, string $position): array
     {
+        if (is_array($value) && ($value === [] || !array_is_list($value))) {
+            return $value;
+        }
+
+        throw Rejection::at($position, 'filters.not_document', ['position' => $position]);
+    }
+
+    /**
+     * Return the entries of a relation existence filter, a bare name as one.
+     *
+     * @param  mixed  $value
+     * @param  string  $position
+     * @return array<array-key, mixed>
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function relationEntries(mixed $value, string $position): array
+    {
+        if (is_string($value)) {
+            return [$value];
+        }
+
         if (is_array($value)) {
             return $value;
         }

@@ -465,8 +465,9 @@ signature, `apply(Builder $query, string $column, mixed $value): void`. `registe
 if the token is already taken; `override()` replaces it unconditionally.
 
 An operator adds AND-joined predicates for one column; the applier owns the grouping, so an operator never chooses the
-connective. One that refuses its operand throws a `ValidationException`, and one that adds no clause is rejected with
-a 422. Operators are predicate-only: a scope removed inside one leaks to the outer query.
+connective, and clauses an operator joins with OR are grouped on their own. One that refuses its operand throws a
+`ValidationException`, and one that adds no clause is rejected with a 422. Operators are predicate-only: a scope
+removed inside one leaks to the outer query.
 
 An operator that expands one value into a predicate per item should also implement
 `SineMacula\ApiToolkit\Contracts\ExpandsValueList` and return the item count from `countValueItems()`. That count is

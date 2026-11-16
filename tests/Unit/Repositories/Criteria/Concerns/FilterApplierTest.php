@@ -341,9 +341,12 @@ final class FilterApplierTest extends TestCase
      */
     public function testApplyWithContainsCommaSeparatedStringCreatesMultipleConditions(): void
     {
-        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => 'php,rust']]);
+        $query = $this->applyFilters(['name' => 'Alice', 'context' => [self::OPERATOR_CONTAINS => 'php,rust']]);
 
-        self::assertNotEmpty($result->getQuery()->wheres);
+        $contains = 'exists (select 1 from json_each("context") where "json_each"."value" is ?)';
+
+        self::assertStringEndsWith('where "name" = ? and (' . $contains . ' or ' . $contains . ')', $query->toSql());
+        self::assertSame(['Alice', 'php', 'rust'], $query->getBindings());
     }
 
     /**
@@ -622,6 +625,79 @@ final class FilterApplierTest extends TestCase
             'exists (select * from "posts" where "users"."id" = "posts"."user_id" and (("title" = ?) or ("id" = ?)) and "id" = ?)',
             ['test', 1, 7],
         );
+    }
+
+    /**
+     * Test that an empty relation document compiles to an existence check.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testEmptyRelationDocumentIsAnExistenceCheck(): void
+    {
+        $this->assertCompilesTo(['posts' => []], 'exists (select * from "posts" where "users"."id" = "posts"."user_id")', []);
+    }
+
+    /**
+     * Test that a custom operator adding no clause is refused, beside another
+     * condition and inside a relation.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testCustomOperatorAddingNoClauseIsRefused(): void
+    {
+        $this->operatorRegistry->register('$noop', static function (): void {});
+
+        $this->assertRefusedAt(['name' => ['$eq' => 'Alice', '$noop' => 'x']], 'filters.name.$noop', self::addsNothing('filters.name.$noop'));
+        $this->assertRefusedAt(['posts' => ['title' => ['$noop' => 'x']]], 'filters.posts.title.$noop', self::addsNothing('filters.posts.title.$noop'));
+    }
+
+    /**
+     * Test that a custom operator joining its clause with OR cannot disjoin the
+     * clauses beside it.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testCustomOperatorJoiningWithOrIsGroupedOnItsOwn(): void
+    {
+        $this->operatorRegistry->register('$either', static function (Builder $query, string $column, mixed $value): void {
+            $query->orWhere($column, '=', $value);
+        });
+
+        $this->assertCompilesTo(['name' => 'Alice', 'email' => ['$either' => 'b']], '"name" = ? and ("email" = ?)', ['Alice', 'b']);
+
+        $this->assertCompilesTo(
+            ['posts' => ['title' => ['$either' => 'x']]],
+            'exists (select * from "posts" where "users"."id" = "posts"."user_id" and ("title" = ?))',
+            ['x'],
+        );
+
+        $this->assertCompilesTo(
+            ['$hasnt' => ['posts' => ['id' => 1, 'title' => ['$either' => 'x']]]],
+            'not exists (select * from "posts" where "users"."id" = "posts"."user_id" and "id" = ? and ("title" = ?))',
+            [1, 'x'],
+        );
+    }
+
+    /**
+     * Test that an AND-joined custom clause is left ungrouped.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testCustomOperatorJoiningWithAndIsLeftUngrouped(): void
+    {
+        $this->operatorRegistry->register('$both', static function (Builder $query, string $column, mixed $value): void {
+            $query->where($column, '=', $value)->whereNotNull($column);
+        });
+
+        $this->assertCompilesTo(['name' => 'Alice', 'email' => ['$both' => 'b']], '"name" = ? and "email" = ? and "email" is not null', ['Alice', 'b']);
     }
 
     /**
@@ -1351,16 +1427,18 @@ final class FilterApplierTest extends TestCase
      */
     public static function malformedDocumentProvider(): iterable
     {
-        $notGroup  = static fn (string $position): string => 'The ' . $position . ' filter must be a non-empty list of filter documents.';
-        $empty     = static fn (string $position): string => 'The ' . $position . ' filter must carry at least one condition.';
-        $fieldless = static fn (string $position): string => 'The ' . $position . ' condition must be given under a field.';
+        $notGroup    = static fn (string $position): string => 'The ' . $position . ' filter must be a non-empty list of filter documents.';
+        $empty       = static fn (string $position): string => 'The ' . $position . ' filter must carry at least one condition.';
+        $fieldless   = static fn (string $position): string => 'The ' . $position . ' condition must be given under a field.';
+        $notDocument = static fn (string $position): string => 'The ' . $position . ' filter must be a document of conditions.';
 
         yield 'bare value under $or' => [['$or' => 'Alice'], 'filters.$or', $notGroup('filters.$or')];
         yield 'bare value under nested $or' => [['$and' => [['$or' => 'Alice']]], 'filters.$and.0.$or', $notGroup('filters.$and.0.$or')];
         yield 'object under $or' => [['$or' => ['name' => 'Alice']], 'filters.$or', $notGroup('filters.$or')];
         yield 'empty list under $and' => [['$and' => []], 'filters.$and', $notGroup('filters.$and')];
         yield 'empty document in $or' => [['$or' => [['name' => 'Alice'], []]], 'filters.$or.1', $empty('filters.$or.1')];
-        yield 'scalar document in $or' => [['$or' => [['name' => 'Alice'], 'Bob']], 'filters.$or.1', $empty('filters.$or.1')];
+        yield 'scalar document in $or' => [['$or' => [['name' => 'Alice'], 'Bob']], 'filters.$or.1', $notDocument('filters.$or.1')];
+        yield 'list document in $or' => [['$or' => [[['name' => 'Alice']]]], 'filters.$or.0', $notDocument('filters.$or.0')];
         yield 'condition at the root' => [['$eq' => 'Alice'], 'filters.$eq', $fieldless('filters.$eq')];
         yield 'condition in an $or document' => [['$or' => [['$eq' => 'Alice']]], 'filters.$or.0.$eq', $fieldless('filters.$or.0.$eq')];
         yield 'empty column object' => [['name' => []], 'filters.name', $empty('filters.name')];
@@ -1369,14 +1447,11 @@ final class FilterApplierTest extends TestCase
         yield 'list index beside a condition' => [['name' => ['$eq' => 'Alice', 0 => 'Bob']], 'filters.name.0', self::notACondition('filters.name.0')];
         yield 'unknown token under a column' => [['name' => ['$like' => 'Alice']], 'filters.name.$like', self::notACondition('filters.name.$like')];
         yield 'bare value under a relation' => [['posts' => 'first'], 'filters.posts', 'The filters.posts filter must be a document of conditions.'];
-        yield 'list under a relation' => [
-            ['posts' => ['first']],
-            'filters.posts',
-            'The filters.posts filter must name a field or a condition. To match any of several values, give the field a condition such as $in.',
-        ];
+        yield 'list under a relation' => [['posts' => ['first']], 'filters.posts', $notDocument('filters.posts')];
+        yield 'list under a $has relation' => [['$has' => ['posts' => ['first']]], 'filters.$has.posts', $notDocument('filters.$has.posts')];
         yield 'number under $has' => [['$has' => 1], 'filters.$has', 'The filters.$has filter must be a document of conditions.'];
         yield 'empty list under $has' => [['$has' => []], 'filters.$has', self::addsNothing('filters.$has')];
-        yield 'list entry under $hasnt' => [['$hasnt' => [['posts']]], 'filters.$hasnt', 'The filters.$hasnt filter must list relation names.'];
+        yield 'list entry under $hasnt' => [['$hasnt' => ['posts', ['posts']]], 'filters.$hasnt.1', 'The filters.$hasnt.1 filter must name a relation.'];
         yield 'bare value under a $has relation' => [['$has' => ['posts' => 'first']], 'filters.$has.posts', 'The filters.$has.posts filter must be a document of conditions.'];
         yield 'one-value $between' => [['id' => ['$between' => [1]]], 'filters.id.$between', self::addsNothing('filters.id.$between')];
         yield 'one-value $between alone in an $or' => [['$or' => [['id' => ['$between' => [1]]]]], 'filters.$or.0.id.$between', self::addsNothing('filters.$or.0.id.$between')];
@@ -1410,7 +1485,7 @@ final class FilterApplierTest extends TestCase
     {
         yield 'list under a field' => [['name' => ['Alice']], 'filters.name', 'Der Filter filters.name muss ein Feld benennen.'];
         yield 'bare value under a relation' => [['posts' => 'first'], 'filters.posts', 'Der Filter filters.posts muss ein Dokument sein.'];
-        yield 'list entry under $has' => [['$has' => [['posts']]], 'filters.$has', 'Der Filter filters.$has muss Relationen auflisten.'];
+        yield 'list entry under $has' => [['$has' => [['posts']]], 'filters.$has.0', 'Der Filter filters.$has.0 muss eine Relation benennen.'];
         yield 'object under $or' => [['$or' => ['name' => 'Alice']], 'filters.$or', 'Der Filter filters.$or muss eine Liste sein.'];
         yield 'empty column object' => [['name' => []], 'filters.name', 'Der Filter filters.name ist leer.'];
         yield 'plain key under a column' => [['name' => ['email' => 'Alice']], 'filters.name.email', 'Der Filter filters.name.email ist keine Bedingung.'];
@@ -1434,7 +1509,7 @@ final class FilterApplierTest extends TestCase
         $this->localiseToolkitMessages([
             'filters.unnamed_key'         => 'Der Filter :position muss ein Feld benennen.',
             'filters.not_document'        => 'Der Filter :position muss ein Dokument sein.',
-            'filters.relation_names'      => 'Der Filter :position muss Relationen auflisten.',
+            'filters.relation_names'      => 'Der Filter :position muss eine Relation benennen.',
             'filters.not_group'           => 'Der Filter :position muss eine Liste sein.',
             'filters.empty_document'      => 'Der Filter :position ist leer.',
             'filters.not_condition'       => 'Der Filter :position ist keine Bedingung.',

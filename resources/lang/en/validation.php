@@ -18,7 +18,7 @@ return [
         'not_condition'        => 'The :position filter is not a condition. A field accepts only its registered condition tokens, such as $eq or $in.',
         'fieldless_condition'  => 'The :position condition must be given under a field.',
         'no_effect'            => 'The :position filter adds no condition, so it would match every row.',
-        'relation_names'       => 'The :position filter must list relation names.',
+        'relation_names'       => 'The :position filter must name a relation.',
     ],
 
     'search' => [

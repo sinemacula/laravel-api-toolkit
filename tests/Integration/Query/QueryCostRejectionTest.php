@@ -114,8 +114,8 @@ final class QueryCostRejectionTest extends TestCase
     {
         $filters = ['name' => 'Alice'];
 
-        for ($level = 0; $level < 16; $level++) {
-            $filters = ['$or' => $filters];
+        for ($level = 0; $level < 8; $level++) {
+            $filters = ['$or' => [$filters]];
         }
 
         $response = $this->recordQueries('/users?filters=' . urlencode((string) json_encode($filters)));
