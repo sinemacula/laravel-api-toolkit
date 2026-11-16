@@ -792,7 +792,7 @@ Four behaviours that quietly widened a result set now fail the request.
 disabled `random` is rejected as an undeclared sort key. Re-enable it with:
 
 ```dotenv
-API_TOOLKIT_ALLOW_RANDOM_ORDER=true
+API_TOOLKIT_REPOSITORIES_ALLOW_RANDOM_ORDER=true
 ```
 
 **A `filters` document must be a JSON object.** A document that cannot be decoded (malformed, or nested beyond the
@@ -825,9 +825,9 @@ max_aggregates    5      the relation counts, sums, and averages one request ask
 max_offset        500000 the rows a paginated read may scan past to reach its page
 ```
 
-Each is set from the environment as `API_TOOLKIT_QUERY_` plus the upper-cased cap name, so
-`API_TOOLKIT_QUERY_MAX_IN_ITEMS` sets `max_in_items`. `0` (or `null`) disables a cap. A config file published before
-this release has none of these keys, and every cap still applies at its default.
+Each is set from the environment as `API_TOOLKIT_QUERY_COST_` plus the upper-cased cap name, so
+`API_TOOLKIT_QUERY_COST_MAX_IN_ITEMS` sets `max_in_items`. `0` (or `null`) disables a cap. A config file published
+before this release has none of these keys, and every cap still applies at its default.
 
 `max_bytes` and `max_parse_depth` are checked while the query string is validated, before the filter is interpreted;
 a malformed document keeps its own validation error. The rest are checked as the criteria are applied, before any SQL
@@ -868,10 +868,10 @@ lists over 500 items, more than 3 sort columns, more than 5 aggregates across `c
 pages beyond 10,000. Where a shape is legitimate, raise that cap to the largest query you intend to serve rather than
 disabling it. The generated Query Surface Reference lists every cap's value and the shape of the rejection.
 
-### Changed: `?limit` above the ceiling is rejected rather than clamped
+### Added: `?limit` has a ceiling
 
-A `?limit` above `api-toolkit.parser.max_limit` (default 100) used to be reduced to the ceiling. It is now rejected
-with the same `422` as the query-cost caps:
+A `?limit` above `api-toolkit.parser.max_limit` (`API_TOOLKIT_PARSER_MAX_LIMIT`, default 100) is rejected with the
+same `422` as the query-cost caps:
 
 ```json
 "meta": {
@@ -883,11 +883,10 @@ with the same `422` as the query-cost caps:
 }
 ```
 
-The config key, the `API_PARSER_MAX_LIMIT` variable and the default are unchanged, and `0` (or `null`) still disables
-the ceiling.
+`0` (or `null`) disables the ceiling.
 
-**Action required.** Clients asking for a page larger than the ceiling now get a `422` instead of a shorter page.
-Raise the ceiling or have the client ask within it.
+**Action required.** Clients asking for a page larger than the ceiling now get a `422` instead of the rows they asked
+for. Raise the ceiling or have the client ask within it.
 
 ### Removed: the `$like` operator, replaced by `?search=`
 
@@ -1146,7 +1145,7 @@ channel is gone, and a `notifications` channel the application defines no longer
 To keep a dedicated destination:
 
 1. Define the channel in your application's `config/logging.php`.
-2. Set `NOTIFICATION_LOG_CHANNEL=<channel name>`.
+2. Set `API_TOOLKIT_NOTIFICATIONS_LOG_CHANNEL=<channel name>`.
 3. If you have published `config/api-toolkit.php`, add the new key to its `notifications` block. The package config
    is merged shallowly, so a published `notifications` array replaces the whole block, and without the key the
    default channel is used:
@@ -1154,7 +1153,7 @@ To keep a dedicated destination:
    ```php
    'notifications' => [
        // ...
-       'log_channel' => env('NOTIFICATION_LOG_CHANNEL'),
+       'log_channel' => env('API_TOOLKIT_NOTIFICATIONS_LOG_CHANNEL'),
    ],
    ```
 
@@ -1167,7 +1166,7 @@ The lines themselves have changed:
   it is an Eloquent model with one. Update log queries, filters and dashboards that match on `notifiable`.
 - Lines are no longer mirrored to `cloudwatch-notifications` when `api-toolkit.logging.cloudwatch.enabled` is `true`;
   the channel and the setting are gone. To send the audit log to CloudWatch, define a CloudWatch channel (the driver
-  now ships separately, see "Composer dependency changes") and point `NOTIFICATION_LOG_CHANNEL` at it.
+  now ships separately, see "Composer dependency changes") and point `API_TOOLKIT_NOTIFICATIONS_LOG_CHANNEL` at it.
 
 ### Changed: deferred writes are safe by default
 
@@ -1192,27 +1191,27 @@ auto-flush switched `throw` to `collect`.
 To restore the previous behaviour:
 
 ```dotenv
-DEFERRED_WRITES_ON_FAILURE=log
+API_TOOLKIT_DEFERRED_WRITES_ON_FAILURE=log
 ```
 
 New config keys, both off by default:
 
 ```dotenv
 # Wrap each table's chunk set in a transaction (all-or-nothing per table).
-DEFERRED_WRITES_TRANSACTIONAL=true
+API_TOOLKIT_DEFERRED_WRITES_TRANSACTIONAL=true
 
 # Re-throw a WritePoolFlushException at the lifecycle boundary instead of
 # reporting it (only applies under the 'throw' strategy).
-DEFERRED_WRITES_RETHROW_AT_BOUNDARY=true
+API_TOOLKIT_DEFERRED_WRITES_RETHROW_AT_BOUNDARY=true
 ```
 
 **Boundary 500s.** The boundary flush runs on `RequestHandled`, after the response is built. Under `throw` the
 subscriber catches and reports the exception, so the request keeps its response. Only with
-`DEFERRED_WRITES_RETHROW_AT_BOUNDARY` enabled does it escape, turning one constraint violation into a 500 for a
-request that already completed. If you want the exception, call `flushWrites()` yourself under `throw`. Do not rely on
-the rethrow in queue workers: a rethrow from `JobProcessed` marks a completed job as failed, and a rethrow from
-`JobFailed` replaces the job's own exception, which is then never reported. Call `flushWrites()` before the job
-returns instead.
+`API_TOOLKIT_DEFERRED_WRITES_RETHROW_AT_BOUNDARY` enabled does it escape, turning one constraint violation into a 500
+for a request that already completed. If you want the exception, call `flushWrites()` yourself under `throw`. Do not
+rely on the rethrow in queue workers: a rethrow from `JobProcessed` marks a completed job as failed, and a rethrow from
+`JobFailed` replaces the job's own exception, which is then never reported. Call `flushWrites()` before the job returns
+instead.
 
 **Crash window.** Buffered writes live only in PHP memory until the boundary flush, so a crash, out-of-memory error
 or SIGKILL before it loses them. Use a real queue for durability. Under Octane the pool is request-scoped, so
@@ -1232,7 +1231,7 @@ with a custom store (`cacheStoreName`) or key prefix (`cacheKeyPrefix`) is not r
 flush or rely on the TTL. To turn the invalidation off:
 
 ```dotenv
-DEFERRED_WRITES_INVALIDATE_QUERY_CACHE=false
+API_TOOLKIT_DEFERRED_WRITES_INVALIDATE_QUERY_CACHE=false
 ```
 
 ### Changed: the lifecycle metadata flush is on by default on serving runtimes
