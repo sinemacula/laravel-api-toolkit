@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\RelationWindow;
@@ -82,6 +83,12 @@ final class RelationWindowTest extends TestCase
             $query->skip(5);
         }, 'posts'];
         yield 'limit on a morph-to' => [$limit, 'subject'];
+        yield 'limit on a union' => [static function ($query): void {
+            $query->getQuery()->union(DB::table('posts'))->limit(5);
+        }, 'posts'];
+        yield 'offset on a union' => [static function ($query): void {
+            $query->getQuery()->union(DB::table('posts'))->offset(5);
+        }, 'posts'];
     }
 
     /**

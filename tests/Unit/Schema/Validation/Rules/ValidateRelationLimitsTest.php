@@ -9,7 +9,7 @@ use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationLimits;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
-use Tests\Fixtures\Contracts\UnionRelations;
+use Tests\Fixtures\Contracts\RelationSignatures;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -82,6 +82,20 @@ final class ValidateRelationLimitsTest extends TestCase
     }
 
     /**
+     * Test that a limit on each kind of to-one relation method fails.
+     *
+     * @return void
+     */
+    public function testLimitOnEveryToOneReturnTypeFails(): void
+    {
+        $relations = ['profile', 'note', 'organization', 'subject', 'firstProfile'];
+        $fields    = array_combine($relations, array_map(static fn (string $relation): CompiledFieldDefinition => self::field($relation, limit: 5), $relations));
+        $errors    = (new ValidateRelationLimits)->validate(UserResource::class, RelationSignatures::class, new CompiledSchema(fields: $fields, counts: []));
+
+        self::assertSame($relations, array_map(static fn (SchemaValidationError $error): string => $error->fieldKey, $errors));
+    }
+
+    /**
      * Test that a limit on a relation method returning a union of to-one
      * relations fails, while a union reaching a to-many passes.
      *
@@ -89,7 +103,7 @@ final class ValidateRelationLimitsTest extends TestCase
      */
     public function testLimitOnAUnionOfToOneReturnTypesFails(): void
     {
-        $errors = (new ValidateRelationLimits)->validate(UserResource::class, UnionRelations::class, new CompiledSchema(fields: [
+        $errors = (new ValidateRelationLimits)->validate(UserResource::class, RelationSignatures::class, new CompiledSchema(fields: [
             'either' => self::field('either', limit: 5),
             'varied' => self::field('varied', limit: 5),
         ], counts: []));

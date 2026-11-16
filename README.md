@@ -253,8 +253,8 @@ $with = UserResource::eagerLoadMapFor(UserResource::resolveFields());
 
 **Relation constraints and limits** - `constrain()` receives the relation itself, as a Laravel `with()` closure does, so
 `where()`, local scopes, `latest()` and pivot clauses such as `wherePivot()` all apply. A constraint may filter and
-order the relation but never bound it: `limit()`, `take()` or `skip()` inside it throws a `LogicException`. Bound a
-to-many relation with `limit()` instead:
+order the relation but never bound it: a `limit()`, `take()` or `skip()` inside it that changes the relation's bound
+throws a `LogicException`. Bound a to-many relation with `limit()` instead:
 
 ```php
 Relation::to('posts', PostResource::class)->limit(5)->constrain(fn ($query) => $query->latest()),
