@@ -21,6 +21,8 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Output\FilesystemDocumentWriter;
+use SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
@@ -102,6 +104,8 @@ final class ContainerBindingRegistrarTest extends TestCase
         self::assertSame($app->make(MetadataGeneration::class), $app->make(MetadataGeneration::class));
         self::assertSame($app->make(MetadataCacheWriter::class), $app->make(MetadataCacheWriter::class));
         self::assertSame($app->make(ServiceRunner::class), $app->make(ServiceRunner::class));
+        self::assertSame($app->make(EnumSchemaRegistry::class), $app->make(EnumSchemaRegistry::class));
+        self::assertSame($app->make(DefinedSchemaRegistry::class), $app->make(DefinedSchemaRegistry::class));
     }
 
     /**

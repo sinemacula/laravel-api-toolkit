@@ -34,6 +34,9 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  */
 final readonly class ResourceSchemaBuilder
 {
+    /** The property an API resource's schema pins to its resource type */
+    public const string TYPE_PROPERTY = '_type';
+
     /** The path prefix under which resource component schemas are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
 
@@ -156,8 +159,8 @@ final readonly class ResourceSchemaBuilder
         }
 
         if (is_a($resourceClass, ApiResourceInterface::class, true)) {
-            $properties = ['_type' => $this->buildTypeProperty($resourceClass)] + $properties;
-            $required   = ['_type', ...$required];
+            $properties = [self::TYPE_PROPERTY => $this->buildTypeProperty($resourceClass)] + $properties;
+            $required   = [self::TYPE_PROPERTY, ...$required];
         }
 
         return $this->wrapObjectSchema($properties, $required, $compiled->getTraversableRelations());

@@ -55,7 +55,6 @@ use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
 use Tests\Fixtures\OpenApi\SignedInShape;
-use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -886,16 +885,95 @@ final class OpenApiExporterValidityTest extends TestCase
         $schema   = $document['paths']['/session']['get']['responses']['200']['content']['application/json']['schema'];
 
         self::assertSame(
-            [['$ref' => '#/components/schemas/User'], SignedInShape::schema()],
+            [['$ref' => '#/components/schemas/User'], ['$ref' => '#/components/schemas/SignedInShape']],
             $schema['properties']['data']['oneOf'],
         );
         self::assertIsArray($document['components']['schemas']);
         self::assertArrayHasKey('User', $document['components']['schemas']);
+        self::assertSame(['title' => 'SignedInShape', ...SignedInShape::schema()], $document['components']['schemas']['SignedInShape']);
 
         self::assertTrue(
             $this->validateAgainstMetaSchema($document)->isValid(),
             'A document declaring a response union must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
         );
+    }
+
+    /**
+     * Test that a declared single shape exports as a valid component reference.
+     *
+     * @return void
+     */
+    public function testDeclaredShapeExportsAsAComponentReference(): void
+    {
+        $this->router()->get('widget', [PathResponseSchemaController::class, 'widget']);
+
+        $document = $this->export()->document;
+        $pointer  = '/paths/~1widget/get/responses/200/content/application~1json/schema';
+        $schema   = $document['paths']['/widget']['get']['responses']['200']['content']['application/json']['schema'];
+
+        self::assertSame(['$ref' => '#/components/schemas/WidgetShape'], $schema['properties']['data']);
+        self::assertTrue($this->validateAgainstExported($document, $pointer, ['data' => ['id' => 1, 'label' => 'x']])->isValid());
+        self::assertFalse($this->validateAgainstExported($document, $pointer, ['data' => ['id' => 1]])->isValid());
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document declaring a response shape must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that a discriminated response union stays valid and validates its
+     * members.
+     *
+     * @return void
+     */
+    public function testDiscriminatedResponseUnionStaysValid(): void
+    {
+        $this->router()->get('session', [PathResponseSchemaController::class, 'union']);
+
+        $document = $this->export()->document;
+        $pointer  = '/paths/~1session/get/responses/200/content/application~1json/schema';
+        $data     = $document['paths']['/session']['get']['responses']['200']['content']['application/json']['schema']['properties']['data'];
+
+        self::assertSame([
+            'propertyName' => 'status',
+            'mapping'      => [
+                'signed_in' => '#/components/schemas/SignedInShape',
+                'pending'   => '#/components/schemas/PendingSignInShape',
+            ],
+        ], $data['discriminator']);
+        self::assertTrue($this->validateAgainstExported($document, $pointer, ['data' => ['status' => 'pending', 'choices' => []]])->isValid());
+        self::assertFalse($this->validateAgainstExported($document, $pointer, ['data' => ['status' => 'pending', 'token' => 'x']])->isValid());
+
+        self::assertTrue(
+            $this->validateAgainstMetaSchema($document)->isValid(),
+            'A document declaring a discriminated union must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateAgainstMetaSchema($document)),
+        );
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that a union documented in one audience exports its components there
+     * only.
+     *
+     * @return void
+     */
+    public function testAudienceUnionComponentsStayInTheirAudience(): void
+    {
+        $this->registerTwoAudiences();
+        $this->router()->get('session', [PathResponseSchemaController::class, 'internalUnion']);
+
+        $public   = $this->export('public')->document['components']['schemas'];
+        $internal = $this->export('internal')->document;
+
+        self::assertIsArray($public);
+        self::assertArrayNotHasKey('SignedInShape', $public);
+        self::assertArrayNotHasKey('MfaChallenge', $public);
+        self::assertIsArray($internal['components']['schemas']);
+        self::assertArrayHasKey('SignedInShape', $internal['components']['schemas']);
+        self::assertArrayHasKey('MfaChallenge', $internal['components']['schemas']);
+        $this->assertReferencesResolve($internal);
     }
 
     /**
@@ -1409,7 +1487,7 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertIsArray($paths['/reset']['post']['responses']['205']);
         self::assertSame(['description', 'headers'], array_keys($paths['/reset']['post']['responses']['205']));
         self::assertSame(
-            WidgetShape::schema(),
+            ['$ref' => '#/components/schemas/WidgetShape'],
             $paths['/jobs']['post']['responses']['202']['content']['application/json']['schema']['properties']['data'],
         );
         self::assertIsArray($paths['/status-users']['get']['responses']['206']['headers']);
