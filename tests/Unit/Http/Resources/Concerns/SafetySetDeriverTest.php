@@ -173,25 +173,6 @@ final class SafetySetDeriverTest extends TestCase
     }
 
     /**
-     * Test that an appends entry backed by a real column is retained and a
-     * virtual append is dropped.
-     *
-     * @return void
-     */
-    public function testUnionsRealAppendSourceColumns(): void
-    {
-        $model = $this->makeModel('id', ['status', 'virtual_flag']);
-
-        $this->introspector->method('getDeletedAtColumn')->willReturn(null);
-        $this->introspector->method('getColumns')->willReturn(['id', 'status']);
-
-        $columns = $this->deriver->derive($model, [], []);
-
-        self::assertContains('status', $columns);
-        self::assertNotContains('virtual_flag', $columns);
-    }
-
-    /**
      * Test that an unresolvable relation is skipped so a later resolvable
      * relation still contributes its parent keys.
      *
@@ -264,19 +245,16 @@ final class SafetySetDeriverTest extends TestCase
     }
 
     /**
-     * Build a Model mock stub with the given primary key name and appended
-     * attributes.
+     * Build a Model mock stub with the given primary key name.
      *
      * @param  string  $keyName
-     * @param  array<int, string>  $appendedAttributes
      * @return \Illuminate\Database\Eloquent\Model&\PHPUnit\Framework\MockObject\Stub
      */
-    private function makeModel(string $keyName, array $appendedAttributes = []): Model
+    private function makeModel(string $keyName): Model
     {
         $model = self::createStub(Model::class);
 
         $model->method('getKeyName')->willReturn($keyName);
-        $model->method('getAppends')->willReturn($appendedAttributes);
 
         return $model;
     }

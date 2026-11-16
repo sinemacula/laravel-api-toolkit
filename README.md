@@ -202,6 +202,17 @@ Only fields marked `filterable()` or `sortable()` can be queried, and `?search=`
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. `$default` lists the fields
 returned when the client sends no `?fields`.
 
+**Declared column reads** - `needs()` names the base-table columns a field reads. Declare it on any field whose value
+does not come straight from the column of the same name, such as one over an Eloquent accessor or custom cast, or an
+accessor closure:
+
+```php
+// The model's fullName(): Attribute reads first_name and last_name
+Field::scalar('full_name')->needs('first_name', 'last_name'),
+Field::accessor('initials', fn ($resource) => $resource->first_name[0] . $resource->last_name[0])
+    ->needs('first_name', 'last_name'),
+```
+
 **Query capabilities** - `filterable()` takes the access path the column has, and the capability decides which
 operators the column answers. Any other operator is refused with a `422`:
 
@@ -268,6 +279,7 @@ Validation checks that:
 
 - every `filterable()` and `sortable()` declaration names a column that exists. A computed field, or an accessor
   reading a different path, is caught from the schema alone; the rest is checked against the table's column listing.
+- every `needs()` column exists on the table.
 - an ordered index leads with every `sortable()` column, unless the field carries `indexed()` or `unindexed()`.
 - an index on the connection serves every `searchable()` declaration in the shape its strategy needs.
 - no declaration names a column configured as sensitive.
@@ -278,6 +290,21 @@ migrations have run.
 The index catalogue is read only during validation, never while a filter or sort is served. Two schema reads do sit
 on the request path, both cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads
 the table's column listing, and search reads its index proof.
+
+**Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
+to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
+relations and the order columns. A field reads the columns it declares through `needs()`, each of which must exist on
+the table. A plain field without `needs()` is taken to read the column of its own key, but only when the table carries
+that column and the model reads it without an accessor or a cast that could consult other attributes; Eloquent's
+built-in cast types, enums that do not name their own caster, and the casts under `Illuminate\Database\Eloquent\Casts`
+qualify. Any other field, such as one over an accessor or custom cast, or a computed, guarded or transformed field,
+leaves the select as `*` until it declares `needs()`.
+
+An incomplete `needs()` returns wrong data rather than failing. Call
+`Model::preventAccessingMissingAttributes(! app()->isProduction())` in a service provider to catch it outside
+production: it throws on a read of an unselected plain attribute, though not on one that itself has an accessor or
+cast, nor on a raw `$attributes[...]` read inside a cast. Disable narrowing if code reads attributes outside the
+rendered fields.
 
 ### Repositories
 

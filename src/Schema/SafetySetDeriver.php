@@ -46,7 +46,6 @@ final readonly class SafetySetDeriver
 
         $columns = array_merge($columns, $this->relationParentKeys($model, $eagerLoadedRelations));
         $columns = array_merge($columns, $orderColumns);
-        $columns = array_merge($columns, $model->getAppends());
 
         return $this->intersectWithRealColumns($model, $columns);
     }

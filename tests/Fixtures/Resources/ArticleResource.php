@@ -15,7 +15,8 @@ use Tests\Fixtures\Models\Article;
  *
  * Exposes a scalar-only default field set over a wide, soft-deleting table so a
  * narrowed base-table SELECT can be proven to drop columns. A needs-annotated
- * accessor proves declared narrowing, while the relation feeds the safety set.
+ * accessor proves declared narrowing, a plain field over a model accessor
+ * proves the fall-back, and the relation feeds the safety set.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -57,6 +58,7 @@ final class ArticleResource extends ApiResource
             Field::scalar('slug'),
             Field::scalar('status'),
             Field::scalar('views')->sortable(),
+            Field::scalar('headline'),
             Field::accessor('summary_excerpt', static function ($resource): string {
 
                 $article = $resource->resource;

@@ -92,7 +92,8 @@ return [
         ],
 
         // Select only the columns the resolved fields need, falling back to
-        // SELECT * when any field's column reads are unknown. Disable it if
+        // SELECT * when any field's column reads are unknown. Declare them with
+        // needs() on a field over an accessor or custom cast. Disable it if
         // code reads attributes outside the declared fields
         'narrow_columns' => env('API_TOOLKIT_NARROW_COLUMNS', true),
 
