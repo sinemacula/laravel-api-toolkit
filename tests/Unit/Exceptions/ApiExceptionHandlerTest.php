@@ -9,10 +9,12 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\RecordNotFoundException;
 use Illuminate\Database\RecordsNotFoundException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Exceptions\Handler;
+use Illuminate\Http\Exceptions\OriginMismatchException;
 use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,13 +32,12 @@ use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use SineMacula\ApiToolkit\Exceptions\ConflictException;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
+use SineMacula\ApiToolkit\Exceptions\GoneException;
 use SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException;
 use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
-use SineMacula\ApiToolkit\Exceptions\TokenMismatchException;
 use SineMacula\ApiToolkit\Exceptions\UnhandledException;
 use SineMacula\Http\Enums\HttpMethod;
-use Symfony\Component\HttpFoundation\Exception\BadRequestException as SymfonyBadRequestException;
 use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -47,6 +48,7 @@ use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
+use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 
 /**
  * Tests for the ApiExceptionHandler.
@@ -79,36 +81,6 @@ final class ApiExceptionHandlerTest extends TestCase
             new NotFoundHttpException,
             404,
             10103,
-        ];
-
-        yield 'ModelNotFoundException -> 404' => [
-            new ModelNotFoundException,
-            404,
-            10103,
-        ];
-
-        yield 'BackedEnumCaseNotFoundException -> 404' => [
-            new BackedEnumCaseNotFoundException('App\Enums\Status', 'unknown'),
-            404,
-            10103,
-        ];
-
-        yield 'SuspiciousOperationException -> 404' => [
-            new SuspiciousOperationException,
-            404,
-            10103,
-        ];
-
-        yield 'RecordsNotFoundException -> 404' => [
-            new RecordsNotFoundException,
-            404,
-            10103,
-        ];
-
-        yield 'AuthorizationException -> 403' => [
-            new AuthorizationException,
-            403,
-            10102,
         ];
 
         yield 'LaravelUnauthorizedException -> 403' => [
@@ -147,12 +119,6 @@ final class ApiExceptionHandlerTest extends TestCase
             10100,
         ];
 
-        yield 'Symfony request exception -> 400' => [
-            new SymfonyBadRequestException,
-            400,
-            10100,
-        ];
-
         yield 'ServiceUnavailableHttpException -> 503' => [
             new ServiceUnavailableHttpException,
             503,
@@ -163,6 +129,66 @@ final class ApiExceptionHandlerTest extends TestCase
             new PostTooLargeException,
             413,
             10110,
+        ];
+
+        yield 'abort(400) -> 400' => [
+            new SymfonyHttpException(400),
+            400,
+            10100,
+        ];
+
+        yield 'abort(401) -> 401' => [
+            new SymfonyHttpException(401),
+            401,
+            10101,
+        ];
+
+        yield 'basic-auth challenge -> 401' => [
+            new UnauthorizedHttpException('Basic'),
+            401,
+            10101,
+        ];
+
+        yield 'abort(403) -> 403' => [
+            new SymfonyHttpException(403),
+            403,
+            10102,
+        ];
+
+        yield 'denyAsNotFound() -> 404' => [
+            new SymfonyHttpException(404),
+            404,
+            10103,
+        ];
+
+        yield 'abort(405) -> 405' => [
+            new SymfonyHttpException(405),
+            405,
+            10104,
+        ];
+
+        yield 'abort(413) -> 413' => [
+            new SymfonyHttpException(413),
+            413,
+            10110,
+        ];
+
+        yield 'token mismatch -> 419' => [
+            new SymfonyHttpException(419),
+            419,
+            10105,
+        ];
+
+        yield 'abort(429) -> 429' => [
+            new SymfonyHttpException(429),
+            429,
+            10107,
+        ];
+
+        yield 'abort(503) -> 503' => [
+            new SymfonyHttpException(503),
+            503,
+            10112,
         ];
 
         yield 'abort(409) -> 409' => [
@@ -254,19 +280,32 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that the generic catch-all preserves headers from the original HTTP
-     * exception.
+     * Provide statuses rendered generically and as the key they stand for.
      *
+     * @return iterable<string, array{int}>
+     */
+    public static function statusOnlyProvider(): iterable
+    {
+        yield 'generic' => [409];
+
+        yield 'standing for a key' => [429];
+    }
+
+    /**
+     * Test that an HTTP exception carrying only a status keeps its headers.
+     *
+     * @param  int  $status
      * @return void
      */
-    public function testGenericHttpExceptionCatchAllPreservesHeaders(): void
+    #[DataProvider('statusOnlyProvider')]
+    public function testStatusOnlyHttpExceptionKeepsItsHeaders(int $status): void
     {
         $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);
 
         config()->set('app.debug', false);
 
-        $exception = new SymfonyHttpException(429, 'Too many requests', null, ['Retry-After' => '120']);
+        $exception = new SymfonyHttpException($status, 'Slow down', null, ['Retry-After' => '120']);
 
         $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
         $response   = $reflection->invoke(null, $exception, $request);
@@ -451,24 +490,6 @@ final class ApiExceptionHandlerTest extends TestCase
 
         self::assertIsArray($data);
         self::assertSame(10106, $data['error']['code']);
-    }
-
-    /**
-     * Test that a Laravel session token mismatch maps to the toolkit token
-     * mismatch exception with the non-standard 419 status code.
-     *
-     * Asserted on the mapping because rendering needs the package translations.
-     *
-     * @return void
-     */
-    public function testTokenMismatchExceptionMapsToToolkitTokenMismatch(): void
-    {
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'mapApiException');
-        $mapped     = $reflection->invoke(null, new LaravelTokenMismatchException('CSRF token mismatch.'));
-
-        self::assertInstanceOf(TokenMismatchException::class, $mapped);
-        self::assertSame(419, $mapped->getStatusCode());
-        self::assertSame(10105, $mapped::getInternalErrorCode());
     }
 
     /**
@@ -944,6 +965,26 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
+     * Test that an HTTP exception carrying only a status follows a configured
+     * mapping of the key its status stands for.
+     *
+     * @return void
+     */
+    public function testStatusOnlyHttpExceptionFollowsTheConfiguredKeyItStandsFor(): void
+    {
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        config()->set('app.debug', false);
+        config()->set('api-toolkit.exceptions.map', [NotFoundHttpException::class => GoneException::class]);
+
+        $response = (new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new SymfonyHttpException(404), $request);
+
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(410, $response->getStatusCode());
+    }
+
+    /**
      * Test that an invalid map is reported once and leaves the rendering to
      * Laravel.
      *
@@ -1022,6 +1063,26 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
+     * Test that the prepared samples cover every type Laravel converts before
+     * rendering.
+     *
+     * @return void
+     */
+    public function testPreparedSamplesCoverEveryPreparedType(): void
+    {
+        $prepared = (new \ReflectionClassConstant(ExceptionMap::class, 'PREPARED'))->getValue();
+
+        self::assertIsArray($prepared);
+
+        $sampled = array_column(iterator_to_array(self::preparedSampleProvider()), 0);
+
+        sort($prepared);
+        sort($sampled);
+
+        self::assertSame($prepared, $sampled);
+    }
+
+    /**
      * Provide statuses carried by an HTTP exception that does not extend the
      * Symfony base class, with whether the toolkit reports it.
      *
@@ -1080,30 +1141,6 @@ final class ApiExceptionHandlerTest extends TestCase
             404,
         ];
 
-        yield 'backed enum case not found' => [
-            BackedEnumCaseNotFoundException::class,
-            static fn (): \Throwable => new BackedEnumCaseNotFoundException('App\Enums\Status', 'unknown'),
-            404,
-        ];
-
-        yield 'model not found' => [
-            ModelNotFoundException::class,
-            static fn (): \Throwable => new ModelNotFoundException,
-            404,
-        ];
-
-        yield 'suspicious operation' => [
-            SuspiciousOperationException::class,
-            static fn (): \Throwable => new SuspiciousOperationException,
-            404,
-        ];
-
-        yield 'records not found' => [
-            RecordsNotFoundException::class,
-            static fn (): \Throwable => new RecordsNotFoundException,
-            404,
-        ];
-
         yield 'method not allowed' => [
             MethodNotAllowedHttpException::class,
             static fn (): \Throwable => new MethodNotAllowedHttpException(['GET']),
@@ -1116,21 +1153,9 @@ final class ApiExceptionHandlerTest extends TestCase
             400,
         ];
 
-        yield 'symfony request exception' => [
-            RequestExceptionInterface::class,
-            static fn (): \Throwable => new SymfonyBadRequestException,
-            400,
-        ];
-
         yield 'laravel unauthorized' => [
             LaravelUnauthorizedException::class,
             static fn (): \Throwable => new LaravelUnauthorizedException,
-            403,
-        ];
-
-        yield 'authorization' => [
-            AuthorizationException::class,
-            static fn (): \Throwable => new AuthorizationException,
             403,
         ];
 
@@ -1144,12 +1169,6 @@ final class ApiExceptionHandlerTest extends TestCase
             AuthenticationException::class,
             static fn (): \Throwable => new AuthenticationException,
             401,
-        ];
-
-        yield 'token mismatch' => [
-            LaravelTokenMismatchException::class,
-            static fn (): \Throwable => new LaravelTokenMismatchException,
-            419,
         ];
 
         yield 'validation' => [
@@ -1190,8 +1209,9 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that every exception the handler maps to a client error is not
-     * reported once the toolkit handler is registered.
+     * Test that every exception map key reaches the render callback as thrown,
+     * and is not reported once the toolkit handler is registered when it maps
+     * to a client error.
      *
      * @param  class-string  $source
      * @param  \Closure(): \Throwable  $factory
@@ -1199,11 +1219,12 @@ final class ApiExceptionHandlerTest extends TestCase
      * @return void
      */
     #[DataProvider('reportingSampleProvider')]
-    public function testMappedClientErrorsAreNotReported(string $source, \Closure $factory, int $expectedStatus): void
+    public function testMapKeyArrivesAsThrownAndClientErrorsAreNotReported(string $source, \Closure $factory, int $expectedStatus): void
     {
         $sample = $factory();
 
         self::assertInstanceOf($source, $sample);
+        self::assertSame($sample, $this->prepare($sample));
 
         $mapped = (new \ReflectionMethod(ApiExceptionHandler::class, 'mapApiException'))->invoke(null, $sample);
 
@@ -1213,6 +1234,77 @@ final class ApiExceptionHandlerTest extends TestCase
         if ($expectedStatus >= 500) {
             return;
         }
+
+        [$handler, $exceptions] = $this->exceptionHandler();
+
+        ApiExceptionHandler::handles($exceptions);
+
+        self::assertFalse($handler->shouldReport($sample));
+    }
+
+    /**
+     * Provide a sample of every type Laravel converts before rendering.
+     *
+     * @return iterable<string, array{class-string, \Closure(): \Throwable}>
+     */
+    public static function preparedSampleProvider(): iterable
+    {
+        yield 'backed enum case not found' => [
+            BackedEnumCaseNotFoundException::class,
+            static fn (): \Throwable => new BackedEnumCaseNotFoundException('App\Enums\Status', 'unknown'),
+        ];
+
+        yield 'model not found' => [
+            ModelNotFoundException::class,
+            static fn (): \Throwable => new ModelNotFoundException,
+        ];
+
+        yield 'authorization' => [
+            AuthorizationException::class,
+            static fn (): \Throwable => new AuthorizationException,
+        ];
+
+        yield 'origin mismatch' => [
+            OriginMismatchException::class,
+            static fn (): \Throwable => new OriginMismatchException,
+        ];
+
+        yield 'token mismatch' => [
+            LaravelTokenMismatchException::class,
+            static fn (): \Throwable => new LaravelTokenMismatchException,
+        ];
+
+        yield 'request exception' => [
+            RequestExceptionInterface::class,
+            static fn (): \Throwable => new SuspiciousOperationException,
+        ];
+
+        yield 'record not found' => [
+            RecordNotFoundException::class,
+            static fn (): \Throwable => new RecordNotFoundException,
+        ];
+
+        yield 'records not found' => [
+            RecordsNotFoundException::class,
+            static fn (): \Throwable => new RecordsNotFoundException,
+        ];
+    }
+
+    /**
+     * Test that every type Laravel converts reaches the render callback as
+     * another exception, and is not reported.
+     *
+     * @param  class-string  $source
+     * @param  \Closure(): \Throwable  $factory
+     * @return void
+     */
+    #[DataProvider('preparedSampleProvider')]
+    public function testPreparedTypeIsConvertedAndNotReported(string $source, \Closure $factory): void
+    {
+        $sample = $factory();
+
+        self::assertInstanceOf($source, $sample);
+        self::assertNotSame($sample, $this->prepare($sample));
 
         [$handler, $exceptions] = $this->exceptionHandler();
 
@@ -1254,6 +1346,24 @@ final class ApiExceptionHandlerTest extends TestCase
         assert($handler instanceof Handler);
 
         return [$handler, new Exceptions($handler)];
+    }
+
+    /**
+     * Pass the exception through the application handler's preparation, as
+     * rendering does before any render callback runs.
+     *
+     * @param  \Throwable  $exception
+     * @return \Throwable
+     */
+    private function prepare(\Throwable $exception): \Throwable
+    {
+        [$handler] = $this->exceptionHandler();
+
+        $prepared = (new \ReflectionMethod($handler, 'prepareException'))->invoke($handler, $exception);
+
+        assert($prepared instanceof \Throwable);
+
+        return $prepared;
     }
 
     /**

@@ -45,8 +45,18 @@ return [
     | `map` renders an exception as one of your ApiExceptions. A key naming a
     | built-in replaces it; any other key is matched before the first built-in
     | it extends, else after every built-in, and the first match wins. Laravel
-    | converts some exceptions before rendering, so map the converted type, such
-    | as NotFoundHttpException for ModelNotFoundException. The map is validated
+    | converts these before rendering, so a key naming one is rejected; map the
+    | exception it becomes:
+    |   ModelNotFoundException, RecordNotFoundException,
+    |   RecordsNotFoundException,
+    |   BackedEnumCaseNotFoundException  - NotFoundHttpException
+    |   RequestExceptionInterface        - BadRequestHttpException
+    |   AuthorizationException           - AccessDeniedHttpException, or an
+    |                                      HttpException with its status
+    |   OriginMismatchException          - HttpException with 403
+    |   TokenMismatchException           - HttpException with 419
+    | An HttpException carrying only a status renders as the key that status
+    | stands for, such as NotFoundHttpException for 404. The map is validated
     | once an application serving requests has booted, and drives the OpenAPI
     | error responses too. It does not affect reporting.
     */

@@ -5,6 +5,12 @@ declare(strict_types = 1);
 namespace Tests\Feature\Exceptions;
 
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\RecordNotFoundException;
+use Illuminate\Database\RecordsNotFoundException;
+use Illuminate\Http\Exceptions\OriginMismatchException;
+use Illuminate\Routing\Exceptions\BackedEnumCaseNotFoundException;
+use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -14,8 +20,13 @@ use SineMacula\ApiToolkit\Exceptions\GoneException;
 use SineMacula\ApiToolkit\Exceptions\LockedException;
 use SineMacula\ApiToolkit\Exceptions\PayloadTooLargeException;
 use SineMacula\ApiToolkit\Exceptions\ServiceUnavailableException;
+use Symfony\Component\HttpFoundation\Exception\BadRequestException as SymfonyBadRequestException;
+use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpException as SymfonyHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Concerns\RegistersApiExceptionHandler;
-use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
 /**
@@ -31,6 +42,9 @@ final class ExceptionTaxonomyTest extends TestCase
 {
     use RegistersApiExceptionHandler;
 
+    /** @var class-string<\Throwable>|null The class the render callbacks received */
+    private ?string $received = null;
+
     /**
      * Set up each test with the toolkit handler wired and throwing routes.
      *
@@ -41,18 +55,13 @@ final class ExceptionTaxonomyTest extends TestCase
     {
         parent::setUp();
 
+        $this->exceptionConfiguration()->render(function (\Throwable $exception): null {
+            $this->received = $exception::class;
+
+            return null;
+        });
+
         $this->registerApiExceptionHandler();
-
-        // Laravel prepares this into a NotFoundHttpException
-        Route::get('/model-missing', static function (): void {
-            User::findOrFail(99999);
-        });
-
-        // A statusless AuthorizationException is prepared into an
-        // AccessDeniedHttpException; abort(403) would yield a generic code
-        Route::get('/forbidden', static function (): never {
-            throw new AuthorizationException('This action is unauthorized.');
-        });
 
         Route::get('/get-only', static fn (): array => ['ok' => true]);
 
@@ -81,31 +90,50 @@ final class ExceptionTaxonomyTest extends TestCase
     }
 
     /**
-     * Test that a missing model renders as a 404 not-found envelope.
+     * Provide exceptions Laravel converts before rendering, with the class the
+     * render callbacks receive and the status and code it renders.
      *
-     * @return void
+     * @return iterable<string, array{\Closure(): \Throwable, class-string<\Throwable>, int, int}>
      */
-    public function testModelNotFoundIsRenderedAsNotFound(): void
+    public static function preparedExceptionProvider(): iterable
     {
-        $response = $this->getJson('/model-missing');
-
-        $response->assertStatus(404);
-        $response->assertJsonPath('error.status', 404);
-        $response->assertJsonPath('error.code', 10103);
+        yield 'model not found' => [static fn (): \Throwable => new ModelNotFoundException, NotFoundHttpException::class, 404, 10103];
+        yield 'backed enum case not found' => [static fn (): \Throwable => new BackedEnumCaseNotFoundException('Status', 'none'), NotFoundHttpException::class, 404, 10103];
+        yield 'records not found' => [static fn (): \Throwable => new RecordsNotFoundException, NotFoundHttpException::class, 404, 10103];
+        yield 'record not found' => [static fn (): \Throwable => new RecordNotFoundException, NotFoundHttpException::class, 404, 10103];
+        yield 'suspicious operation' => [static fn (): \Throwable => new SuspiciousOperationException, BadRequestHttpException::class, 400, 10100];
+        yield 'request exception' => [static fn (): \Throwable => new SymfonyBadRequestException, BadRequestHttpException::class, 400, 10100];
+        yield 'authorization without a status' => [static fn (): \Throwable => new AuthorizationException, AccessDeniedHttpException::class, 403, 10102];
+        yield 'authorization with 419' => [static fn (): \Throwable => (new AuthorizationException)->withStatus(419), SymfonyHttpException::class, 419, 10105];
+        yield 'authorization with an unknown status' => [static fn (): \Throwable => (new AuthorizationException)->withStatus(499), SymfonyHttpException::class, 500, 10001];
+        yield 'token mismatch' => [static fn (): \Throwable => new TokenMismatchException, SymfonyHttpException::class, 419, 10105];
+        yield 'origin mismatch' => [static fn (): \Throwable => new OriginMismatchException, SymfonyHttpException::class, 403, 10102];
     }
 
     /**
-     * Test that an authorization failure renders as a 403 forbidden envelope.
+     * Test that an exception Laravel converts reaches the render callbacks as
+     * the exception it becomes, and renders as that.
      *
+     * @param  \Closure(): \Throwable  $factory
+     * @param  class-string<\Throwable>  $received
+     * @param  int  $status
+     * @param  int  $code
      * @return void
      */
-    public function testAuthorizationFailureIsRenderedAsForbidden(): void
+    #[DataProvider('preparedExceptionProvider')]
+    public function testPreparedExceptionRendersAsTheExceptionItBecomes(\Closure $factory, string $received, int $status, int $code): void
     {
-        $response = $this->getJson('/forbidden');
+        Route::get('/prepared', static function () use ($factory): never {
+            throw $factory();
+        });
 
-        $response->assertStatus(403);
-        $response->assertJsonPath('error.status', 403);
-        $response->assertJsonPath('error.code', 10102);
+        $response = $this->getJson('/prepared');
+
+        self::assertSame($received, $this->received);
+
+        $response->assertStatus($status);
+        $response->assertJsonPath('error.status', $status);
+        $response->assertJsonPath('error.code', $code);
     }
 
     /**
