@@ -428,6 +428,14 @@ items it dispatches, the sort keys and relation aggregates requested, and how de
 cap is rejected before any SQL is issued, with a `422` naming the parameter, the position within it, the cap, the
 limit and the value supplied. Set a cap to `0` to disable it.
 
+**Writes** - `persist($model, $attributes)` creates or updates the model from an array or collection of attributes.
+Each key is written through Eloquent's `setAttribute()`, so casts, both mutator styles and JSON paths such as
+`options->theme` apply. A key naming a relation is written through it: a `BelongsTo` from a model, its key or `null`,
+a `MorphTo` from a model or `null`, and a `BelongsToMany` or `MorphToMany` from models or their keys, synced once the
+model is saved. A key naming any other relation throws an `InvalidArgumentException` before any key is assigned, and
+a key that is neither a column nor a mutator fails at save with the database's `QueryException`. A set mutator named
+like a relation takes precedence over it. `$fillable` and `$guarded` are not applied, so pass only validated input.
+
 **Cacheable trait** - per-query caching for any `ApiRepository` subclass:
 
 ```php
@@ -889,7 +897,7 @@ audience uses fails the export, as does a tag file that matches no tag, under th
 
 ### Metadata Invalidation
 
-Schema metadata (column listings and definitions, index catalogues, cast maps, relation lookups and the
+Schema metadata (column listings and definitions, index catalogues, relation lookups and the
 model-to-resource map) is cached in the application's cache store and shared by every process. The Octane and queue
 boundary flushes reset only each worker's in-process state, so a schema or mapping change needs the shared entries
 retired explicitly. Every metadata key is stored under a generation held in the same store; replacing the generation
@@ -923,17 +931,17 @@ The bypass limits how many store calls fail, not how long each takes, so give th
 
 Schema entries are keyed by the schema the connection actually reads (its name, database, table prefix, Postgres
 search path, database user and configured server), so a tenancy switcher that repoints one connection name reads each
-tenant's schema separately, provided it purges the connection when it switches. Casts, relation lookups and the
-resource map come from code and are shared across tenants. Where each tenant has its own cache prefix, each has its
-own generation, so invalidate per tenant.
+tenant's schema separately, provided it purges the connection when it switches. Relation lookups and the resource map
+come from code and are shared across tenants. Where each tenant has its own cache prefix, each has its own generation,
+so invalidate per tenant.
 
 The generation is replaced automatically when a migration run finishes. A run with nothing to migrate, or a
 `--pretend` run, leaves the metadata warm. If the cache store cannot be written, the hook logs a warning instead of
 failing the migration. Set `API_TOOLKIT_LIFECYCLE_MIGRATIONS=false` to turn the hook off.
 
 The hook is not enough on its own: migrations run before the new release takes traffic, so workers still on the old
-code can refill the new generation with their casts, resource mappings and relation lookups. Run this on every
-deploy, after the new release is live:
+code can refill the new generation with their resource mappings and relation lookups. Run this on every deploy,
+after the new release is live:
 
 ```bash
 php artisan api-toolkit:invalidate-metadata

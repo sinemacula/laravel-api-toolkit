@@ -1251,7 +1251,7 @@ The boundary resets:
 fires it after every request, task and tick.
 
 The boundary does not touch the cache store. Toolkit metadata (schema columns, column definitions, index catalogues,
-relation lookups, search index proofs, resources and repository model casts) is read and written through
+relation lookups, search index proofs and resources) is read and written through
 `Cache::memo()` on the application's cache store, which is usually shared by every worker, and is retired only by
 replacing the generation (see the metadata invalidation section below) or by its expiry. Any new toolkit metadata key
 must go through `MetadataCacheWriter` so it is namespaced by the generation. Because stored metadata survives the
@@ -1318,11 +1318,11 @@ connection object, never by a query, so:
   connection, so workers may cache under several correct keys that fill separately; prefer one entry with a host
   list.
 
-Casts, relation lookups and the model-to-resource map come from code, so they are keyed by class and shared across
-tenants. Where each tenant has its own cache prefix, each has its own generation, so run the invalidation per tenant.
+Relation lookups and the model-to-resource map come from code, so they are keyed by class and shared across tenants.
+Where each tenant has its own cache prefix, each has its own generation, so run the invalidation per tenant.
 
 The migration hook is not enough on its own: migrations run before the new release takes traffic, so workers still on
-the old code can refill the new generation with their casts, resource mappings and relation lookups.
+the old code can refill the new generation with their resource mappings and relation lookups.
 
 **Action required.** Run `php artisan api-toolkit:invalidate-metadata` on every deploy, after the new release is
 live. Code that read toolkit metadata keys straight from the store must go through `MetadataCacheWriter`, since the
