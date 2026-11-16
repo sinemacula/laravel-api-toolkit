@@ -34,6 +34,18 @@ final readonly class AudienceConfiguration
     }
 
     /**
+     * List every audience an export documents for: the configured ones, the
+     * default audience and the given one, in that order.
+     *
+     * @param  string  $audience
+     * @return list<string>
+     */
+    public function exportedAudiences(string $audience): array
+    {
+        return array_values(array_unique([...$this->names(), $this->defaultAudience(), $audience]));
+    }
+
+    /**
      * Determine whether the given audience name is configured.
      *
      * @param  string  $audience

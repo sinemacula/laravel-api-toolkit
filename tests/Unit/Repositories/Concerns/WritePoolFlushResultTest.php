@@ -42,11 +42,13 @@ final class WritePoolFlushResultTest extends TestCase
             successCount: 2,
             failureCount: 1,
             failures: [
-                'orders' => [
-                    [
-                        'records'         => [['name' => 'foo']],
-                        'exception'       => 'Insert failed',
-                        'exception_class' => \RuntimeException::class,
+                'main' => [
+                    'orders' => [
+                        [
+                            'records'         => [['name' => 'foo']],
+                            'exception'       => 'Insert failed',
+                            'exception_class' => \RuntimeException::class,
+                        ],
                     ],
                 ],
             ],
@@ -104,25 +106,30 @@ final class WritePoolFlushResultTest extends TestCase
     }
 
     /**
-     * Test that failures returns the failure details keyed by table name.
+     * Test that failures returns the failure details keyed by connection, then
+     * table.
      *
      * @return void
      */
-    public function testFailuresReturnsFailureDetailsKeyedByTable(): void
+    public function testFailuresReturnsFailureDetailsKeyedByConnectionAndTable(): void
     {
         $failures = [
-            'orders' => [
-                [
-                    'records'         => [['name' => 'order-1'], ['name' => 'order-2']],
-                    'exception'       => 'Duplicate entry',
-                    'exception_class' => \RuntimeException::class,
+            'main' => [
+                'orders' => [
+                    [
+                        'records'         => [['name' => 'order-1'], ['name' => 'order-2']],
+                        'exception'       => 'Duplicate entry',
+                        'exception_class' => \RuntimeException::class,
+                    ],
                 ],
             ],
-            'payments' => [
-                [
-                    'records'         => [['amount' => 100]],
-                    'exception'       => 'Connection lost',
-                    'exception_class' => \RuntimeException::class,
+            'audit' => [
+                'orders' => [
+                    [
+                        'records'         => [['amount' => 100]],
+                        'exception'       => 'Connection lost',
+                        'exception_class' => \RuntimeException::class,
+                    ],
                 ],
             ],
         ];
@@ -134,8 +141,6 @@ final class WritePoolFlushResultTest extends TestCase
         );
 
         self::assertSame($failures, $result->failures());
-        self::assertArrayHasKey('orders', $result->failures());
-        self::assertArrayHasKey('payments', $result->failures());
     }
 
     /**
@@ -269,11 +274,22 @@ final class WritePoolFlushResultTest extends TestCase
         };
 
         $failures = [
-            'orders' => [
-                [
-                    'records'         => [['id' => 1]],
-                    'exception'       => 'insert failed',
-                    'exception_class' => \RuntimeException::class,
+            'main' => [
+                'orders' => [
+                    [
+                        'records'         => [['id' => 1]],
+                        'exception'       => 'insert failed',
+                        'exception_class' => \RuntimeException::class,
+                    ],
+                ],
+            ],
+            'audit' => [
+                'orders' => [
+                    [
+                        'records'         => [['id' => 2]],
+                        'exception'       => 'insert failed',
+                        'exception_class' => \RuntimeException::class,
+                    ],
                 ],
             ],
         ];

@@ -121,7 +121,7 @@ final class DeferredWriteCacheInvalidationTest extends TestCase
         assert($this->app !== null);
 
         $pool = $this->app->make(WritePool::class);
-        $pool->add('tags', ['name' => $name]);
+        $pool->add('testing', 'tags', ['name' => $name]);
 
         (new WritePoolFlushSubscriber($this->app))->handleFlush();
     }
