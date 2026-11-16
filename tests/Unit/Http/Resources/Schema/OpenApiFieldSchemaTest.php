@@ -245,4 +245,60 @@ final class OpenApiFieldSchemaTest extends TestCase
 
         self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schema->toArray());
     }
+
+    /**
+     * Test that a nullable scalar loses only its null member.
+     *
+     * @return void
+     */
+    public function testWithoutNullDropsNullFromAScalar(): void
+    {
+        $schema = new OpenApiFieldSchema(
+            type        : 'string',
+            format      : 'email',
+            nullable    : true,
+            enum        : ['a@example.com'],
+            example     : 'a@example.com',
+            description : 'The address.',
+            undocumented: true,
+            ref         : '#/components/schemas/Address',
+        );
+
+        $copy = $schema->withoutNull();
+
+        self::assertNotSame($schema, $copy);
+        self::assertTrue($schema->nullable);
+        self::assertFalse($copy->nullable);
+        self::assertSame('string', $copy->type);
+        self::assertSame('email', $copy->format);
+        self::assertSame(['a@example.com'], $copy->enum);
+        self::assertSame('a@example.com', $copy->example);
+        self::assertSame('The address.', $copy->description);
+        self::assertTrue($copy->undocumented);
+        self::assertSame('#/components/schemas/Address', $copy->ref);
+    }
+
+    /**
+     * Test that a nullable reference becomes a bare reference.
+     *
+     * @return void
+     */
+    public function testWithoutNullUnwrapsANullableReference(): void
+    {
+        $schema = OpenApiFieldSchema::reference('#/components/schemas/UserStatus', true);
+
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schema->withoutNull()->toArray());
+    }
+
+    /**
+     * Test that a nullable scalar emits a single type once null is dropped.
+     *
+     * @return void
+     */
+    public function testWithoutNullEmitsASingleType(): void
+    {
+        $schema = new OpenApiFieldSchema(type: 'integer', nullable: true);
+
+        self::assertSame(['type' => 'integer'], $schema->withoutNull()->toArray());
+    }
 }

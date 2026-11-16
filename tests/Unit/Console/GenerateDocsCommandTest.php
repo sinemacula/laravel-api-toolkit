@@ -12,6 +12,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\GenerateDocsCommand;
 use SineMacula\ApiToolkit\OpenApi\Docs\AudienceQuerySurfaceCollector;
 use SineMacula\ApiToolkit\OpenApi\Docs\ReferencedEnumCollector;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\OrphanedDocumentationException;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Tag;
@@ -190,6 +191,22 @@ final class GenerateDocsCommandTest extends TestCase
     }
 
     /**
+     * Test that a docs path with a trailing slash writes to the same paths.
+     *
+     * @return void
+     */
+    public function testTrailingSlashOnTheDocsPathWritesTheSamePaths(): void
+    {
+        $this->getConfig()->set('api-toolkit.openapi.docs_path', $this->docsDir . '/');
+
+        $this->runCommand()
+            ->expectsOutputToContain(sprintf('Wrote %s.', $this->errorFile))
+            ->expectsOutputToContain(sprintf('Wrote %s.', $this->enumFile))
+            ->expectsOutputToContain(sprintf('Wrote %s.', $this->surfaceFile))
+            ->assertExitCode(0);
+    }
+
+    /**
      * Test that the surface reference is written per audience, holding only the
      * resources it reaches.
      *
@@ -249,6 +266,28 @@ final class GenerateDocsCommandTest extends TestCase
 
         self::assertStringContainsString("\n### User\n", $contents);
         self::assertStringContainsString('| `email` | `email` | `exact` |', $contents);
+    }
+
+    /**
+     * Test that a failed export leaves every section unwritten.
+     *
+     * @return void
+     */
+    public function testFailedExportLeavesEverySectionUnwritten(): void
+    {
+        mkdir($this->docsDir . '/tags', 0o777, true);
+        file_put_contents($this->docsDir . '/tags/Ghost.md', 'Ghost.');
+
+        $this->expectException(OrphanedDocumentationException::class);
+        $this->expectExceptionMessageMatches('/^' . preg_quote(sprintf('The tag description [%s/tags/Ghost.md] matches no tag in any audience.', $this->docsDir), '/') . '$/');
+
+        try {
+            $this->runCommand()->run();
+        } finally {
+            self::assertFileDoesNotExist($this->errorFile);
+            self::assertFileDoesNotExist($this->enumFile);
+            self::assertFileDoesNotExist($this->surfaceFile);
+        }
     }
 
     /**

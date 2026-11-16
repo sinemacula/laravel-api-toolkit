@@ -75,6 +75,24 @@ final readonly class OpenApiFieldSchema
     }
 
     /**
+     * Return a copy of this schema that does not admit null.
+     *
+     * @return self
+     */
+    public function withoutNull(): self
+    {
+        return new self(
+            type        : $this->type,
+            format      : $this->format,
+            enum        : $this->enum,
+            example     : $this->example,
+            description : $this->description,
+            undocumented: $this->undocumented,
+            ref         : $this->ref,
+        );
+    }
+
+    /**
      * Convert this schema to a JSON Schema 2020-12 fragment.
      *
      * @return array<string, mixed>
