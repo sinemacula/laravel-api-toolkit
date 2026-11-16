@@ -20,55 +20,63 @@ use SineMacula\ApiToolkit\Schema\FieldColumnMap;
 final class FieldColumnMapTest extends TestCase
 {
     /**
-     * Test that columnsFor returns the declared columns for a mapped field and
-     * isMapped returns true.
+     * Test that a declared field is mapped to its declared columns and is not
+     * inferred.
      *
      * @return void
      */
-    public function testColumnsForReturnsDeclaredColumnsWhenMapped(): void
+    public function testDeclaredFieldMapsToItsDeclaredColumns(): void
     {
-        $map = FieldColumnMap::make(
-            ['name' => ['first_name', 'last_name']],
-            ['name'],
-        );
+        $map = FieldColumnMap::make(['name' => ['first_name', 'last_name']], []);
 
         self::assertTrue($map->isMapped('name'));
+        self::assertFalse($map->isInferred('name'));
         self::assertSame(['first_name', 'last_name'], $map->columnsFor('name'));
     }
 
     /**
-     * Test that columnsFor returns null for an unmapped field and isMapped
-     * returns false.
+     * Test that an inferred field is mapped to its own key.
      *
      * @return void
      */
-    public function testColumnsForReturnsNullWhenNotMapped(): void
+    public function testInferredFieldMapsToItsOwnKey(): void
     {
-        $map = FieldColumnMap::make([], []);
+        $map = FieldColumnMap::make([], ['email']);
 
-        self::assertFalse($map->isMapped('email'));
-        self::assertNull($map->columnsFor('email'));
+        self::assertTrue($map->isMapped('email'));
+        self::assertTrue($map->isInferred('email'));
+        self::assertSame(['email'], $map->columnsFor('email'));
     }
 
     /**
-     * Test that a field present in columns but absent from the mapped set is
-     * treated as not mapped.
+     * Test that a declared field with no columns is still mapped.
      *
      * @return void
      */
-    public function testIsMappedRequiresExplicitMappedFlag(): void
+    public function testDeclaredFieldWithNoColumnsIsMapped(): void
     {
-        $map = FieldColumnMap::make(
-            ['name' => ['first_name', 'last_name']],
-            [],
-        );
+        $map = FieldColumnMap::make(['virtual' => []], []);
 
-        self::assertFalse($map->isMapped('name'));
-        self::assertNull($map->columnsFor('name'));
+        self::assertTrue($map->isMapped('virtual'));
+        self::assertSame([], $map->columnsFor('virtual'));
     }
 
     /**
-     * Test that an empty map treats every field as unmapped.
+     * Test that inferred keys are matched exactly, never as equal numbers.
+     *
+     * @return void
+     */
+    public function testInferredKeysAreMatchedExactly(): void
+    {
+        $map = FieldColumnMap::make([], ['10']);
+
+        self::assertTrue($map->isInferred('10'));
+        self::assertFalse($map->isInferred('1e1'));
+        self::assertFalse($map->isMapped('1e1'));
+    }
+
+    /**
+     * Test that an empty map maps nothing.
      *
      * @return void
      */
@@ -77,6 +85,7 @@ final class FieldColumnMapTest extends TestCase
         $map = FieldColumnMap::make([], []);
 
         self::assertFalse($map->isMapped('anything'));
+        self::assertFalse($map->isInferred('anything'));
         self::assertNull($map->columnsFor('anything'));
     }
 }

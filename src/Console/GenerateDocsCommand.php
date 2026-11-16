@@ -5,11 +5,10 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Console;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\AudienceQuerySurfaceCollector;
-use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Docs\DocsDirectory;
 use SineMacula\ApiToolkit\OpenApi\Docs\EnumReferenceDocGenerator;
 use SineMacula\ApiToolkit\OpenApi\Docs\ErrorCatalogueDocGenerator;
 use SineMacula\ApiToolkit\OpenApi\Docs\QuerySurfaceDocGenerator;
@@ -35,9 +34,6 @@ final class GenerateDocsCommand extends Command
     /** @var string The generated query surface reference filename, written per audience */
     private const string SURFACE_FILE = '60-query-surface-reference.md';
 
-    /** @var string The default docs directory, relative to the resources */
-    private const string DEFAULT_DIRECTORY = 'api-docs';
-
     /** @var string The console command signature */
     protected $signature = 'api-toolkit:docs:generate';
 
@@ -47,6 +43,9 @@ final class GenerateDocsCommand extends Command
     /**
      * Execute the console command.
      *
+     * Every section is generated before any is written, so a failed export
+     * leaves the docs directory untouched.
+     *
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\ErrorCatalogueDocGenerator  $errors
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\EnumReferenceDocGenerator  $enums
@@ -54,6 +53,7 @@ final class GenerateDocsCommand extends Command
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\ReferencedEnumCollector  $collector
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\AudienceQuerySurfaceCollector  $surfaces
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter  $writer
+     * @param  \SineMacula\ApiToolkit\OpenApi\Docs\DocsDirectory  $docs
      * @return int
      */
     public function handle(
@@ -64,88 +64,45 @@ final class GenerateDocsCommand extends Command
         ReferencedEnumCollector $collector,
         AudienceQuerySurfaceCollector $surfaces,
         DocumentWriter $writer,
+        DocsDirectory $docs,
     ): int {
-        $directory = $this->docsPath();
+        $directory = rtrim($docs->root(), '/');
 
-        $this->writeFile($writer, $directory, self::ERROR_FILE, $errors->generate($catalogue->getErrorCatalogue()));
-        $this->writeFile($writer, $directory, self::ENUM_FILE, $enums->generate($collector->collect()));
+        $files = [
+            $directory . '/' . self::ERROR_FILE => $errors->generate($catalogue->getErrorCatalogue()),
+            $directory . '/' . self::ENUM_FILE  => $enums->generate($collector->collect()),
+            ...$this->surfaceReferences($docs, $catalogue, $surface, $surfaces),
+        ];
 
-        $this->writeSurfaceReferences($writer, $directory, $catalogue, $surface, $surfaces);
+        foreach ($files as $path => $contents) {
+
+            $writer->write($path, $contents);
+
+            $this->components->info(sprintf('Wrote %s.', $path));
+        }
 
         return self::SUCCESS;
     }
 
     /**
-     * Write one query surface reference per audience.
+     * Generate one query surface reference per audience, keyed by its path.
      *
-     * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter  $writer
-     * @param  string  $directory
+     * @param  \SineMacula\ApiToolkit\OpenApi\Docs\DocsDirectory  $docs
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\QuerySurfaceDocGenerator  $surface
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\AudienceQuerySurfaceCollector  $surfaces
-     * @return void
+     * @return array<string, string>
      */
-    private function writeSurfaceReferences(
-        DocumentWriter $writer,
-        string $directory,
-        MetadataCatalogue $catalogue,
-        QuerySurfaceDocGenerator $surface,
-        AudienceQuerySurfaceCollector $surfaces,
-    ): void {
-        $limits = $catalogue->getQueryLimits();
-        $bounds = $catalogue->getSearchBounds();
+    private function surfaceReferences(DocsDirectory $docs, MetadataCatalogue $catalogue, QuerySurfaceDocGenerator $surface, AudienceQuerySurfaceCollector $surfaces): array
+    {
+        $limits     = $catalogue->getQueryLimits();
+        $bounds     = $catalogue->getSearchBounds();
+        $references = [];
 
         foreach ($surfaces->collect() as $audience => $reached) {
-            $this->writeFile(
-                $writer,
-                $this->audiencePath($directory, $audience),
-                self::SURFACE_FILE,
-                $surface->generate($reached, $limits, $bounds),
-            );
+            $references[$docs->audienceRoot($audience) . '/' . self::SURFACE_FILE] = $surface->generate($reached, $limits, $bounds);
         }
-    }
 
-    /**
-     * Resolve the section directory belonging to a single audience.
-     *
-     * @param  string  $directory
-     * @param  string  $audience
-     * @return string
-     */
-    private function audiencePath(string $directory, string $audience): string
-    {
-        return rtrim($directory, '/') . '/' . DocManualAssembler::AUDIENCE_DIRECTORY . '/' . $audience;
-    }
-
-    /**
-     * Write one generated section file and report the path written.
-     *
-     * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter  $writer
-     * @param  string  $directory
-     * @param  string  $filename
-     * @param  string  $contents
-     * @return void
-     */
-    private function writeFile(DocumentWriter $writer, string $directory, string $filename, string $contents): void
-    {
-        $path = rtrim($directory, '/') . '/' . $filename;
-
-        $writer->write($path, $contents);
-
-        $this->components->info(sprintf('Wrote %s.', $path));
-    }
-
-    /**
-     * Resolve the docs directory, falling back to resources/api-docs.
-     *
-     * @return string
-     */
-    private function docsPath(): string
-    {
-        $configured = Config::get('api-toolkit.openapi.docs_path');
-
-        return is_string($configured) && $configured !== ''
-            ? $configured
-            : resource_path(self::DEFAULT_DIRECTORY);
+        return $references;
     }
 }

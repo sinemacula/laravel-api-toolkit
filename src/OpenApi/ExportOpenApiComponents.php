@@ -44,11 +44,11 @@ final readonly class ExportOpenApiComponents
         $document = $this->assembler->assemble($audience);
 
         return new ExportResult(
-            document      : $document,
-            operationCount: $this->countOperations($document),
-            resourceCount : $this->countResourceSchemas($document),
-            parameterCount: $this->countComponents($document, 'parameters'),
-            responseCount : $this->countComponents($document, 'responses'),
+            document         : $document,
+            operationCount   : $this->countOperations($document),
+            resourceCount    : $this->countResourceSchemas($document),
+            parameterCount   : $this->countComponents($document, 'parameters'),
+            errorExampleCount: $this->countComponents($document, 'examples'),
         );
     }
 

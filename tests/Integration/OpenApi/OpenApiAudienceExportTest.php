@@ -23,6 +23,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Concerns\WritesDocsDirectories;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -57,6 +58,8 @@ use Tests\TestCase;
 #[CoversClass(ResourceSchemaBuilder::class)]
 final class OpenApiAudienceExportTest extends TestCase
 {
+    use WritesDocsDirectories;
+
     /** @var string The identifier under which the OpenAPI 3.1 meta-schema is registered. */
     private const string META_SCHEMA_ID = 'https://spec.openapis.org/oas/3.1/schema/2022-10-07';
 
@@ -319,6 +322,38 @@ final class OpenApiAudienceExportTest extends TestCase
         self::assertIsString($public);
         self::assertStringContainsString('# Query Surface Reference', $public);
         self::assertStringContainsString('### Organization', $public);
+    }
+
+    /**
+     * Test that an audience's operation and tag files replace the shared ones
+     * for it alone, and an internal-only tag stays out of the public list.
+     *
+     * @return void
+     */
+    public function testAudienceOverridesOperationAndTagDescriptions(): void
+    {
+        $this->registerInternalOnlySurface();
+
+        $this->getConfig()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->useDocsDirectory([
+            'operations/path-organization.index.md'                    => 'Lists the organizations.',
+            'tags/Organization.md'                                     => 'Customer organizations.',
+            'tags/QueryableTag.md'                                     => 'Labels.',
+            'audiences/internal/operations/path-organization.index.md' => 'Lists every organization, archived ones included.',
+            'audiences/internal/tags/Organization.md'                  => 'Every organization.',
+        ]);
+
+        $public   = $this->export('public')->document;
+        $internal = $this->export('internal')->document;
+
+        self::assertSame('Lists the organizations.', $public['paths']['/organizations']['get']['description']);
+        self::assertSame([['name' => 'Organization', 'description' => 'Customer organizations.']], $public['tags']);
+        self::assertSame('Lists every organization, archived ones included.', $internal['paths']['/organizations']['get']['description']);
+        self::assertSame([['name' => 'Organization', 'description' => 'Every organization.'], ['name' => 'QueryableTag', 'description' => 'Labels.']], $internal['tags']);
+
+        $this->assertValid($public);
+        $this->assertValid($internal);
     }
 
     /**

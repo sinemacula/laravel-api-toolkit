@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Schema\ColumnNarrower;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
@@ -17,7 +18,7 @@ use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 /**
  * Applies base-table column narrowing to an Eloquent query builder.
  *
- * Narrows only when every resolved field is provably column-mapped.
+ * Narrows only when every resolved field provably reads real table columns.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -28,11 +29,15 @@ final readonly class ColumnProjectionApplier
      * Create a new column projection applier instance.
      *
      * @param  \SineMacula\ApiToolkit\Schema\SafetySetDeriver  $safetySetDeriver
+     * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
      */
     public function __construct(
 
         /** Derives the per-model safety set a narrowed query must retain. */
         private SafetySetDeriver $safetySetDeriver,
+
+        /** Reads the real column listing every narrowed column is checked against. */
+        private SchemaIntrospectionProvider $schemaIntrospector,
     ) {}
 
     /**
@@ -60,15 +65,17 @@ final readonly class ColumnProjectionApplier
             return $query;
         }
 
+        $model        = $query->getModel();
         $relationKeys = $this->relationNames($metadataProvider->eagerLoadMapFor($resourceClass, $fields));
         $safety       = $this->deriveSafetySet($query, $relationKeys, $order);
-        $decision     = (new ColumnNarrower)->decide(FieldColumnMapper::for($resourceClass), $fields, $safety);
+        $columns      = $this->schemaIntrospector->getColumns($model);
+        $decision     = (new ColumnNarrower)->decide(FieldColumnMapper::for($resourceClass), $fields, $safety, $model, $columns);
 
         if ($decision->shouldNarrow()) {
             $query->getQuery()->select($decision->columns());
         } elseif ($decision->reason() !== null) {
             Log::debug('Column narrowing fell back to a full select', [
-                'model'    => $query->getModel()::class,
+                'model'    => $model::class,
                 'resource' => $resourceClass,
                 'field'    => $decision->reason(),
             ]);
