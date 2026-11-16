@@ -9,9 +9,8 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\DefinesSchema;
 /**
  * Fixture self-describing DTO shape.
  *
- * Declares its own JSON-Schema fragment so the response-schema resolver can be
- * exercised against the inline DTO path, proving a non-resource body is inlined
- * without registering a component.
+ * Declares its own JSON-Schema fragment, so a non-resource body is exported as
+ * one component referenced by every action naming it.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

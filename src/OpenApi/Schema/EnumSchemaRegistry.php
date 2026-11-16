@@ -44,7 +44,7 @@ final class EnumSchemaRegistry
     {
         $this->register($enum);
 
-        return self::SCHEMA_REF_PREFIX . SchemaComponentName::fromEnum($enum);
+        return self::SCHEMA_REF_PREFIX . SchemaComponentName::fromClass($enum);
     }
 
     /**

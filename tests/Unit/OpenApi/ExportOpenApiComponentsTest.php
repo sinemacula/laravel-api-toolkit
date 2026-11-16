@@ -8,6 +8,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
@@ -35,6 +36,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\RouteKeySchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
@@ -121,7 +123,7 @@ final class ExportOpenApiComponentsTest extends TestCase
     }
 
     /**
-     * Test that the resource count leaves out the envelope schemas.
+     * Test that the resource count leaves out the envelope and defined schemas.
      *
      * @return void
      */
@@ -131,7 +133,8 @@ final class ExportOpenApiComponentsTest extends TestCase
 
         $result = $this->export();
 
-        self::assertNotSame([], $result->document['components']['schemas']);
+        self::assertIsArray($result->document['components']['schemas']);
+        self::assertArrayHasKey('WidgetShape', $result->document['components']['schemas']);
         self::assertSame(0, $result->resourceCount);
     }
 
@@ -304,9 +307,10 @@ final class ExportOpenApiComponentsTest extends TestCase
 
         assert($this->app !== null);
 
-        $introspector = $this->app->make(SchemaIntrospector::class);
-        $router       = $this->router();
-        $enums        = new EnumSchemaRegistry;
+        $introspector   = $this->app->make(SchemaIntrospector::class);
+        $router         = $this->router();
+        $enums          = new EnumSchemaRegistry;
+        $definedSchemas = new DefinedSchemaRegistry;
 
         $assembler = new OpenApiAssembler(
             new ResourceSchemaBuilder($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums), $introspector),
@@ -332,7 +336,7 @@ final class ExportOpenApiComponentsTest extends TestCase
                 new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver),
                 new SuccessResponseBuilder(
                     new EnvelopeBuilder,
-                    new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
+                    new ResponseSchemaResolver($catalogue, new EnvelopeBuilder, $definedSchemas),
                     new ResponseHeaderResolver,
                     new ResponseStatusResolver,
                 ),
@@ -341,6 +345,8 @@ final class ExportOpenApiComponentsTest extends TestCase
             new EnumSchemaBuilder,
             $enums,
             new DocManualAssembler,
+            $definedSchemas,
+            new DefinedSchemaBuilder,
         );
 
         return (new ExportOpenApiComponents($assembler, $catalogue))->export($audience);
