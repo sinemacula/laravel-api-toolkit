@@ -26,6 +26,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
@@ -55,10 +56,7 @@ use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
-use Tests\Fixtures\OpenApi\PendingSignInShape;
-use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\OpenApi\Vendor\PathVendorController;
-use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -74,6 +72,27 @@ use Tests\TestCase;
 #[CoversClass(PathBuilder::class)]
 final class PathBuilderTest extends TestCase
 {
+    /** The reference to the widget shape's component */
+    private const string WIDGET_REF = '#/components/schemas/WidgetShape';
+
+    /** The reference to the signed-in shape's component */
+    private const string SIGNED_IN_REF = '#/components/schemas/SignedInShape';
+
+    /** The discriminated union of the signed-in and pending shapes */
+    private const array SIGN_IN_UNION = [
+        'oneOf' => [
+            ['$ref' => self::SIGNED_IN_REF],
+            ['$ref' => '#/components/schemas/PendingSignInShape'],
+        ],
+        'discriminator' => [
+            'propertyName' => 'status',
+            'mapping'      => [
+                'signed_in' => self::SIGNED_IN_REF,
+                'pending'   => '#/components/schemas/PendingSignInShape',
+            ],
+        ],
+    ];
+
     /**
      * Test that REST routes yield path templates and others contribute nothing.
      *
@@ -777,41 +796,44 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a declared DTO inlines its schema under the data property.
+     * Test that a declared DTO references its component under the data
+     * property.
      *
      * @return void
      */
-    public function testResponseSchemaDtoActionInlinesFragment(): void
+    public function testResponseSchemaDtoActionReferencesComponent(): void
     {
         $this->router()->get('widget', [PathResponseSchemaController::class, 'widget']);
 
         $schema = $this->build()['/widget']['get']['responses']['200']['content']['application/json']['schema'];
 
-        self::assertSame(WidgetShape::schema(), $schema['properties']['data']);
+        self::assertSame(['$ref' => self::WIDGET_REF], $schema['properties']['data']);
         self::assertSame(['data'], $schema['required']);
     }
 
     /**
-     * Test that a declared DTO collection inlines the DTO as the item schema.
+     * Test that a declared DTO collection references the DTO's component as the
+     * item schema.
      *
      * @return void
      */
-    public function testResponseSchemaDtoCollectionActionInlinesItemFragment(): void
+    public function testResponseSchemaDtoCollectionActionReferencesComponent(): void
     {
         $this->router()->get('widgets', [PathResponseSchemaController::class, 'widgets']);
 
         $schema = $this->build()['/widgets']['get']['responses']['200']['content']['application/json']['schema'];
 
         self::assertSame(
-            (new EnvelopeBuilder)->collectionEnvelopeFor(WidgetShape::schema()),
+            (new EnvelopeBuilder)->collectionEnvelope(self::WIDGET_REF),
             $schema,
         );
-        self::assertSame(WidgetShape::schema(), $schema['properties']['data']['items']);
+        self::assertSame(['$ref' => self::WIDGET_REF], $schema['properties']['data']['items']);
         self::assertSame(['data', 'meta', 'links'], $schema['required']);
     }
 
     /**
-     * Test that several declared shapes embed a oneOf under data.
+     * Test that several declared shapes embed a discriminated oneOf of their
+     * references under data.
      *
      * @return void
      */
@@ -822,7 +844,7 @@ final class PathBuilderTest extends TestCase
         $schema = $this->build()['/session']['get']['responses']['200']['content']['application/json']['schema'];
 
         self::assertSame(
-            (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]]),
+            (new EnvelopeBuilder)->singleEnvelopeFor(self::SIGN_IN_UNION),
             $schema,
         );
     }
@@ -847,7 +869,7 @@ final class PathBuilderTest extends TestCase
         self::assertSame([
             'description' => 'The request succeeded and a resource was created.',
             'headers'     => ['Set-Cookie' => ['description' => 'The refresh token.', 'schema' => ['type' => 'string']]],
-            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]])]],
+            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelopeFor(self::SIGN_IN_UNION)]],
         ], $operation['responses'][201]);
     }
 
@@ -870,7 +892,7 @@ final class PathBuilderTest extends TestCase
         self::assertSame([200, 403, 404, 422, 500], array_keys($operation['responses']));
         self::assertSame([
             'description' => 'The request succeeded.',
-            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelopeFor(SignedInShape::schema())]],
+            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelope(self::SIGNED_IN_REF)]],
         ], $operation['responses'][200]);
     }
 
@@ -889,7 +911,7 @@ final class PathBuilderTest extends TestCase
         self::assertIsArray($operation['responses']);
         self::assertSame([200, 403, 404, 500], array_keys($operation['responses']));
         self::assertSame(
-            (new EnvelopeBuilder)->singleEnvelopeFor(WidgetShape::schema()),
+            (new EnvelopeBuilder)->singleEnvelope(self::WIDGET_REF),
             $operation['responses'][200]['content']['application/json']['schema'],
         );
     }
@@ -913,13 +935,13 @@ final class PathBuilderTest extends TestCase
         self::assertSame([206, 403, 500], array_keys($paths['/users']['get']['responses']));
         self::assertSame([
             'description' => 'Partial Content.',
-            'content'     => ['application/json' => ['schema' => $envelope->collectionEnvelopeFor(WidgetShape::schema())]],
+            'content'     => ['application/json' => ['schema' => $envelope->collectionEnvelope(self::WIDGET_REF)]],
         ], $paths['/users']['get']['responses'][206]);
         self::assertIsArray($paths['/users/{user}']['delete']['responses']);
         self::assertSame([200, 403, 404, 500], array_keys($paths['/users/{user}']['delete']['responses']));
         self::assertSame([
             'description' => 'OK.',
-            'content'     => ['application/json' => ['schema' => $envelope->singleEnvelopeFor(WidgetShape::schema())]],
+            'content'     => ['application/json' => ['schema' => $envelope->singleEnvelope(self::WIDGET_REF)]],
         ], $paths['/users/{user}']['delete']['responses'][200]);
     }
 
@@ -1892,7 +1914,7 @@ final class PathBuilderTest extends TestCase
         self::assertSame([
             'description' => 'Accepted.',
             'headers'     => ['X-Request-Id' => ['schema' => ['type' => 'string']]],
-            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelopeFor(WidgetShape::schema())]],
+            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelope(self::WIDGET_REF)]],
         ], $responses[202]);
     }
 
@@ -1930,7 +1952,7 @@ final class PathBuilderTest extends TestCase
         self::assertIsArray($item);
         self::assertSame([200, 404, 500], array_keys($item));
         self::assertSame(
-            (new EnvelopeBuilder)->singleEnvelopeFor(WidgetShape::schema()),
+            (new EnvelopeBuilder)->singleEnvelope(self::WIDGET_REF),
             $item[200]['content']['application/json']['schema'],
         );
         self::assertIsArray($user);
@@ -2182,7 +2204,7 @@ final class PathBuilderTest extends TestCase
             new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver),
             new SuccessResponseBuilder(
                 new EnvelopeBuilder,
-                new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
+                new ResponseSchemaResolver($catalogue, new EnvelopeBuilder, new DefinedSchemaRegistry),
                 new ResponseHeaderResolver,
                 new ResponseStatusResolver,
             ),
