@@ -96,6 +96,43 @@ final class SchemaObjectNormaliserTest extends TestCase
     }
 
     /**
+     * Test that a discriminator mapping keyed by numeric values encodes as an
+     * object.
+     *
+     * @return void
+     */
+    public function testADiscriminatorMappingOfNumericValuesEncodesAsAnObject(): void
+    {
+        $document = ['components' => ['schemas' => ['A' => [
+            'oneOf'         => [['$ref' => '#/x'], ['$ref' => '#/y']],
+            'discriminator' => ['propertyName' => 'kind', 'mapping' => ['#/x', '#/y']],
+        ]]]];
+
+        self::assertSame(
+            '{"components":{"schemas":{"A":{"oneOf":[{"$ref":"#/x"},{"$ref":"#/y"}],"discriminator":{"propertyName":"kind","mapping":{"0":"#/x","1":"#/y"}}}}}}',
+            $this->encode($document),
+        );
+    }
+
+    /**
+     * Test that a named discriminator mapping, or none, is left as is.
+     *
+     * @return void
+     */
+    public function testANamedOrAbsentDiscriminatorMappingIsLeftAsIs(): void
+    {
+        $document = ['components' => ['schemas' => [
+            'A' => ['discriminator' => ['propertyName' => 'kind', 'mapping' => ['a' => '#/x']]],
+            'B' => ['discriminator' => ['propertyName' => 'kind']],
+        ]]];
+
+        self::assertSame(
+            '{"components":{"schemas":{"A":{"discriminator":{"propertyName":"kind","mapping":{"a":"#/x"}}},"B":{"discriminator":{"propertyName":"kind"}}}}}',
+            $this->encode($document),
+        );
+    }
+
+    /**
      * Test that an empty `schema` value encodes as an object everywhere.
      *
      * @return void

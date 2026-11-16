@@ -5,9 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Attributes;
 
 /**
- * Override the OpenAPI component schema name derived for a resource.
+ * Override the OpenAPI component schema name derived for a class.
  *
- * Resolves collisions between resources sharing a basename across namespaces.
+ * Resolves collisions between classes sharing a basename across namespaces.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -22,7 +22,7 @@ final readonly class SchemaName
      */
     public function __construct(
 
-        /** The component schema name to use for the resource. */
+        /** The component schema name to use for the class. */
         public string $name,
     ) {}
 }
