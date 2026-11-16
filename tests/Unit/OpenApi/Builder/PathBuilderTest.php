@@ -8,25 +8,39 @@ use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
+use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector;
+use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RouteKeySchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry;
+use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
@@ -36,29 +50,24 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
 use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathAttributelessController;
+use Tests\Fixtures\OpenApi\PathBindingController;
 use Tests\Fixtures\OpenApi\PathDeclaredBodyUserController;
 use Tests\Fixtures\OpenApi\PathDeclaredResourceUserController;
 use Tests\Fixtures\OpenApi\PathErrorController;
-use Tests\Fixtures\OpenApi\PathExcludedController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathHeaderCollisionController;
 use Tests\Fixtures\OpenApi\PathHeaderedUserController;
 use Tests\Fixtures\OpenApi\PathInvokableController;
+use Tests\Fixtures\OpenApi\PathOperationController;
 use Tests\Fixtures\OpenApi\PathPlainController;
 use Tests\Fixtures\OpenApi\PathReflectionGapController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathResponseStatusController;
-use Tests\Fixtures\OpenApi\PathRouteFactsController;
 use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
-use Tests\Fixtures\OpenApi\PathTaggedController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
-use Tests\Fixtures\OpenApi\PendingSignInShape;
-use Tests\Fixtures\OpenApi\SignedInShape;
-use Tests\Fixtures\OpenApi\Vendor\PathVendorController;
-use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -74,6 +83,27 @@ use Tests\TestCase;
 #[CoversClass(PathBuilder::class)]
 final class PathBuilderTest extends TestCase
 {
+    /** The reference to the widget shape's component */
+    private const string WIDGET_REF = '#/components/schemas/WidgetShape';
+
+    /** The reference to the signed-in shape's component */
+    private const string SIGNED_IN_REF = '#/components/schemas/SignedInShape';
+
+    /** The discriminated union of the signed-in and pending shapes */
+    private const array SIGN_IN_UNION = [
+        'oneOf' => [
+            ['$ref' => self::SIGNED_IN_REF],
+            ['$ref' => '#/components/schemas/PendingSignInShape'],
+        ],
+        'discriminator' => [
+            'propertyName' => 'status',
+            'mapping'      => [
+                'signed_in' => self::SIGNED_IN_REF,
+                'pending'   => '#/components/schemas/PendingSignInShape',
+            ],
+        ],
+    ];
+
     /**
      * Test that REST routes yield path templates and others contribute nothing.
      *
@@ -215,164 +245,20 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that the index carries only the baseline error statuses that apply.
+     * Test that a resource create or update documents the validation error
+     * without a request body, and a read or delete does not.
      *
      * @return void
      */
-    public function testIndexCarriesCollectionBaselineErrors(): void
-    {
-        $this->registerRestRoutes('auth');
-
-        $responses = $this->build()['/users']['get']['responses'];
-
-        self::assertIsArray($responses);
-
-        foreach (['401', '403', '500'] as $status) {
-            self::assertArrayHasKey($status, $responses);
-        }
-
-        self::assertArrayNotHasKey('404', $responses);
-        self::assertArrayNotHasKey('422', $responses);
-    }
-
-    /**
-     * Test that a show carries not-found but omits the validation status.
-     *
-     * @return void
-     */
-    public function testShowCarriesResourceBaselineWithNotFound(): void
-    {
-        $this->registerRestRoutes('auth');
-
-        $responses = $this->build()['/users/{user}']['get']['responses'];
-
-        self::assertIsArray($responses);
-
-        foreach (['401', '403', '404', '500'] as $status) {
-            self::assertArrayHasKey($status, $responses);
-        }
-
-        self::assertArrayNotHasKey('422', $responses);
-    }
-
-    /**
-     * Test that a create carries the validation status but omits not-found.
-     *
-     * @return void
-     */
-    public function testStoreCarriesValidationBaseline(): void
-    {
-        $this->registerRestRoutes('auth');
-
-        $responses = $this->build()['/users']['post']['responses'];
-
-        self::assertIsArray($responses);
-
-        foreach (['401', '403', '422', '500'] as $status) {
-            self::assertArrayHasKey($status, $responses);
-        }
-
-        self::assertArrayNotHasKey('404', $responses);
-    }
-
-    /**
-     * Test that a destroy carries no-content and omits the validation status.
-     *
-     * @return void
-     */
-    public function testDestroyCarriesBaselineErrorsAlongsideNoContent(): void
-    {
-        $this->registerRestRoutes('auth');
-
-        $responses = $this->build()['/users/{user}']['delete']['responses'];
-
-        self::assertIsArray($responses);
-
-        foreach (['204', '401', '403', '404', '500'] as $status) {
-            self::assertArrayHasKey($status, $responses);
-        }
-
-        self::assertArrayNotHasKey('422', $responses);
-    }
-
-    /**
-     * Test that a baseline-only status references the shared error envelope.
-     *
-     * @return void
-     */
-    public function testBaselineErrorReferencesSharedEnvelopeSchema(): void
-    {
-        $this->registerRestRoutes('auth');
-
-        $response = $this->build()['/users']['get']['responses']['401'];
-
-        self::assertSame('Unauthenticated.', $response['description']);
-        self::assertSame(
-            ['$ref' => '#/components/schemas/ErrorEnvelope'],
-            $response['content']['application/json']['schema'],
-        );
-        self::assertIsArray($response['content']['application/json']);
-        self::assertArrayNotHasKey('examples', $response['content']['application/json']);
-    }
-
-    /**
-     * Test that a thrown exception on a baseline status merges into it.
-     *
-     * @return void
-     */
-    public function testThrownExceptionCollidesWithBaselineStatus(): void
+    public function testResourceWriteActionsDocumentTheValidationError(): void
     {
         $this->registerRestRoutes();
+        $this->router()->put('errors/{error}', [PathErrorController::class, 'update']);
 
-        $notFound = $this->build()['/users/{user}']['get']['responses']['404'];
-
-        self::assertSame('The requested resource does not exist.', $notFound['description']);
-
-        $media = $notFound['content']['application/json'];
-
-        self::assertSame(['$ref' => '#/components/schemas/ErrorEnvelope'], $media['schema']);
-        self::assertIsArray($media['examples']);
-        self::assertArrayHasKey('NotFoundException', $media['examples']);
-        self::assertSame(
-            ['status' => 404, 'code' => 10103],
-            $media['examples']['NotFoundException']['value']['error'],
-        );
-    }
-
-    /**
-     * Test that a non-baseline thrown status surfaces with a code example.
-     *
-     * @return void
-     */
-    public function testThrownExceptionSurfacesUnderItsOwnStatus(): void
-    {
-        $this->registerRestRoutes();
-
-        $responses = $this->build()['/users']['post']['responses'];
-
-        self::assertIsArray($responses);
-        self::assertArrayHasKey('409', $responses);
-        self::assertSame('Conflict.', $responses['409']['description']);
-        self::assertSame(
-            ['status' => 409, 'code' => 10108],
-            $responses['409']['content']['application/json']['examples']['ConflictException']['value']['error'],
-        );
-    }
-
-    /**
-     * Test that merged responses carry exactly one entry per status.
-     *
-     * @return void
-     */
-    public function testResponsesHaveExactlyOneEntryPerStatus(): void
-    {
-        $this->registerRestRoutes('auth');
-
-        $statuses = array_keys($this->responsesOf('/users', 'post'));
-
-        sort($statuses);
-
-        self::assertSame([201, 401, 403, 409, 422, 500], $statuses);
+        self::assertSame([201, 403, 409, 422, 500], array_keys($this->responsesOf('/users', 'post')));
+        self::assertSame([200, 403, 404, 422, 500], array_keys($this->responsesOf('/errors/{error}', 'put')));
+        self::assertSame([200, 403, 404, 500], array_keys($this->responsesOf('/users/{user}', 'get')));
+        self::assertSame([204, 403, 404, 500], array_keys($this->responsesOf('/users/{user}', 'delete')));
     }
 
     /**
@@ -388,6 +274,129 @@ final class PathBuilderTest extends TestCase
 
         self::assertSame(['User'], $paths['/users']['get']['tags']);
         self::assertSame(['User'], $paths['/users/{user}']['delete']['tags']);
+    }
+
+    /**
+     * Test that an operation carries no documentation keys when nothing is
+     * declared.
+     *
+     * @return void
+     */
+    public function testOperationCarriesNoDocumentationWhenNothingIsDeclared(): void
+    {
+        $this->registerRestRoutes();
+
+        $item = $this->build(['path-fixture.update' => 'Updates a user.']);
+
+        self::assertSame(['tags', 'parameters', 'responses', 'security'], array_keys($this->operationOf($item, '/users/{user}', 'get')));
+        self::assertSame(['tags', 'parameters', 'responses', 'security'], array_keys($this->operationOf($item, '/users/{user}', 'put')));
+    }
+
+    /**
+     * Test that a declared summary is emitted whether ids are off or on.
+     *
+     * @return void
+     */
+    public function testDeclaredSummaryIsEmittedWithIdsOffOrOn(): void
+    {
+        $this->router()->get('widgets/{widget}', [PathOperationController::class, 'show']);
+        $this->router()->get('widgets', [PathOperationController::class, 'index']);
+
+        $off = $this->build();
+
+        self::assertSame('Show a widget', $off['/widgets/{widget}']['get']['summary']);
+        self::assertSame(['tags', 'summary', 'parameters', 'responses', 'security'], array_keys($this->operationOf($off, '/widgets/{widget}', 'get')));
+        self::assertSame(['tags', 'responses', 'security'], array_keys($this->operationOf($off, '/widgets', 'get')));
+
+        config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $on = $this->build();
+
+        self::assertSame('Show a widget', $on['/widgets/{widget}']['get']['summary']);
+        self::assertSame('widgets.showcase', $on['/widgets/{widget}']['get']['operationId']);
+        self::assertSame(['tags', 'operationId', 'responses', 'security'], array_keys($this->operationOf($on, '/widgets', 'get')));
+    }
+
+    /**
+     * Test that each verb carries its own operationId.
+     *
+     * @return void
+     */
+    public function testEachVerbCarriesItsOwnOperationId(): void
+    {
+        config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->registerRestRoutes();
+
+        $paths = $this->build();
+
+        self::assertSame('path-fixture.update', $this->operationOf($paths, '/users/{user}', 'put')['operationId']);
+        self::assertSame('path-fixture.update.patch', $this->operationOf($paths, '/users/{user}', 'patch')['operationId']);
+        self::assertSame('path-fixture.destroy', $this->operationOf($paths, '/users/{user}', 'delete')['operationId']);
+    }
+
+    /**
+     * Test that an operation's description is read from the map by its id, and
+     * absent when the map has none for it.
+     *
+     * @return void
+     */
+    public function testDescriptionIsReadByOperationId(): void
+    {
+        config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->registerRestRoutes();
+
+        $paths = $this->build(['path-fixture.index' => 'Lists the users.', 'path-fixture.destroy' => '']);
+
+        self::assertSame('Lists the users.', $paths['/users']['get']['description']);
+        self::assertArrayNotHasKey('description', $this->operationOf($paths, '/users', 'post'));
+        self::assertArrayNotHasKey('description', $this->operationOf($paths, '/users/{user}', 'delete'));
+    }
+
+    /**
+     * Test that a later verb falls back to the primary description unless it
+     * has its own, an empty one blanking it.
+     *
+     * @return void
+     */
+    public function testLaterVerbFallsBackToThePrimaryDescription(): void
+    {
+        config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->registerRestRoutes();
+
+        $fallback = $this->build(['path-fixture.update' => 'Updates a user.']);
+        $own      = $this->build(['path-fixture.update' => 'Updates a user.', 'path-fixture.update.patch' => 'Patches a user.']);
+        $blank    = $this->build(['path-fixture.update' => 'Updates a user.', 'path-fixture.update.patch' => '']);
+
+        self::assertSame('Updates a user.', $this->operationOf($fallback, '/users/{user}', 'put')['description']);
+        self::assertSame('Updates a user.', $this->operationOf($fallback, '/users/{user}', 'patch')['description']);
+        self::assertSame('Updates a user.', $this->operationOf($own, '/users/{user}', 'put')['description']);
+        self::assertSame('Patches a user.', $this->operationOf($own, '/users/{user}', 'patch')['description']);
+        self::assertSame('Updates a user.', $this->operationOf($blank, '/users/{user}', 'put')['description']);
+        self::assertArrayNotHasKey('description', $this->operationOf($blank, '/users/{user}', 'patch'));
+    }
+
+    /**
+     * Test that every documentation key sits between the tags and the
+     * parameters.
+     *
+     * @return void
+     */
+    public function testDocumentationKeysSitBetweenTheTagsAndTheParameters(): void
+    {
+        config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->router()->match(['PUT', 'PATCH'], 'widgets/{widget}', [PathOperationController::class, 'update']);
+
+        $operation = $this->operationOf($this->build(['path-operation.update' => 'Updates a widget.']), '/widgets/{widget}', 'patch');
+
+        self::assertSame(['tags', 'summary', 'description', 'operationId', 'parameters', 'requestBody', 'responses', 'security'], array_keys($operation));
+        self::assertSame(['PathOperation'], $operation['tags']);
+        self::assertSame('Update a widget', $operation['summary']);
+        self::assertSame('Updates a widget.', $operation['description']);
+        self::assertSame('path-operation.update.patch', $operation['operationId']);
     }
 
     /**
@@ -409,6 +418,21 @@ final class PathBuilderTest extends TestCase
         ], $parameters[0]);
         self::assertIsArray($parameters);
         self::assertSame([], $this->pathParametersIn(array_slice($parameters, 1)));
+    }
+
+    /**
+     * Test that a typed, constrained route's parameters reach the operation.
+     *
+     * @return void
+     */
+    public function testTypedPathParametersReachTheOperation(): void
+    {
+        $this->router()->get('users/{user}/tickets/{ticket}', [PathBindingController::class, 'userTicket'])->whereUuid('ticket');
+
+        self::assertSame([
+            ['name' => 'user', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
+            ['name' => 'ticket', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid']],
+        ], $this->operation('/users/{user}/tickets/{ticket}', 'get')['parameters']);
     }
 
     /**
@@ -608,85 +632,6 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a closure scoped out with the macro is omitted.
-     *
-     * @return void
-     */
-    public function testClosureExcludedViaMacroIsOmitted(): void
-    {
-        $this->router()->get('secret', static fn (): null => null)->undocumented(); // @phpstan-ignore method.notFound
-
-        self::assertArrayNotHasKey('/secret', $this->build());
-    }
-
-    /**
-     * Test that a method-level #[Tag] beats the class-level one.
-     *
-     * @return void
-     */
-    public function testExplicitTagOverridesDerivedTag(): void
-    {
-        $this->router()->get('widgets', [PathTaggedController::class, 'index']);
-        $this->router()->get('reports', [PathTaggedController::class, 'report']);
-
-        $paths = $this->build();
-
-        self::assertSame(['Widgets'], $paths['/widgets']['get']['tags']);
-        self::assertSame(['Reports'], $paths['/reports']['get']['tags']);
-    }
-
-    /**
-     * Test that a route excluded from one audience stays in another.
-     *
-     * @return void
-     */
-    public function testRouteExcludedFromAudienceIsOmitted(): void
-    {
-        $this->router()->get('excluded', [PathExcludedController::class, 'index']);
-
-        self::assertArrayNotHasKey('/excluded', $this->build('public'));
-        self::assertArrayHasKey('/excluded', $this->build('internal'));
-    }
-
-    /**
-     * Test that a blocklisted controller namespace contributes no path.
-     *
-     * @return void
-     */
-    public function testBlocklistedNamespaceContributesNoPath(): void
-    {
-        assert($this->app !== null);
-
-        /** @var \Illuminate\Config\Repository $config */
-        $config = $this->app->make('config');
-
-        $config->set(
-            'api-toolkit.openapi.exclude.namespaces',
-            ['Tests\Fixtures\OpenApi\Vendor'],
-        );
-
-        $this->router()->get('vendor', [PathVendorController::class, 'index']);
-        $this->router()->get('plain', [PathPlainController::class, 'index']);
-
-        $paths = $this->build();
-
-        self::assertArrayNotHasKey('/vendor', $paths);
-        self::assertArrayHasKey('/plain', $paths);
-    }
-
-    /**
-     * Test that an allowlist audience excludes routes that opt into nothing.
-     *
-     * @return void
-     */
-    public function testAllowlistPostureExcludesUndeclaredRoutes(): void
-    {
-        $this->registerRestRoutes();
-
-        self::assertSame([], $this->build('partner', AudienceResolver::POSTURE_ALLOWLIST));
-    }
-
-    /**
      * Test that a controller without a registered resource is undocumented.
      *
      * @return void
@@ -777,41 +722,44 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a declared DTO inlines its schema under the data property.
+     * Test that a declared DTO references its component under the data
+     * property.
      *
      * @return void
      */
-    public function testResponseSchemaDtoActionInlinesFragment(): void
+    public function testResponseSchemaDtoActionReferencesComponent(): void
     {
         $this->router()->get('widget', [PathResponseSchemaController::class, 'widget']);
 
         $schema = $this->build()['/widget']['get']['responses']['200']['content']['application/json']['schema'];
 
-        self::assertSame(WidgetShape::schema(), $schema['properties']['data']);
+        self::assertSame(['$ref' => self::WIDGET_REF], $schema['properties']['data']);
         self::assertSame(['data'], $schema['required']);
     }
 
     /**
-     * Test that a declared DTO collection inlines the DTO as the item schema.
+     * Test that a declared DTO collection references the DTO's component as the
+     * item schema.
      *
      * @return void
      */
-    public function testResponseSchemaDtoCollectionActionInlinesItemFragment(): void
+    public function testResponseSchemaDtoCollectionActionReferencesComponent(): void
     {
         $this->router()->get('widgets', [PathResponseSchemaController::class, 'widgets']);
 
         $schema = $this->build()['/widgets']['get']['responses']['200']['content']['application/json']['schema'];
 
         self::assertSame(
-            (new EnvelopeBuilder)->collectionEnvelopeFor(WidgetShape::schema()),
+            (new EnvelopeBuilder)->collectionEnvelope(self::WIDGET_REF),
             $schema,
         );
-        self::assertSame(WidgetShape::schema(), $schema['properties']['data']['items']);
+        self::assertSame(['$ref' => self::WIDGET_REF], $schema['properties']['data']['items']);
         self::assertSame(['data', 'meta', 'links'], $schema['required']);
     }
 
     /**
-     * Test that several declared shapes embed a oneOf under data.
+     * Test that several declared shapes embed a discriminated oneOf of their
+     * references under data.
      *
      * @return void
      */
@@ -822,7 +770,7 @@ final class PathBuilderTest extends TestCase
         $schema = $this->build()['/session']['get']['responses']['200']['content']['application/json']['schema'];
 
         self::assertSame(
-            (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]]),
+            (new EnvelopeBuilder)->singleEnvelopeFor(self::SIGN_IN_UNION),
             $schema,
         );
     }
@@ -847,7 +795,7 @@ final class PathBuilderTest extends TestCase
         self::assertSame([
             'description' => 'The request succeeded and a resource was created.',
             'headers'     => ['Set-Cookie' => ['description' => 'The refresh token.', 'schema' => ['type' => 'string']]],
-            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelopeFor(['oneOf' => [SignedInShape::schema(), PendingSignInShape::schema()]])]],
+            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelopeFor(self::SIGN_IN_UNION)]],
         ], $operation['responses'][201]);
     }
 
@@ -870,7 +818,7 @@ final class PathBuilderTest extends TestCase
         self::assertSame([200, 403, 404, 422, 500], array_keys($operation['responses']));
         self::assertSame([
             'description' => 'The request succeeded.',
-            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelopeFor(SignedInShape::schema())]],
+            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelope(self::SIGNED_IN_REF)]],
         ], $operation['responses'][200]);
     }
 
@@ -889,7 +837,7 @@ final class PathBuilderTest extends TestCase
         self::assertIsArray($operation['responses']);
         self::assertSame([200, 403, 404, 500], array_keys($operation['responses']));
         self::assertSame(
-            (new EnvelopeBuilder)->singleEnvelopeFor(WidgetShape::schema()),
+            (new EnvelopeBuilder)->singleEnvelope(self::WIDGET_REF),
             $operation['responses'][200]['content']['application/json']['schema'],
         );
     }
@@ -913,13 +861,13 @@ final class PathBuilderTest extends TestCase
         self::assertSame([206, 403, 500], array_keys($paths['/users']['get']['responses']));
         self::assertSame([
             'description' => 'Partial Content.',
-            'content'     => ['application/json' => ['schema' => $envelope->collectionEnvelopeFor(WidgetShape::schema())]],
+            'content'     => ['application/json' => ['schema' => $envelope->collectionEnvelope(self::WIDGET_REF)]],
         ], $paths['/users']['get']['responses'][206]);
         self::assertIsArray($paths['/users/{user}']['delete']['responses']);
         self::assertSame([200, 403, 404, 500], array_keys($paths['/users/{user}']['delete']['responses']));
         self::assertSame([
             'description' => 'OK.',
-            'content'     => ['application/json' => ['schema' => $envelope->singleEnvelopeFor(WidgetShape::schema())]],
+            'content'     => ['application/json' => ['schema' => $envelope->singleEnvelope(self::WIDGET_REF)]],
         ], $paths['/users/{user}']['delete']['responses'][200]);
     }
 
@@ -1282,8 +1230,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testNoDocumentedRoutesYieldsEmptyPaths(): void
     {
-        // No route opts in, so even the framework's default routes are excluded
-        self::assertSame([], $this->build('partner', AudienceResolver::POSTURE_ALLOWLIST));
+        self::assertSame([], $this->builder()->build([], ['path-fixture.index' => 'Lists the users.']));
     }
 
     /**
@@ -1352,71 +1299,6 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that thrown exceptions sharing a status merge their examples.
-     *
-     * @return void
-     */
-    public function testThrownExceptionsSharingStatusMergeExamples(): void
-    {
-        $this->router()->get('errors/{error}', [PathErrorController::class, 'show']);
-
-        $responses = $this->build()['/errors/{error}']['get']['responses'];
-
-        self::assertIsArray($responses);
-        self::assertArrayHasKey('503', $responses);
-        self::assertSame('Service unavailable.', $responses['503']['description']);
-        self::assertSame(
-            ['ServiceUnavailableException', 'MaintenanceModeException'],
-            array_keys($responses['503']['content']['application/json']['examples']),
-        );
-    }
-
-    /**
-     * Test that a thrown baseline status keeps its known phrase.
-     *
-     * @return void
-     */
-    public function testThrownBaselineStatusKeepsBaselinePhrase(): void
-    {
-        $this->router()->get('errors/{error}', [PathErrorController::class, 'show']);
-
-        $responses = $this->build()['/errors/{error}']['get']['responses'];
-
-        self::assertIsArray($responses);
-        self::assertArrayHasKey('422', $responses);
-        self::assertSame('The request payload failed validation.', $responses['422']['description']);
-    }
-
-    /**
-     * Test that a throws tag outside the API exception base is ignored.
-     *
-     * @return void
-     */
-    public function testNonApiThrowsAreIgnored(): void
-    {
-        $this->router()->put('errors/{error}', [PathErrorController::class, 'update'])->middleware('auth');
-
-        $statuses = array_keys($this->responsesOf('/errors/{error}', 'put'));
-
-        self::assertSame([200, 401, 403, 404, 422, 500], $statuses);
-    }
-
-    /**
-     * Test that an excluded verb does not stop a later documentable one.
-     *
-     * @return void
-     */
-    public function testExcludedVerbBeforeDocumentableStillEmits(): void
-    {
-        $this->router()->match(['HEAD', 'GET'], 'ping', [PathPlainController::class, 'report']);
-
-        $paths = $this->build();
-
-        self::assertArrayHasKey('/ping', $paths);
-        self::assertSame(['get'], array_keys($paths['/ping']));
-    }
-
-    /**
      * Test that each path segment emits its own parameter.
      *
      * @return void
@@ -1429,28 +1311,6 @@ final class PathBuilderTest extends TestCase
 
         self::assertIsArray($parameters);
         self::assertSame(['team', 'member'], array_column($parameters, 'name'));
-    }
-
-    /**
-     * Test that a leading namespace separator still matches the blocklist.
-     *
-     * @return void
-     */
-    public function testLeadingSeparatorControllerIsStillExcluded(): void
-    {
-        assert($this->app !== null);
-
-        /** @var \Illuminate\Config\Repository $config */
-        $config = $this->app->make('config');
-
-        $config->set(
-            'api-toolkit.openapi.exclude.namespaces',
-            ['Tests\Fixtures\OpenApi\Vendor'],
-        );
-
-        $this->router()->get('vendor', ['\\' . PathVendorController::class, 'index']);
-
-        self::assertArrayNotHasKey('/vendor', $this->build());
     }
 
     /**
@@ -1476,11 +1336,12 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an undeclared action carries only the baseline statuses.
+     * Test that an action absent from its controller still documents its
+     * success beside its error statuses.
      *
      * @return void
      */
-    public function testRoutedActionAbsentFromControllerCarriesBaselineErrorsOnly(): void
+    public function testRoutedActionAbsentFromControllerDocumentsItsSuccess(): void
     {
         $this->router()->delete('gaps/{gap}', [PathReflectionGapController::class, 'destroy'])->middleware('auth');
 
@@ -1508,69 +1369,6 @@ final class PathBuilderTest extends TestCase
             (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
             $responses[200]['content']['application/json']['schema']['anyOf'][0],
         );
-    }
-
-    /**
-     * Test that a resource route without auth omits unauthenticated.
-     *
-     * @return void
-     */
-    public function testResourceRouteWithoutAuthOmitsUnauthenticated(): void
-    {
-        $this->registerRestRoutes();
-
-        self::assertSame([200, 403, 500], array_keys($this->responsesOf('/users', 'get')));
-    }
-
-    /**
-     * Test that unauthenticated is documented only behind auth middleware.
-     *
-     * @return void
-     */
-    public function testNonResourceRouteDocumentsUnauthenticatedOnlyBehindAuth(): void
-    {
-        $this->router()->get('private', [PathPlainController::class, 'report'])->middleware('auth');
-        $this->router()->get('public', [PathPlainController::class, 'index']);
-
-        $paths = $this->build();
-
-        self::assertIsArray($paths['/private']['get']['responses']);
-        self::assertSame([200, 401, 500], array_keys($paths['/private']['get']['responses']));
-        self::assertSame('Unauthenticated.', $paths['/private']['get']['responses'][401]['description']);
-        self::assertIsArray($paths['/public']['get']['responses']);
-        self::assertSame([200, 500], array_keys($paths['/public']['get']['responses']));
-    }
-
-    /**
-     * Test that a throttled route documents the too-many-requests status.
-     *
-     * @return void
-     */
-    public function testThrottledRouteDocumentsTooManyRequests(): void
-    {
-        $this->router()->get('limited', [PathPlainController::class, 'report'])->middleware('throttle:60,1');
-
-        $responses = $this->build()['/limited']['get']['responses'];
-
-        self::assertIsArray($responses);
-        self::assertSame([200, 429, 500], array_keys($responses));
-        self::assertSame('Too many requests.', $responses[429]['description']);
-        self::assertSame(
-            ['$ref' => '#/components/schemas/ErrorEnvelope'],
-            $responses[429]['content']['application/json']['schema'],
-        );
-    }
-
-    /**
-     * Test that an authorization attribute documents the forbidden status.
-     *
-     * @return void
-     */
-    public function testAuthorizeAttributeDocumentsForbidden(): void
-    {
-        $this->router()->get('report', [PathRouteFactsController::class, 'report']);
-
-        self::assertSame([200, 403, 500], array_keys($this->responsesOf('/report', 'get')));
     }
 
     /**
@@ -1607,72 +1405,6 @@ final class PathBuilderTest extends TestCase
         self::assertSame([200, 422, 500], array_keys($paths['/imports']['post']['responses']));
         self::assertIsArray($paths['/posts']['post']['responses']);
         self::assertSame([201, 403, 500], array_keys($paths['/posts']['post']['responses']));
-    }
-
-    /**
-     * Test that a non-resource action documents its thrown ApiExceptions.
-     *
-     * @return void
-     */
-    public function testNonResourceActionDocumentsThrownApiExceptions(): void
-    {
-        $this->router()->post('sign-in', [PathRouteFactsController::class, 'signIn']);
-
-        $responses = $this->build()['/sign-in']['post']['responses'];
-
-        self::assertIsArray($responses);
-        self::assertSame([200, 401, 403, 419, 429, 500], array_keys($responses));
-        self::assertSame('Unauthenticated.', $responses[401]['description']);
-        self::assertSame('Token mismatch.', $responses[419]['description']);
-        self::assertSame(
-            ['TokenMismatchException' => ['value' => ['error' => ['status' => 419, 'code' => 10105]]]],
-            $responses[419]['content']['application/json']['examples'],
-        );
-        self::assertSame(
-            ['UnauthenticatedException' => ['value' => ['error' => ['status' => 401, 'code' => 10101]]]],
-            $responses[401]['content']['application/json']['examples'],
-        );
-        self::assertSame(
-            ['ForbiddenException' => ['value' => ['error' => ['status' => 403, 'code' => 10102]]]],
-            $responses[403]['content']['application/json']['examples'],
-        );
-        self::assertSame(
-            ['TooManyRequestsException' => ['value' => ['error' => ['status' => 429, 'code' => 10107]]]],
-            $responses[429]['content']['application/json']['examples'],
-        );
-        self::assertIsArray($responses[500]['content']['application/json']);
-        self::assertArrayNotHasKey('examples', $responses[500]['content']['application/json']);
-    }
-
-    /**
-     * Test that middleware group facts are resolved minus excluded members.
-     *
-     * @return void
-     */
-    public function testMiddlewareGroupFactsAreResolved(): void
-    {
-        $this->router()->middlewareGroup('facts', ['auth', 'throttle:60,1']);
-        $this->router()->get('grouped', [PathPlainController::class, 'report'])->middleware('facts');
-        $this->router()->get('unthrottled', [PathPlainController::class, 'index'])->middleware('facts')->withoutMiddleware('throttle');
-
-        $paths = $this->build();
-
-        self::assertIsArray($paths['/grouped']['get']['responses']);
-        self::assertSame([200, 401, 429, 500], array_keys($paths['/grouped']['get']['responses']));
-        self::assertIsArray($paths['/unthrottled']['get']['responses']);
-        self::assertSame([200, 401, 500], array_keys($paths['/unthrottled']['get']['responses']));
-    }
-
-    /**
-     * Test that a closure route documents only the route-fact statuses.
-     *
-     * @return void
-     */
-    public function testClosureRouteDocumentsRouteFactErrors(): void
-    {
-        $this->router()->get('items/{item}', static fn (): null => null)->middleware('auth');
-
-        self::assertSame([200, 401, 404, 500], array_keys($this->responsesOf('/items/{item}', 'get')));
     }
 
     /**
@@ -1754,50 +1486,6 @@ final class PathBuilderTest extends TestCase
         ));
 
         $this->build();
-    }
-
-    /**
-     * Test that exception headers, inherited ones too, document on errors.
-     *
-     * @return void
-     */
-    public function testThrownExceptionHeadersAreDocumentedOnTheErrorResponse(): void
-    {
-        $this->router()->post('sign-in', [PathResponseHeaderController::class, 'signIn']);
-
-        $responses = $this->build()['/sign-in']['post']['responses'];
-
-        self::assertIsArray($responses[429]);
-        self::assertSame(['description', 'headers', 'content'], array_keys($responses[429]));
-        self::assertSame(
-            ['Retry-After' => ['description' => 'The number of seconds to wait before retrying.', 'schema' => ['type' => 'integer']]],
-            $responses[429]['headers'],
-        );
-        self::assertIsArray($responses[429]['content']['application/json']['examples']);
-        self::assertSame(['BurstLimitedException'], array_keys($responses[429]['content']['application/json']['examples']));
-        self::assertIsArray($responses[409]);
-        self::assertSame(['description', 'content'], array_keys($responses[409]));
-        self::assertIsArray($responses[500]);
-        self::assertSame(['description', 'content'], array_keys($responses[500]));
-    }
-
-    /**
-     * Test that exceptions sharing a status merge their declared headers.
-     *
-     * @return void
-     */
-    public function testThrownExceptionHeadersMergeOntoABaselineStatus(): void
-    {
-        $this->router()->post('quota', [PathResponseHeaderController::class, 'quota'])->middleware('throttle:60,1');
-
-        $response = $this->build()['/quota']['post']['responses'][429];
-
-        self::assertSame('Too many requests.', $response['description']);
-        self::assertIsArray($response['headers']);
-        self::assertSame(
-            ['retry-after', 'X-Quota-Reset', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
-            array_keys($response['headers']),
-        );
     }
 
     /**
@@ -1892,7 +1580,7 @@ final class PathBuilderTest extends TestCase
         self::assertSame([
             'description' => 'Accepted.',
             'headers'     => ['X-Request-Id' => ['schema' => ['type' => 'string']]],
-            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelopeFor(WidgetShape::schema())]],
+            'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelope(self::WIDGET_REF)]],
         ], $responses[202]);
     }
 
@@ -1930,7 +1618,7 @@ final class PathBuilderTest extends TestCase
         self::assertIsArray($item);
         self::assertSame([200, 404, 500], array_keys($item));
         self::assertSame(
-            (new EnvelopeBuilder)->singleEnvelopeFor(WidgetShape::schema()),
+            (new EnvelopeBuilder)->singleEnvelope(self::WIDGET_REF),
             $item[200]['content']['application/json']['schema'],
         );
         self::assertIsArray($user);
@@ -2021,6 +1709,20 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that a route answering only HEAD or OPTIONS is not built, so its
+     * action's status conflict cannot fail the build.
+     *
+     * @return void
+     */
+    public function testRouteWithoutADocumentableVerbIsNotBuilt(): void
+    {
+        $this->router()->match(['HEAD'], 'users/{user}', [PathStatusConflictController::class, 'update']);
+        $this->router()->options('users/{user}/reset', [PathStatusConflictController::class, 'reset']);
+
+        self::assertSame([], $this->build());
+    }
+
+    /**
      * The expected shared data envelope wrapping the x-undocumented marker.
      *
      * @return array<string, mixed>
@@ -2065,15 +1767,14 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Build the paths object for the given audience and posture.
+     * Build the paths object from the public audience's collected routes.
      *
-     * @param  string  $audience
-     * @param  string  $posture
+     * @param  array<string, string>  $descriptions
      * @return array<string, array<string, mixed>>
      */
-    private function build(string $audience = 'public', string $posture = AudienceResolver::POSTURE_BLOCKLIST): array
+    private function build(array $descriptions = []): array
     {
-        return $this->builder()->build($audience, $posture);
+        return $this->builder()->build($this->collector()->collect(['public'])->in('public'), $descriptions);
     }
 
     /**
@@ -2132,7 +1833,20 @@ final class PathBuilderTest extends TestCase
      */
     private function operation(string $path, string $method): array
     {
-        $operation = $this->build()[$path][$method] ?? null;
+        return $this->operationOf($this->build(), $path, $method);
+    }
+
+    /**
+     * Read one operation from a built paths object.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @param  string  $path
+     * @param  string  $method
+     * @return array<array-key, mixed>
+     */
+    private function operationOf(array $paths, string $path, string $method): array
+    {
+        $operation = $paths[$path][$method] ?? null;
 
         self::assertIsArray($operation);
 
@@ -2156,37 +1870,85 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Build a path builder whose catalogue maps the user model to its resource.
+     * Build a path builder over the catalogue.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder
      */
     private function builder(): PathBuilder
     {
+        assert($this->app !== null);
+
+        $catalogue = $this->catalogue();
+        $enums     = new EnumSchemaRegistry;
+
+        return new PathBuilder(
+            new EnvelopeBuilder,
+            new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
+            new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
+            new QueryParameterBuilder($catalogue),
+            new PathParameterBuilder(
+                $this->router(),
+                new RoutePatternTranslator,
+                new RouteKeySchemaResolver(
+                    $catalogue,
+                    new FieldTypeResolver($this->app->make(SchemaIntrospectionProvider::class), new ColumnTypeMapper, $enums),
+                    new RoutePatternTranslator,
+                    $enums,
+                    $this->app,
+                ),
+                $enums,
+            ),
+            new ErrorResponseBuilder(
+                new RouteMiddlewareResolver($this->router()),
+                new ThrowsErrorResolver(new ClassNameResolver),
+                new ResponseHeaderResolver,
+                new ErrorExampleBuilder($catalogue),
+                ExceptionMap::fromConfig(),
+            ),
+            new SuccessResponseBuilder(
+                new EnvelopeBuilder,
+                new ResponseSchemaResolver($catalogue, new EnvelopeBuilder, new DefinedSchemaRegistry),
+                new ResponseHeaderResolver,
+                new ResponseStatusResolver,
+            ),
+        );
+    }
+
+    /**
+     * Build a route collector over the catalogue.
+     *
+     * @return \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector
+     */
+    private function collector(): DocumentedRouteCollector
+    {
+        return new DocumentedRouteCollector(
+            $this->router(),
+            $this->catalogue(),
+            new AudienceResolver,
+            new AudienceConfiguration,
+            new DocumentableRouteFilter,
+            new TagResolver,
+        );
+    }
+
+    /**
+     * Build a catalogue mapping the user and article models to their resources,
+     * with the package's error catalogue.
+     *
+     * @return \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue
+     */
+    private function catalogue(): MetadataCatalogue
+    {
+        assert($this->app !== null);
+
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn([
             User::class    => UserResource::class,
             Article::class => ArticleResource::class,
         ]);
+        $catalogue->method('getErrorCatalogue')->willReturn($this->app->make(ErrorCatalogueReader::class)->read());
 
-        return new PathBuilder(
-            $this->router(),
-            $catalogue,
-            new AudienceResolver,
-            new DocumentableRouteFilter,
-            new EnvelopeBuilder,
-            new TagResolver,
-            new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder)),
-            new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
-            new QueryParameterBuilder($catalogue),
-            new RouteMiddlewareResolver($this->router()),
-            new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver),
-            new SuccessResponseBuilder(
-                new EnvelopeBuilder,
-                new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
-                new ResponseHeaderResolver,
-                new ResponseStatusResolver,
-            ),
-        );
+        return $catalogue;
     }
 
     /**

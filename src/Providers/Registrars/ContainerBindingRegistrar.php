@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -23,6 +24,7 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\Psr4RootMap;
 use SineMacula\ApiToolkit\OpenApi\Output\FilesystemDocumentWriter;
+use SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
@@ -258,18 +260,21 @@ final readonly class ContainerBindingRegistrar
     /**
      * Bind the OpenAPI exporter ports to their default adapters.
      *
-     * The enum schema registry is a singleton so every resolver shares one
-     * collected set per document.
+     * The enum and defined schema registries are singletons so every resolver
+     * shares one collected set per document. The exception map is read from the
+     * config on every resolution.
      *
      * @return void
      */
     private function registerOpenApiExporter(): void
     {
+        $this->container->bind(ExceptionMap::class, static fn (): ExceptionMap => ExceptionMap::fromConfig());
         $this->container->singleton(MetadataCatalogue::class, ConfigMetadataCatalogue::class);
         $this->container->singleton(DocumentWriter::class, FilesystemDocumentWriter::class);
         $this->container->singleton(ApiExceptionDiscoverer::class, static fn (): ApiExceptionDiscoverer => ApiExceptionDiscoverer::fromComposer());
         $this->container->singleton(ModuleResolver::class, static fn (): NamespaceModuleResolver => new NamespaceModuleResolver(Psr4RootMap::fromComposer()));
         $this->container->singleton(EnumSchemaRegistry::class);
+        $this->container->singleton(DefinedSchemaRegistry::class);
     }
 
     /**

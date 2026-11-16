@@ -33,6 +33,14 @@ return [
     | `include_debug_info` adds the message, file, line and trace of the
     | underlying exception to the response meta. Null follows app.debug; keep it
     | false in production.
+    |
+    | `map` renders an exception as one of your ApiExceptions. A key naming a
+    | built-in replaces it; any other key is matched before the first built-in
+    | it extends, else after every built-in, and the first match wins. Laravel
+    | converts some exceptions before rendering, so map the converted type, such
+    | as NotFoundHttpException for ModelNotFoundException. The map is validated
+    | once an application serving requests has booted, and drives the OpenAPI
+    | error responses too. It does not affect reporting.
     */
 
     'exceptions' => [
@@ -40,6 +48,10 @@ return [
         'render_strategy' => env('API_EXCEPTION_RENDER_STRATEGY', 'auto'),
 
         'include_debug_info' => null,
+
+        'map' => [
+            // e.g. ThrottleRequestsException::class => QuotaException::class
+        ],
 
     ],
 
@@ -110,7 +122,9 @@ return [
     | `docs_path` is the directory of Markdown section files assembled, in
     | filename order, into every audience's info.description. It is where the
     | `api-toolkit-docs` publish tag and `api-toolkit:docs:generate` write to;
-    | while it does not exist no description is added.
+    | while it does not exist no description is added. Its `operations/` and
+    | `tags/` subdirectories, and their `audiences/<name>/` counterparts,
+    | describe operations and tags and never join info.description.
     */
 
     'openapi' => [
@@ -131,6 +145,18 @@ return [
         // ['url' => 'https://api.example.com', 'description' => 'Production'].
         // An audience's own `servers` list replaces this one
         'servers' => [],
+
+        // Export an operationId on every operation: the action's #[Operation]
+        // id, else the route name, else the controller and action, else the
+        // method and path. Ids must be unique across every audience;
+        // <docs_path>/operations/<id>.md becomes the operation's description
+        'operation_ids' => false,
+
+        // The order of the top-level tags list; tags not named follow in
+        // natural, case-insensitive order. Each must be a tag some audience
+        // uses. The list is exported once this is set or a tags/ directory
+        // under <docs_path> holds a file
+        'tags' => [],
 
         // The documents the exporter can produce, keyed by audience name. A
         // `blocklist` posture (the default) documents every route not excluded

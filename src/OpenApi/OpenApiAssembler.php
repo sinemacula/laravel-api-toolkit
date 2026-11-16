@@ -4,16 +4,22 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi;
 
+use SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Docs\OperationDescriptions;
+use SineMacula\ApiToolkit\OpenApi\Docs\TagList;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaNameCollisionGuard;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\SchemaObjectNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
@@ -55,6 +61,12 @@ final readonly class OpenApiAssembler
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder  $enumBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry  $enums
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler  $manual
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry  $definedSchemas
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder  $definedSchemaBuilder
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder  $errorExamples
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector  $routes
+     * @param  \SineMacula\ApiToolkit\OpenApi\Docs\OperationDescriptions  $descriptions
+     * @param  \SineMacula\ApiToolkit\OpenApi\Docs\TagList  $tags
      */
     public function __construct(
 
@@ -64,7 +76,7 @@ final readonly class OpenApiAssembler
         /** The builder for reusable query parameter definitions. */
         private QueryParameterBuilder $parameterBuilder,
 
-        /** The builder for shared error response definitions. */
+        /** The builder of the shared error-envelope schema. */
         private ErrorResponseBuilder $responseBuilder,
 
         /** The builder for the per-audience paths object. */
@@ -81,6 +93,24 @@ final readonly class OpenApiAssembler
 
         /** The assembler of the committed Markdown manual. */
         private DocManualAssembler $manual,
+
+        /** The registry collecting DefinesSchema classes referenced by a $ref. */
+        private DefinedSchemaRegistry $definedSchemas,
+
+        /** The builder for referenced DefinesSchema component schemas. */
+        private DefinedSchemaBuilder $definedSchemaBuilder,
+
+        /** The builder of the error examples the paths reference. */
+        private ErrorExampleBuilder $errorExamples,
+
+        /** The collector of every exported audience's documentable routes. */
+        private DocumentedRouteCollector $routes,
+
+        /** The resolver of the operation descriptions. */
+        private OperationDescriptions $descriptions,
+
+        /** The builder of the top-level tags list. */
+        private TagList $tags,
     ) {
         $this->envelopeBuilder = new EnvelopeBuilder;
         $this->reachability    = new ReachableSchemaResolver;
@@ -91,16 +121,24 @@ final readonly class OpenApiAssembler
     /**
      * Assemble the OpenAPI 3.1 document for the given audience.
      *
+     * The description and tag files of every exported audience are audited, so
+     * a file describing nothing fails every export.
+     *
      * @param  string|null  $audience
      * @return array<string, mixed>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\OperationIdCollisionException
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\OrphanedDocumentationException
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\TagConfigurationException
      */
     public function assemble(?string $audience = null): array
     {
         $this->enums->reset();
+        $this->definedSchemas->reset();
 
         $audience = $audience === null || $audience === '' ? $this->audiences->defaultAudience() : $audience;
-        $posture  = $this->audiences->postureFor($audience);
-        $paths    = $this->pathBuilder->build($audience, $posture);
+        $routes   = $this->routes->collect($this->audiences->exportedAudiences($audience));
+        $paths    = $this->pathBuilder->build($routes->in($audience), $this->descriptions->for($audience, $routes));
 
         $document = [
             'openapi' => self::OPENAPI_VERSION,
@@ -115,6 +153,12 @@ final readonly class OpenApiAssembler
 
         $document['paths']      = $paths === [] ? (object) [] : $paths;
         $document['components'] = $this->buildComponents($paths);
+
+        $tags = $this->tags->for($audience, $routes);
+
+        if ($tags !== null) {
+            $document['tags'] = $tags;
+        }
 
         return $this->schemaObjects->normalise($document);
     }
@@ -164,7 +208,8 @@ final readonly class OpenApiAssembler
     }
 
     /**
-     * Build the components block, pruning only the schemas by reachability.
+     * Build the components block, pruning the schemas, examples and security
+     * schemes to those the paths reach.
      *
      * @param  array<string, array<string, mixed>>  $paths
      * @return array<string, mixed>
@@ -174,9 +219,15 @@ final readonly class OpenApiAssembler
         $components = [
             'schemas'    => $this->buildSchemas($paths),
             'parameters' => $this->parameterBuilder->build(),
-            'responses'  => $this->responseBuilder->build(),
-            'headers'    => $this->envelopeBuilder->buildHeaders(),
         ];
+
+        $examples = $this->errorExamples->build($paths);
+
+        if ($examples !== []) {
+            $components['examples'] = $examples;
+        }
+
+        $components['headers'] = $this->envelopeBuilder->buildHeaders();
 
         $securitySchemes = $this->buildSecuritySchemes($paths);
 
@@ -298,9 +349,12 @@ final readonly class OpenApiAssembler
             $guard->claim($reserved, $name, EnvelopeBuilder::class);
         }
 
-        $schemas = array_merge(
+        $definedSchemas = $this->definedSchemaBuilder->build($this->definedSchemas->classes(), $this->enums->classes(), $reserved);
+
+        $schemas = array_replace(
             $resourceSchemas,
             $envelopeSchemas,
+            $definedSchemas,
             $this->enumBuilder->build($this->enums->classes(), $reserved),
         );
 

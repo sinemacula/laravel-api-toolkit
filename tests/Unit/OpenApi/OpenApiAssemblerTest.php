@@ -7,42 +7,68 @@ namespace Tests\Unit\OpenApi;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
+use SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Docs\OperationDescriptions;
+use SineMacula\ApiToolkit\OpenApi\Docs\TagList;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\OrphanedDocumentationException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
-use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
+use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
+use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RouteKeySchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\TagResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\DefinedSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
 use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
+use Tests\Concerns\WritesDocsDirectories;
+use Tests\Fixtures\Enums\SelfDescribingPlan;
+use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\Alternate\SignedInShape as AlternateSignedInShape;
+use Tests\Fixtures\OpenApi\EnvelopeNamedShape;
+use Tests\Fixtures\OpenApi\MfaChallengeShape;
+use Tests\Fixtures\OpenApi\NumericNamedShape;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
+use Tests\Fixtures\OpenApi\PathResponseSchemaController;
+use Tests\Fixtures\OpenApi\PathResponseStatusController;
+use Tests\Fixtures\OpenApi\PathSchemaNameCollisionController;
+use Tests\Fixtures\OpenApi\SignedInShape;
+use Tests\Fixtures\OpenApi\StatusNamedShape;
+use Tests\Fixtures\OpenApi\UserNamedShape;
+use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\EnvelopeNamedResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -59,14 +85,13 @@ use Tests\TestCase;
 #[CoversClass(OpenApiAssembler::class)]
 final class OpenApiAssemblerTest extends TestCase
 {
+    use WritesDocsDirectories;
+
     /** @var array<class-string, class-string> The default resource map. */
     private const array RESOURCE_MAP = [
         User::class         => UserResource::class,
         Organization::class => OrganizationResource::class,
     ];
-
-    /** @var list<string> The temporary docs directories to clean up. */
-    private array $docsDirs = [];
 
     /**
      * Point the docs directory somewhere absent so no manual leaks in.
@@ -79,24 +104,6 @@ final class OpenApiAssemblerTest extends TestCase
         parent::setUp();
 
         $this->config()->set('api-toolkit.openapi.docs_path', sys_get_temp_dir() . '/api-toolkit-absent-' . uniqid('', true));
-    }
-
-    /**
-     * Tear down each test, removing any temporary docs directories.
-     *
-     * @return void
-     */
-    #[\Override]
-    protected function tearDown(): void
-    {
-        foreach ($this->docsDirs as $dir) {
-            array_map('unlink', glob($dir . '/*') ?: []);
-            @rmdir($dir);
-        }
-
-        $this->docsDirs = [];
-
-        parent::tearDown();
     }
 
     /**
@@ -180,9 +187,7 @@ final class OpenApiAssemblerTest extends TestCase
      */
     public function testManualIsAppendedAfterConfiguredDescription(): void
     {
-        $dir = $this->makeDocsDir(['10-intro.md' => "# Intro\n\nWelcome."]);
-
-        $this->config()->set('api-toolkit.openapi.docs_path', $dir);
+        $this->useDocsDirectory(['10-intro.md' => "# Intro\n\nWelcome."]);
         $this->config()->set('api-toolkit.openapi.audiences', [
             'public' => ['info' => ['description' => 'Preface.']],
         ]);
@@ -199,9 +204,7 @@ final class OpenApiAssemblerTest extends TestCase
      */
     public function testManualBecomesDescriptionWhenNoneConfigured(): void
     {
-        $dir = $this->makeDocsDir(['20-body.md' => "# Body\n\nContent."]);
-
-        $this->config()->set('api-toolkit.openapi.docs_path', $dir);
+        $this->useDocsDirectory(['20-body.md' => "# Body\n\nContent."]);
 
         $info = $this->assemble()['info'];
 
@@ -270,11 +273,15 @@ final class OpenApiAssemblerTest extends TestCase
      */
     public function testComponentsBlockIsPopulated(): void
     {
+        $this->registerUserRoutes();
+
         $components = $this->assemble()['components'];
 
+        self::assertIsArray($components);
         self::assertNotEmpty($components['schemas']);
         self::assertNotEmpty($components['parameters']);
-        self::assertNotEmpty($components['responses']);
+        self::assertNotEmpty($components['examples']);
+        self::assertArrayNotHasKey('responses', $components);
     }
 
     /**
@@ -430,16 +437,36 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that each error code yields a reusable response.
+     * Test that the error examples are pruned to those the paths reference.
      *
      * @return void
      */
-    public function testErrorResponsesArePresent(): void
+    public function testErrorExamplesArePrunedToThoseReferenced(): void
     {
-        $responses = $this->assemble()['components']['responses'];
+        $this->registerUserRoutes();
 
-        self::assertIsArray($responses);
-        self::assertArrayHasKey('ErrorResponse10103', $responses);
+        $examples = $this->assemble()['components']['examples'];
+
+        self::assertIsArray($examples);
+        self::assertSame(['Error10001', 'Error10102', 'Error10103', 'Error10106', 'Error10108'], array_keys($examples));
+        self::assertSame(
+            ['summary' => 'Not Found', 'value' => ['error' => ['status' => 404, 'code' => 10103, 'title' => 'Not Found', 'detail' => 'The requested resource could not be found']]],
+            $examples['Error10103'],
+        );
+    }
+
+    /**
+     * Test that a document without paths carries no error example.
+     *
+     * @return void
+     */
+    public function testDocumentWithoutPathsCarriesNoErrorExample(): void
+    {
+        $components = $this->assemble()['components'];
+
+        self::assertIsArray($components);
+        self::assertArrayNotHasKey('examples', $components);
+        self::assertArrayNotHasKey('responses', $components);
     }
 
     /**
@@ -600,24 +627,295 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Create a temporary docs directory seeded with the given files.
+     * Test that a declared single shape is exported as one titled component.
      *
-     * @param  array<string, string>  $files
-     * @return string
+     * @return void
      */
-    private function makeDocsDir(array $files): string
+    public function testDeclaredShapeIsExportedAsATitledComponent(): void
     {
-        $dir = sys_get_temp_dir() . '/api-toolkit-docs-' . uniqid('', true);
+        $this->router()->get('widget', [PathResponseSchemaController::class, 'widget']);
 
-        mkdir($dir);
+        $schemas = $this->assemble()['components']['schemas'];
 
-        foreach ($files as $name => $contents) {
-            file_put_contents($dir . '/' . $name, $contents);
+        self::assertIsArray($schemas);
+        self::assertSame(['title' => 'WidgetShape', ...WidgetShape::schema()], $schemas['WidgetShape']);
+    }
+
+    /**
+     * Test that every member of a declared union is exported as a titled
+     * component.
+     *
+     * @return void
+     */
+    public function testDeclaredUnionMembersAreExportedAsTitledComponents(): void
+    {
+        $this->router()->get('session', [PathResponseSchemaController::class, 'named']);
+
+        $schemas = $this->assemble()['components']['schemas'];
+
+        self::assertIsArray($schemas);
+        self::assertSame(['title' => 'SignedInShape', ...SignedInShape::schema()], $schemas['SignedInShape']);
+        self::assertSame(['title' => 'MfaChallenge', ...MfaChallengeShape::schema()], $schemas['MfaChallenge']);
+    }
+
+    /**
+     * Test that a shape declared by two operations references one component.
+     *
+     * @return void
+     */
+    public function testShapeDeclaredTwiceReferencesOneComponent(): void
+    {
+        $this->router()->get('widget', [PathResponseSchemaController::class, 'widget']);
+        $this->router()->post('jobs', [PathResponseStatusController::class, 'queue']);
+
+        $document  = $this->assemble();
+        $reference = ['$ref' => '#/components/schemas/WidgetShape'];
+
+        self::assertSame($reference, $document['paths']['/widget']['get']['responses']['200']['content']['application/json']['schema']['properties']['data']);
+        self::assertSame($reference, $document['paths']['/jobs']['post']['responses']['202']['content']['application/json']['schema']['properties']['data']);
+        self::assertSame(['title' => 'WidgetShape', ...WidgetShape::schema()], $document['components']['schemas']['WidgetShape']);
+    }
+
+    /**
+     * Test that a shape with a numeric component name keeps the component its
+     * reference resolves to.
+     *
+     * @return void
+     */
+    public function testNumericallyNamedShapeKeepsItsComponent(): void
+    {
+        $this->router()->get('numeric', [PathResponseSchemaController::class, 'numeric']);
+
+        $document = $this->assemble();
+        $response = $document['paths']['/numeric']['get']['responses']['200'];
+
+        self::assertSame(['$ref' => '#/components/schemas/123'], $response['content']['application/json']['schema']['properties']['data']);
+        self::assertSame(['title' => '123', ...NumericNamedShape::schema()], $document['components']['schemas']['123']);
+    }
+
+    /**
+     * Test that a shape named like a resource fails the export.
+     *
+     * @return void
+     */
+    public function testShapeNamedLikeAResourceFailsTheExport(): void
+    {
+        $this->router()->get('user', [PathSchemaNameCollisionController::class, 'user']);
+
+        $this->expectCollision('User', UserResource::class, UserNamedShape::class);
+
+        $this->assemble();
+    }
+
+    /**
+     * Test that a shape named like a shared envelope fails the export.
+     *
+     * @return void
+     */
+    public function testShapeNamedLikeASharedEnvelopeFailsTheExport(): void
+    {
+        $this->router()->get('envelope', [PathSchemaNameCollisionController::class, 'envelope']);
+
+        $this->expectCollision('PaginationMeta', EnvelopeBuilder::class, EnvelopeNamedShape::class);
+
+        $this->assemble();
+    }
+
+    /**
+     * Test that two shapes sharing a short name fail the export.
+     *
+     * @return void
+     */
+    public function testShapesSharingAShortNameFailTheExport(): void
+    {
+        $this->router()->get('session', [PathResponseSchemaController::class, 'union']);
+        $this->router()->get('alternate', [PathSchemaNameCollisionController::class, 'alternate']);
+
+        $this->expectCollision('SignedInShape', SignedInShape::class, AlternateSignedInShape::class);
+
+        $this->assemble();
+    }
+
+    /**
+     * Test that an enum named like a shape fails the export.
+     *
+     * @return void
+     */
+    public function testEnumNamedLikeAShapeFailsTheExport(): void
+    {
+        $this->router()->get('status', [PathSchemaNameCollisionController::class, 'status']);
+
+        $this->expectCollision('UserStatus', StatusNamedShape::class, UserStatus::class);
+
+        $this->assemble();
+    }
+
+    /**
+     * Test that an enum shape no enum reference claims is exported as a
+     * component.
+     *
+     * @return void
+     */
+    public function testEnumShapeIsExportedAsATitledComponent(): void
+    {
+        $this->router()->get('plan', [PathResponseSchemaController::class, 'enum']);
+
+        $schemas = $this->assemble()['components']['schemas'];
+
+        self::assertIsArray($schemas);
+        self::assertSame(['title' => 'SelfDescribingPlan', ...SelfDescribingPlan::schema()], $schemas['SelfDescribingPlan']);
+    }
+
+    /**
+     * Test that an enum named as a shape and referenced as an enum fails the
+     * export.
+     *
+     * @return void
+     */
+    public function testEnumShapeReferencedAsAnEnumFailsTheExport(): void
+    {
+        $this->router()->post('plan', [PathSchemaNameCollisionController::class, 'plan']);
+
+        $this->expectException(SchemaNameCollisionException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The OpenAPI component schema name "SelfDescribingPlan" is derived by [%s] both as an enum and as a'
+                . ' #[ResponseSchema] shape. Declare the response shape on a class that is not an enum.',
+            SelfDescribingPlan::class,
+        ));
+
+        $this->assemble();
+    }
+
+    /**
+     * Test that the shapes one audience names are not claimed in the next.
+     *
+     * @return void
+     */
+    public function testShapesClaimedByOneAudienceDoNotCollideInAnother(): void
+    {
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'public'   => [],
+            'internal' => ['posture' => 'allowlist'],
+        ]);
+        $this->router()->get('session', [PathResponseSchemaController::class, 'union']);
+        $this->router()->get('alternate', [PathSchemaNameCollisionController::class, 'alternateUnion']);
+
+        $assembler = $this->makeAssembler();
+        $public    = $assembler->assemble('public')['components']['schemas'];
+        $internal  = $assembler->assemble('internal')['components']['schemas'];
+
+        self::assertIsArray($public);
+        self::assertIsArray($internal);
+        self::assertSame(['title' => 'SignedInShape', ...SignedInShape::schema()], $public['SignedInShape']);
+        self::assertSame(['title' => 'SignedInShape', ...AlternateSignedInShape::schema()], $internal['SignedInShape']);
+    }
+
+    /**
+     * Test that nothing configured adds no operationId, summary or top-level
+     * tags.
+     *
+     * @return void
+     */
+    public function testNothingConfiguredAddsNoOperationDocumentation(): void
+    {
+        $this->registerUserRoutes();
+
+        $document = $this->assemble();
+
+        self::assertArrayNotHasKey('tags', $document);
+        self::assertIsArray($document['paths']);
+
+        foreach ($document['paths'] as $operations) {
+            self::assertIsArray($operations);
+
+            foreach ($operations as $operation) {
+                self::assertIsArray($operation);
+                self::assertArrayNotHasKey('operationId', $operation);
+                self::assertArrayNotHasKey('summary', $operation);
+            }
         }
+    }
 
-        $this->docsDirs[] = $dir;
+    /**
+     * Test that an operation description reaches its operation, and the tag
+     * list follows the components.
+     *
+     * @return void
+     */
+    public function testDescriptionsAndTagsReachTheDocument(): void
+    {
+        $this->config()->set('api-toolkit.openapi.operation_ids', true);
+        $this->config()->set('api-toolkit.openapi.tags', ['User']);
 
-        return $dir;
+        $this->useDocsDirectory(['operations/path-fixture.index.md' => 'Lists the users.']);
+        $this->registerUserRoutes();
+
+        $document = $this->assemble();
+
+        self::assertSame('Lists the users.', $document['paths']['/users']['get']['description']);
+        self::assertSame('path-fixture.index', $document['paths']['/users']['get']['operationId']);
+        self::assertSame(['openapi', 'info', 'paths', 'components', 'tags'], array_keys($document));
+        self::assertSame([['name' => 'User']], $document['tags']);
+    }
+
+    /**
+     * Test that one audience's export fails on another audience's orphaned
+     * file.
+     *
+     * @return void
+     */
+    public function testExportFailsOnAnotherAudiencesOrphanedFile(): void
+    {
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => [], 'internal' => []]);
+
+        $dir = $this->useDocsDirectory(['audiences/internal/tags/Ghost.md' => 'Ghost.']);
+
+        $this->registerUserRoutes();
+
+        $this->expectException(OrphanedDocumentationException::class);
+        $this->expectExceptionMessageMatches('/^' . preg_quote(
+            sprintf('The tag description [%s/audiences/internal/tags/Ghost.md] matches no tag in the [internal] audience.', $dir),
+            '/',
+        ) . '$/');
+
+        $this->makeAssembler()->assemble('public');
+    }
+
+    /**
+     * Test that the undeclared default audience's files pass on another
+     * audience's export.
+     *
+     * @return void
+     */
+    public function testUndeclaredDefaultAudiencesFilesPassOnAnotherExport(): void
+    {
+        $this->config()->set('api-toolkit.openapi.audiences', ['internal' => []]);
+
+        $this->useDocsDirectory(['audiences/public/tags/User.md' => 'Accounts.']);
+        $this->registerUserRoutes();
+
+        self::assertSame([['name' => 'User']], $this->makeAssembler()->assemble('internal')['tags']);
+        self::assertSame([['name' => 'User', 'description' => 'Accounts.']], $this->makeAssembler()->assemble()['tags']);
+    }
+
+    /**
+     * Expect the export to fail on a component name derived by two sources.
+     *
+     * @param  string  $name
+     * @param  string  $first
+     * @param  string  $second
+     * @return void
+     */
+    private function expectCollision(string $name, string $first, string $second): void
+    {
+        $this->expectException(SchemaNameCollisionException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The OpenAPI component schema name "%s" is derived by both [%s] and [%s].'
+                . ' Disambiguate one with the #[SchemaName] attribute.',
+            $name,
+            $first,
+            $second,
+        ));
     }
 
     /**
@@ -656,27 +954,35 @@ final class OpenApiAssemblerTest extends TestCase
 
         assert($this->app !== null);
 
-        $enums = new EnumSchemaRegistry;
+        $enums          = new EnumSchemaRegistry;
+        $definedSchemas = new DefinedSchemaRegistry;
+        $errors         = new ErrorResponseBuilder(
+            new RouteMiddlewareResolver($this->router()),
+            new ThrowsErrorResolver(new ClassNameResolver),
+            new ResponseHeaderResolver,
+            new ErrorExampleBuilder($catalogue),
+            ExceptionMap::fromConfig(),
+        );
 
         return new OpenApiAssembler(
             new ResourceSchemaBuilder($catalogue, $this->resolver($enums), $this->app->make(SchemaIntrospector::class)),
             new QueryParameterBuilder($catalogue),
-            new ErrorResponseBuilder($catalogue),
+            $errors,
             new PathBuilder(
-                $this->router(),
-                $catalogue,
-                new AudienceResolver,
-                new DocumentableRouteFilter,
                 new EnvelopeBuilder,
-                new TagResolver,
                 new RequestBodyResolver(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
                 new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
                 new QueryParameterBuilder($catalogue),
-                new RouteMiddlewareResolver($this->router()),
-                new ThrowsErrorResolver(new ResponseHeaderResolver, new ClassNameResolver),
+                new PathParameterBuilder(
+                    $this->router(),
+                    new RoutePatternTranslator,
+                    new RouteKeySchemaResolver($catalogue, $this->resolver($enums), new RoutePatternTranslator, $enums, $this->app),
+                    $enums,
+                ),
+                $errors,
                 new SuccessResponseBuilder(
                     new EnvelopeBuilder,
-                    new ResponseSchemaResolver($catalogue, new EnvelopeBuilder),
+                    new ResponseSchemaResolver($catalogue, new EnvelopeBuilder, $definedSchemas),
                     new ResponseHeaderResolver,
                     new ResponseStatusResolver,
                 ),
@@ -685,6 +991,12 @@ final class OpenApiAssemblerTest extends TestCase
             new EnumSchemaBuilder,
             $enums,
             new DocManualAssembler,
+            $definedSchemas,
+            new DefinedSchemaBuilder,
+            new ErrorExampleBuilder($catalogue),
+            new DocumentedRouteCollector($this->router(), $catalogue, new AudienceResolver, new AudienceConfiguration, new DocumentableRouteFilter, new TagResolver),
+            new OperationDescriptions,
+            new TagList,
         );
     }
 
@@ -752,13 +1064,13 @@ final class OpenApiAssemblerTest extends TestCase
      */
     private function makeCatalogue(array $resourceMap): MetadataCatalogue
     {
+        assert($this->app !== null);
+
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn($resourceMap);
         $catalogue->method('getOperatorTokens')->willReturn(['$eq', '$neq']);
         $catalogue->method('getStructuralOperators')->willReturn(['$and', '$or']);
-        $catalogue->method('getErrorCatalogue')->willReturn([
-            new ErrorDescriptor(code: 10103, httpStatus: 404, title: 'Not Found', detail: 'Missing.'),
-        ]);
+        $catalogue->method('getErrorCatalogue')->willReturn($this->app->make(ErrorCatalogueReader::class)->read());
 
         return $catalogue;
     }

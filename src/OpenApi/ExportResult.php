@@ -19,7 +19,7 @@ final readonly class ExportResult
      * @param  int  $operationCount
      * @param  int  $resourceCount
      * @param  int  $parameterCount
-     * @param  int  $responseCount
+     * @param  int  $errorExampleCount
      */
     public function __construct(
 
@@ -35,7 +35,7 @@ final readonly class ExportResult
         /** The number of shared query-parameter components emitted */
         public int $parameterCount,
 
-        /** The number of error-response components emitted */
-        public int $responseCount,
+        /** The number of error example components emitted */
+        public int $errorExampleCount,
     ) {}
 }

@@ -37,7 +37,7 @@ final readonly class EnumSchemaBuilder
                 throw new \LogicException(sprintf('The referenced class [%s] is not an enum', $enum));
             }
 
-            $name = SchemaComponentName::fromEnum($enum);
+            $name = SchemaComponentName::fromClass($enum);
 
             $guard->claim($claimed, $name, $enum);
 
