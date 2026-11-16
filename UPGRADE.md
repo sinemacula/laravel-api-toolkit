@@ -1245,7 +1245,7 @@ The boundary resets:
 fires it after every request, task and tick.
 
 The boundary does not touch the cache store. Toolkit metadata (schema columns, column definitions, index catalogues,
-relation lookups, search index proofs, resources and repository model casts) is read and written through
+relation lookups, search index proofs and resources) is read and written through
 `Cache::memo()` on the application's cache store, which is usually shared by every worker, and is retired only by
 replacing the generation (see the metadata invalidation section below) or by its expiry. Any new toolkit metadata key
 must go through `MetadataCacheWriter` so it is namespaced by the generation. Because stored metadata survives the

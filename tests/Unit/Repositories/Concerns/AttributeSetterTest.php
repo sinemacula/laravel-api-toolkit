@@ -4,22 +4,19 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Concerns;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\MockObject\Stub;
-use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
-use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
-use Tests\Concerns\InteractsWithNonPublicMembers;
-use Tests\Fixtures\Enums\CastablePlatform;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Country;
 use Tests\Fixtures\Models\Device;
+use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -39,13 +36,8 @@ use Tests\TestCase;
 #[CoversClass(AttributeSetter::class)]
 final class AttributeSetterTest extends TestCase
 {
-    use InteractsWithNonPublicMembers;
-
     /** @var string */
     private const string ALICE_EMAIL = 'alice@example.com';
-
-    /** @var \PHPUnit\Framework\MockObject\Stub&\SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider */
-    private SchemaIntrospectionProvider&Stub $schemaIntrospector;
 
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter */
     private AttributeSetter $attributeSetter;
@@ -62,581 +54,122 @@ final class AttributeSetterTest extends TestCase
 
         assert($this->app !== null);
 
-        $this->schemaIntrospector = self::createStub(SchemaIntrospectionProvider::class);
-        $this->attributeSetter    = new AttributeSetter($this->schemaIntrospector, $this->app->make(MetadataCacheWriter::class));
+        $this->attributeSetter = new AttributeSetter($this->app->make(SchemaIntrospectionProvider::class));
     }
 
     /**
-     * Test that persist delegates string attributes to setAttribute.
+     * Test that persist writes uncast columns on an existing model.
      *
      * @return void
      */
-    public function testPersistDelegatesScalarToModelSetAttribute(): void
+    public function testPersistWritesUncastColumnsOnUpdate(): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $user = $this->createAlice();
 
-        $this->setProperty($this->attributeSetter, 'casts', ['name' => 'string']);
+        self::assertTrue($this->attributeSetter->persist($user, ['name' => 'Bob', 'email' => 'bob@example.com']));
 
-        $result = $this->attributeSetter->persist($user, ['name' => 'Bob'], User::class);
+        $fresh = $user->fresh();
 
-        self::assertTrue($result);
-        self::assertSame('Bob', $user->fresh()?->name);
+        self::assertNotNull($fresh);
+        self::assertSame('Bob', $fresh->name);
+        self::assertSame('bob@example.com', $fresh->email);
     }
 
     /**
-     * Test that persist delegates integer attributes to setAttribute.
+     * Test that persist writes uncast columns when creating a model.
      *
      * @return void
      */
-    public function testPersistSetsIntegerViaNativeSetAttribute(): void
+    public function testPersistWritesUncastColumnsOnCreate(): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $user = new User;
 
-        $this->setProperty($this->attributeSetter, 'casts', ['organization_id' => 'integer']);
+        self::assertTrue($this->attributeSetter->persist($user, ['name' => 'Carol', 'email' => 'carol@example.com']));
+        self::assertTrue($user->exists);
 
-        $result = $this->attributeSetter->persist($user, ['organization_id' => '5'], User::class);
+        $fresh = $user->fresh();
 
-        self::assertTrue($result);
-        self::assertSame(5, $user->fresh()?->organization_id);
+        self::assertNotNull($fresh);
+        self::assertSame('Carol', $fresh->name);
+        self::assertSame('carol@example.com', $fresh->email);
     }
 
     /**
-     * Test that persist delegates boolean attributes to setAttribute.
+     * Provide cast attributes, with the value each reads back as.
      *
-     * @return void
+     * @return iterable<string, array{string, mixed, mixed}>
      */
-    public function testPersistSetsBooleanViaNativeSetAttribute(): void
+    public static function castRoundTripProvider(): iterable
     {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-        $post = Post::create(['user_id' => $user->id, 'title' => 'Test', 'body' => 'Body']);
-
-        $this->setProperty($this->attributeSetter, 'casts', ['published' => 'boolean']);
-
-        $result = $this->attributeSetter->persist($post, ['published' => true], Post::class);
-
-        self::assertTrue($result);
-        self::assertTrue($post->fresh()?->published === true);
+        yield 'integer' => ['priority', '5', 5];
+        yield 'boolean' => ['pinned', 1, true];
+        yield 'array' => ['options', ['theme' => 'dark'], ['theme' => 'dark']];
+        yield 'backed enum by value' => ['status', 'banned', UserStatus::BANNED];
+        yield 'backed enum by case' => ['status', UserStatus::INACTIVE, UserStatus::INACTIVE];
     }
 
     /**
-     * Test that persist delegates array attributes to setAttribute.
+     * Test that persist writes a cast attribute through the model's cast.
      *
+     * @param  string  $attribute
+     * @param  mixed  $value
+     * @param  mixed  $expected
      * @return void
      */
-    public function testPersistSetsArrayViaNativeSetAttribute(): void
+    #[DataProvider('castRoundTripProvider')]
+    public function testPersistWritesACastAttributeThroughItsCast(string $attribute, mixed $value, mixed $expected): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $note = $this->createNote();
 
-        $this->setProperty($this->attributeSetter, 'casts', ['name' => 'array']);
-
-        $result = $this->attributeSetter->persist($user, ['name' => ['a', 'b']], User::class);
-
-        self::assertTrue($result);
+        self::assertTrue($this->attributeSetter->persist($note, [$attribute => $value]));
+        self::assertSame($expected, $note->fresh()?->getAttribute($attribute));
     }
 
     /**
-     * Test that persist delegates enum attributes to setAttribute.
+     * Provide values for an object cast, with the JSON each is stored as.
      *
-     * @return void
+     * @return iterable<string, array{mixed, string|null}>
      */
-    public function testPersistSetsEnumViaNativeSetAttribute(): void
+    public static function objectCastProvider(): iterable
     {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL, 'status' => 'active']);
-
-        $this->setProperty($this->attributeSetter, 'casts', ['status' => 'enum']);
-
-        $result = $this->attributeSetter->persist($user, ['status' => UserStatus::BANNED], User::class);
-
-        self::assertTrue($result);
-        // @phpstan-ignore staticMethod.impossibleType
-        self::assertSame(UserStatus::BANNED, $user->fresh()?->status);
+        yield 'array' => [['a' => 1], '{"a":1}'];
+        yield 'empty array' => [[], '{}'];
+        yield 'null' => [null, null];
+        yield 'object' => [(object) ['b' => 2], '{"b":2}'];
+        yield 'false' => [false, 'false'];
+        yield 'zero' => [0, '0'];
+        yield 'empty string' => ['', '""'];
     }
 
     /**
-     * Test that persist sets a falsy value to null for object cast attributes.
+     * Test that an object cast converts an array and passes anything else on.
      *
+     * @param  mixed  $value
+     * @param  string|null  $stored
      * @return void
      */
-    public function testPersistSetsObjectWithFalsyToNull(): void
+    #[DataProvider('objectCastProvider')]
+    public function testPersistWritesAnObjectCastConvertingOnlyArrays(mixed $value, ?string $stored): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $note = $this->createNote(['meta' => (object) ['old' => true]]);
 
-        $this->setProperty($this->attributeSetter, 'casts', ['name' => 'object']);
-
-        $this->invokeMethod($this->attributeSetter, 'setAttribute', $user, 'name', null, 'object');
-
-        self::assertNull($user->getAttribute('name'));
+        self::assertTrue($this->attributeSetter->persist($note, ['meta' => $value]));
+        self::assertSame($stored, $note->fresh()?->getRawOriginal('meta'));
     }
 
     /**
-     * Test that persist casts truthy values to stdClass for object casts.
+     * Test that an empty array written to an object cast reads back as an empty
+     * object.
      *
      * @return void
      */
-    public function testPersistSetsObjectWithTruthyToStdClass(): void
+    public function testPersistReadsAnEmptyArrayBackAsAnEmptyObject(): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $note = $this->createNote();
 
-        $this->invokeMethod($this->attributeSetter, 'setAttribute', $user, 'name', ['key' => 'value'], 'object');
+        $this->attributeSetter->persist($note, ['meta' => []]);
 
-        self::assertInstanceOf(\stdClass::class, $user->getAttribute('name'));
-    }
-
-    /**
-     * Test that persist associates a BelongsTo relation given its key.
-     *
-     * @return void
-     */
-    public function testPersistAssociatesRelation(): void
-    {
-        $org  = Organization::create(['name' => 'Acme', 'slug' => 'acme']);
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-
-        $this->setProperty($this->attributeSetter, 'casts', ['organization' => 'associate']);
-
-        $result = $this->attributeSetter->persist($user, ['organization' => $org->id], User::class);
-
-        self::assertTrue($result);
-        self::assertSame($org->id, $user->organization_id);
-    }
-
-    /**
-     * Test that persist associates a BelongsTo relation given the model.
-     *
-     * @return void
-     */
-    public function testPersistAssociatesRelationGivenTheModel(): void
-    {
-        $org  = Organization::create(['name' => 'Acme', 'slug' => 'acme']);
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-
-        $this->setProperty($this->attributeSetter, 'casts', ['organization' => 'associate']);
-
-        self::assertTrue($this->attributeSetter->persist($user, ['organization' => $org], User::class));
-        self::assertSame($org->id, $user->organization_id);
-    }
-
-    /**
-     * Test that persist syncs a BelongsToMany relation after saving the model.
-     *
-     * @return void
-     */
-    public function testPersistSyncsRelationAfterSave(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
-        $tag  = Tag::create(['name' => 'php']);
-
-        $this->setProperty($this->attributeSetter, 'casts', ['tags' => 'sync']);
-
-        $result = $this->attributeSetter->persist($post, ['tags' => [$tag->getKey()]], Post::class);
-
-        self::assertTrue($result);
-
-        $freshPost = $post->fresh();
-
-        self::assertNotNull($freshPost);
-        self::assertCount(1, $freshPost->tags()->get());
-    }
-
-    /**
-     * Test that persist syncs a relation given a Collection of models.
-     *
-     * @return void
-     */
-    public function testPersistSyncWithCollectionOfModels(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
-        $tag  = Tag::create(['name' => 'laravel']);
-
-        $this->setProperty($this->attributeSetter, 'casts', ['tags' => 'sync']);
-
-        $result = $this->attributeSetter->persist($post, ['tags' => collect([$tag])], Post::class);
-
-        self::assertTrue($result);
-        self::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
-    }
-
-    /**
-     * Test that syncing a collection plucks the related model's key name.
-     *
-     * @return void
-     */
-    public function testPersistSyncWithCollectionUsesRelatedModelKeyForNonIdPrimaryKey(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
-        $us   = Country::create(['code' => 'US', 'name' => 'United States']);
-        $gb   = Country::create(['code' => 'GB', 'name' => 'United Kingdom']);
-
-        $this->setProperty($this->attributeSetter, 'casts', ['countries' => 'sync']);
-
-        $result = $this->attributeSetter->persist($post, ['countries' => collect([$us, $gb])], Post::class);
-
-        self::assertTrue($result);
-
-        $synced = $post->fresh()?->countries()->pluck('code')->all() ?? [];
-
-        sort($synced);
-
-        self::assertSame(['GB', 'US'], $synced);
-    }
-
-    /**
-     * Test that persist syncs a relation given an array of integer IDs.
-     *
-     * @return void
-     */
-    public function testPersistSyncWithArrayOfIds(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
-        $tag  = Tag::create(['name' => 'testing']);
-
-        $this->setProperty($this->attributeSetter, 'casts', ['tags' => 'sync']);
-
-        $result = $this->attributeSetter->persist($post, ['tags' => [$tag->getKey()]], Post::class);
-
-        self::assertTrue($result);
-        self::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
-    }
-
-    /**
-     * Test that persist syncs a relation given a single Model instance.
-     *
-     * @return void
-     */
-    public function testPersistSyncWithSingleModel(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
-        $tag  = Tag::create(['name' => 'single']);
-
-        $this->setProperty($this->attributeSetter, 'casts', ['tags' => 'sync']);
-
-        $result = $this->attributeSetter->persist($post, ['tags' => $tag], Post::class);
-
-        self::assertTrue($result);
-        self::assertCount(1, $post->fresh()?->tags()->get() ?? collect([]));
-    }
-
-    /**
-     * Test that syncing a Collection detaches relations absent from the value.
-     *
-     * @return void
-     */
-    public function testPersistSyncWithCollectionDetachesExistingRelations(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
-        $old  = Tag::create(['name' => 'old']);
-        $new  = Tag::create(['name' => 'new']);
-
-        $post->tags()->attach($old->getKey());
-
-        $this->setProperty($this->attributeSetter, 'casts', ['tags' => 'sync']);
-
-        $result = $this->attributeSetter->persist($post, ['tags' => collect([$new])], Post::class);
-
-        self::assertTrue($result);
-
-        $tagNames = $post->fresh()?->tags()->pluck('name')->all();
-
-        self::assertSame(['new'], $tagNames);
-    }
-
-    /**
-     * Test that syncing an ID array detaches relations absent from the value.
-     *
-     * @return void
-     */
-    public function testPersistSyncWithArrayOfIdsDetachesExistingRelations(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
-        $old  = Tag::create(['name' => 'stale']);
-        $new  = Tag::create(['name' => 'fresh']);
-
-        $post->tags()->attach($old->getKey());
-
-        $this->setProperty($this->attributeSetter, 'casts', ['tags' => 'sync']);
-
-        $result = $this->attributeSetter->persist($post, ['tags' => [$new->getKey()]], Post::class);
-
-        self::assertTrue($result);
-
-        $tagNames = $post->fresh()?->tags()->pluck('name')->all();
-
-        self::assertSame(['fresh'], $tagNames);
-    }
-
-    /**
-     * Test that persist skips attributes whose cast resolves to null.
-     *
-     * @return void
-     */
-    public function testPersistSkipsAttributeWithNullCast(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-
-        $this->schemaIntrospector->method('resolveRelation')->willReturn(null);
-
-        $result = $this->attributeSetter->persist($user, ['unknown_field' => 'value'], User::class);
-
-        self::assertTrue($result);
-        self::assertSame('Alice', $user->fresh()?->name);
-    }
-
-    /**
-     * Test that persist continues past an attribute whose cast is null.
-     *
-     * @return void
-     */
-    public function testPersistContinuesToLaterAttributesAfterNullCast(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-
-        $this->schemaIntrospector->method('resolveRelation')->willReturn(null);
-
-        $this->setProperty($this->attributeSetter, 'casts', ['name' => 'string']);
-
-        $result = $this->attributeSetter->persist($user, ['unknown_field' => 'value', 'name' => 'Bob'], User::class);
-
-        self::assertTrue($result);
-        self::assertSame('Bob', $user->fresh()?->name);
-    }
-
-    /**
-     * Test that persist returns the boolean result of the model's save method.
-     *
-     * @return void
-     */
-    public function testPersistReturnsSaveResult(): void
-    {
-        $model = self::createStub(Model::class);
-        $model->method('save')->willReturn(false);
-        $model->method('getCasts')->willReturn([]);
-
-        $result = $this->attributeSetter->persist($model, [], 'App\Models\Stub');
-
-        self::assertFalse($result);
-    }
-
-    /**
-     * Test that resolveAttributeCasts loads a cached cast map.
-     *
-     * @return void
-     */
-    public function testResolveAttributeCastsFromCache(): void
-    {
-        $cachedCasts = ['name' => 'string', 'active' => 'boolean'];
-        $cacheKey    = $this->metadataStorageKey(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
-
-        Cache::memo()->rememberForever($cacheKey, fn () => $cachedCasts);
-
-        $model = $this->createMock(Model::class);
-        $model->expects(self::never())->method('getCasts');
-
-        $this->attributeSetter->resolveAttributeCasts($model, User::class);
-
-        $casts = $this->getProperty($this->attributeSetter, 'casts');
-
-        self::assertSame($cachedCasts, $casts);
-    }
-
-    /**
-     * Test that resolveAttributeCasts resolves and caches casts on a miss.
-     *
-     * @return void
-     */
-    public function testResolveAttributeCastsFromModelWhenCacheEmpty(): void
-    {
-        $model = new User;
-
-        $this->attributeSetter->resolveAttributeCasts($model, User::class);
-
-        $casts = $this->getProperty($this->attributeSetter, 'casts');
-
-        self::assertIsArray($casts);
-        self::assertArrayHasKey('status', $casts);
-
-        $cached = Cache::memo()->get($this->metadataStorageKey(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class])));
-
-        self::assertSame($casts, $cached);
-    }
-
-    /**
-     * Test that persist memoises the resolved casts under the model class key.
-     *
-     * @return void
-     */
-    public function testPersistStoresResolvedCastsInCache(): void
-    {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-
-        $this->setProperty($this->attributeSetter, 'casts', ['name' => 'string']);
-
-        $this->attributeSetter->persist($user, ['name' => 'Bob'], User::class);
-
-        $cached = Cache::memo()->get($this->metadataStorageKey(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class])));
-
-        self::assertSame(['name' => 'string'], $cached);
-    }
-
-    /**
-     * Test that resolveCastForAttribute returns null with no cast or model.
-     *
-     * @return void
-     */
-    public function testResolveCastForAttributeWithNullCastAndModelReturnsNull(): void
-    {
-        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', null, null);
-
-        self::assertNull($result);
-    }
-
-    /**
-     * Test that resolveCastForRelation returns 'associate' for BelongsTo.
-     *
-     * @return void
-     */
-    public function testResolveCastForRelationReturnsCastForBelongsTo(): void
-    {
-        $model    = new User;
-        $relation = $model->organization();
-
-        $this->schemaIntrospector->method('resolveRelation')
-            ->willReturnCallback(static fn (string $attribute, $subject) => $attribute === 'organization' && $subject === $model ? $relation : null);
-
-        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'organization', $model);
-
-        self::assertSame('associate', $result);
-    }
-
-    /**
-     * Test that resolveCastForRelation returns 'associate' for MorphTo.
-     *
-     * @return void
-     */
-    public function testResolveCastForRelationReturnsCastForMorphTo(): void
-    {
-        $model    = new User;
-        $relation = self::createStub(MorphTo::class);
-
-        $this->schemaIntrospector->method('resolveRelation')
-            ->willReturnCallback(static fn (string $attribute, $subject) => $attribute === 'commentable' && $subject === $model ? $relation : null);
-
-        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'commentable', $model);
-
-        self::assertSame('associate', $result);
-    }
-
-    /**
-     * Test that resolveCastForRelation returns 'sync' for BelongsToMany.
-     *
-     * @return void
-     */
-    public function testResolveCastForRelationReturnsCastForBelongsToMany(): void
-    {
-        $model    = new Post;
-        $relation = $model->tags();
-
-        $this->schemaIntrospector->method('resolveRelation')
-            ->willReturnCallback(static fn (string $attribute, $subject) => $attribute === 'tags' && $subject === $model ? $relation : null);
-
-        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'tags', $model);
-
-        self::assertSame('sync', $result);
-    }
-
-    /**
-     * Test that resolveCastForRelation returns null for a non-relation.
-     *
-     * @return void
-     */
-    public function testResolveCastForRelationReturnsNullForNonRelation(): void
-    {
-        $model = new User;
-
-        $this->schemaIntrospector->method('resolveRelation')
-            ->willReturn(null);
-
-        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'nonexistent', $model);
-
-        self::assertNull($result);
-    }
-
-    /**
-     * Test that resolveCastForRelation returns null for other relations.
-     *
-     * @return void
-     */
-    public function testResolveCastForRelationReturnsNullForUnsupportedRelationType(): void
-    {
-        $model    = new User;
-        $relation = $model->posts();
-
-        $this->schemaIntrospector->method('resolveRelation')
-            ->willReturnCallback(static fn (string $attribute, $subject) => $attribute === 'posts' && $subject === $model ? $relation : null);
-
-        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'posts', $model);
-
-        self::assertNull($result);
-    }
-
-    /**
-     * Test that resolveCastForRelation returns 'sync' for MorphToMany.
-     *
-     * @return void
-     */
-    public function testResolveCastForRelationReturnsCastForMorphToMany(): void
-    {
-        $model    = new Tag;
-        $relation = $model->articles();
-
-        $this->schemaIntrospector->method('resolveRelation')
-            ->willReturnCallback(static fn (string $attribute, $subject) => $attribute === 'articles' && $subject === $model ? $relation : null);
-
-        $result = $this->invokeMethod($this->attributeSetter, 'resolveCastForRelation', 'articles', $model);
-
-        self::assertSame('sync', $result);
-    }
-
-    /**
-     * Test that resolveCastForAttribute labels object casts as 'object'.
-     *
-     * @return void
-     */
-    public function testResolveCastForAttributeLabelsObjectCasts(): void
-    {
-        self::assertSame('object', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'object', null));
-        self::assertSame('object', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'encrypted:object', null));
-    }
-
-    /**
-     * Test that resolveCastForAttribute falls back to 'string' for other casts.
-     *
-     * Laravel's own cast converts scalar and enum casts on assignment.
-     *
-     * @return void
-     */
-    public function testResolveCastForAttributeFallsBackToString(): void
-    {
-        self::assertSame('string', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'custom_type', null));
-        self::assertSame('string', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'field', 'datetime', null));
-        self::assertSame('string', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'status', UserStatus::class, null));
-    }
-
-    /**
-     * Test that resolveCastForAttribute labels a pure-enum cast.
-     *
-     * @return void
-     */
-    public function testResolveCastForAttributeLabelsPureEnumCasts(): void
-    {
-        self::assertSame('pure_enum', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'platform', Platform::class, null));
-        self::assertSame('string', $this->invokeMethod($this->attributeSetter, 'resolveCastForAttribute', 'platform', CastablePlatform::class, null));
+        self::assertEquals(new \stdClass, $note->fresh()?->meta);
     }
 
     /**
@@ -663,13 +196,14 @@ final class AttributeSetterTest extends TestCase
     {
         $device = Device::create(['name' => 'Phone', 'platform' => Platform::WEB]);
 
-        self::assertTrue($this->attributeSetter->persist($device, ['platform' => $value, 'status' => 'inactive'], Device::class));
+        self::assertTrue($this->attributeSetter->persist($device, ['platform' => $value, 'status' => 'inactive']));
 
         $fresh = $device->fresh();
 
-        self::assertSame($expected, $fresh?->platform);
-        self::assertSame($expected?->name, $fresh?->getRawOriginal('platform'));
-        self::assertSame(UserStatus::INACTIVE, $fresh?->status);
+        self::assertNotNull($fresh);
+        self::assertSame($expected, $fresh->platform);
+        self::assertSame($expected?->name, $fresh->getRawOriginal('platform'));
+        self::assertSame(UserStatus::INACTIVE, $fresh->status);
     }
 
     /**
@@ -695,7 +229,7 @@ final class AttributeSetterTest extends TestCase
         $device = Device::create(['name' => 'Phone', 'platform' => Platform::WEB]);
 
         try {
-            $this->attributeSetter->persist($device, ['platform' => $value], Device::class);
+            $this->attributeSetter->persist($device, ['platform' => $value]);
 
             self::fail('A string naming no case must be refused.');
         } catch (\ValueError $exception) {
@@ -706,98 +240,519 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that an associate cast on a non-BelongsTo attribute throws.
+     * Test that a cast merged onto one instance is honoured for that instance
+     * only.
      *
      * @return void
      */
-    public function testSetAssociateAttributeThrowsWhenRelationIsNotBelongsTo(): void
+    public function testPersistReadsTheCastsOfTheInstanceItIsGiven(): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $merged = $this->createNote();
+        $plain  = $this->createNote();
 
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('does not resolve to a BelongsTo relation');
+        $merged->mergeCasts(['kind' => Platform::class]);
 
-        $this->invokeMethod($this->attributeSetter, 'setAttribute', $user, 'posts', 1, 'associate');
+        $this->attributeSetter->persist($merged, ['kind' => 'mobile_app']);
+        $this->attributeSetter->persist($plain, ['kind' => 'mobile_app']);
+
+        self::assertSame('MOBILE_APP', $merged->fresh()?->getRawOriginal('kind'));
+        self::assertSame('mobile_app', $plain->fresh()?->getRawOriginal('kind'));
     }
 
     /**
-     * Test that a sync cast on a non-BelongsToMany attribute throws.
+     * Test that an Attribute set mutator stores the mutated value.
      *
      * @return void
      */
-    public function testSetSyncAttributeThrowsWhenRelationIsNotBelongsToMany(): void
+    public function testPersistWritesThroughAnAttributeSetMutator(): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $note = $this->createNote();
 
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('does not resolve to a BelongsToMany relation');
-
-        $this->invokeMethod($this->attributeSetter, 'setAttribute', $user, 'organization', 1, 'sync');
+        self::assertTrue($this->attributeSetter->persist($note, ['slug' => 'Hello World']));
+        self::assertSame('hello-world', $note->fresh()?->slug);
     }
 
     /**
-     * Test that an associate cast refuses a value with no model or key.
+     * Test that a legacy set mutator stores the mutated value, winning over a
+     * relation of the same name.
      *
      * @return void
      */
-    public function testSetAssociateAttributeThrowsWhenValueIsNeitherAModelNorAKey(): void
+    public function testPersistPrefersALegacySetMutatorOverARelationOfTheSameName(): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $alice = $this->createAlice();
+        $note  = $this->createNote();
+
+        self::assertTrue($this->attributeSetter->persist($note, ['owner' => self::ALICE_EMAIL]));
+        self::assertSame($alice->id, $note->fresh()?->owner_id);
+    }
+
+    /**
+     * Test that a JSON path key updates one key of a JSON column.
+     *
+     * @return void
+     */
+    public function testPersistWritesAJsonPathKey(): void
+    {
+        $note = $this->createNote(['options' => ['theme' => 'light', 'font' => 'serif']]);
+
+        self::assertTrue($this->attributeSetter->persist($note, ['options->theme' => 'dark']));
+        self::assertSame(['theme' => 'dark', 'font' => 'serif'], $note->fresh()?->options);
+    }
+
+    /**
+     * Test that persist associates a BelongsTo relation given an integer key.
+     *
+     * @return void
+     */
+    public function testPersistAssociatesABelongsToByIntegerKey(): void
+    {
+        $org  = $this->createOrganization();
+        $user = $this->createAlice();
+
+        self::assertTrue($this->attributeSetter->persist($user, ['organization' => $org->id]));
+        self::assertSame($org->id, $user->fresh()?->organization_id);
+    }
+
+    /**
+     * Test that persist associates a BelongsTo relation given a string key.
+     *
+     * @return void
+     */
+    public function testPersistAssociatesABelongsToByStringKey(): void
+    {
+        $org  = $this->createOrganization();
+        $user = $this->createAlice();
+
+        self::assertTrue($this->attributeSetter->persist($user, ['organization' => (string) $org->id]));
+        self::assertSame($org->id, $user->fresh()?->organization_id);
+    }
+
+    /**
+     * Test that persist associates a BelongsTo relation given the model.
+     *
+     * @return void
+     */
+    public function testPersistAssociatesABelongsToByModel(): void
+    {
+        $org  = $this->createOrganization();
+        $user = $this->createAlice();
+
+        self::assertTrue($this->attributeSetter->persist($user, ['organization' => $org]));
+        self::assertSame($org->id, $user->fresh()?->organization_id);
+        self::assertSame($org, $user->getRelation('organization'));
+    }
+
+    /**
+     * Test that persist dissociates a BelongsTo relation given null.
+     *
+     * @return void
+     */
+    public function testPersistDissociatesABelongsToGivenNull(): void
+    {
+        $org  = $this->createOrganization();
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL, 'organization_id' => $org->id]);
+
+        self::assertTrue($this->attributeSetter->persist($user, ['organization' => null]));
+        self::assertNull($user->fresh()?->organization_id);
+    }
+
+    /**
+     * Test that a BelongsTo given neither a model nor a key is refused.
+     *
+     * @return void
+     */
+    public function testPersistRefusesABelongsToValueThatIsNeitherAModelNorAKey(): void
+    {
+        $user = $this->createAlice();
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage(sprintf('Attribute "organization" on %s must be given a model or its key', User::class));
 
-        $this->invokeMethod($this->attributeSetter, 'setAttribute', $user, 'organization', [1], 'associate');
+        $this->attributeSetter->persist($user, ['organization' => [1]]);
     }
 
     /**
-     * Test that a sync cast given neither models nor keys refuses the value.
+     * Test that a MorphTo with no type yet is associated from a model.
      *
      * @return void
      */
-    public function testSetSyncAttributeThrowsWhenValueIsNeitherModelsNorKeys(): void
+    public function testPersistAssociatesAMorphToFromAModel(): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
-        $post = Post::create(['user_id' => $user->id, 'title' => 'T', 'body' => 'B']);
+        $alice = $this->createAlice();
+        $note  = $this->createNote();
+
+        self::assertTrue($this->attributeSetter->persist($note, ['noteable' => $alice]));
+
+        $fresh = $note->fresh();
+
+        self::assertNotNull($fresh);
+        self::assertSame($alice->id, $fresh->noteable_id);
+        self::assertSame(User::class, $fresh->noteable_type);
+    }
+
+    /**
+     * Provide keys a MorphTo cannot be associated from.
+     *
+     * @return iterable<string, array{int|string}>
+     */
+    public static function morphToKeyProvider(): iterable
+    {
+        yield 'integer' => [5];
+        yield 'string' => ['5'];
+    }
+
+    /**
+     * Test that a MorphTo given a key is refused and keeps its association.
+     *
+     * @param  int|string  $key
+     * @return void
+     */
+    #[DataProvider('morphToKeyProvider')]
+    public function testPersistRefusesAMorphToGivenAKey(int|string $key): void
+    {
+        $alice = $this->createAlice();
+        $note  = $this->createNote(['noteable_id' => $alice->id, 'noteable_type' => User::class]);
+
+        try {
+            $this->attributeSetter->persist($note, ['noteable' => $key]);
+
+            self::fail('A MorphTo given a key must be refused.');
+        } catch (\InvalidArgumentException $exception) {
+            self::assertSame(sprintf('Attribute "noteable" on %s is a MorphTo relation and must be given a model', Note::class), $exception->getMessage());
+        }
+
+        $fresh = $note->fresh();
+
+        self::assertNotNull($fresh);
+        self::assertSame($alice->id, $fresh->noteable_id);
+        self::assertSame(User::class, $fresh->noteable_type);
+    }
+
+    /**
+     * Test that a MorphTo given null is dissociated.
+     *
+     * @return void
+     */
+    public function testPersistDissociatesAMorphToGivenNull(): void
+    {
+        $alice = $this->createAlice();
+        $note  = $this->createNote(['noteable_id' => $alice->id, 'noteable_type' => User::class]);
+
+        self::assertTrue($this->attributeSetter->persist($note, ['noteable' => null]));
+
+        $fresh = $note->fresh();
+
+        self::assertNotNull($fresh);
+        self::assertNull($fresh->noteable_id);
+        self::assertNull($fresh->noteable_type);
+    }
+
+    /**
+     * Test that a dynamic relation is written through the name it was
+     * registered under.
+     *
+     * @return void
+     */
+    public function testPersistAssociatesADynamicRelationByItsRegisteredName(): void
+    {
+        Note::resolveRelationUsing('primary_contact', static fn (Note $note): BelongsTo => $note->belongsTo(User::class, 'primary_contact_id', 'id', 'primary_contact'));
+
+        $alice = $this->createAlice();
+        $note  = $this->createNote();
+
+        self::assertTrue($this->attributeSetter->persist($note, ['primary_contact' => $alice->id]));
+        self::assertSame($alice->id, $note->fresh()?->primary_contact_id);
+    }
+
+    /**
+     * Test that persist syncs a BelongsToMany from an array of keys, detaching
+     * the rest.
+     *
+     * @return void
+     */
+    public function testPersistSyncsABelongsToManyFromKeys(): void
+    {
+        $post = $this->createPost();
+        $old  = Tag::create(['name' => 'stale']);
+        $new  = Tag::create(['name' => 'fresh']);
+
+        $post->tags()->attach($old->getKey());
+
+        self::assertTrue($this->attributeSetter->persist($post, ['tags' => [$new->getKey()]]));
+        self::assertSame(['fresh'], $post->tags()->pluck('name')->all());
+    }
+
+    /**
+     * Test that persist syncs a BelongsToMany from a single key.
+     *
+     * @return void
+     */
+    public function testPersistSyncsABelongsToManyFromASingleKey(): void
+    {
+        $post = $this->createPost();
+        $tag  = Tag::create(['name' => 'php']);
+
+        self::assertTrue($this->attributeSetter->persist($post, ['tags' => $tag->getKey()]));
+        self::assertSame(['php'], $post->tags()->pluck('name')->all());
+    }
+
+    /**
+     * Test that persist syncs a BelongsToMany from a single string key.
+     *
+     * @return void
+     */
+    public function testPersistSyncsABelongsToManyFromAStringKey(): void
+    {
+        $post = $this->createPost();
+
+        Country::create(['code' => 'US', 'name' => 'United States']);
+
+        self::assertTrue($this->attributeSetter->persist($post, ['countries' => 'US']));
+        self::assertSame(['US'], $post->countries()->pluck('code')->all());
+    }
+
+    /**
+     * Test that persist syncs a BelongsToMany from a single model.
+     *
+     * @return void
+     */
+    public function testPersistSyncsABelongsToManyFromAModel(): void
+    {
+        $post = $this->createPost();
+        $tag  = Tag::create(['name' => 'single']);
+
+        self::assertTrue($this->attributeSetter->persist($post, ['tags' => $tag]));
+        self::assertSame(['single'], $post->tags()->pluck('name')->all());
+    }
+
+    /**
+     * Test that syncing a collection plucks the related model's key name.
+     *
+     * @return void
+     */
+    public function testPersistSyncsABelongsToManyFromACollectionByTheRelatedKey(): void
+    {
+        $post = $this->createPost();
+        $us   = Country::create(['code' => 'US', 'name' => 'United States']);
+        $gb   = Country::create(['code' => 'GB', 'name' => 'United Kingdom']);
+
+        self::assertTrue($this->attributeSetter->persist($post, ['countries' => collect([$us, $gb])]));
+        self::assertSame(['GB', 'US'], $post->countries()->orderBy('code')->pluck('code')->all());
+    }
+
+    /**
+     * Test that persist syncs a BelongsToMany once a new model is saved, and
+     * writes the keys given after it.
+     *
+     * @return void
+     */
+    public function testPersistSyncsABelongsToManyOnCreate(): void
+    {
+        $user = $this->createAlice();
+        $tag  = Tag::create(['name' => 'php']);
+        $post = new Post;
+
+        self::assertTrue($this->attributeSetter->persist($post, ['tags' => [$tag->getKey()], 'user_id' => $user->id, 'title' => 'T', 'body' => 'B']));
+        self::assertTrue($post->exists);
+        self::assertSame('T', $post->fresh()?->title);
+        self::assertSame(['php'], $post->tags()->pluck('name')->all());
+    }
+
+    /**
+     * Test that a BelongsToMany given neither models nor keys is refused.
+     *
+     * @return void
+     */
+    public function testPersistRefusesABelongsToManyValueThatIsNeitherModelsNorKeys(): void
+    {
+        $post = $this->createPost();
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage(sprintf('Attribute "tags" on %s must be given models or their keys', Post::class));
 
-        $this->invokeMethod($this->attributeSetter, 'setAttribute', $post, 'tags', 1.5, 'sync');
+        $this->attributeSetter->persist($post, ['tags' => 1.5]);
     }
 
     /**
-     * Test that persist stores the cast map under REPOSITORY_MODEL_CASTS.
+     * Test that persist syncs a MorphToMany from keys, a model or a collection.
      *
      * @return void
      */
-    public function testStoreCastsStoresUnderTheModelCastsKey(): void
+    public function testPersistSyncsAMorphToMany(): void
     {
-        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        $note = $this->createNote();
+        $php  = Tag::create(['name' => 'php']);
+        $sql  = Tag::create(['name' => 'sql']);
 
-        $this->setProperty($this->attributeSetter, 'casts', ['name' => 'string']);
+        $this->attributeSetter->persist($note, ['labels' => [$php->getKey(), $sql->getKey()]]);
 
-        $this->attributeSetter->persist($user, ['name' => 'Bob'], User::class);
+        self::assertSame(['php', 'sql'], $note->labels()->orderBy('name')->pluck('name')->all());
 
-        $expectedKey = $this->metadataStorageKey(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
+        $this->attributeSetter->persist($note, ['labels' => $sql]);
 
-        self::assertIsArray(Cache::memo()->get($expectedKey));
+        self::assertSame(['sql'], $note->labels()->pluck('name')->all());
+
+        $this->attributeSetter->persist($note, ['labels' => collect([$php])]);
+
+        self::assertSame(['php'], $note->labels()->pluck('name')->all());
     }
 
     /**
-     * Test that a stored cast map is served without asking the model again.
+     * Test that persist syncs a MorphToMany once a new model is saved.
      *
      * @return void
      */
-    public function testResolveAttributeCastsServesACastMapAnEarlierProcessStored(): void
+    public function testPersistSyncsAMorphToManyOnCreate(): void
     {
-        $cacheKey = $this->metadataStorageKey(CacheKeys::REPOSITORY_MODEL_CASTS->resolveKey([User::class]));
+        $tag  = Tag::create(['name' => 'php']);
+        $note = new Note;
 
-        Cache::memo()->rememberForever($cacheKey, fn (): array => ['name' => 'string']);
+        self::assertTrue($this->attributeSetter->persist($note, ['labels' => [$tag->getKey()], 'title' => 'first']));
+        self::assertTrue($note->exists);
+        self::assertSame(['php'], $note->labels()->pluck('name')->all());
+        self::assertSame(Note::class, Note::query()->getConnection()->table('labelables')->value('labelable_type'));
+    }
 
-        $model = $this->createMock(Model::class);
-        $model->expects(self::never())->method('getCasts');
+    /**
+     * Provide relations persist cannot write, with their relation type.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function unwritableRelationProvider(): iterable
+    {
+        yield 'has many' => ['posts', 'HasMany'];
+        yield 'has one' => ['profile', 'HasOne'];
+    }
 
-        $this->attributeSetter->resolveAttributeCasts($model, User::class);
+    /**
+     * Test that a relation persist cannot write is refused before any key is
+     * assigned.
+     *
+     * @param  string  $relation
+     * @param  string  $type
+     * @return void
+     */
+    #[DataProvider('unwritableRelationProvider')]
+    public function testPersistRefusesAnUnwritableRelationBeforeAssigningAnything(string $relation, string $type): void
+    {
+        $user = $this->createAlice();
+
+        try {
+            $this->attributeSetter->persist($user, ['name' => 'changed', $relation => [1]]);
+
+            self::fail('An unwritable relation must be refused.');
+        } catch (\InvalidArgumentException $exception) {
+            self::assertSame(sprintf('Attribute "%s" on %s is a %s relation, which persist() cannot write', $relation, User::class, $type), $exception->getMessage());
+        }
+
+        self::assertFalse($user->isDirty());
+        self::assertSame('Alice', $user->fresh()?->name);
+    }
+
+    /**
+     * Test that a key naming no column fails at save and changes nothing.
+     *
+     * @return void
+     */
+    public function testPersistFailsAtSaveForAKeyNamingNoColumn(): void
+    {
+        $user = $this->createAlice();
+
+        $this->assertThrows(fn (): bool => $this->attributeSetter->persist($user, ['name' => 'changed', 'nickname' => 'Al']), QueryException::class, 'nickname');
+
+        self::assertSame('Alice', $user->fresh()?->name);
+    }
+
+    /**
+     * Test that persist returns false when the save is cancelled.
+     *
+     * @return void
+     */
+    public function testPersistReturnsTheSaveResult(): void
+    {
+        $user = $this->createAlice();
+
+        User::saving(static fn (): bool => false);
+
+        self::assertFalse($this->attributeSetter->persist($user, ['name' => 'Bob']));
+        self::assertSame('Alice', $user->fresh()?->name);
+    }
+
+    /**
+     * Define the database migrations.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function defineDatabaseMigrations(): void
+    {
+        parent::defineDatabaseMigrations();
+
+        Schema::create('notes', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('owner_id')->nullable();
+            $table->nullableMorphs('noteable');
+            $table->unsignedBigInteger('primary_contact_id')->nullable();
+            $table->string('title')->nullable();
+            $table->string('slug')->nullable();
+            $table->string('kind')->nullable();
+            $table->integer('priority')->nullable();
+            $table->boolean('pinned')->nullable();
+            $table->string('status')->nullable();
+            $table->text('meta')->nullable();
+            $table->json('options')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('labelables', function (Blueprint $table): void {
+            $table->unsignedBigInteger('tag_id');
+            $table->morphs('labelable');
+        });
+    }
+
+    /**
+     * Create the user the tests write to.
+     *
+     * @return \Tests\Fixtures\Models\User
+     */
+    private function createAlice(): User
+    {
+        return User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+    }
+
+    /**
+     * Create an organization to associate.
+     *
+     * @return \Tests\Fixtures\Models\Organization
+     */
+    private function createOrganization(): Organization
+    {
+        return Organization::create(['name' => 'Acme', 'slug' => 'acme']);
+    }
+
+    /**
+     * Create a post owned by a new user.
+     *
+     * @return \Tests\Fixtures\Models\Post
+     */
+    private function createPost(): Post
+    {
+        return Post::create(['user_id' => $this->createAlice()->id, 'title' => 'T', 'body' => 'B']);
+    }
+
+    /**
+     * Create a note holding the given raw attributes.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return \Tests\Fixtures\Models\Note
+     */
+    private function createNote(array $attributes = []): Note
+    {
+        $note = new Note;
+
+        $note->forceFill($attributes)->save();
+
+        return $note;
     }
 }
