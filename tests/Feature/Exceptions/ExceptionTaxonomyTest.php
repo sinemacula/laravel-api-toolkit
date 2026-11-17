@@ -91,6 +91,21 @@ final class ExceptionTaxonomyTest extends TestCase
     }
 
     /**
+     * Test that an unmatched route renders the not-found envelope without
+     * touching the database.
+     *
+     * @return void
+     */
+    public function testUnmatchedRouteIsRenderedAsNotFoundWithoutStatements(): void
+    {
+        $statements = $this->recordStatements(fn () => $this->getJson('/unmatched')
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 10103));
+
+        self::assertStatementCount(0, $statements);
+    }
+
+    /**
      * Provide exceptions Laravel converts before rendering, with the class the
      * render callbacks receive and the status and code it renders.
      *
@@ -109,21 +124,6 @@ final class ExceptionTaxonomyTest extends TestCase
         yield 'authorization with an unknown status' => [static fn (): \Throwable => (new AuthorizationException)->withStatus(499), SymfonyHttpException::class, 500, 10001];
         yield 'token mismatch' => [static fn (): \Throwable => new TokenMismatchException, SymfonyHttpException::class, 419, 10105];
         yield 'origin mismatch' => [static fn (): \Throwable => new OriginMismatchException, SymfonyHttpException::class, 403, 10102];
-    }
-
-    /**
-     * Test that an unmatched route renders the not-found envelope without
-     * touching the database.
-     *
-     * @return void
-     */
-    public function testUnmatchedRouteIsRenderedAsNotFoundWithoutStatements(): void
-    {
-        $statements = $this->recordStatements(fn () => $this->getJson('/unmatched')
-            ->assertStatus(404)
-            ->assertJsonPath('error.code', 10103));
-
-        self::assertStatementCount(0, $statements);
     }
 
     /**
