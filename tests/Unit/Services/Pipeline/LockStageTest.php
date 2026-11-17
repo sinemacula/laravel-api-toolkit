@@ -5,6 +5,8 @@ declare(strict_types = 1);
 namespace Tests\Unit\Services\Pipeline;
 
 use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
@@ -23,51 +25,109 @@ use Tests\TestCase;
 #[CoversClass(LockStage::class)]
 final class LockStageTest extends TestCase
 {
+    /** @var array<int, string> The lock calls and pipeline steps, in the order they ran */
+    private array $calls = [];
+
     /**
-     * Test that wrap locks around $next and returns its value.
+     * Test that wrap releases the lock it took once $next returns.
      *
      * @return void
      */
-    public function testWrapAcquiresAndReleasesLock(): void
+    public function testWrapReleasesTheLockItTookOnceNextReturns(): void
     {
-        $callOrder = [];
+        $result = (new LockStage)->wrap($this->lockingService(), $this->next(...));
 
-        $service = $this->createLockableService($callOrder);
-        $concern = new LockStage;
-
-        $result = $concern->wrap($service, function () use (&$callOrder): string {
-            $callOrder[] = 'next';
-
-            return 'result-value';
-        });
-
-        self::assertSame(['lock', 'next', 'unlock'], $callOrder);
         self::assertSame('result-value', $result);
+        self::assertSame(['lock', 'next', 'release'], $this->calls);
     }
 
     /**
-     * Test that wrap releases the lock even when $next throws.
+     * Test that wrap releases the lock at once and rethrows when $next throws.
      *
      * @return void
      */
-    public function testWrapReleasesLockWhenNextThrows(): void
+    public function testWrapReleasesTheLockAndRethrowsWhenNextThrows(): void
     {
-        $callOrder = [];
+        $failure = new \RuntimeException('pipeline failure');
 
-        $service = $this->createLockableService($callOrder);
-        $concern = new LockStage;
+        $this->assertThrows(fn (): mixed => (new LockStage)->wrap($this->lockingService(), static fn (): never => throw $failure), \RuntimeException::class, 'pipeline failure');
 
-        try {
+        self::assertSame(['lock', 'release'], $this->calls);
+    }
 
-            $concern->wrap($service, function (): never {
-                throw new \RuntimeException('pipeline failure');
-            });
+    /**
+     * Test that wrap holds the lock until the caller's transaction commits.
+     *
+     * @return void
+     */
+    public function testWrapHoldsTheLockUntilTheCallerCommits(): void
+    {
+        $service = $this->lockingService();
 
-        } catch (\RuntimeException) {
-            // Expected
-        }
+        DB::transaction(function () use ($service): void {
+            (new LockStage)->wrap($service, $this->next(...));
 
-        self::assertSame(['lock', 'unlock'], $callOrder);
+            self::assertSame(['lock', 'next'], $this->calls);
+        });
+
+        self::assertSame(['lock', 'next', 'release'], $this->calls);
+    }
+
+    /**
+     * Test that wrap releases the lock once when the caller's transaction rolls
+     * back.
+     *
+     * @return void
+     */
+    public function testWrapReleasesTheLockOnceWhenTheCallerRollsBack(): void
+    {
+        $service = $this->lockingService();
+
+        DB::beginTransaction();
+
+        (new LockStage)->wrap($service, $this->next(...));
+
+        self::assertSame(['lock', 'next'], $this->calls);
+
+        DB::rollBack();
+
+        self::assertSame(['lock', 'next', 'release'], $this->calls);
+    }
+
+    /**
+     * Test that a failed release is reported instead of thrown.
+     *
+     * @return void
+     */
+    public function testWrapReportsAFailedReleaseInsteadOfThrowingIt(): void
+    {
+        Exceptions::fake();
+
+        $error = new \RuntimeException('release failed');
+
+        self::assertSame('result-value', (new LockStage)->wrap($this->lockingService($error), $this->next(...)));
+
+        Exceptions::assertReported(static fn (\RuntimeException $e): bool => $e === $error);
+    }
+
+    /**
+     * Test that a failed release after $next throws does not replace the
+     * original failure.
+     *
+     * @return void
+     */
+    public function testWrapRethrowsTheOriginalFailureWhenReleaseAlsoFails(): void
+    {
+        Exceptions::fake();
+
+        $failure = new \RuntimeException('pipeline failure');
+        $error   = new \RuntimeException('release failed');
+
+        $service = $this->lockingService($error);
+
+        $this->assertThrows(static fn (): mixed => (new LockStage)->wrap($service, static fn (): never => throw $failure), \RuntimeException::class, 'pipeline failure');
+
+        Exceptions::assertReported(static fn (\RuntimeException $e): bool => $e === $error);
     }
 
     /**
@@ -103,59 +163,88 @@ final class LockStageTest extends TestCase
             }
         };
 
-        $concern = new LockStage;
-
         $this->expectException(LockUnavailableException::class);
 
-        $concern->wrap($service, fn (): bool => true);
+        (new LockStage)->wrap($service, fn (): bool => true);
     }
 
     /**
-     * Create a lockable service fixture that tracks call order.
+     * Record the pipeline step and return its value.
      *
-     * @param  array<int, string>  $callOrder
+     * @return string
+     */
+    private function next(): string
+    {
+        $this->calls[] = 'next';
+
+        return 'result-value';
+    }
+
+    /**
+     * Create a service whose lock() records the call and returns a lock that
+     * records its release, throwing the given error from it when set.
+     *
+     * unlock() records too, so a release through the service would show up.
+     *
+     * @param  \Throwable|null  $releaseError
      * @return \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Contracts\ServiceInput, mixed>
      */
-    private function createLockableService(array &$callOrder): Service
+    private function lockingService(?\Throwable $releaseError = null): Service
     {
-        return new class ($callOrder) extends Service {
+        $lock = \Mockery::mock(Lock::class);
+        $lock->shouldReceive('release')->andReturnUsing(function () use ($releaseError): bool {
+            $this->calls[] = 'release';
+
+            if ($releaseError !== null) {
+                throw $releaseError;
+            }
+
+            return true;
+        });
+
+        return new class ($this->calls, $lock) extends Service {
             /** @var array<int, string> */
-            public array $callOrder;
+            public array $calls;
+
+            /** @var \Illuminate\Contracts\Cache\Lock The lock lock() returns */
+            private readonly Lock $heldLock;
 
             /**
              * Create a new instance.
              *
-             * @param  array<int, string>  $callOrder
+             * @param  array<int, string>  $calls
+             * @param  \Illuminate\Contracts\Cache\Lock  $heldLock
              */
-            public function __construct(array &$callOrder)
+            public function __construct(array &$calls, Lock $heldLock)
             {
-                $this->callOrder = &$callOrder;
+                $this->calls    = &$calls;
+                $this->heldLock = $heldLock;
 
                 parent::__construct(new ArrayInput([]));
             }
 
             /**
-             * Lock the task execution.
+             * Record the call and return the lock.
              *
              * @return \Illuminate\Contracts\Cache\Lock
              */
             #[\Override]
             public function lock(): Lock
             {
-                $this->callOrder[] = 'lock';
+                $this->calls[] = 'lock';
 
-                return \Mockery::mock(Lock::class);
+                return $this->heldLock;
             }
 
             /**
-             * Unlock the task execution.
+             * Record a release through the service.
              *
              * @return void
              */
             #[\Override]
             public function unlock(): void
             {
-                $this->callOrder[] = 'unlock';
+                $this->calls[] = 'unlock';
             }
 
             /**

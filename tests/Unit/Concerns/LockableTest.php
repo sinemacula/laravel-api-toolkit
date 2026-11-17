@@ -100,6 +100,31 @@ final class LockableTest extends TestCase
     }
 
     /**
+     * Test that the lock expires after the configured seconds.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\ApiException
+     */
+    public function testLockExpiresAfterTheConfiguredSeconds(): void
+    {
+        $fixture = new StandaloneLockableFixture('expiring-lock-id', 5);
+        $fixture->acquireLock();
+
+        $this->travel(4)->seconds();
+
+        self::assertFalse(Cache::lock($fixture->getLockKey(), 60)->get());
+
+        $this->travel(2)->seconds();
+
+        $rival = Cache::lock($fixture->getLockKey(), 60);
+
+        self::assertTrue($rival->get());
+
+        $rival->release();
+    }
+
+    /**
      * Test that the lock key is generated via LockKeyProvider.
      *
      * @return void
