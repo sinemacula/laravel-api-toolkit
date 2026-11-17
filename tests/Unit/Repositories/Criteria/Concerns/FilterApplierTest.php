@@ -70,6 +70,9 @@ final class FilterApplierTest extends TestCase
     private const string NOT_A_PLATFORM = 'must be one of web, mobile_app, desktop.';
 
     /** @var string */
+    private const string CANNOT_BE_NULL = 'cannot be null; $null matches a missing value and $notNull a present one.';
+
+    /** @var string */
     private const string TAKES_ONLY_TRUE = 'takes only true; $null matches a missing value and $notNull a present one.';
 
     /** @var array<string, \SineMacula\ApiToolkit\Enums\Capability> */
@@ -1722,7 +1725,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testNullEqualityValueIsRefused(): void
     {
-        $message = 'The $eq condition on "organization_id" cannot be null; $null matches a missing value and $notNull a present one.';
+        $message = 'The $eq condition on "organization_id" ' . self::CANNOT_BE_NULL;
 
         $this->assertRefusedAt(['organization_id' => null], 'filters.organization_id', $message);
         $this->assertRefusedAt(['organization_id' => ['$eq' => null]], 'filters.organization_id.$eq', $message);
@@ -1739,7 +1742,7 @@ final class FilterApplierTest extends TestCase
     {
         $scalar = 'must be a single value other than null.';
 
-        yield '$gt null' => [['id' => ['$gt' => null]], 'filters.id.$gt', 'The $gt condition on "id" cannot be null; $null matches a missing value and $notNull a present one.'];
+        yield '$gt null' => [['id' => ['$gt' => null]], 'filters.id.$gt', 'The $gt condition on "id" ' . self::CANNOT_BE_NULL];
         yield '$eq list' => [['name' => ['$eq' => ['Bob', 'Alice']]], 'filters.name.$eq', 'The $eq condition on "name" must be a single value.'];
         yield '$gt list' => [['id' => ['$gt' => [2, 0]]], 'filters.id.$gt', 'The $gt condition on "id" must be a single value.'];
         yield '$gt object' => [['id' => ['$gt' => ['x' => 1]]], 'filters.id.$gt', 'The $gt condition on "id" must be a single value.'];
@@ -1821,7 +1824,7 @@ final class FilterApplierTest extends TestCase
 
         self::assertSame('2024-01-01 08:00:00', $handler->received);
 
-        $this->assertRefusedAt(['name' => ['$after' => null]], 'filters.name.$after', 'The $after condition on "name" cannot be null; $null matches a missing value and $notNull a present one.');
+        $this->assertRefusedAt(['name' => ['$after' => null]], 'filters.name.$after', 'The $after condition on "name" ' . self::CANNOT_BE_NULL);
     }
 
     /**

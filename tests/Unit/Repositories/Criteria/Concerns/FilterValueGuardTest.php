@@ -99,12 +99,13 @@ final class FilterValueGuardTest extends TestCase
     public static function refusedValueProvider(): iterable
     {
         $scalar   = 'a single value other than null';
-        $null     = 'The $op condition on "label" cannot be null; $null matches a missing value and $notNull a present one.';
+        $nullable = 'cannot be null; $null matches a missing value and $notNull a present one.';
+        $null     = 'The $op condition on "label" ' . $nullable;
         $bounds   = 'The $op condition on "count" must be a list of two values, [low, high].';
         $presence = 'The $op condition on "count" takes only true; $null matches a missing value and $notNull a present one.';
 
         yield 'null scalar' => [FilterValueShape::SCALAR, 'label', null, $null];
-        yield 'null on an undescribed column' => [FilterValueShape::SCALAR, 'missing', null, 'The $op condition on "missing" cannot be null; $null matches a missing value and $notNull a present one.'];
+        yield 'null on an undescribed column' => [FilterValueShape::SCALAR, 'missing', null, 'The $op condition on "missing" ' . $nullable];
         yield 'list scalar' => [FilterValueShape::SCALAR, 'label', ['a', 'b'], 'The $op condition on "label" must be a single value.'];
         yield 'object scalar' => [FilterValueShape::SCALAR, 'label', ['x' => 1], 'The $op condition on "label" must be a single value.'];
         yield 'scalar list' => [FilterValueShape::LIST, 'count', 1, 'The $op condition on "count" must be a list of values.'];
