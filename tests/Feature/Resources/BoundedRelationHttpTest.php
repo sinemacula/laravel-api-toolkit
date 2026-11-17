@@ -212,20 +212,21 @@ final class BoundedRelationHttpTest extends TestCase
             $post->countries()->attach(['GB', 'FR', 'DE']);
         });
 
-        $queries = $this->recordQueries();
+        $data = null;
 
-        $response = $this->getJson('/users?fields[bounded_users]=name,posts&fields[bounded_posts]=title,countries&fields[countries]=code');
-        $executed = $queries();
+        $statements = $this->recordStatements(function () use (&$data): void {
+            $data = $this->getJson('/users?fields[bounded_users]=name,posts&fields[bounded_posts]=title,countries&fields[countries]=code')
+                ->assertOk()
+                ->assertJsonCount(2, 'data.0.posts')
+                ->json('data.0.posts');
+        });
 
-        $response->assertOk();
-        $response->assertJsonCount(2, 'data.0.posts');
-
-        foreach (self::rows($response->json('data.0.posts')) as $post) {
+        foreach (self::rows($data) as $post) {
             self::assertSame(['DE', 'FR'], array_column(self::rows($post['countries']), 'code'));
             self::assertSame(['countries'], $post['_truncated']);
         }
 
-        $countryQueries = array_values(array_filter($executed, static fn (string $sql): bool => str_contains($sql, 'countries')));
+        $countryQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'countries')));
 
         self::assertCount(1, $countryQueries);
         self::assertStringContainsString('laravel_row', $countryQueries[0]);
