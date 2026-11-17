@@ -493,6 +493,91 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
+     * Test that a validation failure on a precognitive request renders the body
+     * Precognition clients read, and the envelope otherwise.
+     *
+     * @return void
+     */
+    public function testPrecognitiveValidationFailureRendersMessageAndErrors(): void
+    {
+        config()->set('app.debug', false);
+
+        $exception  = ValidationException::withMessages(['title' => ['The title field is required.']])->status(409);
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
+
+        $response = $reflection->invoke(null, $exception, self::precognitiveRequest(self::ACCEPT_JSON));
+
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame(
+            ['message' => 'The title field is required.', 'errors' => ['title' => ['The title field is required.']]],
+            $response->getData(true),
+        );
+
+        $request = Request::create(self::API_PATH, HttpMethod::POST->getVerb());
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        $response = $reflection->invoke(null, $exception, $request);
+
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(['title' => ['The title field is required.']], $response->getData(true)['error']['meta']);
+    }
+
+    /**
+     * Test that any other exception on a precognitive request keeps the
+     * envelope.
+     *
+     * @return void
+     */
+    public function testPrecognitiveRequestKeepsTheEnvelopeForOtherExceptions(): void
+    {
+        config()->set('app.debug', false);
+
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
+        $response   = $reflection->invoke(null, new ConflictException(['key' => 'value']), self::precognitiveRequest(self::ACCEPT_JSON));
+
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame(['key' => 'value'], $response->getData(true)['error']['meta']);
+    }
+
+    /**
+     * Test that json_when_expected leaves a precognitive validation failure on
+     * a non-JSON request to Laravel.
+     *
+     * @return void
+     */
+    public function testJsonWhenExpectedLeavesAPrecognitiveNonJsonRequestToLaravel(): void
+    {
+        config()->set('api-toolkit.exceptions.render_strategy', 'json_when_expected');
+
+        $exception  = ValidationException::withMessages(['title' => ['The title field is required.']]);
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
+
+        self::assertNull($reflection->invoke(null, $exception, self::precognitiveRequest('text/html')));
+    }
+
+    /**
+     * Test that always_json renders a precognitive validation failure on an
+     * HTML request as the validation body.
+     *
+     * @return void
+     */
+    public function testAlwaysJsonRendersAPrecognitiveHtmlRequestAsTheValidationBody(): void
+    {
+        config()->set('app.debug', true);
+        config()->set('api-toolkit.exceptions.render_strategy', 'always_json');
+
+        $exception  = ValidationException::withMessages(['title' => ['The title field is required.']]);
+        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
+        $response   = $reflection->invoke(null, $exception, self::precognitiveRequest('text/html'));
+
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame(['title' => ['The title field is required.']], $response->getData(true)['errors']);
+    }
+
+    /**
      * Test that the json_when_expected strategy returns null for requests that
      * do not expect JSON.
      *
@@ -1398,6 +1483,22 @@ final class ApiExceptionHandlerTest extends TestCase
         assert($prepared instanceof \Throwable);
 
         return $prepared;
+    }
+
+    /**
+     * Build a request that the Precognition middleware has marked precognitive.
+     *
+     * @param  string  $accept
+     * @return \Illuminate\Http\Request
+     */
+    private static function precognitiveRequest(string $accept): Request
+    {
+        $request = Request::create(self::API_PATH, HttpMethod::POST->getVerb());
+
+        $request->headers->set('Accept', $accept);
+        $request->attributes->set('precognitive', true);
+
+        return $request;
     }
 
     /**

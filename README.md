@@ -537,11 +537,18 @@ class UserRepository extends ApiRepository
 }
 ```
 
-Reads are keyed by query fingerprint, and writes invalidate the table. Call `withoutCache()` to bypass the cache for
-one read, or `flushCache()` to invalidate immediately.
+A read is keyed by the SQL it runs: the root query with its global scopes applied, and each eager-loaded relation's
+query with its `constrain()` closure and the related model's global scopes. `?trashed`, tenant scopes and constraints
+that read the authenticated user are therefore cached per value. A read with a `MorphTo` include, a relation class other
+than the framework's own, an `afterQuery()` callback other than `chaperone()`'s, a callable `withDefault()` or eager
+loads nested more than 16 levels deep runs uncached. Scopes and constraints run once more per read to build the key, so
+they must be deterministic and free of side effects. `paginate()` is never cached. Writes invalidate the table.
+Eager-loaded rows are cached with their parent, so a write to a related table leaves them stale until the TTL. Call
+`withoutCache()` to bypass the cache for one read, or `flushCache()` to invalidate immediately.
 
-With `$cacheReferenceTable = true`, the full table is loaded once and memoised in-process, and single-record lookups
-never touch the database. Use it only for small lookup tables that rarely change.
+With `$cacheReferenceTable = true`, the table is loaded once per global-scope variant and memoised in-process, and
+`get()` and `find()` are served from that snapshot. A read with criteria, repository scopes or a column list other than
+`*` runs a real query, and a write clears every variant. Use it only for small lookup tables that rarely change.
 
 **Deferrable trait** - buffer inserts in memory and flush them as bulk `INSERT` statements at the lifecycle boundary
 (`RequestHandled`, `CommandFinished`, `JobProcessed`, or `JobFailed`):
@@ -641,6 +648,9 @@ Exceptions are mapped to `ApiException` subclasses and rendered as JSON error re
 - `'always_json'` - always JSON.
 - `'json_when_expected'` - JSON only when the request expects it (Laravel's `expectsJson()`, e.g.
   `Accept: application/json`).
+
+On a precognitive request a `ValidationException` renders as Laravel's `{message, errors}` body, which Precognition
+clients read, rather than the error envelope.
 
 `api-toolkit.exceptions.map` renders an exception as an `ApiException` of your own:
 
@@ -1148,8 +1158,44 @@ final class SignIn extends Service
     }
 }
 
-$user = SignIn::make(SignInPayload::from($request))->runOrFail();
+$user = SignIn::make($payload)->runOrFail();
 ```
+
+#### Payloads in Actions
+
+Type-hint the payload on the action. It is validated and hydrated from the request before the action runs, a failure
+renders as a `422`, and the exported request body is documented from its `rules()`. Outside HTTP, build it with
+`from()` and an array.
+
+```php
+public function signIn(SignInPayload $payload): UserResource
+{
+    return new UserResource(SignIn::make($payload)->runOrFail());
+}
+
+SignInPayload::from(['email' => 'a@example.com', 'password' => 'secret']);
+```
+
+`messages()` and `attributes()` customise the messages and field names, as on a FormRequest. A `status.enum` entry
+rewords an enum failure on `status`, whether `Rule::enum()` or the cast refused it:
+
+```php
+public static function messages(): array
+{
+    return ['email.unique' => 'That email is already registered.', 'status.enum' => 'Choose a listed status.'];
+}
+
+public static function attributes(): array
+{
+    return ['client_name' => 'organisation name'];
+}
+```
+
+For Precognition, add Laravel's `HandlePrecognitiveRequests` middleware to the route. A `Precognition-Validate-Only`
+header validates only the fields it names, and a request that passes answers `204` without running the action. A
+precognitive `422` is Laravel's `{message, errors}` body, which Precognition clients read, rather than the error
+envelope; this holds for a FormRequest too. Under `Precognition-Validate-Only` the first input to pass ends the request
+before a second is validated, so an action should take one validated input.
 
 #### Running a Service
 
@@ -1160,7 +1206,7 @@ reaches the application's exception handler. A failed result with no captured ex
 `run()` never throws for a business failure. It returns a `ServiceResult` for callers that branch on the outcome:
 
 ```php
-$result = SignIn::make(SignInPayload::from($request))->run();
+$result = SignIn::make($payload)->run();
 
 if ($result->failed()) {
     // $result->exception is the captured failure, or null when none was thrown
@@ -1246,7 +1292,7 @@ At an HTTP edge, `ServiceContext::fromRequest()` builds an `HTTP` context, so th
 without seeing the request:
 
 ```php
-$order = PlaceOrder::make(OrderPayload::from($request))
+$order = PlaceOrder::make($payload)
     ->withContext(ServiceContext::fromRequest($request, EloquentActor::for($request->user())))
     ->runOrFail();
 
@@ -1359,7 +1405,8 @@ decimal string for an int-backed one. So `"3"` and `"-3"` are read, while `"03"`
 where `Rule::enum()` passes them. A value that matches no case fails as a `422` keyed by its body key, even when
 `rules()` leaves the enum rule out. A resource field holding a pure enum case is serialised as the same lowercase
 name, so it can be sent back unchanged. An enum whose case names collide once lowercased, such as `case Web` and
-`case WEB`, throws a `LogicException`.
+`case WEB`, throws a `LogicException`, as does a rule nested under an enum property's key, such as `status.name`, since
+the property is read from the whole value.
 
 A model attribute cast to a pure enum also uses the lowercase name in `filters` and in repository writes, though
 Eloquent stores the declared case name. `{"platform": {"$in": ["web", "mobile_app"]}}` matches rows storing `WEB` and

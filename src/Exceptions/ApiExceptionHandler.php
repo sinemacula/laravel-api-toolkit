@@ -78,15 +78,13 @@ final class ApiExceptionHandler
      */
     private static function render(\Throwable $exception, Request $request): ?JsonResponse
     {
-        $strategy = Config::get('api-toolkit.exceptions.render_strategy', 'auto');
-
-        if ($strategy === 'json_when_expected' && !$request->expectsJson()) {
+        if (self::isLeftToLaravel($request)) {
             return null;
         }
 
-        // Auto mode leaves non-JSON requests in debug to Laravel's renderer
-        if ($strategy === 'auto' && !$request->expectsJson() && (bool) Config::get('app.debug')) {
-            return null;
+        // Precognition clients read Laravel's validation body
+        if ($exception instanceof ValidationException && $request->isPrecognitive()) {
+            return Response::json(['message' => $exception->getMessage(), 'errors' => $exception->errors()], $exception->status);
         }
 
         if (!$exception instanceof ApiException) {
@@ -94,6 +92,22 @@ final class ApiExceptionHandler
         }
 
         return $exception === null ? null : self::renderApiExceptionWithJson($request, $exception);
+    }
+
+    /**
+     * Determine whether the render strategy leaves the request to Laravel's
+     * renderer.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return bool
+     */
+    private static function isLeftToLaravel(Request $request): bool
+    {
+        $strategy = Config::get('api-toolkit.exceptions.render_strategy', 'auto');
+
+        // Auto mode leaves non-JSON requests in debug to Laravel's renderer
+        return !$request->expectsJson()
+            && ($strategy === 'json_when_expected' || ($strategy === 'auto' && (bool) Config::get('app.debug')));
     }
 
     /**
