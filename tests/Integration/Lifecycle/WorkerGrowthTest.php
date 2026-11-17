@@ -128,7 +128,8 @@ final class WorkerGrowthTest extends TestCase
     }
 
     /**
-     * Serve one varied list request per cycle in the given range.
+     * Serve one varied list request per cycle in the given range, each
+     * rendering the matching user.
      *
      * @param  int  $from
      * @param  int  $to
@@ -143,16 +144,17 @@ final class WorkerGrowthTest extends TestCase
 
             $requests[] = Request::create('/growth/users?' . http_build_query([
                 'fields'  => ['searchable_filterable_users' => implode(',', array_slice($fields, 0, $cycle % 4 + 1))],
-                'filters' => json_encode(['name' => ['$eq' => "name-{$cycle}"], 'status' => ['$in' => ['active', "status-{$cycle}"]]]),
-                'search'  => "term-{$cycle}",
+                'filters' => json_encode(['id' => ['$le' => $cycle + 1], 'status' => ['$in' => ['active', "status-{$cycle}"]]]),
+                'search'  => substr('alice@growth.test', $cycle % 8, $cycle % 9 + 3),
                 'order'   => $cycle % 2 === 0 ? 'id:asc' : 'id:desc',
                 'limit'   => $cycle % 50 + 1,
             ]));
         }
 
-        $statuses = array_map(static fn (Response $response): int => $response->getStatusCode(), $this->serveThroughOctane(...$requests)->responses);
+        $responses = $this->serveThroughOctane(...$requests)->responses;
+        $rendered  = array_map(static fn (Response $response): array => [$response->getStatusCode(), substr_count((string) $response->getContent(), '"_type"')], $responses);
 
-        self::assertSame(array_fill(0, $to - $from, 200), $statuses);
+        self::assertSame(array_fill(0, $to - $from, [200, 1]), $rendered);
     }
 
     /**

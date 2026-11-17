@@ -121,7 +121,7 @@ final class RuntimeContextTest extends TestCase
     {
         yield 'deferred runs the job in the request after the response' => ['deferred', false];
         yield 'background runs the job in a child process' => ['background', true];
-        yield 'failover hands the job to a worker' => ['failover', true];
+        yield 'failover is worked by a queue worker' => ['failover', true];
     }
 
     /**

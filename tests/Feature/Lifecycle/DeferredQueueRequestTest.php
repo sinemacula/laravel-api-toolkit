@@ -32,7 +32,7 @@ final class DeferredQueueRequestTest extends TestCase
 {
     /**
      * Test that the parsed query stays readable after a deferred job ran and
-     * nothing is flushed.
+     * the toolkit state is not reset.
      *
      * @return void
      */
