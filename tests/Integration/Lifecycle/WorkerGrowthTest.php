@@ -161,7 +161,7 @@ final class WorkerGrowthTest extends TestCase
 
             $requests[] = Request::create('/growth/users?' . http_build_query([
                 'fields'  => ['searchable_filterable_users' => implode(',', array_slice($fields, 0, $cycle % 4 + 1))],
-                'filters' => json_encode(['id' => ['$le' => $matchingId + $cycle], 'status' => ['$in' => ['active', "status-{$cycle}"]]]),
+                'filters' => json_encode(['id' => ['$le' => $matchingId + $cycle], 'name' => ['$in' => ['Humphrey', "name-{$cycle}"]], 'status' => ['$eq' => 'active']]),
                 'search'  => substr('humphrey', $cycle % 4, $cycle % 3 + 3),
                 'order'   => $cycle % 2 === 0 ? 'id:asc' : 'id:desc',
                 'limit'   => $cycle % 50 + 1,
