@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Search\Drivers\SqliteSearchDriver;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Concerns\AssertsBoundPlaceholders;
 use Tests\Fixtures\Models\User;
@@ -183,6 +185,31 @@ final class SqliteSearchDriverTest extends TestCase
         (new SqliteSearchDriver)->apply($query, ['name'], SearchTerm::from('h%J'), SearchStrategy::SUBSTRING);
 
         self::assertSame(['Smith%Jones'], $query->pluck('name')->all());
+    }
+
+    /**
+     * Test that an anywhere-match is ranked with the comparison it matches by,
+     * its bindings following the predicate's.
+     *
+     * @return void
+     */
+    public function testRanksAnAnywhereMatchWithTheComparisonItMatchesBy(): void
+    {
+        $query = $this->apply(['name'], SearchStrategy::SUBSTRING);
+        $plan  = SearchPlan::build(new CompiledSchema([], [], [], [], [], ['name' => SearchStrategy::SUBSTRING]));
+
+        (new SqliteSearchDriver)->rank($query, $plan, SearchTerm::from(self::TERM));
+
+        $sql      = $query->toSql(); // @phpstan-ignore staticMethod.dynamicCall
+        $bindings = $query->getBindings(); // @phpstan-ignore staticMethod.dynamicCall
+
+        self::assertSame(
+            'select * from "users" where "users"."name" like ? escape \'!\' order by case when "users"."name" like ? escape \'!\' then 0 '
+            . 'when "users"."name" like ? escape \'!\' then 1 when "users"."name" like ? escape \'!\' then 2 else 3 end asc',
+            $sql,
+        );
+        self::assertSame(['%smith%', 'smith', 'smith%', '% smith%'], $bindings);
+        self::assertPlaceholderPerBinding($sql, $bindings);
     }
 
     /**

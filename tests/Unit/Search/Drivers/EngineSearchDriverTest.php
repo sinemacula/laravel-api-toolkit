@@ -9,8 +9,11 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Schema\Builder as SchemaBuilder;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility;
 use SineMacula\ApiToolkit\Search\Drivers\EngineSearchDriver;
+use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Search\StubEngineSearchDriver;
@@ -427,6 +430,65 @@ final class EngineSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that the ranking matches patterns with "like" and follows the orders
+     * already on the query.
+     *
+     * @return void
+     */
+    public function testRanksWithALikeComparisonAfterTheOrdersAlreadyOnTheQuery(): void
+    {
+        $query = User::query();
+
+        $query->getQuery()->orderBy('status');
+
+        (new StubEngineSearchDriver)->rank($query, $this->plan(['name' => SearchStrategy::PREFIX]), SearchTerm::from(self::TERM));
+
+        self::assertSame(
+            'select * from "users" order by "status" asc, case when "users"."name" like ? escape \'!\' then 0 '
+            . 'when "users"."name" like ? escape \'!\' then 1 else 3 end asc',
+            $query->toSql(), // @phpstan-ignore staticMethod.dynamicCall
+        );
+        self::assertSame([self::TERM, self::TERM . '%'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that the ranking reads the operator a driver matches patterns by,
+     * which a driver may override.
+     *
+     * @return void
+     */
+    public function testRanksWithTheOperatorADriverMatchesPatternsBy(): void
+    {
+        $plan       = $this->plan(['name' => SearchStrategy::PREFIX]);
+        $base       = User::query();
+        $overridden = User::query();
+
+        (new StubEngineSearchDriver)->rank($base, $plan, SearchTerm::from(self::TERM));
+        (new PostgresTrigramSearchDriver)->rank($overridden, $plan, SearchTerm::from(self::TERM));
+
+        self::assertStringContainsString('"users"."name" like ?', $base->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertStringContainsString('"users"."name" ilike ?', $overridden->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that ranking an equality-only plan leaves the orders and bindings as
+     * they were.
+     *
+     * @return void
+     */
+    public function testRankingAnEqualityOnlyPlanLeavesTheQueryUnchanged(): void
+    {
+        $query = $this->apply(['name'], SearchStrategy::EXACT);
+
+        $query->getQuery()->orderBy('status');
+
+        (new StubEngineSearchDriver)->rank($query, $this->plan(['name' => SearchStrategy::EXACT]), SearchTerm::from(self::TERM));
+
+        self::assertSame([['column' => 'status', 'direction' => 'asc']], $query->getQuery()->orders);
+        self::assertSame([self::TERM], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
      * Apply the term to a fresh query against the development connection.
      *
      * @param  array<int, string>  $columns
@@ -440,6 +502,17 @@ final class EngineSearchDriverTest extends TestCase
         (new StubEngineSearchDriver)->apply($query, $columns, SearchTerm::from(self::TERM), $strategy);
 
         return $query;
+    }
+
+    /**
+     * Build a search plan declaring the given columns.
+     *
+     * @param  array<string, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $columns
+     * @return \SineMacula\ApiToolkit\Search\SearchPlan
+     */
+    private function plan(array $columns): SearchPlan
+    {
+        return SearchPlan::build(new CompiledSchema([], [], [], [], [], $columns));
     }
 
     /**

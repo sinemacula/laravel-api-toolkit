@@ -348,16 +348,19 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the order description states its directions and tiebreaker.
+     * Test that the order description states its directions, tiebreaker and
+     * relevance key.
      *
      * @return void
      */
-    public function testOrderDescriptionStatesItsDirectionsAndTiebreaker(): void
+    public function testOrderDescriptionStatesItsDirectionsTiebreakerAndRelevanceKey(): void
     {
         self::assertSame(
             'Ordering: a comma-separated list of fields, each optionally suffixed with :asc or :desc in any case, e.g. order=name,created_at:desc. '
             . 'Any other direction is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
-            . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read.',
+            . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read. order=relevance ranks rows by how '
+            . 'closely they match search: the whole value, then the start, then the start of a word, then anywhere; it needs search and offset '
+            . 'pagination.',
             $this->makeBuilder()->build()['Order']['description'],
         );
     }

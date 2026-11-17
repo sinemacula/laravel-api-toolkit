@@ -11,10 +11,15 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
+use SineMacula\ApiToolkit\Search\IndexProof;
+use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
+use SineMacula\ApiToolkit\Search\SearchTerm;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\SearchableFilterableUserResource;
 use Tests\TestCase;
 
 /**
@@ -43,7 +48,7 @@ final class OrderApplierTest extends TestCase
 
         assert($this->app !== null);
 
-        $this->applier = new OrderApplier($this->app->make(SchemaIntrospectionProvider::class));
+        $this->applier = new OrderApplier($this->app->make(SchemaIntrospectionProvider::class), $this->searchApplier());
     }
 
     /**
@@ -250,7 +255,7 @@ final class OrderApplierTest extends TestCase
         $introspector = self::createStub(SchemaIntrospectionProvider::class);
         $introspector->method('getColumnDefinitions')->willReturn(['name' => new ColumnDefinition('name', 'varchar', true)]);
 
-        $result = (new OrderApplier($introspector))->apply((new User)->newQuery(), ['email' => 'asc'], $this->surface());
+        $result = (new OrderApplier($introspector, $this->searchApplier()))->apply((new User)->newQuery(), ['email' => 'asc'], $this->surface());
 
         self::assertSame([['column' => 'email', 'direction' => 'asc']], $result->getQuery()->orders);
     }
@@ -270,7 +275,7 @@ final class OrderApplierTest extends TestCase
         $introspector = $this->createMock(SchemaIntrospectionProvider::class);
         $introspector->expects(self::never())->method('getColumnDefinitions');
 
-        $result = (new OrderApplier($introspector))->apply((new User)->newQuery(), ['random' => 'asc', 'created_at' => 'desc'], $this->surface());
+        $result = (new OrderApplier($introspector, $this->searchApplier()))->apply((new User)->newQuery(), ['random' => 'asc', 'created_at' => 'desc'], $this->surface());
 
         $orders = $result->getQuery()->orders ?? [];
 
@@ -289,6 +294,86 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
+     * Test that relevance ranks the search matches at its place in the order,
+     * though no column of that name is sortable.
+     *
+     * @return void
+     */
+    public function testRelevanceRanksTheMatchesAtItsPlaceInTheOrder(): void
+    {
+        $query = (new User)->newQuery();
+
+        $order = ['name' => 'asc', 'relevance' => 'asc', 'email' => 'desc'];
+
+        $this->applier->apply($query, $order, $this->surface(), SearchTerm::from('smith'), SearchableFilterableUserResource::class);
+
+        self::assertMatchesRegularExpression(
+            '/^select \* from "users" order by "name" asc, case when "users"\."name" like \? .* end asc, "email" desc$/',
+            $query->toSql(), // @phpstan-ignore staticMethod.dynamicCall
+        );
+    }
+
+    /**
+     * Test that relevance is refused without a search term to rank by.
+     *
+     * @return void
+     */
+    public function testRelevanceIsRejectedWithoutASearchTerm(): void
+    {
+        $this->assertRejectsWith(
+            fn () => $this->applier->apply((new User)->newQuery(), ['relevance' => 'asc'], $this->surface(), null, SearchableFilterableUserResource::class),
+            'relevance',
+            'The relevance order ranks search matches, so it needs a search term.',
+        );
+    }
+
+    /**
+     * Test that relevance is refused on a cursor-paginated read.
+     *
+     * @return void
+     */
+    public function testRelevanceIsRejectedUnderCursorPagination(): void
+    {
+        $this->paginateByCursor();
+
+        $this->assertRejectsWith(
+            fn () => $this->applier->apply((new User)->newQuery(), ['relevance' => 'asc'], $this->surface(), SearchTerm::from('smith'), SearchableFilterableUserResource::class),
+            'relevance',
+            'Relevance order cannot be paged by cursor; use offset pagination.',
+        );
+    }
+
+    /**
+     * Test that relevance is refused in a descending direction.
+     *
+     * @return void
+     */
+    public function testRelevanceIsRejectedInADescendingDirection(): void
+    {
+        $this->assertRejectsWith(
+            fn () => $this->applier->apply((new User)->newQuery(), ['relevance' => 'desc'], $this->surface(), SearchTerm::from('smith'), SearchableFilterableUserResource::class),
+            'relevance',
+            'The relevance key accepts asc only.',
+        );
+    }
+
+    /**
+     * Test that relevance is always a keyword, and random only once enabled.
+     *
+     * @return void
+     */
+    public function testRelevanceIsAlwaysAKeywordAndRandomOnlyOnceEnabled(): void
+    {
+        self::assertTrue(OrderApplier::isKeyword('relevance'));
+        self::assertFalse(OrderApplier::isKeyword('random'));
+        self::assertFalse(OrderApplier::isKeyword('name'));
+
+        Config::set('api-toolkit.repositories.allow_random_order', true);
+
+        self::assertTrue(OrderApplier::isKeyword('random'));
+    }
+
+    /**
      * Build a query surface declaring the sortable columns these tests use.
      *
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
@@ -296,6 +381,18 @@ final class OrderApplierTest extends TestCase
     private function surface(): QuerySurface
     {
         return new QuerySurface([], ['name', 'email', 'created_at'], [], new User);
+    }
+
+    /**
+     * Build a search applier over the registered drivers.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier
+     */
+    private function searchApplier(): SearchApplier
+    {
+        assert($this->app !== null);
+
+        return new SearchApplier($this->app->make(SearchDriverRegistry::class), $this->app->make(IndexProof::class));
     }
 
     /**
