@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests;
 
 use Illuminate\Cache\Events\KeyWritten;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Filesystem\Filesystem;
@@ -46,6 +47,20 @@ abstract class TestCase extends OrchestraTestCase
 
     /** @var array<int, string> Toolkit cache keys whose value does not read back without its classes */
     private array $unreadableCacheWrites = [];
+
+    /**
+     * Set up the testing environment, failing any lazy load on a model fetched
+     * in a multi-row result.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Model::preventLazyLoading();
+    }
 
     /**
      * Fail the test when a toolkit cache write would not read back with every
@@ -99,6 +114,8 @@ abstract class TestCase extends OrchestraTestCase
         SearchPlan::clearCache();
         IndexProof::clearCache();
         MetadataCacheWriter::reset();
+
+        Model::preventLazyLoading(false);
 
         Relation::morphMap([], false);
         Relation::requireMorphMap(false);
