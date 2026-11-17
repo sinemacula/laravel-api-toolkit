@@ -7,6 +7,7 @@
 /infection.json5 export-ignore
 /infection.full.json5 export-ignore
 /.qlty export-ignore
+/renovate.json export-ignore
 
 /.editorconfig export-ignore
 /.gitattributes export-ignore

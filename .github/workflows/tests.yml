@@ -155,10 +155,14 @@ jobs:
                 with:
                     php-version: 8.3
 
+            -   name: Build the dist archive
+                run: |
+                    git archive --prefix=toolkit/ HEAD | tar -x -C "$RUNNER_TEMP"
+                    diff <(git ls-files src config resources) <(cd "$RUNNER_TEMP/toolkit" && find src config resources -type f | LC_ALL=C sort)
+
             # A path repository without symlinks installs the archive's contents under vendor/
             -   name: Install the dist archive into a Laravel application
                 run: |
-                    git archive --prefix=toolkit/ HEAD | tar -x -C "$RUNNER_TEMP"
                     composer create-project laravel/laravel "$RUNNER_TEMP/app" --prefer-dist --no-interaction --no-progress
                     cd "$RUNNER_TEMP/app"
                     composer config repositories.toolkit '{"type": "path", "url": "../toolkit", "options": {"symlink": false, "versions": {"sinemacula/laravel-api-toolkit": "2.0.0"}}}'
@@ -185,6 +189,7 @@ jobs:
                 working-directory: ${{ runner.temp }}/app
                 run: |
                     sed -i 's/->withExceptions(function (Exceptions $exceptions): void {/&\n        \\SineMacula\\ApiToolkit\\Exceptions\\ApiExceptionHandler::handles($exceptions);/' bootstrap/app.php
+                    grep -qF 'ApiExceptionHandler::handles($exceptions);' bootstrap/app.php
                     php artisan api-toolkit:make:resource UserResource --model=User
                     cat > app/Http/Controllers/UserController.php <<'PHP'
                     <?php
