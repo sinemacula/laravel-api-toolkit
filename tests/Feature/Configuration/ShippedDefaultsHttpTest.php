@@ -233,6 +233,10 @@ final class ShippedDefaultsHttpTest extends ShippedDefaultsTestCase
         $logged = [];
 
         Event::listen(MessageLogged::class, static function (MessageLogged $event) use (&$logged): void {
+            if (!array_key_exists('notification', $event->context)) {
+                return;
+            }
+
             $logged[] = [$event->level, $event->message, $event->context];
         });
 
