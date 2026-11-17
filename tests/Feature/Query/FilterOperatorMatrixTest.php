@@ -187,16 +187,19 @@ final class FilterOperatorMatrixTest extends TestCase
     }
 
     /**
-     * Test that only the presence-operator token decides the constraint, not
-     * its payload.
+     * Test that a presence operator given false is refused rather than read as
+     * the operator its token names.
      *
      * @return void
      */
-    public function testNullOperatorIgnoresThePayloadBoolean(): void
+    public function testNullOperatorRefusesAFalsePayload(): void
     {
-        $names = $this->names($this->queryFilters(['organization_id' => ['$null' => false]], '/nullable-users'));
+        $response = $this->getJson('/nullable-users?filters=' . urlencode((string) json_encode(['organization_id' => ['$null' => false]])));
 
-        self::assertEqualsCanonicalizing(['Alice', 'Bob', 'Dave'], $names);
+        $message = 'The $null condition on "organization_id" takes only true; $null matches a missing value and $notNull a present one.';
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.meta', ['filters.organization_id.$null' => [$message]]);
     }
 
     /**
@@ -259,7 +262,7 @@ final class FilterOperatorMatrixTest extends TestCase
         $response = $this->getJson('/users?filters=' . urlencode((string) json_encode(['id' => ['$between' => $bounds]])));
 
         $response->assertStatus(422);
-        $response->assertJsonPath('error.meta', ['filters.id.$between' => ['The filters.id.$between filter adds no condition, so it would match every row.']]);
+        $response->assertJsonPath('error.meta', ['filters.id.$between' => ['The $between condition on "id" must be a list of two values, [low, high].']]);
     }
 
     /**

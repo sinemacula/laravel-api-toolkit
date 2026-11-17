@@ -345,6 +345,21 @@ final class CursorPaginationTest extends TestCase
     }
 
     /**
+     * Test that a hand-edited cursor whose boundary does not fit its column is
+     * refused before it reaches the engine.
+     *
+     * @return void
+     */
+    public function testCursorWithABoundaryOfTheWrongTypeIsRejected(): void
+    {
+        $cursor   = (new Cursor(['name' => 'x', 'users.id' => 'abc']))->encode();
+        $response = $this->getJson('/users?order=name&limit=2&cursor=' . $cursor);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.meta', ['cursor' => ['The cursor does not match the requested order; restart from the first page.']]);
+    }
+
+    /**
      * Test that a repository scope's order is kept ahead of the key.
      *
      * @return void

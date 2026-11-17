@@ -808,7 +808,7 @@ final class ApiCriteriaTest extends TestCase
 
             self::fail('A $between without two values must be refused.');
         } catch (ValidationException $exception) {
-            self::assertSame(['filters.id.$between' => ['The filters.id.$between filter adds no condition, so it would match every row.']], $exception->errors());
+            self::assertSame(['filters.id.$between' => ['The $between condition on "id" must be a list of two values, [low, high].']], $exception->errors());
         }
     }
 
