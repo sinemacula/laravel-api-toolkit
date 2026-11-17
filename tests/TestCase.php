@@ -700,7 +700,7 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
-     * Create the events table, keyed in time by a NOT NULL microsecond
+     * Create the events table, stamped with a NOT NULL indexed microsecond
      * timestamp.
      *
      * @return void

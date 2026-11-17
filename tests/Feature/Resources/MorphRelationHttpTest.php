@@ -77,12 +77,22 @@ final class MorphRelationHttpTest extends TestCase
      */
     public function testMorphManyIsBoundedPerParentAndKeepsToItsOwnType(): void
     {
-        $user = User::create(['name' => 'Author', 'email' => 'author@example.com']);
-        $post = Post::query()->forceCreate(['id' => $user->id, 'user_id' => $user->id, 'title' => 'Post', 'body' => 'Body']);
+        $noteables = [];
+
+        foreach (['Author' => 6, 'Reader' => 2] as $name => $count) {
+            $user = User::create(['name' => $name, 'email' => strtolower($name) . '@example.com']);
+            $post = Post::query()->forceCreate(['id' => $user->id, 'user_id' => $user->id, 'title' => $name . ' post', 'body' => 'Body']);
+
+            $noteables[] = [$user, $name, $count];
+            $noteables[] = [$post, $name . ' post', $count];
+        }
 
         for ($index = 1; $index <= 6; $index++) {
-            $this->attachNote($user, 'User note ' . $index);
-            $this->attachNote($post, 'Post note ' . $index);
+            foreach ($noteables as [$noteable, $label, $count]) {
+                if ($index <= $count) {
+                    $this->attachNote($noteable, $label . ' note ' . $index);
+                }
+            }
         }
 
         $statements = $this->recordStatements();
@@ -90,10 +100,14 @@ final class MorphRelationHttpTest extends TestCase
         $response = $this->getJson('/users?fields[bounded_users]=name,notes,posts&fields[bounded_posts]=title,notes&fields[notes]=title');
 
         $response->assertOk();
-        $response->assertJsonPath('data.0.notes.*.title', ['User note 1', 'User note 2', 'User note 3']);
+        $response->assertJsonPath('data.0.notes.*.title', ['Author note 1', 'Author note 2', 'Author note 3']);
         $response->assertJsonPath('data.0._truncated', ['notes']);
-        $response->assertJsonPath('data.0.posts.0.notes.*.title', ['Post note 1', 'Post note 2', 'Post note 3']);
+        $response->assertJsonPath('data.0.posts.0.notes.*.title', ['Author post note 1', 'Author post note 2', 'Author post note 3']);
         $response->assertJsonPath('data.0.posts.0._truncated', ['notes']);
+        $response->assertJsonPath('data.1.notes.*.title', ['Reader note 1', 'Reader note 2']);
+        $response->assertJsonMissingPath('data.1._truncated');
+        $response->assertJsonPath('data.1.posts.0.notes.*.title', ['Reader post note 1', 'Reader post note 2']);
+        $response->assertJsonMissingPath('data.1.posts.0._truncated');
 
         $noteStatements = self::selectsFrom($statements(), 'notes');
 
@@ -116,8 +130,8 @@ final class MorphRelationHttpTest extends TestCase
         $author = User::create(['name' => 'Author', 'email' => 'author@example.com']);
 
         foreach ([5, 50] as $total) {
-            while (Note::query()->count() < $total) {
-                $this->attachNote($this->createNoteable($author), 'Note');
+            for ($index = Note::query()->count(); $index < $total; $index++) {
+                $this->attachNote($this->createNoteable($author, $index), 'Note');
             }
 
             $statements = $this->recordStatements();
@@ -172,8 +186,7 @@ final class MorphRelationHttpTest extends TestCase
         $response->assertJsonPath('data.0.labels.*.name', ['red', 'green']);
         $response->assertJsonPath('data.0._truncated', ['labels']);
         $response->assertJsonPath('data.1.labels.*.name', ['green']);
-
-        self::assertArrayNotHasKey('_truncated', self::rows($response->json('data'))[1]);
+        $response->assertJsonMissingPath('data.1._truncated');
 
         $labelStatements = self::selectsFrom($statements(), 'tags');
 
@@ -200,15 +213,15 @@ final class MorphRelationHttpTest extends TestCase
     }
 
     /**
-     * Create the next model to attach a note to, alternating users and posts.
+     * Create the model the note at the given index attaches to, alternating
+     * posts and users.
      *
      * @param  \Tests\Fixtures\Models\User  $author
+     * @param  int  $index
      * @return \Illuminate\Database\Eloquent\Model
      */
-    private function createNoteable(User $author): Model
+    private function createNoteable(User $author, int $index): Model
     {
-        $index = Note::query()->count();
-
         if ($index % 2 === 0) {
             return Post::create(['user_id' => $author->id, 'title' => 'Post ' . $index, 'body' => 'Body']);
         }
