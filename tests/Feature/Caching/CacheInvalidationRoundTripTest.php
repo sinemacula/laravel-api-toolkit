@@ -11,12 +11,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\DeferredWriteCacheInvalidator;
+use Tests\Concerns\CreatesCacheTables;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\CacheableUserRepository;
 use Tests\Fixtures\Repositories\DeferrableUserRepository;
@@ -39,6 +41,8 @@ use Tests\TestCase;
 #[CoversTrait(Deferrable::class)]
 final class CacheInvalidationRoundTripTest extends TestCase
 {
+    use CreatesCacheTables;
+
     /**
      * Set up each test with cacheable read and deferrable write routes.
      *
@@ -49,7 +53,6 @@ final class CacheInvalidationRoundTripTest extends TestCase
     {
         parent::setUp();
 
-        Config::set('cache.default', 'array');
         Config::set('api-toolkit.deferred_writes.invalidate_query_cache', true);
 
         Route::middleware(ParseApiQuery::class)->get('/cached-users', function (CacheableUserRepository $repository): ApiResourceCollection {
@@ -90,13 +93,31 @@ final class CacheInvalidationRoundTripTest extends TestCase
     }
 
     /**
+     * Provide each cache store, with the flush transactional or not.
+     *
+     * @return iterable<string, array{string, bool}>
+     */
+    public static function storeProvider(): iterable
+    {
+        yield 'array store' => ['array', false];
+        yield 'database store' => ['database', false];
+        yield 'database store, transactional flush' => ['database', true];
+    }
+
+    /**
      * Test that a deferred create flushed at the boundary invalidates the
      * cached collection.
      *
+     * @param  string  $store
+     * @param  bool  $transactional
      * @return void
      */
-    public function testBoundaryFlushMakesNextReadEnvelopeFresh(): void
+    #[DataProvider('storeProvider')]
+    public function testBoundaryFlushMakesNextReadEnvelopeFresh(string $store, bool $transactional): void
     {
+        Config::set('cache.default', $store);
+        Config::set('api-toolkit.deferred_writes.transactional', $transactional);
+
         $this->getJson('/cached-users')
             ->assertOk()
             ->assertJsonPath('meta.total', 2)
@@ -116,5 +137,19 @@ final class CacheInvalidationRoundTripTest extends TestCase
 
         self::assertIsArray($emails);
         self::assertContains('carol@example.com', $emails);
+    }
+
+    /**
+     * Create the database cache store's tables before the test transaction
+     * opens.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function defineDatabaseMigrations(): void
+    {
+        parent::defineDatabaseMigrations();
+
+        $this->createCacheTables();
     }
 }

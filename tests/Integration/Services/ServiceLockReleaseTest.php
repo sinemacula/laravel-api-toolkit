@@ -7,9 +7,11 @@ namespace Tests\Integration\Services;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 use SineMacula\ApiToolkit\Services\Events\ServiceCompleted;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
@@ -17,6 +19,7 @@ use SineMacula\ApiToolkit\Services\Pipeline\LockStage;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Concerns\CommitsRealTransactions;
+use Tests\Concerns\CreatesCacheTables;
 use Tests\Fixtures\Services\LifecycleRecordingService;
 use Tests\Fixtures\Services\LockableService;
 use Tests\TestCase;
@@ -33,15 +36,31 @@ use Tests\TestCase;
 #[CoversClass(LockStage::class)]
 final class ServiceLockReleaseTest extends TestCase
 {
-    use CommitsRealTransactions;
+    use CommitsRealTransactions, CreatesCacheTables;
+
+    /**
+     * Provide the array store and the database store on the default connection,
+     * where the lock row joins the caller's transaction.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function storeProvider(): iterable
+    {
+        yield 'array store' => ['array'];
+        yield 'database store' => ['database'];
+    }
 
     /**
      * Test that a throwing handle() releases the lock and fails the result.
      *
+     * @param  string  $store
      * @return void
      */
-    public function testThrowingHandleReleasesLock(): void
+    #[DataProvider('storeProvider')]
+    public function testThrowingHandleReleasesLock(string $store): void
     {
+        Config::set('cache.default', $store);
+
         $service = $this->failingLockableService();
 
         $result = $service->run();
@@ -55,10 +74,14 @@ final class ServiceLockReleaseTest extends TestCase
      * Test that a run inside a caller's transaction holds the lock until the
      * caller commits.
      *
+     * @param  string  $store
      * @return void
      */
-    public function testNestedRunHoldsTheLockUntilTheCallerCommits(): void
+    #[DataProvider('storeProvider')]
+    public function testNestedRunHoldsTheLockUntilTheCallerCommits(string $store): void
     {
+        Config::set('cache.default', $store);
+
         $service = new LockableService;
 
         DB::transaction(static function () use ($service): void {
@@ -73,10 +96,14 @@ final class ServiceLockReleaseTest extends TestCase
      * Test that a run inside a caller's transaction holds the lock until the
      * caller rolls back.
      *
+     * @param  string  $store
      * @return void
      */
-    public function testNestedRunHoldsTheLockUntilTheCallerRollsBack(): void
+    #[DataProvider('storeProvider')]
+    public function testNestedRunHoldsTheLockUntilTheCallerRollsBack(string $store): void
     {
+        Config::set('cache.default', $store);
+
         $service = new LockableService;
 
         DB::beginTransaction();
@@ -93,10 +120,14 @@ final class ServiceLockReleaseTest extends TestCase
      * Test that a failing run inside a caller's transaction releases the lock
      * at once.
      *
+     * @param  string  $store
      * @return void
      */
-    public function testFailingNestedRunReleasesTheLockAtOnce(): void
+    #[DataProvider('storeProvider')]
+    public function testFailingNestedRunReleasesTheLockAtOnce(string $store): void
     {
+        Config::set('cache.default', $store);
+
         $service = $this->failingLockableService();
 
         DB::transaction(static function () use ($service): void {
@@ -109,10 +140,14 @@ final class ServiceLockReleaseTest extends TestCase
      * Test that a second run with the same lock key inside one caller's
      * transaction cannot take the lock.
      *
+     * @param  string  $store
      * @return void
      */
-    public function testSecondRunWithTheSameKeyInOneCallerTransactionIsRefused(): void
+    #[DataProvider('storeProvider')]
+    public function testSecondRunWithTheSameKeyInOneCallerTransactionIsRefused(string $store): void
     {
+        Config::set('cache.default', $store);
+
         $second = null;
 
         DB::transaction(static function () use (&$second): void {
@@ -130,10 +165,14 @@ final class ServiceLockReleaseTest extends TestCase
      * transaction releases the lock then, and runs no side effects when the
      * outermost transaction commits.
      *
+     * @param  string  $store
      * @return void
      */
-    public function testRolledBackParentReleasesTheLockAndDiscardsTheSideEffects(): void
+    #[DataProvider('storeProvider')]
+    public function testRolledBackParentReleasesTheLockAndDiscardsTheSideEffects(string $store): void
     {
+        Config::set('cache.default', $store);
+
         $completed = 0;
 
         Event::listen(ServiceCompleted::class, static function () use (&$completed): void {
@@ -165,10 +204,14 @@ final class ServiceLockReleaseTest extends TestCase
      * Test that a run outliving its lock does not release the lock another
      * owner took after it expired.
      *
+     * @param  string  $store
      * @return void
      */
-    public function testExpiredLockReleaseDoesNotFreeAnotherOwner(): void
+    #[DataProvider('storeProvider')]
+    public function testExpiredLockReleaseDoesNotFreeAnotherOwner(string $store): void
     {
+        Config::set('cache.default', $store);
+
         $service = new class (new ArrayInput([])) extends Service {
             /** @var \Illuminate\Contracts\Cache\Lock|null The lock another owner took */
             public ?Lock $rival = null;
@@ -210,6 +253,19 @@ final class ServiceLockReleaseTest extends TestCase
         self::assertFalse(self::isLockFree($service));
 
         $service->rival?->release();
+    }
+
+    /**
+     * Create the database cache store's tables.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function defineDatabaseMigrations(): void
+    {
+        parent::defineDatabaseMigrations();
+
+        $this->createCacheTables();
     }
 
     /**
