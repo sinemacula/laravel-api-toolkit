@@ -7,11 +7,13 @@ namespace Tests\Integration\Query;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibility;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibilityInspector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
+use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Models\SortEligibilityRow;
 use Tests\Fixtures\Resources\SortCatalogueBackedResource;
 use Tests\TestCase;
@@ -27,6 +29,8 @@ use Tests\TestCase;
  */
 abstract class EngineSortIndexEligibilityTestCase extends TestCase
 {
+    use RecordsStatements;
+
     /** @var string The table the declarations are proved against */
     protected const string TABLE = 'sort_eligibility_rows';
 
@@ -75,6 +79,26 @@ abstract class EngineSortIndexEligibilityTestCase extends TestCase
      */
     #[\Override]
     public function beginDatabaseTransaction(): void {}
+
+    /**
+     * Test that validation on warm metadata reads the engine once, for the
+     * index eligibility nothing caches.
+     *
+     * @return void
+     */
+    public function testWarmValidationReadsOnlyTheIndexEligibility(): void
+    {
+        assert($this->app !== null);
+
+        DB::statement('create index ' . self::INDEX . ' on ' . self::TABLE . ' (label)');
+
+        $this->defects();
+        $this->app->make(CacheManager::class)->flush();
+
+        $statements = $this->recordStatements(fn () => static::assertSame([], $this->defects()));
+
+        static::assertStatementCount(1, $statements);
+    }
 
     /**
      * Return the connection driver name this suite runs against.
