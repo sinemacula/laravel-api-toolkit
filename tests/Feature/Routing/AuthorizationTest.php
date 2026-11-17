@@ -193,8 +193,6 @@ final class AuthorizationTest extends TestCase
      */
     public function testMultiWordModelReachesThePolicyThroughItsDerivedParameter(): void
     {
-        $this->createTimestampFixtureTables();
-
         Route::apiResource('ledger-entries', LedgerEntryController::class)
             ->only('update')
             ->middleware(SubstituteBindings::class);
@@ -398,6 +396,19 @@ final class AuthorizationTest extends TestCase
         $article = $this->trashedArticle($author->id, 'owned');
 
         $this->actingAs($author)->postJson('/articles/' . $article->id . '/restore')->assertNotFound();
+    }
+
+    /**
+     * Define the database migrations.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function defineDatabaseMigrations(): void
+    {
+        parent::defineDatabaseMigrations();
+
+        $this->createTimestampFixtureTables();
     }
 
     /**
