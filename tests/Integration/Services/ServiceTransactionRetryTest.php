@@ -10,11 +10,13 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Services\Events\ServiceCompleted;
 use SineMacula\ApiToolkit\Services\Events\ServiceFailed;
 use SineMacula\ApiToolkit\Services\Pipeline\TransactionStage;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceResult;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
+use Tests\Concerns\CommitsRealTransactions;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Services\RetrySafeRenameService;
 use Tests\Fixtures\Services\TransactionRecordingService;
@@ -33,28 +35,7 @@ use Tests\TestCase;
 #[CoversClass(TransactionStage::class)]
 final class ServiceTransactionRetryTest extends TestCase
 {
-    /** @var array<int, string> No connection is wrapped, so services run their own top-level transaction */
-    protected array $connectionsToTransact = [];
-
-    /**
-     * Roll back a transaction a failed commit left open, then clear the rows
-     * the tests wrote.
-     *
-     * @return void
-     */
-    #[\Override]
-    protected function tearDown(): void
-    {
-        $pdo = DB::connection()->getPdo();
-
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-
-        DB::table('users')->delete();
-
-        parent::tearDown();
-    }
+    use CommitsRealTransactions;
 
     /**
      * Test that by default a concurrency error after a save fails the run once,
@@ -81,7 +62,7 @@ final class ServiceTransactionRetryTest extends TestCase
         self::assertTrue($result->failed());
         self::assertSame($deadlock, $result->exception);
         self::assertSame([1], $service->levels);
-        self::assertFalse($service->committed);
+        self::assertSame([], $service->commitLevels);
         self::assertSame(0, DB::table('users')->count());
 
         Event::assertDispatched(ServiceFailed::class, static fn (ServiceFailed $event): bool => $event->result === $result);
@@ -106,7 +87,7 @@ final class ServiceTransactionRetryTest extends TestCase
         self::assertTrue($result->failed());
         self::assertSame($deadlock, $result->exception);
         self::assertSame([1], $service->levels);
-        self::assertFalse($service->committed);
+        self::assertSame([], $service->commitLevels);
     }
 
     /**
@@ -129,6 +110,38 @@ final class ServiceTransactionRetryTest extends TestCase
         self::assertSame([1, 1], $service->levels);
         self::assertSame(1, $service->callbacks);
         self::assertSame('after', DB::table('users')->where('id', $id)->value('name'));
+    }
+
+    /**
+     * Test that a retried run runs afterCommit() and ServiceCompleted once,
+     * after the attempt that commits.
+     *
+     * @return void
+     */
+    public function testRetriedRunRunsItsSideEffectsOnce(): void
+    {
+        $completed = 0;
+
+        Event::listen(ServiceCompleted::class, static function () use (&$completed): void {
+            $completed++;
+        });
+
+        $deadlock = self::deadlock();
+        $attempts = 0;
+        $service  = new TransactionRecordingService(static function () use ($deadlock, &$attempts): string {
+            if (++$attempts === 1) {
+                throw $deadlock;
+            }
+
+            return 'done';
+        }, 2);
+
+        $result = $this->runAtTopLevel($service);
+
+        self::assertTrue($result->succeeded());
+        self::assertSame([1, 1], $service->levels);
+        self::assertSame([0], $service->commitLevels);
+        self::assertSame(1, $completed);
     }
 
     /**

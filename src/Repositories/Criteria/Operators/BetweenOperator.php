@@ -5,7 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Operators;
 
 use Illuminate\Database\Eloquent\Builder;
+use SineMacula\ApiToolkit\Contracts\DeclaresValueShape;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
+use SineMacula\ApiToolkit\Enums\FilterValueShape;
 
 /**
  * Filter operator handler for the $between token.
@@ -13,8 +15,19 @@ use SineMacula\ApiToolkit\Contracts\FilterOperator;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class BetweenOperator implements FilterOperator
+final class BetweenOperator implements DeclaresValueShape, FilterOperator
 {
+    /**
+     * Return the shape of the value the operator accepts.
+     *
+     * @return \SineMacula\ApiToolkit\Enums\FilterValueShape
+     */
+    #[\Override]
+    public function valueShape(): FilterValueShape
+    {
+        return FilterValueShape::BOUNDS;
+    }
+
     /**
      * Apply the between constraint to the query builder.
      *
@@ -28,9 +41,7 @@ final class BetweenOperator implements FilterOperator
     #[\Override]
     public function apply(Builder $query, string $column, mixed $value): void
     {
-        if (!is_array($value) || count($value) !== 2) {
-            return;
-        }
+        assert(is_array($value));
 
         $query->getQuery()->whereBetween($column, $value);
     }

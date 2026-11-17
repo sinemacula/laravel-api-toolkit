@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\FilterValueShape;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\BetweenOperator;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
@@ -40,48 +41,13 @@ final class BetweenOperatorTest extends TestCase
     }
 
     /**
-     * Test that between with single element is ignored.
+     * Test that the operator takes a low and a high bound.
      *
      * @return void
      */
-    public function testBetweenWithSingleElementIsIgnored(): void
+    public function testValueShapeIsBounds(): void
     {
-        $query    = (new User)->newQuery();
-        $operator = new BetweenOperator;
-
-        $operator->apply($query, 'age', [18]);
-
-        self::assertEmpty($query->getQuery()->wheres);
-    }
-
-    /**
-     * Test that between with three elements is ignored.
-     *
-     * @return void
-     */
-    public function testBetweenWithThreeElementsIsIgnored(): void
-    {
-        $query    = (new User)->newQuery();
-        $operator = new BetweenOperator;
-
-        $operator->apply($query, 'age', [18, 30, 65]);
-
-        self::assertEmpty($query->getQuery()->wheres);
-    }
-
-    /**
-     * Test that between with non-array is ignored.
-     *
-     * @return void
-     */
-    public function testBetweenWithNonArrayIsIgnored(): void
-    {
-        $query    = (new User)->newQuery();
-        $operator = new BetweenOperator;
-
-        $operator->apply($query, 'age', 'not-an-array');
-
-        self::assertEmpty($query->getQuery()->wheres);
+        self::assertSame(FilterValueShape::BOUNDS, (new BetweenOperator)->valueShape());
     }
 
     /**

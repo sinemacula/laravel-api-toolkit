@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Testing\PendingCommand;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
@@ -33,6 +34,8 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ValidateIndexBacking::class)]
+#[Group('mysql')]
+#[Group('pgsql')]
 final class SortIndexBackingCatalogueTest extends TestCase
 {
     /** @var string The command a deployment runs before it serves its first sort */

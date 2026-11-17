@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Exceptions\ExceptionMap;
 
+use Illuminate\Auth\Access\AuthorizationException;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\Http\Enums\HttpStatus;
@@ -26,6 +27,21 @@ class MissingWidgetHttpException extends NotFoundHttpException {}
  * A subtype of a configured key that is itself a subtype of a built-in key.
  */
 final class MissingGadgetHttpException extends MissingWidgetHttpException {}
+
+/**
+ * An application subtype of a type Laravel converts before rendering.
+ */
+final class PolicyDeniedException extends AuthorizationException {}
+
+/**
+ * An application interface that does not extend Throwable.
+ */
+interface DomainFailure {}
+
+/**
+ * An implementation of an application interface that no built-in claims.
+ */
+final class OrderFailedException extends \RuntimeException implements DomainFailure {}
 
 /**
  * A target whose CODE is not an error code.
