@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\FilterValueShape;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\InOperator;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
@@ -41,23 +42,13 @@ final class InOperatorTest extends TestCase
     }
 
     /**
-     * Test that in operator casts scalar to array.
+     * Test that the operator takes a list of values.
      *
      * @return void
      */
-    public function testInOperatorCastsScalarToArray(): void
+    public function testValueShapeIsList(): void
     {
-        $query    = (new User)->newQuery();
-        $operator = new InOperator;
-
-        $operator->apply($query, 'status', 'active');
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertCount(1, $wheres);
-        self::assertSame('In', $wheres[0]['type']);
-        self::assertSame('status', $wheres[0]['column']);
-        self::assertSame(['active'], $wheres[0]['values']);
+        self::assertSame(FilterValueShape::LIST, (new InOperator)->valueShape());
     }
 
     /**

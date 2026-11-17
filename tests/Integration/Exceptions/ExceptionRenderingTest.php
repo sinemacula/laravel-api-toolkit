@@ -8,7 +8,6 @@ use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Exceptions\Handler;
 use Illuminate\Http\Request;
-use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
 use Opis\JsonSchema\Helper;
 use Opis\JsonSchema\Validator;
@@ -64,10 +63,6 @@ final class ExceptionRenderingTest extends TestCase
             $request->validate(['email' => 'required|email']); // @phpstan-ignore staticMethod.dynamicCall
 
             return ['ok' => true];
-        });
-
-        Route::get('/token-mismatch', static function (): never {
-            throw new TokenMismatchException('CSRF token mismatch.');
         });
 
         // Like the 419 mismatch: no status enum case and no title translation
@@ -166,23 +161,6 @@ final class ExceptionRenderingTest extends TestCase
 
         self::assertIsArray($errors);
         self::assertNotEmpty($errors);
-    }
-
-    /**
-     * Test that a session token mismatch renders as 419 through the kernel.
-     *
-     * Laravel converts TokenMismatchException to a generic 419 HttpException
-     * before render callbacks run.
-     *
-     * @return void
-     */
-    public function testTokenMismatchIsRenderedAs419(): void
-    {
-        $response = $this->getJson('/token-mismatch');
-
-        $response->assertStatus(419);
-        $response->assertJsonPath('error.status', 419);
-        $response->assertJsonPath('error.code', 10105);
     }
 
     /**

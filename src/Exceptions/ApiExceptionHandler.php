@@ -78,15 +78,13 @@ final class ApiExceptionHandler
      */
     private static function render(\Throwable $exception, Request $request): ?JsonResponse
     {
-        $strategy = Config::get('api-toolkit.exceptions.render_strategy', 'auto');
-
-        if ($strategy === 'json_when_expected' && !$request->expectsJson()) {
+        if (self::isLeftToLaravel($request)) {
             return null;
         }
 
-        // Auto mode leaves non-JSON requests in debug to Laravel's renderer
-        if ($strategy === 'auto' && !$request->expectsJson() && (bool) Config::get('app.debug')) {
-            return null;
+        // Precognition clients read Laravel's validation body
+        if ($exception instanceof ValidationException && $request->isPrecognitive()) {
+            return Response::json(['message' => $exception->getMessage(), 'errors' => $exception->errors()], $exception->status);
         }
 
         if (!$exception instanceof ApiException) {
@@ -94,6 +92,22 @@ final class ApiExceptionHandler
         }
 
         return $exception === null ? null : self::renderApiExceptionWithJson($request, $exception);
+    }
+
+    /**
+     * Determine whether the render strategy leaves the request to Laravel's
+     * renderer.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return bool
+     */
+    private static function isLeftToLaravel(Request $request): bool
+    {
+        $strategy = Config::get('api-toolkit.exceptions.render_strategy', 'auto');
+
+        // Auto mode leaves non-JSON requests in debug to Laravel's renderer
+        return !$request->expectsJson()
+            && ($strategy === 'json_when_expected' || ($strategy === 'auto' && (bool) Config::get('app.debug')));
     }
 
     /**
@@ -134,38 +148,41 @@ final class ApiExceptionHandler
 
         $previous = is_a($exception, ValidationException::class) ? null : $exception;
 
-        $mapped = ExceptionMap::fromConfig()->targetFor($exception::class);
+        $map    = ExceptionMap::fromConfig();
+        $mapped = $map->targetFor($exception::class);
 
         if ($mapped === HttpException::class && $exception instanceof SymfonyHttpExceptionInterface) {
-            return self::mapGenericHttpException($exception, $meta, $headers);
+            return self::mapGenericHttpException($map, $exception, $meta, $headers);
         }
 
         return new $mapped($meta, $headers, $previous);
     }
 
     /**
-     * Map an unrecognised HTTP-layer exception, preserving its status code and
-     * headers. Unknown status codes fall back to an unhandled error.
+     * Map an HTTP-layer exception no specific entry names as the exception its
+     * status stands for, else as a generic one keeping its status. Unknown
+     * status codes fall back to an unhandled error.
      *
+     * @param  \SineMacula\ApiToolkit\Exceptions\ExceptionMap  $map
      * @param  \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface  $exception
      * @param  array<string, mixed>|null  $meta
      * @param  array<string, mixed>  $headers
      * @return \SineMacula\ApiToolkit\Exceptions\ApiException
      */
-    private static function mapGenericHttpException(SymfonyHttpExceptionInterface $exception, ?array $meta, array $headers): ApiException
+    private static function mapGenericHttpException(ExceptionMap $map, SymfonyHttpExceptionInterface $exception, ?array $meta, array $headers): ApiException
     {
+        $status = $exception->getStatusCode();
+
         // Laravel converts token mismatches to a generic 419 before rendering
-        if ($exception->getStatusCode() === 419) {
-            return new TokenMismatchException($meta, $headers, $exception);
+        $target = $status === 419 ? TokenMismatchException::class : $map->targetForStatus($status);
+
+        if ($target !== null) {
+            return new $target($meta, $headers, $exception);
         }
 
-        $status = HttpStatus::tryFrom($exception->getStatusCode());
+        $known = HttpStatus::tryFrom($status);
 
-        if ($status === null) {
-            return new UnhandledException($meta, $headers, $exception);
-        }
-
-        return new HttpException($status, $meta, $headers, $exception);
+        return $known === null ? new UnhandledException($meta, $headers, $exception) : new HttpException($known, $meta, $headers, $exception);
     }
 
     /**

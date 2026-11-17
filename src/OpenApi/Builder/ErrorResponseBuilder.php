@@ -10,6 +10,7 @@ use Illuminate\Routing\Route;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
+use SineMacula\ApiToolkit\Http\Routing\Attributes\CustomAuthorization;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
@@ -155,7 +156,7 @@ final readonly class ErrorResponseBuilder
 
         $defaults = ExceptionMap::defaults();
 
-        foreach ($this->baselineExceptions($route, $acceptsBody) as $received) {
+        foreach ($this->baselineExceptions($controllerClass, $action, $route, $acceptsBody) as $received) {
 
             $exception = $this->exceptions->targetFor($received);
 
@@ -169,15 +170,17 @@ final readonly class ErrorResponseBuilder
     /**
      * List the exceptions the handler receives for the route's facts.
      *
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
      * @param  \Illuminate\Routing\Route  $route
      * @param  bool  $acceptsBody
      * @return list<class-string<\Throwable>>
      */
-    private function baselineExceptions(Route $route, bool $acceptsBody): array
+    private function baselineExceptions(?string $controllerClass, string $action, Route $route, bool $acceptsBody): array
     {
         $facts = [
             AuthenticationException::class   => $this->middleware->authenticates($route),
-            AccessDeniedHttpException::class => $this->middleware->authorizes($route),
+            AccessDeniedHttpException::class => $this->middleware->authorizes($route) || $this->declaresCustomAuthorization($controllerClass, $action),
             NotFoundHttpException::class     => $route->parameterNames() !== [],
             ValidationException::class       => $acceptsBody,
             ThrottleRequestsException::class => $this->middleware->throttles($route),
@@ -185,6 +188,20 @@ final readonly class ErrorResponseBuilder
         ];
 
         return array_keys(array_filter($facts));
+    }
+
+    /**
+     * Determine whether the action is marked as authorizing itself.
+     *
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @return bool
+     */
+    private function declaresCustomAuthorization(?string $controllerClass, string $action): bool
+    {
+        return $controllerClass !== null
+            && method_exists($controllerClass, $action)
+            && (new \ReflectionMethod($controllerClass, $action))->getAttributes(CustomAuthorization::class) !== [];
     }
 
     /**
