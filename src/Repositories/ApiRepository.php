@@ -10,6 +10,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Request;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
@@ -133,7 +134,9 @@ abstract class ApiRepository extends Repository
     /**
      * Persist the given attributes to the model.
      *
-     * Handles create and update; many-to-many relations sync after the save.
+     * Handles create and update; many-to-many relations sync after the save. A
+     * cacheable repository then invalidates its table, reporting rather than
+     * throwing a cache failure, since the write has already happened.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>|\Illuminate\Support\Collection<string, mixed>  $attributes
@@ -146,7 +149,17 @@ abstract class ApiRepository extends Repository
     {
         $attributes = $attributes instanceof Collection ? $attributes->all() : $attributes;
 
-        return $this->attributeSetter->persist($model, $attributes);
+        $saved = $this->attributeSetter->persist($model, $attributes);
+
+        if (method_exists($this, 'flushCache')) {
+            try {
+                $this->flushCache();
+            } catch (\Throwable $exception) {
+                FailureReporter::report($exception, 'Repository cache flush after persist failed.');
+            }
+        }
+
+        return $saved;
     }
 
     /**

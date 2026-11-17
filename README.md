@@ -542,9 +542,9 @@ query with its `constrain()` closure and the related model's global scopes. `?tr
 that read the authenticated user are therefore cached per value. A read with a `MorphTo` include, a relation class other
 than the framework's own, an `afterQuery()` callback other than `chaperone()`'s, a callable `withDefault()` or eager
 loads nested more than 16 levels deep runs uncached. Scopes and constraints run once more per read to build the key, so
-they must be deterministic and free of side effects. `paginate()` is never cached. Writes invalidate the table.
-Eager-loaded rows are cached with their parent, so a write to a related table leaves them stale until the TTL. Call
-`withoutCache()` to bypass the cache for one read, or `flushCache()` to invalidate immediately.
+they must be deterministic and free of side effects. `paginate()` is never cached. Writes, `persist()` included,
+invalidate the table. Eager-loaded rows are cached with their parent, so a write to a related table leaves them stale
+until the TTL. Call `withoutCache()` to bypass the cache for one read, or `flushCache()` to invalidate immediately.
 
 With `$cacheReferenceTable = true`, the table is loaded once per global-scope variant and memoised in-process, and
 `get()` and `find()` are served from that snapshot. A read with criteria, repository scopes or a column list other than
