@@ -99,17 +99,17 @@ final class AuthorizationTest extends TestCase
     }
 
     /**
-     * Test that a gate whose derived parameter the route does not bind receives
-     * no model and denies.
+     * Test that a gate whose parameter the route does not bind receives no
+     * model and denies an ability the policy allows for the bound model.
      *
      * @return void
      */
     public function testMismatchedParameterFailsClosed(): void
     {
-        Route::apiResource('skippers', SkipAuthorizationController::class)
+        Route::delete('members/{member}', [TestingAuthorizedController::class, 'destroy'])
             ->middleware(SubstituteBindings::class);
 
-        $response = $this->actingAs($this->actor())->putJson('/skippers/' . $this->user()->id, []);
+        $response = $this->actingAs($this->actor())->deleteJson('/members/' . $this->user()->id);
 
         $response->assertStatus(403);
         $response->assertJsonPath('error.code', 10102);

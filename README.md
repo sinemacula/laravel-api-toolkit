@@ -721,8 +721,8 @@ Each resource action is gated by a `can:` middleware for its policy ability:
 
 The bound model is read from the route parameter named after the model's snake-cased basename, so `LedgerEntry` reads
 `{ledger_entry}`, as `Route::apiResource('ledger-entries', ...)` names it. `parameter` names another, used verbatim. A
-parameter the route does not bind leaves the policy without a model, and the gate denies. `except` lists actions to
-leave ungated.
+parameter the route does not bind passes the gate no model, so the model's policy is never consulted. `except` lists
+actions to leave ungated.
 
 `apiResource()` does not route `restore` or `forceDestroy`. Route them with `withTrashed()`, or implicit binding answers
 `404` for a trashed row before the gate runs:
@@ -746,16 +746,16 @@ Two markers take an action out of the toolkit's gating:
 
 - `#[CustomAuthorization]` - the action authorizes itself, through `$this->authorize()`, a form request or a service.
   The export documents its `403`. Nothing verifies the check.
-- `#[SkipAuthorization]` - the action is open to any caller past authentication, and documents no `403`. A gate the
-  route declares itself still runs.
+- `#[SkipAuthorization]` - the action is open to any caller past authentication, and adds no `403` to the export. A
+  gate the route declares itself still runs.
 
-An action that declares none of these fails closed: the request is refused before the action runs with a
-`LogicException`, reported and rendered as a `500`. So is a resource action whose gate is removed with
+An action that declares none of these, and is not in `except`, fails closed: the request is refused before the action
+runs with a `LogicException`, reported and rendered as a `500`. So is a resource action whose gate is removed with
 `withoutMiddleware('can')`. The guard checks that a gate is declared, not that it is the right one, and only Laravel's
 `Authorize` middleware counts: mark an action behind authorization middleware of your own `#[CustomAuthorization]`.
 
-The controller authorizes but does not authenticate: a guest reaching a gate is denied with a `403`. Put the routes
-behind `auth` to answer `401` first.
+The controller authorizes but does not authenticate: a guest reaches the gate, and a policy that does not accept guests
+denies it with a `403`. Put the routes behind `auth` to answer `401` first.
 
 ### Middleware
 
