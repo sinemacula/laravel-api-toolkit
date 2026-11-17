@@ -918,15 +918,21 @@ final class ServiceRunnerTest extends TestCase
             return 'done';
         });
 
-        $service->onCommit = static function (): void {
-            usleep(250000);
+        $committedAt = 0.0;
+
+        $service->onCommit = static function () use (&$committedAt): void {
+            $committedAt = microtime(true);
+
+            usleep(50000);
         };
+
+        $start = microtime(true);
 
         (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
 
         Event::assertDispatched(
             ServiceCompleted::class,
-            static fn (ServiceCompleted $event): bool => $event->duration >= 0.02 && $event->duration < 0.25,
+            static fn (ServiceCompleted $event): bool => $event->duration >= 0.02 && $event->duration <= $committedAt - $start,
         );
     }
 
@@ -945,11 +951,15 @@ final class ServiceRunnerTest extends TestCase
             throw new ServiceExecutionException('failed');
         });
 
+        $start = microtime(true);
+
         (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
+
+        $elapsed = microtime(true) - $start;
 
         Event::assertDispatched(
             ServiceFailed::class,
-            static fn (ServiceFailed $event): bool => $event->duration >= 0.02 && $event->duration < 1.0,
+            static fn (ServiceFailed $event): bool => $event->duration >= 0.02 && $event->duration <= $elapsed,
         );
     }
 

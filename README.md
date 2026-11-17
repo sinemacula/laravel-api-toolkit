@@ -1149,8 +1149,8 @@ result. A `ServiceCompleted` or `ServiceFailed` listener exception is reported, 
 
 The lock is held for the rest of the caller's transaction, so `$lockExpiration` must cover it, and a second run with the
 same lock key inside it fails with `LockUnavailableException`. Queue follow-up work from `afterCommit()`, which runs
-once and never after a rollback or a retried attempt. `dispatch()` from `handle()` pushes at once unless the queue
-connection sets `after_commit`, so the job can run for a write that never commits. Transactions interleaved on two
+once, after the attempt that commits, and never after a rollback. `dispatch()` from `handle()` pushes at once unless the
+queue connection sets `after_commit`, so the job can run for a write that never commits. Transactions interleaved on two
 connections are not supported: the deferred work attaches to the most recent open transaction on any connection.
 
 #### Reading the Run Context
