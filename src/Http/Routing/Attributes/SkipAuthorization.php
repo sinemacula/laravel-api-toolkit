@@ -5,7 +5,10 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Http\Routing\Attributes;
 
 /**
- * Exclude a single resource action from the authorization guard.
+ * Declare an action deliberately unauthorized beyond authentication.
+ *
+ * The action leaves the resource gate and the authorization guard; a gate the
+ * route declares itself still runs.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
