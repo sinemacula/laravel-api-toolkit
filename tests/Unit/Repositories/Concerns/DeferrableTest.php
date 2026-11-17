@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Concerns;
 
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
@@ -19,6 +20,8 @@ use Tests\Fixtures\Models\AuditEntry;
 use Tests\Fixtures\Models\ImportRow;
 use Tests\Fixtures\Models\LedgerEntry;
 use Tests\Fixtures\Models\Reading;
+use Tests\Fixtures\Models\Tag;
+use Tests\Fixtures\Repositories\CacheableDeferrableTagRepository;
 use Tests\Fixtures\Repositories\DeferrableUserRepository;
 use Tests\TestCase;
 
@@ -84,6 +87,31 @@ final class DeferrableTest extends TestCase
         $attributeSetter = $reflection->getProperty('attributeSetter')->getValue($this->repository);
 
         self::assertInstanceOf(AttributeSetter::class, $attributeSetter);
+    }
+
+    /**
+     * Test that the concern boots alongside Cacheable on one repository.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     */
+    public function testBootComposesWithCacheableOnOneRepository(): void
+    {
+        Config::set('cache.default', 'array');
+
+        Tag::create(['name' => 'php']);
+
+        $repository = $this->app->make(CacheableDeferrableTagRepository::class); // @phpstan-ignore method.nonObject
+
+        $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        self::assertTrue($repository->getCacheStatus()->isPopulated());
+
+        $repository->defer(['name' => 'deferred']);
+
+        self::assertTrue($repository->flushWrites()->isSuccessful());
+        $this->assertDatabaseHas('tags', ['name' => 'deferred']);
     }
 
     /**
