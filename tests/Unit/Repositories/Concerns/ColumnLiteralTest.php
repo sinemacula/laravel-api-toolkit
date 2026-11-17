@@ -124,6 +124,7 @@ final class ColumnLiteralTest extends TestCase
         yield 'timestamptz furthest offset' => ['timestamptz', '2024-01-01T23:59:59+14:00'];
         yield 'timestamptz half-hour offset' => ['timestamptz', '2024-01-01T10:00-05:30'];
         yield 'timestamptz last offset minute' => ['timestamptz', '2024-01-01T10:00+05:59'];
+        yield 'timestamptz hour offset as the engine writes it' => ['timestamptz', '2024-01-01 10:00:00.123456+00'];
         yield 'uuid' => ['uuid', self::UUID];
         yield 'varchar string' => ['varchar', 'abc'];
         yield 'varchar int' => ['varchar', 5];
@@ -191,6 +192,8 @@ final class ColumnLiteralTest extends TestCase
         yield 'datetime second 60' => ['datetime', '2024-01-01T10:00:60', self::DATE_TIME];
         yield 'datetime offset past 14 hours' => ['timestamptz', '2024-01-01T10:00+15:00', self::DATE_TIME];
         yield 'datetime offset minute 60' => ['timestamptz', '2024-01-01T10:00+02:60', self::DATE_TIME];
+        yield 'datetime hour offset past 14 hours' => ['timestamptz', '2024-01-01T10:00+15', self::DATE_TIME];
+        yield 'datetime one-digit offset' => ['timestamptz', '2024-01-01T10:00+2', self::DATE_TIME];
         yield 'datetime zone on a date' => ['timestamp', '2024-01-01Z', self::DATE_TIME];
         yield 'datetime lowercase separator' => ['timestamp', '2024-01-01t10:00', self::DATE_TIME];
         yield 'datetime word' => ['timestamp', 'banana', self::DATE_TIME];
@@ -287,6 +290,39 @@ final class ColumnLiteralTest extends TestCase
     }
 
     /**
+     * Provide cursor boundaries, with whether each column compares it.
+     *
+     * @return iterable<string, array{string, bool|float|int|string, bool}>
+     */
+    public static function boundaryProvider(): iterable
+    {
+        yield 'date written from a date cast' => ['date', '2024-01-01 00:00:00', true];
+        yield 'date alone' => ['date', '2024-01-01', true];
+        yield 'date-time past the month end on a date' => ['date', '2024-02-30 00:00:00', false];
+        yield 'zoned date-time on a date' => ['date', '2024-01-01 00:00:00+00', false];
+        yield 'int on a date' => ['date', 20240101, false];
+        yield 'date-time on an integer' => ['int4', '2024-01-01 00:00:00', false];
+        yield 'int on an integer' => ['int4', 5, true];
+        yield 'digit string on an integer' => ['int4', '5', true];
+        yield 'bool on an integer' => ['int4', true, true];
+        yield 'word on an integer' => ['int4', 'abc', false];
+    }
+
+    /**
+     * Test that a cursor boundary fits when its column compares it.
+     *
+     * @param  string  $type
+     * @param  bool|float|int|string  $value
+     * @param  bool  $fits
+     * @return void
+     */
+    #[DataProvider('boundaryProvider')]
+    public function testBoundaryFitsWhenItsColumnComparesIt(string $type, bool|float|int|string $value, bool $fits): void
+    {
+        self::assertSame($fits, $this->literal($type)->fitsBoundary(new User, 'value', $value));
+    }
+
+    /**
      * Provide date-times with the literal each resolves to in Paris time.
      *
      * @return iterable<string, array{string, string, string, string}>
@@ -296,6 +332,7 @@ final class ColumnLiteralTest extends TestCase
         yield 'UTC instant' => ['datetime', 'Y-m-d H:i:s', '2024-01-01T10:00:00Z', '2024-01-01 11:00:00'];
         yield 'offset instant' => ['timestamp', 'Y-m-d H:i:s', '2024-07-01T10:00:00+02:00', '2024-07-01 10:00:00'];
         yield 'other offset instant' => ['timestamp', 'Y-m-d H:i:s', '2024-01-01T05:30:00-04:00', '2024-01-01 10:30:00'];
+        yield 'hour offset instant' => ['timestamp', 'Y-m-d H:i:s', '2024-01-01 10:00:00-05', '2024-01-01 16:00:00'];
         yield 'date alone' => ['datetime', 'Y-m-d H:i:s', '2024-01-01', '2024-01-01 00:00:00'];
         yield 'wall clock' => ['datetime', 'Y-m-d H:i:s', '2024-01-01T10:00', '2024-01-01 10:00:00'];
         yield 'fraction the format drops' => ['datetime', 'Y-m-d H:i:s', '2024-01-01T10:00:00.5', '2024-01-01 10:00:00'];
@@ -306,6 +343,10 @@ final class ColumnLiteralTest extends TestCase
         yield 'zoned column with a zoned format' => ['timestamptz', 'Y-m-d H:i:sO', '2024-01-01T10:00:00Z', '2024-01-01 11:00:00+0100'];
         yield 'model format carrying an offset' => ['timestamp', 'Y-m-d H:i:sP', '2024-01-01T10:00:00Z', '2024-01-01 11:00:00+01:00'];
         yield 'model format escaping a zone letter' => ['timestamp', 'Y-m-d\TH:i:s', '2024-01-01T10:00:00Z', '2024-01-01T11:00:00'];
+        yield 'zoned column with a format escaping a zone letter' => ['timestamptz', 'Y-m-d\TH:i:s', '2024-01-01T10:00', '2024-01-01T10:00:00+01:00'];
+        yield 'model format as an epoch' => ['timestamp', 'U', '2024-01-01T10:00:00', '1704099600'];
+        yield 'zoned column with an ISO 8601 format' => ['timestamptz', 'c', '2024-01-01T10:00:00Z', '2024-01-01T11:00:00+01:00'];
+        yield 'zoned column with an RFC 2822 format' => ['timestamptz', 'r', '2024-01-01T10:00:00Z', 'Mon, 01 Jan 2024 11:00:00 +0100'];
     }
 
     /**

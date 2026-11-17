@@ -90,7 +90,7 @@ final readonly class PageOrder
 
             $boundary = $parameters[$column] ?? null;
 
-            if (!is_scalar($boundary) || $this->literal->mismatch($model, Str::after($column, $model->getTable() . '.'), $boundary) !== null) {
+            if (!is_scalar($boundary) || !$this->literal->fitsBoundary($model, Str::after($column, $model->getTable() . '.'), $boundary)) {
                 throw Rejection::at('cursor', 'cursor.mismatch');
             }
         }

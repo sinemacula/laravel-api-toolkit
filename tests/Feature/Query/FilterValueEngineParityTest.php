@@ -166,8 +166,8 @@ final class FilterValueEngineParityTest extends TestCase
         yield 'nested lists' => ['{"count":{"$in":[[1,2],[3]]}}', 'filters.count.$in', 'Item 0 of the $in condition on "count" ' . $scalar];
         yield 'nested bound' => ['{"id":{"$between":[[1,2],3]}}', 'filters.id.$between', 'Item 0 of the $between condition on "id" ' . $scalar];
         yield 'list on a comparison' => ['{"label":{"$eq":["alpha","beta"]}}', 'filters.label.$eq', 'The $eq condition on "label" must be a single value.'];
-        yield 'null comparison' => ['{"count":{"$gt":null}}', 'filters.count.$gt', 'The $gt condition on "count" cannot be null; use $null to match a missing value.'];
-        yield 'null shorthand' => ['{"label":null}', 'filters.label', 'The $eq condition on "label" cannot be null; use $null to match a missing value.'];
+        yield 'null comparison' => ['{"count":{"$gt":null}}', 'filters.count.$gt', 'The $gt condition on "count" cannot be null; $null matches a missing value and $notNull a present one.'];
+        yield 'null shorthand' => ['{"label":null}', 'filters.label', 'The $eq condition on "label" cannot be null; $null matches a missing value and $notNull a present one.'];
         yield 'word on a date-time' => ['{"created_at":{"$ge":"banana"}}', 'filters.created_at.$ge', 'The $ge condition on "created_at" must be a date-time'];
         yield 'past the month end' => ['{"day":"2024-02-30"}', 'filters.day', 'The $eq condition on "day" must be a date as YYYY-MM-DD.'];
         yield 'overflowing number' => ['{"ratio":{"$eq":1e400}}', 'filters.ratio.$eq', 'The $eq condition on "ratio" must be a finite number.'];

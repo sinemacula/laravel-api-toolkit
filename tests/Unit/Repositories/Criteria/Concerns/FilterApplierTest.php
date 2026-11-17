@@ -1722,7 +1722,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testNullEqualityValueIsRefused(): void
     {
-        $message = 'The $eq condition on "organization_id" cannot be null; use $null to match a missing value.';
+        $message = 'The $eq condition on "organization_id" cannot be null; $null matches a missing value and $notNull a present one.';
 
         $this->assertRefusedAt(['organization_id' => null], 'filters.organization_id', $message);
         $this->assertRefusedAt(['organization_id' => ['$eq' => null]], 'filters.organization_id.$eq', $message);
@@ -1739,7 +1739,7 @@ final class FilterApplierTest extends TestCase
     {
         $scalar = 'must be a single value other than null.';
 
-        yield '$gt null' => [['id' => ['$gt' => null]], 'filters.id.$gt', 'The $gt condition on "id" cannot be null; use $null to match a missing value.'];
+        yield '$gt null' => [['id' => ['$gt' => null]], 'filters.id.$gt', 'The $gt condition on "id" cannot be null; $null matches a missing value and $notNull a present one.'];
         yield '$eq list' => [['name' => ['$eq' => ['Bob', 'Alice']]], 'filters.name.$eq', 'The $eq condition on "name" must be a single value.'];
         yield '$gt list' => [['id' => ['$gt' => [2, 0]]], 'filters.id.$gt', 'The $gt condition on "id" must be a single value.'];
         yield '$gt object' => [['id' => ['$gt' => ['x' => 1]]], 'filters.id.$gt', 'The $gt condition on "id" must be a single value.'];
@@ -1821,7 +1821,7 @@ final class FilterApplierTest extends TestCase
 
         self::assertSame('2024-01-01 08:00:00', $handler->received);
 
-        $this->assertRefusedAt(['name' => ['$after' => null]], 'filters.name.$after', 'The $after condition on "name" cannot be null; use $null to match a missing value.');
+        $this->assertRefusedAt(['name' => ['$after' => null]], 'filters.name.$after', 'The $after condition on "name" cannot be null; $null matches a missing value and $notNull a present one.');
     }
 
     /**

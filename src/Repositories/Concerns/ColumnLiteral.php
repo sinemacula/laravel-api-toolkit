@@ -60,7 +60,7 @@ final readonly class ColumnLiteral
     /** @var string A date, then optionally a time with an optional zone */
     private const string DATE_TIME = '/^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})'
         . '(?:[T ](?<hour>\d{2}):(?<minute>\d{2})(?::(?<second>\d{2})(?:\.\d+)?)?'
-        . '(?<zone>Z|[+-](?<offsetHour>\d{2}):(?<offsetMinute>\d{2}))?)?$/';
+        . '(?<zone>Z|[+-](?<offsetHour>\d{2})(?::(?<offsetMinute>\d{2}))?)?)?$/';
 
     /** @var array<string, int> The highest value each time part of a date-time may take */
     private const array TIME_LIMITS = ['hour' => 23, 'minute' => 59, 'second' => 59, 'offsetHour' => 14, 'offsetMinute' => 59];
@@ -104,6 +104,26 @@ final readonly class ColumnLiteral
     }
 
     /**
+     * Determine whether the value is a cursor boundary the column compares.
+     *
+     * The paginator writes a date cast as a date-time without a zone, which a
+     * date column compares as its day.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $column
+     * @param  bool|float|int|string  $value
+     * @return bool
+     */
+    public function fitsBoundary(Model $model, string $column, bool|float|int|string $value): bool
+    {
+        if (is_string($value) && $this->typeOf($model, $column) === 'date' && preg_match('/ \d{2}:\d{2}:\d{2}$/', $value) === 1) {
+            return $this->dateTimeParts($value) !== null;
+        }
+
+        return $this->mismatch($model, $column, $value) === null;
+    }
+
+    /**
      * Resolve a fitting value to the literal the column compares.
      *
      * A zoned date-time is converted to the default timezone, which Eloquent
@@ -124,7 +144,7 @@ final readonly class ColumnLiteral
         }
 
         $format = $model->getDateFormat();
-        $zoned  = preg_match('/[eOPpTZ]/', (string) preg_replace('/\\\./', '', $format)) === 1;
+        $zoned  = preg_match('/[OPTUZcepr]/', (string) preg_replace('/\\\./', '', $format)) === 1;
 
         // An offsetless literal is read in the session's timezone
         if ($type === 'timestamptz' && !$zoned) {

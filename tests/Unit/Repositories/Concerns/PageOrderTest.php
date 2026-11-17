@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Concerns;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\Query\Expression;
@@ -14,6 +15,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
+use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
@@ -404,6 +406,25 @@ final class PageOrderTest extends TestCase
         $query = $this->users(static fn (QueryBuilder $query) => $query->orderBy('posts.id')->orderBy(self::KEY));
 
         self::assertInstanceOf(Cursor::class, $this->pageOrder->cursor($query, (new Cursor(['posts.id' => 'abc', self::KEY => 1]))->encode()));
+    }
+
+    /**
+     * Test that a date boundary the paginator wrote from a date cast is read as
+     * its day, while one naming no day is refused.
+     *
+     * @return void
+     */
+    public function testDateBoundaryWrittenFromADateCastIsAccepted(): void
+    {
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
+        $introspector->method('getColumnDefinitions')->willReturn(['day' => new ColumnDefinition('day', 'date', false)]);
+
+        $pageOrder = new PageOrder(new ColumnLiteral($introspector));
+        $query     = $pageOrder->complete($this->users(static fn (QueryBuilder $query) => $query->orderBy('day')));
+
+        self::assertInstanceOf(Cursor::class, $pageOrder->cursor($query, (new Cursor(['day' => (string) CarbonImmutable::parse('2024-01-01'), self::KEY => 1]))->encode()));
+
+        $this->assertCursorRejected(fn () => $pageOrder->cursor($query, (new Cursor(['day' => '2024-02-30 00:00:00', self::KEY => 1]))->encode()), self::MISMATCH);
     }
 
     /**

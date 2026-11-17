@@ -19,7 +19,7 @@ return [
         'fieldless_condition'  => 'The :position condition must be given under a field.',
         'no_effect'            => 'The :position filter adds no condition, so it would match every row.',
         'relation_names'       => 'The :position filter must name a relation.',
-        'value_null'           => 'The :operator condition on ":column" cannot be null; use $null to match a missing value.',
+        'value_null'           => 'The :operator condition on ":column" cannot be null; $null matches a missing value and $notNull a present one.',
         'value_scalar'         => 'The :operator condition on ":column" must be a single value.',
         'value_list'           => 'The :operator condition on ":column" must be a list of values.',
         'value_bounds'         => 'The :operator condition on ":column" must be a list of two values, [low, high].',
