@@ -642,6 +642,9 @@ Exceptions are mapped to `ApiException` subclasses and rendered as JSON error re
 - `'json_when_expected'` - JSON only when the request expects it (Laravel's `expectsJson()`, e.g.
   `Accept: application/json`).
 
+On a precognitive request a `ValidationException` renders as Laravel's `{message, errors}` body, which Precognition
+clients read, rather than the error envelope.
+
 `api-toolkit.exceptions.map` renders an exception as an `ApiException` of your own:
 
 ```php
@@ -1132,8 +1135,44 @@ final class SignIn extends Service
     }
 }
 
-$user = SignIn::make(SignInPayload::from($request))->runOrFail();
+$user = SignIn::make($payload)->runOrFail();
 ```
+
+#### Payloads in Actions
+
+Type-hint the payload on the action. It is validated and hydrated from the request before the action runs, a failure
+renders as a `422`, and the exported request body is documented from its `rules()`. Outside HTTP, build it with
+`from()` and an array.
+
+```php
+public function signIn(SignInPayload $payload): UserResource
+{
+    return new UserResource(SignIn::make($payload)->runOrFail());
+}
+
+SignInPayload::from(['email' => 'a@example.com', 'password' => 'secret']);
+```
+
+`messages()` and `attributes()` customise the messages and field names, as on a FormRequest. A `status.enum` entry
+rewords an enum failure on `status`, whether `Rule::enum()` or the cast refused it:
+
+```php
+public static function messages(): array
+{
+    return ['email.unique' => 'That email is already registered.', 'status.enum' => 'Choose a listed status.'];
+}
+
+public static function attributes(): array
+{
+    return ['client_name' => 'organisation name'];
+}
+```
+
+For Precognition, add Laravel's `HandlePrecognitiveRequests` middleware to the route. A `Precognition-Validate-Only`
+header validates only the fields it names, and a request that passes answers `204` without running the action. A
+precognitive `422` is Laravel's `{message, errors}` body, which Precognition clients read, rather than the error
+envelope; this holds for a FormRequest too. Under `Precognition-Validate-Only` the first input to pass ends the request
+before a second is validated, so an action should take one validated input.
 
 #### Running a Service
 
@@ -1144,7 +1183,7 @@ reaches the application's exception handler. A failed result with no captured ex
 `run()` never throws for a business failure. It returns a `ServiceResult` for callers that branch on the outcome:
 
 ```php
-$result = SignIn::make(SignInPayload::from($request))->run();
+$result = SignIn::make($payload)->run();
 
 if ($result->failed()) {
     // $result->exception is the captured failure, or null when none was thrown
@@ -1230,7 +1269,7 @@ At an HTTP edge, `ServiceContext::fromRequest()` builds an `HTTP` context, so th
 without seeing the request:
 
 ```php
-$order = PlaceOrder::make(OrderPayload::from($request))
+$order = PlaceOrder::make($payload)
     ->withContext(ServiceContext::fromRequest($request, EloquentActor::for($request->user())))
     ->runOrFail();
 
@@ -1343,7 +1382,8 @@ decimal string for an int-backed one. So `"3"` and `"-3"` are read, while `"03"`
 where `Rule::enum()` passes them. A value that matches no case fails as a `422` keyed by its body key, even when
 `rules()` leaves the enum rule out. A resource field holding a pure enum case is serialised as the same lowercase
 name, so it can be sent back unchanged. An enum whose case names collide once lowercased, such as `case Web` and
-`case WEB`, throws a `LogicException`.
+`case WEB`, throws a `LogicException`, as does a rule nested under an enum property's key, such as `status.name`, since
+the property is read from the whole value.
 
 A model attribute cast to a pure enum also uses the lowercase name in `filters` and in repository writes, though
 Eloquent stores the declared case name. `{"platform": {"$in": ["web", "mobile_app"]}}` matches rows storing `WEB` and
