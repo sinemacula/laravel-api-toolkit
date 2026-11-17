@@ -39,22 +39,21 @@ final class TransactionStageTest extends TestCase
     }
 
     /**
-     * Test that wrap propagates exceptions thrown by $next (rolls back).
+     * Test that wrap rolls back a write made by $next and rethrows its failure.
      *
      * @return void
      */
     public function testWrapRollsBackOnThrow(): void
     {
-        DB::shouldReceive('transaction')
-            ->once()
-            ->andReturnUsing(fn (\Closure $callback): mixed => $callback());
+        $failure = new \RuntimeException('rollback');
 
-        $concern = new TransactionStage;
+        $this->assertThrows(static fn (): mixed => (new TransactionStage)->wrap(static function () use ($failure): never {
+            DB::table('users')->insert(['name' => 'rolled back', 'email' => 'rolled-back@stage.test']);
 
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('rollback');
+            throw $failure;
+        }, 1), \RuntimeException::class, 'rollback');
 
-        $concern->wrap($this->throwRollback(...), 1);
+        $this->assertDatabaseCount('users', 0);
     }
 
     /**
@@ -72,17 +71,5 @@ final class TransactionStageTest extends TestCase
         $concern = new TransactionStage;
 
         $concern->wrap(fn (): bool => true, 5);
-    }
-
-    /**
-     * A next-stage callback that always throws, driving the rollback path.
-     *
-     * @return never
-     *
-     * @throws \RuntimeException
-     */
-    private function throwRollback(): never
-    {
-        throw new \RuntimeException('rollback');
     }
 }
