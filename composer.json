@@ -18,16 +18,15 @@
     ],
     "require": {
         "php": "^8.3",
-        "illuminate/database": "^13.39",
-        "illuminate/http": "^13.39",
-        "illuminate/routing": "^13.39",
-        "illuminate/support": "^13.39",
-        "illuminate/validation": "^13.39",
+        "laravel/framework": "^13.39",
         "sinemacula/http-primitives-php": "^2.0",
         "sinemacula/laravel-repositories": "^3.2.1"
     },
+    "conflict": {
+        "laravel/octane": "<2.0",
+        "sinemacula/laravel-resource-exporter": "<3.1.2 || >=4.0"
+    },
     "suggest": {
-        "illuminate/notifications": "Required only for notification-event logging",
         "laravel/octane": "Flushes toolkit caches between requests when serving under Laravel Octane",
         "sinemacula/laravel-log-cloudwatch": "CloudWatch log driver (Monolog), extracted from this package",
         "sinemacula/laravel-log-database": "Database log driver (Monolog), extracted from this package",
@@ -50,6 +49,7 @@
         "phpstan/phpstan-phpunit": "^2.0",
         "phpstan/phpstan-strict-rules": "^2.0",
         "phpunit/phpunit": "^12.5",
+        "shipmonk/composer-dependency-analyser": "^1.8",
         "sinemacula/coding-standards-laravel": "^1.7.1",
         "sinemacula/laravel-resource-exporter": "^3.1.2",
         "slevomat/coding-standard": "^8.28",

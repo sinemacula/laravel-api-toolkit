@@ -1274,10 +1274,10 @@ Eloquent stores the declared case name. `{"platform": {"$in": ["web", "mobile_ap
 
 ### Notification Audit Log
 
-When `illuminate/notifications` is installed and `api-toolkit.notifications.enable_logging` is `true` (the default),
-every `NotificationSending` event is logged at `debug` and every `NotificationSent` event at `info`. Each line records
-the notification class, the notifiable type, the notifiable id (when the notifiable is an Eloquent model with a key)
-and the channel. List classes in `api-toolkit.notifications.excluded_classes` to skip them.
+When `api-toolkit.notifications.enable_logging` is `true` (the default), every `NotificationSending` event is logged at
+`debug` and every `NotificationSent` event at `info`. Each line records the notification class, the notifiable type, the
+notifiable id (when the notifiable is an Eloquent model with a key) and the channel. List classes in
+`api-toolkit.notifications.excluded_classes` to skip them.
 
 Lines go to the application's default log channel, so whether the `debug` lines are kept depends on that channel's
 level. For a dedicated destination, define a channel in `config/logging.php`:
