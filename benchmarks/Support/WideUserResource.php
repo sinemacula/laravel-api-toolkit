@@ -42,7 +42,7 @@ final class WideUserResource extends ApiResource
     {
         $computed = array_map(
             static fn (int $index): Field => Field::compute('computed_' . $index, static fn (): int => $index),
-            range(1, 13),
+            range(1, 14),
         );
 
         return Field::set(

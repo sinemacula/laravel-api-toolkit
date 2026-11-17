@@ -95,6 +95,7 @@ jobs:
         continue-on-error: true
         name: Benchmarks / PHP 8.3
         runs-on: ubuntu-latest
+        timeout-minutes: 20
 
         env:
             BASELINE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}

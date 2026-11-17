@@ -12,8 +12,8 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use Tests\Fixtures\Resources\UserResource;
 
 /**
- * Benchmarks planning the eager loads of a cyclic relation graph selected three
- * levels deep, on a memo miss and a memo hit.
+ * Benchmarks planning the eager loads of a cyclic relation graph, on a memo
+ * miss and a memo hit.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -28,8 +28,8 @@ final class EagerLoadPlannerBench
     private const array FIELDS = ['name', 'organization', 'posts'];
 
     /**
-     * Select the users, their posts, each post's author and tags, and the
-     * author's posts again.
+     * Select the users' organization and posts, and each post's author and
+     * tags; the planner stops at the author, whose posts would close the cycle.
      *
      * @return void
      */

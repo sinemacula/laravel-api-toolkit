@@ -110,7 +110,7 @@ final class ServiceLifecycleBoundariesTest extends TestCase
 
     /**
      * Test that a run inside the caller's transaction adds one savepoint and
-     * releases it into that transaction.
+     * commits back to the caller's level.
      *
      * @return void
      */

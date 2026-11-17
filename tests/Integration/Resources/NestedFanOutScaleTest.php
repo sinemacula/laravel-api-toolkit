@@ -21,8 +21,8 @@ use Tests\TestCase;
  * Pins the cost of a page whose two embedded to-many levels are each filled to
  * the default relation limit.
  *
- * The test runs in a process of its own, so its peak is measured against no
- * earlier test's memory.
+ * The test runs in a process of its own, so the memory limit is not shared with
+ * earlier tests.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
