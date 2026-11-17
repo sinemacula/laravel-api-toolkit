@@ -17,8 +17,7 @@ use Tests\TestCase;
 
 /**
  * Feature tests proving a reference-mode repository over a model with a tenant
- * global scope keeps a snapshot per tenant, and that one write clears them
- * all.
+ * global scope keeps a snapshot per tenant, and that one write clears them all.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

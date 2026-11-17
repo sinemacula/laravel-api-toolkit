@@ -28,7 +28,7 @@ use Tests\TestCase;
  * Feature tests proving criteria reads that differ by any one query parameter
  * cache under their own fingerprints.
  *
- * A shared key would serve the first request's envelope for the second.
+ * A shared key would serve the first request's rows to the second.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -118,9 +118,9 @@ final class FilteredCacheFingerprintTest extends TestCase
      */
     public static function requestPairs(): iterable
     {
-        yield 'fields' => [UserResource::class, [], ['fields' => ['users' => 'id,name,organization']]];
         $aggregates = ['fields' => ['users' => 'name,aggregates']];
 
+        yield 'fields' => [UserResource::class, [], ['fields' => ['users' => 'id,name,organization']]];
         yield 'aggregates' => [UserResource::class, $aggregates, $aggregates + ['aggregates' => ['users' => 'posts_avg_id']]];
         yield 'order' => [UserResource::class, ['order' => 'name'], ['order' => 'name:desc']];
         yield 'search' => [CombinedSearchUserResource::class, ['search' => 'Alpha'], ['search' => 'Bravo']];

@@ -99,7 +99,8 @@ final class RepositoryCacheHitTest extends TestCase
     }
 
     /**
-     * Test that a repeated identical paginated read runs its queries again.
+     * Test that a repeated identical paginated read runs its count and page
+     * queries again.
      *
      * @return void
      */
@@ -116,7 +117,10 @@ final class RepositoryCacheHitTest extends TestCase
 
         $second->assertOk();
 
-        self::assertNotCount(0, DB::getQueryLog());
+        $queries = implode("\n", array_column(DB::getQueryLog(), 'query'));
+
+        self::assertStringContainsString('count(*)', $queries);
+        self::assertStringContainsString(' limit ', $queries);
         self::assertSame($first->baseResponse->getContent(), $second->baseResponse->getContent());
     }
 }

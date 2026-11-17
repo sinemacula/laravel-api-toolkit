@@ -541,13 +541,14 @@ A read is keyed by the SQL it runs: the root query with its global scopes applie
 query with its `constrain()` closure and the related model's global scopes. `?trashed`, tenant scopes and constraints
 that read the authenticated user are therefore cached per value. A read with a `MorphTo` include, a relation class other
 than the framework's own, an `afterQuery()` callback other than `chaperone()`'s, a callable `withDefault()` or eager
-loads nested more than 16 levels deep runs uncached. `paginate()` is never cached. Writes invalidate the table.
+loads nested more than 16 levels deep runs uncached. Scopes and constraints run once more per read to build the key, so
+they must be deterministic and free of side effects. `paginate()` is never cached. Writes invalidate the table.
 Eager-loaded rows are cached with their parent, so a write to a related table leaves them stale until the TTL. Call
 `withoutCache()` to bypass the cache for one read, or `flushCache()` to invalidate immediately.
 
 With `$cacheReferenceTable = true`, the table is loaded once per global-scope variant and memoised in-process, and
-`get()` and `find()` never touch the database. A read with criteria, scopes or a column list runs a real query, and a
-write clears every variant. Use it only for small lookup tables that rarely change.
+`get()` and `find()` are served from that snapshot. A read with criteria, repository scopes or a column list other than
+`*` runs a real query, and a write clears every variant. Use it only for small lookup tables that rarely change.
 
 **Deferrable trait** - buffer inserts in memory and flush them as bulk `INSERT` statements at the lifecycle boundary
 (`RequestHandled`, `CommandFinished`, `JobProcessed`, or `JobFailed`):

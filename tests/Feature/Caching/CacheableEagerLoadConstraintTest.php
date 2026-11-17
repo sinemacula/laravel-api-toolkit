@@ -20,6 +20,7 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\CacheableArticleRepository;
 use Tests\Fixtures\Repositories\CacheableOrganizationRepository;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\HeaderGatedArticleResource;
 use Tests\Fixtures\Resources\TrashedCascadeArticleResource;
 use Tests\Fixtures\Resources\ViewerOrganizationResource;
 use Tests\Fixtures\Support\CurrentTenant;
@@ -159,6 +160,27 @@ final class CacheableEagerLoadConstraintTest extends TestCase
 
         self::assertSame(['Live', 'Removed'], $this->getJson('/articles?trashed=with')->assertOk()->json('data.0.siblingArticles.*.title'));
         self::assertCount(0, DB::getQueryLog());
+    }
+
+    /**
+     * Test that a relation whose trashed gate differs per caller is cached per
+     * caller while the root query stays the same.
+     *
+     * @return void
+     */
+    public function testRelationTrashedGateIsCachedPerCaller(): void
+    {
+        Config::set('api-toolkit.resources.resource_map', [Article::class => HeaderGatedArticleResource::class]);
+
+        $author = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+
+        $this->seedArticle($author->id, 'Live', 'live');
+        $this->seedArticle($author->id, 'Removed', 'removed')->delete();
+
+        $open = $this->getJson('/articles?trashed=with', [HeaderGatedArticleResource::HEADER => '1'])->assertOk();
+
+        self::assertSame(['Live', 'Removed'], $open->json('data.0.siblingArticles.*.title'));
+        self::assertSame(['Live'], $this->getJson('/articles?trashed=with')->assertOk()->json('data.0.siblingArticles.*.title'));
     }
 
     /**
