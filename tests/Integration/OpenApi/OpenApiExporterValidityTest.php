@@ -882,6 +882,26 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that catch-all and QUERY routes export only OpenAPI 3.1 operations.
+     *
+     * @return void
+     */
+    public function testCatchAllAndQueryRoutesExportOnlyOpenApiOperations(): void
+    {
+        $this->router()->any('anything', PathInvokableController::class);
+        $this->router()->query('search', PathInvokableController::class);
+
+        $document = $this->export()->document;
+        $paths    = $document['paths'];
+
+        self::assertIsArray($paths);
+        self::assertSame(['/anything'], array_keys($paths));
+        self::assertIsArray($paths['/anything']);
+        self::assertSame(['get', 'post', 'put', 'patch', 'delete'], array_keys($paths['/anything']));
+        $this->assertValidDocument($document);
+    }
+
+    /**
      * Test that a declared resource response keeps its referenced component.
      *
      * @return void

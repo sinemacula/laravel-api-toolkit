@@ -235,6 +235,36 @@ final class DocumentedRouteCollectorTest extends TestCase
     }
 
     /**
+     * Test that a catch-all route documents only the verbs OpenAPI 3.1 defines
+     * an operation for.
+     *
+     * @return void
+     */
+    public function testCatchAllRouteDocumentsOnlyOpenApiOperationVerbs(): void
+    {
+        $this->router()->any('anything', [PathPlainController::class, 'report']);
+        $this->router()->match(['TRACE'], 'trace', [PathPlainController::class, 'index']);
+
+        $routes = $this->collect(['public'])->in('public');
+
+        self::assertSame(['get', 'post', 'put', 'patch', 'delete'], $routes[0]->verbs);
+        self::assertSame(['trace'], $routes[1]->verbs);
+    }
+
+    /**
+     * Test that a QUERY route is dropped, since OpenAPI 3.1 has no query
+     * operation.
+     *
+     * @return void
+     */
+    public function testQueryRouteIsDropped(): void
+    {
+        $this->router()->query('search', [PathPlainController::class, 'report']);
+
+        self::assertSame([], $this->collect(['public'])->in('public'));
+    }
+
+    /**
      * Test that a route excluded from every audience never reads its
      * #[Operation], while one it joins does.
      *
