@@ -126,17 +126,18 @@ final class BoundedRelationHttpTest extends TestCase
     {
         [$user] = $this->seedUsers([7]);
 
-        $queries = $this->recordQueries();
+        $data = null;
 
-        $response = $this->getJson('/users/' . $user . '?fields[bounded_users]=name,posts&fields[bounded_posts]=title');
-        $executed = $queries();
+        $statements = $this->recordStatements(function () use (&$data, $user): void {
+            $data = $this->getJson('/users/' . $user . '?fields[bounded_users]=name,posts&fields[bounded_posts]=title')->assertOk()->json('data');
+        });
 
-        $response->assertOk();
-        $response->assertJsonPath('data._truncated', ['posts']);
+        $record = self::record($data);
 
-        self::assertSame($this->postTitles($user, 5), array_column(self::rows($response->json('data.posts')), 'title'));
+        self::assertSame(['posts'], $record['_truncated']);
+        self::assertSame($this->postTitles($user, 5), array_column(self::rows($record['posts']), 'title'));
 
-        $postQueries = array_values(array_filter($executed, static fn (string $sql): bool => str_contains($sql, 'posts')));
+        $postQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'posts')));
 
         self::assertCount(1, $postQueries);
         self::assertStringContainsString('laravel_row', $postQueries[0]);
