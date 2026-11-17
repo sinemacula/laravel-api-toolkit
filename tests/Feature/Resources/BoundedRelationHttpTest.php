@@ -47,7 +47,7 @@ final class BoundedRelationHttpTest extends TestCase
     use RecordsStatements, RegistersApiExceptionHandler;
 
     /**
-     * Set up the users and organizations routes.
+     * Set up the users index, user show and organizations routes.
      *
      * @return void
      */
@@ -65,6 +65,13 @@ final class BoundedRelationHttpTest extends TestCase
             $users = $repository->usingResource(BoundedUserResource::class)->withApiCriteria()->paginate();
 
             return new ApiResourceCollection($users, BoundedUserResource::class);
+        });
+
+        Route::middleware(ParseApiQuery::class)->get('/users/{id}', static function (int $id): BoundedUserResource {
+
+            $user = User::query()->findOrFail($id);
+
+            return new BoundedUserResource($user, loadMissing: true);
         });
 
         Route::middleware(ParseApiQuery::class)->get('/organizations', function (): ApiResourceCollection {
@@ -104,6 +111,32 @@ final class BoundedRelationHttpTest extends TestCase
         self::assertSame(['posts'], $users[$six]['_truncated']);
 
         $postQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'posts')));
+
+        self::assertCount(1, $postQueries);
+        self::assertStringContainsString('laravel_row', $postQueries[0]);
+    }
+
+    /**
+     * Test that a show endpoint loading its relations after the fetch bounds
+     * and flags them as a collection endpoint does.
+     *
+     * @return void
+     */
+    public function testShowEndpointBoundsAndFlagsTheLoadedRelation(): void
+    {
+        [$user] = $this->seedUsers([7]);
+
+        $queries = $this->recordQueries();
+
+        $response = $this->getJson('/users/' . $user . '?fields[bounded_users]=name,posts&fields[bounded_posts]=title');
+        $executed = $queries();
+
+        $response->assertOk();
+        $response->assertJsonPath('data._truncated', ['posts']);
+
+        self::assertSame($this->postTitles($user, 5), array_column(self::rows($response->json('data.posts')), 'title'));
+
+        $postQueries = array_values(array_filter($executed, static fn (string $sql): bool => str_contains($sql, 'posts')));
 
         self::assertCount(1, $postQueries);
         self::assertStringContainsString('laravel_row', $postQueries[0]);
