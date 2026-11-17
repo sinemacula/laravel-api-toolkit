@@ -8,7 +8,9 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Container\EntryNotFoundException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\RecordNotFoundException;
 use Illuminate\Database\RecordsNotFoundException;
+use Illuminate\Http\Exceptions\OriginMismatchException;
 use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Routing\Exceptions\BackedEnumCaseNotFoundException;
@@ -36,7 +38,6 @@ use SineMacula\ApiToolkit\Exceptions\TokenMismatchException;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Exceptions\UnauthenticatedException;
 use SineMacula\ApiToolkit\Exceptions\UnhandledException;
-use Symfony\Component\HttpFoundation\Exception\BadRequestException as SymfonyBadRequestException;
 use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -69,6 +70,9 @@ final class ExceptionMapTest extends TestCase
     /** @var string A subtype of MISSING_WIDGET */
     private const string MISSING_GADGET = 'Tests\Fixtures\Exceptions\ExceptionMap\MissingGadgetHttpException';
 
+    /** @var string An application subtype of AuthorizationException */
+    private const string POLICY_DENIED = 'Tests\Fixtures\Exceptions\ExceptionMap\PolicyDeniedException';
+
     /** @var string A class whose autoloading raises an error */
     private const string EXPLODING = 'App\Exceptions\ExplodingException';
 
@@ -80,6 +84,9 @@ final class ExceptionMapTest extends TestCase
 
     /** @var string The message for a key that cannot be mapped */
     private const string KEY_MESSAGE = 'The api-toolkit.exceptions.map key [%s] must be an interface or a Throwable class, and not an ApiException.';
+
+    /** @var string The message for a key Laravel converts before rendering */
+    private const string PREPARED_MESSAGE = 'The api-toolkit.exceptions.map key [%s] never matches: Laravel converts it before rendering, so map the exception it becomes.';
 
     /** @var string The message for a target the handler cannot render */
     private const string TARGET_MESSAGE = 'The api-toolkit.exceptions.map target [%s] for [%s] must be an instantiable ApiException with a CODE, a 4xx or 5xx status, '
@@ -106,18 +113,11 @@ final class ExceptionMapTest extends TestCase
     public static function builtInProvider(): iterable
     {
         yield 'not found http' => [NotFoundHttpException::class, NotFoundException::class];
-        yield 'backed enum case not found' => [BackedEnumCaseNotFoundException::class, NotFoundException::class];
-        yield 'model not found' => [ModelNotFoundException::class, NotFoundException::class];
-        yield 'suspicious operation' => [SuspiciousOperationException::class, NotFoundException::class];
-        yield 'records not found' => [RecordsNotFoundException::class, NotFoundException::class];
         yield 'method not allowed' => [MethodNotAllowedHttpException::class, NotAllowedException::class];
         yield 'bad request http' => [BadRequestHttpException::class, BadRequestException::class];
-        yield 'symfony request exception' => [SymfonyBadRequestException::class, BadRequestException::class];
         yield 'laravel unauthorized' => [LaravelUnauthorizedException::class, ForbiddenException::class];
-        yield 'authorization' => [AuthorizationException::class, ForbiddenException::class];
         yield 'access denied http' => [AccessDeniedHttpException::class, ForbiddenException::class];
         yield 'authentication' => [AuthenticationException::class, UnauthenticatedException::class];
-        yield 'token mismatch' => [LaravelTokenMismatchException::class, TokenMismatchException::class];
         yield 'validation' => [ValidationException::class, InvalidInputException::class];
         yield 'too many requests http' => [TooManyRequestsHttpException::class, TooManyRequestsException::class];
         yield 'throttle requests' => [ThrottleRequestsException::class, TooManyRequestsException::class];
@@ -156,7 +156,7 @@ final class ExceptionMapTest extends TestCase
             $map = ExceptionMap::fromConfig();
 
             self::assertSame(GoneException::class, $map->targetFor(NotFoundHttpException::class));
-            self::assertSame(NotFoundException::class, $map->targetFor(ModelNotFoundException::class));
+            self::assertSame(NotAllowedException::class, $map->targetFor(MethodNotAllowedHttpException::class));
         }
     }
 
@@ -291,19 +291,16 @@ final class ExceptionMapTest extends TestCase
     }
 
     /**
-     * Test that a built-in interface key that is not a Throwable replaces the
-     * built-in.
+     * Test that an interface key that is not a Throwable matches its
+     * implementations.
      *
      * @return void
      */
-    public function testNonThrowableInterfaceKeyReplacesTheBuiltIn(): void
+    public function testNonThrowableInterfaceKeyMatchesItsImplementations(): void
     {
-        config()->set('api-toolkit.exceptions.map', [RequestExceptionInterface::class => ConflictException::class]);
+        config()->set('api-toolkit.exceptions.map', [self::FIXTURES . 'DomainFailure' => ConflictException::class]);
 
-        $map = ExceptionMap::fromConfig();
-
-        self::assertSame(ConflictException::class, $map->targetFor(SymfonyBadRequestException::class));
-        self::assertSame(NotFoundException::class, $map->targetFor(SuspiciousOperationException::class));
+        self::assertSame(ConflictException::class, ExceptionMap::fromConfig()->targetFor(self::FIXTURES . 'OrderFailedException'));
     }
 
     /**
@@ -403,6 +400,98 @@ final class ExceptionMapTest extends TestCase
     }
 
     /**
+     * Provide keys of types Laravel converts before rendering.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function preparedKeyProvider(): iterable
+    {
+        yield 'backed enum case not found' => [BackedEnumCaseNotFoundException::class];
+        yield 'model not found' => [ModelNotFoundException::class];
+        yield 'authorization' => [AuthorizationException::class];
+        yield 'origin mismatch' => [OriginMismatchException::class];
+        yield 'token mismatch' => [LaravelTokenMismatchException::class];
+        yield 'request exception interface' => [RequestExceptionInterface::class];
+        yield 'record not found' => [RecordNotFoundException::class];
+        yield 'records not found' => [RecordsNotFoundException::class];
+        yield 'request exception implementation' => [SuspiciousOperationException::class];
+        yield 'application subtype' => [self::POLICY_DENIED];
+        yield 'leading backslash and other casing' => ['\\' . strtolower(AuthorizationException::class)];
+    }
+
+    /**
+     * Test that a key of a type Laravel converts before rendering fails, since
+     * it would never match.
+     *
+     * @param  string  $key
+     * @return void
+     */
+    #[DataProvider('preparedKeyProvider')]
+    public function testKeyLaravelConvertsBeforeRenderingFails(string $key): void
+    {
+        config()->set('api-toolkit.exceptions.map', [$key => GoneException::class]);
+
+        self::assertMapFails(sprintf(self::PREPARED_MESSAGE, $key));
+    }
+
+    /**
+     * Provide each status a built-in key stands for, with the target it renders
+     * as.
+     *
+     * @return iterable<string, array{int, class-string}>
+     */
+    public static function statusProvider(): iterable
+    {
+        yield 'bad request' => [400, BadRequestException::class];
+        yield 'unauthenticated' => [401, UnauthenticatedException::class];
+        yield 'forbidden' => [403, ForbiddenException::class];
+        yield 'not found' => [404, NotFoundException::class];
+        yield 'method not allowed' => [405, NotAllowedException::class];
+        yield 'payload too large' => [413, PayloadTooLargeException::class];
+        yield 'too many requests' => [429, TooManyRequestsException::class];
+        yield 'service unavailable' => [503, ServiceUnavailableException::class];
+    }
+
+    /**
+     * Test that a status a built-in key stands for resolves to that key's
+     * target.
+     *
+     * @param  int  $status
+     * @param  class-string  $target
+     * @return void
+     */
+    #[DataProvider('statusProvider')]
+    public function testStatusResolvesToTheTargetOfTheKeyItStandsFor(int $status, string $target): void
+    {
+        self::assertSame($target, ExceptionMap::defaults()->targetForStatus($status));
+    }
+
+    /**
+     * Test that a status no built-in key stands for resolves to nothing.
+     *
+     * @return void
+     */
+    public function testStatusNoBuiltInKeyStandsForResolvesToNothing(): void
+    {
+        foreach ([409, 419, 422, 499] as $status) {
+            self::assertNull(ExceptionMap::defaults()->targetForStatus($status));
+        }
+    }
+
+    /**
+     * Test that a status follows a configured replacement of the key it stands
+     * for.
+     *
+     * @return void
+     */
+    public function testStatusFollowsTheConfiguredKeyItStandsFor(): void
+    {
+        config()->set('api-toolkit.exceptions.map', [NotFoundHttpException::class => GoneException::class]);
+
+        self::assertSame(GoneException::class, ExceptionMap::fromConfig()->targetForStatus(404));
+    }
+
+    /**
      * Provide targets the handler cannot render, with how the message names
      * each and the error the check raised, if any.
      *
@@ -496,20 +585,20 @@ final class ExceptionMapTest extends TestCase
     public function testClientAndServerErrorTargetsPass(): void
     {
         config()->set('api-toolkit.exceptions.map', [
-            NotFoundHttpException::class   => BadRequestException::class,
-            ModelNotFoundException::class  => TokenMismatchException::class,
-            AuthenticationException::class => ServiceUnavailableException::class,
-            ValidationException::class     => self::FIXTURES . 'NetworkTimeoutException',
-            AuthorizationException::class  => self::FIXTURES . 'PrivateIntegerStatusException',
+            NotFoundHttpException::class         => BadRequestException::class,
+            MethodNotAllowedHttpException::class => TokenMismatchException::class,
+            AuthenticationException::class       => ServiceUnavailableException::class,
+            ValidationException::class           => self::FIXTURES . 'NetworkTimeoutException',
+            AccessDeniedHttpException::class     => self::FIXTURES . 'PrivateIntegerStatusException',
         ]);
 
         $map = ExceptionMap::fromConfig();
 
         self::assertSame(BadRequestException::class, $map->targetFor(NotFoundHttpException::class));
-        self::assertSame(TokenMismatchException::class, $map->targetFor(ModelNotFoundException::class));
+        self::assertSame(TokenMismatchException::class, $map->targetFor(MethodNotAllowedHttpException::class));
         self::assertSame(ServiceUnavailableException::class, $map->targetFor(AuthenticationException::class));
         self::assertSame(self::FIXTURES . 'NetworkTimeoutException', $map->targetFor(ValidationException::class));
-        self::assertSame(self::FIXTURES . 'PrivateIntegerStatusException', $map->targetFor(AuthorizationException::class));
+        self::assertSame(self::FIXTURES . 'PrivateIntegerStatusException', $map->targetFor(AccessDeniedHttpException::class));
     }
 
     /**
