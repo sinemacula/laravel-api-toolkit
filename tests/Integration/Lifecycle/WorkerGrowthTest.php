@@ -67,19 +67,6 @@ final class WorkerGrowthTest extends TestCase
     ];
 
     /**
-     * Remove the committed rows before the next test.
-     *
-     * @return void
-     */
-    #[\Override]
-    protected function tearDown(): void
-    {
-        DB::table('users')->delete();
-
-        parent::tearDown();
-    }
-
-    /**
      * Leave the rows a test writes committed, as one engine updates its
      * full-text index only when a transaction commits.
      *
@@ -138,15 +125,20 @@ final class WorkerGrowthTest extends TestCase
 
         Config::set('api-toolkit.search.unverified_connections', ['testing']);
 
-        $alexandrina = User::create(['name' => 'Alexandrina', 'email' => 'alexandrina@growth.test']);
+        $this->beforeApplicationDestroyed(static function (): void {
+            DB::table('users')->delete();
+        });
+
+        // No n-gram of this name holds a full-text stopword
+        $humphrey = User::create(['name' => 'Humphrey', 'email' => 'humphrey@growth.test']);
 
         User::create(['name' => 'Bob', 'email' => 'bob@growth.test', 'status' => 'inactive']);
 
-        $this->serveCycles($alexandrina->id, 0, 20);
+        $this->serveCycles($humphrey->id, 0, 20);
 
         $sizes = $this->memoSizes();
 
-        $this->serveCycles($alexandrina->id, 20, 200);
+        $this->serveCycles($humphrey->id, 20, 200);
 
         self::assertSame($sizes, $this->memoSizes());
     }
@@ -170,7 +162,7 @@ final class WorkerGrowthTest extends TestCase
             $requests[] = Request::create('/growth/users?' . http_build_query([
                 'fields'  => ['searchable_filterable_users' => implode(',', array_slice($fields, 0, $cycle % 4 + 1))],
                 'filters' => json_encode(['id' => ['$le' => $matchingId + $cycle], 'status' => ['$in' => ['active', "status-{$cycle}"]]]),
-                'search'  => substr('alexandrina', $cycle % 5, $cycle % 4 + 3),
+                'search'  => substr('humphrey', $cycle % 4, $cycle % 3 + 3),
                 'order'   => $cycle % 2 === 0 ? 'id:asc' : 'id:desc',
                 'limit'   => $cycle % 50 + 1,
             ]));
