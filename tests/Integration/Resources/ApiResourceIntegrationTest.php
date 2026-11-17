@@ -5,11 +5,13 @@ declare(strict_types = 1);
 namespace Tests\Integration\Resources;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
@@ -46,6 +48,8 @@ final class ApiResourceIntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [AggregatingUserResource::class, OrganizationResource::class, UserResource::class]);
 
         SchemaCompiler::clearCache();
 

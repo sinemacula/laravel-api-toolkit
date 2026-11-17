@@ -42,6 +42,7 @@ use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
@@ -63,6 +64,7 @@ use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
+use Tests\Fixtures\Discovery\Primary\ChildDiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Article;
@@ -490,8 +492,15 @@ final class ApiServiceProviderTest extends TestCase
         $this->pendingArtisan('api-toolkit:resources:cache')->assertExitCode(0)->run();
 
         self::assertSame([
-            User::class => DiscoveredUserResource::class,
-            Post::class => DiscoveredPostResource::class,
+            'bindings' => [
+                User::class => DiscoveredUserResource::class,
+                Post::class => DiscoveredPostResource::class,
+            ],
+            'resources' => [
+                ChildDiscoveredUserResource::class,
+                DiscoveredUserResource::class,
+                DiscoveredPostResource::class,
+            ],
         ], require $path);
     }
 
@@ -619,7 +628,10 @@ final class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            User::class => UserResource::class,
+            User::class         => UserResource::class,
+            Post::class         => PostResource::class,
+            Tag::class          => TagResource::class,
+            Organization::class => OrganizationResource::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
@@ -659,14 +671,19 @@ final class ApiServiceProviderTest extends TestCase
      */
     public static function sortableResourceMapProvider(): iterable
     {
-        yield 'one sortable' => [[User::class => UserResource::class], 1];
         yield 'one sortable beside three unsortable' => [[
             User::class         => UserResource::class,
             Post::class         => PostResource::class,
             Tag::class          => TagResource::class,
             Organization::class => OrganizationResource::class,
         ], 1];
-        yield 'two sortable' => [[User::class => UserResource::class, Article::class => ArticleResource::class], 2];
+        yield 'two sortable beside three unsortable' => [[
+            User::class         => UserResource::class,
+            Article::class      => ArticleResource::class,
+            Post::class         => PostResource::class,
+            Tag::class          => TagResource::class,
+            Organization::class => OrganizationResource::class,
+        ], 2];
     }
 
     /**
@@ -734,6 +751,30 @@ final class ApiServiceProviderTest extends TestCase
         $provider->register();
 
         $this->expectException(InvalidSchemaException::class);
+
+        $provider->boot();
+    }
+
+    /**
+     * Test that boot validates a discovered resource no model binds, even with
+     * an empty map.
+     *
+     * @return void
+     */
+    public function testValidateSchemasCoversAnUnboundResourceAtBoot(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.paths', []);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+        $this->getConfig()->set(ResourceDiscovery::RESOURCES_KEY, [PostResource::class]);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->register();
+
+        $this->expectException(InvalidSchemaException::class);
+        $this->expectExceptionMessage(sprintf('[%s] Field "tags": Relation "tags" renders %s', PostResource::class, TagResource::class));
 
         $provider->boot();
     }
@@ -1033,8 +1074,15 @@ final class ApiServiceProviderTest extends TestCase
         $this->pendingArtisan('optimize', ['--except' => 'config,events,routes,views'])->assertExitCode(0)->run();
 
         self::assertSame([
-            User::class => DiscoveredUserResource::class,
-            Post::class => DiscoveredPostResource::class,
+            'bindings' => [
+                User::class => DiscoveredUserResource::class,
+                Post::class => DiscoveredPostResource::class,
+            ],
+            'resources' => [
+                ChildDiscoveredUserResource::class,
+                DiscoveredUserResource::class,
+                DiscoveredPostResource::class,
+            ],
         ], require $path);
 
         $this->pendingArtisan('optimize:clear', ['--except' => 'config,cache,compiled,events,routes,views'])->assertExitCode(0)->run();

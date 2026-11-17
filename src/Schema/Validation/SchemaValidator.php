@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Schema\Validation;
 
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
@@ -30,7 +31,8 @@ final readonly class SchemaValidator
     }
 
     /**
-     * Validate all schemas in the provided resource map.
+     * Validate all schemas in the provided resource map and every catalogued
+     * resource it does not bind.
      *
      * Declarations the catalogue could not verify do not fail validation.
      *
@@ -49,8 +51,11 @@ final readonly class SchemaValidator
     }
 
     /**
-     * Run every rule over the resource map, keeping what could not be verified
-     * apart from the defects.
+     * Run every rule over the resource map and every catalogued resource it
+     * does not bind, keeping what could not be verified apart from the defects.
+     *
+     * An unbound resource is validated with no model, so the rules reading the
+     * model's table skip it.
      *
      * @param  array<class-string, class-string>  $resourceMap
      * @return \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationReport
@@ -59,21 +64,42 @@ final readonly class SchemaValidator
      */
     public function report(array $resourceMap): SchemaValidationReport
     {
+        $unbound  = array_diff(ResourceTypeIndex::all(), $resourceMap);
         $findings = [];
 
         foreach ($resourceMap as $modelClass => $resourceClass) {
+            array_push($findings, ...$this->check($resourceClass, $modelClass));
+        }
 
-            $schema = SchemaCompiler::compile($resourceClass);
-
-            foreach ($this->rules as $rule) {
-                array_push($findings, ...$rule->validate($resourceClass, $modelClass, $schema));
-            }
+        foreach ($unbound as $resourceClass) {
+            array_push($findings, ...$this->check($resourceClass, null));
         }
 
         return new SchemaValidationReport(
             errors: array_values(array_filter($findings, static fn (object $finding): bool => $finding instanceof SchemaValidationError)),
             unverified: array_values(array_filter($findings, static fn (object $finding): bool => $finding instanceof UnverifiedDeclaration)),
-            resourceCount: count($resourceMap),
+            resourceCount: count($resourceMap) + count($unbound),
         );
+    }
+
+    /**
+     * Run every rule over one resource.
+     *
+     * @param  string  $resourceClass
+     * @param  string|null  $modelClass
+     * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|\SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
+     */
+    private function check(string $resourceClass, ?string $modelClass): array
+    {
+        $schema   = SchemaCompiler::compile($resourceClass);
+        $findings = [];
+
+        foreach ($this->rules as $rule) {
+            array_push($findings, ...$rule->validate($resourceClass, $modelClass, $schema));
+        }
+
+        return $findings;
     }
 }

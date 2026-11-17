@@ -11,8 +11,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
@@ -49,6 +52,8 @@ final class ApiQueryParserTest extends TestCase
     {
         parent::setUp();
 
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, PostResource::class]);
+
         $this->parser = new ApiQueryParser;
     }
 
@@ -68,21 +73,6 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getFields parses a comma-separated string.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testGetFieldsParsesCommaSeparatedString(): void
-    {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => 'first_name,last_name,email']);
-        $this->parser->parse($request);
-
-        self::assertSame(['first_name', 'last_name', 'email'], $this->parser->getFields());
-    }
-
-    /**
      * Test that getFields trims field values.
      *
      * @return void
@@ -91,10 +81,10 @@ final class ApiQueryParserTest extends TestCase
      */
     public function testGetFieldsTrimsValues(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ' first_name , last_name ']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['users' => ' name , email ']]);
         $this->parser->parse($request);
 
-        self::assertSame(['first_name', 'last_name'], $this->parser->getFields());
+        self::assertSame(['name', 'email'], $this->parser->getFields('users'));
     }
 
     /**
@@ -108,14 +98,14 @@ final class ApiQueryParserTest extends TestCase
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
             'fields' => [
-                'user' => self::FIELDS_NAME_EMAIL,
-                'post' => 'title,body',
+                'users' => self::FIELDS_NAME_EMAIL,
+                'posts' => 'title,body',
             ],
         ]);
         $this->parser->parse($request);
 
-        self::assertSame(['name', 'email'], $this->parser->getFields('user'));
-        self::assertSame(['title', 'body'], $this->parser->getFields('post'));
+        self::assertSame(['name', 'email'], $this->parser->getFields('users'));
+        self::assertSame(['title', 'body'], $this->parser->getFields('posts'));
     }
 
     /**
@@ -125,14 +115,14 @@ final class ApiQueryParserTest extends TestCase
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testGetFieldsWithUnknownResourceReturnsNull(): void
+    public function testGetFieldsWithUnrequestedResourceReturnsNull(): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'fields' => ['user' => self::FIELDS_NAME_EMAIL],
+            'fields' => ['users' => self::FIELDS_NAME_EMAIL],
         ]);
         $this->parser->parse($request);
 
-        self::assertNull($this->parser->getFields('unknown'));
+        self::assertNull($this->parser->getFields('posts'));
     }
 
     /**
@@ -160,11 +150,11 @@ final class ApiQueryParserTest extends TestCase
     public function testGetAggregatesParsesCommaSeparatedKeys(): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'aggregates' => ['user' => 'posts_count, orders_sum_total'],
+            'aggregates' => ['users' => 'posts_count, posts_sum_id'],
         ]);
         $this->parser->parse($request);
 
-        self::assertSame(['posts_count', 'orders_sum_total'], $this->parser->getAggregates('user'));
+        self::assertSame(['posts_count', 'posts_sum_id'], $this->parser->getAggregates('users'));
     }
 
     /**
@@ -280,35 +270,29 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getFields tolerates a list-form parameter without a resource
-     * key.
+     * Test that fields listed without a resource key are rejected as an unknown
+     * type.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testGetFieldsToleratesListFormParameter(): void
+    public function testListFormFieldsAreRejectedAsAnUnknownType(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['name', 'email']]);
-        $this->parser->parse($request);
-
-        self::assertSame([], $this->parser->getFields());
+        $this->assertParseRejected(['fields' => ['name']], ['fields.0' => ['The "0" resource type is not known.']]);
     }
 
     /**
-     * Test that getAggregates tolerates a list-form parameter without a
-     * resource key.
+     * Test that aggregates listed without a resource key are rejected as an
+     * unknown type.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testGetAggregatesToleratesListFormParameter(): void
+    public function testListFormAggregatesAreRejectedAsAnUnknownType(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['aggregates' => ['posts_count', 'orders_sum_total']]);
-        $this->parser->parse($request);
-
-        self::assertSame([], $this->parser->getAggregates());
+        $this->assertParseRejected(['aggregates' => ['posts_count']], ['aggregates.0' => ['The "0" resource type is not known.']]);
     }
 
     /**
@@ -642,7 +626,7 @@ final class ApiQueryParserTest extends TestCase
     public function testParsingMultipleParametersSimultaneously(): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'fields'  => self::FIELDS_NAME_EMAIL,
+            'fields'  => ['users' => self::FIELDS_NAME_EMAIL],
             'order'   => 'name:asc',
             'page'    => '2',
             'limit'   => '10',
@@ -651,7 +635,7 @@ final class ApiQueryParserTest extends TestCase
 
         $this->parser->parse($request);
 
-        self::assertSame(['name', 'email'], $this->parser->getFields());
+        self::assertSame(['name', 'email'], $this->parser->getFields('users'));
         self::assertSame(['name' => 'asc'], $this->parser->getOrder());
         self::assertSame(2, $this->parser->getPage());
         self::assertSame(10, $this->parser->getLimit());
@@ -776,7 +760,7 @@ final class ApiQueryParserTest extends TestCase
         $this->expectException(ValidationException::class);
 
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'fields' => ['user' => ['name', 'email']],
+            'fields' => ['users' => ['name', 'email']],
         ]);
         $this->parser->parse($request);
     }
@@ -793,7 +777,7 @@ final class ApiQueryParserTest extends TestCase
         $this->expectException(ValidationException::class);
 
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'aggregates' => ['user' => ['posts_count', 'orders_sum_total']],
+            'aggregates' => ['users' => ['posts_count', 'posts_sum_id']],
         ]);
         $this->parser->parse($request);
     }
@@ -822,14 +806,14 @@ final class ApiQueryParserTest extends TestCase
      */
     public function testResetClearsAllParsedParameters(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => self::FIELDS_NAME_EMAIL]);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['users' => self::FIELDS_NAME_EMAIL]]);
         $this->parser->parse($request);
 
-        self::assertSame(['name', 'email'], $this->parser->getFields());
+        self::assertSame(['name', 'email'], $this->parser->getFields('users'));
 
         $this->parser->reset();
 
-        self::assertNull($this->parser->getFields());
+        self::assertNull($this->parser->getFields('users'));
     }
 
     /**
@@ -918,5 +902,88 @@ final class ApiQueryParserTest extends TestCase
         $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb()));
 
         self::assertSame(1, $this->parser->getResolvedLimit());
+    }
+
+    /**
+     * Test that parameters carried in the request body are never read.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testBodyParametersAreIgnored(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::POST->getVerb(), [
+            'fields'  => ['users' => [['nested' => true]]],
+            'filters' => ['status' => 'active'],
+            'page'    => 2,
+            'trashed' => 'deleted',
+            'cursor'  => 'eyJpZCI6MX0',
+        ]);
+
+        $this->parser->parse($request);
+
+        self::assertNull($this->parser->getFields('users'));
+        self::assertSame([], $this->parser->getFilters());
+        self::assertSame(1, $this->parser->getPage());
+        self::assertSame('', $this->parser->getCursor());
+        self::assertFalse($this->parser->isCursorPaginated());
+    }
+
+    /**
+     * Test that the query string is read when the body carries the same
+     * parameter.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testQueryStringIsReadBesideAConflictingBody(): void
+    {
+        $request = Request::create(self::TEST_URL . '?limit=1', HttpMethod::POST->getVerb(), ['limit' => '2']);
+
+        $this->parser->parse($request);
+
+        self::assertSame(1, $this->parser->getLimit());
+    }
+
+    /**
+     * Test that a rejected parse keeps the parameters of the previous one.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testRejectedParseAssignsNothing(): void
+    {
+        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['users' => 'name'], 'page' => '2']));
+
+        $this->assertParseRejected(['fields' => ['users' => 'emial'], 'page' => '3', 'cursor' => 'x'], [
+            'fields.users' => ['The "emial" field is not declared on the "users" resource type.'],
+        ]);
+
+        self::assertSame(['name'], $this->parser->getFields('users'));
+        self::assertSame(2, $this->parser->getPage());
+        self::assertFalse($this->parser->isCursorPaginated());
+    }
+
+    /**
+     * Assert that parsing the given query parameters is rejected with exactly
+     * the given errors.
+     *
+     * @param  array<string, mixed>  $parameters
+     * @param  array<string, array<int, string>>  $errors
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function assertParseRejected(array $parameters, array $errors): void
+    {
+        try {
+            $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), $parameters));
+            self::fail('Expected the parse to be rejected.');
+        } catch (ValidationException $exception) {
+            self::assertSame($errors, $exception->errors());
+        }
     }
 }

@@ -53,6 +53,11 @@ type separately:
 ?fields[user]=first_name&fields[organization]=name
 ```
 
+Selection is limited to the fields each resource type declares. A resource
+type the API does not know, a field its type does not declare, or an aggregate
+it does not offer is rejected with a `422` naming it, as is a `fields` or
+`aggregates` value not keyed by a resource type.
+
 An embedded collection holds at most the `maxItems` its schema declares, per
 parent record. When a collection was cut to that size, the record lists the
 collection's key in `_truncated`:

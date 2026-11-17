@@ -16,6 +16,7 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
@@ -77,6 +78,8 @@ final class ApiCriteriaTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
 
         assert($this->app !== null);
 

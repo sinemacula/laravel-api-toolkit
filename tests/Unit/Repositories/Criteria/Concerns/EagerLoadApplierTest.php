@@ -6,9 +6,11 @@ namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use Tests\Fixtures\Models\User;
@@ -41,6 +43,8 @@ final class EagerLoadApplierTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
 
         $this->applier = new EagerLoadApplier;
     }
@@ -255,7 +259,7 @@ final class EagerLoadApplierTest extends TestCase
     {
         $this->parseRequest(new Request([
             'fields'     => ['users' => self::STUB_USER_FIELDS],
-            'aggregates' => ['users' => 'posts_count,published_posts'],
+            'aggregates' => ['users' => 'posts_count,posts_sum_id'],
         ]));
 
         $constraint = static function (Builder $query): void {
@@ -272,7 +276,7 @@ final class EagerLoadApplierTest extends TestCase
 
         $provider->expects(self::once())
             ->method('eagerLoadAggregatesFor')
-            ->with(UserResource::class, ['posts_count', 'published_posts'])
+            ->with(UserResource::class, ['posts_count', 'posts_sum_id'])
             ->willReturn([
                 ['relation' => 'posts as aggregate_posts_count', 'column' => '*', 'function' => 'count'],
                 ['relation' => ['posts as aggregate_published_posts' => $constraint], 'column' => '*', 'function' => 'exists'],

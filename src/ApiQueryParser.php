@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
+use SineMacula\ApiToolkit\Concerns\QuerySelectionValidator;
 use SineMacula\ApiToolkit\Enums\TrashedState;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
@@ -33,6 +34,9 @@ class ApiQueryParser
     /** @var \SineMacula\ApiToolkit\Concerns\QueryParameterExtractor */
     private readonly QueryParameterExtractor $extractor;
 
+    /** @var \SineMacula\ApiToolkit\Concerns\QuerySelectionValidator */
+    private readonly QuerySelectionValidator $selectionValidator;
+
     /**
      * Constructor.
      *
@@ -40,8 +44,9 @@ class ApiQueryParser
      */
     public function __construct()
     {
-        $this->validator = new QueryParameterValidator;
-        $this->extractor = new QueryParameterExtractor;
+        $this->validator          = new QueryParameterValidator;
+        $this->extractor          = new QueryParameterExtractor;
+        $this->selectionValidator = new QuerySelectionValidator;
     }
 
     /**
@@ -204,7 +209,10 @@ class ApiQueryParser
     }
 
     /**
-     * Parse the given query string to obtain resource and value information.
+     * Parse the given request's query string to obtain resource and value
+     * information.
+     *
+     * The body is never read. A rejected parse leaves the previous state.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return void
@@ -214,13 +222,17 @@ class ApiQueryParser
      */
     public function parse(Request $request): void
     {
-        $this->validator->validate($request->all());
+        $this->validator->validate($request->query->all());
 
-        $this->parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($request);
+
+        $this->selectionValidator->validate($parameters);
+
+        $this->parameters = $parameters;
 
         // Read from the parsed request, which may not be the current one
         $this->cursorPaginated = $request->query('pagination') === 'cursor'
-            || $request->has('cursor');
+            || $request->query->has('cursor');
     }
 
     /**

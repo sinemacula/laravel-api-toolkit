@@ -17,6 +17,7 @@ use SineMacula\ApiToolkit\Console\MakeResourceCommand;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
@@ -227,7 +228,7 @@ final class ApiServiceProvider extends ServiceProvider
 
         $resourceMap = ResourceMap::configured();
 
-        if ($resourceMap === []) {
+        if ($resourceMap === [] && ResourceTypeIndex::all() === []) {
             return;
         }
 

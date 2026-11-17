@@ -6,6 +6,7 @@ namespace Tests\Integration\Lifecycle;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -13,6 +14,7 @@ use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
@@ -21,6 +23,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\DeferrableUserRepository;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
@@ -54,6 +57,8 @@ final class OctaneRequestIsolationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
 
         $this->octaneWasSet = isset($_SERVER['LARAVEL_OCTANE']);
     }

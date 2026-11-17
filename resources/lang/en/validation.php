@@ -8,6 +8,18 @@ return [
         'undeclared_key' => 'The ":key" key is not a permitted query parameter for this resource.',
     ],
 
+    'fields' => [
+        'not_keyed'    => 'The fields parameter must be keyed by resource type, e.g. fields[users]=name.',
+        'unknown_type' => 'The ":type" resource type is not known.',
+        'undeclared'   => 'The ":name" field is not declared on the ":type" resource type.',
+    ],
+
+    'aggregates' => [
+        'not_keyed'    => 'The aggregates parameter must be keyed by resource type, e.g. aggregates[users]=posts_count.',
+        'unknown_type' => 'The ":type" resource type is not known.',
+        'undeclared'   => 'The ":name" aggregate is not declared on the ":type" resource type.',
+    ],
+
     'filters' => [
         'not_object'           => 'The filters parameter must be a JSON object.',
         'unpermitted_operator' => 'The ":operator" operator is not permitted on the ":key" key for this resource, which accepts :accepts.',

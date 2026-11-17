@@ -13,13 +13,22 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 /**
  * Boot-time discovery of attribute-bound API resources.
  *
- * Serves the compiled map from bootstrap/cache unless schemas are validated.
+ * Serves the compiled catalogue from bootstrap/cache unless schemas are
+ * validated.
+ *
+ * @phpstan-type Catalogue array{
+ *     bindings: array<class-string, class-string>,
+ *     resources: list<class-string<\SineMacula\ApiToolkit\Contracts\ApiResourceInterface>>,
+ * }
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class ResourceDiscovery
 {
+    /** @var string The config key recording every resource found under the paths */
+    public const string RESOURCES_KEY = 'api-toolkit.resources.discovered_resources';
+
     /** @var string The config key recording the bindings the merge added */
     private const string CONTRIBUTED_KEY = 'api-toolkit.resources.discovered_bindings';
 
@@ -42,15 +51,12 @@ final readonly class ResourceDiscovery
      */
     public function discover(): array
     {
-        if (Config::get('api-toolkit.resources.validate_schemas') === true) {
-            return $this->scan();
-        }
-
-        return $this->cached() ?? $this->scan();
+        return $this->catalogue()['bindings'];
     }
 
     /**
-     * Merge the discovered bindings beneath the explicit resource map.
+     * Merge the discovered bindings beneath the explicit resource map and
+     * record the discovered resources.
      *
      * Records its bindings so later merges can tell them from explicit ones.
      *
@@ -58,11 +64,14 @@ final readonly class ResourceDiscovery
      */
     public function merge(): void
     {
-        $discovered = $this->discover();
+        $catalogue  = $this->catalogue();
+        $discovered = $catalogue['bindings'];
 
-        if ($discovered === [] && $this->contributedMap() === []) {
+        if ($discovered === [] && $catalogue['resources'] === [] && $this->contributedMap() === []) {
             return;
         }
+
+        Config::set(self::RESOURCES_KEY, $catalogue['resources']);
 
         $explicit    = $this->explicitMap();
         $contributed = array_diff_key($discovered, $explicit);
@@ -72,9 +81,10 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Scan the configured paths for bindings, ignoring any compiled map.
+     * Scan the configured paths for bindings and resources, ignoring any
+     * compiled catalogue.
      *
-     * @return array<class-string, class-string>
+     * @return Catalogue
      */
     public function scan(): array
     {
@@ -82,7 +92,7 @@ final readonly class ResourceDiscovery
 
         // Null means the default roots; a non-array disables discovery
         $paths = match (true) {
-            $configured === null  => $this->defaultPaths(),
+            $configured === null  => [app_path('Http/Resources'), ...(glob(app_path('*/Http/Resources')) ?: [])],
             is_array($configured) => $configured,
             default               => [],
         };
@@ -93,7 +103,7 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Get the path of the compiled discovery map.
+     * Get the path of the compiled discovery catalogue.
      *
      * @return string
      */
@@ -126,11 +136,26 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Load the compiled discovery map, or null when there is none.
+     * Read the compiled catalogue, or scan when schemas are validated or there
+     * is none.
+     *
+     * @return Catalogue
+     */
+    private function catalogue(): array
+    {
+        if (Config::get('api-toolkit.resources.validate_schemas') === true) {
+            return $this->scan();
+        }
+
+        return $this->cached() ?? $this->scan();
+    }
+
+    /**
+     * Load the compiled discovery catalogue, or null when there is none.
      *
      * Not require_once, so each boot in a long-lived process reads it afresh.
      *
-     * @return array<class-string, class-string>|null
+     * @return Catalogue|null
      *
      * @SuppressWarnings("php:S2003")
      * @SuppressWarnings("php:S4833")
@@ -144,74 +169,94 @@ final readonly class ResourceDiscovery
         }
 
         try {
-            $map = require $path;
+            $catalogue = require $path;
         } catch (\ErrorException) { // @phpstan-ignore catch.neverThrown
-            // The error handler throws for a map cleared after is_file().
+            // The error handler throws for a catalogue cleared after is_file().
             return null;
         }
 
-        /** @var array<class-string, class-string>|null */
-        return is_array($map) ? $map : null;
+        $complete = is_array($catalogue) && is_array($catalogue['bindings'] ?? null) && is_array($catalogue['resources'] ?? null);
+
+        /** @var Catalogue|null */
+        return $complete ? $catalogue : null;
     }
 
     /**
-     * Get the default scan roots when no paths are configured.
+     * Scan the given files and compile the discovered bindings and resources.
      *
-     * Resolved at scan time so an app that repoints app_path() is covered.
-     *
-     * @return array<int, string>
-     */
-    private function defaultPaths(): array
-    {
-        return array_merge(
-            [app_path('Http/Resources')],
-            glob(app_path('*/Http/Resources')) ?: [],
-        );
-    }
-
-    /**
-     * Scan the given files and compile the discovered bindings.
+     * A class that is not autoloadable is skipped.
      *
      * @param  array<int, string>  $files
-     * @return array<class-string, class-string>
+     * @return Catalogue
      */
     private function scanFiles(array $files): array
     {
-        $map = [];
+        $bindings  = [];
+        $resources = [];
 
         foreach ($files as $file) {
             foreach ($this->classesFromFile($file) as $class) {
-                $map = $this->bindClass($map, $class);
+
+                if (!class_exists($class)) {
+                    continue;
+                }
+
+                $bindings = $this->bindClass($bindings, $class);
+
+                if (!self::isResource($class)) {
+                    continue;
+                }
+
+                $resources[$class] = $class;
             }
         }
 
-        return $map;
+        return ['bindings' => $bindings, 'resources' => array_values($resources)];
+    }
+
+    /**
+     * Determine whether the given class is an instantiable API resource.
+     *
+     * @param  class-string  $class
+     * @return bool
+     *
+     * @phpstan-assert-if-true class-string<\SineMacula\ApiToolkit\Contracts\ApiResourceInterface> $class
+     */
+    private static function isResource(string $class): bool
+    {
+        $reflection = new \ReflectionClass($class);
+
+        return $reflection->isInstantiable() && $reflection->implementsInterface(ApiResourceInterface::class);
     }
 
     /**
      * Merge the bindings declared by the given class into the map.
      *
-     * The first binding wins; a class that is not autoloadable is skipped.
+     * The first binding wins.
      *
      * @param  array<class-string, class-string>  $map
-     * @param  string  $class
+     * @param  class-string  $class
      * @return array<class-string, class-string>
      */
     private function bindClass(array $map, string $class): array
     {
-        if (!class_exists($class)) {
-            return $map;
-        }
-
         foreach ((new \ReflectionClass($class))->getAttributes(ForModel::class) as $attribute) {
 
             $model = $attribute->newInstance()->model;
 
             if (isset($map[$model])) {
                 $this->reportConflict($map, $class, $model);
-            } elseif ($this->permitsBinding($class, $model)) {
-                $map[$model] = $class;
+                continue;
             }
+
+            $diagnosis = $this->diagnoseBinding($class, $model);
+
+            if ($diagnosis !== null) {
+                Log::warning($diagnosis);
+                continue;
+            }
+
+            $map[$model] = $class;
         }
 
         return $map;
@@ -251,26 +296,6 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Determine whether the discovered binding is valid, warning when not.
-     *
-     * @param  class-string  $class
-     * @param  string  $model
-     * @return bool
-     */
-    private function permitsBinding(string $class, string $model): bool
-    {
-        $diagnosis = $this->diagnoseBinding($class, $model);
-
-        if ($diagnosis === null) {
-            return true;
-        }
-
-        Log::warning($diagnosis);
-
-        return false;
-    }
-
-    /**
      * Diagnose the discovered binding, returning the rejection message or null.
      *
      * @param  class-string  $class
@@ -279,9 +304,7 @@ final readonly class ResourceDiscovery
      */
     private function diagnoseBinding(string $class, string $model): ?string
     {
-        $reflection = new \ReflectionClass($class);
-
-        if (!$reflection->isInstantiable() || !$reflection->implementsInterface(ApiResourceInterface::class)) {
+        if (!self::isResource($class)) {
             return sprintf('Resource discovery skipped [%s]: it declares a model binding but is not an instantiable API resource.', $class);
         }
 

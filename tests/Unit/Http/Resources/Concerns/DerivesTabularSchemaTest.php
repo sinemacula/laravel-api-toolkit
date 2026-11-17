@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Http\Resources\Concerns;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Exceptions\PerItemGuardedFieldException;
@@ -12,6 +13,7 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\DerivesTabularSchema;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\RowGuardProbe;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Exporter\Contracts\ProvidesTabularExport;
@@ -45,6 +47,8 @@ final class DerivesTabularSchemaTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [GuardedExportResource::class]);
 
         SchemaCompiler::clearCache();
     }

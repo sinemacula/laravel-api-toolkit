@@ -4,10 +4,12 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\Query;
 
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\UserResource;
@@ -33,6 +35,8 @@ final class RequestLifecycleTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
 
         Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
