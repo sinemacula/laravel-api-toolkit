@@ -30,7 +30,7 @@ trait RecordsStatements
     {
         $events = DB::connection()->getEventDispatcher();
 
-        Assert::assertInstanceOf(Dispatcher::class, $events);
+        assert($events instanceof Dispatcher);
 
         $statements = [];
         $listener   = static function (QueryExecuted $query) use (&$statements): void {

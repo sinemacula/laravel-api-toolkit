@@ -65,11 +65,13 @@ use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\CatalogueRow;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\BrokenResource;
 use Tests\Fixtures\Resources\CatalogueRowResource;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -651,30 +653,32 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Provide resource maps holding one resource that declares a sort.
+     * Provide resource maps with the number of them that declare a sort.
      *
-     * @return iterable<string, array{0: array<class-string, class-string>}>
+     * @return iterable<string, array{0: array<class-string, class-string>, 1: int}>
      */
     public static function sortableResourceMapProvider(): iterable
     {
-        yield 'alone' => [[User::class => UserResource::class]];
-        yield 'beside three that declare none' => [[
+        yield 'one sortable' => [[User::class => UserResource::class], 1];
+        yield 'one sortable beside three unsortable' => [[
             User::class         => UserResource::class,
             Post::class         => PostResource::class,
             Tag::class          => TagResource::class,
             Organization::class => OrganizationResource::class,
-        ]];
+        ], 1];
+        yield 'two sortable' => [[User::class => UserResource::class, Article::class => ArticleResource::class], 2];
     }
 
     /**
      * Test that a warm boot validates against cached metadata, reading only the
-     * index eligibility of the one resource that declares a sort.
+     * index eligibility of each resource that declares a sort.
      *
      * @param  array<class-string, class-string>  $resourceMap
+     * @param  int  $sortable
      * @return void
      */
     #[DataProvider('sortableResourceMapProvider')]
-    public function testWarmBootValidationReadsOnlyTheEligibilityOfEachSortableResource(array $resourceMap): void
+    public function testWarmBootValidationReadsOnlyTheEligibilityOfEachSortableResource(array $resourceMap, int $sortable): void
     {
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', $resourceMap);
@@ -684,8 +688,11 @@ final class ApiServiceProviderTest extends TestCase
 
         $statements = $this->recordStatements(fn () => $this->bootWithArgv(null));
 
-        self::assertStatementCount(1, $statements);
-        self::assertMatchesRegularExpression('/pragma_index_list|information_schema\.statistics|pg_index/', $statements[0]);
+        self::assertStatementCount($sortable, $statements);
+
+        foreach ($statements as $statement) {
+            self::assertMatchesRegularExpression('/pragma_index_list|information_schema\.statistics|pg_index/', $statement);
+        }
     }
 
     /**
