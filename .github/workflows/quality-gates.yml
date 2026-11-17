@@ -78,3 +78,68 @@ jobs:
 
             -   name: Full mutation suite
                 run: composer test:mutation:full
+
+    # Report-only until runner noise is measured: master stores the baseline,
+    # every other run is compared with it
+    benchmarks:
+        if: ${{ github.event_name != 'push' }}
+        continue-on-error: true
+        name: Benchmarks / PHP 8.3
+        runs-on: ubuntu-latest
+
+        env:
+            BASELINE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v7
+                with:
+                    persist-credentials: false
+
+            -   name: Setup PHP
+                uses: sinemacula/.github/.github/actions/setup-php@v3.1.0
+                with:
+                    php-version: 8.3
+
+            -   name: Restore the master baseline
+                if: ${{ env.BASELINE != 'true' }}
+                uses: actions/cache/restore@v6
+                with:
+                    path: build/phpbench
+                    key: phpbench-master-${{ github.run_id }}
+                    restore-keys: phpbench-master-
+
+            -   name: Run the benchmarks
+                run: |
+                    mkdir -p build
+                    if [ "$BASELINE" = true ]; then
+                        set -- --tag=master --store
+                    elif [ -d build/phpbench ]; then
+                        set -- --ref=master
+                    fi
+                    composer bench:ci -- "$@" 2>&1 | tee build/phpbench.txt
+
+            -   name: Save the master baseline
+                if: ${{ env.BASELINE == 'true' }}
+                uses: actions/cache/save@v6
+                with:
+                    path: build/phpbench
+                    key: phpbench-master-${{ github.run_id }}
+
+            -   name: Summarise the benchmarks
+                if: always()
+                run: |
+                    {
+                        echo '## Benchmarks'
+                        echo '```'
+                        cat build/phpbench.txt
+                        echo '```'
+                    } >> "$GITHUB_STEP_SUMMARY"
+
+            -   name: Upload the benchmark results
+                if: always()
+                uses: actions/upload-artifact@v7
+                with:
+                    name: phpbench
+                    path: build/phpbench.xml
+                    if-no-files-found: warn
