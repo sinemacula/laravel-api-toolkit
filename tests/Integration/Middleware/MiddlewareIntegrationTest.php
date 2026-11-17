@@ -7,12 +7,13 @@ namespace Tests\Integration\Middleware;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
+use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\Http\Enums\HttpMethod;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Tests\TestCase;
 
 /**
@@ -80,42 +81,21 @@ final class MiddlewareIntegrationTest extends TestCase
     }
 
     /**
-     * Test the full middleware chain works end-to-end.
+     * Test the full middleware chain works end-to-end through the kernel.
      *
      * @return void
      */
     public function testFullMiddlewareChainWorksEndToEnd(): void
     {
-        $request = Request::create(self::TEST_URI, HttpMethod::GET->getVerb(), [
-            'page'   => '2',
-            'limit'  => '10',
-            'pretty' => '1',
-        ]);
+        Route::middleware(ParseApiQuery::class)->get(self::TEST_URI, static fn (): JsonResponse => new JsonResponse([
+            'page'  => ApiQuery::getPage(),
+            'limit' => ApiQuery::getLimit(),
+        ]));
 
-        $parseMiddleware  = new ParseApiQuery;
-        $prettyMiddleware = new JsonPrettyPrint;
+        $response = $this->getJson(self::TEST_URI . '?page=2&limit=10&pretty=1');
 
-        $response = $parseMiddleware->handle($request, function ($request) use ($prettyMiddleware): SymfonyResponse {
-            return $prettyMiddleware->handle($request, function (): JsonResponse {
-                /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
-                $parser = app('api.query');
+        $response->assertOk();
 
-                return new JsonResponse([
-                    'page'  => $parser->getPage(),
-                    'limit' => $parser->getLimit(),
-                ]);
-            });
-        });
-
-        $raw = $response->getContent();
-
-        self::assertIsString($raw);
-
-        $content = json_decode($raw, true);
-
-        self::assertIsArray($content);
-        self::assertSame(2, $content['page']);
-        self::assertSame(10, $content['limit']);
-        self::assertStringContainsString("\n", $raw);
+        self::assertSame(json_encode(['page' => 2, 'limit' => 10], JSON_PRETTY_PRINT), $response->baseResponse->getContent());
     }
 }

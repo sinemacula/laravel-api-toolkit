@@ -26,8 +26,8 @@ use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
  */
 final readonly class DocumentedRouteCollector
 {
-    /** The HTTP verbs excluded from the emitted path item */
-    private const array EXCLUDED_VERBS = ['HEAD', 'OPTIONS'];
+    /** The HTTP verbs documented as OpenAPI 3.1 operations */
+    private const array DOCUMENTED_VERBS = ['GET', 'PUT', 'POST', 'DELETE', 'PATCH', 'TRACE'];
 
     /** The REST actions documented from the resource contract */
     private const array RESOURCE_ACTIONS = ['index', 'show', 'store', 'update', 'destroy'];
@@ -284,7 +284,7 @@ final readonly class DocumentedRouteCollector
 
         foreach ($route->methods() as $verb) {
 
-            if (in_array($verb, self::EXCLUDED_VERBS, true)) {
+            if (!in_array($verb, self::DOCUMENTED_VERBS, true)) {
                 continue;
             }
 
