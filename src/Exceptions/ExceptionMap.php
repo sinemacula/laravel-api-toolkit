@@ -7,7 +7,9 @@ namespace SineMacula\ApiToolkit\Exceptions;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\RecordNotFoundException;
 use Illuminate\Database\RecordsNotFoundException;
+use Illuminate\Http\Exceptions\OriginMismatchException;
 use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Illuminate\Session\TokenMismatchException as LaravelTokenMismatchException;
@@ -17,7 +19,6 @@ use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
 use SineMacula\Http\Enums\HttpStatus;
 use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
-use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface as SymfonyHttpExceptionInterface;
@@ -42,18 +43,11 @@ final readonly class ExceptionMap
     /** The built-in entries, specific types before the interfaces they implement */
     private const array DEFAULTS = [
         NotFoundHttpException::class           => NotFoundException::class,
-        BackedEnumCaseNotFoundException::class => NotFoundException::class,
-        ModelNotFoundException::class          => NotFoundException::class,
-        SuspiciousOperationException::class    => NotFoundException::class,
-        RecordsNotFoundException::class        => NotFoundException::class,
         MethodNotAllowedHttpException::class   => NotAllowedException::class,
         BadRequestHttpException::class         => BadRequestException::class,
-        RequestExceptionInterface::class       => BadRequestException::class,
         LaravelUnauthorizedException::class    => ForbiddenException::class,
-        AuthorizationException::class          => ForbiddenException::class,
         AccessDeniedHttpException::class       => ForbiddenException::class,
         AuthenticationException::class         => UnauthenticatedException::class,
-        LaravelTokenMismatchException::class   => TokenMismatchException::class,
         ValidationException::class             => InvalidInputException::class,
         TooManyRequestsHttpException::class    => TooManyRequestsException::class,
         LockUnavailableException::class        => TooManyRequestsException::class,
@@ -62,11 +56,38 @@ final readonly class ExceptionMap
         SymfonyHttpExceptionInterface::class   => HttpException::class,
     ];
 
+    /** The types Laravel converts before rendering, so a key of one never matches */
+    private const array PREPARED = [
+        BackedEnumCaseNotFoundException::class,
+        ModelNotFoundException::class,
+        AuthorizationException::class,
+        OriginMismatchException::class,
+        LaravelTokenMismatchException::class,
+        RequestExceptionInterface::class,
+        RecordNotFoundException::class,
+        RecordsNotFoundException::class,
+    ];
+
+    /** The exception each status stands for when an HTTP exception carries only that status */
+    private const array STATUS_SOURCES = [
+        400 => BadRequestHttpException::class,
+        401 => AuthenticationException::class,
+        403 => AccessDeniedHttpException::class,
+        404 => NotFoundHttpException::class,
+        405 => MethodNotAllowedHttpException::class,
+        413 => PostTooLargeException::class,
+        429 => TooManyRequestsHttpException::class,
+        503 => ServiceUnavailableHttpException::class,
+    ];
+
     /** The message for a setting that is not an array */
     private const string SETTING_MESSAGE = 'The api-toolkit.exceptions.map setting must be an array of ApiException classes keyed by the exception class they replace.';
 
     /** The message for a key that cannot be mapped */
     private const string KEY_MESSAGE = 'The api-toolkit.exceptions.map key [%s] must be an interface or a Throwable class, and not an ApiException.';
+
+    /** The message for a key Laravel converts before rendering */
+    private const string PREPARED_MESSAGE = 'The api-toolkit.exceptions.map key [%s] never matches: Laravel converts it before rendering, so map the exception it becomes.';
 
     /** The message for a target the handler cannot render */
     private const string TARGET_MESSAGE = 'The api-toolkit.exceptions.map target [%s] for [%s] must be an instantiable ApiException with a CODE, a 4xx or 5xx status, '
@@ -120,6 +141,20 @@ final readonly class ExceptionMap
         }
 
         return UnhandledException::class;
+    }
+
+    /**
+     * Resolve the API exception class an HTTP exception carrying only the given
+     * status renders as, if a built-in key stands for that status.
+     *
+     * @param  int  $status
+     * @return class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>|null
+     */
+    public function targetForStatus(int $status): ?string
+    {
+        $source = self::STATUS_SOURCES[$status] ?? null;
+
+        return $source === null ? null : $this->targetFor($source);
     }
 
     /**
@@ -224,7 +259,28 @@ final readonly class ExceptionMap
             throw new InvalidExceptionMapException(sprintf(self::KEY_MESSAGE, $source), previous: $failure);
         }
 
+        if (self::isPrepared($source)) {
+            throw new InvalidExceptionMapException(sprintf(self::PREPARED_MESSAGE, $source));
+        }
+
         return $source;
+    }
+
+    /**
+     * Determine whether Laravel converts the given type before rendering.
+     *
+     * @param  string  $source
+     * @return bool
+     */
+    private static function isPrepared(string $source): bool
+    {
+        foreach (self::PREPARED as $prepared) {
+            if (is_a($source, $prepared, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

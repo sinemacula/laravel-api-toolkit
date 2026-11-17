@@ -4,6 +4,10 @@
     bootstrap="tests/bootstrap.php"
     colors="true"
     cacheDirectory=".phpunit.cache"
+    executionOrder="random"
+    failOnDeprecation="true"
+    failOnPhpunitDeprecation="true"
+    failOnWarning="true"
 >
     <testsuites>
         <testsuite name="Unit">
@@ -23,6 +27,7 @@
             coercion, which turns a bare "false" into an empty string.
         -->
         <env name="API_TOOLKIT_RESOURCES_VALIDATE_SCHEMAS" value="(false)"/>
+        <env name="TESTBENCH_CONVERT_DEPRECATIONS_TO_EXCEPTIONS" value="(true)"/>
     </php>
     <source>
         <include>

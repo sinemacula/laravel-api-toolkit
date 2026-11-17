@@ -45,4 +45,14 @@ final class Organization extends Model
     {
         return $this->hasManyThrough(Post::class, User::class);
     }
+
+    /**
+     * Get the organization's users visible to the current tenant.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\TenantUser, $this>
+     */
+    public function members(): HasMany
+    {
+        return $this->hasMany(TenantUser::class);
+    }
 }

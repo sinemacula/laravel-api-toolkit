@@ -7,13 +7,13 @@ namespace Tests\Integration\Resources;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
@@ -33,6 +33,8 @@ use Tests\TestCase;
 #[CoversClass(EagerLoadPlanner::class)]
 final class ConstrainedRelationQueryBoundTest extends TestCase
 {
+    use RecordsStatements;
+
     /** @var string The route URI used to exercise the test endpoint. */
     private const string TEST_URL = '/test';
 
@@ -64,8 +66,6 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
      * Test that the constrained relation loads once and applies its constraint.
      *
      * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function testConstrainedRelationLoadsOnceAndAppliesTheConstraint(): void
     {
@@ -81,8 +81,8 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
 
         $large = $this->fetchAndSerialise();
 
-        self::assertSame($small['queries'], $large['queries']);
-        self::assertSame(self::EXPECTED_QUERIES, $large['queries']);
+        self::assertStatementCount(self::EXPECTED_QUERIES, $small['statements']);
+        self::assertStatementCount(self::EXPECTED_QUERIES, $large['statements']);
 
         // Only published posts hydrated, so the constraint applied
         /** @var list<array<string, mixed>> $posts */
@@ -98,30 +98,25 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
     }
 
     /**
-     * Fetch and serialise the users under a query log.
+     * Fetch and serialise the users, recording every statement the pass runs.
      *
-     * @return array{queries: int, first: array<string, mixed>}
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     * @return array{statements: list<string>, first: array<string, mixed>}
      */
     private function fetchAndSerialise(): array
     {
-        DB::enableQueryLog();
+        $json = '';
 
-        $users = $this->applyUserCriteria()->get();
-        $data  = ConstrainedUserResource::collection($users)->resolve(Request::create(self::TEST_URL));
-
-        $queries = count(DB::getQueryLog());
-
-        DB::disableQueryLog();
-        DB::flushQueryLog();
-
-        $decoded = json_decode((string) json_encode($data), true);
+        $statements = $this->recordStatements(function () use (&$json): void {
+            $users = $this->applyUserCriteria()->get();
+            $json  = (string) json_encode(ConstrainedUserResource::collection($users)->resolve(Request::create(self::TEST_URL)));
+        });
 
         /** @var array<int, array<string, mixed>> $decoded */
+        $decoded = json_decode($json, true);
+
         return [
-            'queries' => $queries,
-            'first'   => $decoded[0] ?? [],
+            'statements' => $statements,
+            'first'      => $decoded[0] ?? [],
         ];
     }
 
