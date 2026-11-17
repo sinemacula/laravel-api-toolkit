@@ -19,6 +19,7 @@ use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Queue\Events\JobAttempted;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobTimedOut;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Event;
@@ -1482,6 +1483,8 @@ final class ApiServiceProviderTest extends TestCase
     {
         self::assertTrue($this->hasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
         self::assertTrue($this->hasSubscriberListener(CommandFinished::class, WritePoolFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(JobAttempted::class, WritePoolFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(JobTimedOut::class, WritePoolFlushSubscriber::class));
     }
 
     /**
