@@ -29,9 +29,11 @@ final class RuntimeContext
 
     /**
      * Determine whether a job on the given connection runs in a real queue
-     * worker, which is any connection with a non-sync driver.
+     * worker, which is any connection whose driver does not run the job inside
+     * the current request.
      *
-     * A worker started without a connection name runs the default one.
+     * A worker started without a connection name runs the default one. The
+     * deferred driver runs the job after the response, in the same process.
      *
      * @param  string|null  $connection
      * @return bool
@@ -46,6 +48,6 @@ final class RuntimeContext
             return false;
         }
 
-        return $driver !== 'sync';
+        return !in_array($driver, ['sync', 'deferred'], true);
     }
 }

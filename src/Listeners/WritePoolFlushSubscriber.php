@@ -5,11 +5,11 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Listeners;
 
 use Illuminate\Console\Events\CommandFinished;
-use Illuminate\Contracts\Container\Container;
+use Illuminate\Container\Container;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Http\Events\RequestHandled;
-use Illuminate\Queue\Events\JobFailed;
-use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobAttempted;
+use Illuminate\Queue\Events\JobTimedOut;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Exceptions\FailureReporter;
@@ -17,25 +17,14 @@ use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 
 /**
- * Flushes the deferred write pool at request, command and job boundaries.
+ * Flushes the deferred write pool at the end of every request, command and
+ * queue job attempt.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class WritePoolFlushSubscriber
 {
-    /**
-     * Create a new write pool flush subscriber instance.
-     *
-     * @param  \Illuminate\Contracts\Container\Container  $container
-     * @return void
-     */
-    public function __construct(
-
-        /** The container used to resolve the write pool */
-        private Container $container,
-    ) {}
-
     /**
      * Register the listeners for the subscriber.
      *
@@ -46,15 +35,17 @@ final readonly class WritePoolFlushSubscriber
     {
         $events->listen(RequestHandled::class, [$this, 'handleFlush']);
         $events->listen(CommandFinished::class, [$this, 'handleFlush']);
-        $events->listen(JobProcessed::class, [$this, 'handleFlush']);
-        $events->listen(JobFailed::class, [$this, 'handleFlush']);
+        $events->listen(JobAttempted::class, [$this, 'handleFlush']);
+        $events->listen(JobTimedOut::class, [$this, 'handleFlush']);
     }
 
     /**
      * Flush the write pool and escalate any failures.
      *
-     * The pool is resolved at event time to get Octane's scoped instance. A
-     * flush exception is re-thrown only when rethrow_at_boundary is enabled.
+     * The pool is resolved from the current container, which under Octane is
+     * the request's sandbox. Every queue job attempt is flushed, including a
+     * released or timed-out one. A flush exception is re-thrown only when
+     * rethrow_at_boundary is enabled.
      *
      * @return void
      *
@@ -63,7 +54,7 @@ final readonly class WritePoolFlushSubscriber
     public function handleFlush(): void
     {
         try {
-            $flushResult = $this->container->make(WritePool::class)->flush();
+            $flushResult = Container::getInstance()->make(WritePool::class)->flush();
         } catch (WritePoolFlushException $exception) {
             $this->escalateThrown($exception);
 
