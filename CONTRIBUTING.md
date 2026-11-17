@@ -63,7 +63,7 @@ Run the full test suite before submitting:
 composer test                 # Run the test suite in parallel using Paratest
 composer test:coverage        # With clover coverage report
 composer test:mutation        # Mutation gate scoped to your diff against master
-composer test:mutation:full   # Full mutation run, no threshold
+composer test:mutation:full   # Full mutation run against a 95 MSI floor
 ```
 
 Single test file or method:
@@ -71,6 +71,12 @@ Single test file or method:
 ```bash
 vendor/bin/phpunit tests/Unit/ApiQueryParserTest.php
 vendor/bin/phpunit --filter testMethodName tests/Unit/SomeTest.php
+```
+
+Tests run in random order, and a deprecation fails the run. Replay a failing order serially with the seed the run printed:
+
+```bash
+vendor/bin/phpunit --order-by=random --random-order-seed=1234
 ```
 
 ### Benchmarks

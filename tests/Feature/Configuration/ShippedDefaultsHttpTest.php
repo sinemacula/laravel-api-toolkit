@@ -7,7 +7,6 @@ namespace Tests\Feature\Configuration;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Notifications\AnonymousNotifiable;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
@@ -240,6 +239,15 @@ final class ShippedDefaultsHttpTest extends ShippedDefaultsTestCase
             $logged[] = [$event->level, $event->message, $event->context];
         });
 
+        Notifier::extend('recorded', static fn (): object => new class {
+            /**
+             * Accept the notification without delivering it anywhere.
+             *
+             * @return void
+             */
+            public function send(): void {}
+        });
+
         $notification = new class extends Notification {
             /**
              * Get the notification's delivery channels.
@@ -248,23 +256,13 @@ final class ShippedDefaultsHttpTest extends ShippedDefaultsTestCase
              */
             public function via(): array
             {
-                return ['mail'];
-            }
-
-            /**
-             * Get the mail representation of the notification.
-             *
-             * @return \Illuminate\Notifications\Messages\MailMessage
-             */
-            public function toMail(): MailMessage
-            {
-                return (new MailMessage)->line('Deployed');
+                return ['recorded'];
             }
         };
 
-        Notifier::route('mail', 'ops@example.com')->notify($notification);
+        Notifier::route('recorded', 'ops')->notify($notification);
 
-        $context = ['notification' => $notification::class, 'notifiable_type' => AnonymousNotifiable::class, 'channel' => 'mail'];
+        $context = ['notification' => $notification::class, 'notifiable_type' => AnonymousNotifiable::class, 'channel' => 'recorded'];
 
         self::assertSame([
             ['debug', 'Notification Sending', $context],
