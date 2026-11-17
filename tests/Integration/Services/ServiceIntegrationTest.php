@@ -84,7 +84,8 @@ final class ServiceIntegrationTest extends TestCase
     }
 
     /**
-     * Test that a service with transactions disabled skips the transaction.
+     * Test that a service with transactions disabled runs handle() at the
+     * caller's transaction level.
      *
      * @return void
      */
@@ -95,6 +96,44 @@ final class ServiceIntegrationTest extends TestCase
 
         self::assertTrue($result->succeeded());
         self::assertTrue($service->afterCommitCalled);
+        self::assertSame(DB::transactionLevel(), $service->level);
+    }
+
+    /**
+     * Test that a service run inside a transaction of the test defers
+     * afterCommit() until that transaction commits.
+     *
+     * @return void
+     */
+    public function testNestedRunDefersAfterCommitUntilTheTransactionCommits(): void
+    {
+        $service = new SimpleService;
+
+        DB::transaction(static function () use ($service): void {
+            self::assertTrue($service->run()->succeeded());
+            self::assertFalse($service->afterCommitCalled);
+        });
+
+        self::assertTrue($service->afterCommitCalled);
+    }
+
+    /**
+     * Test that a service run inside a transaction of the test skips
+     * afterCommit() when that transaction rolls back.
+     *
+     * @return void
+     */
+    public function testNestedRunSkipsAfterCommitWhenTheTransactionRollsBack(): void
+    {
+        $service = new SimpleService;
+
+        DB::beginTransaction();
+
+        self::assertTrue($service->run()->succeeded());
+
+        DB::rollBack();
+
+        self::assertFalse($service->afterCommitCalled);
     }
 
     /**

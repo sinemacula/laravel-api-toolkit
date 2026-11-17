@@ -130,6 +130,9 @@ final readonly class ServiceResult
     /**
      * Return the side-effect errors from afterCommit processing.
      *
+     * Empty on the result of a run inside a caller's transaction, whose
+     * afterCommit runs at the outermost commit; ServiceCompleted carries them.
+     *
      * @return array<int, \Throwable>
      */
     public function sideEffectErrors(): array

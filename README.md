@@ -691,6 +691,72 @@ failed-job storage or console output. Reporting is decided after any `$exception
 Request input is not attached to exception reports. Add the fields you want with your own `$exceptions->context()`
 callback.
 
+### Controllers and Authorization
+
+`SineMacula\ApiToolkit\Http\Routing\Controller` provides the response helpers: `respondWithData()` wraps an array in
+`data`, and `respondWithItem()` and `respondWithCollection()` render a resource or a collection. Each takes an optional
+`HttpStatus` and headers.
+
+`AuthorizedController` extends it with resource authorization. Declare the model with `#[AuthorizesResource]`:
+
+```php
+use SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource;
+use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
+
+#[AuthorizesResource(Order::class)]
+final class OrderController extends AuthorizedController {}
+```
+
+Each resource action is gated by a `can:` middleware for its policy ability:
+
+| Action         | Ability       | Checked against |
+|----------------|---------------|-----------------|
+| `index`        | `viewAny`     | the model class |
+| `store`        | `create`      | the model class |
+| `show`         | `view`        | the bound model |
+| `update`       | `update`      | the bound model |
+| `destroy`      | `delete`      | the bound model |
+| `restore`      | `restore`     | the bound model |
+| `forceDestroy` | `forceDelete` | the bound model |
+
+The bound model is read from the route parameter named after the model's snake-cased basename, so `LedgerEntry` reads
+`{ledger_entry}`, as `Route::apiResource('ledger-entries', ...)` names it. `parameter` names another, used verbatim. A
+parameter the route does not bind passes the gate no model, so the model's policy is never consulted. `except` lists
+actions to leave ungated.
+
+`apiResource()` does not route `restore` or `forceDestroy`. Route them with `withTrashed()`, or implicit binding answers
+`404` for a trashed row before the gate runs:
+
+```php
+Route::post('orders/{order}/restore', [OrderController::class, 'restore'])->withTrashed();
+Route::delete('orders/{order}/force', [OrderController::class, 'forceDestroy'])->withTrashed();
+```
+
+Any other routed action declares its own authorization, by default with Laravel's `#[Authorize]` on the method or the
+class. `->can()` on the route and a `can:` in its group count too:
+
+```php
+use Illuminate\Routing\Attributes\Controllers\Authorize;
+
+#[Authorize('update', 'order')]
+public function publish(Order $order): JsonResponse
+```
+
+Two markers take an action out of the toolkit's gating:
+
+- `#[CustomAuthorization]` - the action authorizes itself, through `$this->authorize()`, a form request or a service.
+  The export documents its `403`. Nothing verifies the check.
+- `#[SkipAuthorization]` - the action is open to any caller past authentication, and adds no `403` to the export. A
+  gate the route declares itself still runs.
+
+An action that declares none of these, and is not in `except`, fails closed: the request is refused before the action
+runs with a `LogicException`, reported and rendered as a `500`. So is a resource action whose gate is removed with
+`withoutMiddleware('can')`. The guard checks that a gate is declared, not that it is the right one, and only Laravel's
+`Authorize` middleware counts: mark an action behind authorization middleware of your own `#[CustomAuthorization]`.
+
+The controller authorizes but does not authenticate: a guest reaches the gate, and a policy that does not accept guests
+denies it with a `403`. Put the routes behind `auth` to answer `401` first.
+
 ### Middleware
 
 The service provider registers the following middleware. Each can be disabled in `api-toolkit.middleware`:
@@ -774,14 +840,14 @@ document cannot offer a column the request would reject or an operator that is n
 operators have all been removed from the registry is documented as answering no filter.
 
 Every operation also lists the errors it can return, derived from the route: an unauthenticated request behind auth
-middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, or an
-`AuthorizedController` action), a missing record when the path has parameters, a validation failure when the operation
-accepts a request body, a refusal behind a rate limit, and an unhandled exception always. Each is documented as the
-exception map renders it: by default a `401`, `403`, `404`, `422`, `429` and `500`. The unhandled exception is looked up
-as a `Throwable`, so a `Throwable` key changes it and a narrower catch-all such as `RuntimeException` does not. A failed
-basic-auth challenge and an authorization denied with an explicit status render as a generic HTTP error, which the
-document does not describe. Middleware is read as the router resolves it, so a guard or limit applied through a group
-counts and one removed with `withoutMiddleware()` does not.
+middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
+`AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the path
+has parameters, a validation failure when the operation accepts a request body, a refusal behind a rate limit, and an
+unhandled exception always. Each is documented as the exception map renders it: by default a `401`, `403`, `404`, `422`,
+`429` and `500`. The unhandled exception is looked up as a `Throwable`, so a `Throwable` key changes it and a narrower
+catch-all such as `RuntimeException` does not. A failed basic-auth challenge and an authorization denied with an
+explicit status render as a generic HTTP error, which the document does not describe. Middleware is read as the router
+resolves it, so a guard or limit applied through a group counts and one removed with `withoutMiddleware()` does not.
 
 Each `ApiException` subclass named in the action's `@throws` tags is added under its status too; other throwables in
 those tags are ignored. Class names in `@throws` resolve as PHP would in the file declaring the action, so imported,
@@ -1099,7 +1165,7 @@ store. Each attempt runs the whole lifecycle, firing `onFailure()` and `ServiceF
 #### Transactions
 
 `$transactional` (default `true`) wraps the concerns, `prepare()` and `handle()` in a database transaction, and
-`afterCommit()` runs once the service's own transaction has committed. The transaction runs once: a deadlock or other
+`afterCommit()` runs once the outermost transaction has committed. The transaction runs once: a deadlock or other
 concurrency error rolls it back and fails the run, firing `onFailure()` and `ServiceFailed`.
 
 `$transactionAttempts` (default `1`) lets a top-level run retry a concurrency error. Each retry re-runs the concerns,
@@ -1140,6 +1206,18 @@ For any other service, retry the call rather than the transaction: run `Service:
 input, or `dispatch()` it and let the worker retry per `--tries`. Each worker attempt starts from the dispatch-time
 input rather than the previous attempt's models, but models nested in an `ArrayInput` or `Payload` are not re-fetched,
 so pass keys and keep external effects idempotent.
+
+A service run inside a caller's transaction (another service, a `DB::transaction()` or a job that opens one) commits
+only a savepoint, so its lock, `afterCommit()` and `ServiceCompleted` wait for the outermost commit, and a rollback
+releases the lock and runs neither. A `$transactional = false` service behaves the same. The result `run()` returns
+there has empty `sideEffectErrors()`; errors from `afterCommit()` are reported and carried on the `ServiceCompleted`
+result. A `ServiceCompleted` or `ServiceFailed` listener exception is reported, never thrown.
+
+The lock is held for the rest of the caller's transaction, so `$lockExpiration` must cover it, and a second run with the
+same lock key inside it fails with `LockUnavailableException`. Queue follow-up work from `afterCommit()`, which runs
+once, after the attempt that commits, and never after a rollback. `dispatch()` from `handle()` pushes at once unless the
+queue connection sets `after_commit`, so the job can run for a write that never commits. Transactions interleaved on two
+connections are not supported: the deferred work attaches to the most recent open transaction on any connection.
 
 #### Reading the Run Context
 

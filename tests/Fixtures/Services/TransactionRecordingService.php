@@ -7,10 +7,11 @@ namespace Tests\Fixtures\Services;
 use Illuminate\Support\Facades\DB;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
+use SineMacula\ApiToolkit\Services\ServiceContext;
 
 /**
  * Fixture service that runs a given body as handle(), recording the transaction
- * level of each attempt and whether afterCommit() ran.
+ * level of each attempt and of each afterCommit() run.
  *
  * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Input\ArrayInput, mixed>
  *
@@ -22,8 +23,14 @@ final class TransactionRecordingService extends Service
     /** @var array<int, int> The transaction level seen by each attempt */
     public array $levels = [];
 
-    /** @var bool Whether afterCommit() ran */
-    public bool $committed = false;
+    /** @var array<int, int> The transaction level seen by each afterCommit() run */
+    public array $commitLevels = [];
+
+    /** @var \SineMacula\ApiToolkit\Services\ServiceContext|null The context afterCommit() read */
+    public ?ServiceContext $commitContext = null;
+
+    /** @var (\Closure(): void)|null Work afterCommit() runs once it has recorded */
+    public ?\Closure $onCommit = null;
 
     /** @var \Closure(): mixed The body run as handle() */
     private readonly \Closure $body;
@@ -33,13 +40,15 @@ final class TransactionRecordingService extends Service
      *
      * @param  \Closure(): mixed  $body
      * @param  int|null  $attempts
+     * @param  bool  $transactional
      */
-    public function __construct(\Closure $body, ?int $attempts = null)
+    public function __construct(\Closure $body, ?int $attempts = null, bool $transactional = true)
     {
         parent::__construct(new ArrayInput([]));
 
         $this->body                = $body;
         $this->transactionAttempts = $attempts ?? $this->transactionAttempts;
+        $this->transactional       = $transactional;
     }
 
     /**
@@ -56,7 +65,7 @@ final class TransactionRecordingService extends Service
     }
 
     /**
-     * Record that the transaction committed.
+     * Record the transaction level and context, then run the commit work.
      *
      * @SuppressWarnings("php:S1172")
      *
@@ -66,6 +75,13 @@ final class TransactionRecordingService extends Service
     #[\Override]
     protected function afterCommit(mixed $output): void
     {
-        $this->committed = true;
+        $this->commitLevels[] = DB::transactionLevel();
+        $this->commitContext  = $this->context();
+
+        if ($this->onCommit === null) {
+            return;
+        }
+
+        ($this->onCommit)();
     }
 }

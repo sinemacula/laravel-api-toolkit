@@ -20,6 +20,8 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
+use Tests\Fixtures\Controllers\ClassAuthorizedController;
+use Tests\Fixtures\Controllers\CustomActionController;
 use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathPlainController;
@@ -114,6 +116,34 @@ final class ErrorResponseBuilderTest extends TestCase
     public function testAuthorizeAttributeDocumentsForbidden(): void
     {
         self::assertSame([403, 500], array_keys($this->build($this->router()->get('report', [PathRouteFactsController::class, 'report']))));
+    }
+
+    /**
+     * Test that an action authorizing itself documents the forbidden status
+     * though no gate is routed.
+     *
+     * @return void
+     */
+    public function testCustomAuthorizationDocumentsForbidden(): void
+    {
+        self::assertSame([403, 404, 500], array_keys($this->build($this->router()->post('users/{user}/lock', [CustomActionController::class, 'lock']))));
+    }
+
+    /**
+     * Test that the custom actions of an authorized controller document the
+     * forbidden status only when they declare a gate.
+     *
+     * @return void
+     */
+    public function testAuthorizedControllerCustomActionsDocumentForbiddenOnlyWhenGated(): void
+    {
+        $gated   = $this->build($this->router()->post('users/{user}/approve', [CustomActionController::class, 'approve']));
+        $skipped = $this->build($this->router()->get('ping', [ClassAuthorizedController::class, 'ping']));
+        $guarded = $this->build($this->router()->post('users/{user}/publish', [CustomActionController::class, 'publish']));
+
+        self::assertSame([403, 404, 500], array_keys($gated));
+        self::assertSame([500], array_keys($skipped));
+        self::assertSame([404, 500], array_keys($guarded));
     }
 
     /**

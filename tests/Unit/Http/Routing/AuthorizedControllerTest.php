@@ -7,13 +7,18 @@ namespace Tests\Unit\Http\Routing;
 use Illuminate\Routing\Controllers\Middleware;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Http\Middleware\EnsureActionIsAuthorized;
 use SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource;
+use SineMacula\ApiToolkit\Http\Routing\Attributes\CustomAuthorization;
 use SineMacula\ApiToolkit\Http\Routing\Attributes\SkipAuthorization;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\ApiToolkit\Http\Routing\Controller;
+use Tests\Fixtures\Controllers\ClassAuthorizedController;
+use Tests\Fixtures\Controllers\CustomActionController;
 use Tests\Fixtures\Controllers\SkipAuthorizationController;
 use Tests\Fixtures\Controllers\TestingAuthorizedController;
 use Tests\Fixtures\Controllers\TestingMinimalAuthorizedController;
+use Tests\Fixtures\Models\LedgerEntry;
 use Tests\Fixtures\Models\User;
 
 /**
@@ -70,7 +75,8 @@ final class AuthorizedControllerTest extends TestCase
     }
 
     /**
-     * Test that middleware emits the exact gate check set for the full fixture.
+     * Test that middleware emits the exact gate check set for the full fixture,
+     * with no gate for the form actions an API never routes.
      *
      * @return void
      */
@@ -79,10 +85,74 @@ final class AuthorizedControllerTest extends TestCase
         $indexed = $this->indexByDefinition(TestingAuthorizedController::middleware());
 
         self::assertSame([
-            'can:create,' . User::class => ['create', 'store'],
-            'can:update,user'           => ['edit', 'update'],
+            'can:create,' . User::class => ['store'],
+            'can:update,user'           => ['update'],
             'can:delete,user'           => ['destroy'],
+            'can:restore,user'          => ['restore'],
+            'can:forceDelete,user'      => ['forceDestroy'],
         ], $indexed);
+    }
+
+    /**
+     * Test that the guard follows the gates, excluding the except list and the
+     * marked actions.
+     *
+     * @return void
+     */
+    public function testMiddlewareGuardsEveryActionOutsideTheExclusions(): void
+    {
+        self::assertSame(['index', 'show'], $this->guardOf(TestingAuthorizedController::middleware())->except);
+        self::assertSame(['show'], $this->guardOf(SkipAuthorizationController::middleware())->except);
+        self::assertSame(['lock'], $this->guardOf(CustomActionController::middleware())->except);
+    }
+
+    /**
+     * Test that the guard covers every action when nothing is excluded.
+     *
+     * @return void
+     */
+    public function testMiddlewareGuardIsUnrestrictedWithoutExclusions(): void
+    {
+        $guard = $this->guardOf(TestingMinimalAuthorizedController::middleware());
+
+        self::assertNull($guard->only);
+        self::assertSame([], $guard->except);
+    }
+
+    /**
+     * Test that a #[CustomAuthorization] action leaves its mapped gate and the
+     * guard, as a #[SkipAuthorization] one does.
+     *
+     * @return void
+     */
+    public function testMiddlewareHonoursCustomAuthorization(): void
+    {
+        $controller = new #[AuthorizesResource(User::class)] class extends AuthorizedController {
+            /**
+             * Update, authorized inline.
+             *
+             * @return void
+             */
+            #[CustomAuthorization]
+            public function update(): void {}
+        };
+
+        $middleware = $controller::middleware();
+        $indexed    = $this->indexByDefinition($middleware);
+
+        self::assertArrayNotHasKey('can:update,user', $indexed);
+        self::assertArrayHasKey('can:delete,user', $indexed);
+        self::assertSame(['update'], $this->guardOf($middleware)->except);
+    }
+
+    /**
+     * Test that a marked action inherited from a base controller is excluded.
+     *
+     * @return void
+     */
+    public function testMiddlewareExcludesAnInheritedMarkedAction(): void
+    {
+        self::assertSame(['ping'], $this->guardOf(ClassAuthorizedController::middleware())->except);
     }
 
     /**
@@ -139,9 +209,24 @@ final class AuthorizedControllerTest extends TestCase
     {
         $indexed = $this->indexByDefinition(TestingMinimalAuthorizedController::middleware());
 
-        self::assertSame(['edit', 'update'], $indexed['can:update,user'] ?? null);
+        self::assertSame(['update'], $indexed['can:update,user'] ?? null);
         self::assertSame(['destroy'], $indexed['can:delete,user'] ?? null);
         self::assertSame(['index'], $indexed['can:viewAny,' . User::class] ?? null);
+    }
+
+    /**
+     * Test that a multi-word model derives the snake-cased parameter a resource
+     * route generates for it.
+     *
+     * @return void
+     */
+    public function testMiddlewareDerivesSnakeCasedParameterForMultiWordModel(): void
+    {
+        $controller = new #[AuthorizesResource(LedgerEntry::class)] class extends AuthorizedController {};
+
+        $indexed = $this->indexByDefinition($controller::middleware());
+
+        self::assertSame(['update'], $indexed['can:update,ledger_entry'] ?? null);
     }
 
     /**
@@ -240,7 +325,7 @@ final class AuthorizedControllerTest extends TestCase
     }
 
     /**
-     * Index the controller middleware by its definition string, mapping each to
+     * Index the controller's gates by their definition string, mapping each to
      * its only-list.
      *
      * @param  array<int, \Illuminate\Routing\Controllers\Middleware>  $middleware
@@ -254,9 +339,29 @@ final class AuthorizedControllerTest extends TestCase
             self::assertInstanceOf(Middleware::class, $entry);
             self::assertIsString($entry->middleware);
 
+            if ($entry->middleware === EnsureActionIsAuthorized::class) {
+                continue;
+            }
+
             $indexed[$entry->middleware] = $entry->only ?? [];
         }
 
         return $indexed;
+    }
+
+    /**
+     * Return the guard, which must be the last of the controller's middleware.
+     *
+     * @param  array<int, \Illuminate\Routing\Controllers\Middleware>  $middleware
+     * @return \Illuminate\Routing\Controllers\Middleware
+     */
+    private function guardOf(array $middleware): Middleware
+    {
+        $guard = end($middleware);
+
+        self::assertInstanceOf(Middleware::class, $guard);
+        self::assertSame(EnsureActionIsAuthorized::class, $guard->middleware);
+
+        return $guard;
     }
 }

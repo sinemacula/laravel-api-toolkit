@@ -5,9 +5,11 @@ declare(strict_types = 1);
 namespace Tests\Unit\Services;
 
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Exceptions\LockOperationException;
@@ -19,6 +21,7 @@ use SineMacula\ApiToolkit\Services\Events\ServiceFailed;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceContext;
+use SineMacula\ApiToolkit\Services\ServiceResult;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Concerns\SwapsExceptionHandler;
 use Tests\Fixtures\Exceptions\ServiceExecutionException;
@@ -29,6 +32,8 @@ use Tests\Fixtures\Services\Input\SensitiveInput;
 use Tests\Fixtures\Services\OutputService;
 use Tests\Fixtures\Services\StubActor;
 use Tests\Fixtures\Services\TransactionAttemptsService;
+use Tests\Fixtures\Services\TransactionRecordingService;
+use Tests\Fixtures\Services\ValidatingUserService;
 use Tests\TestCase;
 
 /**
@@ -196,11 +201,12 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that an onFailure throw does not mask the original failure.
+     * Test that onFailure runs and its throw does not mask the original
+     * failure.
      *
      * @return void
      */
-    public function testOnFailureRunsAfterRollbackAndItsThrowIsCaught(): void
+    public function testOnFailureRunsAndItsThrowDoesNotMaskTheFailure(): void
     {
         $service = new class (new ArrayInput([])) extends Service {
             /** @var bool */
@@ -897,21 +903,63 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that the dispatched event carries the elapsed duration.
+     * Test that the completed event's duration covers the pipeline but not
+     * afterCommit().
      *
      * @return void
      */
-    public function testDispatchedEventCarriesElapsedDuration(): void
+    public function testCompletedEventDurationCoversThePipelineButNotAfterCommit(): void
     {
         Event::fake();
 
-        $service = new OutputService(new ArrayInput(['message' => 'x']));
+        $service = new TransactionRecordingService(static function (): string {
+            usleep(20000);
+
+            return 'done';
+        });
+
+        $committedAt = 0.0;
+
+        $service->onCommit = static function () use (&$committedAt): void {
+            $committedAt = microtime(true);
+
+            usleep(50000);
+        };
+
+        $start = microtime(true);
 
         (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
 
         Event::assertDispatched(
             ServiceCompleted::class,
-            static fn (ServiceCompleted $event): bool => $event->duration >= 0.0 && $event->duration < 3600.0,
+            static fn (ServiceCompleted $event): bool => $event->duration >= 0.02 && $event->duration <= $committedAt - $start,
+        );
+    }
+
+    /**
+     * Test that the failed event carries the elapsed duration in seconds.
+     *
+     * @return void
+     */
+    public function testFailedEventCarriesTheElapsedDurationInSeconds(): void
+    {
+        Event::fake();
+
+        $service = new TransactionRecordingService(static function (): never {
+            usleep(20000);
+
+            throw new ServiceExecutionException('failed');
+        });
+
+        $start = microtime(true);
+
+        (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
+
+        $elapsed = microtime(true) - $start;
+
+        Event::assertDispatched(
+            ServiceFailed::class,
+            static fn (ServiceFailed $event): bool => $event->duration >= 0.02 && $event->duration <= $elapsed,
         );
     }
 
@@ -1020,25 +1068,117 @@ final class ServiceRunnerTest extends TestCase
     }
 
     /**
-     * Test that the run context is unbound even when a listener throws.
+     * Test that a throwing ServiceCompleted listener is reported, and the run
+     * succeeds with its context unbound.
      *
      * @return void
      */
-    public function testRunUnbindsTheContextWhenAnEventListenerThrows(): void
+    public function testCompletedListenerThrowIsReportedAndTheRunSucceeds(): void
     {
-        Event::listen(ServiceCompleted::class, static function (): never {
-            throw new \RuntimeException('listener-error');
+        Exceptions::fake();
+
+        $error = new \RuntimeException('listener-error');
+
+        Event::listen(ServiceCompleted::class, static function () use ($error): never {
+            throw $error;
         });
 
         $service = new ContextRecordingService(new ArrayInput([]));
 
-        $this->assertThrows(
-            static fn () => (new ServiceRunner)->run($service, ServiceContext::for(new StubActor)),
-            \RuntimeException::class,
-            'listener-error',
-        );
-
+        self::assertTrue((new ServiceRunner)->run($service, ServiceContext::for(new StubActor))->succeeded());
         self::assertNull($service->bindRunContext(null));
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(static fn (\RuntimeException $e): bool => $e === $error);
+    }
+
+    /**
+     * Test that a throwing ServiceFailed listener is reported, and the run
+     * keeps its original failure.
+     *
+     * @return void
+     */
+    public function testFailedListenerThrowIsReportedAndTheOriginalFailureStands(): void
+    {
+        Exceptions::fake();
+
+        $error = new \RuntimeException('listener-error');
+
+        Event::listen(ServiceFailed::class, static function () use ($error): never {
+            throw $error;
+        });
+
+        $result = (new ServiceRunner)->run(new ValidatingUserService(new ArrayInput(['age' => 30])), ServiceContext::for(new StubActor));
+
+        self::assertInstanceOf(ValidationException::class, $result->exception);
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(static fn (\RuntimeException $e): bool => $e === $error);
+    }
+
+    /**
+     * Test that a run inside a caller's transaction defers afterCommit() and
+     * ServiceCompleted until the caller commits, rebinding the run context for
+     * the hook and carrying its side-effect errors on the event.
+     *
+     * @return void
+     */
+    public function testNestedRunDefersItsSideEffectsUntilTheCallerCommits(): void
+    {
+        Exceptions::fake();
+
+        $completed = [];
+
+        Event::listen(ServiceCompleted::class, static function (ServiceCompleted $event) use (&$completed): void {
+            $completed[] = $event;
+        });
+
+        $context = ServiceContext::for(new StubActor);
+        $error   = new \RuntimeException('side-effect-error');
+        $service = new TransactionRecordingService(static fn (): string => 'done');
+        $result  = null;
+
+        $service->onCommit = static fn (): never => throw $error;
+
+        DB::transaction(static function () use ($service, $context, &$result, &$completed): void {
+            $result = (new ServiceRunner)->run($service, $context);
+
+            self::assertSame([], $service->commitLevels);
+            self::assertSame([], $completed);
+        });
+
+        self::assertInstanceOf(ServiceResult::class, $result);
+        self::assertTrue($result->succeeded());
+        self::assertSame([], $result->sideEffectErrors());
+        self::assertCount(1, $service->commitLevels);
+        self::assertSame($context, $service->commitContext);
+        self::assertNull($service->bindRunContext(null));
+        self::assertCount(1, $completed);
+        self::assertSame('done', $completed[0]->result->output());
+        self::assertSame([$error], $completed[0]->result->sideEffectErrors());
+    }
+
+    /**
+     * Test that a run inside a caller's transaction that rolls back runs
+     * neither afterCommit() nor ServiceCompleted.
+     *
+     * @return void
+     */
+    public function testNestedRunSkipsItsSideEffectsWhenTheCallerRollsBack(): void
+    {
+        Event::fake([ServiceCompleted::class]);
+
+        $service = new TransactionRecordingService(static fn (): string => 'done');
+
+        DB::beginTransaction();
+
+        (new ServiceRunner)->run($service, ServiceContext::for(new StubActor));
+
+        DB::rollBack();
+
+        self::assertSame([], $service->commitLevels);
+
+        Event::assertNotDispatched(ServiceCompleted::class);
     }
 
     /**
