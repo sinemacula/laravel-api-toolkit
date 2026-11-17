@@ -4,9 +4,11 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Services\Input;
 
+use Illuminate\Foundation\Precognition;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Validator as ValidatorInstance;
 use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
 use SineMacula\ApiToolkit\Services\Input\Rules\Enum;
@@ -34,12 +36,15 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      * Validate the source against rules() and return a hydrated instance.
      *
      * Enum parameters are cast from a backed value or a lowercase case name,
-     * checked by the validator so an unmatched value fails with the rest.
+     * checked by the validator so an unmatched value fails with the rest. A
+     * precognitive request validates only the fields it names.
      *
      * @param  array<string, mixed>|\Illuminate\Http\Request  $source
      * @return static
      *
      * @throws \Illuminate\Validation\ValidationException
+     * @throws \LogicException
+     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
      */
     public static function from(array|Request $source): static
     {
@@ -47,18 +52,22 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
         $rules      = static::rules();
         $keys       = self::bodyKeys(static::class);
         $parameters = self::promotedParameters();
-        $validator  = Validator::make($data, $rules);
+        $validator  = Validator::make($data, $rules, static::messages(), static::attributes());
 
         foreach ($parameters as $name => $parameter) {
 
             $key  = $keys[$name] ?? $name;
             $enum = self::enumType($parameter);
 
-            if ($enum === null || !array_key_exists($key, $rules)) {
+            if ($enum === null || !self::isRuledWhole($rules, $name, $key)) {
                 continue;
             }
 
             $validator->addRules([$key => [new Enum($enum)]]);
+        }
+
+        if ($source instanceof Request) {
+            self::applyPrecognition($validator, $source);
         }
 
         $validated = $validator->validate();
@@ -72,7 +81,7 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
                 continue;
             }
 
-            $namedArgs[$name] = self::castValue($parameter, $validated[$key], $key);
+            $namedArgs[$name] = self::castValue($parameter, $validated[$key]);
         }
 
         $className = static::class;
@@ -113,6 +122,26 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      */
     #[\Override]
     public static function rules(): array
+    {
+        return [];
+    }
+
+    /**
+     * Return the custom validation messages for this input.
+     *
+     * @return array<string, array<string, string>|string>
+     */
+    public static function messages(): array
+    {
+        return [];
+    }
+
+    /**
+     * Return the custom attribute names for this input.
+     *
+     * @return array<string, string>
+     */
+    public static function attributes(): array
     {
         return [];
     }
@@ -259,26 +288,73 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     }
 
     /**
-     * Cast a validated value to the parameter's enum type, if it has one.
+     * Determine whether a rule reaches an enum property's body key whole, and
+     * fail when one nests under it, since the value could then name no case.
      *
-     * A key that rules() names only through nested keys never ran the enum
-     * rule, so a value that names no case is validated on its own here.
+     * Keys match as the validator expands them, so * and *.name reach every
+     * body key.
+     *
+     * @param  array<array-key, mixed>  $rules
+     * @param  string  $name
+     * @param  string  $key
+     * @return bool
+     *
+     * @throws \LogicException
+     */
+    private static function isRuledWhole(array $rules, string $name, string $key): bool
+    {
+        $ruled = false;
+
+        foreach (array_keys($rules) as $rule) {
+
+            $rule   = (string) $rule;
+            $parent = Str::before($rule, '.');
+            $prefix = Str::before($parent, '*');
+
+            // The validator only expands a wildcard below its literal prefix
+            if (!Str::is($parent, $key) || ($prefix !== '' && $prefix !== $key)) {
+                continue;
+            }
+
+            if ($parent !== $rule) {
+                throw new \LogicException(sprintf('The rule "%s" nests under %s::$%s, an enum read from the whole value', $rule, static::class, $name));
+            }
+
+            $ruled = true;
+        }
+
+        return $ruled;
+    }
+
+    /**
+     * Validate a precognitive request's named fields only, and end it with a
+     * Precognition success once they pass.
+     *
+     * @param  \Illuminate\Validation\Validator  $validator
+     * @param  \Illuminate\Http\Request  $request
+     * @return void
+     */
+    private static function applyPrecognition(ValidatorInstance $validator, Request $request): void
+    {
+        if (!$request->isPrecognitive()) {
+            return;
+        }
+
+        $validator->after(Precognition::afterValidationHook($request));
+        $validator->setRules($request->filterPrecognitiveRules($validator->getRulesWithoutPlaceholders()));
+    }
+
+    /**
+     * Cast a validated value to the parameter's enum type, if it has one.
      *
      * @param  \ReflectionParameter  $parameter
      * @param  mixed  $value
-     * @param  string  $key
      * @return mixed
-     *
-     * @throws \Illuminate\Validation\ValidationException
      */
-    private static function castValue(\ReflectionParameter $parameter, mixed $value, string $key): mixed
+    private static function castValue(\ReflectionParameter $parameter, mixed $value): mixed
     {
         $enum = self::enumType($parameter);
 
-        if ($enum === null || $value instanceof $enum) {
-            return $value;
-        }
-
-        return Enum::resolve($enum, $value) ?? Validator::make([$key => $value], [$key => [new Enum($enum)]])->validate()[$key];
+        return $enum === null || $value instanceof $enum ? $value : Enum::resolve($enum, $value);
     }
 }
