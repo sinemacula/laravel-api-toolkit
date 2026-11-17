@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\Schema\Validation\Rules;
 use Illuminate\Database\Eloquent\Model;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
@@ -26,6 +27,13 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
 {
     /** @var string The declaration a capability belongs to */
     private const string FILTERABLE = 'filterable';
+
+    /** @var string The declaration an order key belongs to */
+    private const string SORTABLE = 'sortable';
+
+    /** @var string The defect of a sortable column the relevance key shadows */
+    private const string RESERVED_DEFECT = 'Field is declared %s against "%s", which the order parameter reserves for search relevance, '
+        . 'so the column cannot be ordered by';
 
     /**
      * Create a new queryable field validation rule.
@@ -196,7 +204,7 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
         $defects  = [];
         $unproven = [];
 
-        foreach ([self::FILTERABLE => $field->filterable, 'sortable' => $field->sortable] as $declaration => $column) {
+        foreach ([self::FILTERABLE => $field->filterable, self::SORTABLE => $field->sortable] as $declaration => $column) {
 
             if ($column === null) {
                 continue;
@@ -226,8 +234,9 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
      */
     private function describeDefect(CompiledFieldDefinition $field, string $declaration, string $column, array $columns, string $table): ?string
     {
-        $dropped = $declaration === self::FILTERABLE && $field->filterCapability === null;
-        $source  = $this->resourceSource($field, $column);
+        $dropped  = $declaration === self::FILTERABLE && $field->filterCapability === null;
+        $source   = $this->resourceSource($field, $column);
+        $reserved = $declaration === self::SORTABLE && $column === OrderApplier::ORDER_BY_RELEVANCE;
 
         // An empty listing means the columns are unknown
         $unbacked = $columns !== [] && !in_array($column, $columns, true);
@@ -235,6 +244,7 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
         return match (true) {
             $dropped         => sprintf('Field is declared filterable against "%s" without a capability, so the declaration would be dropped', $column),
             $source !== null => sprintf('Field is declared %s but is %s, so there is no "%s" column to query', $declaration, $source, $column),
+            $reserved        => sprintf(self::RESERVED_DEFECT, $declaration, $column),
             $unbacked        => sprintf('Field is declared %s against "%s", and table "%s" carries no such column', $declaration, $column, $table),
             default          => null,
         };

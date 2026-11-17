@@ -5,16 +5,17 @@ declare(strict_types = 1);
 namespace Tests\Unit\Listeners;
 
 use Illuminate\Console\Events\CommandFinished;
-use Illuminate\Contracts\Container\Container;
+use Illuminate\Container\Container;
 use Illuminate\Contracts\Queue\Job;
 use Illuminate\Database\QueryException;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Queue\Events\JobFailed;
-use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobAttempted;
+use Illuminate\Queue\Events\JobTimedOut;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Log;
@@ -68,8 +69,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     {
         yield 'request handled' => [RequestHandled::class];
         yield 'command finished' => [CommandFinished::class];
-        yield 'job processed' => [JobProcessed::class];
-        yield 'job failed' => [JobFailed::class];
+        yield 'job attempted' => [JobAttempted::class];
+        yield 'job timed out' => [JobTimedOut::class];
     }
 
     /**
@@ -81,11 +82,9 @@ final class WritePoolFlushSubscriberTest extends TestCase
     #[DataProvider('lifecycleEventProvider')]
     public function testSubscribeRegistersListenerForLifecycleEvent(string $event): void
     {
-        self::assertNotNull($this->app);
-
         $events = new Dispatcher;
 
-        (new WritePoolFlushSubscriber($this->app))->subscribe($events);
+        (new WritePoolFlushSubscriber)->subscribe($events);
 
         self::assertTrue($events->hasListeners($event));
     }
@@ -99,8 +98,9 @@ final class WritePoolFlushSubscriberTest extends TestCase
     {
         yield 'request handled' => [static fn (): object => new RequestHandled(Request::create('/test', 'GET'), new Response)];
         yield 'command finished' => [static fn (): object => new CommandFinished('test:command', new ArrayInput([]), new NullOutput, 0)];
-        yield 'job processed' => [static fn (): object => new JobProcessed('sync', self::createStub(Job::class))];
-        yield 'job failed' => [static fn (): object => new JobFailed('sync', self::createStub(Job::class), new \RuntimeException('Job failure'))];
+        yield 'job attempted' => [static fn (): object => new JobAttempted('sync', self::createStub(Job::class))];
+        yield 'job attempt that threw' => [static fn (): object => new JobAttempted('database', self::createStub(Job::class), new \RuntimeException('Job failure'))];
+        yield 'job timed out' => [static fn (): object => new JobTimedOut('database', self::createStub(Job::class), 60)];
     }
 
     /**
@@ -120,27 +120,39 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that handleFlush resolves the WritePool from the container and
-     * flushes it.
+     * Test that handleFlush flushes the pool of the current container, not the
+     * one the subscriber was built in, as under an Octane request sandbox.
      *
      * @return void
      */
-    public function testHandleFlushResolvesWritePoolFromContainerAndCallsFlush(): void
+    public function testHandleFlushFlushesThePoolOfTheCurrentContainer(): void
     {
-        $pool = new WritePool(500, 10000);
-        $pool->add('testing', 'users', ['name' => 'Alice', 'email' => 'alice@example.com', 'password' => 'secret']);
+        $app = $this->app;
 
-        $container = \Mockery::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(WritePool::class)
-            ->once()
-            ->andReturn($pool);
+        assert($app !== null);
 
-        $subscriber = new WritePoolFlushSubscriber($container);
+        $basePool = new WritePool(500, 10000);
+        $basePool->add('testing', 'users', ['name' => 'Base', 'email' => 'base@example.com', 'password' => 'secret']);
+        $app->instance(WritePool::class, $basePool);
 
-        $subscriber->handleFlush();
+        $subscriber = $app->make(WritePoolFlushSubscriber::class);
 
-        self::assertTrue($pool->isEmpty());
+        $sandbox     = clone $app;
+        $sandboxPool = new WritePool(500, 10000);
+        $sandboxPool->add('testing', 'users', ['name' => 'Sandbox', 'email' => 'sandbox@example.com', 'password' => 'secret']);
+        $sandbox->instance(WritePool::class, $sandboxPool);
+
+        Container::setInstance($sandbox);
+
+        try {
+            $subscriber->handleFlush();
+        } finally {
+            Container::setInstance($app);
+        }
+
+        self::assertTrue($sandboxPool->isEmpty());
+        self::assertSame(1, $basePool->count());
+        self::assertSame(['sandbox@example.com'], DB::table('users')->pluck('email')->all());
     }
 
     /**
@@ -332,15 +344,12 @@ final class WritePoolFlushSubscriberTest extends TestCase
      */
     public function testHandleFlushReportsWhenPoolResolutionThrows(): void
     {
-        $container = \Mockery::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(WritePool::class)
-            ->andThrow(new \RuntimeException('Database connection lost'));
+        $this->app->bind(WritePool::class, static fn (): never => throw new \RuntimeException('Database connection lost')); // @phpstan-ignore method.nonObject
 
         Exceptions::fake();
         Event::fake([WritePoolFlushFailed::class]);
 
-        (new WritePoolFlushSubscriber($container))->handleFlush();
+        (new WritePoolFlushSubscriber)->handleFlush();
 
         Exceptions::assertReportedCount(1);
         Exceptions::assertReported(fn (\RuntimeException $e): bool => $e->getMessage() === 'Database connection lost');
@@ -458,12 +467,9 @@ final class WritePoolFlushSubscriberTest extends TestCase
      */
     private function subscriberFlushing(WritePool $pool): WritePoolFlushSubscriber
     {
-        $container = \Mockery::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(WritePool::class)
-            ->andReturn($pool);
+        $this->app->instance(WritePool::class, $pool); // @phpstan-ignore method.nonObject
 
-        return new WritePoolFlushSubscriber($container);
+        return new WritePoolFlushSubscriber;
     }
 
     /**
@@ -477,15 +483,9 @@ final class WritePoolFlushSubscriberTest extends TestCase
         $pool = new WritePool(500, 10000);
         $pool->add('testing', 'users', ['name' => 'Dave', 'email' => $email, 'password' => 'secret']);
 
-        $container = \Mockery::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(WritePool::class)
-            ->andReturn($pool);
+        $events = new Dispatcher;
 
-        $events     = new Dispatcher;
-        $subscriber = new WritePoolFlushSubscriber($container);
-
-        $subscriber->subscribe($events);
+        $this->subscriberFlushing($pool)->subscribe($events);
 
         return [$events, $pool];
     }

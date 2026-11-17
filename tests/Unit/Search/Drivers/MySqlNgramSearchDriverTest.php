@@ -12,7 +12,9 @@ use Illuminate\Database\Schema\Builder as SchemaBuilder;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Concerns\AssertsBoundPlaceholders;
 use Tests\Fixtures\Models\User;
@@ -238,6 +240,31 @@ final class MySqlNgramSearchDriverTest extends TestCase
             $query->toSql(), // @phpstan-ignore staticMethod.dynamicCall
         );
         self::assertSame(['"' . self::TERM . '"'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that an anywhere-match is ranked by literal patterns while it keeps
+     * its full-text predicate, each binding in placeholder order.
+     *
+     * @return void
+     */
+    public function testRanksAnAnywhereMatchByPatternsBesideItsFullTextMatch(): void
+    {
+        $query = $this->apply(['name'], SearchStrategy::SUBSTRING);
+        $plan  = SearchPlan::build(new CompiledSchema([], [], [], [], [], ['name' => SearchStrategy::SUBSTRING]));
+
+        (new MySqlNgramSearchDriver)->rank($query, $plan, SearchTerm::from(self::TERM));
+
+        $sql      = $query->toSql(); // @phpstan-ignore staticMethod.dynamicCall
+        $bindings = $query->getBindings(); // @phpstan-ignore staticMethod.dynamicCall
+
+        self::assertSame(
+            'select * from `users` where match (`users`.`name`) against (? in boolean mode) order by case when `users`.`name` like ? escape \'!\' '
+            . 'then 0 when `users`.`name` like ? escape \'!\' then 1 when `users`.`name` like ? escape \'!\' then 2 else 3 end asc',
+            $sql,
+        );
+        self::assertSame(['"smith"', 'smith', 'smith%', '% smith%'], $bindings);
+        self::assertPlaceholderPerBinding($sql, $bindings);
     }
 
     /**

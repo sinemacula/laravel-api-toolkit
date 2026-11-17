@@ -84,6 +84,17 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     }
 
     /**
+     * Return the operator the driver matches a pattern with, folding case.
+     *
+     * @return 'ilike'|'like'
+     */
+    #[\Override]
+    protected function patternOperator(): string
+    {
+        return 'ilike';
+    }
+
+    /**
      * Apply a case-insensitive pattern match for the declared columns.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
@@ -98,7 +109,7 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     {
         foreach ($columns as $column) {
 
-            $query->orWhere(ColumnCondition::escapedPattern($query->qualifyColumn($column), 'ilike'));
+            $query->orWhere(ColumnCondition::escapedPattern($query->qualifyColumn($column), $this->patternOperator()));
             $query->getQuery()->addBinding($term->pattern($strategy), 'where');
         }
     }

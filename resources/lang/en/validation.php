@@ -43,9 +43,12 @@ return [
     ],
 
     'order' => [
-        'unpermitted_direction' => 'The ":direction" direction is not permitted on the ":key" key, which accepts :accepts.',
-        'random_cursor'         => 'Random order cannot be paged by cursor; use offset pagination.',
-        'nullable_cursor'       => 'The ":key" key admits null, so it cannot order a cursor-paginated read; use offset pagination.',
+        'unpermitted_direction'  => 'The ":direction" direction is not permitted on the ":key" key, which accepts :accepts.',
+        'random_cursor'          => 'Random order cannot be paged by cursor; use offset pagination.',
+        'nullable_cursor'        => 'The ":key" key admits null, so it cannot order a cursor-paginated read; use offset pagination.',
+        'relevance_needs_search' => 'The relevance order ranks search matches, so it needs a search term.',
+        'relevance_cursor'       => 'Relevance order cannot be paged by cursor; use offset pagination.',
+        'relevance_direction'    => 'The relevance key accepts asc only.',
     ],
 
     'cursor' => [

@@ -192,6 +192,26 @@ Entries are connection names as `config/database.php` keys them, not engines. A 
 connection after its engine, so listing `mysql` waives the connection that usually serves production. A listed
 connection may scan the whole table on every request; only list development connections.
 
+`?search=smith&order=relevance` orders the matches by the best way each row matches the term, best first:
+
+| Rank | The term matches                    | Reached by                     |
+|------|-------------------------------------|--------------------------------|
+| 1    | the whole value                     | `EXACT`, `PREFIX`, `SUBSTRING` |
+| 2    | the start of the value              | `PREFIX`, `SUBSTRING`          |
+| 3    | the start of a space-delimited word | `SUBSTRING`                    |
+| 4    | anywhere else                       | `SUBSTRING`                    |
+
+A row ranks by its best searchable column, compared with `=` for `EXACT` and otherwise `like`, or `ilike` on
+PostgreSQL, so case folds as it does in matching. A MySQL n-gram match no literal pattern sees ranks last. An
+`EXACT`-only resource adds no order, since every match ranks first. `relevance` applies at its position in the order
+list, so `order=relevance,name` breaks ties by name before the appended key. It needs `search`, offset pagination and
+the `asc` direction; anything else is a `422` on `order.relevance`. A custom driver implements `rank()` to order its
+own matches.
+
+Relevance is a computed sort no index serves, so it reads every matching row. Behind a MySQL full-text or PostgreSQL
+trigram lookup that costs one `CASE` per match; where the planner could otherwise stop after one page, it reads them
+all. It is unsupported beside a repository scope that adds `distinct`, `group by` or a union.
+
 **Sorting** - sort by one or more columns, with optional direction:
 
 ```http
@@ -527,7 +547,8 @@ Two overrides cover what the catalogue cannot show:
 
 **Random ordering** - `?order=random` is disabled by default. Enable it with
 `api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_REPOSITORIES_ALLOW_RANDOM_ORDER=true`); while disabled,
-`random` is treated as an ordinary sort key and rejected like any undeclared column.
+`random` is treated as an ordinary sort key and rejected like any undeclared column. `relevance` is always the
+search relevance order, so a `sortable()` column named `relevance` cannot be ordered by; schema validation reports it.
 
 **Query cost caps** - `api-toolkit.query_cost` bounds the filter document's size and nesting, the keys and value-list
 items it dispatches, the sort keys and relation aggregates requested, and how deep a request pages. A request over a
@@ -571,7 +592,7 @@ With `$cacheReferenceTable = true`, the table is loaded once per global-scope va
 `*` runs a real query, and a write clears every variant. Use it only for small lookup tables that rarely change.
 
 **Deferrable trait** - buffer inserts in memory and flush them as bulk `INSERT` statements at the lifecycle boundary
-(`RequestHandled`, `CommandFinished`, `JobProcessed`, or `JobFailed`):
+(`RequestHandled`, `CommandFinished`, `JobAttempted`, or `JobTimedOut`):
 
 ```php
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
@@ -583,6 +604,9 @@ class AuditRepository extends ApiRepository
 
 $auditRepository->defer(['user_id' => 1, 'action' => 'login']);
 ```
+
+Every queue job attempt flushes, including one that fails, times out or is released for a retry, so a retried job keeps
+the rows of its earlier attempts.
 
 Each row goes to its model's connection, resolved when the row is deferred, so a later change of the default connection
 does not redirect it. Timestamps follow the model: none when it has timestamps disabled, otherwise its own
