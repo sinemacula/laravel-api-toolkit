@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
@@ -67,6 +68,8 @@ final class ContainsFilterHttpTest extends TestCase
      *
      * @return void
      */
+    #[Group('mysql')]
+    #[Group('pgsql')]
     public function testArrayPayloadResolvesViaJsonContainment(): void
     {
         $this->skipOnSqlite();
@@ -84,6 +87,8 @@ final class ContainsFilterHttpTest extends TestCase
      *
      * @return void
      */
+    #[Group('mysql')]
+    #[Group('pgsql')]
     public function testCommaSeparatedStringResolvesToTheUnion(): void
     {
         $this->skipOnSqlite();
@@ -101,6 +106,8 @@ final class ContainsFilterHttpTest extends TestCase
      *
      * @return void
      */
+    #[Group('mysql')]
+    #[Group('pgsql')]
     public function testScalarPayloadResolvesViaJsonContainment(): void
     {
         $this->skipOnSqlite();
