@@ -135,8 +135,8 @@ abstract class ApiRepository extends Repository
      * Persist the given attributes to the model.
      *
      * Handles create and update; many-to-many relations sync after the save. A
-     * cacheable repository then invalidates its table, reporting rather than
-     * throwing a cache failure, since the write has already happened.
+     * cacheable repository then invalidates its table, even when a sync fails
+     * after the save.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>|\Illuminate\Support\Collection<string, mixed>  $attributes
@@ -149,17 +149,11 @@ abstract class ApiRepository extends Repository
     {
         $attributes = $attributes instanceof Collection ? $attributes->all() : $attributes;
 
-        $saved = $this->attributeSetter->persist($model, $attributes);
-
-        if (method_exists($this, 'flushCache')) {
-            try {
-                $this->flushCache();
-            } catch (\Throwable $exception) {
-                FailureReporter::report($exception, 'Repository cache flush after persist failed.');
-            }
+        try {
+            return $this->attributeSetter->persist($model, $attributes);
+        } finally {
+            $this->invalidateCache();
         }
-
-        return $saved;
     }
 
     /**
@@ -213,6 +207,25 @@ abstract class ApiRepository extends Repository
     protected function metadataCacheWriter(): MetadataCacheWriter
     {
         return $this->app->make(MetadataCacheWriter::class);
+    }
+
+    /**
+     * Invalidate a cacheable repository's table, reporting rather than throwing
+     * a cache failure, since the write has already happened.
+     *
+     * @return void
+     */
+    private function invalidateCache(): void
+    {
+        if (!method_exists($this, 'flushCache')) {
+            return;
+        }
+
+        try {
+            $this->flushCache();
+        } catch (\Throwable $exception) {
+            FailureReporter::report($exception, 'Repository cache flush after persist failed.');
+        }
     }
 
     /**

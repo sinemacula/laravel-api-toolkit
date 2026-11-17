@@ -445,6 +445,44 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
+     * Test that persist on a repository without a cache reports nothing.
+     *
+     * @return void
+     */
+    public function testPersistOnARepositoryWithoutACacheReportsNothing(): void
+    {
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        Exceptions::fake();
+
+        self::assertTrue($this->repository->persist($user, ['name' => 'Bob']));
+
+        Exceptions::assertNothingReported();
+    }
+
+    /**
+     * Test that persist invalidates the cache when a sync fails after the save.
+     *
+     * @return void
+     */
+    public function testPersistInvalidatesTheCacheWhenASyncFailsAfterTheSave(): void
+    {
+        $tag = Tag::create(['name' => 'php']);
+
+        assert($this->app !== null);
+
+        $tags = $this->app->make(CacheableTagRepository::class);
+
+        $tags->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        $persist = static fn (): bool => $tags->persist($tag, ['name' => 'laravel', 'posts' => 1.5]);
+
+        $this->assertThrows($persist, \InvalidArgumentException::class, 'must be given models or their keys');
+
+        self::assertSame(['laravel'], $tags->get()->pluck('name')->all()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
      * Test that persist reports a failed cache flush and keeps the write.
      *
      * @return void
