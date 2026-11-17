@@ -89,9 +89,11 @@ final class MorphRelationHttpTest extends TestCase
 
         for ($index = 1; $index <= 6; $index++) {
             foreach ($noteables as [$noteable, $label, $count]) {
-                if ($index <= $count) {
-                    $this->attachNote($noteable, $label . ' note ' . $index);
+                if ($index > $count) {
+                    continue;
                 }
+
+                $this->attachNote($noteable, $label . ' note ' . $index);
             }
         }
 
