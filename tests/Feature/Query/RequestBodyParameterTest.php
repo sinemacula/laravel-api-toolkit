@@ -137,8 +137,8 @@ final class RequestBodyParameterTest extends TestCase
     }
 
     /**
-     * Test that the next link of a filtered read keeps its filters, since they
-     * travel in the query string.
+     * Test that the next link of a filtered read keeps its query string filters
+     * and carries nothing from the body.
      *
      * @return void
      */
@@ -146,7 +146,7 @@ final class RequestBodyParameterTest extends TestCase
     {
         $query = ['limit' => '1', 'filters' => '{"name":{"$in":["Ben","Cara"]}}'];
 
-        $next = $this->postJson('/users-search?' . http_build_query($query))->assertOk()->json('links.next');
+        $next = $this->postJson('/users-search?' . http_build_query($query), ['limit' => '3', 'search' => 'Anna'])->assertOk()->json('links.next');
 
         self::assertIsString($next);
 

@@ -69,7 +69,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        self::assertNull($this->parser->getFields());
+        self::assertNull($this->parser->getFields('users'));
     }
 
     /**
@@ -137,7 +137,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
         $this->parser->parse($request);
 
-        self::assertNull($this->parser->getAggregates());
+        self::assertNull($this->parser->getAggregates('users'));
     }
 
     /**
@@ -643,15 +643,17 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getFields trims values stored directly in the parameter state.
+     * Test that getFields trims the values stored for a type, and that an empty
+     * type selects nothing.
      *
      * @return void
      */
     public function testGetFieldsTrimsStoredParameterValues(): void
     {
-        $this->setProperty($this->parser, 'parameters', ['fields' => [' first_name ', ' last_name ']]);
+        $this->setProperty($this->parser, 'parameters', ['fields' => ['users' => [' first_name ', ' last_name ']]]);
 
-        self::assertSame(['first_name', 'last_name'], $this->parser->getFields());
+        self::assertSame(['first_name', 'last_name'], $this->parser->getFields('users'));
+        self::assertNull($this->parser->getFields(''));
     }
 
     /**
@@ -662,9 +664,9 @@ final class ApiQueryParserTest extends TestCase
      */
     public function testGetAggregatesTrimsStoredParameterValues(): void
     {
-        $this->setProperty($this->parser, 'parameters', ['aggregates' => [' posts_count ', 7, ' orders_sum_total ']]);
+        $this->setProperty($this->parser, 'parameters', ['aggregates' => ['users' => [' posts_count ', 7, ' orders_sum_total ']]]);
 
-        self::assertSame(['posts_count', 'orders_sum_total'], $this->parser->getAggregates());
+        self::assertSame(['posts_count', 'orders_sum_total'], $this->parser->getAggregates('users'));
     }
 
     /**

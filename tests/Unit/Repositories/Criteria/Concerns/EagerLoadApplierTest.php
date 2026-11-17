@@ -71,6 +71,28 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
+     * Test that apply leaves the query unmodified when no resource type is
+     * known.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testApplyWithNullResourceTypeReturnsUnmodifiedQuery(): void
+    {
+        $this->parseRequest(new Request);
+
+        $provider = $this->createMock(ResourceMetadataProvider::class);
+        $provider->expects(self::never())->method('resolveFields');
+        $provider->expects(self::never())->method('getAllFields');
+
+        $query  = (new User)->newQuery();
+        $result = $this->applier->apply($query, $provider, UserResource::class, null, $this->gate());
+
+        self::assertEmpty($result->getEagerLoads());
+    }
+
+    /**
      * Test that apply leaves the query unmodified for a non-ApiResource class.
      *
      * @return void

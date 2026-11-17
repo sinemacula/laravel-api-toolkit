@@ -42,7 +42,6 @@ use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
-use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
@@ -67,6 +66,7 @@ use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
 use Tests\Fixtures\Discovery\Primary\ChildDiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
+use Tests\Fixtures\Discovery\Unbound\UnboundPostResource;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\CatalogueRow;
 use Tests\Fixtures\Models\Organization;
@@ -766,15 +766,14 @@ final class ApiServiceProviderTest extends TestCase
         $app = $this->getApplication();
 
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
-        $this->getConfig()->set('api-toolkit.resources.paths', []);
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Unbound']);
         $this->getConfig()->set('api-toolkit.resources.resource_map', []);
-        $this->getConfig()->set(ResourceDiscovery::RESOURCES_KEY, [PostResource::class]);
 
         $provider = new ApiServiceProvider($app);
         $provider->register();
 
         $this->expectException(InvalidSchemaException::class);
-        $this->expectExceptionMessage(sprintf('[%s] Field "tags": Relation "tags" renders %s', PostResource::class, TagResource::class));
+        $this->expectExceptionMessage(sprintf('[%s] Field "tags": Relation "tags" renders %s', UnboundPostResource::class, TagResource::class));
 
         $provider->boot();
     }
@@ -820,6 +819,26 @@ final class ApiServiceProviderTest extends TestCase
      */
     #[DataProvider('validationCommandArgvProvider')]
     public function testValidateSchemasIsLeftToTheValidationCommand(array $argv): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => BrokenResource::class,
+        ]);
+
+        $this->bootWithArgv($argv);
+
+        self::assertSame([User::class => BrokenResource::class], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that the commands booting without the discovered resources leave
+     * schema validation to a full boot.
+     *
+     * @param  array<int, string>  $argv
+     * @return void
+     */
+    #[DataProvider('cacheBuildArgvProvider')]
+    public function testCacheBuildSkipsSchemaValidation(array $argv): void
     {
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [

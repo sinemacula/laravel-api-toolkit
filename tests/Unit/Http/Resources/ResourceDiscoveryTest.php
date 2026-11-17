@@ -866,7 +866,7 @@ final class ResourceDiscoveryTest extends TestCase
 
     /**
      * Test that the merge records the discovered resources when none of them
-     * binds a model.
+     * binds a model, leaving out a resource with no type.
      *
      * @return void
      */
@@ -930,21 +930,23 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that the merge leaves the configuration untouched when nothing is
-     * discovered and no earlier merge contributed, even for a malformed map.
+     * Test that the merge leaves the map untouched when nothing is discovered
+     * and no earlier merge contributed, even for a malformed map, while the
+     * resources an earlier merge recorded are cleared.
      *
      * @return void
      */
-    public function testMergeWithNothingToMergeLeavesTheConfigurationUntouched(): void
+    public function testMergeWithNothingToMergeOnlyClearsTheRecordedResources(): void
     {
         Config::set('api-toolkit.resources.paths', []);
         Config::set('api-toolkit.resources.resource_map', 'not-an-array');
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
 
         $this->discovery()->merge();
 
         self::assertSame('not-an-array', Config::get('api-toolkit.resources.resource_map'));
         self::assertNull(Config::get('api-toolkit.resources.discovered_bindings'));
-        self::assertNull(Config::get(ResourceDiscovery::RESOURCES_KEY));
+        self::assertSame([], Config::get(ResourceDiscovery::RESOURCES_KEY));
     }
 
     /**

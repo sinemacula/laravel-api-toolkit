@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Concerns\QuerySelectionValidator;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
 use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\Fixtures\Models\Organization;
@@ -206,7 +207,7 @@ final class QuerySelectionValidatorTest extends TestCase
             #[\Override]
             public static function schema(): array
             {
-                return Field::set(Field::scalar('nickname'));
+                return Field::set(Field::scalar('nickname'), Count::of('friends'));
             }
         };
 
@@ -214,7 +215,10 @@ final class QuerySelectionValidatorTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->validator->validate(['fields' => ['users' => ['email', 'nickname']]]);
+        $this->validator->validate([
+            'fields'     => ['users' => ['email', 'nickname']],
+            'aggregates' => ['users' => ['posts_count', 'friends_count']],
+        ]);
     }
 
     /**

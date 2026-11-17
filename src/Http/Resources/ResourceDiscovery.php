@@ -67,11 +67,11 @@ final readonly class ResourceDiscovery
         $catalogue  = $this->catalogue();
         $discovered = $catalogue['bindings'];
 
-        if ($discovered === [] && $catalogue['resources'] === [] && $this->contributedMap() === []) {
+        Config::set(self::RESOURCES_KEY, $catalogue['resources']);
+
+        if ($discovered === [] && $this->contributedMap() === []) {
             return;
         }
-
-        Config::set(self::RESOURCES_KEY, $catalogue['resources']);
 
         $explicit    = $this->explicitMap();
         $contributed = array_diff_key($discovered, $explicit);
@@ -215,7 +215,8 @@ final readonly class ResourceDiscovery
     }
 
     /**
-     * Determine whether the given class is an instantiable API resource.
+     * Determine whether the given class is an instantiable API resource with a
+     * resource type.
      *
      * @param  class-string  $class
      * @return bool
@@ -226,7 +227,17 @@ final readonly class ResourceDiscovery
     {
         $reflection = new \ReflectionClass($class);
 
-        return $reflection->isInstantiable() && $reflection->implementsInterface(ApiResourceInterface::class);
+        if (!$reflection->isInstantiable() || !$reflection->implementsInterface(ApiResourceInterface::class)) {
+            return false;
+        }
+
+        try {
+            $class::getResourceType();
+        } catch (\LogicException) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -305,7 +316,7 @@ final readonly class ResourceDiscovery
     private function diagnoseBinding(string $class, string $model): ?string
     {
         if (!self::isResource($class)) {
-            return sprintf('Resource discovery skipped [%s]: it declares a model binding but is not an instantiable API resource.', $class);
+            return sprintf('Resource discovery skipped [%s]: it declares a model binding but is not an instantiable API resource with a resource type.', $class);
         }
 
         if (!class_exists($model)) {

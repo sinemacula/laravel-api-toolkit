@@ -216,13 +216,20 @@ final class ApiServiceProvider extends ServiceProvider
     /**
      * Validate all registered resource schemas.
      *
-     * Skipped for the validation command, so it reports what it found itself.
+     * Skipped for the validation command, so it reports what it found itself,
+     * and for the commands that boot without the discovered resources.
      *
      * @return void
      */
     private function validateSchemas(): void
     {
-        if (Config::get('api-toolkit.resources.validate_schemas', false) !== true || $this->consoleCommand() === self::VALIDATING_COMMAND) {
+        $command = $this->consoleCommand();
+
+        if (
+            Config::get('api-toolkit.resources.validate_schemas', false) !== true
+            || $command === self::VALIDATING_COMMAND
+            || in_array($command, self::MERGE_SKIPPING_COMMANDS, true)
+        ) {
             return;
         }
 

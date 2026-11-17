@@ -50,25 +50,25 @@ class ApiQueryParser
     }
 
     /**
-     * Returns a list of fields set with the URL modifiers.
-     *  - e.g. ?fields['user']=first_name,last_name.
+     * Returns the fields selected for the given resource type.
+     *  - e.g. ?fields[users]=first_name,last_name.
      *
-     * @param  string|null  $resource
+     * @param  string  $resource
      * @return array<int, string>|null
      */
-    public function getFields(?string $resource = null): ?array
+    public function getFields(string $resource): ?array
     {
         return $this->trimStringList($this->getParameters('fields', $resource));
     }
 
     /**
-     * Returns a list of relation aggregate keys set with the URL modifiers.
-     * - e.g. ?aggregates['user']=posts_count,orders_sum_total.
+     * Returns the relation aggregate keys selected for the given resource type.
+     *  - e.g. ?aggregates[users]=posts_count,orders_sum_total.
      *
-     * @param  string|null  $resource
+     * @param  string  $resource
      * @return array<int, string>|null
      */
-    public function getAggregates(?string $resource = null): ?array
+    public function getAggregates(string $resource): ?array
     {
         return $this->trimStringList($this->getParameters('aggregates', $resource));
     }
@@ -259,7 +259,7 @@ class ApiQueryParser
      */
     private function getParameters(string $option, ?string $resource = null): mixed
     {
-        if ($resource) {
+        if ($resource !== null) {
             return $this->parameters[$option][$resource] ?? null;
         }
 
