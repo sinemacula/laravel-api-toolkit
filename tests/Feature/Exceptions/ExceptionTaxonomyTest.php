@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Exceptions\GoneException;
 use SineMacula\ApiToolkit\Exceptions\LockedException;
 use SineMacula\ApiToolkit\Exceptions\PayloadTooLargeException;
 use SineMacula\ApiToolkit\Exceptions\ServiceUnavailableException;
+use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
@@ -29,7 +30,7 @@ use Tests\TestCase;
 #[CoversClass(ApiExceptionHandler::class)]
 final class ExceptionTaxonomyTest extends TestCase
 {
-    use RegistersApiExceptionHandler;
+    use RecordsStatements, RegistersApiExceptionHandler;
 
     /**
      * Set up each test with the toolkit handler wired and throwing routes.
@@ -92,6 +93,21 @@ final class ExceptionTaxonomyTest extends TestCase
         $response->assertStatus(404);
         $response->assertJsonPath('error.status', 404);
         $response->assertJsonPath('error.code', 10103);
+    }
+
+    /**
+     * Test that an unmatched route renders the not-found envelope without
+     * touching the database.
+     *
+     * @return void
+     */
+    public function testUnmatchedRouteIsRenderedAsNotFoundWithoutStatements(): void
+    {
+        $statements = $this->recordStatements(fn () => $this->getJson('/unmatched')
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 10103));
+
+        self::assertStatementCount(0, $statements);
     }
 
     /**
