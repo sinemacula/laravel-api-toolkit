@@ -13,8 +13,8 @@ use Tests\Concerns\ValidatesOpenApiDocuments;
 /**
  * Negative controls for the shared OpenAPI validation harness.
  *
- * A harness that accepts these malformed documents would let every validity
- * assertion pass on an invalid export.
+ * A harness that accepted one of these would pass every validity assertion on
+ * an export carrying the same defect.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -49,11 +49,15 @@ final class OpenApiValidationHarnessTest extends TestCase
     {
         yield 'a 3.0 version string' => ['openapi', '3.0.3'];
         yield 'an info object without a version' => ['info', ['title' => 'Widgets']];
+        yield 'a misspelt info field' => ['info.licence', ['name' => 'MIT']];
+        yield 'a misspelt components field' => ['components.securitySchemas', []];
         yield 'a query operation' => [self::PATH . '.query', ['responses' => ['200' => ['description' => 'OK']]]];
         yield 'a misspelt operation id' => [self::PATH . '.get.operationID', 'showWidget'];
         yield 'a misspelt response content' => [self::PATH . '.get.responses.200.contnet', ['application/json' => ['schema' => ['type' => 'string']]]];
+        yield 'a misspelt media type field' => [self::PATH . '.get.responses.200.content.application/json.schmea', ['type' => 'string']];
         yield 'a path without a leading slash' => ['paths.widgets', ['summary' => 'Widgets']];
         yield 'a misspelt parameter field' => ['components.parameters.Include.requird', true];
+        yield 'a query parameter with a path style' => ['components.parameters.Include.style', 'matrix'];
         yield 'a parameter without a name or location' => ['components.parameters.Broken', ['schema' => ['type' => 'string']]];
         yield 'a misspelt header field' => ['components.headers.Total-Count.descripton', 'Total'];
         yield 'a schema encoded as a list' => ['components.schemas.Widget.properties.name', []];

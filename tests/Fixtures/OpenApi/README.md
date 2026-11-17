@@ -30,10 +30,10 @@ Every file is committed **byte-for-byte as published** - none is hand-edited.
 ## opis/json-schema compatibility
 
 The harness uses the spec-compliant validator of `opis/json-schema` (`^2.4`,
-the test-only validator chosen in ADR 0003). The default one writes each schema
-`default` into the validated data, where the closed Parameter and Header
-Objects reject the style defaults as unevaluated properties. No closed object
-is relaxed.
+the test-only validator chosen in ADR 0003). The default one writes a schema
+`default` into the validated data wherever the property is missing, and the
+closed Parameter and Header Objects then reject the inserted style defaults as
+unevaluated properties. No closed object is relaxed.
 
 Two gaps remain, worked around in the harness at runtime:
 

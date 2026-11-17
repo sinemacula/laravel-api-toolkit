@@ -226,6 +226,7 @@ final class DocumentedRouteCollectorTest extends TestCase
     {
         $this->router()->match(['HEAD'], 'ping', [PathPlainController::class, 'report']);
         $this->router()->options('preflight', [PathPlainController::class, 'index']);
+        $this->router()->query('search', [PathPlainController::class, 'report']);
         $this->router()->match(['HEAD', 'GET'], 'pong', [PathPlainController::class, 'report']);
 
         $routes = $this->collect(['public'])->in('public');
@@ -249,19 +250,6 @@ final class DocumentedRouteCollectorTest extends TestCase
 
         self::assertSame(['get', 'post', 'put', 'patch', 'delete'], $routes[0]->verbs);
         self::assertSame(['trace'], $routes[1]->verbs);
-    }
-
-    /**
-     * Test that a QUERY route is dropped, since OpenAPI 3.1 has no query
-     * operation.
-     *
-     * @return void
-     */
-    public function testQueryRouteIsDropped(): void
-    {
-        $this->router()->query('search', [PathPlainController::class, 'report']);
-
-        self::assertSame([], $this->collect(['public'])->in('public'));
     }
 
     /**
