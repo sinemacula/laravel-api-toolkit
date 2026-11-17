@@ -14,7 +14,7 @@ use SineMacula\ApiToolkit\Schema\Field;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-class UntypedResource extends ApiResource
+final class UntypedResource extends ApiResource
 {
     /**
      * Return the resource schema.
