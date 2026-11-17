@@ -6,6 +6,7 @@ namespace Tests\Integration\Query;
 
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibilityInspector;
 use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
@@ -23,6 +24,7 @@ use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
  * @internal
  */
 #[CoversClass(IndexEligibilityInspector::class)]
+#[Group('pgsql')]
 final class PostgresSortIndexEligibilityTest extends EngineSortIndexEligibilityTestCase
 {
     /** @var string The defect an exact search no usable index leads with draws */

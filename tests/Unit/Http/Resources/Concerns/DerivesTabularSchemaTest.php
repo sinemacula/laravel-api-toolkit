@@ -17,7 +17,10 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Exporter\Contracts\ProvidesTabularExport;
 use SineMacula\Exporter\Schema\CastRegistry;
 use SineMacula\Exporter\Schema\Column;
+use Tests\Fixtures\Enums\Platform;
+use Tests\Fixtures\Enums\UserLevel;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\DeviceResource;
 use Tests\Fixtures\Resources\GuardedExportResource;
 use Tests\Fixtures\Resources\PerItemGuardedExportResource;
 use Tests\Fixtures\Resources\ThrowingGuardExportResource;
@@ -155,12 +158,12 @@ final class DerivesTabularSchemaTest extends TestCase
     }
 
     /**
-     * Test that a plain string-accessor field maps to a model-sourced column
-     * that reads the accessor path rather than the exposed key.
+     * Test that a plain string-accessor field maps to a column that reads the
+     * accessor path rather than the exposed key.
      *
      * @return void
      */
-    public function testStringAccessorFieldMapsToModelSourcedColumn(): void
+    public function testStringAccessorFieldReadsTheAccessorPath(): void
     {
         $resource = new class (null) extends ApiResource implements ProvidesTabularExport {
             use DerivesTabularSchema;
@@ -190,11 +193,32 @@ final class DerivesTabularSchemaTest extends TestCase
         ApiQuery::parse($request);
 
         $columns = $resource->tabular($request)->columns();
+        $user    = new User(['name' => 'Alice', 'email' => 'alice@example.com']);
 
         self::assertCount(1, $columns);
         self::assertSame('contact', $columns[0]->getKey());
-        self::assertTrue($columns[0]->usesModelSource());
-        self::assertSame('email', $columns[0]->getModelPath());
+        self::assertSame('alice@example.com', $columns[0]->toCellValue($user, $request, new CastRegistry)->raw);
+    }
+
+    /**
+     * Test that a plain field holding a pure enum is written as its lowercase
+     * wire name, and a backed enum as its value.
+     *
+     * @return void
+     */
+    public function testPlainEnumFieldIsWrittenAsTheValueAResponseCarries(): void
+    {
+        $row     = ['id' => 1, 'name' => 'Phone', 'platform' => Platform::MOBILE_APP, 'status' => UserLevel::SILVER];
+        $request = Request::create('/');
+
+        ApiQuery::parse($request);
+
+        $cells = array_map(
+            static fn (Column $column): mixed => $column->toCellValue($row, $request, new CastRegistry)->raw,
+            (new DeviceResource(null))->tabular($request)->columns(),
+        );
+
+        self::assertSame([1, 'Phone', 'mobile_app', 2], $cells);
     }
 
     /**

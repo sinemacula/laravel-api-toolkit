@@ -7,7 +7,8 @@ namespace SineMacula\ApiToolkit\Schema\Introspection;
 /**
  * Immutable description of a single database column's type and nullability.
  *
- * Feeds the OpenAPI exporter's type inference and the cursor nullability check.
+ * Feeds the OpenAPI exporter's type inference, the cursor nullability check and
+ * the filter and cursor value checks.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

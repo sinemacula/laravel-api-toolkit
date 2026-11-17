@@ -5,10 +5,13 @@ on:
         branches: [ master ]
     pull_request:
         types: [ opened, synchronize, reopened, ready_for_review ]
+    schedule:
+        -   cron: 0 7 * * 1
     workflow_dispatch:
 
+# Keyed by event so a merge to master cannot cancel a scheduled or manual run
 concurrency:
-    group: tests-${{ github.event.pull_request.number || github.ref }}
+    group: tests-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
     cancel-in-progress: true
 
 permissions:
@@ -96,6 +99,14 @@ jobs:
         name: Integration / ${{ matrix.database }}
         runs-on: ubuntu-latest
 
+        env:
+            DB_DRIVER: ${{ matrix.db_driver }}
+            DB_HOST: 127.0.0.1
+            DB_PORT: ${{ matrix.db_port }}
+            DB_DATABASE: api_toolkit_test
+            DB_USERNAME: ${{ matrix.db_username }}
+            DB_PASSWORD: ${{ matrix.db_password }}
+
         strategy:
             fail-fast: false
             matrix:
@@ -150,12 +161,9 @@ jobs:
 
             # Serial: these suites create and drop real tables in one shared database
             -   name: Database Tests
-                env:
-                    DB_DRIVER: ${{ matrix.db_driver }}
-                    DB_HOST: 127.0.0.1
-                    DB_PORT: ${{ matrix.db_port }}
-                    DB_DATABASE: api_toolkit_test
-                    DB_USERNAME: ${{ matrix.db_username }}
-                    DB_PASSWORD: ${{ matrix.db_password }}
-                run: vendor/bin/phpunit --testsuite Integration,Feature
+                run: vendor/bin/phpunit --testsuite Integration,Feature --exclude-group "$DB_DRIVER"
+
+            # A skip here means the leg never reached its engine
+            -   name: Engine Tests
+                run: vendor/bin/phpunit --group "$DB_DRIVER" --fail-on-skipped
 

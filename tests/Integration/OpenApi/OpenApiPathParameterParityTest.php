@@ -9,15 +9,13 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Opis\JsonSchema\Helper;
-use Opis\JsonSchema\Resolvers\SchemaResolver;
-use Opis\JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteKeySchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
+use Tests\Concerns\ValidatesOpenApiDocuments;
 use Tests\Fixtures\Enums\DocumentFormat;
 use Tests\Fixtures\Models\Ticket;
 use Tests\Fixtures\OpenApi\PathBindingController;
@@ -38,8 +36,7 @@ use Tests\TestCase;
 #[CoversClass(RouteKeySchemaResolver::class)]
 final class OpenApiPathParameterParityTest extends TestCase
 {
-    /** @var string The identifier under which the exported document is registered. */
-    private const string DOCUMENT_ID = 'https://api.example.com/openapi.json';
+    use ValidatesOpenApiDocuments;
 
     /**
      * Set up each test.
@@ -181,21 +178,9 @@ final class OpenApiPathParameterParityTest extends TestCase
         /** @var array{schema: array<string, mixed>} $parameter */
         $parameter = $document['paths'][$path]['get']['parameters'][0];
         $integer   = ($parameter['schema']['type'] ?? null) === 'integer' && preg_match('/^-?[0-9]+$/', $value) === 1;
+        $pointer   = '/paths/' . rawurlencode(str_replace('/', '~1', $path)) . '/get/parameters/0/schema';
 
-        $validator = new Validator;
-        $resolver  = $validator->resolver();
-
-        assert($resolver instanceof SchemaResolver);
-
-        $exported = Helper::toJSON($document);
-
-        self::assertIsObject($exported);
-
-        $resolver->registerRaw($exported, self::DOCUMENT_ID);
-
-        $pointer = '#/paths/' . rawurlencode(str_replace('/', '~1', $path)) . '/get/parameters/0/schema';
-
-        return $validator->validate($integer ? (int) $value : $value, self::DOCUMENT_ID . $pointer)->isValid();
+        return $this->validateAgainstExported($document, $pointer, $integer ? (int) $value : $value)->isValid();
     }
 
     /**

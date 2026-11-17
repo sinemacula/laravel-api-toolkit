@@ -89,6 +89,26 @@ Each is accepted only on a column whose declared capability allows it (see
 [Query capabilities](#schema-driven-apiresource)); any other pairing is rejected with a 422 naming the operator, the
 column and the operators that column accepts. The shorthand `{"name":"Alice"}` is `$eq` and is gated the same way.
 
+Each built-in operator takes a value of one shape:
+
+| Operator                   | Value                 | Matches rows                                   |
+|----------------------------|-----------------------|------------------------------------------------|
+| `$eq`, `$neq`              | one value             | equal, or not equal, to it                     |
+| `$gt`, `$ge`, `$lt`, `$le` | one value             | above or below it                              |
+| `$in`                      | a list, empty allowed | equal to any item; an empty list matches none  |
+| `$between`                 | `[low, high]`         | from low to high inclusive                     |
+| `$null`, `$notNull`        | `true`                | missing, or holding, a value                   |
+| `$contains`                | any JSON              | whose JSON document contains it                |
+
+`null` is never a value: a missing value is matched by `{"name":{"$null":true}}`, so `{"name":null}` is refused. Every
+value is also checked against the column's type, read from the schema catalogue. An integer column takes an integer, a
+digit string or a boolean, a boolean column `true`, `false`, `0` or `1`, a number column a finite number, a `uuid`
+column a UUID, a date `YYYY-MM-DD`, and a date-time `YYYY-MM-DDTHH:MM[:SS[.fraction]]` with an optional `Z` or offset.
+A date-time with an offset is converted to the application timezone, so a timestamp a resource emitted can be sent
+back as it is. A column cast to an enum takes only its cases' values, or a pure enum's lowercase names. A value outside
+its shape or its column's type is rejected with a 422 at its position, naming the form expected. Where the catalogue
+cannot be read, only the shape is checked.
+
 The entries of a filter document AND together, at every depth. `$and` and `$or` take a non-empty list of filter
 documents, each grouped on its own and joined by AND or OR:
 
@@ -108,7 +128,7 @@ while `{"$and":[{"posts":{"a":1}},{"posts":{"b":2}}]}` may match different posts
 A filter that cannot narrow the query is rejected with a 422 keyed by its position, such as `filters.$or.1.name`,
 rather than dropped: a group that is not a non-empty list, an empty group document, a condition with no column, a
 column given an empty object, a list, or a key that is not a registered condition, and any entry that adds no
-condition, such as an empty `$has` list or a `$between` without exactly two values.
+condition, such as an empty `$has` list.
 
 **Free-text search** - match a term against the fields a resource declares `searchable()`:
 
@@ -188,9 +208,9 @@ group columns instead; a read grouped by an expression, filtered by `having` wit
 A cursor can only seek by a column that holds a value in every row, so a cursor-paginated read rejects `random` and
 any column the cached column catalogue reports as nullable, such as the `created_at` that `timestamps()` creates;
 declare the column `NOT NULL` to cursor-page by it. Offset pagination sorts by either. Columns a repository scope
-orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, or does not carry a value for every
-ordered column (the client changed `?order` and kept `?cursor`), is rejected with a `422` on `cursor`; restart from
-the first page.
+orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, does not carry a value for every
+ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column cannot hold is rejected
+with a `422` on `cursor`; restart from the first page.
 
 **Page-size ceiling** - a `?limit` above `api-toolkit.parser.max_limit` (default 100) is rejected with a `422` naming
 the ceiling and the requested size, not reduced to the ceiling. Set the ceiling to `0` to disable it:
@@ -537,11 +557,18 @@ class UserRepository extends ApiRepository
 }
 ```
 
-Reads are keyed by query fingerprint, and writes invalidate the table. Call `withoutCache()` to bypass the cache for
-one read, or `flushCache()` to invalidate immediately.
+A read is keyed by the SQL it runs: the root query with its global scopes applied, and each eager-loaded relation's
+query with its `constrain()` closure and the related model's global scopes. `?trashed`, tenant scopes and constraints
+that read the authenticated user are therefore cached per value. A read with a `MorphTo` include, a relation class other
+than the framework's own, an `afterQuery()` callback other than `chaperone()`'s, a callable `withDefault()` or eager
+loads nested more than 16 levels deep runs uncached. Scopes and constraints run once more per read to build the key, so
+they must be deterministic and free of side effects. `paginate()` is never cached. Writes invalidate the table.
+Eager-loaded rows are cached with their parent, so a write to a related table leaves them stale until the TTL. Call
+`withoutCache()` to bypass the cache for one read, or `flushCache()` to invalidate immediately.
 
-With `$cacheReferenceTable = true`, the full table is loaded once and memoised in-process, and single-record lookups
-never touch the database. Use it only for small lookup tables that rarely change.
+With `$cacheReferenceTable = true`, the table is loaded once per global-scope variant and memoised in-process, and
+`get()` and `find()` are served from that snapshot. A read with criteria, repository scopes or a column list other than
+`*` runs a real query, and a write clears every variant. Use it only for small lookup tables that rarely change.
 
 **Deferrable trait** - buffer inserts in memory and flush them as bulk `INSERT` statements at the lifecycle boundary
 (`RequestHandled`, `CommandFinished`, `JobProcessed`, or `JobFailed`):
@@ -611,6 +638,11 @@ connective, and clauses an operator joins with OR are grouped on their own. One 
 `ValidationException`, and one that adds no clause is rejected with a 422. Operators are predicate-only: a scope
 removed inside one leaks to the outer query.
 
+An operator whose value has a fixed shape can implement `SineMacula\ApiToolkit\Contracts\DeclaresValueShape` and
+return a `FilterValueShape` from `valueShape()`. Its value is then checked against that shape and the column's type,
+and resolved as the built-in operators' values are, before `apply()` runs. A closure, or an operator without the
+contract, receives the value as sent.
+
 An operator that expands one value into a predicate per item should also implement
 `SineMacula\ApiToolkit\Contracts\ExpandsValueList` and return the item count from `countValueItems()`. That count is
 checked against the `max_in_items` cap, so a delimited string is bounded the same as an array. An operator without
@@ -642,6 +674,9 @@ Exceptions are mapped to `ApiException` subclasses and rendered as JSON error re
 - `'json_when_expected'` - JSON only when the request expects it (Laravel's `expectsJson()`, e.g.
   `Accept: application/json`).
 
+On a precognitive request a `ValidationException` renders as Laravel's `{message, errors}` body, which Precognition
+clients read, rather than the error envelope.
+
 `api-toolkit.exceptions.map` renders an exception as an `ApiException` of your own:
 
 ```php
@@ -655,9 +690,24 @@ use Illuminate\Http\Exceptions\ThrottleRequestsException;
 A key naming a built-in replaces it, any other is matched just before the first built-in mapping whose key it extends,
 else after every built-in, and the first match wins. So `ThrottleRequestsException` wins over the built-in
 `TooManyRequestsHttpException` it extends, and `RuntimeException` or `Throwable` catches only what no built-in maps.
-Laravel converts some exceptions before the handler sees them, so map the converted type: `NotFoundHttpException` for a
-`ModelNotFoundException`, `AccessDeniedHttpException` for an `AuthorizationException` without a status. The response
-keeps the headers of the exception it replaces.
+The response keeps the headers of the exception it replaces.
+
+Laravel converts these exceptions before the handler sees them, so a key naming one would never match and is rejected.
+Map the exception it becomes:
+
+- `ModelNotFoundException`, `RecordNotFoundException`, `RecordsNotFoundException` and `BackedEnumCaseNotFoundException`
+  become `NotFoundHttpException`.
+- `RequestExceptionInterface`, such as `SuspiciousOperationException`, becomes `BadRequestHttpException`.
+- `AuthorizationException` becomes `AccessDeniedHttpException`, or an `HttpException` with its status when it has one.
+- `OriginMismatchException` and Laravel's `TokenMismatchException` become an `HttpException` with `403` and `419`.
+
+An `HttpException` carrying only a status, from `abort()` or a denial such as `denyAsNotFound()`, renders as the key
+its status stands for, so a hidden record answers exactly as a missing one: `400` as `BadRequestHttpException`, `401` as
+`AuthenticationException`, `403` as `AccessDeniedHttpException`, `404` as `NotFoundHttpException`, `405` as
+`MethodNotAllowedHttpException`, `413` as `PostTooLargeException`, `429` as `TooManyRequestsHttpException` and `503` as
+`ServiceUnavailableHttpException`. `419` renders as a token mismatch, any other status as a generic HTTP error, and an
+unrecognised status such as `499` as a generic `500`. A key naming `HttpException` or `HttpExceptionInterface` itself
+takes precedence over all of these.
 
 A target must be an instantiable `ApiException` with a `CODE`, a 4xx or 5xx status, and `ApiException`'s own constructor
 and `getStatusCode()`. The map is validated once the application has booted to serve requests, and an invalid one throws
@@ -690,6 +740,72 @@ failed-job storage or console output. Reporting is decided after any `$exception
 
 Request input is not attached to exception reports. Add the fields you want with your own `$exceptions->context()`
 callback.
+
+### Controllers and Authorization
+
+`SineMacula\ApiToolkit\Http\Routing\Controller` provides the response helpers: `respondWithData()` wraps an array in
+`data`, and `respondWithItem()` and `respondWithCollection()` render a resource or a collection. Each takes an optional
+`HttpStatus` and headers.
+
+`AuthorizedController` extends it with resource authorization. Declare the model with `#[AuthorizesResource]`:
+
+```php
+use SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource;
+use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
+
+#[AuthorizesResource(Order::class)]
+final class OrderController extends AuthorizedController {}
+```
+
+Each resource action is gated by a `can:` middleware for its policy ability:
+
+| Action         | Ability       | Checked against |
+|----------------|---------------|-----------------|
+| `index`        | `viewAny`     | the model class |
+| `store`        | `create`      | the model class |
+| `show`         | `view`        | the bound model |
+| `update`       | `update`      | the bound model |
+| `destroy`      | `delete`      | the bound model |
+| `restore`      | `restore`     | the bound model |
+| `forceDestroy` | `forceDelete` | the bound model |
+
+The bound model is read from the route parameter named after the model's snake-cased basename, so `LedgerEntry` reads
+`{ledger_entry}`, as `Route::apiResource('ledger-entries', ...)` names it. `parameter` names another, used verbatim. A
+parameter the route does not bind passes the gate no model, so the model's policy is never consulted. `except` lists
+actions to leave ungated.
+
+`apiResource()` does not route `restore` or `forceDestroy`. Route them with `withTrashed()`, or implicit binding answers
+`404` for a trashed row before the gate runs:
+
+```php
+Route::post('orders/{order}/restore', [OrderController::class, 'restore'])->withTrashed();
+Route::delete('orders/{order}/force', [OrderController::class, 'forceDestroy'])->withTrashed();
+```
+
+Any other routed action declares its own authorization, by default with Laravel's `#[Authorize]` on the method or the
+class. `->can()` on the route and a `can:` in its group count too:
+
+```php
+use Illuminate\Routing\Attributes\Controllers\Authorize;
+
+#[Authorize('update', 'order')]
+public function publish(Order $order): JsonResponse
+```
+
+Two markers take an action out of the toolkit's gating:
+
+- `#[CustomAuthorization]` - the action authorizes itself, through `$this->authorize()`, a form request or a service.
+  The export documents its `403`. Nothing verifies the check.
+- `#[SkipAuthorization]` - the action is open to any caller past authentication, and adds no `403` to the export. A
+  gate the route declares itself still runs.
+
+An action that declares none of these, and is not in `except`, fails closed: the request is refused before the action
+runs with a `LogicException`, reported and rendered as a `500`. So is a resource action whose gate is removed with
+`withoutMiddleware('can')`. The guard checks that a gate is declared, not that it is the right one, and only Laravel's
+`Authorize` middleware counts: mark an action behind authorization middleware of your own `#[CustomAuthorization]`.
+
+The controller authorizes but does not authenticate: a guest reaches the gate, and a policy that does not accept guests
+denies it with a `403`. Put the routes behind `auth` to answer `401` first.
 
 ### Middleware
 
@@ -774,14 +890,15 @@ document cannot offer a column the request would reject or an operator that is n
 operators have all been removed from the registry is documented as answering no filter.
 
 Every operation also lists the errors it can return, derived from the route: an unauthenticated request behind auth
-middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, or an
-`AuthorizedController` action), a missing record when the path has parameters, a validation failure when the operation
-accepts a request body, a refusal behind a rate limit, and an unhandled exception always. Each is documented as the
-exception map renders it: by default a `401`, `403`, `404`, `422`, `429` and `500`. The unhandled exception is looked up
-as a `Throwable`, so a `Throwable` key changes it and a narrower catch-all such as `RuntimeException` does not. A failed
-basic-auth challenge and an authorization denied with an explicit status render as a generic HTTP error, which the
-document does not describe. Middleware is read as the router resolves it, so a guard or limit applied through a group
-counts and one removed with `withoutMiddleware()` does not.
+middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
+`AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the path
+has parameters, a validation failure when the operation accepts a request body, a refusal behind a rate limit, and an
+unhandled exception always. Each is documented as the exception map renders it: by default a `401`, `403`, `404`, `422`,
+`429` and `500`. The unhandled exception is looked up as a `Throwable`, so a `Throwable` key changes it and a narrower
+catch-all such as `RuntimeException` does not. A denial with a status of its own is documented only where the route
+already lists the error that status stands for, as a path with parameters does for `denyAsNotFound()`. Middleware is
+read as the router resolves it, so a guard or limit applied through a group counts and one removed with
+`withoutMiddleware()` does not.
 
 Each `ApiException` subclass named in the action's `@throws` tags is added under its status too; other throwables in
 those tags are ignored. Class names in `@throws` resolve as PHP would in the file declaring the action, so imported,
@@ -1066,8 +1183,44 @@ final class SignIn extends Service
     }
 }
 
-$user = SignIn::make(SignInPayload::from($request))->runOrFail();
+$user = SignIn::make($payload)->runOrFail();
 ```
+
+#### Payloads in Actions
+
+Type-hint the payload on the action. It is validated and hydrated from the request before the action runs, a failure
+renders as a `422`, and the exported request body is documented from its `rules()`. Outside HTTP, build it with
+`from()` and an array.
+
+```php
+public function signIn(SignInPayload $payload): UserResource
+{
+    return new UserResource(SignIn::make($payload)->runOrFail());
+}
+
+SignInPayload::from(['email' => 'a@example.com', 'password' => 'secret']);
+```
+
+`messages()` and `attributes()` customise the messages and field names, as on a FormRequest. A `status.enum` entry
+rewords an enum failure on `status`, whether `Rule::enum()` or the cast refused it:
+
+```php
+public static function messages(): array
+{
+    return ['email.unique' => 'That email is already registered.', 'status.enum' => 'Choose a listed status.'];
+}
+
+public static function attributes(): array
+{
+    return ['client_name' => 'organisation name'];
+}
+```
+
+For Precognition, add Laravel's `HandlePrecognitiveRequests` middleware to the route. A `Precognition-Validate-Only`
+header validates only the fields it names, and a request that passes answers `204` without running the action. A
+precognitive `422` is Laravel's `{message, errors}` body, which Precognition clients read, rather than the error
+envelope; this holds for a FormRequest too. Under `Precognition-Validate-Only` the first input to pass ends the request
+before a second is validated, so an action should take one validated input.
 
 #### Running a Service
 
@@ -1078,7 +1231,7 @@ reaches the application's exception handler. A failed result with no captured ex
 `run()` never throws for a business failure. It returns a `ServiceResult` for callers that branch on the outcome:
 
 ```php
-$result = SignIn::make(SignInPayload::from($request))->run();
+$result = SignIn::make($payload)->run();
 
 if ($result->failed()) {
     // $result->exception is the captured failure, or null when none was thrown
@@ -1099,7 +1252,7 @@ store. Each attempt runs the whole lifecycle, firing `onFailure()` and `ServiceF
 #### Transactions
 
 `$transactional` (default `true`) wraps the concerns, `prepare()` and `handle()` in a database transaction, and
-`afterCommit()` runs once the service's own transaction has committed. The transaction runs once: a deadlock or other
+`afterCommit()` runs once the outermost transaction has committed. The transaction runs once: a deadlock or other
 concurrency error rolls it back and fails the run, firing `onFailure()` and `ServiceFailed`.
 
 `$transactionAttempts` (default `1`) lets a top-level run retry a concurrency error. Each retry re-runs the concerns,
@@ -1141,6 +1294,18 @@ input, or `dispatch()` it and let the worker retry per `--tries`. Each worker at
 input rather than the previous attempt's models, but models nested in an `ArrayInput` or `Payload` are not re-fetched,
 so pass keys and keep external effects idempotent.
 
+A service run inside a caller's transaction (another service, a `DB::transaction()` or a job that opens one) commits
+only a savepoint, so its lock, `afterCommit()` and `ServiceCompleted` wait for the outermost commit, and a rollback
+releases the lock and runs neither. A `$transactional = false` service behaves the same. The result `run()` returns
+there has empty `sideEffectErrors()`; errors from `afterCommit()` are reported and carried on the `ServiceCompleted`
+result. A `ServiceCompleted` or `ServiceFailed` listener exception is reported, never thrown.
+
+The lock is held for the rest of the caller's transaction, so `$lockExpiration` must cover it, and a second run with the
+same lock key inside it fails with `LockUnavailableException`. Queue follow-up work from `afterCommit()`, which runs
+once, after the attempt that commits, and never after a rollback. `dispatch()` from `handle()` pushes at once unless the
+queue connection sets `after_commit`, so the job can run for a write that never commits. Transactions interleaved on two
+connections are not supported: the deferred work attaches to the most recent open transaction on any connection.
+
 #### Reading the Run Context
 
 During a run, `$this->context()` returns the `ServiceContext` in use: the one given through `withContext()`, the
@@ -1152,7 +1317,7 @@ At an HTTP edge, `ServiceContext::fromRequest()` builds an `HTTP` context, so th
 without seeing the request:
 
 ```php
-$order = PlaceOrder::make(OrderPayload::from($request))
+$order = PlaceOrder::make($payload)
     ->withContext(ServiceContext::fromRequest($request, EloquentActor::for($request->user())))
     ->runOrFail();
 
@@ -1265,11 +1430,13 @@ decimal string for an int-backed one. So `"3"` and `"-3"` are read, while `"03"`
 where `Rule::enum()` passes them. A value that matches no case fails as a `422` keyed by its body key, even when
 `rules()` leaves the enum rule out. A resource field holding a pure enum case is serialised as the same lowercase
 name, so it can be sent back unchanged. An enum whose case names collide once lowercased, such as `case Web` and
-`case WEB`, throws a `LogicException`.
+`case WEB`, throws a `LogicException`, as does a rule nested under an enum property's key, such as `status.name`, since
+the property is read from the whole value.
 
 A model attribute cast to a pure enum also uses the lowercase name in `filters` and in repository writes, though
 Eloquent stores the declared case name. `{"platform": {"$in": ["web", "mobile_app"]}}` matches rows storing `WEB` and
-`MOBILE_APP`, on the root model or through a relation, and any other spelling, `MOBILE_APP` included, matches nothing.
+`MOBILE_APP`, on the root model or through a relation, and any other spelling, `MOBILE_APP` included, is refused with
+a 422.
 `persist()` accepts the lowercase name or the case itself, and throws a `ValueError` for a string that names no case.
 
 ### Notification Audit Log
