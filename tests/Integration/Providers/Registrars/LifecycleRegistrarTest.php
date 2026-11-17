@@ -84,6 +84,30 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
+     * Test that a job attempt resets the toolkit state before it flushes the
+     * write pool, whose failure may be re-thrown.
+     *
+     * @return void
+     */
+    public function testJobAttemptResetsTheStateBeforeFlushingTheWritePool(): void
+    {
+        Event::swap(new Dispatcher($this->getApplication()));
+
+        (new LifecycleRegistrar)->register();
+
+        /** @var \Illuminate\Events\Dispatcher $events */
+        $events = $this->getApplication()->make('events');
+
+        $listeners = $events->getRawListeners()[JobAttempted::class] ?? [];
+
+        assert(is_array($listeners));
+
+        $subscribers = array_map(static fn (mixed $listener): string => is_array($listener) && is_object($listener[0]) ? $listener[0]::class : '', $listeners);
+
+        self::assertSame([QueueFlushSubscriber::class, WritePoolFlushSubscriber::class], $subscribers);
+    }
+
+    /**
      * Test that a published config carrying the removed lifecycle switches
      * still wires both flush listeners.
      *

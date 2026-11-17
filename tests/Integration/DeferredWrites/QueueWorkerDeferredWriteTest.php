@@ -4,16 +4,22 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\DeferredWrites;
 
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Events\CacheFlushed;
+use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 use SineMacula\ApiToolkit\Services\ServiceContext;
 use Tests\Concerns\UsesDatabaseQueue;
 use Tests\Fixtures\Jobs\DeferringJob;
+use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Services\Jobs\DeferringService;
 use Tests\Fixtures\Services\StubActor;
 use Tests\TestCase;
@@ -130,6 +136,38 @@ final class QueueWorkerDeferredWriteTest extends TestCase
 
         self::assertSame([0, 0], DeferringJob::$bufferedAtStart);
         self::assertSame(['first-1@queue.test', 'second-1@queue.test'], $this->deferredEmails());
+    }
+
+    /**
+     * Test that a re-thrown flush failure at the end of a successful attempt is
+     * reported once, without retrying the job or skipping the state reset.
+     *
+     * @return void
+     */
+    public function testRethrownFlushFailureIsReportedWithoutRetryingTheJob(): void
+    {
+        Config::set('api-toolkit.deferred_writes.on_failure', 'throw');
+        Config::set('api-toolkit.deferred_writes.rethrow_at_boundary', true);
+
+        User::create(['name' => 'Taken', 'email' => 'taken-1@queue.test']);
+
+        $flushes = new \ArrayObject;
+
+        Event::listen(CacheFlushed::class, static function (CacheFlushed $event) use ($flushes): void {
+            $flushes->append($event);
+        });
+
+        Exceptions::fake();
+
+        Queue::push(new DeferringJob('taken'));
+
+        $this->workUntilEmpty();
+
+        self::assertCount(1, $flushes);
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(WritePoolFlushException::class);
+        self::assertSame(0, DB::connection('queue_probe')->table('jobs')->count());
+        self::assertSame(0, DB::connection('queue_probe')->table('failed_jobs')->count());
     }
 
     /**
