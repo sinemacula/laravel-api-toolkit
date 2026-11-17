@@ -73,7 +73,7 @@ vendor/bin/phpunit tests/Unit/ApiQueryParserTest.php
 vendor/bin/phpunit --filter testMethodName tests/Unit/SomeTest.php
 ```
 
-Tests run in random order, and a deprecation fails the run. Replay a failing order with the seed the run printed:
+Tests run in random order, and a deprecation fails the run. Replay a failing order serially with the seed the run printed:
 
 ```bash
 vendor/bin/phpunit --order-by=random --random-order-seed=1234

@@ -87,4 +87,3 @@ jobs:
                     path: |
                         build/infection-full.log
                         build/infection-full-summary.log
-                    if-no-files-found: warn
