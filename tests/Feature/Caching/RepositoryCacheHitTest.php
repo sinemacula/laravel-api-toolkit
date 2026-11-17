@@ -17,8 +17,8 @@ use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\TestCase;
 
 /**
- * Feature test proving a repeated identical HTTP read is served from the
- * per-query cache.
+ * Feature tests proving a repeated identical HTTP read is served from the
+ * per-query cache, and that a paginated read never is.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -30,7 +30,7 @@ use Tests\TestCase;
 final class RepositoryCacheHitTest extends TestCase
 {
     /**
-     * Set up each test with a cacheable users route and seeded rows.
+     * Set up each test with cacheable users routes and seeded rows.
      *
      * @return void
      */
@@ -44,6 +44,13 @@ final class RepositoryCacheHitTest extends TestCase
         Route::middleware(ParseApiQuery::class)->get('/cached-users', function (CacheableUserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+            return new ApiResourceCollection($users, FilterableUserResource::class);
+        });
+
+        Route::middleware(ParseApiQuery::class)->get('/cached-users/paged', function (CacheableUserRepository $repository): ApiResourceCollection {
+
+            $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
             return new ApiResourceCollection($users, FilterableUserResource::class);
         });
@@ -88,6 +95,28 @@ final class RepositoryCacheHitTest extends TestCase
 
         self::assertCount(0, DB::getQueryLog());
 
+        self::assertSame($first->baseResponse->getContent(), $second->baseResponse->getContent());
+    }
+
+    /**
+     * Test that a repeated identical paginated read runs its queries again.
+     *
+     * @return void
+     */
+    public function testRepeatedPaginatedReadRunsItsQueriesAgain(): void
+    {
+        $first = $this->getJson('/cached-users/paged');
+
+        $first->assertOk();
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+
+        $second = $this->getJson('/cached-users/paged');
+
+        $second->assertOk();
+
+        self::assertNotCount(0, DB::getQueryLog());
         self::assertSame($first->baseResponse->getContent(), $second->baseResponse->getContent());
     }
 }
