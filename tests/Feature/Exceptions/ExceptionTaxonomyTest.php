@@ -26,6 +26,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException as SymfonyHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\TestCase;
 
@@ -40,7 +41,7 @@ use Tests\TestCase;
 #[CoversClass(ApiExceptionHandler::class)]
 final class ExceptionTaxonomyTest extends TestCase
 {
-    use RegistersApiExceptionHandler;
+    use RecordsStatements, RegistersApiExceptionHandler;
 
     /** @var class-string<\Throwable>|null The class the render callbacks received */
     private ?string $received = null;
@@ -108,6 +109,21 @@ final class ExceptionTaxonomyTest extends TestCase
         yield 'authorization with an unknown status' => [static fn (): \Throwable => (new AuthorizationException)->withStatus(499), SymfonyHttpException::class, 500, 10001];
         yield 'token mismatch' => [static fn (): \Throwable => new TokenMismatchException, SymfonyHttpException::class, 419, 10105];
         yield 'origin mismatch' => [static fn (): \Throwable => new OriginMismatchException, SymfonyHttpException::class, 403, 10102];
+    }
+
+    /**
+     * Test that an unmatched route renders the not-found envelope without
+     * touching the database.
+     *
+     * @return void
+     */
+    public function testUnmatchedRouteIsRenderedAsNotFoundWithoutStatements(): void
+    {
+        $statements = $this->recordStatements(fn () => $this->getJson('/unmatched')
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 10103));
+
+        self::assertStatementCount(0, $statements);
     }
 
     /**

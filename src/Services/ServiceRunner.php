@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Services;
 
+use Illuminate\Support\Facades\DB;
 use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Exceptions\LockOperationException;
 use SineMacula\ApiToolkit\Services\Actors\SystemActor;
@@ -18,6 +19,7 @@ use SineMacula\ApiToolkit\Services\Pipeline\TransactionStage;
  *
  * authorize -> validate -> [lock] -> [tx] -> concerns -> prepare -> handle ->
  * commit -> release -> afterCommit, with onFailure after rollback and release.
+ * Release, afterCommit and ServiceCompleted follow the outermost commit.
  *
  * @phpstan-type ServiceHooks array{
  *     authorize: \Closure(): void,
@@ -77,22 +79,55 @@ final class ServiceRunner
      */
     private function execute(Service $service, ServiceContext $context): ServiceResult
     {
-        $start  = microtime(true);
-        $hooks  = $service->serviceHooks();
-        $result = ServiceResult::failure();
+        $start = microtime(true);
+        $hooks = $service->serviceHooks();
 
         try {
             $this->runPreFlight($hooks, $context);
             $output = $this->buildPipeline($service, $hooks, $context)();
-            $result = ServiceResult::success($output, $this->runAfterCommit($hooks, $output));
         } catch (\Throwable $exception) {
+            $duration = microtime(true) - $start;
+            $result   = ServiceResult::failure($exception);
+
             $this->runOnFailure($hooks, $exception);
-            $result = ServiceResult::failure($exception);
-        } finally {
-            $this->dispatchEvent($service, $context, $result, $start, $hooks['inputSummary']);
+            $this->dispatchEvent($service, $context, $result, $duration, $hooks['inputSummary']);
+
+            return $result; // @phpstan-ignore return.type
         }
 
-        return $result; // @phpstan-ignore return.type
+        return $this->complete($service, $context, $hooks, $output, microtime(true) - $start); // @phpstan-ignore return.type
+    }
+
+    /**
+     * Return the successful result, running afterCommit and dispatching
+     * ServiceCompleted once the outermost transaction commits.
+     *
+     * With no transaction open the callback runs at once and fills the returned
+     * result; inside a caller's transaction it is discarded on rollback.
+     *
+     * @param  \SineMacula\ApiToolkit\Services\Service  $service
+     * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
+     * @param  ServiceHooks  $hooks
+     * @param  mixed  $output
+     * @param  float  $duration
+     * @return \SineMacula\ApiToolkit\Services\ServiceResult<mixed>
+     *
+     * @phpstan-ignore missingType.generics
+     */
+    private function complete(Service $service, ServiceContext $context, array $hooks, mixed $output, float $duration): ServiceResult
+    {
+        $result = ServiceResult::success($output);
+
+        DB::afterCommit(function () use ($service, $context, $hooks, $output, $duration, &$result): void {
+            $previous = $service->bindRunContext($context);
+            $result   = ServiceResult::success($output, $this->runAfterCommit($hooks, $output));
+
+            $service->bindRunContext($previous);
+
+            $this->dispatchEvent($service, $context, $result, $duration, $hooks['inputSummary']);
+        });
+
+        return $result;
     }
 
     /**
@@ -282,30 +317,32 @@ final class ServiceRunner
     }
 
     /**
-     * Dispatch the appropriate observability event.
+     * Dispatch the appropriate observability event, reporting a listener's
+     * exception rather than letting it replace the outcome.
      *
      * @param  \SineMacula\ApiToolkit\Services\Service  $service
      * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
      * @param  \SineMacula\ApiToolkit\Services\ServiceResult<mixed>  $result
-     * @param  float  $startTime
+     * @param  float  $duration
      * @param  array<string, mixed>  $inputSummary
      * @return void
      *
      * @phpstan-ignore missingType.generics
      */
-    private function dispatchEvent(Service $service, ServiceContext $context, ServiceResult $result, float $startTime, array $inputSummary): void
+    private function dispatchEvent(Service $service, ServiceContext $context, ServiceResult $result, float $duration, array $inputSummary): void
     {
-        $duration      = microtime(true) - $startTime;
         $actor         = $context->actor;
         $serviceClass  = $service::class;
         $correlationId = $context->correlationId;
 
-        if ($result->succeeded()) {
-            event(new ServiceCompleted($actor, $serviceClass, $result, $duration, $correlationId, $inputSummary));
+        $event = $result->succeeded()
+            ? new ServiceCompleted($actor, $serviceClass, $result, $duration, $correlationId, $inputSummary)
+            : new ServiceFailed($actor, $serviceClass, $result, $duration, $correlationId, $inputSummary);
 
-            return;
+        try {
+            event($event);
+        } catch (\Throwable $exception) {
+            FailureReporter::report($exception, 'A service event listener threw an exception.');
         }
-
-        event(new ServiceFailed($actor, $serviceClass, $result, $duration, $correlationId, $inputSummary));
     }
 }
