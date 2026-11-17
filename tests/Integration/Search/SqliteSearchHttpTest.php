@@ -32,11 +32,11 @@ final class SqliteSearchHttpTest extends EngineSearchHttpTestCase
      */
     public function testAWildcardInTheTermRanksAsItself(): void
     {
-        User::create(['name' => 'Plan 50%', 'email' => 'plan@example.com', 'status' => 'active']);
+        User::create(['name' => '500 Plan 50%', 'email' => 'plan@example.com', 'status' => 'active']);
         User::create(['name' => 'Plan 500', 'email' => 'five@example.com', 'status' => 'active']);
         User::create(['name' => '50% Off', 'email' => 'off@example.com', 'status' => 'active']);
 
-        self::assertSame(['50% Off', 'Plan 50%'], $this->names($this->getJson('/users?' . http_build_query(['search' => '50%', 'order' => 'relevance']))));
+        self::assertSame(['50% Off', '500 Plan 50%'], $this->names($this->getJson('/users?' . http_build_query(['search' => '50%', 'order' => 'relevance']))));
     }
 
     /**

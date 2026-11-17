@@ -181,15 +181,16 @@ connection may scan the whole table on every request; only list development conn
 | 3    | the start of a space-delimited word | `SUBSTRING`                    |
 | 4    | anywhere else                       | `SUBSTRING`                    |
 
-A row ranks by its best searchable column, compared with the operator its driver matches with (`=` for `EXACT`, then
-`like`, or `ilike` on PostgreSQL), so case folds as it does in matching. A MySQL n-gram match no literal pattern sees
-ranks last. `relevance` applies at its position in the order list, so `order=relevance,name` breaks ties by name before
-the appended key. It needs `search`, offset pagination and the `asc` direction; anything else is a `422` on
-`order.relevance`. A custom driver implements `rank()` to order its own matches.
+A row ranks by its best searchable column, compared with `=` for `EXACT` and otherwise `like`, or `ilike` on
+PostgreSQL, so case folds as it does in matching. A MySQL n-gram match no literal pattern sees ranks last. An
+`EXACT`-only resource adds no order, since every match ranks first. `relevance` applies at its position in the order
+list, so `order=relevance,name` breaks ties by name before the appended key. It needs `search`, offset pagination and
+the `asc` direction; anything else is a `422` on `order.relevance`. A custom driver implements `rank()` to order its
+own matches.
 
-Relevance is a computed sort, the one order no index serves: it reads every matching row. Behind a MySQL full-text or
-PostgreSQL trigram lookup that costs one `CASE` per match; where the planner could otherwise stop after one page, it
-reads them all. A repository scope that adds `distinct`, `group by` or a union cannot be combined with it.
+Relevance is a computed sort no index serves, so it reads every matching row. Behind a MySQL full-text or PostgreSQL
+trigram lookup that costs one `CASE` per match; where the planner could otherwise stop after one page, it reads them
+all. It is unsupported beside a repository scope that adds `distinct`, `group by` or a union.
 
 **Sorting** - sort by one or more columns, with optional direction:
 

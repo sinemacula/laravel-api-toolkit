@@ -334,9 +334,9 @@ the API has enabled it; where it has not, it is rejected like any undeclared
 column.
 
 Beside a search, `relevance` orders the matches by how closely they match: the
-whole value first, then the start of the value, then the start of a word, then
-anywhere. It needs `search` and length-aware pagination, takes no direction but
-`asc`, and may be followed by other keys to break ties:
+whole value first, then the start of the value, then the start of a word after
+a space, then anywhere. It needs `search` and length-aware pagination, takes no
+direction but `asc`, and may be followed by other keys to break ties:
 
 ```text
 ?search=smith&order=relevance,name
