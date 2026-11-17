@@ -525,10 +525,35 @@ final class PayloadTest extends TestCase
             }
         };
 
+        $anyKey = new class extends Payload {
+            /**
+             * Create a new instance with an enum under a nested wildcard key.
+             *
+             * @param  \Tests\Fixtures\Services\Input\Enums\StubStatusEnum|null  $status
+             */
+            public function __construct(
+
+                /** An enum property every top-level key's rule reaches. */
+                public readonly ?StubStatusEnum $status = null,
+            ) {}
+
+            /**
+             * Rule a nested name under every top-level key.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['*.name' => ['string']];
+            }
+        };
+
         $cases = [
             [$nested, ['magnitude' => ['value' => 1]], 'magnitude.value', 'magnitude'],
             [$wildcard, ['magnitude' => [1]], 'magnitude.*', 'magnitude'],
             [$parent, ['client_status' => StubStatusEnum::ACTIVE], 'client_status.name', 'clientStatus'],
+            [$anyKey, ['status' => ['name' => 'active']], '*.name', 'status'],
         ];
 
         foreach ($cases as [$payload, $data, $rule, $property]) {
@@ -546,7 +571,8 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that a rule key sharing an enum key's prefix is not nested under it.
+     * Test that a rule key sharing an enum key's prefix is not nested under it,
+     * since the validator expands no partial wildcard at the top level.
      *
      * @return void
      *
@@ -567,18 +593,63 @@ final class PayloadTest extends TestCase
             ) {}
 
             /**
-             * Rule the magnitude beside a key that only shares its prefix.
+             * Rule the magnitude beside keys that only share its prefix.
              *
              * @return array<string, mixed>
              */
             #[\Override]
             public static function rules(): array
             {
-                return ['magnitude' => ['sometimes'], 'magnitudes.value' => ['sometimes']];
+                return ['magnitude' => ['sometimes'], 'magnitudes.value' => ['sometimes'], 'magni*.value' => ['sometimes']];
             }
         };
 
         self::assertSame(Magnitude::ONE, $definition::from(['magnitude' => 1])->magnitude);
+    }
+
+    /**
+     * Test that a top-level wildcard rule carries the enum rule to an enum
+     * property.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function testTopLevelWildcardRuleCarriesTheEnumRule(): void
+    {
+        $definition = new class extends Payload {
+            /**
+             * Create a new instance with an enum ruled by a top-level wildcard.
+             *
+             * @param  \Tests\Fixtures\Services\Input\Enums\StubStatusEnum|null  $status
+             */
+            public function __construct(
+
+                /** An enum property ruled only through the wildcard. */
+                public readonly ?StubStatusEnum $status = null,
+            ) {}
+
+            /**
+             * Rule every top-level key as a string.
+             *
+             * @return array<string, mixed>
+             */
+            #[\Override]
+            public static function rules(): array
+            {
+                return ['*' => ['string']];
+            }
+        };
+
+        self::assertSame(StubStatusEnum::ACTIVE, $definition::from(['status' => 'active'])->status);
+
+        try {
+            $definition::from(['status' => 'archived']);
+
+            self::fail('Expected a ValidationException for the unknown status.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['status' => ['The selected status is invalid.']], $exception->errors());
+        }
     }
 
     /**
@@ -1922,6 +1993,23 @@ final class PayloadTest extends TestCase
             self::fail('Expected a ValidationException for the named magnitude.');
         } catch (ValidationException $exception) {
             self::assertSame(['magnitude' => ['The selected magnitude is invalid.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that a precognitive request skips the enum check on a field it does
+     * not name.
+     *
+     * @return void
+     */
+    public function testPrecognitiveRequestSkipsTheEnumCheckOnAnUnnamedField(): void
+    {
+        try {
+            BackedEnumInput::from(self::precognitiveRequest(['magnitude' => '01', 'status' => 'active'], 'status'));
+
+            self::fail('Expected the Precognition success abort.');
+        } catch (HttpException $exception) {
+            self::assertSame(204, $exception->getStatusCode());
         }
     }
 

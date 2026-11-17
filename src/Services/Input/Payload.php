@@ -59,13 +59,7 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
             $key  = $keys[$name] ?? $name;
             $enum = self::enumType($parameter);
 
-            if ($enum === null) {
-                continue;
-            }
-
-            self::guardNestedEnumRules($rules, $name, $key);
-
-            if (!array_key_exists($key, $rules)) {
+            if ($enum === null || !self::isRuledWhole($rules, $name, $key)) {
                 continue;
             }
 
@@ -294,23 +288,42 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     }
 
     /**
-     * Fail when a rule nests under an enum property's body key, since the
-     * validated value would then be an array that names no case.
+     * Determine whether a rule reaches an enum property's body key whole, and
+     * fail when one nests under it, since the value could then name no case.
+     *
+     * Keys match as the validator expands them, so * and *.name reach every
+     * body key.
      *
      * @param  array<array-key, mixed>  $rules
      * @param  string  $name
      * @param  string  $key
-     * @return void
+     * @return bool
      *
      * @throws \LogicException
      */
-    private static function guardNestedEnumRules(array $rules, string $name, string $key): void
+    private static function isRuledWhole(array $rules, string $name, string $key): bool
     {
+        $ruled = false;
+
         foreach (array_keys($rules) as $rule) {
-            if (str_starts_with((string) $rule, $key . '.')) {
+
+            $rule   = (string) $rule;
+            $parent = Str::before($rule, '.');
+            $prefix = Str::before($parent, '*');
+
+            // The validator only expands a wildcard below its literal prefix
+            if (!Str::is($parent, $key) || ($prefix !== '' && $prefix !== $key)) {
+                continue;
+            }
+
+            if ($parent !== $rule) {
                 throw new \LogicException(sprintf('The rule "%s" nests under %s::$%s, an enum read from the whole value', $rule, static::class, $name));
             }
+
+            $ruled = true;
         }
+
+        return $ruled;
     }
 
     /**
