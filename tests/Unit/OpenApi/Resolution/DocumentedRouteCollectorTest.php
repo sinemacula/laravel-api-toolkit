@@ -226,12 +226,30 @@ final class DocumentedRouteCollectorTest extends TestCase
     {
         $this->router()->match(['HEAD'], 'ping', [PathPlainController::class, 'report']);
         $this->router()->options('preflight', [PathPlainController::class, 'index']);
+        $this->router()->query('search', [PathPlainController::class, 'report']);
         $this->router()->match(['HEAD', 'GET'], 'pong', [PathPlainController::class, 'report']);
 
         $routes = $this->collect(['public'])->in('public');
 
         self::assertSame(['/pong'], $this->paths($routes));
         self::assertSame(['get'], $routes[0]->verbs);
+    }
+
+    /**
+     * Test that a catch-all route documents only the verbs OpenAPI 3.1 defines
+     * an operation for.
+     *
+     * @return void
+     */
+    public function testCatchAllRouteDocumentsOnlyOpenApiOperationVerbs(): void
+    {
+        $this->router()->any('anything', [PathPlainController::class, 'report']);
+        $this->router()->match(['TRACE'], 'trace', [PathPlainController::class, 'index']);
+
+        $routes = $this->collect(['public'])->in('public');
+
+        self::assertSame(['get', 'post', 'put', 'patch', 'delete'], $routes[0]->verbs);
+        self::assertSame(['trace'], $routes[1]->verbs);
     }
 
     /**
