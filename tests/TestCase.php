@@ -307,6 +307,14 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
+     * Skip the database wipe, as there are no migrations to run and on a real
+     * engine it would drop the tables this test has just created.
+     *
+     * @return void
+     */
+    protected function migrateDatabases(): void {}
+
+    /**
      * Record a toolkit cache write whose value does not read back unchanged
      * with every class refused.
      *
