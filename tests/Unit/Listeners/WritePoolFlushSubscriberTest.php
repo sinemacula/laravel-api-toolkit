@@ -13,6 +13,7 @@ use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Queue\Events\JobAttempted;
+use Illuminate\Queue\Events\JobTimedOut;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -69,6 +70,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
         yield 'request handled' => [RequestHandled::class];
         yield 'command finished' => [CommandFinished::class];
         yield 'job attempted' => [JobAttempted::class];
+        yield 'job timed out' => [JobTimedOut::class];
     }
 
     /**
@@ -98,6 +100,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
         yield 'command finished' => [static fn (): object => new CommandFinished('test:command', new ArrayInput([]), new NullOutput, 0)];
         yield 'job attempted' => [static fn (): object => new JobAttempted('sync', self::createStub(Job::class))];
         yield 'job attempt that threw' => [static fn (): object => new JobAttempted('database', self::createStub(Job::class), new \RuntimeException('Job failure'))];
+        yield 'job timed out' => [static fn (): object => new JobTimedOut('database', self::createStub(Job::class), 60)];
     }
 
     /**

@@ -9,6 +9,7 @@ use Illuminate\Container\Container;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Queue\Events\JobAttempted;
+use Illuminate\Queue\Events\JobTimedOut;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Exceptions\FailureReporter;
@@ -35,15 +36,16 @@ final readonly class WritePoolFlushSubscriber
         $events->listen(RequestHandled::class, [$this, 'handleFlush']);
         $events->listen(CommandFinished::class, [$this, 'handleFlush']);
         $events->listen(JobAttempted::class, [$this, 'handleFlush']);
+        $events->listen(JobTimedOut::class, [$this, 'handleFlush']);
     }
 
     /**
      * Flush the write pool and escalate any failures.
      *
      * The pool is resolved from the current container, which under Octane is
-     * the request's sandbox. A released attempt is flushed like any other, so
-     * its rows persist whether the worker runs once or as a daemon. A flush
-     * exception is re-thrown only when rethrow_at_boundary is enabled.
+     * the request's sandbox. Every queue job attempt is flushed, including a
+     * released or timed-out one. A flush exception is re-thrown only when
+     * rethrow_at_boundary is enabled.
      *
      * @return void
      *
