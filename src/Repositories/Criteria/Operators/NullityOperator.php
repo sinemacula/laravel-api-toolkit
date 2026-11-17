@@ -5,7 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Operators;
 
 use Illuminate\Database\Eloquent\Builder;
+use SineMacula\ApiToolkit\Contracts\DeclaresValueShape;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
+use SineMacula\ApiToolkit\Enums\FilterValueShape;
 
 /**
  * Base handler for nullity filter operators.
@@ -13,8 +15,19 @@ use SineMacula\ApiToolkit\Contracts\FilterOperator;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-abstract class NullityOperator implements FilterOperator
+abstract class NullityOperator implements DeclaresValueShape, FilterOperator
 {
+    /**
+     * Return the shape of the value the operator accepts.
+     *
+     * @return \SineMacula\ApiToolkit\Enums\FilterValueShape
+     */
+    #[\Override]
+    public function valueShape(): FilterValueShape
+    {
+        return FilterValueShape::PRESENCE;
+    }
+
     /**
      * Apply the nullity constraint to the query builder.
      *

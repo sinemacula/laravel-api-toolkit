@@ -193,6 +193,7 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertIsString($description);
         self::assertStringStartsWith('Generic filter grammar. Filters are a URL-encoded JSON object keyed by field', $description);
         self::assertIsString($description);
+        self::assertStringContainsString(' Each operator\'s value must fit its shape and the field\'s type, and a date-time is sent in the form the field emits. ', $description);
         self::assertStringEndsWith('each resource accepts only the fields it declares filterable.', $description);
     }
 

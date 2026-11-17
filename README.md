@@ -89,6 +89,26 @@ Each is accepted only on a column whose declared capability allows it (see
 [Query capabilities](#schema-driven-apiresource)); any other pairing is rejected with a 422 naming the operator, the
 column and the operators that column accepts. The shorthand `{"name":"Alice"}` is `$eq` and is gated the same way.
 
+Each built-in operator takes a value of one shape:
+
+| Operator                   | Value                 | Matches rows                                   |
+|----------------------------|-----------------------|------------------------------------------------|
+| `$eq`, `$neq`              | one value             | equal, or not equal, to it                     |
+| `$gt`, `$ge`, `$lt`, `$le` | one value             | above or below it                              |
+| `$in`                      | a list, empty allowed | equal to any item; an empty list matches none  |
+| `$between`                 | `[low, high]`         | from low to high inclusive                     |
+| `$null`, `$notNull`        | `true`                | missing, or holding, a value                   |
+| `$contains`                | any JSON              | whose JSON document contains it                |
+
+`null` is never a value: a missing value is matched by `{"name":{"$null":true}}`, so `{"name":null}` is refused. Every
+value is also checked against the column's type, read from the schema catalogue. An integer column takes an integer, a
+digit string or a boolean, a boolean column `true`, `false`, `0` or `1`, a number column a finite number, a `uuid`
+column a UUID, a date `YYYY-MM-DD`, and a date-time `YYYY-MM-DDTHH:MM[:SS[.fraction]]` with an optional `Z` or offset.
+A date-time with an offset is converted to the application timezone, so a timestamp a resource emitted can be sent
+back as it is. A column cast to an enum takes only its cases' values, or a pure enum's lowercase names. A value outside
+its shape or its column's type is rejected with a 422 at its position, naming the form expected. Where the catalogue
+cannot be read, only the shape is checked.
+
 The entries of a filter document AND together, at every depth. `$and` and `$or` take a non-empty list of filter
 documents, each grouped on its own and joined by AND or OR:
 
@@ -108,7 +128,7 @@ while `{"$and":[{"posts":{"a":1}},{"posts":{"b":2}}]}` may match different posts
 A filter that cannot narrow the query is rejected with a 422 keyed by its position, such as `filters.$or.1.name`,
 rather than dropped: a group that is not a non-empty list, an empty group document, a condition with no column, a
 column given an empty object, a list, or a key that is not a registered condition, and any entry that adds no
-condition, such as an empty `$has` list or a `$between` without exactly two values.
+condition, such as an empty `$has` list.
 
 **Free-text search** - match a term against the fields a resource declares `searchable()`:
 
@@ -188,9 +208,9 @@ group columns instead; a read grouped by an expression, filtered by `having` wit
 A cursor can only seek by a column that holds a value in every row, so a cursor-paginated read rejects `random` and
 any column the cached column catalogue reports as nullable, such as the `created_at` that `timestamps()` creates;
 declare the column `NOT NULL` to cursor-page by it. Offset pagination sorts by either. Columns a repository scope
-orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, or does not carry a value for every
-ordered column (the client changed `?order` and kept `?cursor`), is rejected with a `422` on `cursor`; restart from
-the first page.
+orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, does not carry a value for every
+ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column cannot hold is rejected
+with a `422` on `cursor`; restart from the first page.
 
 **Page-size ceiling** - a `?limit` above `api-toolkit.parser.max_limit` (default 100) is rejected with a `422` naming
 the ceiling and the requested size, not reduced to the ceiling. Set the ceiling to `0` to disable it:
@@ -617,6 +637,11 @@ An operator adds AND-joined predicates for one column; the applier owns the grou
 connective, and clauses an operator joins with OR are grouped on their own. One that refuses its operand throws a
 `ValidationException`, and one that adds no clause is rejected with a 422. Operators are predicate-only: a scope
 removed inside one leaks to the outer query.
+
+An operator whose value has a fixed shape can implement `SineMacula\ApiToolkit\Contracts\DeclaresValueShape` and
+return a `FilterValueShape` from `valueShape()`. Its value is then checked against that shape and the column's type,
+and resolved as the built-in operators' values are, before `apply()` runs. A closure, or an operator without the
+contract, receives the value as sent.
 
 An operator that expands one value into a predicate per item should also implement
 `SineMacula\ApiToolkit\Contracts\ExpandsValueList` and return the item count from `countValueItems()`. That count is
@@ -1413,7 +1438,8 @@ the property is read from the whole value.
 
 A model attribute cast to a pure enum also uses the lowercase name in `filters` and in repository writes, though
 Eloquent stores the declared case name. `{"platform": {"$in": ["web", "mobile_app"]}}` matches rows storing `WEB` and
-`MOBILE_APP`, on the root model or through a relation, and any other spelling, `MOBILE_APP` included, matches nothing.
+`MOBILE_APP`, on the root model or through a relation, and any other spelling, `MOBILE_APP` included, is refused with
+a 422.
 `persist()` accepts the lowercase name or the case itself, and throws a `ValueError` for a string that names no case.
 
 ### Notification Audit Log

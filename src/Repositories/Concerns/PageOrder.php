@@ -20,8 +20,19 @@ use SineMacula\ApiToolkit\Validation\Rejection;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class PageOrder
+final readonly class PageOrder
 {
+    /**
+     * Create a new page order.
+     *
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral  $literal
+     */
+    public function __construct(
+
+        /** Checks each cursor boundary against its column's storage type */
+        private ColumnLiteral $literal,
+    ) {}
+
     /**
      * Append the columns that make the query's order unique.
      *
@@ -49,7 +60,8 @@ final class PageOrder
     /**
      * Decode the cursor token, refusing one the query's order cannot seek by.
      *
-     * Only the token's shape is checked: it carries values, not provenance.
+     * Only the token's shape and each boundary's type are checked: it carries
+     * values, not provenance.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
@@ -72,8 +84,13 @@ final class PageOrder
             throw Rejection::at('cursor', 'cursor.malformed');
         }
 
-        foreach ($this->seekColumns($query->getQuery(), $query->getModel()) as $column) {
-            if (!is_scalar($parameters[$column] ?? null)) {
+        $model = $query->getModel();
+
+        foreach ($this->seekColumns($query->getQuery(), $model) as $column) {
+
+            $boundary = $parameters[$column] ?? null;
+
+            if (!is_scalar($boundary) || !$this->literal->fitsBoundary($model, Str::after($column, $model->getTable() . '.'), $boundary)) {
                 throw Rejection::at('cursor', 'cursor.mismatch');
             }
         }
