@@ -80,19 +80,6 @@ final class CacheInvalidationRoundTripTest extends TestCase
     }
 
     /**
-     * Clean up the testing environment before the next test.
-     *
-     * @return void
-     */
-    #[\Override]
-    protected function tearDown(): void
-    {
-        DB::disableQueryLog();
-
-        parent::tearDown();
-    }
-
-    /**
      * Provide each cache store, with the flush transactional or not.
      *
      * @return iterable<string, array{string, bool}>

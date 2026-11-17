@@ -33,8 +33,8 @@ final class ServiceLockStoreTest extends TestCase
 {
     use CommitsRealTransactions, CreatesCacheTables;
 
-    /** @var string The connection the database store keeps its tables on */
-    private const string CACHE_CONNECTION = 'cache_store';
+    /** @var string The connection the database store keeps its locks on */
+    private const string LOCK_CONNECTION = 'locks';
 
     /**
      * Provide the in-process, file and database stores.
@@ -92,7 +92,7 @@ final class ServiceLockStoreTest extends TestCase
     }
 
     /**
-     * Create the database store's tables on its own connection.
+     * Create the database store's tables on its lock connection.
      *
      * @return void
      */
@@ -101,11 +101,11 @@ final class ServiceLockStoreTest extends TestCase
     {
         parent::defineDatabaseMigrations();
 
-        $this->createCacheTables(self::CACHE_CONNECTION);
+        $this->createCacheTables(self::LOCK_CONNECTION);
     }
 
     /**
-     * Point the database store at a connection of its own.
+     * Give the database store's locks a connection of their own.
      *
      * @param  mixed  $app
      * @return void
@@ -120,8 +120,8 @@ final class ServiceLockStoreTest extends TestCase
         /** @var \Illuminate\Config\Repository $config */
         $config = $app->make('config');
 
-        $config->set('database.connections.' . self::CACHE_CONNECTION, $config->get('database.connections.testing'));
-        $config->set('cache.stores.database.connection', self::CACHE_CONNECTION);
+        $config->set('database.connections.' . self::LOCK_CONNECTION, $config->get('database.connections.testing'));
+        $config->set('cache.stores.database.lock_connection', self::LOCK_CONNECTION);
     }
 
     /**

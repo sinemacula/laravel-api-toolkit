@@ -38,10 +38,10 @@ final class PersistInvalidationRoundTripTest extends TestCase
 {
     use RecordsStatements;
 
-    /** @var string */
+    /** @var string The read of every post with its tags */
     private const string POSTS_WITH_TAGS = '/cached-posts?fields[posts]=id,tags';
 
-    /** @var \Tests\Fixtures\Models\User */
+    /** @var \Tests\Fixtures\Models\User The user every test starts with */
     private User $alice;
 
     /**
