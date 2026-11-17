@@ -134,6 +134,9 @@ final class OctaneWorkerTest extends TestCase
     {
         Config::set('api-toolkit.deferred_writes.on_failure', 'collect');
 
+        // A savepoint keeps the wrapping transaction usable after the failure
+        Config::set('api-toolkit.deferred_writes.transactional', true);
+
         User::create(['name' => 'Taken', 'email' => 'taken@octane.test']);
 
         Exceptions::fake();
@@ -211,7 +214,7 @@ final class OctaneWorkerTest extends TestCase
         $catalogueQueries = new \ArrayObject;
 
         DB::listen(static function (QueryExecuted $query) use ($catalogueQueries): void {
-            if (preg_match('/pragma|sqlite_master|sqlite_schema/i', $query->sql) !== 1) {
+            if (preg_match('/pragma|sqlite_(?:master|schema)|information_schema|pg_(?:attribute|class|index|namespace)/i', $query->sql) !== 1) {
                 return;
             }
 

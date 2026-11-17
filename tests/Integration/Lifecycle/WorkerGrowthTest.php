@@ -6,6 +6,7 @@ namespace Tests\Integration\Lifecycle;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use Random\Engine\Mt19937;
@@ -66,6 +67,28 @@ final class WorkerGrowthTest extends TestCase
     ];
 
     /**
+     * Remove the committed rows before the next test.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function tearDown(): void
+    {
+        DB::table('users')->delete();
+
+        parent::tearDown();
+    }
+
+    /**
+     * Leave the rows a test writes committed, as one engine updates its
+     * full-text index only when a transaction commits.
+     *
+     * @return void
+     */
+    #[\Override]
+    public function beginDatabaseTransaction(): void {}
+
+    /**
      * Test that every static array in the toolkit is either emptied by a flush
      * or keyed by code alone.
      *
@@ -115,14 +138,15 @@ final class WorkerGrowthTest extends TestCase
 
         Config::set('api-toolkit.search.unverified_connections', ['testing']);
 
-        User::create(['name' => 'Alice', 'email' => 'alice@growth.test']);
+        $alexandrina = User::create(['name' => 'Alexandrina', 'email' => 'alexandrina@growth.test']);
+
         User::create(['name' => 'Bob', 'email' => 'bob@growth.test', 'status' => 'inactive']);
 
-        $this->serveCycles(0, 20);
+        $this->serveCycles($alexandrina->id, 0, 20);
 
         $sizes = $this->memoSizes();
 
-        $this->serveCycles(20, 200);
+        $this->serveCycles($alexandrina->id, 20, 200);
 
         self::assertSame($sizes, $this->memoSizes());
     }
@@ -131,11 +155,12 @@ final class WorkerGrowthTest extends TestCase
      * Serve one varied list request per cycle in the given range, each
      * rendering the matching user.
      *
+     * @param  int  $matchingId
      * @param  int  $from
      * @param  int  $to
      * @return void
      */
-    private function serveCycles(int $from, int $to): void
+    private function serveCycles(int $matchingId, int $from, int $to): void
     {
         $requests = [];
 
@@ -144,8 +169,8 @@ final class WorkerGrowthTest extends TestCase
 
             $requests[] = Request::create('/growth/users?' . http_build_query([
                 'fields'  => ['searchable_filterable_users' => implode(',', array_slice($fields, 0, $cycle % 4 + 1))],
-                'filters' => json_encode(['id' => ['$le' => $cycle + 1], 'status' => ['$in' => ['active', "status-{$cycle}"]]]),
-                'search'  => substr('alice@growth.test', $cycle % 8, $cycle % 9 + 3),
+                'filters' => json_encode(['id' => ['$le' => $matchingId + $cycle], 'status' => ['$in' => ['active', "status-{$cycle}"]]]),
+                'search'  => substr('alexandrina', $cycle % 5, $cycle % 4 + 3),
                 'order'   => $cycle % 2 === 0 ? 'id:asc' : 'id:desc',
                 'limit'   => $cycle % 50 + 1,
             ]));

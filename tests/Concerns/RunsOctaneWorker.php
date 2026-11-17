@@ -7,11 +7,11 @@ namespace Tests\Concerns;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
-use Laravel\Octane\ApplicationFactory;
 use Laravel\Octane\Events\TickReceived;
 use Laravel\Octane\OctaneServiceProvider;
 use Laravel\Octane\Testing\Fakes\FakeClient;
 use Laravel\Octane\Testing\Fakes\FakeWorker;
+use Tests\Fixtures\Support\AdoptingApplicationFactory;
 
 /**
  * Serves operations through a real Octane worker that adopts the test
@@ -78,37 +78,7 @@ trait RunsOctaneWorker
             $this->registerOctane($app);
         }
 
-        $worker = new FakeWorker(new class ($app) extends ApplicationFactory {
-            /**
-             * Create a new adopting application factory instance.
-             *
-             * @param  \Illuminate\Foundation\Application  $app
-             * @return void
-             */
-            public function __construct(
-
-                /** The booted application the worker adopts */
-                private readonly Application $app,
-            ) {
-                parent::__construct($app->basePath());
-            }
-
-            /**
-             * Adopt the booted application instead of bootstrapping a new one.
-             *
-             * @param  array<string, mixed>  $initialInstances
-             * @return \Illuminate\Foundation\Application
-             */
-            #[\Override]
-            public function createApplication(array $initialInstances = []): Application
-            {
-                foreach ($initialInstances as $key => $value) {
-                    $this->app->instance($key, $value);
-                }
-
-                return $this->warm($this->app);
-            }
-        }, $client);
+        $worker = new FakeWorker(new AdoptingApplicationFactory($app), $client);
 
         $worker->boot();
 
