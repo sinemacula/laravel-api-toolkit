@@ -6,6 +6,7 @@ namespace Tests\Feature\Services;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
@@ -13,6 +14,7 @@ use SineMacula\ApiToolkit\Exceptions\ForbiddenException;
 use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Services\Actors\EloquentActor;
+use SineMacula\ApiToolkit\Services\Events\ServiceFailed;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceResult;
@@ -21,6 +23,7 @@ use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Services\AuthorizingService;
 use Tests\Fixtures\Services\InsertThenFailService;
+use Tests\Fixtures\Services\LifecycleRecordingService;
 use Tests\Fixtures\Services\LockableService;
 use Tests\Fixtures\Services\ValidatingUserService;
 use Tests\TestCase;
@@ -59,6 +62,13 @@ final class ServiceEnvelopeTest extends TestCase
         Route::post('/service-validate', static function (Request $request): array {
 
             $output = (new ValidatingUserService(new ArrayInput($request->all())))->runOrFail();
+
+            return ['output' => $output];
+        });
+
+        Route::post('/service-lifecycle', static function (Request $request): array {
+
+            $output = (new LifecycleRecordingService(new ArrayInput($request->all())))->runOrFail();
 
             return ['output' => $output];
         });
@@ -109,6 +119,40 @@ final class ServiceEnvelopeTest extends TestCase
 
         self::assertIsArray($errors);
         self::assertNotEmpty($errors);
+    }
+
+    /**
+     * Test that a validation failure still renders the 422 envelope when a
+     * ServiceFailed listener throws.
+     *
+     * @return void
+     */
+    public function testValidationFailureRendersInvalidInputEnvelopeWhenAFailedListenerThrows(): void
+    {
+        Event::listen(ServiceFailed::class, static function (): never {
+            throw new \RuntimeException('listener failed');
+        });
+
+        $this->postJson('/service-validate', ['age' => 30])->assertStatus(422);
+    }
+
+    /**
+     * Test that a validation failure renders the 422 envelope while another
+     * owner holds the service's lock.
+     *
+     * @return void
+     */
+    public function testValidationFailureWinsOverLockContention(): void
+    {
+        $lock = Cache::lock((new LifecycleRecordingService)->getLockKey(), 60);
+
+        self::assertTrue($lock->get());
+
+        try {
+            $this->postJson('/service-lifecycle')->assertStatus(422)->assertJsonPath('error.code', 10106);
+        } finally {
+            $lock->release();
+        }
     }
 
     /**

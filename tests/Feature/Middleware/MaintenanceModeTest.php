@@ -12,6 +12,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
+use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Support\ArrayMaintenanceMode;
 use Tests\TestCase;
@@ -28,7 +29,7 @@ use Tests\TestCase;
 #[CoversClass(ApiExceptionHandler::class)]
 final class MaintenanceModeTest extends TestCase
 {
-    use RegistersApiExceptionHandler;
+    use RecordsStatements, RegistersApiExceptionHandler;
 
     /**
      * Set up each test with maintenance-guarded routes and a bypass list.
@@ -71,6 +72,18 @@ final class MaintenanceModeTest extends TestCase
         $response->assertStatus(503);
         $response->assertJsonPath('error.status', 503);
         $response->assertJsonPath('error.code', 10200);
+    }
+
+    /**
+     * Test that a guarded route is refused without touching the database.
+     *
+     * @return void
+     */
+    public function testGuardedRouteIsRefusedWithoutStatements(): void
+    {
+        $statements = $this->recordStatements(fn () => $this->duringMaintenance(fn () => $this->getJson('/data')->assertStatus(503)));
+
+        self::assertStatementCount(0, $statements);
     }
 
     /**

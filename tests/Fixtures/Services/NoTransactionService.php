@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Services;
 
+use Illuminate\Support\Facades\DB;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
@@ -20,6 +21,9 @@ final class NoTransactionService extends Service
 {
     /** @var bool Track whether afterCommit() was called */
     public bool $afterCommitCalled = false;
+
+    /** @var int|null The transaction level handle() ran at */
+    public ?int $level = null;
 
     /** @var bool Wrap prepare()+handle() in a database transaction */
     protected bool $transactional = false;
@@ -47,13 +51,15 @@ final class NoTransactionService extends Service
     }
 
     /**
-     * Handles the main execution of the service.
+     * Record the transaction level and succeed.
      *
      * @return true
      */
     #[\Override]
     protected function handle(): mixed
     {
+        $this->level = DB::transactionLevel();
+
         return true;
     }
 }
