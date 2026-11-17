@@ -49,7 +49,8 @@ abstract class TestCase extends OrchestraTestCase
     private array $unreadableCacheWrites = [];
 
     /**
-     * Set up the testing environment, failing any lazy load.
+     * Set up the testing environment, failing any lazy load on a model fetched
+     * in a multi-row result.
      *
      * @return void
      */

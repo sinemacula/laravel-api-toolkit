@@ -26,8 +26,8 @@ use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
- * Query-bound guard for rendering with narrowed columns and a warm metadata
- * cache, under the lazy-loading net.
+ * Query-bound guard for rendering with column narrowing enabled and a warm
+ * metadata cache, under the lazy-loading net.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
