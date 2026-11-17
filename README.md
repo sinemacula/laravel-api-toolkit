@@ -667,10 +667,11 @@ Map the exception it becomes:
 - `OriginMismatchException` and Laravel's `TokenMismatchException` become an `HttpException` with `403` and `419`.
 
 An `HttpException` carrying only a status, from `abort()` or a denial such as `denyAsNotFound()`, renders as the key
-that status stands for: `400`, `401`, `403`, `404`, `405`, `413`, `429` and `503` answer as `BadRequestHttpException`,
-`AuthenticationException`, `AccessDeniedHttpException`, `NotFoundHttpException`, `MethodNotAllowedHttpException`,
-`PostTooLargeException`, `TooManyRequestsHttpException` and `ServiceUnavailableHttpException` do, so a hidden record
-answers exactly as a missing one. `419` renders as a token mismatch and any other status as a generic HTTP error.
+its status stands for, so a hidden record answers exactly as a missing one: `400` as `BadRequestHttpException`, `401` as
+`AuthenticationException`, `403` as `AccessDeniedHttpException`, `404` as `NotFoundHttpException`, `405` as
+`MethodNotAllowedHttpException`, `413` as `PostTooLargeException`, `429` as `TooManyRequestsHttpException` and `503` as
+`ServiceUnavailableHttpException`. `419` renders as a token mismatch and any other status as a generic HTTP error. A key
+naming `HttpException` or `HttpExceptionInterface` itself takes precedence over all of these.
 
 A target must be an instantiable `ApiException` with a `CODE`, a 4xx or 5xx status, and `ApiException`'s own constructor
 and `getStatusCode()`. The map is validated once the application has booted to serve requests, and an invalid one throws
@@ -792,9 +793,9 @@ middleware, a denied one behind an authorization check (a `can:` gate, an `#[Aut
 accepts a request body, a refusal behind a rate limit, and an unhandled exception always. Each is documented as the
 exception map renders it: by default a `401`, `403`, `404`, `422`, `429` and `500`. The unhandled exception is looked up
 as a `Throwable`, so a `Throwable` key changes it and a narrower catch-all such as `RuntimeException` does not. A denial
-with a status no built-in key stands for, such as `402`, renders as a generic HTTP error, which the document does not
-describe. Middleware is read as the router resolves it, so a guard or limit applied through a group counts and one
-removed with `withoutMiddleware()` does not.
+with a status of its own is documented only where the route already lists that status, so `denyAsNotFound()` appears
+under the `404` of a path with parameters. Middleware is read as the router resolves it, so a guard or limit applied
+through a group counts and one removed with `withoutMiddleware()` does not.
 
 Each `ApiException` subclass named in the action's `@throws` tags is added under its status too; other throwables in
 those tags are ignored. Class names in `@throws` resolve as PHP would in the file declaring the action, so imported,

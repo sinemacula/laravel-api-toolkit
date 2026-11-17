@@ -145,9 +145,9 @@ final class ApiExceptionHandler
     }
 
     /**
-     * Map an HTTP-layer exception the map does not name as the exception its
-     * status stands for, else as a generic one preserving its status and
-     * headers. Unknown status codes fall back to an unhandled error.
+     * Map an HTTP-layer exception no specific entry names as the exception its
+     * status stands for, else as a generic one keeping its status. Unknown
+     * status codes fall back to an unhandled error.
      *
      * @param  \SineMacula\ApiToolkit\Exceptions\ExceptionMap  $map
      * @param  \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface  $exception

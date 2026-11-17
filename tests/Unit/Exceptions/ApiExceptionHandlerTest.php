@@ -985,6 +985,40 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
+     * Provide keys naming the HTTP exception itself.
+     *
+     * @return iterable<string, array{class-string}>
+     */
+    public static function httpExceptionKeyProvider(): iterable
+    {
+        yield 'concrete class' => [SymfonyHttpException::class];
+
+        yield 'interface' => [SymfonyHttpExceptionInterface::class];
+    }
+
+    /**
+     * Test that a key naming the HTTP exception itself takes precedence over
+     * the key its status stands for.
+     *
+     * @param  class-string  $key
+     * @return void
+     */
+    #[DataProvider('httpExceptionKeyProvider')]
+    public function testKeyNamingTheHttpExceptionTakesPrecedenceOverItsStatus(string $key): void
+    {
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        config()->set('app.debug', false);
+        config()->set('api-toolkit.exceptions.map', [$key => GoneException::class]);
+
+        $response = (new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new SymfonyHttpException(404), $request);
+
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(410, $response->getStatusCode());
+    }
+
+    /**
      * Test that an invalid map is reported once and leaves the rendering to
      * Laravel.
      *

@@ -55,10 +55,11 @@ return [
     |                                      HttpException with its status
     |   OriginMismatchException          - HttpException with 403
     |   TokenMismatchException           - HttpException with 419
-    | An HttpException carrying only a status renders as the key that status
-    | stands for, such as NotFoundHttpException for 404. The map is validated
-    | once an application serving requests has booted, and drives the OpenAPI
-    | error responses too. It does not affect reporting.
+    | An HttpException carrying only a status renders as the key its status
+    | stands for, such as NotFoundHttpException for 404, unless a key names
+    | HttpException or HttpExceptionInterface itself. The map is validated once
+    | an application serving requests has booted, and drives the OpenAPI error
+    | responses too. It does not affect reporting.
     */
 
     'exceptions' => [
