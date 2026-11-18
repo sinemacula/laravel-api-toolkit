@@ -442,11 +442,17 @@ final readonly class ResourceSchemaBuilder
             return null;
         }
 
-        return [
+        $surface = [
             'key'        => $field->filterable,
             'capability' => $capability->value,
             'operators'  => $operators,
         ];
+
+        if (array_key_exists($field->filterable, $compiled->getConditionalFilterKeys())) {
+            $surface['conditional'] = true;
+        }
+
+        return $surface;
     }
 
     /**
@@ -470,11 +476,15 @@ final readonly class ResourceSchemaBuilder
             'indexed' => $field->unindexedReason === null,
         ];
 
-        if ($field->unindexedReason === null) {
-            return $surface;
+        if ($field->unindexedReason !== null) {
+            $surface['reason'] = $field->unindexedReason;
         }
 
-        return [...$surface, 'reason' => $field->unindexedReason];
+        if (array_key_exists($field->sortable, $compiled->getConditionalSortKeys())) {
+            $surface['conditional'] = true;
+        }
+
+        return $surface;
     }
 
     /**
@@ -498,8 +508,8 @@ final readonly class ResourceSchemaBuilder
     /**
      * Determine whether a fixed field is present in every response.
      *
-     * Only a plain column read is; a relation, compute, accessor, guard or
-     * transformer may leave it out.
+     * Only a plain column read is; a relation, compute, accessor, either guard
+     * or transformer may leave it out.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition|null  $field
      * @return bool
@@ -507,7 +517,7 @@ final readonly class ResourceSchemaBuilder
     private function isAlwaysPresent(?CompiledFieldDefinition $field): bool
     {
         return $field !== null
-            && [$field->relation, $field->compute, $field->accessor] === [null, null, null]
-            && [...$field->guards, ...$field->transformers]          === [];
+            && [$field->relation, $field->compute, $field->accessor]                 === [null, null, null]
+            && [...$field->guards, ...$field->callerGuards, ...$field->transformers] === [];
     }
 }

@@ -207,5 +207,34 @@ final class CompiledFieldDefinitionTest extends TestCase
         self::assertSame([], $definition->needs);
         self::assertSame([], $definition->guards);
         self::assertSame([], $definition->transformers);
+        self::assertSame([], $definition->callerGuards);
+    }
+
+    /**
+     * Test that the caller guards are stored apart from the row guards.
+     *
+     * @return void
+     */
+    public function testCallerGuardsAreStoredApartFromTheRowGuards(): void
+    {
+        $guard       = static fn (): bool => true;
+        $callerGuard = static fn (): bool => false;
+
+        $definition = new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [$guard],
+            transformers: [],
+            callerGuards: [$callerGuard],
+        );
+
+        self::assertSame([$guard], $definition->guards);
+        self::assertSame([$callerGuard], $definition->callerGuards);
     }
 }

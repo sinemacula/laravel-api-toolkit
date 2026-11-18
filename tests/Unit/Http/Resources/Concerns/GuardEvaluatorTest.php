@@ -6,6 +6,7 @@ namespace Tests\Unit\Http\Resources\Concerns;
 
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 
@@ -164,5 +165,56 @@ final class GuardEvaluatorTest extends TestCase
         $this->evaluator->passesGuards($guards, new \stdClass, null);
 
         self::assertFalse($secondGuardCalled);
+    }
+
+    /**
+     * Provide caller guard results and whether each passes.
+     *
+     * @return iterable<string, array{mixed, bool}>
+     */
+    public static function callerGuardResults(): iterable
+    {
+        yield 'true' => [true, true];
+        yield 'false' => [false, false];
+        yield 'null' => [null, true];
+        yield 'zero' => [0, true];
+    }
+
+    /**
+     * Test that a caller guard hides only on a result of exactly false.
+     *
+     * @param  mixed  $result
+     * @param  bool  $passes
+     * @return void
+     */
+    #[DataProvider('callerGuardResults')]
+    public function testPassesCallerGuardsHidesOnlyOnExactlyFalse(mixed $result, bool $passes): void
+    {
+        self::assertSame($passes, $this->evaluator->passesCallerGuards([static fn (): mixed => $result], null));
+    }
+
+    /**
+     * Test that every caller guard is handed the request alone, a non-callable
+     * entry is skipped, and the first refusal stops the rest.
+     *
+     * @return void
+     */
+    public function testPassesCallerGuardsHandsEachGuardTheRequestAloneUntilOneRefuses(): void
+    {
+        $request  = Request::create('/');
+        $received = [];
+
+        $record = static function (bool $result) use (&$received): \Closure {
+            return static function (mixed ...$arguments) use (&$received, $result): bool {
+
+                $received[] = $arguments;
+
+                return $result;
+            };
+        };
+
+        self::assertTrue($this->evaluator->passesCallerGuards(['not callable', $record(true)], $request));
+        self::assertFalse($this->evaluator->passesCallerGuards([$record(false), $record(true)], $request));
+        self::assertSame([[$request], [$request]], $received);
     }
 }

@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
@@ -305,7 +306,7 @@ final class ApiCriteria implements CriteriaInterface
     }
 
     /**
-     * Build the declared query surface for the resolved resource.
+     * Build the query surface the request may use for the resolved resource.
      *
      * An unmapped model yields an empty surface, so every key is rejected.
      *
@@ -319,6 +320,7 @@ final class ApiCriteria implements CriteriaInterface
         return new QuerySurface(
             $resource && is_subclass_of($resource, ApiResourceInterface::class) ? SchemaCompiler::compile($resource) : null,
             new RelationTraversal($this->schemaIntrospector, ResourceSettings::resourceMap()),
+            new CallerAdmission($this->request, new GuardEvaluator),
         );
     }
 }
