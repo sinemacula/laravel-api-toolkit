@@ -26,7 +26,7 @@ use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Exceptions\ForbiddenException;
 use SineMacula\ApiToolkit\Exceptions\GoneException;
 use SineMacula\ApiToolkit\Exceptions\HttpException;
-use SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
 use SineMacula\ApiToolkit\Exceptions\LockedException;
 use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
@@ -80,7 +80,7 @@ final class ExceptionMapTest extends TestCase
     private const string FIXTURES = 'Tests\Fixtures\Exceptions\ExceptionMap\\';
 
     /** @var string The message for a setting that is not an array */
-    private const string SETTING_MESSAGE = 'The api-toolkit.exceptions.map setting must be an array of ApiException classes keyed by the exception class they replace.';
+    private const string SETTING_MESSAGE = 'The api-toolkit.exceptions.map setting must be an array; [%s] given.';
 
     /** @var string The message for a key that cannot be mapped */
     private const string KEY_MESSAGE = 'The api-toolkit.exceptions.map key [%s] must be an interface or a Throwable class, and not an ApiException.';
@@ -330,45 +330,44 @@ final class ExceptionMapTest extends TestCase
     }
 
     /**
-     * Test that an absent or empty setting configures no entry.
+     * Test that an empty setting configures no entry.
      *
      * @return void
      */
-    public function testAbsentOrEmptySettingConfiguresNoEntry(): void
+    public function testEmptySettingConfiguresNoEntry(): void
     {
-        foreach ([null, []] as $setting) {
+        config()->set('api-toolkit.exceptions.map', []);
 
-            config()->set('api-toolkit.exceptions.map', $setting);
-
-            self::assertSame(UnhandledException::class, ExceptionMap::fromConfig()->targetFor(\RuntimeException::class));
-        }
+        self::assertSame(UnhandledException::class, ExceptionMap::fromConfig()->targetFor(\RuntimeException::class));
     }
 
     /**
-     * Provide settings that are neither null nor an array.
+     * Provide settings that are not an array, with how the message names each.
      *
-     * @return iterable<string, array{mixed}>
+     * @return iterable<string, array{mixed, string}>
      */
     public static function invalidSettingProvider(): iterable
     {
-        yield 'false' => [false];
-        yield 'zero' => [0];
-        yield 'empty string' => [''];
-        yield 'class name' => [GoneException::class];
+        yield 'null' => [null, 'null'];
+        yield 'false' => [false, 'false'];
+        yield 'zero' => [0, '0'];
+        yield 'empty string' => ['', '\'\''];
+        yield 'class name' => [GoneException::class, '\'' . GoneException::class . '\''];
     }
 
     /**
      * Test that a setting that is not an array fails.
      *
      * @param  mixed  $setting
+     * @param  string  $given
      * @return void
      */
     #[DataProvider('invalidSettingProvider')]
-    public function testSettingThatIsNotAnArrayFails(mixed $setting): void
+    public function testSettingThatIsNotAnArrayFails(mixed $setting, string $given): void
     {
         config()->set('api-toolkit.exceptions.map', $setting);
 
-        self::assertMapFails(self::SETTING_MESSAGE);
+        self::assertMapFails(sprintf(self::SETTING_MESSAGE, $given));
     }
 
     /**
@@ -613,7 +612,7 @@ final class ExceptionMapTest extends TestCase
     {
         try {
             ExceptionMap::fromConfig();
-        } catch (InvalidExceptionMapException $exception) {
+        } catch (InvalidConfigurationException $exception) {
             $failure = $exception->getPrevious();
 
             self::assertSame($message, $exception->getMessage());

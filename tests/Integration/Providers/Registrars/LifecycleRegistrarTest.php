@@ -19,6 +19,7 @@ use Laravel\Octane\Contracts\OperationTerminated;
 use Orchestra\Testbench\Attributes\DefineEnvironment;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Group;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
@@ -201,13 +202,12 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the migration listener is wired when the gate is unpublished.
-     *
-     * A config published before the gate existed lacks the key.
+     * Test that a lifecycle section without the gate fails rather than guessing
+     * whether to invalidate after migrations.
      *
      * @return void
      */
-    public function testMigrationInvalidationListenerRegisteredWhenTheGateIsUnpublished(): void
+    public function testMissingMigrationGateFails(): void
     {
         /** @var \Illuminate\Config\Repository $config */
         $config = $this->getApplication()->make('config');
@@ -215,12 +215,10 @@ final class LifecycleRegistrarTest extends TestCase
 
         Event::swap(new Dispatcher($this->getApplication()));
 
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.lifecycle.migrations setting is missing; add it from the published config.');
+
         (new LifecycleRegistrar)->register();
-
-        /** @var \Illuminate\Events\Dispatcher $events */
-        $events = $this->getApplication()->make('events');
-
-        self::assertTrue($events->hasListeners(MigrationsEnded::class));
     }
 
     /**

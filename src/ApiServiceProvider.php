@@ -4,10 +4,15 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit;
 
+use Illuminate\Console\Events\CommandFinished;
+use Illuminate\Console\Events\CommandStarting;
+use Illuminate\Contracts\Foundation\CachesConfiguration;
 use Illuminate\Foundation\Events\PublishingStubs;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
+use SineMacula\ApiToolkit\Config\ToolkitConfig;
+use SineMacula\ApiToolkit\Config\ToolkitConfigValidator;
 use SineMacula\ApiToolkit\Console\CacheResourcesCommand;
 use SineMacula\ApiToolkit\Console\ClearResourcesCommand;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
@@ -15,7 +20,6 @@ use SineMacula\ApiToolkit\Console\GenerateDocsCommand;
 use SineMacula\ApiToolkit\Console\InvalidateMetadataCommand;
 use SineMacula\ApiToolkit\Console\MakeResourceCommand;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
-use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
@@ -24,8 +28,8 @@ use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\MorphMapRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\RouteMacroRegistrar;
+use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
-use SineMacula\ApiToolkit\Support\ResourceMap;
 
 /**
  * API service provider.
@@ -44,6 +48,9 @@ final class ApiServiceProvider extends ServiceProvider
         'api-toolkit:resources:clear',
     ];
 
+    /** @var array<int, string> The console commands that build the config cache */
+    private const array CONFIG_CACHING_COMMANDS = ['config:cache', 'optimize'];
+
     /** @var string The console command that runs schema validation itself */
     private const string VALIDATING_COMMAND = 'api-toolkit:validate-schemas';
 
@@ -54,12 +61,13 @@ final class ApiServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->trackRunningCommands();
         $this->mergeDiscoveredResources();
         $this->loadTranslationFiles();
         $this->offerPublishing();
         (new MorphMapRegistrar)->register();
         $this->validateSchemas();
-        $this->validateExceptionMap();
+        $this->validateConfiguration();
 
         (new MiddlewareRegistrar($this->app))->register();
         (new LoggingRegistrar)->register();
@@ -75,10 +83,9 @@ final class ApiServiceProvider extends ServiceProvider
     #[\Override]
     public function register(): void
     {
-        $this->mergeConfigFrom(
-            __DIR__ . '/../config/api-toolkit.php',
-            'api-toolkit',
-        );
+        if (!$this->isConfigurationCached()) {
+            ToolkitConfig::merge();
+        }
 
         (new ContainerBindingRegistrar($this->app))->register();
 
@@ -158,55 +165,71 @@ final class ApiServiceProvider extends ServiceProvider
     }
 
     /**
-     * Return the name of the console command being run, if any.
+     * Record the console commands this process starts, so an application booted
+     * while one runs can tell which.
      *
-     * The name is the first non-option argument, skipping a space-separated
-     * --env value.
+     * @return void
+     */
+    private function trackRunningCommands(): void
+    {
+        Event::listen(CommandStarting::class, static fn (CommandStarting $event) => RuntimeContext::enterCommand($event->command));
+        Event::listen(CommandFinished::class, static fn (CommandFinished $event) => RuntimeContext::leaveCommand($event->command));
+    }
+
+    /**
+     * Return the name of the console command being run, if any.
      *
      * @return string|null
      */
     private function consoleCommand(): ?string
     {
-        if (!$this->app->runningInConsole()) {
-            return null;
-        }
-
-        /** @var array<int, string> $argv */
-        $argv      = $_SERVER['argv'] ?? [];
-        $arguments = array_slice($argv, 1);
-
-        while ($arguments !== []) {
-
-            $argument = array_shift($arguments);
-
-            if ($argument === '--env') {
-                array_shift($arguments);
-            } elseif (!str_starts_with($argument, '-')) {
-                return $argument;
-            }
-        }
-
-        return null;
+        return $this->app->runningInConsole() ? $this->app->make(RuntimeContext::class)->command() : null;
     }
 
     /**
-     * Validate the configured exception map once the application has booted.
+     * Determine whether the application booted from a cached configuration.
      *
-     * Deferred so a map written by a later provider is validated too. Skipped
-     * in the console, where the map renders nothing and a broken one must not
-     * block the commands that repair it.
+     * @return bool
+     */
+    private function isConfigurationCached(): bool
+    {
+        return $this->app instanceof CachesConfiguration && $this->app->configurationIsCached();
+    }
+
+    /**
+     * Validate every toolkit setting once the application has booted.
+     *
+     * Deferred so a setting written by a later provider is validated too. Run
+     * when serving requests or queue jobs, and when building the config cache
+     * from a fresh configuration, so a bad value aborts the build. Other
+     * commands fail where they read a setting, so a broken one cannot block the
+     * commands that repair it.
      *
      * @return void
      */
-    private function validateExceptionMap(): void
+    private function validateConfiguration(): void
     {
-        if ($this->app->runningInConsole()) {
+        if (!$this->validatesConfiguration()) {
             return;
         }
 
         $this->app->booted(static function (): void {
-            ExceptionMap::fromConfig();
+            ToolkitConfigValidator::validate();
         });
+    }
+
+    /**
+     * Determine whether this application validates its settings once booted.
+     *
+     * @return bool
+     */
+    private function validatesConfiguration(): bool
+    {
+        if (!$this->app->runningInConsole() || $this->app->make(RuntimeContext::class)->isRunningQueueWorker()) {
+            return true;
+        }
+
+        return in_array($this->consoleCommand(), self::CONFIG_CACHING_COMMANDS, true) && !$this->isConfigurationCached();
     }
 
     /**
@@ -222,14 +245,14 @@ final class ApiServiceProvider extends ServiceProvider
         $command = $this->consoleCommand();
 
         if (
-            Config::get('api-toolkit.resources.validate_schemas', false) !== true
+            !ResourceSettings::shouldValidateSchemas()
             || $command === self::VALIDATING_COMMAND
             || in_array($command, self::MERGE_SKIPPING_COMMANDS, true)
         ) {
             return;
         }
 
-        $resourceMap = ResourceMap::configured();
+        $resourceMap = ResourceSettings::bindings();
 
         if ($resourceMap === [] && ResourceTypeIndex::all() === []) {
             return;

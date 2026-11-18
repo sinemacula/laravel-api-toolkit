@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Validation\UnauthorizedException as LaravelUnauthorizedException;
 use Illuminate\Validation\ValidationException;
+use SineMacula\ApiToolkit\Config\HttpSettings;
+use SineMacula\ApiToolkit\Enums\RenderStrategy;
 use SineMacula\Http\Enums\HttpStatus;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface as SymfonyHttpExceptionInterface;
 
@@ -72,13 +74,18 @@ final class ApiExceptionHandler
     /**
      * Renders the given exception as an HTTP response.
      *
+     * An invalid configuration is left to Laravel's renderer, so rendering it
+     * cannot fail again.
+     *
      * @param  \Throwable  $exception
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse|null
      */
     private static function render(\Throwable $exception, Request $request): ?JsonResponse
     {
-        if (self::isLeftToLaravel($request)) {
+        $prepared = $exception instanceof InvalidConfigurationException ? null : self::prepare($exception);
+
+        if ($prepared === null || self::isLeftToLaravel($request, $prepared['strategy'])) {
             return null;
         }
 
@@ -87,46 +94,25 @@ final class ApiExceptionHandler
             return Response::json(['message' => $exception->getMessage(), 'errors' => $exception->errors()], $exception->status, [], JSON_INVALID_UTF8_SUBSTITUTE);
         }
 
-        if (!$exception instanceof ApiException) {
-            $exception = self::mapOrReport($exception);
-        }
-
-        return $exception === null ? null : self::renderApiExceptionWithJson($request, $exception);
+        return self::renderApiExceptionWithJson($request, $prepared['exception'], $prepared['debug']);
     }
 
     /**
-     * Determine whether the render strategy leaves the request to Laravel's
-     * renderer.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return bool
-     */
-    private static function isLeftToLaravel(Request $request): bool
-    {
-        $strategy = Config::get('api-toolkit.exceptions.render_strategy', 'auto');
-
-        // Auto mode leaves non-JSON requests in debug to Laravel's renderer
-        return !$request->expectsJson()
-            && ($strategy === 'json_when_expected' || ($strategy === 'auto' && (bool) Config::get('app.debug')));
-    }
-
-    /**
-     * Map the exception, or report an invalid exception map and leave the
-     * rendering to Laravel.
+     * Read the rendering settings and map the exception, or report an invalid
+     * setting and return null.
      *
      * @param  \Throwable  $exception
-     * @return \SineMacula\ApiToolkit\Exceptions\ApiException|null
+     * @return array{strategy: \SineMacula\ApiToolkit\Enums\RenderStrategy, debug: bool, exception: \SineMacula\ApiToolkit\Exceptions\ApiException}|null
      */
-    private static function mapOrReport(\Throwable $exception): ?ApiException
+    private static function prepare(\Throwable $exception): ?array
     {
-        // Mapping it would rebuild the invalid map and report it twice
-        if ($exception instanceof InvalidExceptionMapException) {
-            return null;
-        }
-
         try {
-            return self::mapApiException($exception);
-        } catch (InvalidExceptionMapException $invalid) {
+            return [
+                'strategy'  => HttpSettings::renderStrategy(),
+                'debug'     => HttpSettings::shouldIncludeDebugInfo() ?? (bool) Config::get('app.debug'),
+                'exception' => $exception instanceof ApiException ? $exception : self::mapApiException(ExceptionMap::fromConfig(), $exception),
+            ];
+        } catch (InvalidConfigurationException $invalid) {
             report($invalid);
 
             return null;
@@ -134,22 +120,34 @@ final class ApiExceptionHandler
     }
 
     /**
+     * Determine whether the render strategy leaves the request to Laravel's
+     * renderer.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \SineMacula\ApiToolkit\Enums\RenderStrategy  $strategy
+     * @return bool
+     */
+    private static function isLeftToLaravel(Request $request, RenderStrategy $strategy): bool
+    {
+        // Auto mode leaves non-JSON requests in debug to Laravel's renderer
+        return !$request->expectsJson()
+            && ($strategy === RenderStrategy::JSON_WHEN_EXPECTED || ($strategy === RenderStrategy::AUTO && (bool) Config::get('app.debug')));
+    }
+
+    /**
      * Maps standard exceptions to custom API exceptions.
      *
+     * @param  \SineMacula\ApiToolkit\Exceptions\ExceptionMap  $map
      * @param  \Throwable  $exception
      * @return \SineMacula\ApiToolkit\Exceptions\ApiException
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException
      */
-    private static function mapApiException(\Throwable $exception): ApiException
+    private static function mapApiException(ExceptionMap $map, \Throwable $exception): ApiException
     {
         $headers = method_exists($exception, 'getHeaders') ? $exception->getHeaders() : [];
         $meta    = method_exists($exception, 'errors') ? $exception->errors() : null;
 
         $previous = is_a($exception, ValidationException::class) ? null : $exception;
-
-        $map    = ExceptionMap::fromConfig();
-        $mapped = $map->targetFor($exception::class);
+        $mapped   = $map->targetFor($exception::class);
 
         if ($mapped === HttpException::class && $exception instanceof SymfonyHttpExceptionInterface) {
             return self::mapGenericHttpException($map, $exception, $meta, $headers);
@@ -190,9 +188,10 @@ final class ApiExceptionHandler
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
+     * @param  bool  $includeDebug
      * @return \Illuminate\Http\JsonResponse
      */
-    private static function renderApiExceptionWithJson(Request $request, ApiException $exception): JsonResponse
+    private static function renderApiExceptionWithJson(Request $request, ApiException $exception, bool $includeDebug): JsonResponse
     {
         $options = JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE;
 
@@ -200,16 +199,17 @@ final class ApiExceptionHandler
             $options |= JSON_PRETTY_PRINT;
         }
 
-        return Response::json(self::convertApiExceptionToArray($exception), $exception->getStatusCode(), $exception->getHeaders(), $options);
+        return Response::json(self::convertApiExceptionToArray($exception, $includeDebug), $exception->getStatusCode(), $exception->getHeaders(), $options);
     }
 
     /**
      * Convert the given API exception to an array.
      *
      * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
+     * @param  bool  $includeDebug
      * @return array<string, array<string, mixed>>
      */
-    private static function convertApiExceptionToArray(ApiException $exception): array
+    private static function convertApiExceptionToArray(ApiException $exception, bool $includeDebug): array
     {
         return [
             'error' => array_filter([
@@ -217,7 +217,7 @@ final class ApiExceptionHandler
                 'code'   => $exception::getInternalErrorCode(),
                 'title'  => $exception->getCustomTitle(),
                 'detail' => $exception->getCustomDetail(),
-                'meta'   => self::getApiExceptionMeta($exception),
+                'meta'   => self::getApiExceptionMeta($exception, $includeDebug),
             ], static fn ($value): bool => (bool) $value),
         ];
     }
@@ -226,13 +226,12 @@ final class ApiExceptionHandler
      * Extracts meta information for an API exception.
      *
      * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
+     * @param  bool  $includeDebug
      * @return array<string, mixed>|null
      */
-    private static function getApiExceptionMeta(ApiException $exception): ?array
+    private static function getApiExceptionMeta(ApiException $exception, bool $includeDebug): ?array
     {
-        $previous     = $exception->getPrevious();
-        $debugConfig  = Config::get('api-toolkit.exceptions.include_debug_info');
-        $includeDebug = (bool) ($debugConfig ?? Config::get('app.debug'));
+        $previous = $exception->getPrevious();
 
         return $includeDebug && $previous !== null ? array_merge($exception->getCustomMeta() ?? [], [
             'message'   => $previous->getMessage(),

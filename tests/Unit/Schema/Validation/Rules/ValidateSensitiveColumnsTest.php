@@ -6,7 +6,9 @@ namespace Tests\Unit\Schema\Validation\Rules;
 
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\AggregateFunction;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
@@ -245,76 +247,50 @@ final class ValidateSensitiveColumnsTest extends TestCase
     }
 
     /**
-     * Test that a configured entry matches only with the same value and type.
+     * Provide sensitive column settings that are not a list of names, with the
+     * message each fails with.
      *
-     * @return void
+     * @return iterable<string, array{mixed, string}>
      */
-    public function testConfiguredEntriesAreComparedStrictly(): void
+    public static function invalidSettingProvider(): iterable
     {
-        Config::set('api-toolkit.resources.sensitive_columns', [42, 'password']);
-
-        $schema = new CompiledSchema(
-            fields: [
-                'code'     => $this->makeField(filterable: '42'),
-                'password' => $this->makeField(filterable: 'password'),
-            ],
-        );
-
-        $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
-
-        self::assertCount(1, $errors);
-        self::assertSame(self::PASSWORD_FILTERABLE_DEFECT, $errors[0]->defect);
+        yield 'a non-string entry' => [[42, 'password'], 'The api-toolkit.resources.sensitive_columns.0 setting must be a non-empty string; [42] given.'];
+        yield 'a single name' => ['password', 'The api-toolkit.resources.sensitive_columns setting must be a list of non-empty strings; [\'password\'] given.'];
     }
 
     /**
-     * Test that a non-list configured value falls back to the shipped names.
+     * Test that a setting that is not a list of names fails rather than falling
+     * back to the shipped names.
      *
+     * @param  mixed  $setting
+     * @param  string  $message
      * @return void
      */
-    public function testNonArrayConfigurationFallsBackToTheShippedDefaults(): void
+    #[DataProvider('invalidSettingProvider')]
+    public function testInvalidSettingFails(mixed $setting, string $message): void
     {
-        Config::set('api-toolkit.resources.sensitive_columns', 'password');
+        Config::set('api-toolkit.resources.sensitive_columns', $setting);
 
-        $schema = new CompiledSchema(
-            fields: ['token' => $this->makeField(filterable: 'token')],
-        );
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage($message);
 
-        $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
-
-        self::assertCount(1, $errors);
-        self::assertSame(
-            'Field is declared filterable against "token", which is configured as a sensitive column and may never be queried',
-            $errors[0]->defect,
-        );
+        (new ValidateSensitiveColumns)->validate(UserResource::class, null, new CompiledSchema(fields: ['password' => $this->makeField(filterable: 'password')]));
     }
 
     /**
-     * Test that a config missing the list falls back to the shipped names.
+     * Test that a config missing the list fails rather than falling back to the
+     * shipped names.
      *
      * @return void
      */
-    public function testConfigurationWithoutTheKeyFallsBackToTheShippedDefaults(): void
+    public function testConfigurationWithoutTheKeyFails(): void
     {
         Config::set('api-toolkit.resources', ['fixed_fields' => ['id', '_type']]);
 
-        $schema = new CompiledSchema(
-            fields: ['password' => $this->makeField(filterable: 'password')],
-        );
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.resources.sensitive_columns setting is missing; add it from the published config.');
 
-        $errors = (new ValidateSensitiveColumns)->validate(UserResource::class, null, $schema);
-
-        self::assertCount(1, $errors);
-        self::assertSame(self::PASSWORD_FILTERABLE_DEFECT, $errors[0]->defect);
-    }
-
-    /**
-     * Test that the shipped config declares exactly the fallback names.
-     *
-     * @return void
-     */
-    public function testShippedConfigMatchesTheFallbackDefaults(): void
-    {
-        self::assertSame(ValidateSensitiveColumns::DEFAULTS, Config::get('api-toolkit.resources.sensitive_columns'));
+        (new ValidateSensitiveColumns)->validate(UserResource::class, null, new CompiledSchema(fields: ['password' => $this->makeField(filterable: 'password')]));
     }
 
     /**

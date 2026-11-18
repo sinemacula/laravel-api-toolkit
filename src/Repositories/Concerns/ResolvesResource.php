@@ -5,8 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
@@ -64,9 +64,9 @@ trait ResolvesResource
 
         return $this->metadataCacheWriter()->rememberMetadataForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class): ?string {
 
-            $resource = Config::get('api-toolkit.resources.resource_map.' . $class);
+            $resource = ResourceSettings::resourceMap()[$class] ?? null;
 
-            if (is_string($resource) && class_exists($resource) && in_array(ApiResourceInterface::class, class_implements($resource) ?: [], true)) {
+            if ($resource !== null && class_exists($resource) && in_array(ApiResourceInterface::class, class_implements($resource) ?: [], true)) {
                 return $resource;
             }
 

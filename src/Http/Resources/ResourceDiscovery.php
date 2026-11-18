@@ -8,6 +8,7 @@ use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Attributes\ForModel;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 
 /**
@@ -30,7 +31,10 @@ final readonly class ResourceDiscovery
     public const string RESOURCES_KEY = 'api-toolkit.resources.discovered_resources';
 
     /** @var string The config key recording the bindings the merge added */
-    private const string CONTRIBUTED_KEY = 'api-toolkit.resources.discovered_bindings';
+    public const string CONTRIBUTED_KEY = 'api-toolkit.resources.discovered_bindings';
+
+    /** @var list<string> The config keys the merge writes, which are not settings */
+    public const array INTERNAL_KEYS = [self::RESOURCES_KEY, self::CONTRIBUTED_KEY];
 
     /**
      * Create a new resource discovery instance.
@@ -88,16 +92,7 @@ final readonly class ResourceDiscovery
      */
     public function scan(): array
     {
-        $configured = Config::get('api-toolkit.resources.paths');
-
-        // Null means the default roots; a non-array disables discovery
-        $paths = match (true) {
-            $configured === null  => [app_path('Http/Resources'), ...(glob(app_path('*/Http/Resources')) ?: [])],
-            is_array($configured) => $configured,
-            default               => [],
-        };
-
-        $paths = array_filter($paths, static fn (mixed $path): bool => is_string($path) && is_dir($path));
+        $paths = ResourceSettings::paths() ?? [app_path('Http/Resources'), ...(glob(app_path('*/Http/Resources')) ?: [])];
 
         return $this->scanFiles($this->files($paths));
     }
@@ -119,12 +114,7 @@ final readonly class ResourceDiscovery
      */
     public function explicitMap(): array
     {
-        $map = Config::get('api-toolkit.resources.resource_map');
-
-        if (!is_array($map)) {
-            return [];
-        }
-
+        $map         = ResourceSettings::resourceMap();
         $contributed = $this->contributedMap();
 
         /** @var array<class-string, class-string> */
@@ -143,7 +133,7 @@ final readonly class ResourceDiscovery
      */
     private function catalogue(): array
     {
-        if (Config::get('api-toolkit.resources.validate_schemas') === true) {
+        if (ResourceSettings::shouldValidateSchemas()) {
             return $this->scan();
         }
 
@@ -299,7 +289,7 @@ final readonly class ResourceDiscovery
             $class,
         );
 
-        if (Config::get('api-toolkit.resources.validate_schemas') === true) {
+        if (ResourceSettings::shouldValidateSchemas()) {
             throw new \LogicException($message);
         }
 
@@ -361,7 +351,7 @@ final readonly class ResourceDiscovery
     /**
      * List every PHP file beneath a single path.
      *
-     * A directory removed mid-scan yields an empty list.
+     * A missing directory, or one removed mid-scan, yields an empty list.
      *
      * @param  string  $path
      * @return array<int, string>

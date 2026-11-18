@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Search;
 
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Validation\Rejection;
 
@@ -18,14 +18,8 @@ use SineMacula\ApiToolkit\Validation\Rejection;
  */
 final readonly class SearchTerm
 {
-    /** @var int The shortest word every supported index serves without scanning; also the floor */
+    /** @var int The shortest word every supported index serves without scanning */
     public const int MIN_WORD_LENGTH = 3;
-
-    /** @var int The shipped longest term accepted, bounding the work one search may ask for */
-    public const int MAX_LENGTH = 128;
-
-    /** @var int The shipped ceiling on the whitespace-separated words one term may carry */
-    public const int MAX_WORDS = 10;
 
     /** @var string Escapes wildcards; unlike a backslash, no string literal treats it specially */
     public const string ESCAPE_CHARACTER = '!';
@@ -87,13 +81,13 @@ final readonly class SearchTerm
     }
 
     /**
-     * Return the shortest word a term may carry, never below the floor.
+     * Return the shortest word a term may carry.
      *
      * @return int
      */
     public static function minimumWordLength(): int
     {
-        return max(self::MIN_WORD_LENGTH, self::configured(self::MIN_WORD_LENGTH_KEY, self::MIN_WORD_LENGTH));
+        return QuerySettings::minWordLength();
     }
 
     /**
@@ -103,7 +97,7 @@ final readonly class SearchTerm
      */
     public static function maximumLength(): int
     {
-        return self::configured(self::MAX_LENGTH_KEY, self::MAX_LENGTH);
+        return QuerySettings::maxSearchLength();
     }
 
     /**
@@ -113,7 +107,7 @@ final readonly class SearchTerm
      */
     public static function maximumWords(): int
     {
-        return self::configured(self::MAX_WORDS_KEY, self::MAX_WORDS);
+        return QuerySettings::maxSearchWords();
     }
 
     /**
@@ -165,20 +159,6 @@ final readonly class SearchTerm
             [$escape . $escape, $escape . '%', $escape . '_'],
             $this->value,
         );
-    }
-
-    /**
-     * Resolve a configured bound, falling back to the shipped default.
-     *
-     * @param  string  $key
-     * @param  int  $default
-     * @return int
-     */
-    private static function configured(string $key, int $default): int
-    {
-        $value = Config::get('api-toolkit.search.' . $key, $default);
-
-        return is_numeric($value) ? (int) $value : $default;
     }
 
     /**

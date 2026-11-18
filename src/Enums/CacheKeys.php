@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Enums;
 
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\LifecycleSettings;
 
 /**
  * Define the keys used for the cache.
@@ -44,10 +44,7 @@ enum CacheKeys: string
      */
     public function resolveKey(array $replacements = []): string
     {
-        $prefix = Config::get('api-toolkit.cache.prefix', 'api-toolkit');
-        $prefix = is_string($prefix) ? $prefix : 'api-toolkit';
-
-        $key = $prefix . ':' . $this->value;
+        $key = LifecycleSettings::cachePrefix() . ':' . $this->value;
 
         if (!empty($replacements)) {
             $key = vsprintf($key, $replacements);

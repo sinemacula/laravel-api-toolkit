@@ -6,6 +6,7 @@ namespace Tests\Unit\Search;
 
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Search\IndexProofWaiver;
 use Tests\TestCase;
 
@@ -61,15 +62,19 @@ final class IndexProofWaiverTest extends TestCase
     }
 
     /**
-     * Test that a configured value that is not a list waives nothing.
+     * Test that a configured value that is not a list fails rather than waiving
+     * nothing.
      *
      * @return void
      */
-    public function testWaivesNothingWhenTheConfiguredValueIsNotAList(): void
+    public function testFailsWhenTheConfiguredValueIsNotAList(): void
     {
         Config::set('api-toolkit.search.unverified_connections', 'sqlite');
 
-        self::assertFalse(IndexProofWaiver::waives('sqlite'));
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.search.unverified_connections setting must be a list of non-empty strings; [\'sqlite\'] given.');
+
+        IndexProofWaiver::waives('sqlite');
     }
 
     /**

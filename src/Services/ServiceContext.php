@@ -5,8 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Services;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Str;
+use SineMacula\ApiToolkit\Config\HttpSettings;
 use SineMacula\ApiToolkit\Services\Contracts\Actor;
 use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
 
@@ -23,12 +23,6 @@ final readonly class ServiceContext
 
     /** @var string The metadata key fromRequest() stores the client user agent under */
     public const string METADATA_USER_AGENT = 'user_agent';
-
-    /** @var string The config key naming the request header the correlation id is read from */
-    public const string CORRELATION_HEADER_KEY = 'api-toolkit.services.correlation_header';
-
-    /** @var string The correlation header read when the config key is absent */
-    private const string DEFAULT_CORRELATION_HEADER = 'X-Request-Id';
 
     /**
      * Constructor.
@@ -111,8 +105,8 @@ final readonly class ServiceContext
      */
     private static function correlationIdFrom(Request $request): ?string
     {
-        $header = Config::get(self::CORRELATION_HEADER_KEY, self::DEFAULT_CORRELATION_HEADER);
-        $value  = is_string($header) ? trim((string) $request->headers->get($header)) : '';
+        $header = HttpSettings::correlationHeader();
+        $value  = $header === null ? '' : trim((string) $request->headers->get($header));
 
         return preg_match('/^[\x21-\x7E]{1,128}$/', $value) === 1 ? $value : null;
     }

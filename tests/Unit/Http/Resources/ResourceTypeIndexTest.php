@@ -6,6 +6,7 @@ namespace Tests\Unit\Http\Resources;
 
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
 use Tests\Fixtures\Discovery\Primary\ChildDiscoveredUserResource;
@@ -80,22 +81,38 @@ final class ResourceTypeIndexTest extends TestCase
     }
 
     /**
-     * Test that entries which are not API resources, and unreadable lists, are
-     * left out.
+     * Test that entries which are not API resources, and an unreadable
+     * discovered list, are left out.
      *
      * @return void
      */
     public function testEntriesThatAreNotResourcesAreLeftOut(): void
     {
-        Config::set('api-toolkit.resources.resource_map', [User::class => \stdClass::class, Post::class => 42]);
+        Config::set('api-toolkit.resources.resource_map', [User::class => \stdClass::class, Post::class => 'Missing\Resource']);
         Config::set(ResourceDiscovery::RESOURCES_KEY, 'not-a-list');
 
         self::assertSame([], ResourceTypeIndex::all());
 
-        Config::set('api-toolkit.resources.resource_map', 'not-a-map');
+        Config::set('api-toolkit.resources.resource_map', []);
         Config::set(ResourceDiscovery::RESOURCES_KEY, [PostResource::class, 'Missing\Resource']);
 
         self::assertSame([PostResource::class], ResourceTypeIndex::all());
+    }
+
+    /**
+     * Test that a resource map that is not an array fails rather than being
+     * read as empty.
+     *
+     * @return void
+     */
+    public function testMalformedResourceMapFails(): void
+    {
+        Config::set('api-toolkit.resources.resource_map', 'not-a-map');
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.resources.resource_map setting must be an array; [\'not-a-map\'] given.');
+
+        ResourceTypeIndex::all();
     }
 
     /**

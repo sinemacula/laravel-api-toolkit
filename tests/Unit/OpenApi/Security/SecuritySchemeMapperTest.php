@@ -6,6 +6,8 @@ namespace Tests\Unit\OpenApi\Security;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use Tests\TestCase;
 
@@ -125,17 +127,40 @@ final class SecuritySchemeMapperTest extends TestCase
     }
 
     /**
-     * Test that a malformed override entry leaves the driver unmapped.
+     * Provide malformed driver overrides, with the message each fails with.
      *
+     * @return iterable<string, array{mixed, string}>
+     */
+    public static function malformedOverrideProvider(): iterable
+    {
+        yield 'an entry without a name' => [
+            ['broken' => ['definition' => ['type' => 'http']]],
+            'The api-toolkit.openapi.security.drivers.broken setting must be an array with a non-empty string name and an array definition; [array] given.',
+        ];
+        yield 'an entry without a definition' => [
+            ['broken' => ['name' => 'brokenAuth']],
+            'The api-toolkit.openapi.security.drivers.broken setting must be an array with a non-empty string name and an array definition; [array] given.',
+        ];
+        yield 'not a map' => ['not-a-map', 'The api-toolkit.openapi.security.drivers setting must be an array; [\'not-a-map\'] given.'];
+    }
+
+    /**
+     * Test that a malformed override fails rather than being skipped, which
+     * would document the shipped scheme or none.
+     *
+     * @param  mixed  $drivers
+     * @param  string  $message
      * @return void
      */
-    public function testMalformedOverrideEntryIsIgnored(): void
+    #[DataProvider('malformedOverrideProvider')]
+    public function testMalformedOverrideFails(mixed $drivers, string $message): void
     {
-        $this->config()->set('api-toolkit.openapi.security.drivers', [
-            'broken' => ['definition' => ['type' => 'http']],
-        ]);
+        $this->config()->set('api-toolkit.openapi.security.drivers', $drivers);
 
-        self::assertNull((new SecuritySchemeMapper)->schemeFor('broken'));
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage($message);
+
+        (new SecuritySchemeMapper)->schemeFor('jwt');
     }
 
     /**
@@ -169,21 +194,6 @@ final class SecuritySchemeMapperTest extends TestCase
     public function testDefinitionForReturnsNullForUnknownName(): void
     {
         self::assertNull((new SecuritySchemeMapper)->definitionFor('nonexistentAuth'));
-    }
-
-    /**
-     * Test that a non-map driver override is ignored.
-     *
-     * @return void
-     */
-    public function testAMalformedOverrideLeavesTheShippedSchemeInPlace(): void
-    {
-        $this->config()->set('api-toolkit.openapi.security.drivers', 'not-a-map');
-
-        self::assertSame(
-            ['name' => 'bearerAuth', 'definition' => ['type' => 'http', 'scheme' => 'bearer']],
-            (new SecuritySchemeMapper)->schemeFor('jwt'),
-        );
     }
 
     /**

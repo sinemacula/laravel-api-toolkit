@@ -9,6 +9,7 @@ use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as La
 use Illuminate\Http\Request;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use SineMacula\Http\Enums\HttpMethod;
@@ -152,6 +153,18 @@ final class PreventRequestsDuringMaintenanceTest extends TestCase
         $exception = $this->handleDuringMaintenance(['status' => 500]);
 
         self::assertSame(503, $exception->getStatusCode());
+    }
+
+    /**
+     * Get the package providers.
+     *
+     * @param  mixed  $app
+     * @return array<int, class-string>
+     */
+    #[\Override]
+    protected function getPackageProviders(mixed $app): array
+    {
+        return [ApiServiceProvider::class];
     }
 
     /**

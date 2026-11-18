@@ -26,6 +26,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIdentity;
@@ -987,13 +988,14 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation falls back to a day-long TTL for a bad config value.
+     * Test that isRelation reads a TTL of digits, as the environment gives, as
+     * an integer.
      *
      * @return void
      */
-    public function testIsRelationFallsBackToDefaultTtlWhenConfigNonNumeric(): void
+    public function testIsRelationReadsADigitStringTtlAsAnInteger(): void
     {
-        Config::set('api-toolkit.repositories.relation_cache_ttl', 'not-a-number');
+        Config::set('api-toolkit.repositories.relation_cache_ttl', '600');
 
         $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']));
 
@@ -1004,7 +1006,7 @@ final class SchemaIntrospectorTest extends TestCase
             ->andReturnNull();
         $repository->shouldReceive('put')
             ->once()
-            ->with($expectedKey, true, 86400)
+            ->with($expectedKey, true, 600)
             ->andReturnTrue();
 
         Cache::shouldReceive('memo')
@@ -1012,6 +1014,22 @@ final class SchemaIntrospectorTest extends TestCase
             ->andReturn($repository);
 
         self::assertTrue($this->makeIntrospector()->isRelation('posts', new User));
+    }
+
+    /**
+     * Test that isRelation fails for a TTL that is not a whole number of
+     * seconds, rather than caching for a day.
+     *
+     * @return void
+     */
+    public function testIsRelationFailsForANonNumericTtl(): void
+    {
+        Config::set('api-toolkit.repositories.relation_cache_ttl', 'not-a-number');
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.repositories.relation_cache_ttl setting must be an integer of at least 0; [\'not-a-number\'] given.');
+
+        $this->makeIntrospector()->isRelation('posts', new User);
     }
 
     /**

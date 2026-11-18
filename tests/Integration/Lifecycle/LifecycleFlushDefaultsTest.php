@@ -149,7 +149,7 @@ final class LifecycleFlushDefaultsTest extends TestCase
         // Reset the dispatcher so boot-time wiring does not skew the baseline
         Event::swap(new Dispatcher($this->app));
 
-        Config::set('api-toolkit.lifecycle', ['queue' => false]);
+        Config::set('api-toolkit.lifecycle.migrations', false);
 
         (new LifecycleRegistrar)->register();
 
