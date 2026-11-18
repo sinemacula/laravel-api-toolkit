@@ -190,14 +190,14 @@ final class TrashedVisibilityHttpTest extends TestCase
     }
 
     /**
-     * Test that a write body carrying an invalid trashed value is refused, as
-     * the query parser validates the whole request.
+     * Test that a write body carrying a trashed attribute is accepted, as the
+     * query parser reads the query string only.
      *
      * @return void
      */
-    public function testWriteBodyCarryingAnInvalidTrashedValueIsRefused(): void
+    public function testWriteBodyCarryingATrashedAttributeIsIgnored(): void
     {
-        $this->assertTrashedRefused($this->postJson('/articles', ['trashed' => 'deleted']), self::INVALID);
+        $this->postJson('/articles', ['trashed' => 'deleted'])->assertCreated();
     }
 
     /**

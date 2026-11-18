@@ -93,7 +93,7 @@ final class ApiQueryTest extends TestCase
             ->once()
             ->andReturn(null);
 
-        $result = ApiQuery::getFields();
+        $result = ApiQuery::getFields('users');
 
         self::assertNull($result);
     }

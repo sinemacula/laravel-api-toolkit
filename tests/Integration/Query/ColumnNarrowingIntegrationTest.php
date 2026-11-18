@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
@@ -52,6 +53,14 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [
+            AliasedScalarUserResource::class,
+            ArticleResource::class,
+            DeclaredSluggedTitleArticleResource::class,
+            SluggedTitleArticleResource::class,
+            UserResource::class,
+        ]);
 
         FieldColumnMapper::clearCache();
         SchemaCompiler::clearCache();

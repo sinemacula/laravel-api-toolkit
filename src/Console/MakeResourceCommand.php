@@ -246,7 +246,7 @@ final class MakeResourceCommand extends GeneratorCommand
         }
 
         $explicit = $discovery->explicitMap();
-        $scanned  = $discovery->scan();
+        $scanned  = $discovery->scan()['bindings'];
 
         $this->refuseClaimedType($explicit + $scanned, $class);
 

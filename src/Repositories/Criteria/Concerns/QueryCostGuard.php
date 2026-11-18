@@ -73,6 +73,6 @@ final class QueryCostGuard
      */
     private function countAggregates(?string $resourceType): int
     {
-        return count(ApiQuery::getAggregates($resourceType) ?? []);
+        return $resourceType === null ? 0 : count(ApiQuery::getAggregates($resourceType) ?? []);
     }
 }

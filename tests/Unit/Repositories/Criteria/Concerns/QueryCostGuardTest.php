@@ -9,9 +9,12 @@ use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
@@ -40,6 +43,8 @@ final class QueryCostGuardTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, OrganizationResource::class]);
 
         $this->guard = new QueryCostGuard;
     }
@@ -100,10 +105,10 @@ final class QueryCostGuardTest extends TestCase
      */
     public function testExactlyTheAggregateCapIsAccepted(): void
     {
-        Config::set('api-toolkit.query_cost.max_aggregates', 4);
+        Config::set('api-toolkit.query_cost.max_aggregates', 2);
 
         $this->parseQuery([
-            'aggregates' => [self::RESOURCE_TYPE => 'posts_count,comments_count,posts_sum_id,posts_max_views'],
+            'aggregates' => [self::RESOURCE_TYPE => 'posts_count,posts_sum_id'],
         ]);
 
         $this->expectNotToPerformAssertions();
@@ -119,16 +124,16 @@ final class QueryCostGuardTest extends TestCase
      */
     public function testOneAggregateTooManyIsRejected(): void
     {
-        Config::set('api-toolkit.query_cost.max_aggregates', 4);
+        Config::set('api-toolkit.query_cost.max_aggregates', 2);
 
         $this->parseQuery([
             'aggregates' => [
-                self::RESOURCE_TYPE => 'posts_count,comments_count,posts_sum_id,posts_max_views,posts_exists',
-                'organizations'     => 'users_count,users_exists',
+                self::RESOURCE_TYPE => 'posts_count,posts_sum_id,posts_avg_id',
+                'organizations'     => 'users_count',
             ],
         ]);
 
-        $this->assertRejectedForCost('aggregates', QueryCostLimits::MAX_AGGREGATES, 4, 5);
+        $this->assertRejectedForCost('aggregates', QueryCostLimits::MAX_AGGREGATES, 2, 3);
     }
 
     /**
