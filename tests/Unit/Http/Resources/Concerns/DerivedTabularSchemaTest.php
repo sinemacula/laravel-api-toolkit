@@ -6,6 +6,7 @@ namespace Tests\Unit\Http\Resources\Concerns;
 
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\DerivedTabularSchema;
 use SineMacula\Exporter\Schema\Column;
 use Tests\Concerns\InteractsWithNonPublicMembers;
@@ -20,6 +21,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(DerivedTabularSchema::class)]
+#[Group('exporter')]
 final class DerivedTabularSchemaTest extends TestCase
 {
     use InteractsWithNonPublicMembers;

@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Log;
 use Laravel\Octane\Contracts\OperationTerminated;
 use Orchestra\Testbench\Attributes\DefineEnvironment;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
@@ -84,11 +85,36 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
+     * Test that a job attempt resets the toolkit state before it flushes the
+     * write pool, whose failure may be re-thrown.
+     *
+     * @return void
+     */
+    public function testJobAttemptResetsTheStateBeforeFlushingTheWritePool(): void
+    {
+        Event::swap(new Dispatcher($this->getApplication()));
+
+        (new LifecycleRegistrar)->register();
+
+        /** @var \Illuminate\Events\Dispatcher $events */
+        $events = $this->getApplication()->make('events');
+
+        $listeners = $events->getRawListeners()[JobAttempted::class] ?? [];
+
+        assert(is_array($listeners));
+
+        $subscribers = array_map(static fn (mixed $listener): string => is_array($listener) && is_object($listener[0]) ? $listener[0]::class : '', $listeners);
+
+        self::assertSame([QueueFlushSubscriber::class, WritePoolFlushSubscriber::class], $subscribers);
+    }
+
+    /**
      * Test that a published config carrying the removed lifecycle switches
      * still wires both flush listeners.
      *
      * @return void
      */
+    #[Group('octane')]
     public function testRemovedLifecycleSwitchesDoNotUnwireTheFlushListeners(): void
     {
         /** @var \Illuminate\Config\Repository $config */
@@ -111,6 +137,7 @@ final class LifecycleRegistrarTest extends TestCase
      *
      * @return void
      */
+    #[Group('octane')]
     public function testOctaneFlushListenerRegisteredWhenInterfacePresent(): void
     {
         unset($_SERVER['LARAVEL_OCTANE']);

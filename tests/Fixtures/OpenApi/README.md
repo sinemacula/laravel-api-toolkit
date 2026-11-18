@@ -1,7 +1,7 @@
 # Bundled OpenAPI 3.1 / JSON Schema 2020-12 fixtures
 
-These fixtures back the OpenAPI exporter validity test
-(`tests/Integration/OpenApiExporterValidityTest.php`). They are the official,
+These fixtures back the shared OpenAPI validation harness
+(`tests/Concerns/ValidatesOpenApiDocuments.php`). They are the official,
 unmodified meta-schemas vendored for offline, deterministic validation per
 ADR 0003.
 
@@ -27,12 +27,15 @@ reference resolves offline.
 
 Every file is committed **byte-for-byte as published** - none is hand-edited.
 
-## opis/json-schema compatibility transform (applied at runtime in the test)
+## opis/json-schema compatibility
 
-`opis/json-schema` (`^2.4`, the test-only validator chosen in ADR 0003) is a
-maintained JSON Schema 2020-12 validator, but version 2.6 has annotation,
-reference, and format gaps that prevent it from evaluating the OpenAPI 3.1
-meta-schema as published:
+The harness uses the spec-compliant validator of `opis/json-schema` (`^2.4`,
+the test-only validator chosen in ADR 0003). The default one writes a schema
+`default` into the validated data wherever the property is missing, and the
+closed Parameter and Header Objects then reject the inserted style defaults as
+unevaluated properties. No closed object is relaxed.
+
+Two gaps remain, worked around in the harness at runtime:
 
 1. **`$dynamicRef: "#meta"` resolution.** The meta-schemas reach every
    embedded schema through `$dynamicRef: "#meta"`, which, when validating
@@ -40,40 +43,22 @@ meta-schema as published:
    `schema-base` `#/$defs/schema`, which applies the OpenAPI dialect. opis
    instead resolves the bare `#meta` dynamic anchor to the root document
    resource, so every `components.schemas` entry is incorrectly validated as if
-   it were a full OpenAPI document (and reported as "missing the `openapi`
-   property"). The test rewrites each `{"$dynamicRef": "#meta"}`, in every
-   bundled meta-schema, to the equivalent static
-   `{"$ref": "https://spec.openapis.org/oas/3.1/schema-base/2022-10-07#/$defs/schema"}`,
-   which is **semantically identical** to the dynamic resolution.
+   it were a full OpenAPI document. The harness rewrites each
+   `{"$dynamicRef": "#meta"}`, in every bundled meta-schema, to the equivalent
+   static
+   `{"$ref": "https://spec.openapis.org/oas/3.1/schema-base/2022-10-07#/$defs/schema"}`.
 
-2. **`unevaluatedProperties` annotation collection.** The Parameter Object
-   permits `style`, `explode`, `allowReserved`, and `allowEmptyValue` only
-   through `dependentSchemas` + `if`/`then` branches, then closes the object
-   with `unevaluatedProperties: false`. opis 2.6 does not collect the
-   `properties` annotations produced by those conditional branches, so it
-   rejects even a minimal, spec-compliant parameter
-   (`{name, in, schema}`). The test relaxes every `unevaluatedProperties: false`
-   to `true`, neutralising only the one keyword opis cannot evaluate soundly
-   while preserving every structural constraint that carries the validity
-   signal (required fields, the `openapi` `3.1.x` pattern, type/enum/pattern
-   checks, the parameter `name`/`in` requirement, the `schema`-xor-`content`
-   `oneOf`, and so on).
-
-3. **`format` assertion on templated server URLs.** JSON Schema 2020-12 treats
+2. **`format` assertion on templated server URLs.** JSON Schema 2020-12 treats
    `format` as an annotation by default, but opis asserts it, so a Server Object
    `url` carrying a server variable template (`https://{region}.example.com`),
    which OpenAPI 3.1 explicitly allows, fails the meta-schema's `uri-reference`
-   format. The test's `uri-reference` check substitutes each `{variable}`, with
-   a name and then with a digit so a templated port also holds, before applying
-   opis's own check, so every other value is still held to the format.
+   format. The harness's `uri-reference` check substitutes each `{variable}`,
+   with a name and then with a digit so a templated port also holds, before
+   applying opis's own check, so every other value is still held to the format.
 
-None of the transforms weakens a constraint the emitter must satisfy: the test
-proves below that the relaxed schema still rejects a 3.0 version string, a
-document missing `info`, a parameter missing `name`/`in`, an embedded schema
-encoded as an array, a malformed templated server url, and other malformed
-shapes. The transforms are performed in code (visible, reviewable) rather than
-by committing a hand-edited schema, so the vendored fixtures stay verifiably
-identical to the upstream publications and cannot silently drift.
-
-If a future opis release closes these gaps, the transforms can be deleted and
-the pristine meta-schemas validated directly.
+`tests/Integration/OpenApi/OpenApiValidationHarnessTest.php` proves the harness
+still rejects malformed documents, including unknown fixed fields such as a
+`query` operation or a misspelt `operationID`. The transforms are performed in
+code rather than by committing a hand-edited schema, so the vendored fixtures
+stay identical to the upstream publications. If a future opis release closes
+these gaps, the transforms can be deleted.

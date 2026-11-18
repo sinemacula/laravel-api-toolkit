@@ -924,7 +924,7 @@ final class SchemaIntrospectorTest extends TestCase
 
             self::assertTrue($introspector->isRelation('dynamicPosts', new User));
         } finally {
-            $property->setValue($original);
+            $property->setValue(null, $original);
         }
     }
 
@@ -1236,7 +1236,7 @@ final class SchemaIntrospectorTest extends TestCase
 
             self::assertInstanceOf(HasMany::class, $relation);
         } finally {
-            $property->setValue($original);
+            $property->setValue(null, $original);
         }
     }
 

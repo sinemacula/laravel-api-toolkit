@@ -26,6 +26,7 @@ use Tests\Fixtures\Resources\EqualitySearchableUserResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\SearchableFilterableUserResource;
 use Tests\Fixtures\Resources\SearchableUserResource;
+use Tests\Fixtures\Search\CountingSearchDriver;
 use Tests\Fixtures\Search\PatternSearchDriver;
 use Tests\Fixtures\Search\StubEngineSearchDriver;
 use Tests\TestCase;
@@ -460,6 +461,38 @@ final class SearchApplierTest extends TestCase
         $this->expectException(UnservableSearchException::class);
 
         $this->applier->apply(User::query(), $this->term(), SearchableFilterableUserResource::class);
+    }
+
+    /**
+     * Test that ranking hands the plan to the connection's driver without
+     * taking the index proof again.
+     *
+     * @return void
+     */
+    public function testRankingReachesTheDriverWithoutTakingTheIndexProof(): void
+    {
+        $driver = new CountingSearchDriver;
+
+        $this->drivers->register($this->driver(), $driver);
+
+        $this->applier->rank(User::query(), $this->term(), SearchableFilterableUserResource::class);
+
+        self::assertSame(1, $driver->ranks);
+        self::assertSame(0, $driver->calls);
+    }
+
+    /**
+     * Test that ranking a resource with nothing searchable is refused.
+     *
+     * @return void
+     */
+    public function testRankingAResourceWithNothingSearchableIsRefused(): void
+    {
+        $this->registerDriver();
+
+        $this->expectException(ValidationException::class);
+
+        $this->applier->rank(User::query(), $this->term(), FilterableUserResource::class);
     }
 
     /**

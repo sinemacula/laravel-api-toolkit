@@ -38,7 +38,7 @@ jobs:
                 run: git fetch --no-tags origin master
 
             -   name: Setup PHP
-                uses: sinemacula/.github/.github/actions/setup-php@v3.1.0
+                uses: sinemacula/.github/.github/actions/setup-php@v3.2.0
                 with:
                     php-version: 8.3
                     coverage: pcov
@@ -71,10 +71,19 @@ jobs:
                     persist-credentials: false
 
             -   name: Setup PHP
-                uses: sinemacula/.github/.github/actions/setup-php@v3.1.0
+                uses: sinemacula/.github/.github/actions/setup-php@v3.2.0
                 with:
                     php-version: 8.3
                     coverage: pcov
 
             -   name: Full mutation suite
                 run: composer test:mutation:full
+
+            -   name: Upload mutation logs
+                if: always()
+                uses: actions/upload-artifact@v7
+                with:
+                    name: infection-full
+                    path: |
+                        build/infection-full.log
+                        build/infection-full-summary.log

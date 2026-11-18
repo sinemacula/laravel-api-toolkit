@@ -8,6 +8,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\PerItemGuardedFieldException;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -40,6 +41,7 @@ use Tests\TestCase;
 #[CoversClass(ApiExceptionHandler::class)]
 #[CoversClass(PerItemGuardedFieldException::class)]
 #[CoversTrait(DerivesTabularSchema::class)]
+#[Group('exporter')]
 final class GuardedExportTest extends TestCase
 {
     use RegistersApiExceptionHandler;

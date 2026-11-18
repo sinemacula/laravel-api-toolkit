@@ -122,10 +122,6 @@ final class ApiServiceProvider extends ServiceProvider
             return; // @codeCoverageIgnore
         }
 
-        if (!function_exists('config_path')) {
-            return; // @codeCoverageIgnore
-        }
-
         $this->publishes([
             __DIR__ . '/../config/api-toolkit.php' => config_path('api-toolkit.php'),
         ], 'api-toolkit-config');
