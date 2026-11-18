@@ -79,6 +79,17 @@ Tests run in random order, and a deprecation fails the run. Replay a failing ord
 vendor/bin/phpunit --order-by=random --random-order-seed=1234
 ```
 
+### Benchmarks
+
+The hot paths have phpbench subjects under `benchmarks/`. Run them with Xdebug off:
+
+```bash
+composer bench         # Report every subject
+composer bench:smoke   # Run each subject once, as every PR does
+```
+
+Pull requests are compared with the latest master baseline in the Quality Gates run; the comparison is report-only.
+
 ### Standards
 
 - PHPStan level 9 compliance

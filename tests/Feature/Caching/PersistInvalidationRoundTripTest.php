@@ -13,6 +13,7 @@ use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Models\Post;
@@ -55,6 +56,7 @@ final class PersistInvalidationRoundTripTest extends TestCase
         parent::setUp();
 
         Config::set('cache.default', 'array');
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [FilterableUserResource::class, PostResource::class]);
 
         Route::middleware(ParseApiQuery::class)->group(static function (): void {
             Route::get('/cached-users', static fn (CacheableUserRepository $repository): ApiResourceCollection => self::collection($repository, FilterableUserResource::class));

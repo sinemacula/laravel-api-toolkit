@@ -80,9 +80,9 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractOnlyIncludesPresentKeys(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => 'name']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['users' => 'name']]);
 
-        self::assertSame(['fields' => ['name']], $this->extractor->extract($request));
+        self::assertSame(['fields' => ['users' => ['name']]], $this->extractor->extract($request));
     }
 
     /**
@@ -98,6 +98,38 @@ final class QueryParameterExtractorTest extends TestCase
 
         self::assertSame('2', $parameters['page']);
         self::assertSame('10', $parameters['limit']);
+    }
+
+    /**
+     * Test that extract keeps an integer page and limit, as a request built in
+     * code carries them, instead of failing on them.
+     *
+     * @return void
+     */
+    public function testExtractKeepsIntegerPageAndLimitParameters(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['page' => 2, 'limit' => 10]);
+
+        $parameters = $this->extractor->extract($request);
+
+        self::assertSame(2, $parameters['page']);
+        self::assertSame(10, $parameters['limit']);
+    }
+
+    /**
+     * Test that the request body is never read.
+     *
+     * @return void
+     */
+    public function testExtractReadsTheQueryStringOnly(): void
+    {
+        $request = Request::create(self::TEST_URL . '?limit=1', HttpMethod::POST->getVerb(), [
+            'limit'  => '2',
+            'page'   => '3',
+            'fields' => ['users' => 'name'],
+        ]);
+
+        self::assertSame(['limit' => '1'], $this->extractor->extract($request));
     }
 
     /**
@@ -122,11 +154,30 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractSplitsAndTrimsFieldsString(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ' first_name , last_name ']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['users' => ' first_name , last_name ']]);
 
         $parameters = $this->extractor->extract($request);
 
-        self::assertSame(['first_name', 'last_name'], $parameters['fields']);
+        self::assertSame(['users' => ['first_name', 'last_name']], $parameters['fields']);
+    }
+
+    /**
+     * Test that a null selection, as the empty-string middleware leaves an
+     * empty one, reads as a single empty name.
+     *
+     * @return void
+     */
+    public function testExtractReadsANullSelectionAsEmpty(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'fields'     => ['users' => null],
+            'aggregates' => ['users' => null],
+        ]);
+
+        self::assertSame([
+            'fields'     => ['users' => ['']],
+            'aggregates' => ['users' => ['']],
+        ], $this->extractor->extract($request));
     }
 
     /**
@@ -158,11 +209,11 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractSplitsAndTrimsAggregatesString(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['aggregates' => ' posts_count , orders_sum_total ']);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['aggregates' => ['users' => ' posts_count , orders_sum_total ']]);
 
         $parameters = $this->extractor->extract($request);
 
-        self::assertSame(['posts_count', 'orders_sum_total'], $parameters['aggregates']);
+        self::assertSame(['users' => ['posts_count', 'orders_sum_total']], $parameters['aggregates']);
     }
 
     /**
@@ -452,7 +503,7 @@ final class QueryParameterExtractorTest extends TestCase
     public function testExtractParsesMultipleParametersSimultaneously(): void
     {
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
-            'fields'  => 'name,email',
+            'fields'  => ['users' => 'name,email'],
             'order'   => 'name:asc',
             'page'    => '2',
             'limit'   => '10',
@@ -461,7 +512,7 @@ final class QueryParameterExtractorTest extends TestCase
 
         $parameters = $this->extractor->extract($request);
 
-        self::assertSame(['name', 'email'], $parameters['fields']);
+        self::assertSame(['users' => ['name', 'email']], $parameters['fields']);
         self::assertSame(['name' => 'asc'], $parameters['order']);
         self::assertSame('2', $parameters['page']);
         self::assertSame('10', $parameters['limit']);
