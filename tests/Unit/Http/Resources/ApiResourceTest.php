@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Gate;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -27,12 +28,15 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Models\AggregateCapturingModel;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Profile;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Policies\ArticlePolicy;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\RestorableArticleResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -532,6 +536,23 @@ final class ApiResourceTest extends TestCase
 
         self::assertSame('users/requested', $resource->resolve(Request::create('/users/requested'))['path']);
         self::assertNull($resource->resolve('users/requested')['path']);
+    }
+
+    /**
+     * Test that an ability flag resolved with anything other than a request
+     * answers for the authenticated user rather than as a guest.
+     *
+     * @return void
+     */
+    public function testAbilityFlagResolvedWithoutARequestAnswersForTheAuthenticatedUser(): void
+    {
+        Gate::policy(Article::class, ArticlePolicy::class);
+
+        $this->actingAs((new User)->forceFill(['id' => 7]));
+
+        $resource = new RestorableArticleResource((new Article)->forceFill(['user_id' => 7]), included: ['can_restore']);
+
+        self::assertTrue($resource->resolve('articles')['can_restore']);
     }
 
     /**
@@ -2497,6 +2518,57 @@ final class ApiResourceTest extends TestCase
         new UserResource($user, true);
 
         self::assertArrayNotHasKey('aggregate_posts_count', $user->getAttributes());
+    }
+
+    /**
+     * Test that load_missing plans from pinned fields, loading and rendering
+     * the relation and the aggregates they select.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testConstructorWithLoadMissingLoadsThePinnedRelationAndAggregates(): void
+    {
+        $user = User::create(['name' => 'PinnedLoader', 'email' => 'pinnedloader@example.com']);
+
+        Post::create(['user_id' => $user->id, 'title' => 'Pinned', 'body' => 'Body']);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+        $parser->parse(Request::create('/', HttpMethod::GET->getVerb()));
+
+        $result = (new UserResource($user, true, ['posts', 'aggregates']))->resolve();
+
+        self::assertTrue($user->relationLoaded('posts'));
+        self::assertSame(1, $result['aggregates']['posts_count']);
+    }
+
+    /**
+     * Test that withAll() on an unpinned resource after its first resolution is
+     * honoured.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testWithAllAfterTheFirstResolutionIsHonoured(): void
+    {
+        $user = User::create(['name' => 'LateAll', 'email' => 'lateall@example.com', 'status' => 'active']);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+        $parser->parse(Request::create('/', HttpMethod::GET->getVerb()));
+
+        $resource = new UserResource($user);
+        $first    = $resource->resolve();
+
+        self::assertArrayNotHasKey('status', $first);
+        self::assertArrayHasKey('status', $resource->withAll()->resolve());
     }
 
     /**

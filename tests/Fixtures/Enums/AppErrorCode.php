@@ -21,6 +21,7 @@ enum AppErrorCode: int implements ErrorCodeInterface
 {
     use ProvidesCode;
 
-    case WIDGET_FAILURE = 20001;
-    case SLOW_DOWN      = 20002;
+    case WIDGET_FAILURE   = 20001;
+    case SLOW_DOWN        = 20002;
+    case PAYMENT_REQUIRED = 20003;
 }

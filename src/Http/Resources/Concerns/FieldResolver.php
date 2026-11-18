@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 
 use SineMacula\ApiToolkit\Facades\ApiQuery;
-use SineMacula\ApiToolkit\Schema\CompiledSchema;
 
 /**
  * Holds a resource's field selection and resolves its response fields.
@@ -66,26 +65,47 @@ final class FieldResolver
      *
      * Excluded fields are removed before fixed fields are appended.
      *
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @param  string  $resourceType
-     * @param  array<int, string>  $defaultFields
-     * @param  array<int, string>  $fixedFields
+     * @param  class-string<\SineMacula\ApiToolkit\Contracts\ApiResourceInterface>  $resourceClass
      * @return array<int, string>
      */
-    public function getFields(CompiledSchema $schema, string $resourceType, array $defaultFields, array $fixedFields): array
+    public function getFields(string $resourceClass): array
     {
-        $this->fields ??= $this->shouldRespondWithAll($resourceType)
-            ? $schema->getFieldKeys()
-            : (ApiQuery::getFields($resourceType) ?? $defaultFields);
-
-        $excluded = $this->excludedFields ?? [];
+        $fields      = self::effectiveFields($resourceClass, $this->fields, $this->all);
+        $excluded    = $this->excludedFields ?? [];
+        $fixedFields = $resourceClass::getFixedFields();
 
         // Request-scoped memo so a homogeneous page assembles the list once
-        $key = self::cacheKey($this->fields, $excluded, $fixedFields);
+        $key = self::cacheKey($fields, $excluded, $fixedFields);
 
         return self::$resolvedCache[$key] ??= array_values(array_unique(
-            array_merge(array_diff($this->fields, $excluded), $fixedFields),
+            array_merge(array_diff($fields, $excluded), $fixedFields),
         ));
+    }
+
+    /**
+     * Resolve the fields a resource selects before exclusions and fixed fields.
+     *
+     * Pinned fields win, then all fields with the aggregates payload, then the
+     * requested fields, then the defaults. Planning and rendering share it.
+     *
+     * @param  class-string<\SineMacula\ApiToolkit\Contracts\ApiResourceInterface>  $resourceClass
+     * @param  array<int, string>|null  $pinned
+     * @param  bool  $all
+     * @return array<int, string>
+     */
+    public static function effectiveFields(string $resourceClass, ?array $pinned, bool $all): array
+    {
+        if ($pinned !== null) {
+            return $pinned;
+        }
+
+        $requested = ApiQuery::getFields($resourceClass::getResourceType());
+
+        if ($all || in_array(':all', $requested ?? [], true)) {
+            return [...$resourceClass::getAllFields(), 'aggregates'];
+        }
+
+        return $requested ?? $resourceClass::getDefaultFields();
     }
 
     /**
@@ -96,29 +116,6 @@ final class FieldResolver
     public static function clearCache(): void
     {
         self::$resolvedCache = [];
-    }
-
-    /**
-     * Determine whether all fields should be included.
-     *
-     * @param  string  $resourceType
-     * @return bool
-     */
-    public function shouldRespondWithAll(string $resourceType): bool
-    {
-        return $this->all || in_array(':all', ApiQuery::getFields($resourceType) ?? [], true);
-    }
-
-    /**
-     * Determine if the aggregates field should be included.
-     *
-     * @param  string  $resourceType
-     * @param  array<int, string>  $defaultFields
-     * @return bool
-     */
-    public function shouldIncludeAggregatesField(string $resourceType, array $defaultFields): bool
-    {
-        return $this->shouldIncludeVirtualField('aggregates', $resourceType, $defaultFields);
     }
 
     /**
@@ -136,29 +133,5 @@ final class FieldResolver
             implode("\0", $excluded),
             implode("\0", $fixedFields),
         ]);
-    }
-
-    /**
-     * Determine if a virtual field should be included.
-     *
-     * @param  string  $fieldName
-     * @param  string  $resourceType
-     * @param  array<int, string>  $defaultFields
-     * @return bool
-     */
-    private function shouldIncludeVirtualField(string $fieldName, string $resourceType, array $defaultFields): bool
-    {
-        $requestedFields = ApiQuery::getFields($resourceType);
-        $excludedFields  = $this->excludedFields ?? [];
-
-        if (is_array($requestedFields) && in_array($fieldName, $requestedFields, true)) {
-            return !in_array($fieldName, $excludedFields, true);
-        }
-
-        if ($this->shouldRespondWithAll($resourceType)) {
-            return !in_array($fieldName, $excludedFields, true);
-        }
-
-        return in_array($fieldName, $defaultFields, true) && !in_array($fieldName, $excludedFields, true);
     }
 }

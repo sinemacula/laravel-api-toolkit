@@ -104,11 +104,11 @@ final class FieldColumnMapperTest extends TestCase
     }
 
     /**
-     * Test that a scalar field carrying a guard but no needs is unmapped.
+     * Test that a scalar field carrying a row guard but no needs is unmapped.
      *
      * @return void
      */
-    public function testGuardedScalarWithoutNeedsIsUnmapped(): void
+    public function testRowGuardedScalarWithoutNeedsIsUnmapped(): void
     {
         $schema = $this->makeSchema([
             'secret' => $this->makeDefinition(guards: [fn ($resource, $request) => true]),
@@ -118,6 +118,25 @@ final class FieldColumnMapperTest extends TestCase
 
         self::assertFalse($map->isMapped('secret'));
         self::assertNull($map->columnsFor('secret'));
+    }
+
+    /**
+     * Test that a scalar field carrying only a caller guard still reads its own
+     * column, so the select stays narrowed.
+     *
+     * @return void
+     */
+    public function testCallerGuardedScalarMapsToItsOwnColumn(): void
+    {
+        $schema = $this->makeSchema([
+            'salary' => $this->makeDefinition(callerGuards: [static fn (): bool => false]),
+        ]);
+
+        $map = FieldColumnMapper::build($schema);
+
+        self::assertTrue($map->isMapped('salary'));
+        self::assertTrue($map->isInferred('salary'));
+        self::assertSame(['salary'], $map->columnsFor('salary'));
     }
 
     /**
@@ -245,6 +264,7 @@ final class FieldColumnMapperTest extends TestCase
      * @param  array<int, string>  $needs
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
+     * @param  array<int, callable(mixed): bool>  $callerGuards
      * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
     private function makeDefinition(
@@ -254,6 +274,7 @@ final class FieldColumnMapperTest extends TestCase
         array $needs = [],
         array $guards = [],
         array $transformers = [],
+        array $callerGuards = [],
     ): CompiledFieldDefinition {
         return new CompiledFieldDefinition(
             accessor    : $accessor,
@@ -266,6 +287,7 @@ final class FieldColumnMapperTest extends TestCase
             needs       : $needs,
             guards      : $guards,
             transformers: $transformers,
+            callerGuards: $callerGuards,
         );
     }
 

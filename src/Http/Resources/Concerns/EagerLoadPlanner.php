@@ -4,6 +4,10 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 
+use Illuminate\Contracts\Database\Eloquent\SupportsPartialRelations;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOneOrManyThrough;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -51,8 +55,14 @@ final class EagerLoadPlanner
 
         self::walkRelations($resourceClass, $fields, '', $plain, $scoped);
 
-        $plain = array_diff(array_unique($plain), array_keys($scoped));
-        $map   = $plain === [] && $scoped === [] ? [] : array_merge($plain, $scoped);
+        $plain    = array_diff(array_unique($plain), array_keys($scoped));
+        $closures = [];
+
+        foreach ($scoped as $path => [$owner, $constraint, $limit, $aggregates]) {
+            $closures[$path] = self::scope($owner, $constraint, $limit, $aggregates, self::takeColumnSelection($plain, $path));
+        }
+
+        $map = $plain === [] && $closures === [] ? [] : array_merge($plain, $closures);
 
         return self::$eagerLoadCache[$key] = $map;
     }
@@ -140,13 +150,14 @@ final class EagerLoadPlanner
      * Recursively walk relation definitions, accumulating eager-load paths.
      *
      * Every field recurses into its own child resource and projection, and a
-     * resource already on the path ends the walk, so cycles terminate.
+     * resource already on the path ends the walk, so cycles terminate. A path
+     * the walk cuts still loads the child's aggregates.
      *
      * @param  string  $resourceClass
      * @param  array<int, string>  $fields
      * @param  string  $prefix
      * @param  array<int, string>  $plain
-     * @param  array<string, mixed>  $scoped
+     * @param  array<string, array{string, (\Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null, int, list<AggregateLoad>}>  $scoped
      * @param  array<int, string>  $ancestors
      * @return void
      */
@@ -176,10 +187,16 @@ final class EagerLoadPlanner
                 continue;
             }
 
-            $fullPath = self::makePrefixedPath($prefix, $relation);
+            $fullPath    = self::makePrefixedPath($prefix, $relation);
+            $childFields = self::resolveChildFields($definition);
 
-            self::addEagerLoadPath($definition, $resourceClass . '::' . $field, $fullPath, $plain, $scoped);
-            self::recurseIntoChild($definition, $fullPath, $plain, $scoped, $ancestors);
+            self::addEagerLoadPath($definition, $resourceClass . '::' . $field, $fullPath, self::resolveChildAggregates($definition, $childFields), $plain, $scoped);
+
+            if ($childFields === []) {
+                continue;
+            }
+
+            self::walkRelations((string) $definition->resource, $childFields, $fullPath, $plain, $scoped, $ancestors);
         }
     }
 
@@ -208,25 +225,58 @@ final class EagerLoadPlanner
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  string  $owner
      * @param  string  $fullPath
+     * @param  list<AggregateLoad>  $aggregates
      * @param  array<int, string>  $plain
-     * @param  array<string, mixed>  $scoped
+     * @param  array<string, array{string, (\Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null, int, list<AggregateLoad>}>  $scoped
      * @return void
      */
-    private static function addEagerLoadPath(CompiledFieldDefinition $definition, string $owner, string $fullPath, array &$plain, array &$scoped): void
+    private static function addEagerLoadPath(CompiledFieldDefinition $definition, string $owner, string $fullPath, array $aggregates, array &$plain, array &$scoped): void
     {
         $constraint = $definition->constraint;
         $limit      = RelationLimit::for($definition);
 
-        if ($constraint === null && $limit === 0) {
+        if ($constraint === null && $limit === 0 && $aggregates === []) {
             $plain[] = $fullPath;
 
             return;
         }
 
-        $scoped[$fullPath] = static function (EloquentRelation $relation) use ($constraint, $limit, $owner): void {
+        // Another field over the same path keeps the aggregates it selected
+        $planned = $scoped[$fullPath][3] ?? [];
+
+        $scoped[$fullPath] = [$owner, $constraint, $limit, [...$planned, ...array_filter($aggregates, static fn (array $entry): bool => !in_array($entry, $planned, true))]];
+    }
+
+    /**
+     * Build the closure that owns a scoped path.
+     *
+     * A column selection runs first so the aggregates add to it, and the bound
+     * runs last. A MorphTo loads each type through a fresh query that drops the
+     * aggregate selects, so it loads none.
+     *
+     * @param  string  $owner
+     * @param  (\Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null  $constraint
+     * @param  int  $limit
+     * @param  list<AggregateLoad>  $aggregates
+     * @param  list<string>  $columns
+     * @return \Closure(\Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>): void
+     */
+    private static function scope(string $owner, ?\Closure $constraint, int $limit, array $aggregates, array $columns): \Closure
+    {
+        return static function (EloquentRelation $relation) use ($owner, $constraint, $limit, $aggregates, $columns): void {
+
+            if ($columns !== []) {
+                $relation->select(self::qualifyColumns($relation, $columns));
+            }
 
             if ($constraint !== null) {
                 RelationWindow::constrain($relation, $constraint, $owner);
+            }
+
+            if (!$relation instanceof MorphTo) {
+                foreach ($aggregates as $entry) {
+                    $relation->withAggregate($entry['relation'], $entry['column'], $entry['function']);
+                }
             }
 
             RelationWindow::bound($relation, $limit);
@@ -234,30 +284,44 @@ final class EagerLoadPlanner
     }
 
     /**
-     * Recurse into the definition's child resource, if any.
+     * Remove the path's `relation:columns` entries and return their columns.
      *
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
-     * @param  string  $fullPath
      * @param  array<int, string>  $plain
-     * @param  array<string, mixed>  $scoped
-     * @param  array<int, string>  $ancestors
-     * @return void
+     * @param  string  $path
+     * @return list<string>
      */
-    private static function recurseIntoChild(CompiledFieldDefinition $definition, string $fullPath, array &$plain, array &$scoped, array $ancestors = []): void
+    private static function takeColumnSelection(array &$plain, string $path): array
     {
-        if (!self::shouldRecurseIntoChild($definition)) {
-            return;
+        $columns = [];
+
+        foreach ($plain as $index => $entry) {
+
+            if (!str_starts_with($entry, $path . ':')) {
+                continue;
+            }
+
+            $columns = [...$columns, ...explode(',', substr($entry, strlen($path) + 1))];
+
+            unset($plain[$index]);
         }
 
-        /** @var string $childResource */
-        $childResource = $definition->resource;
-        $childFields   = self::resolveChildFields($definition, $childResource);
+        return array_values(array_unique($columns));
+    }
 
-        if ($childFields === []) {
-            return;
-        }
+    /**
+     * Qualify the selected columns where Laravel's `relation:columns` does.
+     *
+     * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
+     * @param  list<string>  $columns
+     * @return list<string>
+     */
+    private static function qualifyColumns(EloquentRelation $relation, array $columns): array
+    {
+        $qualify = $relation instanceof BelongsToMany
+            || $relation instanceof HasOneOrManyThrough
+            || ($relation instanceof SupportsPartialRelations && $relation->isOneOfMany());
 
-        self::walkRelations($childResource, $childFields, $fullPath, $plain, $scoped, $ancestors);
+        return $qualify ? array_map($relation->getRelated()->qualifyColumn(...), $columns) : $columns;
     }
 
     /**
@@ -286,54 +350,39 @@ final class EagerLoadPlanner
     }
 
     /**
-     * Resolve the child fields to traverse for a nested resource.
-     *
-     * Definition fields, else query fields, else defaults, else all fields.
+     * Resolve the fields a child resource renders under the relation.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
-     * @param  string  $resource
      * @return array<int, string>
      */
-    private static function resolveChildFields(CompiledFieldDefinition $definition, string $resource): array
+    private static function resolveChildFields(CompiledFieldDefinition $definition): array
     {
-        if ($definition->fields !== null && $definition->fields !== []) {
-            return array_values(
-                array_filter($definition->fields, static fn (string $f): bool => $f !== ''),
-            );
+        if (!self::shouldRecurseIntoChild($definition)) {
+            return [];
         }
 
-        $requested = self::getRequestedChildFields($resource);
+        /** @var class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource> $child */
+        $child = $definition->resource;
 
-        if ($requested !== []) {
-            return $requested;
-        }
-
-        $defaults = $resource::getDefaultFields();
-
-        return $defaults !== [] ? $defaults : $resource::getAllFields();
+        return [...FieldResolver::effectiveFields($child, $definition->fields, false), ...$child::getFixedFields()];
     }
 
     /**
-     * Get the API-query-requested fields for a child resource type.
+     * Resolve the aggregates a child resource renders under the relation.
      *
-     * @param  string  $resource
-     * @return array<int, string>
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
+     * @param  array<int, string>  $childFields
+     * @return list<AggregateLoad>
      */
-    private static function getRequestedChildFields(string $resource): array
+    private static function resolveChildAggregates(CompiledFieldDefinition $definition, array $childFields): array
     {
-        if (!is_subclass_of($resource, ApiResource::class)) {
+        if (!in_array('aggregates', $childFields, true)) {
             return [];
         }
 
-        $childType = $resource::getResourceType();
-        $requested = ApiQuery::getFields($childType);
+        /** @var class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource> $child */
+        $child = $definition->resource;
 
-        if (!is_array($requested) || $requested === []) {
-            return [];
-        }
-
-        return array_values(
-            array_filter($requested, static fn ($f) => $f !== ''),
-        );
+        return self::buildAggregateMap($child, ApiQuery::getAggregates($child::getResourceType()) ?? []);
     }
 }

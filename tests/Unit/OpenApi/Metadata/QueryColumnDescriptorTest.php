@@ -29,12 +29,14 @@ final class QueryColumnDescriptorTest extends TestCase
     public function testStoresAllProperties(): void
     {
         $descriptor = new QueryColumnDescriptor(
-            property       : 'email',
-            column         : 'email_address',
-            capability     : Capability::EXACT,
-            sortable       : true,
-            unindexedReason: 'the table is bounded by the seat count',
-            strategy       : SearchStrategy::SUBSTRING,
+            property         : 'email',
+            column           : 'email_address',
+            capability       : Capability::EXACT,
+            sortable         : true,
+            unindexedReason  : 'the table is bounded by the seat count',
+            strategy         : SearchStrategy::SUBSTRING,
+            filterConditional: true,
+            sortConditional  : true,
         );
 
         self::assertSame('email', $descriptor->property);
@@ -43,6 +45,8 @@ final class QueryColumnDescriptorTest extends TestCase
         self::assertTrue($descriptor->sortable);
         self::assertSame('the table is bounded by the seat count', $descriptor->unindexedReason);
         self::assertSame(SearchStrategy::SUBSTRING, $descriptor->strategy);
+        self::assertTrue($descriptor->filterConditional);
+        self::assertTrue($descriptor->sortConditional);
     }
 
     /**
@@ -58,5 +62,7 @@ final class QueryColumnDescriptorTest extends TestCase
         self::assertFalse($descriptor->sortable);
         self::assertNull($descriptor->unindexedReason);
         self::assertNull($descriptor->strategy);
+        self::assertFalse($descriptor->filterConditional);
+        self::assertFalse($descriptor->sortConditional);
     }
 }

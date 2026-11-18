@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Integration\OpenApi;
 
 use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
@@ -17,11 +18,13 @@ use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
+use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
@@ -934,6 +937,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
         return new QuerySurface(
             SchemaCompiler::compile($this->resourceMap()[$modelClass]),
             new RelationTraversal(app(SchemaIntrospectionProvider::class), $this->resourceMap()),
+            new CallerAdmission(Request::create('/'), new GuardEvaluator),
         );
     }
 
