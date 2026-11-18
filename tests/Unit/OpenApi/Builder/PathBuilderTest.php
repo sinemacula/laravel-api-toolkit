@@ -7,7 +7,9 @@ namespace Tests\Unit\OpenApi\Builder;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Route as RouteFacade;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
@@ -22,6 +24,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
@@ -1280,7 +1283,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testNoDocumentedRoutesYieldsEmptyPaths(): void
     {
-        self::assertSame([], $this->builder()->build([], ['path-fixture.index' => 'Lists the users.']));
+        self::assertSame([], $this->builder()->build([], ['path-fixture.index' => 'Lists the users.'], 'public', []));
     }
 
     /**
@@ -1361,6 +1364,183 @@ final class PathBuilderTest extends TestCase
 
         self::assertIsArray($parameters);
         self::assertSame(['team', 'member'], array_column($parameters, 'name'));
+    }
+
+    /**
+     * Test that a domain's parameters are not path parameters, and a name in
+     * both the domain and the URI is one path parameter.
+     *
+     * @return void
+     */
+    public function testDomainParametersAreNotPathParameters(): void
+    {
+        RouteFacade::domain('{account}.example.com')->get('projects', [PathPlainController::class, 'index']);
+        RouteFacade::domain('{team}.example.com')->get('teams/{team}', [PathPlainController::class, 'report']);
+
+        $paths = $this->build();
+
+        self::assertArrayNotHasKey('parameters', $this->operationOf($paths, '/projects', 'get'));
+        self::assertContains(404, $this->statusesOf($paths, '/projects', 'get'));
+        self::assertSame(['team'], array_column($this->pathParametersIn($paths['/teams/{team}']['get']['parameters']), 'name'));
+        self::assertSame([['url' => 'https://{team}.example.com', 'variables' => ['team' => ['default' => 'team']]]], $paths['/teams/{team}']['get']['servers']);
+    }
+
+    /**
+     * Test that a route on a domain lists its servers after its security, and a
+     * route without one lists none.
+     *
+     * @return void
+     */
+    public function testDomainRouteListsItsOwnServers(): void
+    {
+        RouteFacade::domain('{account}.example.com')->get('projects', [PathPlainController::class, 'index']);
+        $this->router()->get('reports', [PathPlainController::class, 'report']);
+
+        $paths = $this->build(servers: [['url' => 'https://api.example.com/v1', 'description' => 'Production']]);
+
+        self::assertSame(['tags', 'responses', 'security', 'servers'], array_keys($this->operationOf($paths, '/projects', 'get')));
+        self::assertSame([[
+            'url'         => 'https://{account}.example.com/v1',
+            'description' => 'Production',
+            'variables'   => ['account' => ['default' => 'account']],
+        ]], $paths['/projects']['get']['servers']);
+        self::assertArrayNotHasKey('servers', $this->operationOf($paths, '/reports', 'get'));
+    }
+
+    /**
+     * Test that a domain server variable rebinding one the server still uses
+     * fails the build, naming the audience, the server and the route.
+     *
+     * @return void
+     */
+    public function testDomainParameterRebindingAServerVariableFailsTheBuild(): void
+    {
+        RouteFacade::domain('{account}.example.com')->get('projects', [PathPlainController::class, 'index']);
+
+        $this->expectException(ServerConfigurationException::class);
+        $this->expectExceptionMessage(sprintf(
+            'Unable to export audience [public]: server [https://api.example.com/{account}] uses the variable [account] outside its host,'
+                . ' which the domain of [GET {account}.example.com/projects (%s::index)] binds.',
+            PathPlainController::class,
+        ));
+
+        $this->build(servers: [['url' => 'https://api.example.com/{account}', 'variables' => ['account' => ['default' => 'acme']]]]);
+    }
+
+    /**
+     * Test that one controller action on two domains is one operation listing
+     * the servers of both, in route order, each kept once.
+     *
+     * @return void
+     */
+    public function testOneActionOnTwoDomainsListsBothServers(): void
+    {
+        RouteFacade::domain('a.example.com')->get('reports', [PathPlainController::class, 'report']);
+        RouteFacade::domain('b.example.com')->get('reports', [PathPlainController::class, 'report']);
+        RouteFacade::domain('{account}.example.com')->post('reports', [PathPlainController::class, 'report']);
+        RouteFacade::domain('{account?}.example.com')->post('reports', ['https', 'uses' => PathPlainController::class . '@report']);
+
+        $paths = $this->build(servers: [['url' => 'https://api.example.com'], ['url' => 'http://localhost:8000']]);
+
+        self::assertSame(
+            ['https://a.example.com', 'http://a.example.com:8000', 'https://b.example.com', 'http://b.example.com:8000'],
+            $this->serverUrlsOf($paths, '/reports', 'get'),
+        );
+        self::assertSame(
+            ['https://{account}.example.com', 'http://{account}.example.com:8000', 'https://{account}.example.com:8000'],
+            $this->serverUrlsOf($paths, '/reports', 'post'),
+        );
+        self::assertSame(['/reports'], array_keys($paths));
+        self::assertSame(['get', 'post'], array_keys($paths['/reports']));
+    }
+
+    /**
+     * Test that joining two domain routes keeps servers differing only in
+     * values that compare loosely equal.
+     *
+     * @return void
+     */
+    public function testJoinedDomainRoutesKeepLooselyEqualServers(): void
+    {
+        RouteFacade::domain('{account}.example.com')->get('reports', [PathPlainController::class, 'report']);
+        RouteFacade::domain('{account?}.example.com')->get('reports', [PathPlainController::class, 'report']);
+
+        $paths = $this->build(servers: [
+            ['url' => 'http://localhost:{port}', 'variables' => ['port' => ['default' => '8080']]],
+            ['url' => 'http://127.0.0.1:{port}', 'variables' => ['port' => ['default' => '08080']]],
+        ]);
+
+        self::assertSame([
+            ['url' => 'http://{account}.example.com:{port}', 'variables' => ['port' => ['default' => '8080'], 'account' => ['default' => 'account']]],
+            ['url' => 'http://{account}.example.com:{port}', 'variables' => ['port' => ['default' => '08080'], 'account' => ['default' => 'account']]],
+        ], $this->operationOf($paths, '/reports', 'get')['servers'] ?? null);
+    }
+
+    /**
+     * Provide routes on several domains that claim one path and verb, the last
+     * sharing no operation with the one before it.
+     *
+     * @return iterable<string, array{0: \Closure(): void}>
+     */
+    public static function distinctDomainOperationProvider(): iterable
+    {
+        yield 'two controller actions' => [static function (): void {
+            RouteFacade::domain('a.example.com')->get('reports', [PathPlainController::class, 'index']);
+            RouteFacade::domain('b.example.com')->get('reports', [PathPlainController::class, 'report']);
+        }];
+
+        yield 'two controllers' => [static function (): void {
+            RouteFacade::domain('a.example.com')->get('reports', [PathAttributelessController::class, 'index']);
+            RouteFacade::domain('b.example.com')->get('reports', [PathPlainController::class, 'index']);
+        }];
+
+        yield 'two closures' => [static function (): void {
+            RouteFacade::domain('a.example.com')->get('reports', static fn (): string => 'a');
+            RouteFacade::domain('b.example.com')->get('reports', static fn (): string => 'b');
+        }];
+
+        yield 'one action behind different middleware' => [static function (): void {
+            RouteFacade::domain('a.example.com')->get('reports', [PathPlainController::class, 'report'])->middleware('auth');
+            RouteFacade::domain('b.example.com')->get('reports', [PathPlainController::class, 'report']);
+        }];
+
+        yield 'one action after another operation replaced it' => [static function (): void {
+            RouteFacade::domain('a.example.com')->get('reports', [PathPlainController::class, 'report']);
+            RouteFacade::domain('c.example.com')->get('reports', [PathPlainController::class, 'report'])->middleware('auth');
+            RouteFacade::domain('b.example.com')->get('reports', [PathPlainController::class, 'report']);
+        }];
+    }
+
+    /**
+     * Test that a later route on another domain replaces the earlier operation
+     * unless both share one controller action and operation.
+     *
+     * @param  \Closure(): void  $register
+     * @return void
+     */
+    #[DataProvider('distinctDomainOperationProvider')]
+    public function testLaterDomainRouteReplacesAnotherOperation(\Closure $register): void
+    {
+        $register();
+
+        self::assertSame([['url' => 'https://b.example.com']], $this->build()['/reports']['get']['servers']);
+    }
+
+    /**
+     * Test that a route without a domain replaces a domain route on its path
+     * and verb, and a domain route replaces an earlier one without a domain.
+     *
+     * @return void
+     */
+    public function testRouteWithAndWithoutADomainReplaceEachOther(): void
+    {
+        RouteFacade::domain('a.example.com')->get('reports', [PathPlainController::class, 'report']);
+        $this->router()->get('reports', [PathPlainController::class, 'report']);
+
+        $routes = $this->collector()->collect(['public'])->in('public');
+
+        self::assertArrayNotHasKey('servers', $this->operationOf($this->builder()->build($routes, [], 'public', []), '/reports', 'get'));
+        self::assertSame([['url' => 'https://a.example.com']], $this->builder()->build(array_reverse($routes), [], 'public', [])['/reports']['get']['servers']);
     }
 
     /**
@@ -1999,11 +2179,12 @@ final class PathBuilderTest extends TestCase
      * Build the paths object from the public audience's collected routes.
      *
      * @param  array<string, string>  $descriptions
+     * @param  list<array<string, mixed>>  $servers
      * @return array<string, array<string, mixed>>
      */
-    private function build(array $descriptions = []): array
+    private function build(array $descriptions = [], array $servers = []): array
     {
-        return $this->builder()->build($this->collector()->collect(['public'])->in('public'), $descriptions);
+        return $this->builder()->build($this->collector()->collect(['public'])->in('public'), $descriptions, 'public', $servers);
     }
 
     /**
@@ -2063,6 +2244,24 @@ final class PathBuilderTest extends TestCase
     private function operation(string $path, string $method): array
     {
         return $this->operationOf($this->build(), $path, $method);
+    }
+
+    /**
+     * List the server URLs of one operation of a built paths object, keeping
+     * their keys.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @param  string  $path
+     * @param  string  $method
+     * @return array<array-key, mixed>
+     */
+    private function serverUrlsOf(array $paths, string $path, string $method): array
+    {
+        $servers = $this->operationOf($paths, $path, $method)['servers'] ?? null;
+
+        self::assertIsArray($servers);
+
+        return array_map(static fn (mixed $server): mixed => is_array($server) ? $server['url'] ?? null : null, $servers);
     }
 
     /**

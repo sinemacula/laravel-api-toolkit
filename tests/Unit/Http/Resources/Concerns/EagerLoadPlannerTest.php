@@ -23,6 +23,9 @@ use SineMacula\ApiToolkit\Schema\Min;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Schema\Sum;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Models\Note;
+use Tests\Fixtures\Models\Organization;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -561,12 +564,12 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
-     * Test that blank API-query fields for a child resource fall back to the
-     * child's default fields during recursion.
+     * Test that a blank request for a child selects none of its relations, as
+     * it renders none.
      *
      * @return void
      */
-    public function testBuildEagerLoadMapFallsBackToChildDefaultsWhenRequestedFieldsAreBlank(): void
+    public function testBuildEagerLoadMapPlansNoChildRelationUnderABlankRequest(): void
     {
 
         ApiQuery::shouldReceive('getFields')
@@ -624,8 +627,7 @@ final class EagerLoadPlannerTest extends TestCase
 
         $result = EagerLoadPlanner::buildEagerLoadMap($parent::class, ['rel']);
 
-        self::assertContains('rel', $result);
-        self::assertContains('rel.organization', $result);
+        self::assertSame(['rel'], $result);
     }
 
     /**
@@ -873,48 +875,18 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
-     * Test that the requested-child-field lookup returns an empty set for a
-     * class that is not an ApiResource.
+     * Test that a child's planned fields are its selection followed by its
+     * fixed fields, and that a field rendering no resource plans none.
      *
      * @return void
      */
-    public function testGetRequestedChildFieldsReturnsEmptyForNonResourceClass(): void
+    public function testResolveChildFieldsAppendsTheChildsFixedFields(): void
     {
-        $result = $this->invokeStaticMethod(EagerLoadPlanner::class, 'getRequestedChildFields', \stdClass::class);
+        $child  = new CompiledFieldDefinition(null, null, 'posts', PostResource::class, ['tags'], null, [], [], [], []);
+        $scalar = new CompiledFieldDefinition(null, null, 'posts', null, ['tags'], null, [], [], [], []);
 
-        self::assertSame([], $result);
-    }
-
-    /**
-     * Test that explicit child fields are returned as a zero-indexed list with
-     * blank entries stripped.
-     *
-     * @return void
-     */
-    public function testResolveChildFieldsReturnsZeroIndexedListWithBlanksRemoved(): void
-    {
-        $definition = new CompiledFieldDefinition(null, null, null, null, ['', 'tags'], null, [], [], [], []);
-
-        $result = $this->invokeStaticMethod(EagerLoadPlanner::class, 'resolveChildFields', $definition, 'x');
-
-        self::assertSame(['tags'], $result);
-    }
-
-    /**
-     * Test that the requested child fields are returned as a zero-indexed list
-     * with blank entries stripped.
-     *
-     * @return void
-     */
-    public function testGetRequestedChildFieldsReturnsZeroIndexedListWithBlanksRemoved(): void
-    {
-        ApiQuery::shouldReceive('getFields')
-            ->with('users')
-            ->andReturn(['', 'name']);
-
-        $result = $this->invokeStaticMethod(EagerLoadPlanner::class, 'getRequestedChildFields', UserResource::class);
-
-        self::assertSame(['name'], $result);
+        self::assertSame(['tags', 'id', '_type'], $this->invokeStaticMethod(EagerLoadPlanner::class, 'resolveChildFields', $child));
+        self::assertSame([], $this->invokeStaticMethod(EagerLoadPlanner::class, 'resolveChildFields', $scalar));
     }
 
     /**
@@ -1148,6 +1120,245 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
+     * Test that a child selecting its aggregates loads the requested ones in
+     * the closure owning its path.
+     *
+     * @return void
+     */
+    public function testChildAggregatesLoadInTheClosureOwningThePath(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('posts')->andReturn(['tags_count']);
+
+        $sql = $this->applyPlanned(self::boundedResource(['fields' => ['id', 'aggregates']]), $this->eagerRelation(new User, 'posts'))->toSql();
+
+        self::assertStringStartsWith('select "posts".*, (select count(*) from "tags"', $sql);
+        self::assertStringContainsString('as "aggregate_tags_count"', $sql);
+    }
+
+    /**
+     * Test that a child requesting no aggregate loads its defaults.
+     *
+     * @return void
+     */
+    public function testChildAggregatesFallBackToTheChildsDefaults(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('users')->andReturn(null);
+
+        $resource = self::boundedResource(['relation' => 'user', 'resource' => UserResource::class, 'fields' => ['name', 'aggregates']]);
+        $sql      = $this->applyPlanned($resource, $this->eagerRelation(new Post, 'user'))->toSql();
+
+        self::assertStringContainsString('"aggregate_posts_count"', $sql);
+        self::assertStringContainsString('"aggregate_posts_sum_id"', $sql);
+        self::assertStringNotContainsString('"aggregate_posts_avg_id"', $sql);
+    }
+
+    /**
+     * Test that fields over one bounded relation load the aggregates any of
+     * them selects, each once.
+     *
+     * @return void
+     */
+    public function testFieldsOverOneRelationKeepEachOthersAggregates(): void
+    {
+        $resource = new class {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'aliased_aggregates_test';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'posts'         => ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['id', 'aggregates'], 'limit' => 5],
+                    'metered_posts' => ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['id', 'aggregates'], 'limit' => 5],
+                    'titled_posts'  => ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['title'], 'limit' => 5],
+                ];
+            }
+        };
+
+        ApiQuery::shouldReceive('getAggregates')->with('posts')->andReturn(['tags_count']);
+
+        $closure = EagerLoadPlanner::buildEagerLoadMap($resource::class, ['posts', 'metered_posts', 'titled_posts'])['posts'] ?? null;
+
+        self::assertInstanceOf(\Closure::class, $closure);
+
+        $relation = $this->eagerRelation(new User, 'posts');
+
+        $closure($relation);
+
+        self::assertSame(1, substr_count($relation->toSql(), '"aggregate_tags_count"'));
+    }
+
+    /**
+     * Test that a child leaving its aggregates unselected keeps its path plain,
+     * whatever its type requests.
+     *
+     * @return void
+     */
+    public function testChildNotSelectingItsAggregatesKeepsItsPathPlain(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('posts')->andReturn(['tags_count']);
+
+        self::assertSame(['posts'], EagerLoadPlanner::buildEagerLoadMap(self::boundedResource(), ['posts']));
+    }
+
+    /**
+     * Test that a child with no default and no requested field plans none of
+     * its relations.
+     *
+     * @return void
+     */
+    public function testChildWithoutDefaultsPlansNoRelation(): void
+    {
+        ApiQuery::shouldReceive('getFields')->andReturn(null);
+
+        self::assertSame(['organization'], EagerLoadPlanner::buildEagerLoadMap(self::boundedResource([
+            'relation' => 'organization',
+            'resource' => self::defaultlessChild(),
+            'fields'   => null,
+        ]), ['posts']));
+    }
+
+    /**
+     * Test that a path the ancestor cycle stops descending still loads the
+     * child's aggregates.
+     *
+     * @return void
+     */
+    public function testPathTheCycleCutsStillLoadsTheChildsAggregates(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('users')->andReturn(null);
+        ApiQuery::shouldReceive('getFields')
+            ->andReturnUsing(static fn (string $type): ?array => match ($type) {
+                'users' => ['name', 'aggregates'],
+                'posts' => ['user'],
+                default => null,
+            });
+
+        $map = EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['posts']);
+
+        self::assertSame([0, 'posts.user'], array_keys($map));
+        self::assertSame('posts', $map[0]);
+        self::assertInstanceOf(\Closure::class, $map['posts.user']);
+    }
+
+    /**
+     * Test that a column selection on a path loading aggregates is folded into
+     * its closure ahead of them.
+     *
+     * @return void
+     */
+    public function testColumnSelectionIsFoldedAheadOfTheAggregates(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('posts')->andReturn(['tags_count']);
+
+        $resource = self::boundedResource(['fields' => ['id', 'aggregates'], 'extras' => ['posts:id,user_id']]);
+
+        self::assertSame(['posts'], array_keys(EagerLoadPlanner::buildEagerLoadMap($resource, ['posts'])));
+
+        $sql = $this->applyPlanned($resource, $this->eagerRelation(new User, 'posts'))->toSql();
+
+        self::assertStringStartsWith('select "id", "user_id", (select count(*) from "tags"', $sql);
+    }
+
+    /**
+     * Test that a column selection on a path loading no aggregate stays a plain
+     * entry.
+     *
+     * @return void
+     */
+    public function testColumnSelectionWithoutAggregatesStaysPlain(): void
+    {
+        self::assertSame(['posts:id,user_id', 'posts'], EagerLoadPlanner::buildEagerLoadMap(self::boundedResource(['extras' => ['posts:id,user_id']]), ['posts']));
+    }
+
+    /**
+     * Test that a folded column selection is qualified on a relation that joins
+     * another table.
+     *
+     * @return void
+     */
+    public function testFoldedColumnSelectionIsQualifiedOnAJoiningRelation(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('posts')->andReturn(['tags_count']);
+
+        $resource = self::boundedResource(['fields' => ['id', 'aggregates'], 'extras' => ['posts:id,title']]);
+        $sql      = $this->applyPlanned($resource, $this->eagerRelation(new Organization, 'posts'))->toSql();
+
+        self::assertStringStartsWith('select "posts"."id", "posts"."title", (select count(*) from "tags"', $sql);
+    }
+
+    /**
+     * Test that taking a path's column selections merges every one of them and
+     * leaves each other entry, a nested path under it included.
+     *
+     * @return void
+     */
+    public function testTakeColumnSelectionMergesThePathsSelectionsOnly(): void
+    {
+        /** @var array<int, string> $plain */
+        $plain   = ['media', 'posts.tags', 'posts:id,user_id', 'postsArchive:id', 'posts:user_id,title'];
+        $columns = (new \ReflectionMethod(EagerLoadPlanner::class, 'takeColumnSelection'))->invokeArgs(null, [&$plain, 'posts']);
+
+        self::assertSame(['id', 'user_id', 'title'], $columns);
+        self::assertSame(['media', 'posts.tags', 'postsArchive:id'], array_values($plain));
+    }
+
+    /**
+     * Test that a folded selection is qualified only where the relation joins
+     * another table.
+     *
+     * @return void
+     */
+    public function testQualifyColumnsQualifiesOnlyAJoiningRelation(): void
+    {
+        self::assertSame(['tags.id'], $this->invokeStaticMethod(EagerLoadPlanner::class, 'qualifyColumns', (new Post)->tags(), ['id']));
+        self::assertSame(['id'], $this->invokeStaticMethod(EagerLoadPlanner::class, 'qualifyColumns', (new User)->profile(), ['id']));
+    }
+
+    /**
+     * Test that a MorphTo path loads no aggregate, since each type loads
+     * through a fresh query.
+     *
+     * @return void
+     */
+    public function testMorphToPathLoadsNoAggregate(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('users')->andReturn(null);
+
+        $resource = self::boundedResource(['relation' => 'noteable', 'resource' => UserResource::class, 'fields' => ['aggregates']]);
+        $relation = $this->applyPlanned($resource, $this->eagerRelation(new Note, 'noteable'));
+
+        self::assertNull($relation->getQuery()->getQuery()->columns);
+    }
+
+    /**
+     * Test that a constrained and bounded path loading aggregates applies the
+     * constraint, the aggregates and the bound.
+     *
+     * @return void
+     */
+    public function testConstrainedBoundedPathAppliesEveryStep(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('posts')->andReturn(['tags_count']);
+
+        $relation = $this->applyPlanned(self::boundedResource([
+            'fields'     => ['id', 'aggregates'],
+            'limit'      => 5,
+            'constraint' => static function ($query): void {
+                $query->where('published', true);
+            },
+        ]), $this->eagerRelation(new User, 'posts'));
+
+        $base = $relation->getQuery()->getQuery();
+
+        self::assertSame(['value' => 6, 'column' => 'posts.user_id'], $base->groupLimit);
+        self::assertSame([true], $base->getBindings());
+        self::assertStringContainsString('"aggregate_tags_count"', $relation->toSql());
+    }
+
+    /**
      * Build a resource whose single posts field carries the given definition.
      *
      * @param  array<string, mixed>  $definition
@@ -1174,6 +1385,30 @@ final class EagerLoadPlannerTest extends TestCase
         $resource::$definition = ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['id'], ...$definition];
 
         return $resource::class;
+    }
+
+    /**
+     * Build a child resource declaring a relation but no default field.
+     *
+     * @return string
+     */
+    private static function defaultlessChild(): string
+    {
+        $child = new class (null) extends ApiResource {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'defaultless_planner_child';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return ['organization' => ['relation' => 'organization', 'resource' => OrganizationResource::class]];
+            }
+        };
+
+        return $child::class;
     }
 
     /**
