@@ -87,6 +87,41 @@ final class ValidateFieldSelectionsTest extends TestCase
     }
 
     /**
+     * Test that a fixed field the resource does not declare is reported,
+     * whether configured or the resource's own, while `_type` is accepted.
+     *
+     * @return void
+     */
+    public function testUndeclaredFixedFieldIsReported(): void
+    {
+        Config::set('api-toolkit.resources.fixed_fields', ['uuid', '_type']);
+
+        $resource = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'fixing_users';
+
+            /** @var array<int, string> */
+            protected static array $fixed = ['id', 'stauts'];
+
+            /**
+             * Return the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(Field::scalar('id'));
+            }
+        };
+
+        $this->assertErrors([
+            [$resource::class, 'uuid', sprintf('Fixed field "uuid" is not declared on %s', $resource::class)],
+            [$resource::class, 'stauts', sprintf('Fixed field "stauts" is not declared on %s', $resource::class)],
+        ], $this->validate($resource::class));
+    }
+
+    /**
      * Test that the all token in the defaults is reported.
      *
      * @return void
