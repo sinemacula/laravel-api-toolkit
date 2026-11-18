@@ -14,10 +14,12 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
@@ -101,13 +103,13 @@ final class ApiCriteria implements CriteriaInterface
         /** Writes resolved resource metadata to the persistent cache */
         private readonly MetadataCacheWriter $metadataCacheWriter,
     ) {
-        $this->filterApplier               = new FilterApplier;
-        $this->orderApplier                = new OrderApplier($this->schemaIntrospector);
+        $this->filterApplier               = new FilterApplier(new FilterValueGuard(new ColumnLiteral($this->schemaIntrospector)));
+        $this->searchApplier               = new SearchApplier($this->searchDriverRegistry, new IndexProof($this->metadataCacheWriter));
+        $this->orderApplier                = new OrderApplier($this->schemaIntrospector, $this->searchApplier);
         $this->eagerLoadApplier            = new EagerLoadApplier;
         $this->limitApplier                = new LimitApplier;
         $this->columnProjectionApplier     = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector), $this->schemaIntrospector);
         $this->softDeleteVisibilityApplier = new SoftDeleteVisibilityApplier;
-        $this->searchApplier               = new SearchApplier($this->searchDriverRegistry, new IndexProof($this->metadataCacheWriter));
         $this->queryCostGuard              = new QueryCostGuard;
 
         $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
@@ -198,11 +200,12 @@ final class ApiCriteria implements CriteriaInterface
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      *
      * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\MissingSearchDriverException
      */
     private function applyOrderingAndProjection(Builder $query, QuerySurface $surface): Builder
     {
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
-        $query = $this->orderApplier->apply($query, $this->getOrder(), $surface);
+        $query = $this->orderApplier->apply($query, $this->getOrder(), $surface, $this->getSearch(), $this->resolveResource($query->getModel()));
 
         return $this->columnProjectionApplier->apply(
             $query,

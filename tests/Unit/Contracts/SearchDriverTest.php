@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
@@ -24,7 +25,7 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 final class SearchDriverTest extends TestCase
 {
     /**
-     * Test that the contract declares exactly the five driver capabilities.
+     * Test that the contract declares exactly the six driver capabilities.
      *
      * @return void
      */
@@ -34,7 +35,7 @@ final class SearchDriverTest extends TestCase
 
         self::assertTrue($reflection->isInterface());
         self::assertSame(
-            ['supportedStrategies', 'combinationDefect', 'canVerifyIndexBacking', 'indexDefects', 'apply'],
+            ['supportedStrategies', 'combinationDefect', 'canVerifyIndexBacking', 'indexDefects', 'apply', 'rank'],
             array_map(static fn (\ReflectionMethod $method): string => $method->getName(), $reflection->getMethods()),
         );
     }
@@ -126,6 +127,23 @@ final class SearchDriverTest extends TestCase
         self::assertSame('array', $this->parameterTypeName($parameters[1]));
         self::assertSame(SearchTerm::class, $this->parameterTypeName($parameters[2]));
         self::assertSame(SearchStrategy::class, $this->parameterTypeName($parameters[3]));
+        self::assertSame('void', $this->returnTypeName($method));
+    }
+
+    /**
+     * Test that a ranking is asked for the whole plan and a parsed term.
+     *
+     * @return void
+     */
+    public function testRankTakesThePlanAndTerm(): void
+    {
+        $method     = (new \ReflectionClass(SearchDriver::class))->getMethod('rank');
+        $parameters = $method->getParameters();
+
+        self::assertCount(3, $parameters);
+        self::assertSame(Builder::class, $this->parameterTypeName($parameters[0]));
+        self::assertSame(SearchPlan::class, $this->parameterTypeName($parameters[1]));
+        self::assertSame(SearchTerm::class, $this->parameterTypeName($parameters[2]));
         self::assertSame('void', $this->returnTypeName($method));
     }
 

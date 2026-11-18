@@ -12,6 +12,7 @@ use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\MissingSearchDriverException;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
@@ -219,6 +220,17 @@ final class SearchDriverRegistryTest extends TestCase
              */
             #[\Override]
             public function apply(Builder $query, array $columns, SearchTerm $term, SearchStrategy $strategy): void {}
+
+            /**
+             * Order the query's rows by relevance to the term.
+             *
+             * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+             * @param  \SineMacula\ApiToolkit\Search\SearchPlan  $plan
+             * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
+             * @return void
+             */
+            #[\Override]
+            public function rank(Builder $query, SearchPlan $plan, SearchTerm $term): void {}
         };
     }
 }

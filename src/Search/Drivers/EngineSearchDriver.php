@@ -10,6 +10,8 @@ use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexEligibilityInspector;
+use SineMacula\ApiToolkit\Search\RelevanceOrder;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
@@ -115,6 +117,22 @@ abstract class EngineSearchDriver implements SearchDriver
     }
 
     /**
+     * Order the query's rows by how closely they match the term, best first.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  \SineMacula\ApiToolkit\Search\SearchPlan  $plan
+     * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
+     * @return void
+     */
+    #[\Override]
+    public function rank(Builder $query, SearchPlan $plan, SearchTerm $term): void
+    {
+        (new RelevanceOrder)->apply($query, $plan, $term, $this->patternOperator());
+    }
+
+    /**
      * Apply the prefix match for the declared columns.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
@@ -173,6 +191,16 @@ abstract class EngineSearchDriver implements SearchDriver
         foreach ($columns as $column) {
             $query->orWhere($query->qualifyColumn($column), '=', $term->pattern(SearchStrategy::EXACT));
         }
+    }
+
+    /**
+     * Return the operator the driver matches a pattern with.
+     *
+     * @return 'ilike'|'like'
+     */
+    protected function patternOperator(): string
+    {
+        return 'like';
     }
 
     /**

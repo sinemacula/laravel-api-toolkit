@@ -12,6 +12,7 @@ use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
+use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
 use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
@@ -187,8 +188,10 @@ abstract class ApiRepository extends Repository
     #[\Override]
     protected function boot(): void
     {
-        $this->pageOrder       = new PageOrder;
-        $this->attributeSetter = new AttributeSetter($this->app->make(SchemaIntrospectionProvider::class));
+        $introspector = $this->app->make(SchemaIntrospectionProvider::class);
+
+        $this->pageOrder       = new PageOrder(new ColumnLiteral($introspector));
+        $this->attributeSetter = new AttributeSetter($introspector);
     }
 
     /**

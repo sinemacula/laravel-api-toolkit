@@ -144,6 +144,7 @@ final readonly class QueryParameterBuilder
                 . 'e.g. filters={"status":"active","$or":[{"role":"admin"},{"role":"owner"}]}. '
                 . 'A traversable relation key takes a filter document for the related resource. '
                 . '$has and $hasnt take a relation name, a list of names, or relation names keyed to filter documents. '
+                . 'Each operator\'s value must fit its shape and the field\'s type, and a date-time is sent in the form the field emits. '
                 . 'The operator grammar is documented at the pattern level; each resource accepts only the fields it declares filterable.',
                 implode(', ', $operators),
             ),
@@ -192,7 +193,9 @@ final readonly class QueryParameterBuilder
             'order',
             'Ordering: a comma-separated list of fields, each optionally suffixed with :asc or :desc in any case, e.g. order=name,created_at:desc. '
             . 'Any other direction is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
-            . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read.',
+            . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read. order=relevance ranks rows by how '
+            . 'closely they match search: the whole value, then the start, then the start of a word, then anywhere; it needs search and offset '
+            . 'pagination.',
             ['type' => 'string'],
         );
     }

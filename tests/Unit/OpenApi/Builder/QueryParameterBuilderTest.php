@@ -193,6 +193,7 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertIsString($description);
         self::assertStringStartsWith('Generic filter grammar. Filters are a URL-encoded JSON object keyed by field', $description);
         self::assertIsString($description);
+        self::assertStringContainsString(' Each operator\'s value must fit its shape and the field\'s type, and a date-time is sent in the form the field emits. ', $description);
         self::assertStringEndsWith('each resource accepts only the fields it declares filterable.', $description);
     }
 
@@ -347,16 +348,19 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the order description states its directions and tiebreaker.
+     * Test that the order description states its directions, tiebreaker and
+     * relevance key.
      *
      * @return void
      */
-    public function testOrderDescriptionStatesItsDirectionsAndTiebreaker(): void
+    public function testOrderDescriptionStatesItsDirectionsTiebreakerAndRelevanceKey(): void
     {
         self::assertSame(
             'Ordering: a comma-separated list of fields, each optionally suffixed with :asc or :desc in any case, e.g. order=name,created_at:desc. '
             . 'Any other direction is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
-            . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read.',
+            . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read. order=relevance ranks rows by how '
+            . 'closely they match search: the whole value, then the start, then the start of a word, then anywhere; it needs search and offset '
+            . 'pagination.',
             $this->makeBuilder()->build()['Order']['description'],
         );
     }

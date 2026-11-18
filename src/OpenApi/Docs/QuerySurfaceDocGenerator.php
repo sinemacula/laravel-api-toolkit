@@ -42,6 +42,10 @@ final readonly class QuerySurfaceDocGenerator
         . 'the key last, in the last direction, so tied rows never repeat or go missing; a cursor-paginated read refuses random order '
         . 'and any column that admits null.';
 
+    /** The fixed note saying what the relevance order ranks by and needs. */
+    private const string RELEVANCE = '`order=relevance` ranks rows by how closely they match `search`: the whole value, then the start, then the '
+        . 'start of a word, then anywhere; it needs `search` and offset pagination.';
+
     /** The cell shown where a column answers nothing, or a row is undescribed. */
     private const string NO_VALUE = '-';
 
@@ -96,7 +100,7 @@ final readonly class QuerySurfaceDocGenerator
      */
     public function generate(array $surfaces, array $limits, array $bounds): string
     {
-        $lines = [self::BANNER, '', '# Query Surface Reference', '', self::INTRO, '', self::KEYS, self::ALIASES, '', self::ORDERS];
+        $lines = [self::BANNER, '', '# Query Surface Reference', '', self::INTRO, '', self::KEYS, self::ALIASES, '', self::ORDERS, '', self::RELEVANCE];
 
         $lines = array_merge(
             $lines,

@@ -33,6 +33,7 @@ use Tests\Fixtures\Enums\UserStatus;
  * @property \Tests\Fixtures\Enums\UserStatus|null $status
  * @property mixed $meta
  * @property array<string, mixed>|null $options
+ * @property \Illuminate\Database\Eloquent\Model|null $noteable
  *
  * @method static static create(array<string, mixed> $attributes = [])
  *

@@ -8,6 +8,7 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
@@ -120,4 +121,15 @@ final readonly class PatternSearchDriver implements SearchDriver
             $query->orWhere($column, $operator, $term->pattern($strategy));
         }
     }
+
+    /**
+     * Add no order: the suites using this driver never rank.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  \SineMacula\ApiToolkit\Search\SearchPlan  $plan
+     * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
+     * @return void
+     */
+    #[\Override]
+    public function rank(Builder $query, SearchPlan $plan, SearchTerm $term): void {}
 }
