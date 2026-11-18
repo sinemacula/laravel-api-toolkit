@@ -25,6 +25,7 @@ use Tests\Fixtures\Services\Input\Concerns\DescribesInput;
 use Tests\Fixtures\Services\Input\Concerns\SensitiveCredentials;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\Fixtures\Services\Input\PlatformInput;
+use Tests\Fixtures\Services\Input\PrivateSecretBaseInput;
 use Tests\Fixtures\Services\Input\ScalarInput;
 use Tests\Fixtures\Services\Input\SensitiveBaseInput;
 use Tests\Fixtures\Services\Input\SensitiveInput;
@@ -1336,6 +1337,89 @@ final class PayloadTest extends TestCase
         self::assertSame(['username' => 'alice'], $marked->toArray());
         self::assertSame(['password' => 'plain'], $unmarked->toArray());
         self::assertSame(['username' => 'alice'], $marked->toArray());
+    }
+
+    /**
+     * Test that declaring a sensitive parameter is resolved per class.
+     *
+     * @return void
+     */
+    public function testDeclaresSensitivePropertiesIsResolvedPerPayloadClass(): void
+    {
+        $unmarked = new class (password: 'plain') extends Payload {
+            /**
+             * Create a new instance with an unmarked password property.
+             *
+             * @param  string  $password
+             */
+            public function __construct(
+
+                /** The password; not marked sensitive. */
+                public readonly string $password = '',
+            ) {}
+        };
+
+        self::assertTrue(SensitiveInput::declaresSensitiveProperties());
+        self::assertFalse($unmarked::declaresSensitiveProperties());
+        self::assertTrue(SensitiveInput::declaresSensitiveProperties());
+    }
+
+    /**
+     * Test that a sensitive parameter promoted by a parent constructor or a
+     * trait is declared.
+     *
+     * @return void
+     */
+    public function testDeclaresSensitivePropertiesFromAParentOrTrait(): void
+    {
+        $inherited = new class (username: 'alice', password: 'super-secret') extends SensitiveBaseInput {};
+
+        $trait = new class (username: 'alice', password: 'super-secret') extends Payload {
+            use SensitiveCredentials;
+        };
+
+        self::assertTrue($inherited::declaresSensitiveProperties());
+        self::assertTrue($trait::declaresSensitiveProperties());
+    }
+
+    /**
+     * Test that a sensitive parameter promoted to a non-public property is
+     * declared, as the queue serialises it all the same.
+     *
+     * @return void
+     */
+    public function testDeclaresSensitivePropertiesForANonPublicProperty(): void
+    {
+        $input = new class (token: 'super-secret') extends Payload {
+            /**
+             * Create a new instance with a protected sensitive property.
+             *
+             * @param  string  $token
+             */
+            public function __construct(
+
+                /** The token; marked sensitive. */
+                #[\SensitiveParameter]
+                protected readonly string $token = '',
+            ) {}
+        };
+
+        self::assertSame([], $input->toArray());
+        self::assertTrue($input::declaresSensitiveProperties());
+    }
+
+    /**
+     * Test that a sensitive parameter a parent promotes to a private property
+     * is declared, as the subclass carries it into the queue.
+     *
+     * @return void
+     */
+    public function testDeclaresSensitivePropertiesForAParentsPrivateProperty(): void
+    {
+        $input = new class (secret: 'super-secret') extends PrivateSecretBaseInput {};
+
+        self::assertSame('super-secret', $input->secret());
+        self::assertTrue($input::declaresSensitiveProperties());
     }
 
     /**

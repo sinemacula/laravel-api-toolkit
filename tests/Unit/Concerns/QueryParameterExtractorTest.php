@@ -4,13 +4,11 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Concerns;
 
-use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\ApiToolkit\Search\SearchTerm;
-use SineMacula\Http\Enums\HttpMethod;
 use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\TestCase;
 
@@ -26,9 +24,6 @@ use Tests\TestCase;
 final class QueryParameterExtractorTest extends TestCase
 {
     use LocalisesToolkitMessages;
-
-    /** @var string */
-    private const string TEST_URL = '/test';
 
     /** @var \SineMacula\ApiToolkit\Concerns\QueryParameterExtractor */
     private QueryParameterExtractor $extractor;
@@ -66,9 +61,9 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractIgnoresParametersTheParserDoesNotRead(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['q' => 'x', 'pretty' => '1', 'pagination' => 'cursor', 'limit' => '5']);
+        $input = ['q' => 'x', 'pretty' => '1', 'pagination' => 'cursor', 'limit' => '5'];
 
-        self::assertSame(['limit' => '5'], $this->extractor->extract($request));
+        self::assertSame(['limit' => '5'], $this->extractor->extract($input));
     }
 
     /**
@@ -95,9 +90,9 @@ final class QueryParameterExtractorTest extends TestCase
     #[DataProvider('trashedValueProvider')]
     public function testExtractKeepsTheTrashedParameterAsSent(mixed $trashed): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['trashed' => $trashed]);
+        $input = ['trashed' => $trashed];
 
-        self::assertSame(['trashed' => $trashed], $this->extractor->extract($request));
+        self::assertSame(['trashed' => $trashed], $this->extractor->extract($input));
     }
 
     /**
@@ -107,9 +102,9 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractReturnsEmptyArrayWhenNoParametersSupplied(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
+        $input = [];
 
-        self::assertSame([], $this->extractor->extract($request));
+        self::assertSame([], $this->extractor->extract($input));
     }
 
     /**
@@ -119,9 +114,9 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractOnlyIncludesPresentKeys(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['users' => 'name']]);
+        $input = ['fields' => ['users' => 'name']];
 
-        self::assertSame(['fields' => ['users' => ['name']]], $this->extractor->extract($request));
+        self::assertSame(['fields' => ['users' => ['name']]], $this->extractor->extract($input));
     }
 
     /**
@@ -131,9 +126,9 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractTrimsPageAndLimitParameters(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['page' => ' 2 ', 'limit' => ' 10 ']);
+        $input = ['page' => ' 2 ', 'limit' => ' 10 '];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertSame('2', $parameters['page']);
         self::assertSame('10', $parameters['limit']);
@@ -147,28 +142,12 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractKeepsIntegerPageAndLimitParameters(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['page' => 2, 'limit' => 10]);
+        $input = ['page' => 2, 'limit' => 10];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertSame(2, $parameters['page']);
         self::assertSame(10, $parameters['limit']);
-    }
-
-    /**
-     * Test that the request body is never read.
-     *
-     * @return void
-     */
-    public function testExtractReadsTheQueryStringOnly(): void
-    {
-        $request = Request::create(self::TEST_URL . '?limit=1', HttpMethod::POST->getVerb(), [
-            'limit'  => '2',
-            'page'   => '3',
-            'fields' => ['users' => 'name'],
-        ]);
-
-        self::assertSame(['limit' => '1'], $this->extractor->extract($request));
     }
 
     /**
@@ -178,10 +157,10 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractPassesCursorThroughUnchanged(): void
     {
-        $cursor  = 'eyJpZCI6MTAwfQ==';
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['cursor' => $cursor]);
+        $cursor = 'eyJpZCI6MTAwfQ==';
+        $input  = ['cursor' => $cursor];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertSame($cursor, $parameters['cursor']);
     }
@@ -193,9 +172,9 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractSplitsAndTrimsFieldsString(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['users' => ' first_name , last_name ']]);
+        $input = ['fields' => ['users' => ' first_name , last_name ']];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertSame(['users' => ['first_name', 'last_name']], $parameters['fields']);
     }
@@ -208,15 +187,15 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractReadsANullSelectionAsEmpty(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+        $input = [
             'fields'     => ['users' => null],
             'aggregates' => ['users' => null],
-        ]);
+        ];
 
         self::assertSame([
             'fields'     => ['users' => ['']],
             'aggregates' => ['users' => ['']],
-        ], $this->extractor->extract($request));
+        ], $this->extractor->extract($input));
     }
 
     /**
@@ -226,14 +205,14 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractParsesFieldsArrayPerResource(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+        $input = [
             'fields' => [
                 'user' => 'name,email',
                 'post' => 'title,body',
             ],
-        ]);
+        ];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertSame([
             'user' => ['name', 'email'],
@@ -248,9 +227,9 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractSplitsAndTrimsAggregatesString(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['aggregates' => ['users' => ' posts_count , orders_sum_total ']]);
+        $input = ['aggregates' => ['users' => ' posts_count , orders_sum_total ']];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertSame(['users' => ['posts_count', 'orders_sum_total']], $parameters['aggregates']);
     }
@@ -263,14 +242,14 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractParsesAggregatesArrayPerResource(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+        $input = [
             'aggregates' => ['user' => 'posts_count,orders_sum_total'],
             'counts'     => ['user' => 'posts'],
             'sums'       => ['user' => ['orders' => 'total']],
             'averages'   => ['user' => ['orders' => 'total']],
-        ]);
+        ];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertSame(['aggregates' => ['user' => ['posts_count', 'orders_sum_total']]], $parameters);
     }
@@ -283,9 +262,9 @@ final class QueryParameterExtractorTest extends TestCase
     public function testExtractDecodesJsonFilters(): void
     {
         $filters = json_encode(['status' => 'active', 'role' => 'admin']);
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => $filters]);
+        $input   = ['filters' => $filters];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertSame(['status' => 'active', 'role' => 'admin'], $parameters['filters']);
     }
@@ -297,9 +276,9 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractRejectsUndecodableFilters(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => 'not-valid-json{']);
+        $input = ['filters' => 'not-valid-json{'];
 
-        $this->assertRejectsFilters($request);
+        $this->assertRejectsFilters($input);
     }
 
     /**
@@ -311,9 +290,9 @@ final class QueryParameterExtractorTest extends TestCase
     public function testExtractRejectsFiltersNestedBeyondTheDecoderDepthLimit(): void
     {
         $filters = str_repeat('{"a":', 512) . '1' . str_repeat('}', 512);
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => $filters]);
+        $input   = ['filters' => $filters];
 
-        $this->assertRejectsFilters($request);
+        $this->assertRejectsFilters($input);
     }
 
     /**
@@ -325,9 +304,9 @@ final class QueryParameterExtractorTest extends TestCase
     public function testExtractAcceptsFiltersNestedToTheDecoderDepthLimit(): void
     {
         $filters = str_repeat('{"a":', 511) . '1' . str_repeat('}', 511);
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => $filters]);
+        $input   = ['filters' => $filters];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertIsArray($parameters['filters']);
         self::assertArrayHasKey('a', $parameters['filters']);
@@ -358,9 +337,9 @@ final class QueryParameterExtractorTest extends TestCase
     #[DataProvider('nonAssociativeFilterProvider')]
     public function testExtractRejectsNonAssociativeFilters(string $filters): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => $filters]);
+        $input = ['filters' => $filters];
 
-        $this->assertRejectsFilters($request);
+        $this->assertRejectsFilters($input);
     }
 
     /**
@@ -372,10 +351,10 @@ final class QueryParameterExtractorTest extends TestCase
     {
         $this->localiseToolkitMessages(['filters.not_object' => 'Der Parameter filters muss ein JSON-Objekt sein.']);
 
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => '[1]']);
+        $input = ['filters' => '[1]'];
 
         try {
-            $this->extractor->extract($request);
+            $this->extractor->extract($input);
             self::fail('Expected a ValidationException for the filters parameter.');
         } catch (ValidationException $exception) {
             self::assertSame(['filters' => ['Der Parameter filters muss ein JSON-Objekt sein.']], $exception->errors());
@@ -389,9 +368,9 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractAcceptsAnEmptyFilterDocument(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['filters' => '{}']);
+        $input = ['filters' => '{}'];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertSame([], $parameters['filters']);
     }
@@ -428,9 +407,9 @@ final class QueryParameterExtractorTest extends TestCase
     #[DataProvider('orderProvider')]
     public function testExtractParsesOrderStrings(string $orderString, array $expected): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => $orderString]);
+        $input = ['order' => $orderString];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertSame($expected, $parameters['order']);
     }
@@ -443,9 +422,9 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractDropsEmptyOrderColumns(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => ',name,:desc,']);
+        $input = ['order' => ',name,:desc,'];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertSame(['name' => 'asc'], $parameters['order']);
         self::assertArrayNotHasKey('', $parameters['order']);
@@ -474,10 +453,10 @@ final class QueryParameterExtractorTest extends TestCase
     #[DataProvider('unpermittedDirectionProvider')]
     public function testExtractRejectsAnUnpermittedOrderDirection(string $orderString, string $direction): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['order' => 'email:desc,' . $orderString]);
+        $input = ['order' => 'email:desc,' . $orderString];
 
         try {
-            $this->extractor->extract($request);
+            $this->extractor->extract($input);
             self::fail('Expected a ValidationException for the order direction.');
         } catch (ValidationException $exception) {
             self::assertSame(
@@ -494,9 +473,9 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractParsesTheSearchTerm(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['search' => '  john   smith  ']);
+        $input = ['search' => '  john   smith  '];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertInstanceOf(SearchTerm::class, $parameters['search']);
         self::assertSame('john smith', $parameters['search']->value());
@@ -510,10 +489,10 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractRejectsASearchTermBelowTheMinimumLength(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['search' => 'sm']);
+        $input = ['search' => 'sm'];
 
         try {
-            $this->extractor->extract($request);
+            $this->extractor->extract($input);
             self::fail('Expected a ValidationException for the search parameter.');
         } catch (ValidationException $exception) {
             self::assertSame(['search' => ['Every word in the search term must be at least 3 characters.']], $exception->errors());
@@ -543,10 +522,10 @@ final class QueryParameterExtractorTest extends TestCase
     #[DataProvider('nonTextSearchProvider')]
     public function testExtractRejectsANonTextSearchParameter(mixed $search): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['search' => $search]);
+        $input = ['search' => $search];
 
         try {
-            $this->extractor->extract($request);
+            $this->extractor->extract($input);
             self::fail('Expected a ValidationException for the search parameter.');
         } catch (ValidationException $exception) {
             self::assertSame(['search' => ['Every word in the search term must be at least 3 characters.']], $exception->errors());
@@ -560,15 +539,15 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractParsesMultipleParametersSimultaneously(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+        $input = [
             'fields'  => ['users' => 'name,email'],
             'order'   => 'name:asc',
             'page'    => '2',
             'limit'   => '10',
             'filters' => json_encode(['active' => true]),
-        ]);
+        ];
 
-        $parameters = $this->extractor->extract($request);
+        $parameters = $this->extractor->extract($input);
 
         self::assertSame(['users' => ['name', 'email']], $parameters['fields']);
         self::assertSame(['name' => 'asc'], $parameters['order']);
@@ -580,13 +559,13 @@ final class QueryParameterExtractorTest extends TestCase
     /**
      * Assert that extracting the request rejects the filters parameter.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param  array<string, mixed>  $input
      * @return void
      */
-    private function assertRejectsFilters(Request $request): void
+    private function assertRejectsFilters(array $input): void
     {
         try {
-            $this->extractor->extract($request);
+            $this->extractor->extract($input);
             self::fail('Expected a ValidationException for the filters parameter.');
         } catch (ValidationException $exception) {
             self::assertSame(['filters' => ['The filters parameter must be a JSON object.']], $exception->errors());

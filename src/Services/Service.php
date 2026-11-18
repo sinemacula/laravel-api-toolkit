@@ -9,10 +9,10 @@ use Illuminate\Support\Reflector;
 use SineMacula\ApiToolkit\Concerns\Lockable;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
+use SineMacula\ApiToolkit\Services\Concerns\RunsOnQueue;
 use SineMacula\ApiToolkit\Services\Contracts\Actor;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
 use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
-use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 
 /**
  * Base class for a service action with a typed input and an explicit actor.
@@ -29,7 +29,7 @@ use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
  */
 abstract class Service implements LockKeyProvider
 {
-    use Lockable;
+    use Lockable, RunsOnQueue;
 
     /** @var bool Wrap prepare()+handle() in a database transaction */
     protected bool $transactional = true;
@@ -141,7 +141,7 @@ abstract class Service implements LockKeyProvider
      */
     final public function run(): ServiceResult
     {
-        $context = $this->attachedContext ?? ServiceContext::for($this->actor(), ServiceSource::INTERNAL);
+        $context = $this->invocationContext();
         $class   = ServiceRunner::class;
         $runner  = App::make($class);
         assert($runner instanceof ServiceRunner);
@@ -162,18 +162,6 @@ abstract class Service implements LockKeyProvider
     final public function runOrFail(): mixed
     {
         return $this->run()->throw()->output();
-    }
-
-    /**
-     * Push the service onto the queue via ServiceJob.
-     *
-     * @return mixed
-     */
-    final public function dispatch(): mixed
-    {
-        $context = $this->attachedContext ?? ServiceContext::for($this->actor());
-
-        return ServiceJob::dispatch(static::class, $this->input, $context);
     }
 
     /**
@@ -341,5 +329,16 @@ abstract class Service implements LockKeyProvider
     protected function lockId(): string
     {
         return '';
+    }
+
+    /**
+     * Return the attached context, or an INTERNAL one for the actor.
+     *
+     * @return \SineMacula\ApiToolkit\Services\ServiceContext
+     */
+    #[\Override]
+    private function invocationContext(): ServiceContext
+    {
+        return $this->attachedContext ?? ServiceContext::for($this->actor(), ServiceSource::INTERNAL);
     }
 }

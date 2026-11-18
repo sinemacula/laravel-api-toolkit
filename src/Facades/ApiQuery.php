@@ -26,6 +26,11 @@ use SineMacula\ApiToolkit\Config\HttpSettings;
  * @method static string|null getCursor()
  * @method static \SineMacula\ApiToolkit\Enums\TrashedState getTrashed()
  * @method static void parse(\Illuminate\Http\Request $request)
+ * @method static void reset()
+ * @method static bool isParsed()
+ * @method static \SineMacula\ApiToolkit\Query\ApiQuerySnapshot snapshot()
+ * @method static mixed using(\SineMacula\ApiToolkit\Query\ApiQuerySnapshot $query, \Closure(): mixed $callback)
+ * @method static object|null token()
  *
  * @see         \SineMacula\ApiToolkit\ApiQueryParser
  */
