@@ -11,10 +11,12 @@ use SineMacula\ApiToolkit\OpenApi\Docs\Module;
 use SineMacula\ApiToolkit\OpenApi\Docs\ModuleSectionGrouper;
 use SineMacula\ApiToolkit\OpenApi\Docs\QuerySurfaceDocGenerator;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use Tests\Fixtures\OpenApi\MappedModuleResolver;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\PublicUserResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -388,15 +390,16 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
      */
     public function testTraversableRelationsAreNamedAndAbsenceIsStated(): void
     {
-        $named = $this->combinedGenerator()->generate(
-            [new QuerySurfaceDescriptor(UserResource::class, [], ['organization', 'posts'])],
-            [],
-            [],
-        );
+        $relations = [
+            new QueryRelationDescriptor('author', PublicUserResource::class),
+            new QueryRelationDescriptor('noteable', polymorphic: true),
+            new QueryRelationDescriptor('tags'),
+        ];
 
-        $none = $this->combinedGenerator()->generate([$this->surface(UserResource::class, [])], [], []);
+        $named = $this->combinedGenerator()->generate([new QuerySurfaceDescriptor(UserResource::class, [], $relations)], [], []);
+        $none  = $this->combinedGenerator()->generate([$this->surface(UserResource::class, [])], [], []);
 
-        self::assertStringContainsString("\n\nTraversable relations: `organization`, `posts`.\n", $named);
+        self::assertStringContainsString("\n\nTraversable relations: `author` (PublicUser), `noteable` (per type), `tags` (no nested filters).\n", $named);
         self::assertStringContainsString("\n\nTraversable relations: none.\n", $none);
     }
 

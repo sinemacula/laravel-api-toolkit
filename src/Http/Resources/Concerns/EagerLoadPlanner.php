@@ -46,13 +46,13 @@ final class EagerLoadPlanner
             return self::$eagerLoadCache[$key];
         }
 
-        $plain   = [];
-        $scoped  = [];
-        $visited = [];
+        $plain  = [];
+        $scoped = [];
 
-        self::walkRelations($resourceClass, $fields, '', $plain, $scoped, $visited);
+        self::walkRelations($resourceClass, $fields, '', $plain, $scoped);
 
-        $map = $plain === [] && $scoped === [] ? [] : array_merge($plain, $scoped);
+        $plain = array_diff(array_unique($plain), array_keys($scoped));
+        $map   = $plain === [] && $scoped === [] ? [] : array_merge($plain, $scoped);
 
         return self::$eagerLoadCache[$key] = $map;
     }
@@ -139,18 +139,19 @@ final class EagerLoadPlanner
     /**
      * Recursively walk relation definitions, accumulating eager-load paths.
      *
+     * Every field recurses into its own child resource and projection, and a
+     * resource already on the path ends the walk, so cycles terminate.
+     *
      * @param  string  $resourceClass
      * @param  array<int, string>  $fields
      * @param  string  $prefix
      * @param  array<int, string>  $plain
      * @param  array<string, mixed>  $scoped
-     * @param  array<string, bool>  $visited
      * @param  array<int, string>  $ancestors
      * @return void
      */
-    private static function walkRelations(string $resourceClass, array $fields, string $prefix, array &$plain, array &$scoped, array &$visited, array $ancestors = []): void
+    private static function walkRelations(string $resourceClass, array $fields, string $prefix, array &$plain, array &$scoped, array $ancestors = []): void
     {
-        // Visited keys grow with the path, so cycles are cut by ancestry
         if (in_array($resourceClass, $ancestors, true)) {
             return;
         }
@@ -177,13 +178,8 @@ final class EagerLoadPlanner
 
             $fullPath = self::makePrefixedPath($prefix, $relation);
 
-            if (self::wasVisited($visited, $resourceClass, $fullPath)) {
-                continue;
-            }
-
-            self::markVisited($visited, $resourceClass, $fullPath);
             self::addEagerLoadPath($definition, $resourceClass . '::' . $field, $fullPath, $plain, $scoped);
-            self::recurseIntoChild($definition, $fullPath, $plain, $scoped, $visited, $ancestors);
+            self::recurseIntoChild($definition, $fullPath, $plain, $scoped, $ancestors);
         }
     }
 
@@ -244,11 +240,10 @@ final class EagerLoadPlanner
      * @param  string  $fullPath
      * @param  array<int, string>  $plain
      * @param  array<string, mixed>  $scoped
-     * @param  array<string, bool>  $visited
      * @param  array<int, string>  $ancestors
      * @return void
      */
-    private static function recurseIntoChild(CompiledFieldDefinition $definition, string $fullPath, array &$plain, array &$scoped, array &$visited, array $ancestors = []): void
+    private static function recurseIntoChild(CompiledFieldDefinition $definition, string $fullPath, array &$plain, array &$scoped, array $ancestors = []): void
     {
         if (!self::shouldRecurseIntoChild($definition)) {
             return;
@@ -262,7 +257,7 @@ final class EagerLoadPlanner
             return;
         }
 
-        self::walkRelations($childResource, $childFields, $fullPath, $plain, $scoped, $visited, $ancestors);
+        self::walkRelations($childResource, $childFields, $fullPath, $plain, $scoped, $ancestors);
     }
 
     /**
@@ -275,32 +270,6 @@ final class EagerLoadPlanner
     private static function makePrefixedPath(string $prefix, string $suffix): string
     {
         return $prefix === '' ? $suffix : $prefix . '.' . $suffix;
-    }
-
-    /**
-     * Check if a resource-class/path pair has already been visited.
-     *
-     * @param  array<string, bool>  $visited
-     * @param  string  $resource
-     * @param  string  $path
-     * @return bool
-     */
-    private static function wasVisited(array $visited, string $resource, string $path): bool
-    {
-        return isset($visited[$resource . '|' . $path]);
-    }
-
-    /**
-     * Mark a resource-class/path pair as visited.
-     *
-     * @param  array<string, bool>  $visited
-     * @param  string  $resource
-     * @param  string  $path
-     * @return void
-     */
-    private static function markVisited(array &$visited, string $resource, string $path): void
-    {
-        $visited[$resource . '|' . $path] = true;
     }
 
     /**

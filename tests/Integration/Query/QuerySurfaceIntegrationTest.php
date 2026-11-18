@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
-use Tests\Fixtures\Resources\DeepTraversalPostResource;
+use Tests\Fixtures\Resources\DeepTraversalUserResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\TestCase;
@@ -260,15 +260,11 @@ final class QuerySurfaceIntegrationTest extends TestCase
      */
     public function testDeclaredNestedRelationTraversalIsAppliedUnderAllowlist(): void
     {
-        Config::set('api-toolkit.resources.resource_map', [
-            Post::class => DeepTraversalPostResource::class,
-        ]);
-
         $this->parseQuery(['filters' => json_encode([
             'posts' => ['user' => ['name' => 'Alice']],
         ], JSON_THROW_ON_ERROR)]);
 
-        $results = $this->declaredCriteria()->apply(new User)->get();
+        $results = $this->makeCriteria()->usingResource(DeepTraversalUserResource::class)->apply(new User)->get();
 
         self::assertCount(1, $results);
 

@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Resources;
 
-use Illuminate\Contracts\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
@@ -12,7 +11,7 @@ use SineMacula\ApiToolkit\Schema\Relation;
 /**
  * Fixture user resource whose to-many relations are bounded per parent.
  *
- * `posts` and `latest_posts` declare a limit over one relation, the second
+ * `posts` and `latest_posts` declare a limit, the second over a relation
  * ordered newest first; `comments` takes the configured default; `articles`
  * reaches a soft-deleting relation whose resource opts in to trashed rows;
  * `notes` is a polymorphic one-to-many.
@@ -40,11 +39,7 @@ final class BoundedUserResource extends ApiResource
             Field::scalar('id'),
             Field::scalar('name'),
             Relation::to('posts', BoundedPostResource::class)->limit(5),
-            Relation::to('posts', BoundedPostResource::class, 'latest_posts')->limit(5)->constrain(
-                static function (Builder $query): void {
-                    $query->latest();
-                },
-            ),
+            Relation::to('latestPosts', BoundedPostResource::class, 'latest_posts')->limit(5),
             Relation::to('comments', CommentResource::class),
             Relation::to('articles', ArticleResource::class)->limit(2),
             Relation::to('notes', NoteResource::class)->limit(3),

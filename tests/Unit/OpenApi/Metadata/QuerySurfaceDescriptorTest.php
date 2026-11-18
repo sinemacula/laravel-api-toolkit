@@ -7,7 +7,9 @@ namespace Tests\Unit\OpenApi\Metadata;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
+use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
 
 /**
@@ -30,11 +32,12 @@ final class QuerySurfaceDescriptorTest extends TestCase
     {
         $column = new QueryColumnDescriptor(property: 'id', column: 'id');
 
-        $descriptor = new QuerySurfaceDescriptor(UserResource::class, [$column], ['organization']);
+        $relation   = new QueryRelationDescriptor('organization', OrganizationResource::class);
+        $descriptor = new QuerySurfaceDescriptor(UserResource::class, [$column], [$relation]);
 
         self::assertSame(UserResource::class, $descriptor->resource);
         self::assertSame([$column], $descriptor->columns);
-        self::assertSame(['organization'], $descriptor->relations);
+        self::assertSame([$relation], $descriptor->relations);
     }
 
     /**

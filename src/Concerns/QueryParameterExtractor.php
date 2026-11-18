@@ -16,6 +16,9 @@ use SineMacula\ApiToolkit\Validation\Rejection;
  */
 final class QueryParameterExtractor
 {
+    /** @var array<int, string> The parameters the parser reads */
+    public const array PARAMETERS = ['page', 'limit', 'cursor', 'fields', 'aggregates', 'filters', 'search', 'order', 'trashed'];
+
     /**
      * Extract and parse all parameters from the request's query string.
      *
@@ -40,12 +43,12 @@ final class QueryParameterExtractor
             'trashed'    => fn ($value) => $value,
         ];
 
-        foreach ($parsers as $key => $parser) {
-            if (!$request->query->has($key)) {
+        foreach (self::PARAMETERS as $name) {
+            if (!$request->query->has($name)) {
                 continue;
             }
 
-            $parameters[$key] = $parser($request->query($key));
+            $parameters[$name] = $parsers[$name]($request->query($name));
         }
 
         return $parameters;

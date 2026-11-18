@@ -10,10 +10,12 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Exceptions\MetadataInvalidationException;
+use Tests\Concerns\UsesRedis;
 use Tests\TestCase;
 
 /**
@@ -27,6 +29,8 @@ use Tests\TestCase;
 #[CoversClass(MetadataGeneration::class)]
 final class MetadataGenerationTest extends TestCase
 {
+    use UsesRedis;
+
     /** @var string The shape every minted generation token takes. */
     private const string TOKEN_PATTERN = '/^[A-Za-z0-9]{16}$/';
 
@@ -221,6 +225,7 @@ final class MetadataGenerationTest extends TestCase
      * @return void
      */
     #[DataProvider('storeProvider')]
+    #[Group('redis')]
     public function testAdvancingRetiresMetadataAcrossProcessesOnEachStore(string $store): void
     {
         $this->useStore($store);
@@ -297,24 +302,15 @@ final class MetadataGenerationTest extends TestCase
     }
 
     /**
-     * Isolate the redis probe under a key prefix of its own, or skip where no
-     * redis server answers.
+     * Isolate the redis probe under a key prefix of its own.
      *
      * @return void
      */
     private function prepareRedisStore(): void
     {
-        if (!extension_loaded('redis')) {
-            self::markTestSkipped('The redis store needs the redis extension.');
-        }
+        $this->requireRedis();
 
         Config::set('api-toolkit.cache.prefix', uniqid('api-toolkit-probe-', true));
-
-        try {
-            Cache::store('redis')->get('probe');
-        } catch (\Throwable) {
-            self::markTestSkipped('No redis server answered, so the redis store cannot be proven here.');
-        }
     }
 
     /**

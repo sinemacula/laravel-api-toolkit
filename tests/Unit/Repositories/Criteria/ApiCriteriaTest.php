@@ -30,11 +30,14 @@ use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\Profile;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\LogResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\ProfileResource;
 use Tests\Fixtures\Resources\SearchableFilterableUserResource;
+use Tests\Fixtures\Resources\TraversingUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Search\PatternSearchDriver;
 use Tests\TestCase;
@@ -1150,9 +1153,39 @@ final class ApiCriteriaTest extends TestCase
 
         self::assertInstanceOf(QuerySurface::class, $surface);
 
-        $property = new \ReflectionProperty($surface, 'filterableColumns');
+        self::assertNull((new \ReflectionProperty($surface, 'schema'))->getValue($surface));
+    }
 
-        self::assertSame([], $property->getValue($surface));
+    /**
+     * Test that the surface resolves an undeclared related resource from the
+     * configured map's well-formed entries, and from nothing when the map is
+     * not a list of bindings.
+     *
+     * @return void
+     */
+    public function testBuildQuerySurfaceResolvesRelatedLevelsFromTheWellFormedMapEntries(): void
+    {
+        $this->criteria->usingResource(TraversingUserResource::class);
+
+        $method = new \ReflectionMethod($this->criteria, 'buildQuerySurface');
+
+        Config::set('api-toolkit.resources.resource_map', [Profile::class => ProfileResource::class, 'junk' => 42, 7 => ProfileResource::class]);
+
+        $surface = $method->invoke($this->criteria, new User);
+
+        self::assertInstanceOf(QuerySurface::class, $surface);
+
+        $surface->through('profile', new Profile, false)->guardFilter('bio');
+
+        Config::set('api-toolkit.resources.resource_map', ProfileResource::class);
+
+        $surface = $method->invoke($this->criteria, new User);
+
+        self::assertInstanceOf(QuerySurface::class, $surface);
+
+        $this->expectException(ValidationException::class);
+
+        $surface->through('profile', new Profile, false)->guardFilter('bio');
     }
 
     /**

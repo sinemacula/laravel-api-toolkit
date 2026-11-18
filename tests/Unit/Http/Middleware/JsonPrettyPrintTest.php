@@ -72,13 +72,12 @@ final class JsonPrettyPrintTest extends TestCase
      */
     public function testResponseUnchangedWithPrettyFalse(): void
     {
-        $json       = json_encode(['key' => 'value']);
         $request    = Request::create(self::TEST_URI, HttpMethod::GET->getVerb(), ['pretty' => 'false']);
         $middleware = new JsonPrettyPrint;
 
-        $response = $middleware->handle($request, fn () => new Response($json));
+        $response = $middleware->handle($request, fn () => new JsonResponse(['key' => 'value']));
 
-        self::assertSame($json, $response->getContent());
+        self::assertSame('{"key":"value"}', $response->getContent());
     }
 
     /**

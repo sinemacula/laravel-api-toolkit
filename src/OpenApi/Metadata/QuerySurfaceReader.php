@@ -4,12 +4,15 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
- * Reads the query surface each registered resource declares.
+ * Reads the query surface each registered resource declares, and each resource
+ * a filter reaches through one.
  *
  * Read from the compiled column maps the request-time gates use, so the surface
  * never claims a column a request would reject.
@@ -20,7 +23,19 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 final readonly class QuerySurfaceReader
 {
     /**
-     * Read one query surface descriptor per resource in the given map.
+     * Create a new query surface reader.
+     *
+     * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $introspector
+     */
+    public function __construct(
+
+        /** Resolves the relations a filter may descend through */
+        private SchemaIntrospectionProvider $introspector,
+    ) {}
+
+    /**
+     * Read one query surface descriptor per resource in the given map, then per
+     * resource reached through a traversable relation.
      *
      * @param  array<class-string, class-string>  $resourceMap
      * @param  array<int, string>  $vocabulary
@@ -30,25 +45,50 @@ final readonly class QuerySurfaceReader
      */
     public function read(array $resourceMap, array $vocabulary): array
     {
-        $surfaces = [];
+        $traversal = new RelationTraversal($this->introspector, $resourceMap);
+        $queue     = [];
+        $surfaces  = [];
 
-        foreach ($resourceMap as $resourceClass) {
-            $surfaces[] = $this->readResource($resourceClass, $vocabulary);
+        foreach ($resourceMap as $modelClass => $resourceClass) {
+            $queue[] = [$resourceClass, $modelClass];
         }
 
-        return $surfaces;
+        while ($queue !== []) {
+
+            [$resourceClass, $modelClass] = array_shift($queue);
+
+            if (isset($surfaces[$resourceClass])) {
+                continue;
+            }
+
+            $edges = $traversal->edges($resourceClass, $modelClass);
+
+            $surfaces[$resourceClass] = $this->readResource($resourceClass, $edges, $vocabulary);
+
+            foreach ($edges as $edge) {
+
+                if ($edge->resource === null) {
+                    continue;
+                }
+
+                $queue[] = [$edge->resource, $edge->model];
+            }
+        }
+
+        return array_values($surfaces);
     }
 
     /**
      * Read a single resource's declared query surface.
      *
      * @param  class-string  $resourceClass
+     * @param  list<\SineMacula\ApiToolkit\Schema\RelationEdge>  $edges
      * @param  array<int, string>  $vocabulary
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
-    private function readResource(string $resourceClass, array $vocabulary): QuerySurfaceDescriptor
+    private function readResource(string $resourceClass, array $edges, array $vocabulary): QuerySurfaceDescriptor
     {
         $compiled = SchemaCompiler::compile($resourceClass);
         $columns  = [];
@@ -64,7 +104,36 @@ final readonly class QuerySurfaceReader
             $columns = [...$columns, ...$this->readColumns($property, $field, $compiled, $vocabulary)];
         }
 
-        return new QuerySurfaceDescriptor($resourceClass, $columns, $compiled->getTraversableRelations());
+        return new QuerySurfaceDescriptor($resourceClass, $columns, $this->readRelations($compiled, $edges));
+    }
+
+    /**
+     * Read the relations a filter may descend through and what governs each.
+     *
+     * A relation the model does not define governs no nested key.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
+     * @param  list<\SineMacula\ApiToolkit\Schema\RelationEdge>  $edges
+     * @return list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor>
+     */
+    private function readRelations(CompiledSchema $compiled, array $edges): array
+    {
+        $keyed = [];
+
+        foreach ($edges as $edge) {
+            $keyed[$edge->relation] = $edge;
+        }
+
+        $relations = [];
+
+        foreach ($compiled->getTraversableRelations() as $relation) {
+
+            $edge = $keyed[$relation] ?? null;
+
+            $relations[] = new QueryRelationDescriptor($relation, $edge?->resource, $edge->polymorphic ?? false);
+        }
+
+        return $relations;
     }
 
     /**
