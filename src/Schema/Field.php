@@ -5,7 +5,12 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema;
 
 use Carbon\CarbonInterface;
+use Illuminate\Container\Container;
+use Illuminate\Contracts\Auth\Access\Gate;
 use Illuminate\Contracts\Support\Arrayable;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Str;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
@@ -136,6 +141,48 @@ final class Field extends BaseDefinition
         $instance->compute = $compute;
 
         return $instance;
+    }
+
+    /**
+     * Define a boolean flag for whether the current user passes the given
+     * ability on the record.
+     *
+     * The request's user answers, or the authenticated user without a request.
+     *
+     * @param  string  $ability
+     * @param  string|null  $alias
+     * @return self
+     *
+     * @throws \InvalidArgumentException
+     */
+    public static function can(string $ability, ?string $alias = null): self
+    {
+        if (trim($ability) === '') {
+            throw new \InvalidArgumentException('An ability field must name an ability');
+        }
+
+        $definition = self::compute('can_' . Str::snake($ability), static function (mixed $resource, ?Request $request) use ($ability): bool {
+
+            while ($resource instanceof JsonResource) {
+                $resource = $resource->resource;
+            }
+
+            if (!is_object($resource)) {
+                return false;
+            }
+
+            $gate = Container::getInstance()->make(Gate::class);
+
+            if ($request !== null) {
+                $gate = $gate->forUser($request->user());
+            }
+
+            return $gate->allows($ability, [$resource]);
+        }, $alias);
+
+        $definition->openapi()->type('boolean')->description(sprintf('Whether the current user passes the "%s" ability for this record.', $ability));
+
+        return $definition;
     }
 
     /**

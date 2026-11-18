@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Profile;
@@ -31,6 +32,7 @@ use Tests\Fixtures\Resources\GuardedUserResource;
 use Tests\Fixtures\Resources\NullableFilterableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\RestorableArticleResource;
 use Tests\Fixtures\Resources\SearchableUserResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -597,6 +599,21 @@ final class ResourceSchemaBuilderTest extends TestCase
             'example'     => 'gold',
             'description' => 'The membership tier of the user',
         ], $schema['properties']['tier']);
+    }
+
+    /**
+     * Test that an ability flag exports as a described, non-nullable boolean.
+     *
+     * @return void
+     */
+    public function testAbilityFlagExportsAsADescribedBoolean(): void
+    {
+        $schema = $this->makeBuilder([Article::class => RestorableArticleResource::class])->build()['RestorableArticle'];
+
+        self::assertSame([
+            'type'        => 'boolean',
+            'description' => 'Whether the current user passes the "restore" ability for this record.',
+        ], $schema['properties']['can_restore']);
     }
 
     /**
