@@ -28,7 +28,7 @@ use Tests\TestCase;
 final class ServiceContextTest extends TestCase
 {
     /**
-     * Test that the constructor exposes all four properties.
+     * Test that the constructor exposes every property.
      *
      * @return void
      */
@@ -42,12 +42,24 @@ final class ServiceContextTest extends TestCase
             correlationId: 'abc-123',
             source: ServiceSource::HTTP,
             metadata: $metadata,
+            batchId: 'batch-id',
         );
 
         self::assertSame($actor, $context->actor);
         self::assertSame('abc-123', $context->correlationId);
         self::assertSame(ServiceSource::HTTP, $context->source);
         self::assertSame($metadata, $context->metadata);
+        self::assertSame('batch-id', $context->batchId);
+    }
+
+    /**
+     * Test that for() leaves the batch unset, as only a worker knows it.
+     *
+     * @return void
+     */
+    public function testForLeavesTheBatchUnset(): void
+    {
+        self::assertNull(ServiceContext::for($this->makeActor())->batchId);
     }
 
     /**
