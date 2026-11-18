@@ -165,7 +165,7 @@ final class GuardShapeExportTest extends TestCase
         $csv->assertOk();
 
         $lines = array_filter(explode("\n", $csv->streamedContent()), static fn (string $line): bool => $line !== '');
-        $cells = array_map(static fn (string $line): ?string => str_getcsv($line)[2] ?? null, array_slice(array_values($lines), 1));
+        $cells = array_map(static fn (string $line): ?string => str_getcsv($line, escape: '\\')[2] ?? null, array_slice(array_values($lines), 1));
 
         self::assertSame($json, $cells);
         self::assertSame($asAdmin ? self::EMAILS : [null, null, null], $cells);
