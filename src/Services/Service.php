@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Services;
 
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Reflector;
 use SineMacula\ApiToolkit\Concerns\Lockable;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
@@ -63,7 +64,7 @@ abstract class Service implements LockKeyProvider
      * Resolve a new service instance from the container with the given input.
      *
      * The input is passed to the first constructor parameter whose class,
-     * interface, union or intersection type accepts it, whatever its name.
+     * interface or union type accepts it, whatever its name.
      *
      * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $input
      * @return static
@@ -76,19 +77,13 @@ abstract class Service implements LockKeyProvider
 
         foreach ((new \ReflectionMethod($class, '__construct'))->getParameters() as $parameter) {
 
-            $type = $parameter->getType();
+            $accepting = array_filter(Reflector::getParameterClassNames($parameter), static fn (string $name): bool => is_a($input, $name));
 
-            foreach ($type instanceof \ReflectionUnionType ? $type->getTypes() : [$type] as $alternative) {
+            if ($accepting !== []) {
+                $instance = App::make($class, [$parameter->getName() => $input]);
+                assert($instance instanceof static);
 
-                $required = $alternative instanceof \ReflectionIntersectionType ? $alternative->getTypes() : [$alternative];
-                $unmet    = array_filter($required, static fn (?\ReflectionType $member): bool => !$member instanceof \ReflectionNamedType || !is_a($input, $member->getName()));
-
-                if ($unmet === []) {
-                    $instance = App::make($class, [$parameter->getName() => $input]);
-                    assert($instance instanceof static);
-
-                    return $instance;
-                }
+                return $instance;
             }
         }
 
