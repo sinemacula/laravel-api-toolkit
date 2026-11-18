@@ -72,6 +72,8 @@ trait RunsOnQueue
      *
      * @param  \Throwable  $exception
      * @return void
+     *
+     * @SuppressWarnings("php:S1172")
      */
     protected function onFinalFailure(\Throwable $exception): void {}
 
