@@ -420,14 +420,14 @@ final class SchemaValidatorTest extends TestCase
             });
 
         $report = (new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule))->report([
-            User::class => UserResource::class,
-            Post::class => PostResource::class,
+            User::class         => UserResource::class,
+            Organization::class => OrganizationResource::class,
         ]);
 
         self::assertSame([
             [UserResource::class, User::class],
-            [PostResource::class, Post::class],
             [OrganizationResource::class, Organization::class],
+            [PostResource::class, Post::class],
         ], $validated);
         self::assertSame(3, $report->resourceCount);
     }

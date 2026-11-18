@@ -51,7 +51,7 @@ final class EagerLoadPlanner
 
         self::walkRelations($resourceClass, $fields, '', $plain, $scoped);
 
-        $plain = array_values(array_diff(array_unique($plain), array_keys($scoped)));
+        $plain = array_diff(array_unique($plain), array_keys($scoped));
         $map   = $plain === [] && $scoped === [] ? [] : array_merge($plain, $scoped);
 
         return self::$eagerLoadCache[$key] = $map;

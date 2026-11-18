@@ -384,6 +384,8 @@ final class ApiResourceCollectionTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query');
 
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
+
         $parser->parse(Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => 'id,name,organization']]));
 
         $collection = new ApiResourceCollection($container($users), UserResource::class);

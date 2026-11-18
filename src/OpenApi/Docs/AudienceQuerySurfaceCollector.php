@@ -79,14 +79,14 @@ final readonly class AudienceQuerySurfaceCollector
             $byClass[$surface->resource] = $surface;
         }
 
-        $queue = array_values(array_filter(
+        $queue = array_filter(
             $surfaces,
             static fn (QuerySurfaceDescriptor $surface): bool => in_array(
                 SchemaComponentName::fromResource($surface->resource),
                 $schemas,
                 true,
             ),
-        ));
+        );
 
         while ($queue !== []) {
 
@@ -96,7 +96,7 @@ final readonly class AudienceQuerySurfaceCollector
                 continue;
             }
 
-            $kept[$surface->resource] = true;
+            $kept[$surface->resource] = $surface;
 
             foreach ($surface->relations as $relation) {
                 if ($relation->resource !== null && isset($byClass[$relation->resource])) {

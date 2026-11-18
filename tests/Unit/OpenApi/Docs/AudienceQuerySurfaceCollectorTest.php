@@ -17,6 +17,7 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\ProfileResource;
 use Tests\Fixtures\Resources\QueryableTagResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -52,13 +53,18 @@ final class AudienceQuerySurfaceCollectorTest extends TestCase
 
         $surfaces = [
             new QuerySurfaceDescriptor(QueryableTagResource::class, []),
-            new QuerySurfaceDescriptor(TagResource::class, [], [new QueryRelationDescriptor('users', UserResource::class)]),
+            new QuerySurfaceDescriptor(TagResource::class, [], [
+                new QueryRelationDescriptor('organization', OrganizationResource::class),
+                new QueryRelationDescriptor('users', UserResource::class),
+            ]),
             new QuerySurfaceDescriptor(PostResource::class, [], [new QueryRelationDescriptor('tags', TagResource::class)]),
             new QuerySurfaceDescriptor(UserResource::class, [], [
                 new QueryRelationDescriptor('notes', polymorphic: true),
-                new QueryRelationDescriptor('organization', OrganizationResource::class),
+                new QueryRelationDescriptor('profile', ProfileResource::class),
                 new QueryRelationDescriptor('posts', PostResource::class),
+                new QueryRelationDescriptor('tags', TagResource::class),
             ]),
+            new QuerySurfaceDescriptor(OrganizationResource::class, []),
         ];
 
         $catalogue = self::createStub(MetadataCatalogue::class);
@@ -72,6 +78,6 @@ final class AudienceQuerySurfaceCollectorTest extends TestCase
         $collected = (new AudienceQuerySurfaceCollector($exporter, $catalogue, new AudienceConfiguration))->collect();
 
         self::assertSame(['public'], array_keys($collected));
-        self::assertSame([$surfaces[1], $surfaces[2], $surfaces[3]], $collected['public']);
+        self::assertSame([$surfaces[1], $surfaces[2], $surfaces[3], $surfaces[4]], $collected['public']);
     }
 }

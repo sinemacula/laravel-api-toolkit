@@ -371,13 +371,36 @@ final class RawSchemaValidatorTest extends TestCase
     public function testRefusesARelationNamingANestedPath(): void
     {
         $errors = $this->collectErrors([
-            ...Field::set(Relation::to('user.organization', OrganizationResource::class, 'organization')),
+            ...Field::set(Relation::to('user.organization', OrganizationResource::class, 'organization')->constrain(self::constraint())->traversable()),
             'tags' => ['relation' => ['posts.tags', 'posts'], 'accessor' => 'name'],
         ]);
 
         self::assertSame([
             [self::RESOURCE, 'organization', 'Relation "user.organization" names a nested path; declare each segment as a relation of its own resource'],
+            [self::RESOURCE, 'organization', self::CONSTRAINED_TRAVERSAL],
             [self::RESOURCE, 'tags', 'Relation "posts.tags" names a nested path; declare each segment as a relation of its own resource'],
+        ], $errors);
+    }
+
+    /**
+     * Test that every relation whose fields need their own rows is refused, not
+     * only the first.
+     *
+     * @return void
+     */
+    public function testRefusesEverySharedRelationThatNeedsItsOwnRows(): void
+    {
+        $errors = $this->collectErrors(Field::set(
+            Relation::to('organization', OrganizationResource::class),
+            Relation::to('posts', PostResource::class),
+            Relation::to('posts', BoundedPostResource::class, 'bounded_posts'),
+            Relation::to('comments', CommentResource::class),
+            Relation::to('comments', CommentResource::class, 'open_comments')->constrain(self::constraint()),
+        ));
+
+        self::assertSame([
+            [self::RESOURCE, 'posts', self::sharedRelation('"posts", "bounded_posts"', 'posts')],
+            [self::RESOURCE, 'comments', self::sharedRelation('"comments", "open_comments"', 'comments')],
         ], $errors);
     }
 

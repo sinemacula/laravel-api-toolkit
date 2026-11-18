@@ -116,10 +116,10 @@ final class RelationTraversalTest extends TestCase
                 return Field::set(
                     Field::scalar('id'),
                     Relation::to('owner', PublicUserResource::class)->traversable(),
-                    Relation::to('noteable', 'id', 'noteable_key')->traversable(),
-                    Relation::to('labels', 'name', 'label_names')->traversable(),
                     Relation::to('ghost', 'id', 'ghost_key')->traversable(),
+                    Relation::to('noteable', 'id', 'noteable_key')->traversable(),
                     Relation::to('slug', 'id', 'slug_key')->traversable(),
+                    Relation::to('labels', 'name', 'label_names')->traversable(),
                 );
             }
         };
