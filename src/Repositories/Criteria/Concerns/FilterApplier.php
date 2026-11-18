@@ -9,7 +9,6 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
 use SineMacula\ApiToolkit\Contracts\DeclaresValueShape;
 use SineMacula\ApiToolkit\Contracts\ExpandsValueList;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
-use SineMacula\ApiToolkit\Enums\FilterValueShape;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
@@ -245,18 +244,19 @@ final class FilterApplier
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyEquality(Builder $query, string $column, mixed $value, FilterContext $context, QuerySurface $surface): void
     {
-        $model = $query->getModel();
-
         $surface->guardFilterOperator($column, self::OPERATOR_EQUAL);
 
-        $value = $this->guard->resolve($model, $column, self::OPERATOR_EQUAL, FilterValueShape::SCALAR, $value, $context->path());
+        $handler = $this->operatorRegistry->resolve(self::OPERATOR_EQUAL);
+
+        assert($handler !== null);
 
         $applied = count($query->getQuery()->wheres);
 
-        $this->operatorRegistry->resolve(self::OPERATOR_EQUAL)?->apply($query, $column, PureEnumFilterValue::resolve($model, $column, $value));
+        $this->applyHandler($query, $handler, $column, self::OPERATOR_EQUAL, $value, $context->path(), $context->pointer());
 
         $this->isolateCondition($query->getQuery(), $applied);
     }
@@ -289,14 +289,37 @@ final class FilterApplier
             throw Rejection::at($position, 'filters.not_condition', ['position' => $position]);
         }
 
-        $model = $query->getModel();
-
         $surface->guardFilterOperator($column, $token);
 
-        $this->limits->enforce(QueryCostLimits::MAX_IN_ITEMS, $this->countValueItems($handler, $operand), 'filters', $context->pointerTo($token));
+        $this->applyHandler($query, $handler, $column, $token, $operand, $context->at($token)->path(), $context->pointerTo($token));
+    }
+
+    /**
+     * Run an admitted handler on its operand, held to the handler's item count
+     * and value shape.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  \SineMacula\ApiToolkit\Contracts\FilterOperator  $handler
+     * @param  string  $column
+     * @param  string  $token
+     * @param  mixed  $operand
+     * @param  string  $position
+     * @param  string  $pointer
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function applyHandler(Builder $query, FilterOperator $handler, string $column, string $token, mixed $operand, string $position, string $pointer): void
+    {
+        $model = $query->getModel();
+
+        $this->limits->enforce(QueryCostLimits::MAX_IN_ITEMS, $this->countValueItems($handler, $operand), 'filters', $pointer);
 
         if ($handler instanceof DeclaresValueShape) {
-            $operand = $this->guard->resolve($model, $column, $token, $handler->valueShape(), $operand, $context->at($token)->path());
+            $operand = $this->guard->resolve($model, $column, $token, $handler->valueShape(), $operand, $position);
         }
 
         $handler->apply($query, $column, PureEnumFilterValue::resolve($model, $column, $operand));

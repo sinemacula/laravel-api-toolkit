@@ -26,6 +26,8 @@ use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\InOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
@@ -1045,6 +1047,39 @@ final class FilterApplierTest extends TestCase
         });
 
         $this->assertCompilesTo(['email' => ['$in' => ['b']], 'name' => 'Alice'], '"email" in (?) and ("name" = ?)', ['b', 'Alice']);
+    }
+
+    /**
+     * Test that the bare shorthand holds an overridden $eq to the item count it
+     * reports, as the token form does.
+     *
+     * @return void
+     */
+    public function testShorthandCountsTheItemsAnOverriddenEqualityExpands(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 2);
+
+        $this->operatorRegistry->override('$eq', new ContainsOperator);
+
+        $this->assertRejectedForCost(['name' => 'a,b,c'], QueryCostLimits::MAX_IN_ITEMS, '/name', 2, 3);
+        $this->assertRejectedForCost(['$or' => [['name' => 'a,b,c']]], QueryCostLimits::MAX_IN_ITEMS, '/$or/0/name', 2, 3);
+        $this->assertRejectedForCost(['name' => ['$eq' => 'a,b,c']], QueryCostLimits::MAX_IN_ITEMS, '/name/$eq', 2, 3);
+    }
+
+    /**
+     * Test that the bare shorthand checks its value against the shape an
+     * overridden $eq declares, at the column's position.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testShorthandChecksTheShapeAnOverriddenEqualityDeclares(): void
+    {
+        $this->operatorRegistry->override('$eq', new InOperator);
+
+        $this->assertRefusedAt(['name' => 'Alice'], 'filters.name', 'The $eq condition on "name" must be a list of values.');
+        $this->assertRefusedAt(['name' => ['$eq' => 'Alice']], 'filters.name.$eq', 'The $eq condition on "name" must be a list of values.');
     }
 
     /**
