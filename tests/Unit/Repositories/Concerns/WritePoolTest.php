@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Concerns;
 
 use Illuminate\Database\DatabaseTransactionsManager;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
@@ -1626,6 +1627,151 @@ final class WritePoolTest extends TestCase
         }
 
         self::assertSame(2, $pool->count());
+    }
+
+    /**
+     * Test that records a collecting auto-flush kept do not count toward the
+     * pool limit, so they are retried once per limit's worth of new records and
+     * the new records insert as full chunks.
+     *
+     * @return void
+     */
+    public function testRetainedRecordsAreRetriedOncePerPoolLimitOfNewRecords(): void
+    {
+        $pool    = new WritePool(chunkSize: 500, poolLimit: 3, transactions: $this->transactionTracker(...));
+        $inserts = [];
+
+        DB::connection()->beforeExecuting(function (string $query) use (&$inserts): void {
+            $inserts[] = $query;
+        });
+
+        for ($i = 0; $i < 3; $i++) {
+            $pool->add('testing', 'nonexistent_table', ['col' => "poison_{$i}"]);
+        }
+
+        for ($i = 0; $i < 9; $i++) {
+            $pool->add('testing', 'test_records', ['name' => "name_{$i}", 'value' => "value_{$i}"]);
+        }
+
+        self::assertCount(4, array_filter($inserts, fn (string $query): bool => str_contains($query, 'nonexistent_table')));
+        self::assertCount(3, array_filter($inserts, fn (string $query): bool => str_contains($query, 'test_records')));
+        self::assertSame(9, DB::table('test_records')->count());
+        self::assertSame(3, $pool->count());
+    }
+
+    /**
+     * Test that the records a throwing auto-flush kept do not trigger another
+     * auto-flush on the next deferral.
+     *
+     * @return void
+     */
+    public function testAThrowingAutoFlushIsNotRetriedOnTheNextDeferral(): void
+    {
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, strategy: FlushStrategy::THROW, transactions: $this->transactionTracker(...));
+
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+
+        try {
+            $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
+
+            self::fail('Expected WritePoolFlushException was not thrown');
+        } catch (WritePoolFlushException) {
+            // Both records stay buffered
+        }
+
+        $pool->add('testing', 'test_records', ['name' => 'b', 'value' => '2']);
+
+        self::assertSame(3, $pool->count());
+        self::assertSame(0, DB::table('test_records')->count());
+    }
+
+    /**
+     * Test that the records a connection gained inside a transaction still
+     * count after another connection flushes, so it flushes on its next
+     * deferral once the transaction ends.
+     *
+     * @return void
+     */
+    public function testRecordsHeldByATransactionStillCountAfterAnotherConnectionFlushes(): void
+    {
+        $this->useAuditTestTables();
+
+        $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker(...));
+
+        DB::connection('audit')->transaction(function () use ($pool): void {
+            $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
+            $pool->add('audit', 'test_records', ['name' => 'b', 'value' => '2']);
+            $pool->add('testing', 'test_records', ['name' => 'c', 'value' => '3']);
+        });
+
+        $pool->add('audit', 'test_records', ['name' => 'd', 'value' => '4']);
+
+        self::assertSame(1, DB::table('test_records')->count());
+        self::assertSame(3, DB::connection('audit')->table('test_records')->count());
+        self::assertTrue($pool->isEmpty());
+    }
+
+    /**
+     * Test that a connection holding only records a flush kept is not flushed
+     * again while new records wait on a connection inside a transaction.
+     *
+     * @return void
+     */
+    public function testAConnectionWithoutNewRecordsIsNotRetriedWhileAnotherWaits(): void
+    {
+        $this->useAuditTestTables();
+
+        $pool     = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker(...));
+        $attempts = 0;
+
+        DB::connection()->beforeExecuting(function () use (&$attempts): void {
+            $attempts++;
+        });
+
+        $pool->add('testing', 'nonexistent_table', ['col' => 'a']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'b']);
+
+        DB::connection('audit')->transaction(function () use ($pool): void {
+            $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
+            $pool->add('audit', 'test_records', ['name' => 'b', 'value' => '2']);
+            $pool->add('audit', 'test_records', ['name' => 'c', 'value' => '3']);
+        });
+
+        self::assertSame(1, $attempts);
+        self::assertSame(5, $pool->count());
+    }
+
+    /**
+     * Test that each chunk flushed inside an open transaction runs in its own
+     * savepoint, and outside one runs bare.
+     *
+     * @return void
+     */
+    public function testAChunkFlushedInsideATransactionRunsInItsOwnSavepoint(): void
+    {
+        $this->useAuditTestTables();
+
+        $pool   = new WritePool(chunkSize: 1, poolLimit: 10000);
+        $levels = [];
+
+        DB::listen(function (QueryExecuted $query) use (&$levels): void {
+            if ($query->connectionName !== 'audit' || !str_starts_with($query->sql, 'insert')) {
+                return;
+            }
+
+            $levels[] = $query->connection->transactionLevel();
+        });
+
+        $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
+        $pool->flush();
+
+        DB::connection('audit')->transaction(function () use ($pool): void {
+            $pool->add('audit', 'test_records', ['name' => 'b', 'value' => '2']);
+            $pool->add('audit', 'test_records', ['name' => 'c', 'value' => '3']);
+            $pool->flush();
+        });
+
+        self::assertSame([0, 2, 2], $levels);
     }
 
     /**
