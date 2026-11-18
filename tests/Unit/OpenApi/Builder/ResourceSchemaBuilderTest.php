@@ -26,6 +26,7 @@ use Tests\Fixtures\Models\Profile;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\DeclaredOpenApiUserResource;
+use Tests\Fixtures\Resources\FixedFieldsUserResource;
 use Tests\Fixtures\Resources\GuardedUserResource;
 use Tests\Fixtures\Resources\NullableFilterableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -380,24 +381,61 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that unguarded scalars are required but relations and aggregates
-     * not.
+     * Test that a component requires only what every response carries and lists
+     * its default fields, then its fixed ones.
      *
      * @return void
      */
-    public function testRequiredListsScalarKeysButNotRelationsOrAggregates(): void
+    public function testRequiresOnlyTheTypeAndFixedColumnsAndListsTheDefaultFields(): void
     {
-        $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
-        $required = $schemas['User']['required'];
+        $user = $this->makeBuilder($this->fullResourceMap())->build()['User'];
 
-        self::assertIsIterable($required);
-        self::assertContains('id', $required);
-        self::assertContains('name', $required);
-        self::assertContains('full_label', $required);
-        self::assertNotContains('organization', $required);
-        self::assertNotContains('posts', $required);
-        self::assertNotContains('profile_bio', $required);
-        self::assertNotContains('aggregates', $required);
+        self::assertSame(['_type', 'id'], $user['required']);
+        self::assertSame(['id', 'name', 'email'], $user['x-default-fields']);
+    }
+
+    /**
+     * Test that a field added to the configured fixed fields is required.
+     *
+     * @return void
+     */
+    public function testAConfiguredFixedColumnIsRequired(): void
+    {
+        Config::set('api-toolkit.resources.fixed_fields', ['id', '_type', 'status']);
+
+        $user = $this->makeBuilder($this->fullResourceMap())->build()['User'];
+
+        self::assertSame(['_type', 'id', 'status'], $user['required']);
+        self::assertSame(['id', 'name', 'email', 'status'], $user['x-default-fields']);
+    }
+
+    /**
+     * Test that a fixed field a guard, transformer, compute, accessor or
+     * relation may leave out is not required, nor is an undeclared one.
+     *
+     * @return void
+     */
+    public function testOnlyAFixedPlainColumnIsRequired(): void
+    {
+        $schema = $this->makeBuilder([User::class => FixedFieldsUserResource::class])->build()['FixedFieldsUser'];
+
+        self::assertSame(['_type', 'id', 'name'], $schema['required']);
+    }
+
+    /**
+     * Test that a resource with no default fields lists only the fixed fields
+     * its schema declares as its default fields.
+     *
+     * @return void
+     */
+    public function testNoDefaultFieldsListsOnlyTheDeclaredFixedFields(): void
+    {
+        $schema = $this->makeBuilder([User::class => FixedFieldsUserResource::class])->build()['FixedFieldsUser'];
+
+        self::assertSame(
+            ['id', 'email', 'status', 'full_label', 'display_label', 'organization', 'name'],
+            $schema['x-default-fields'],
+        );
     }
 
     /**

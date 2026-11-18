@@ -59,6 +59,7 @@ final class QueryParameterValidator
         $filters = $parameters['filters'] ?? null;
 
         $this->guardFilterSize($filters, $limits);
+        $this->guardEncoding($parameters);
         $this->assertSelectionContainers($parameters);
         $this->assertParameterShapes($parameters);
         $this->guardFilterNesting($filters, $limits);
@@ -88,6 +89,35 @@ final class QueryParameterValidator
             is_numeric($ceiling) => (int) $ceiling,
             default              => self::DEFAULT_MAX_LIMIT,
         };
+    }
+
+    /**
+     * Reject each parameter the parser reads whose keys or values are not valid
+     * UTF-8, naming the parameter without echoing its bytes.
+     *
+     * @param  array<string, mixed>  $parameters
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function guardEncoding(array $parameters): void
+    {
+        $malformed = [];
+
+        foreach (QueryParameterExtractor::PARAMETERS as $parameter) {
+
+            $value = $parameters[$parameter] ?? null;
+
+            if ((!is_string($value) && !is_array($value)) || mb_check_encoding($value, 'UTF-8')) { // @phpstan-ignore argument.type
+                continue;
+            }
+
+            $malformed[$parameter] = Rejection::message('query.malformed_encoding', ['parameter' => $parameter]);
+        }
+
+        if ($malformed !== []) {
+            throw Rejection::withMessages($malformed);
+        }
     }
 
     /**

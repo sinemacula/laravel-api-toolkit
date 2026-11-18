@@ -8,7 +8,7 @@ use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\Http\Enums\HttpStatus;
 
 /**
- * Raised when a well-formed request exceeds a query cost cap.
+ * Raised when a request exceeds a query cost cap.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
