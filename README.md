@@ -663,16 +663,20 @@ does not redirect it. Timestamps follow the model: none when it has timestamps d
 `CREATED_AT` and `UPDATED_AT` columns in its date format, and a timestamp you pass is kept. Rows are inserted in
 consecutive runs of one column set, so a row may leave out optional columns and they keep their database default.
 Each connection flushes its tables in the order they joined the buffer, and a table keeps its place while it holds rows,
-so defer a parent before the rows that reference it.
+so defer a parent before the rows that reference it. An `INSERT` carries at most `deferred_writes.chunk_size` rows and
+never more than 32766 bound values, so a wide table is written in smaller chunks.
 
 Reaching `deferred_writes.pool_limit` flushes automatically, but never on a connection with an open transaction: those
 rows wait for the next deferral outside a transaction or for the boundary flush, so rolling the transaction back does
 not undo them. A flush that does run inside an open transaction joins it: `flushWrites()` called there, or a boundary
-flush while an outer transaction is still open, such as a sync-queued job dispatched inside one.
+flush while an outer transaction is still open, such as a sync-queued job dispatched inside one. Each chunk then runs in
+its own savepoint, or each table with `deferred_writes.transactional`, so a failure rolls back only that part and the
+transaction stays usable.
 
 `api-toolkit.deferred_writes.on_failure` picks what happens when a flush fails:
 
-- `collect` (default) - failed records are kept for the next flush.
+- `collect` (default) - failed records are kept for the next flush. They do not count toward `pool_limit`, so they are
+  retried by the next automatic or boundary flush rather than on every deferral.
 - `throw` - raises a `WritePoolFlushException`, for callers that flush explicitly.
 - `log` - failed records are dropped. Use it only for disposable writes such as telemetry.
 
