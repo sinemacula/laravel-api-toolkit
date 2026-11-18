@@ -157,8 +157,8 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractPassesCursorThroughUnchanged(): void
     {
-        $cursor  = 'eyJpZCI6MTAwfQ==';
-        $input = ['cursor' => $cursor];
+        $cursor = 'eyJpZCI6MTAwfQ==';
+        $input  = ['cursor' => $cursor];
 
         $parameters = $this->extractor->extract($input);
 
@@ -262,7 +262,7 @@ final class QueryParameterExtractorTest extends TestCase
     public function testExtractDecodesJsonFilters(): void
     {
         $filters = json_encode(['status' => 'active', 'role' => 'admin']);
-        $input = ['filters' => $filters];
+        $input   = ['filters' => $filters];
 
         $parameters = $this->extractor->extract($input);
 
@@ -290,7 +290,7 @@ final class QueryParameterExtractorTest extends TestCase
     public function testExtractRejectsFiltersNestedBeyondTheDecoderDepthLimit(): void
     {
         $filters = str_repeat('{"a":', 512) . '1' . str_repeat('}', 512);
-        $input = ['filters' => $filters];
+        $input   = ['filters' => $filters];
 
         $this->assertRejectsFilters($input);
     }
@@ -304,7 +304,7 @@ final class QueryParameterExtractorTest extends TestCase
     public function testExtractAcceptsFiltersNestedToTheDecoderDepthLimit(): void
     {
         $filters = str_repeat('{"a":', 511) . '1' . str_repeat('}', 511);
-        $input = ['filters' => $filters];
+        $input   = ['filters' => $filters];
 
         $parameters = $this->extractor->extract($input);
 
