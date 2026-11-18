@@ -1511,7 +1511,7 @@ API_TOOLKIT_NOTIFICATIONS_LOG_CHANNEL=notifications
 - PostgreSQL 15+
 
 MariaDB is untested: it reports its own driver name, so search needs a driver registered for it, and a prefix or
-ignored index counts as backing a sort.
+ignored index can count as backing a sort.
 
 ## Testing
 
