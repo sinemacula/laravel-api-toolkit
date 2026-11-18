@@ -1252,6 +1252,34 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
+     * Test that taking a path's column selections merges every one of them and
+     * leaves each other entry, a nested path under it included.
+     *
+     * @return void
+     */
+    public function testTakeColumnSelectionMergesThePathsSelectionsOnly(): void
+    {
+        /** @var array<int, string> $plain */
+        $plain   = ['media', 'posts.tags', 'posts:id,user_id', 'postsArchive:id', 'posts:user_id,title'];
+        $columns = (new \ReflectionMethod(EagerLoadPlanner::class, 'takeColumnSelection'))->invokeArgs(null, [&$plain, 'posts']);
+
+        self::assertSame(['id', 'user_id', 'title'], $columns);
+        self::assertSame(['media', 'posts.tags', 'postsArchive:id'], array_values($plain));
+    }
+
+    /**
+     * Test that a folded selection is qualified only where the relation joins
+     * another table.
+     *
+     * @return void
+     */
+    public function testQualifyColumnsQualifiesOnlyAJoiningRelation(): void
+    {
+        self::assertSame(['tags.id'], $this->invokeStaticMethod(EagerLoadPlanner::class, 'qualifyColumns', (new Post)->tags(), ['id']));
+        self::assertSame(['id'], $this->invokeStaticMethod(EagerLoadPlanner::class, 'qualifyColumns', (new User)->profile(), ['id']));
+    }
+
+    /**
      * Test that a MorphTo path loads no aggregate, since each type loads
      * through a fresh query.
      *
