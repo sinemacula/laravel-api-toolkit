@@ -327,6 +327,7 @@ class UserResource extends ApiResource
             Field::scalar('email')->filterable(Capability::EXACT)->searchable(SearchStrategy::SUBSTRING),
             Field::timestamp('created_at')->sortable(),
             Field::compute('full_name', 'getFullName'),
+            Field::can('restore'),
             Relation::to('organization', OrganizationResource::class)->traversable(),
             Count::of('memberships')->default(),
             Sum::of('orders', 'total'),
@@ -378,6 +379,15 @@ Field::scalar('full_name')->needs('first_name', 'last_name'),
 Field::accessor('initials', fn ($resource) => $resource->first_name[0] . $resource->last_name[0])
     ->needs('first_name', 'last_name'),
 ```
+
+**Ability flags** - `Field::can('restore')` renders whether the current user passes a policy ability on each record, as
+the boolean `can_restore`. The key is `can_` and the snake-cased ability, so `Field::can('forceDelete')` is
+`can_force_delete`; pass an alias as the second argument for an ability with dots or hyphens, or one whose key would
+collide with another's. The flag renders only when the field set includes it, so a page runs the policy only when asked.
+The request's user answers, a guest request answers as a guest, and a resource resolved without a request answers for
+the authenticated user. Load the relations the policy reads with `extras()`. Without `needs()` the flag leaves the
+select unnarrowed; with it, the list must cover every column the policy and any `before()` hook read. The flag is
+computed, so it cannot be filtered, sorted or searched.
 
 **Query capabilities** - `filterable()` takes the access path the column has, and the capability decides which
 operators the column answers. Any other operator is refused with a `422`:

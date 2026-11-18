@@ -4,15 +4,25 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Schema;
 
+use Illuminate\Auth\Access\Gate;
+use Illuminate\Container\Container;
+use Illuminate\Contracts\Auth\Access\Gate as GateContract;
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\DuplicateSchemaKeyException;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
+use Tests\Fixtures\Models\Article;
+use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Policies\ArticlePolicy;
 
 /**
  * Tests for the Field schema definition.
@@ -25,6 +35,25 @@ use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 #[CoversClass(Field::class)]
 final class FieldTest extends TestCase
 {
+    /** @var int The key of the user who authored the article. */
+    private const int OWNER = 1;
+
+    /** @var int The key of a user who did not author the article. */
+    private const int OTHER = 2;
+
+    /**
+     * Clear the container instance a test bound its gate on.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function tearDown(): void
+    {
+        Container::setInstance(null);
+
+        parent::tearDown();
+    }
+
     /**
      * Test that scalar creates a field with the given name.
      *
@@ -370,6 +399,261 @@ final class FieldTest extends TestCase
     }
 
     /**
+     * Test that an ability flag is keyed by the snake-cased ability.
+     *
+     * @return void
+     */
+    public function testCanKeysTheFlagByTheSnakeCasedAbility(): void
+    {
+        self::assertSame(['can_update'], array_keys(Field::can('update')->toArray()));
+        self::assertSame(['can_force_delete'], array_keys(Field::can('forceDelete')->toArray()));
+    }
+
+    /**
+     * Test that an alias replaces the derived key of an ability flag.
+     *
+     * @return void
+     */
+    public function testCanKeysTheFlagByTheAliasWhenGiven(): void
+    {
+        self::assertSame(['editable'], array_keys(Field::can('update', 'editable')->toArray()));
+    }
+
+    /**
+     * Test that an ability flag is a computed field declaring a non-nullable
+     * boolean contract.
+     *
+     * @return void
+     */
+    public function testCanDeclaresAComputedBooleanContract(): void
+    {
+        $definition = Field::can('update')->toArray()['can_update'];
+        $openapi    = $definition['openapi'];
+
+        self::assertIsCallable($definition['compute']);
+        self::assertArrayNotHasKey('accessor', $definition);
+        self::assertInstanceOf(OpenApiFieldSchema::class, $openapi);
+        self::assertSame('boolean', $openapi->type);
+        self::assertSame('Whether the current user passes the "update" ability for this record.', $openapi->description);
+        self::assertFalse($openapi->nullable);
+    }
+
+    /**
+     * Test that an ability flag refuses a blank ability.
+     *
+     * @param  string  $ability
+     * @return void
+     */
+    #[TestWith([''])]
+    #[TestWith(['  '])]
+    public function testCanRefusesABlankAbility(string $ability): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('An ability field must name an ability');
+
+        Field::can($ability);
+    }
+
+    /**
+     * Test that an ability flag collides with a field of the same key.
+     *
+     * @return void
+     */
+    public function testCanCollidesWithAFieldOfTheSameKey(): void
+    {
+        $this->expectException(DuplicateSchemaKeyException::class);
+        $this->expectExceptionMessage('Duplicate schema key "can_update" detected in Field::set()');
+
+        Field::set(Field::can('update'), Field::scalar('can_update'));
+    }
+
+    /**
+     * Test that the gate is asked the trimmed ability as written, not the
+     * snake-cased key.
+     *
+     * @return void
+     */
+    public function testCanAsksTheGateTheTrimmedAbilityAsWritten(): void
+    {
+        $definition = Field::can(' forceDelete ')->toArray()['can_force_delete'];
+        $compute    = $definition['compute'];
+        $openapi    = $definition['openapi'];
+
+        self::assertIsCallable($compute);
+        self::assertInstanceOf(OpenApiFieldSchema::class, $openapi);
+        self::assertSame('Whether the current user passes the "forceDelete" ability for this record.', $openapi->description);
+
+        $this->bindGate(null);
+
+        self::assertTrue($compute(new JsonResource($this->article()), $this->requestFor($this->user(self::OWNER))));
+    }
+
+    /**
+     * Test that the flag is true for a request user the policy allows.
+     *
+     * @return void
+     */
+    public function testCanGrantsTheRequestUserThePolicyAllows(): void
+    {
+        $this->bindGate(null);
+
+        self::assertTrue($this->ability('restore', new JsonResource($this->article()), $this->requestFor($this->user(self::OWNER))));
+    }
+
+    /**
+     * Test that the flag is false for a request user the policy denies.
+     *
+     * @return void
+     */
+    public function testCanDeniesTheRequestUserThePolicyRefuses(): void
+    {
+        $this->bindGate(null);
+
+        self::assertFalse($this->ability('restore', new JsonResource($this->article()), $this->requestFor($this->user(self::OTHER))));
+    }
+
+    /**
+     * Test that the flag is false for a guest the policy cannot answer.
+     *
+     * @return void
+     */
+    public function testCanDeniesAGuest(): void
+    {
+        $this->bindGate(null);
+
+        self::assertFalse($this->ability('restore', new JsonResource($this->article()), $this->requestFor(null)));
+    }
+
+    /**
+     * Test that a guest is still put to a before hook that accepts no user.
+     *
+     * @return void
+     */
+    public function testCanGrantsAGuestABeforeHookAcceptingNoUserAllows(): void
+    {
+        $this->bindGate(null)->before(static fn (?Authenticatable $user): bool => $user === null);
+
+        self::assertTrue($this->ability('restore', new JsonResource($this->article()), $this->requestFor(null)));
+    }
+
+    /**
+     * Test that an ability nothing defines is denied.
+     *
+     * @return void
+     */
+    public function testCanDeniesAnAbilityNothingDefines(): void
+    {
+        $this->bindGate(null);
+
+        self::assertFalse($this->ability('publish', new JsonResource($this->article()), $this->requestFor($this->user(self::OWNER))));
+    }
+
+    /**
+     * Test that an ability nothing defines is granted by a before hook that
+     * answers it.
+     *
+     * @return void
+     */
+    public function testCanGrantsAnUndefinedAbilityABeforeHookAnswers(): void
+    {
+        $this->bindGate(null)->before(static fn (Authenticatable $user, string $ability): ?bool => $ability === 'publish' ? true : null);
+
+        self::assertTrue($this->ability('publish', new JsonResource($this->article()), $this->requestFor($this->user(self::OTHER))));
+    }
+
+    /**
+     * Test that the flag authorizes the record inside every resource layer.
+     *
+     * @return void
+     */
+    public function testCanAuthorizesTheInnermostRecord(): void
+    {
+        $this->bindGate(null);
+
+        $resource = new JsonResource(new JsonResource($this->article()));
+
+        self::assertTrue($this->ability('restore', $resource, $this->requestFor($this->user(self::OWNER))));
+    }
+
+    /**
+     * Test that the request user answers rather than the authenticated user.
+     *
+     * @return void
+     */
+    public function testCanAnswersForTheRequestUserOverTheAuthenticatedUser(): void
+    {
+        $this->bindGate($this->user(self::OTHER));
+
+        self::assertTrue($this->ability('restore', new JsonResource($this->article()), $this->requestFor($this->user(self::OWNER))));
+    }
+
+    /**
+     * Test that a guest request answers as a guest whoever is authenticated.
+     *
+     * @return void
+     */
+    public function testCanAnswersAGuestRequestAsAGuestDespiteAnAuthenticatedUser(): void
+    {
+        $this->bindGate($this->user(self::OWNER));
+
+        self::assertFalse($this->ability('restore', new JsonResource($this->article()), $this->requestFor(null)));
+    }
+
+    /**
+     * Test that the authenticated user answers when there is no request.
+     *
+     * @return void
+     */
+    public function testCanAnswersForTheAuthenticatedUserWithoutARequest(): void
+    {
+        $this->bindGate($this->user(self::OWNER));
+
+        self::assertTrue($this->ability('restore', new JsonResource($this->article()), null));
+    }
+
+    /**
+     * Test that a subject that is not an object is denied, even under a before
+     * hook granting everything.
+     *
+     * @return void
+     */
+    public function testCanDeniesASubjectThatIsNotAnObject(): void
+    {
+        $this->bindGate(null)->before(static fn (): bool => true);
+
+        $request = $this->requestFor($this->user(self::OWNER));
+
+        self::assertFalse($this->ability('restore', new JsonResource(null), $request));
+        self::assertFalse($this->ability('restore', new JsonResource(['user_id' => self::OWNER]), $request));
+    }
+
+    /**
+     * Test that the flag resolves the gate on every call, so one compiled
+     * closure follows a gate rebound in the container.
+     *
+     * @return void
+     */
+    public function testCanResolvesTheGateOnEveryCall(): void
+    {
+        $compute = Field::can('restore')->toArray()['can_restore']['compute'];
+        $request = $this->requestFor($this->user(self::OWNER));
+
+        self::assertIsCallable($compute);
+
+        $this->bindGate(null);
+
+        self::assertTrue($compute(new JsonResource($this->article()), $request));
+
+        $container = Container::getInstance();
+        $denying   = new Gate($container, static fn (): null => null);
+
+        $denying->before(static fn (): bool => false);
+        $container->instance(GateContract::class, $denying);
+
+        self::assertFalse($compute(new JsonResource($this->article()), $request));
+    }
+
+    /**
      * Test that compute creates a field with a compute callable.
      *
      * @return void
@@ -704,5 +988,77 @@ final class FieldTest extends TestCase
         self::assertInstanceOf(OpenApiFieldSchema::class, $array['status']['openapi']);
         self::assertSame('string', $array['status']['openapi']->type);
         self::assertSame(['draft', 'published'], $array['status']['openapi']->enum);
+    }
+
+    /**
+     * Resolve the flag for the given ability against the resource and request.
+     *
+     * @param  string  $ability
+     * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
+     * @param  \Illuminate\Http\Request|null  $request
+     * @return mixed
+     */
+    private function ability(string $ability, JsonResource $resource, ?Request $request): mixed
+    {
+        $compute = Field::can($ability)->toArray()['can_' . $ability]['compute'];
+
+        self::assertIsCallable($compute);
+
+        return $compute($resource, $request);
+    }
+
+    /**
+     * Bind a gate applying the article policy, with the given user signed in.
+     *
+     * @param  \Tests\Fixtures\Models\User|null  $authenticated
+     * @return \Illuminate\Auth\Access\Gate
+     */
+    private function bindGate(?User $authenticated): Gate
+    {
+        $container = new Container;
+        $gate      = new Gate($container, static fn (): ?User => $authenticated);
+
+        $gate->policy(Article::class, ArticlePolicy::class);
+        $container->instance(GateContract::class, $gate);
+
+        Container::setInstance($container);
+
+        return $gate;
+    }
+
+    /**
+     * Create a request made by the given user, or by a guest.
+     *
+     * @param  \Tests\Fixtures\Models\User|null  $user
+     * @return \Illuminate\Http\Request
+     */
+    private function requestFor(?User $user): Request
+    {
+        $request = Request::create('/');
+
+        $request->setUserResolver(static fn (): ?User => $user);
+
+        return $request;
+    }
+
+    /**
+     * Create a user with the given key.
+     *
+     * @param  int  $id
+     * @return \Tests\Fixtures\Models\User
+     */
+    private function user(int $id): User
+    {
+        return (new User)->forceFill(['id' => $id]);
+    }
+
+    /**
+     * Create an article authored by the owner.
+     *
+     * @return \Tests\Fixtures\Models\Article
+     */
+    private function article(): Article
+    {
+        return (new Article)->forceFill(['user_id' => self::OWNER]);
     }
 }
