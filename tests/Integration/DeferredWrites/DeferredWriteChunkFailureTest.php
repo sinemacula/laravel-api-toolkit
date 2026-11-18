@@ -4,11 +4,11 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\DeferredWrites;
 
+use Illuminate\Container\Container;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
-use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
 use Tests\Concerns\CommitsRealTransactions;
@@ -55,7 +55,7 @@ final class DeferredWriteChunkFailureTest extends TestCase
      */
     public function testAFailedChunkOutsideATransactionLeavesTheOtherChunksWritten(): void
     {
-        $this->assertTheTableMatches($this->flushAroundADuplicate());
+        $this->assertTheTableMatches($this->deferAroundADuplicate()->flushWrites());
     }
 
     /**
@@ -69,7 +69,7 @@ final class DeferredWriteChunkFailureTest extends TestCase
     public function testAFailedChunkInsideATransactionLeavesItUsable(): void
     {
         $result = DB::transaction(function (): WritePoolFlushResult {
-            $result = $this->flushAroundADuplicate();
+            $result = $this->deferAroundADuplicate()->flushWrites();
 
             self::assertSame(5, DB::table('users')->count());
 
@@ -89,33 +89,20 @@ final class DeferredWriteChunkFailureTest extends TestCase
      */
     public function testAFailedChunkInsideATransactionalServiceLeavesTheOtherChunksCommitted(): void
     {
-        $service = new class (new ArrayInput([]), $this->flushAroundADuplicate(...)) extends Service {
+        $this->deferAroundADuplicate();
+
+        $service = new class (new ArrayInput([])) extends Service {
             /**
-             * Create the service around the work it runs in its transaction.
-             *
-             * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $input
-             * @param  \Closure(): \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult  $work
-             */
-            public function __construct(
-
-                // The input the service runs with
-                ServiceInput $input,
-
-                /** The work the service runs in its transaction. */
-                private readonly \Closure $work,
-            ) {
-                parent::__construct($input);
-            }
-
-            /**
-             * Run the work.
+             * Flush the deferred users.
              *
              * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult
+             *
+             * @throws \Illuminate\Contracts\Container\BindingResolutionException
              */
             #[\Override]
             protected function handle(): WritePoolFlushResult
             {
-                return ($this->work)();
+                return Container::getInstance()->make(DeferrableUserRepository::class)->flushWrites();
             }
         };
 
@@ -123,14 +110,13 @@ final class DeferredWriteChunkFailureTest extends TestCase
     }
 
     /**
-     * Defer three chunks of two users, the middle one holding a taken email,
-     * and flush them.
+     * Defer three chunks of two users, the middle one holding a taken email.
      *
-     * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult
+     * @return \Tests\Fixtures\Repositories\DeferrableUserRepository
      *
      * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
-    private function flushAroundADuplicate(): WritePoolFlushResult
+    private function deferAroundADuplicate(): DeferrableUserRepository
     {
         $repository = $this->app?->make(DeferrableUserRepository::class);
 
@@ -140,7 +126,7 @@ final class DeferredWriteChunkFailureTest extends TestCase
             $repository->defer(['name' => $name, 'email' => "{$local}@example.com"]);
         }
 
-        return $repository->flushWrites();
+        return $repository;
     }
 
     /**

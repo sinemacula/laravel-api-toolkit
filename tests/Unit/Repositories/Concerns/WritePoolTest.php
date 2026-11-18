@@ -1686,28 +1686,29 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that a connection's kept records stay uncounted while it holds an
-     * open transaction and another connection flushes.
+     * Test that the records a connection gained inside a transaction still
+     * count after another connection flushes, so it flushes on its next
+     * deferral once the transaction ends.
      *
      * @return void
      */
-    public function testRecordsAConnectionKeptStayUncountedWhenAnotherConnectionFlushes(): void
+    public function testRecordsHeldByATransactionStillCountAfterAnotherConnectionFlushes(): void
     {
         $this->useAuditTestTables();
 
         $pool = new WritePool(chunkSize: 500, poolLimit: 2, transactions: $this->transactionTracker(...));
 
-        $pool->add('testing', 'nonexistent_table', ['col' => 'a']);
-        $pool->add('testing', 'nonexistent_table', ['col' => 'b']);
-
-        DB::transaction(function () use ($pool): void {
+        DB::connection('audit')->transaction(function () use ($pool): void {
             $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
             $pool->add('audit', 'test_records', ['name' => 'b', 'value' => '2']);
-            $pool->add('audit', 'test_records', ['name' => 'c', 'value' => '3']);
+            $pool->add('testing', 'test_records', ['name' => 'c', 'value' => '3']);
         });
 
-        self::assertSame(2, DB::connection('audit')->table('test_records')->count());
-        self::assertSame(3, $pool->count());
+        $pool->add('audit', 'test_records', ['name' => 'd', 'value' => '4']);
+
+        self::assertSame(1, DB::table('test_records')->count());
+        self::assertSame(3, DB::connection('audit')->table('test_records')->count());
+        self::assertTrue($pool->isEmpty());
     }
 
     /**
