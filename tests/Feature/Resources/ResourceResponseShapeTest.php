@@ -21,6 +21,7 @@ use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\Profile;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\PostResource;
@@ -108,6 +109,36 @@ final class ResourceResponseShapeTest extends TestCase
         self::assertArrayHasKey('_type', $posts[0]);
         self::assertArrayNotHasKey('body', $posts[0]);
         self::assertArrayNotHasKey('published', $posts[0]);
+    }
+
+    /**
+     * Test that to-one relations with no related row render as present null
+     * keys, while populated ones render their values.
+     *
+     * @return void
+     */
+    public function testAbsentToOneRelationsRenderAsNull(): void
+    {
+        $alice = User::query()->where('name', 'Alice')->firstOrFail();
+
+        Profile::create(['user_id' => $alice->id, 'bio' => 'Writes first posts']);
+        User::create(['name' => 'Bob', 'email' => 'bob@example.com', 'status' => 'active']);
+
+        $response = $this->getJson('/users?' . http_build_query([
+            'fields' => ['users' => 'name,organization,profile_bio'],
+        ]));
+
+        $response->assertOk();
+
+        /** @var array<string, array<string, mixed>> $users */
+        $users = array_column((array) $response->json('data'), null, 'name');
+
+        self::assertSame('Acme Corp', $users['Alice']['organization']['name']);
+        self::assertSame('Writes first posts', $users['Alice']['profile_bio']);
+        self::assertArrayHasKey('organization', $users['Bob']);
+        self::assertArrayHasKey('profile_bio', $users['Bob']);
+        self::assertNull($users['Bob']['organization']);
+        self::assertNull($users['Bob']['profile_bio']);
     }
 
     /**

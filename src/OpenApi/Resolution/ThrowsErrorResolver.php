@@ -7,7 +7,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 
 /**
- * Lists the ApiExceptions an action's @throws tags name.
+ * Lists the ApiExceptions a method's @throws tags name.
  *
  * Only ApiException subclasses reporting an HTTP status are kept, in tag order
  * and once each.
@@ -29,44 +29,44 @@ final readonly class ThrowsErrorResolver
     ) {}
 
     /**
-     * Resolve the ApiException classes the action documents.
+     * Resolve the ApiException classes the method documents.
      *
-     * @param  class-string  $controllerClass
-     * @param  string  $action
+     * @param  class-string  $class
+     * @param  string  $method
      * @return list<class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
      */
-    public function resolve(string $controllerClass, string $action): array
+    public function resolve(string $class, string $method): array
     {
         $classes = [];
 
-        foreach ($this->documentedThrows($controllerClass, $action) as $class) {
+        foreach ($this->documentedThrows($class, $method) as $exception) {
 
-            if (!$this->reportsStatus($class) || in_array($class, $classes, true)) {
+            if (!$this->reportsStatus($exception) || in_array($exception, $classes, true)) {
                 continue;
             }
 
-            $classes[] = $class;
+            $classes[] = $exception;
         }
 
         return $classes;
     }
 
     /**
-     * List the fully qualified class names the action's @throws tags name.
+     * List the fully qualified class names the method's @throws tags name.
      *
-     * @param  class-string  $controllerClass
-     * @param  string  $action
+     * @param  class-string  $class
+     * @param  string  $method
      * @return array<int, string>
      */
-    private function documentedThrows(string $controllerClass, string $action): array
+    private function documentedThrows(string $class, string $method): array
     {
         try {
-            $method = new \ReflectionMethod($controllerClass, $action);
+            $reflection = new \ReflectionMethod($class, $method);
         } catch (\ReflectionException) {
             return [];
         }
 
-        $docComment = $method->getDocComment();
+        $docComment = $reflection->getDocComment();
 
         if ($docComment === false) {
             return [];
@@ -75,7 +75,7 @@ final readonly class ThrowsErrorResolver
         preg_match_all('/@throws\s+([\\\\\w|]+)/', $docComment, $matches);
 
         return array_map(
-            fn (string $name): string => $this->classNames->resolve($name, $method),
+            fn (string $name): string => $this->classNames->resolve($name, $reflection),
             preg_split('/\|/', implode('|', $matches[1]), flags: PREG_SPLIT_NO_EMPTY) ?: [],
         );
     }

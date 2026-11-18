@@ -6,14 +6,15 @@ namespace Tests\Unit\Http\Resources\Concerns;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Gate;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Exceptions\PerItemGuardedFieldException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\DerivesTabularSchema;
-use SineMacula\ApiToolkit\Http\Resources\Concerns\RowGuardProbe;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -22,11 +23,12 @@ use SineMacula\Exporter\Schema\CastRegistry;
 use SineMacula\Exporter\Schema\Column;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserLevel;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Policies\ArticlePolicy;
 use Tests\Fixtures\Resources\DeviceResource;
 use Tests\Fixtures\Resources\GuardedExportResource;
 use Tests\Fixtures\Resources\PerItemGuardedExportResource;
-use Tests\Fixtures\Resources\ThrowingGuardExportResource;
 use Tests\TestCase;
 
 /**
@@ -38,7 +40,6 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(PerItemGuardedFieldException::class)]
-#[CoversClass(RowGuardProbe::class)]
 #[CoversTrait(DerivesTabularSchema::class)]
 #[Group('exporter')]
 final class DerivesTabularSchemaTest extends TestCase
@@ -92,12 +93,12 @@ final class DerivesTabularSchemaTest extends TestCase
     }
 
     /**
-     * Test that a request-scoped guard omits the whole column when it hides the
-     * field for the current request.
+     * Test that a caller guard omits the whole column when it hides the field
+     * for the current request.
      *
      * @return void
      */
-    public function testRequestScopedGuardOmitsColumnWhenHidden(): void
+    public function testCallerGuardOmitsColumnWhenHidden(): void
     {
         $user    = new User(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);
         $request = Request::create('/');
@@ -111,12 +112,12 @@ final class DerivesTabularSchemaTest extends TestCase
     }
 
     /**
-     * Test that a request-scoped guard keeps the column when it permits the
-     * field for the current request.
+     * Test that a caller guard keeps the column when it permits the field for
+     * the current request.
      *
      * @return void
      */
-    public function testRequestScopedGuardKeepsColumnWhenPermitted(): void
+    public function testCallerGuardKeepsColumnWhenPermitted(): void
     {
         $user    = new User(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);
         $request = Request::create('/?show=yes');
@@ -127,12 +128,12 @@ final class DerivesTabularSchemaTest extends TestCase
     }
 
     /**
-     * Test that a field guarded per-item is refused at schema-build time with
+     * Test that a field with a row guard is refused at schema-build time with
      * the dedicated exception naming the field.
      *
      * @return void
      */
-    public function testPerItemGuardedFieldThrows(): void
+    public function testRowGuardedFieldThrows(): void
     {
         $user    = new User(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);
         $request = Request::create('/');
@@ -146,21 +147,72 @@ final class DerivesTabularSchemaTest extends TestCase
     }
 
     /**
-     * Test that a guard that errors when handed a probe row is refused rather
-     * than exposed, failing closed.
+     * Provide the row guard shapes a resource is written with.
      *
+     * @return iterable<string, array{array<string, mixed>}>
+     */
+    public static function rowGuardShapes(): iterable
+    {
+        $shapes = [
+            'request only'               => static fn ($resource, $request): bool => $request?->query('show') === 'yes',
+            'typed resource and request' => static fn (ApiResource $resource, ?Request $request): bool => $request?->query('show') === 'yes',
+            'type checked then row read' => static fn (mixed $resource): bool => !$resource instanceof ApiResource || data_get($resource->resource, 'status') === 'active',
+            'throwing'                   => static fn (): never => throw new \RuntimeException('needs a real row'),
+        ];
+
+        foreach ($shapes as $label => $guard) {
+            yield $label => [['guards' => [$guard]]];
+        }
+    }
+
+    /**
+     * Test that every row guard is refused without being run, whatever it
+     * reads, since only the row it is handed could prove it reads none.
+     *
+     * A guard run against anything but a resource would throw on its own.
+     *
+     * @param  array<string, mixed>  $secret
      * @return void
      */
-    public function testGuardThatErrorsOnProbeRowIsRefused(): void
+    #[DataProvider('rowGuardShapes')]
+    public function testEveryRowGuardIsRefusedWithoutBeingRun(array $secret): void
     {
-        $user    = new User(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);
-        $request = Request::create('/');
+        $request = Request::create('/?show=yes');
 
         ApiQuery::parse($request);
 
         $this->expectException(PerItemGuardedFieldException::class);
+        $this->expectExceptionMessage('The "secret" field on the "row_guard_shape_exports" resource carries a row guard');
 
-        (new ThrowingGuardExportResource($user))->tabular($request);
+        $this->resourceWithSecret($secret)->tabular($request);
+    }
+
+    /**
+     * Test that a caller guard sees the export's request when the exporter asks
+     * whether the column is visible, and only then.
+     *
+     * @return void
+     */
+    public function testCallerGuardIsAskedAboutTheExportRequestOnly(): void
+    {
+        $request = Request::create('/');
+        /** @var \ArrayObject<int, \Illuminate\Http\Request|null> $received */
+        $received = new \ArrayObject;
+
+        ApiQuery::parse($request);
+
+        $resource = $this->resourceWithSecret(['caller_guards' => [static function (?Request $request) use ($received): bool {
+
+            $received[] = $request;
+
+            return false;
+        }]]);
+
+        $column = $resource->tabular($request)->columns()[1];
+
+        self::assertSame([], $received->getArrayCopy());
+        self::assertFalse($column->isVisible($request));
+        self::assertSame([$request], $received->getArrayCopy());
     }
 
     /**
@@ -204,6 +256,54 @@ final class DerivesTabularSchemaTest extends TestCase
         self::assertCount(1, $columns);
         self::assertSame('contact', $columns[0]->getKey());
         self::assertSame('alice@example.com', $columns[0]->toCellValue($user, $request, new CastRegistry)->raw);
+    }
+
+    /**
+     * Test that an ability flag exports a boolean cell answering for the
+     * request's user on each row.
+     *
+     * @return void
+     */
+    public function testAbilityFieldExportsABooleanCellPerRow(): void
+    {
+        $resource = new class (null) extends ApiResource implements ProvidesTabularExport {
+            use DerivesTabularSchema;
+
+            /** @var string */
+            public const string RESOURCE_TYPE = 'ability_export';
+
+            /** @var array<int, string> */
+            protected static array $default = ['can_restore'];
+
+            /**
+             * Return the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::can('restore'),
+                );
+            }
+        };
+
+        Gate::policy(Article::class, ArticlePolicy::class);
+
+        $request = Request::create('/');
+
+        $request->setUserResolver(static fn (): User => (new User)->forceFill(['id' => 1]));
+
+        ApiQuery::parse($request);
+
+        $column = $resource->tabular($request)->columns()[0];
+        $cells  = array_map(
+            static fn (Article $article): mixed => $column->toCellValue($article, $request, new CastRegistry)->raw,
+            [(new Article)->forceFill(['user_id' => 1]), (new Article)->forceFill(['user_id' => 2])],
+        );
+
+        self::assertSame([true, false], $cells);
     }
 
     /**
@@ -290,6 +390,44 @@ final class DerivesTabularSchemaTest extends TestCase
 
         self::assertCount(1, $columns);
         self::assertSame('flagged', $columns[0]->getKey());
+    }
+
+    /**
+     * Build an exportable resource whose secret field carries the given raw
+     * definition.
+     *
+     * @param  array<string, mixed>  $secret
+     * @return \SineMacula\Exporter\Contracts\ProvidesTabularExport
+     */
+    private function resourceWithSecret(array $secret): ProvidesTabularExport
+    {
+        $resource = new class (null) extends ApiResource implements ProvidesTabularExport {
+            use DerivesTabularSchema;
+
+            /** @var string */
+            public const string RESOURCE_TYPE = 'row_guard_shape_exports';
+
+            /** @var array<string, mixed> */
+            public static array $secret = [];
+
+            /** @var array<int, string> */
+            protected static array $default = ['id', 'secret'];
+
+            /**
+             * Return a schema whose secret field carries the given definition.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return ['id' => [], 'secret' => self::$secret];
+            }
+        };
+
+        $resource::$secret = $secret;
+
+        return $resource;
     }
 
     /**

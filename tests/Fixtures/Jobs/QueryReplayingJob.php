@@ -27,12 +27,16 @@ final class QueryReplayingJob implements ShouldQueue
      * Create a new query replaying job instance.
      *
      * @param  \SineMacula\ApiToolkit\Query\ApiQuerySnapshot|null  $query
+     * @param  class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>  $resource
      * @return void
      */
     public function __construct(
 
         /** The query to replay, or null to read under none */
         public readonly ?ApiQuerySnapshot $query = null,
+
+        /** The resource the users are read through and rendered by */
+        public readonly string $resource = UserResource::class,
     ) {}
 
     /**
@@ -43,10 +47,12 @@ final class QueryReplayingJob implements ShouldQueue
      */
     public function handle(UserRepository $users): void
     {
-        $read = static fn (): array => $users->usingResource(UserResource::class)
+        $resource = $this->resource;
+
+        $read = static fn (): array => $users->usingResource($resource)
             ->withApiCriteria()
             ->lazyById()
-            ->map(static fn (Model $user): array => (new UserResource($user))->resolve())
+            ->map(static fn (Model $user): array => (new $resource($user))->resolve())
             ->all();
 
         self::$rendered = $this->query === null ? $read() : ApiQuery::using($this->query, $read);

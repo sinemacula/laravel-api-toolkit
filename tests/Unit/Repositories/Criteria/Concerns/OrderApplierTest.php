@@ -11,6 +11,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
+use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
@@ -390,6 +392,7 @@ final class OrderApplierTest extends TestCase
         return new QuerySurface(
             new CompiledSchema([], sortableColumns: ['name', 'email', 'created_at']),
             new RelationTraversal(app(SchemaIntrospectionProvider::class), []),
+            new CallerAdmission(Request::create('/'), new GuardEvaluator),
         );
     }
 
