@@ -4,7 +4,10 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Exceptions;
 
+use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
+use SineMacula\ApiToolkit\OpenApi\Contracts\DefinesErrorMeta;
+use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\Http\Enums\HttpStatus;
 
 /**
@@ -13,7 +16,7 @@ use SineMacula\Http\Enums\HttpStatus;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class QueryTooExpensiveException extends ApiException
+final class QueryTooExpensiveException extends ApiException implements DefinesErrorMeta
 {
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::QUERY_TOO_EXPENSIVE;
@@ -40,5 +43,27 @@ final class QueryTooExpensiveException extends ApiException
             'limit'     => $limit,
             'actual'    => $actual,
         ]);
+    }
+
+    /**
+     * Return the schema of the meta naming the cap exceeded and where.
+     *
+     * @return array<string, mixed>
+     */
+    #[\Override]
+    public static function metaSchema(): array
+    {
+        return [
+            'type'       => 'object',
+            'properties' => [
+                'parameter' => ['type' => 'string'],
+                'pointer'   => ['type' => 'string'],
+                'reason'    => ['type' => 'string', 'enum' => [...QueryCostLimits::NAMES, QueryParameterValidator::MAX_LIMIT]],
+                'limit'     => ['type' => 'integer'],
+                'actual'    => ['type' => 'integer'],
+            ],
+            'required'             => ['parameter', 'pointer', 'reason', 'limit', 'actual'],
+            'additionalProperties' => false,
+        ];
     }
 }

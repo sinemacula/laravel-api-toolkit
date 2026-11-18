@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi\Docs;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\OpenApi\Docs\Module;
 use SineMacula\ApiToolkit\OpenApi\Docs\ModuleSectionGrouper;
 use SineMacula\ApiToolkit\OpenApi\Docs\QuerySurfaceDocGenerator;
@@ -251,6 +252,26 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
         self::assertStringContainsString('"limit": 50,', $markdown);
         self::assertStringContainsString('"actual": 51', $markdown);
         self::assertStringNotContainsString('500', $markdown);
+    }
+
+    /**
+     * Test that the worked rejection carries the meta its error code declares.
+     *
+     * @return void
+     */
+    public function testRejectionExampleCarriesTheDeclaredMeta(): void
+    {
+        $markdown = $this->combinedGenerator()->generate([], ['max_in_items' => 50], []);
+
+        self::assertSame(1, preg_match('/```json\n(.*?)\n```/s', $markdown, $block));
+
+        $meta    = json_decode($block[1], true, 512, JSON_THROW_ON_ERROR)['error']['meta'];
+        $reasons = QueryTooExpensiveException::metaSchema()['properties']['reason']['enum'];
+
+        self::assertIsArray($meta);
+        self::assertIsArray($reasons);
+        self::assertSame(QueryTooExpensiveException::metaSchema()['required'], array_keys($meta));
+        self::assertContains($meta['reason'], $reasons);
     }
 
     /**

@@ -45,7 +45,7 @@ return [
     |                          which falls back to Laravel's rendering.
     |
     | `include_debug_info` adds the message, file, line and trace of the
-    | underlying exception to the response meta. Null follows app.debug; keep it
+    | underlying exception under `error.debug`. Null follows app.debug; keep it
     | false in production.
     |
     | `map` renders an exception as one of your ApiExceptions. A key naming a

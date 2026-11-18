@@ -223,10 +223,11 @@ final class ExceptionRenderingTest extends TestCase
     }
 
     /**
-     * Test that the rendered error payload matches the documented envelope.
+     * Test that the rendered error payload matches the documented envelope of
+     * its code.
      *
-     * The ErrorEnvelope schema is hand-mirrored, so this stops it drifting from
-     * the runtime payload.
+     * The envelopes are hand-mirrored, so this stops them drifting from the
+     * runtime payload.
      *
      * @return void
      */
@@ -234,27 +235,23 @@ final class ExceptionRenderingTest extends TestCase
     {
         assert($this->app !== null);
 
-        $schema     = $this->app->make(ErrorResponseBuilder::class)->buildEnvelopeSchema();
-        $properties = data_get($schema, 'properties.error.properties');
-
-        assert(is_array($properties));
+        $schemas = $this->app->make(ErrorResponseBuilder::class)->buildEnvelopeSchemas(['/errors' => ['get' => ['responses' => [
+            409 => ['content' => ['application/json' => ['examples' => ['Error10108' => ['$ref' => '#/components/examples/Error10108']]]]],
+            500 => ['content' => ['application/json' => ['examples' => ['Error10001' => ['$ref' => '#/components/examples/Error10001']]]]],
+        ]]]]);
 
         $full = (array) $this->getJson('/toolkit-exception')->json('error');
 
-        self::assertEqualsCanonicalizing(array_keys($properties), array_keys($full));
+        self::assertEqualsCanonicalizing(array_keys((array) data_get($schemas, 'Error10108.properties.error.properties')), array_keys($full));
 
-        $minimal  = (array) $this->getJson('/unhandled')->json('error');
-        $envelope = Helper::toJSON($schema);
+        foreach (['Error10108' => $full, 'Error10001' => (array) $this->getJson('/unhandled')->json('error')] as $name => $payload) {
 
-        self::assertIsObject($envelope);
+            $envelope = Helper::toJSON($schemas[$name]);
 
-        foreach ([$full, $minimal] as $payload) {
-
-            $result = (new Validator)->validate(Helper::toJSON(['error' => $payload]), $envelope);
-
+            self::assertIsObject($envelope);
             self::assertTrue(
-                $result->isValid(),
-                'The rendered error payload must validate against the ErrorEnvelope schema.',
+                (new Validator)->validate(Helper::toJSON(['error' => $payload]), $envelope)->isValid(),
+                sprintf('The rendered error payload must validate against the %s schema.', $name),
             );
         }
     }
