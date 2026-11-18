@@ -63,7 +63,9 @@ A Payload enum value is checked with the other rules and fails with Laravel's `v
 
 `ApiQueryParser` sits behind the `ApiQuery` facade and is populated by the `ParseApiQuery` middleware, which the
 service provider pushes onto the global middleware stack unless `api-toolkit.parser.register_middleware` is `false`.
-Parameters are read from the query string only; a request body is never parsed.
+Parameters are read from the query string only; a request body is never parsed. Every key and value in `page`, `limit`,
+`cursor`, `fields`, `aggregates`, `filters`, `search`, `order` and `trashed` must be valid UTF-8, or the request is
+rejected with a 422 on that parameter.
 
 **Sparse fieldsets** - request only the fields you need for a resource type:
 
@@ -710,6 +712,8 @@ Exceptions are mapped to `ApiException` subclasses and rendered as JSON error re
 
 On a precognitive request a `ValidationException` renders as Laravel's `{message, errors}` body, which Precognition
 clients read, rather than the error envelope.
+
+Malformed UTF-8 in an error body, such as a client's key echoed in a validation message, is rendered as U+FFFD.
 
 `api-toolkit.exceptions.map` renders an exception as an `ApiException` of your own:
 

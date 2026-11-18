@@ -47,18 +47,57 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that extract keeps the trashed parameter exactly as sent, so the
-     * validator refuses anything but an exact state.
+     * Test that the parser reads exactly the toolkit's query parameters.
      *
      * @return void
      */
-    public function testExtractKeepsTheTrashedParameterAsSent(): void
+    public function testParametersListEveryParameterTheParserReads(): void
     {
-        $padded = $this->extractor->extract(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['trashed' => ' WITH ']));
-        $listed = $this->extractor->extract(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['trashed' => ['with']]));
+        self::assertSame(
+            ['page', 'limit', 'cursor', 'fields', 'aggregates', 'filters', 'search', 'order', 'trashed'],
+            QueryParameterExtractor::PARAMETERS,
+        );
+    }
 
-        self::assertSame(' WITH ', $padded['trashed']);
-        self::assertSame(['with'], $listed['trashed']);
+    /**
+     * Test that a parameter the parser does not read is never extracted.
+     *
+     * @return void
+     */
+    public function testExtractIgnoresParametersTheParserDoesNotRead(): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['q' => 'x', 'pretty' => '1', 'pagination' => 'cursor', 'limit' => '5']);
+
+        self::assertSame(['limit' => '5'], $this->extractor->extract($request));
+    }
+
+    /**
+     * Provide trashed values of any shape.
+     *
+     * @return iterable<string, array{mixed}>
+     */
+    public static function trashedValueProvider(): iterable
+    {
+        yield 'padded' => [' WITH '];
+        yield 'list' => [['with']];
+        yield 'null' => [null];
+        yield 'integer' => [1];
+        yield 'boolean' => [true];
+    }
+
+    /**
+     * Test that extract keeps the trashed parameter exactly as sent, so the
+     * validator refuses anything but an exact state.
+     *
+     * @param  mixed  $trashed
+     * @return void
+     */
+    #[DataProvider('trashedValueProvider')]
+    public function testExtractKeepsTheTrashedParameterAsSent(mixed $trashed): void
+    {
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['trashed' => $trashed]);
+
+        self::assertSame(['trashed' => $trashed], $this->extractor->extract($request));
     }
 
     /**
@@ -482,17 +521,36 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that a search parameter of the wrong shape is rejected.
+     * Provide search values that are not text.
      *
+     * @return iterable<string, array{mixed}>
+     */
+    public static function nonTextSearchProvider(): iterable
+    {
+        yield 'list' => [['smith']];
+        yield 'null' => [null];
+        yield 'integer' => [42];
+        yield 'boolean' => [true];
+    }
+
+    /**
+     * Test that a search parameter that is not text is read as an empty term
+     * and rejected.
+     *
+     * @param  mixed  $search
      * @return void
      */
-    public function testExtractRejectsANonStringSearchParameter(): void
+    #[DataProvider('nonTextSearchProvider')]
+    public function testExtractRejectsANonTextSearchParameter(mixed $search): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['search' => ['smith']]);
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['search' => $search]);
 
-        $this->expectException(ValidationException::class);
-
-        $this->extractor->extract($request);
+        try {
+            $this->extractor->extract($request);
+            self::fail('Expected a ValidationException for the search parameter.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['search' => ['Every word in the search term must be at least 3 characters.']], $exception->errors());
+        }
     }
 
     /**

@@ -5,7 +5,8 @@ declare(strict_types = 1);
 return [
 
     'query' => [
-        'undeclared_key' => 'The ":key" key is not a permitted query parameter for this resource.',
+        'undeclared_key'     => 'The ":key" key is not a permitted query parameter for this resource.',
+        'malformed_encoding' => 'The :parameter parameter must be valid UTF-8.',
     ],
 
     'fields' => [
