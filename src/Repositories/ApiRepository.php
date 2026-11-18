@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
+use SineMacula\ApiToolkit\Repositories\Concerns\OffsetPaginator;
 use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
 use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
@@ -38,6 +39,9 @@ abstract class ApiRepository extends Repository
 
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\PageOrder */
     private PageOrder $pageOrder;
+
+    /** @var \SineMacula\ApiToolkit\Repositories\Concerns\OffsetPaginator */
+    private OffsetPaginator $offsetPaginator;
 
     /**
      * Set a custom resource class to be used.
@@ -109,16 +113,24 @@ abstract class ApiRepository extends Repository
     {
         try {
 
+            $cursor = ApiQuery::isCursorPaginated();
+            $limit  = ApiQuery::getResolvedLimit();
+            $page   = ApiQuery::getPage() ?? 1;
+
+            // Refused before composing, which can read the schema
+            if (!$cursor) {
+                $this->offsetPaginator->guard($page, $limit);
+            }
+
             /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
             $query = $this->prepareQueryBuilder();
             $query = $this->pageOrder->complete($query);
-            $limit = ApiQuery::getResolvedLimit();
 
-            if ($this->resolvePaginationMethod() === 'cursorPaginate') {
+            if ($cursor) {
                 // A null cursor would make the paginator re-read the request
                 $results = $query->cursorPaginate($limit, '*', 'cursor', $this->pageOrder->cursor($query, ApiQuery::getCursor() ?? '') ?? '');
             } else {
-                $results = $query->paginate($limit, '*', 'page', ApiQuery::getPage());
+                $results = $this->offsetPaginator->paginate($query, $page, $limit);
             }
 
             $results->appends(Request::query());
@@ -198,6 +210,7 @@ abstract class ApiRepository extends Repository
         $introspector = $this->app->make(SchemaIntrospectionProvider::class);
 
         $this->pageOrder       = new PageOrder(new ColumnLiteral($introspector));
+        $this->offsetPaginator = new OffsetPaginator;
         $this->attributeSetter = new AttributeSetter($introspector);
     }
 
@@ -229,19 +242,5 @@ abstract class ApiRepository extends Repository
         } catch (\Throwable $exception) {
             FailureReporter::report($exception, 'Repository cache flush after persist failed.');
         }
-    }
-
-    /**
-     * Resolve which pagination method to use.
-     *
-     * @return string
-     */
-    private function resolvePaginationMethod(): string
-    {
-        if (ApiQuery::isCursorPaginated()) {
-            return 'cursorPaginate';
-        }
-
-        return 'paginate';
     }
 }

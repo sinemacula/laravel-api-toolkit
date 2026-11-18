@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Feature\Query;
 
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -13,7 +14,9 @@ use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ProvidesApiEnvelope;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
+use SineMacula\ApiToolkit\Repositories\Concerns\OffsetPaginator;
 use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
+use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
@@ -30,11 +33,12 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiRepository::class)]
 #[CoversClass(ApiResourceCollection::class)]
+#[CoversClass(OffsetPaginator::class)]
 #[CoversClass(PageOrder::class)]
 #[CoversTrait(ProvidesApiEnvelope::class)]
 final class OffsetPaginationTest extends TestCase
 {
-    use RegistersApiExceptionHandler;
+    use RecordsStatements, RegistersApiExceptionHandler;
 
     /**
      * Set up each test with a repository-backed users route and seeded rows.
@@ -51,6 +55,13 @@ final class OffsetPaginationTest extends TestCase
         Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($users, FilterableUserResource::class);
+        });
+
+        Route::middleware(ParseApiQuery::class)->get('/plain-users', function (UserRepository $repository): ApiResourceCollection {
+
+            $users = $repository->paginate();
 
             return new ApiResourceCollection($users, FilterableUserResource::class);
         });
@@ -79,6 +90,7 @@ final class OffsetPaginationTest extends TestCase
         $response->assertJsonPath('data.1.name', 'Dan');
 
         $response->assertJsonPath('meta.total', 5);
+        $response->assertJsonPath('meta.total_capped', false);
         $response->assertJsonPath('meta.count', 2);
         $response->assertJsonPath('meta.continue', true);
 
@@ -136,6 +148,76 @@ final class OffsetPaginationTest extends TestCase
         $response->assertJsonPath('meta.total', 5);
         $response->assertJsonPath('meta.count', 2);
         $response->assertJsonPath('meta.continue', true);
+    }
+
+    /**
+     * Test that a full page runs the read and one count over a constant
+     * projection, and nothing else.
+     *
+     * @return void
+     */
+    public function testFullPageRunsTheReadAndOneCount(): void
+    {
+        $this->getJson('/users?limit=2&page=2')->assertOk();
+
+        $statements = $this->recordStatements(fn () => $this->getJson('/users?limit=2&page=2')->assertOk());
+        $grammar    = DB::connection()->getQueryGrammar();
+
+        self::assertStatementCount(2, $statements);
+        self::assertStringEndsWith('limit 2 offset 2', $statements[0]);
+        self::assertStringStartsWith(sprintf('select count(*) as %s from (select 1 from %s ', $grammar->wrap('aggregate'), $grammar->wrap('users')), $statements[1]);
+    }
+
+    /**
+     * Test that a total past the pages the offset cap allows is flagged and not
+     * sent as a header, and that its last link is a page the cap serves.
+     *
+     * @return void
+     */
+    public function testTotalPastTheOffsetCapIsFlaggedAndItsLastLinkIsServed(): void
+    {
+        Config::set('api-toolkit.query_cost.max_offset', 4);
+
+        User::create(['name' => 'Fay', 'email' => 'fay@example.com']);
+        User::create(['name' => 'Gus', 'email' => 'gus@example.com']);
+
+        $response = $this->getJson('/users?limit=2');
+
+        $response->assertOk();
+        $response->assertJsonPath('meta.total', 6);
+        $response->assertJsonPath('meta.total_capped', true);
+        $response->assertHeaderMissing('Total-Count');
+
+        $link = $response->json('links.last');
+
+        self::assertIsString($link);
+
+        $last = $this->getJson($link);
+
+        $last->assertOk();
+        $last->assertJsonPath('data.1.name', 'Fay');
+        $last->assertJsonPath('meta.total_capped', true);
+        $last->assertJsonPath('meta.continue', false);
+
+        self::assertNull($last->json('links.next'));
+    }
+
+    /**
+     * Test that a page past the offset cap is refused when the repository pages
+     * without the API criteria.
+     *
+     * @return void
+     */
+    public function testPagePastTheOffsetCapIsRefusedWithoutTheCriteria(): void
+    {
+        Config::set('api-toolkit.query_cost.max_offset', 4);
+
+        $response = $this->getJson('/plain-users?limit=2&page=4');
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.meta.reason', 'max_offset');
+        $response->assertJsonPath('error.meta.limit', 3);
+        $response->assertJsonPath('error.meta.actual', 4);
     }
 
     /**

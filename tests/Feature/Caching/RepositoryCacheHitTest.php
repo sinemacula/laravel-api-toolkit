@@ -106,14 +106,14 @@ final class RepositoryCacheHitTest extends TestCase
      */
     public function testRepeatedPaginatedReadRunsItsQueriesAgain(): void
     {
-        $first = $this->getJson('/cached-users/paged');
+        $first = $this->getJson('/cached-users/paged?limit=2');
 
         $first->assertOk();
 
         DB::enableQueryLog();
         DB::flushQueryLog();
 
-        $second = $this->getJson('/cached-users/paged');
+        $second = $this->getJson('/cached-users/paged?limit=2');
 
         $second->assertOk();
 

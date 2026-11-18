@@ -137,106 +137,18 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Test that exactly the offset cap is accepted.
-     *
-     * The cap counts the rows skipped to reach the page.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testExactlyTheOffsetCapIsAccepted(): void
-    {
-        Config::set('api-toolkit.query_cost.max_offset', 100);
-
-        $this->parseQuery(['page' => '11', 'limit' => '10']);
-
-        $this->expectNotToPerformAssertions();
-
-        $this->guard->guard(self::RESOURCE_TYPE);
-    }
-
-    /**
-     * Test that the same page is bounded differently at a larger page size.
-     *
-     * @return void
-     */
-    public function testTheSamePageIsRejectedAtALargerPageSize(): void
-    {
-        Config::set('api-toolkit.query_cost.max_offset', 100);
-
-        $this->parseQuery(['page' => '11', 'limit' => '20']);
-
-        $this->assertRejectedForCost('page', QueryCostLimits::MAX_OFFSET, 6, 11);
-    }
-
-    /**
-     * Test that a cursor-paginated read is not charged an offset.
+     * Test that a page past the offset cap is left to the paginator, so a read
+     * that does not page is not refused.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testCursorPaginatedReadIsNotChargedAnOffset(): void
-    {
-        Config::set('api-toolkit.query_cost.max_offset', 10);
-
-        $this->parseQuery(['page' => '5000', 'limit' => '50', 'pagination' => 'cursor']);
-
-        $this->expectNotToPerformAssertions();
-
-        $this->guard->guard(self::RESOURCE_TYPE);
-    }
-
-    /**
-     * Test that a page beyond the offset cap is rejected, not clamped.
-     *
-     * @return void
-     */
-    public function testPageBeyondTheOffsetCapIsRejected(): void
+    public function testPagePastTheOffsetCapIsNotRefused(): void
     {
         Config::set('api-toolkit.query_cost.max_offset', 100);
 
         $this->parseQuery(['page' => '12', 'limit' => '10']);
-
-        // Reported in pages, the unit the caller supplied
-        $this->assertRejectedForCost('page', QueryCostLimits::MAX_OFFSET, 11, 12);
-
-        self::assertSame(12, ApiQuery::getPage());
-    }
-
-    /**
-     * Test that a cap of zero leaves the offset unbounded.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testACapOfZeroLeavesTheOffsetUnbounded(): void
-    {
-        Config::set('api-toolkit.query_cost.max_offset', 0);
-
-        $this->parseQuery(['page' => '100000', 'limit' => '100']);
-
-        $this->expectNotToPerformAssertions();
-
-        $this->guard->guard(self::RESOURCE_TYPE);
-    }
-
-    /**
-     * Test that a missing page number leaves the offset cap nothing to measure.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testRequestWithoutAPageIsNotBoundedByTheOffsetCap(): void
-    {
-        Config::set('api-toolkit.query_cost.max_offset', 1);
-
-        ApiQuery::shouldReceive('getOrder')->andReturn([]);
-        ApiQuery::shouldReceive('getAggregates')->andReturn(null);
-        ApiQuery::shouldReceive('getPage')->andReturn(null);
 
         $this->expectNotToPerformAssertions();
 

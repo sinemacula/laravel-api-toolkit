@@ -1202,21 +1202,21 @@ final class ApiCriteriaTest extends TestCase
      */
     public function testApplyEnforcesTheFlatCostCapsBeforeBuildingTheQuery(): void
     {
-        Config::set('api-toolkit.query_cost.max_offset', 100);
+        Config::set('api-toolkit.query_cost.max_order_keys', 1);
 
-        $this->parseRequest(Request::create('/test', HttpMethod::GET->getVerb(), ['page' => '12', 'limit' => '10']));
+        $this->parseRequest(Request::create('/test', HttpMethod::GET->getVerb(), ['order' => 'name,email']));
 
         try {
             $this->criteria->apply(new User);
 
-            self::fail('Expected a rejection for a page beyond the offset cap.');
+            self::fail('Expected a rejection for an order beyond the order-key cap.');
         } catch (QueryTooExpensiveException $exception) {
             self::assertSame([
-                'parameter' => 'page',
+                'parameter' => 'order',
                 'pointer'   => '',
-                'reason'    => QueryCostLimits::MAX_OFFSET,
-                'limit'     => 11,
-                'actual'    => 12,
+                'reason'    => QueryCostLimits::MAX_ORDER_KEYS,
+                'limit'     => 1,
+                'actual'    => 2,
             ], $exception->getCustomMeta());
         }
     }

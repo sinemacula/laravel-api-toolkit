@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Repositories\Concerns\OffsetPaginator;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
@@ -43,6 +44,7 @@ use Tests\TestCase;
 #[CoversClass(ApiCriteria::class)]
 #[CoversClass(EagerLoadApplier::class)]
 #[CoversClass(FilterApplier::class)]
+#[CoversClass(OffsetPaginator::class)]
 #[CoversClass(QueryCostGuard::class)]
 #[CoversClass(QueryParameterValidator::class)]
 #[CoversClass(QueryTooExpensiveException::class)]

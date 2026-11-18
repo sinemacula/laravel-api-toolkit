@@ -68,7 +68,7 @@ final readonly class QuerySurfaceDocGenerator
         QueryCostLimits::MAX_IN_ITEMS      => 'The items a single operator value list carries, such as the one `$in` reads.',
         QueryCostLimits::MAX_ORDER_KEYS    => 'The columns one request may order by.',
         QueryCostLimits::MAX_AGGREGATES    => 'The relation aggregates one request may ask for.',
-        QueryCostLimits::MAX_OFFSET        => 'The rows a paginated read may scan past to reach its page.',
+        QueryCostLimits::MAX_OFFSET        => 'The rows a paginated read may scan past to reach its page, and so how far its total counts.',
         QueryParameterValidator::MAX_LIMIT => 'The records one page may carry, asked for with `limit`.',
     ];
 

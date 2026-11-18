@@ -285,7 +285,10 @@ return [
     | `max_order_keys`  - sort columns.
     | `max_aggregates`  - relation aggregates.
     | `max_offset`      - rows skipped to reach a page, (page - 1) x page size;
-    |                     cursor pagination is exempt.
+    |                     cursor pagination is exempt. It also bounds the
+    |                     count: a total past the last page it allows stops
+    |                     there, with `meta.total_capped` true and no
+    |                     `Total-Count`. 0 counts every match.
     */
 
     'query_cost' => [

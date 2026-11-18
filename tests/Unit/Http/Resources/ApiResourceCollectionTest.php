@@ -227,6 +227,30 @@ final class ApiResourceCollectionTest extends TestCase
     }
 
     /**
+     * Test that a simple paginator renders the cursor envelope and no total.
+     *
+     * @return void
+     */
+    public function testSimplePaginatorRendersTheCursorEnvelopeWithoutATotal(): void
+    {
+        User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        User::create(['name' => 'Bob', 'email' => 'bob@example.com']);
+
+        $request    = Request::create('/users', HttpMethod::GET->getVerb());
+        $collection = new ApiResourceCollection(User::query()->simplePaginate(1, ['*'], 'page', 1), UserResource::class);
+        $response   = $collection->toResponse($request);
+
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(['continue' => true], $response->getData(true)['meta']);
+        self::assertSame([
+            'self' => 'http://localhost?page=1',
+            'prev' => null,
+            'next' => 'http://localhost?page=2',
+        ], $response->getData(true)['links']);
+        self::assertFalse($response->headers->has('Total-Count'));
+    }
+
+    /**
      * Test that paginationInformation for non-paginator returns empty array.
      *
      * @return void
