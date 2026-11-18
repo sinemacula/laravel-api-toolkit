@@ -288,6 +288,7 @@ final class ColumnTypeMapperTest extends TestCase
         yield 'int' => ['int', ['type' => 'integer']];
         yield 'integer' => ['integer', ['type' => 'integer']];
         yield 'uppercase integer' => ['INTEGER', ['type' => 'integer']];
+        yield 'padded integer' => [' integer ', ['type' => 'integer']];
         yield 'timestamp' => ['timestamp', ['type' => 'integer']];
         yield 'float' => ['float', ['type' => 'number']];
         yield 'double' => ['double', ['type' => 'number']];

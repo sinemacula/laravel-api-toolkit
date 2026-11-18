@@ -152,8 +152,8 @@ final class OpenApiFieldTypeParityTest extends TestCase
      * Build the schema expected for each field on the engine under test.
      *
      * PostgreSQL alone reports a boolean and a uuid column by type, a float
-     * column fetches as a string there before PHP 8.4, and MariaDB reports a
-     * JSON column as longtext.
+     * column fetches as a string there before PHP 8.4, and SQLite and MariaDB
+     * report a JSON column as text.
      *
      * @return array<string, array<string, mixed>>
      */

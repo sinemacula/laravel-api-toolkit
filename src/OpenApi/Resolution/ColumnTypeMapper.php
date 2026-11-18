@@ -99,15 +99,15 @@ final readonly class ColumnTypeMapper
 
     /**
      * Resolve a schema shape from a model cast, read as Eloquent reads it: a
-     * bare name in any case, a date or decimal argument after a lower-case
-     * prefix.
+     * bare name in any case and trimmed, a date or decimal argument after a
+     * lower-case prefix.
      *
      * @param  string  $cast
      * @return array{type: string, format?: string}|null
      */
     private function resolveFromCast(string $cast): ?array
     {
-        $normalised = strtolower($cast);
+        $normalised = trim(strtolower($cast));
 
         return match (true) {
             isset(self::SCALAR_CASTS[$normalised]) => ['type' => self::SCALAR_CASTS[$normalised]],
