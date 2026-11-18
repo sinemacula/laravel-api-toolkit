@@ -6,6 +6,7 @@ namespace Tests\Feature\Query;
 
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
@@ -19,8 +20,10 @@ use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\PinnedPostsUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -53,16 +56,18 @@ final class SparseFieldsetHttpTest extends TestCase
     {
         parent::setUp();
 
-        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, PostResource::class]);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, PostResource::class, PinnedPostsUserResource::class]);
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
+        foreach (['/users' => UserResource::class, '/pinned-users' => PinnedPostsUserResource::class] as $uri => $resource) {
+            Route::middleware(ParseApiQuery::class)->get($uri, function (UserRepository $repository) use ($resource): ApiResourceCollection {
 
-            $users = $repository->usingResource(UserResource::class)->withApiCriteria()->paginate();
+                $users = $repository->usingResource($resource)->withApiCriteria()->paginate();
 
-            return new ApiResourceCollection($users, UserResource::class);
-        });
+                return new ApiResourceCollection($users, $resource);
+            });
+        }
 
         $alice = User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);
 
@@ -201,5 +206,102 @@ final class SparseFieldsetHttpTest extends TestCase
         $response->assertOk();
 
         self::assertSame(['_type', 'id', 'name'], array_keys((array) $response->json('data.0')));
+    }
+
+    /**
+     * Test that a selection naming its own resource again renders the inner
+     * level without the relation that would repeat the cycle, without a lazy
+     * load and in a statement count the page size does not change.
+     *
+     * @return void
+     */
+    public function testCyclicSelectionCutsTheRepeatedLevelAtAConstantStatementCount(): void
+    {
+        $uri    = '/users?fields[users]=name,posts&fields[posts]=title,user';
+        $counts = [];
+
+        $this->getJson($uri)->assertOk();
+
+        foreach ([5, 50] as $total) {
+
+            $this->seedAuthors($total);
+
+            [$response, $counts[]] = $this->countStatements($uri);
+
+            $response->assertJsonCount($total, 'data');
+            $response->assertJsonPath('data.0.posts.0.user.name', 'Alice');
+
+            self::assertArrayNotHasKey('posts', (array) $response->json('data.0.posts.0.user'));
+        }
+
+        self::assertSame($counts[0], $counts[1]);
+    }
+
+    /**
+     * Test that a relation's pinned projection renders in place of the one the
+     * request selects for its resource, nested relations included, at a
+     * statement count the page size does not change.
+     *
+     * @return void
+     */
+    public function testPinnedRelationProjectionOverridesTheRequestedOne(): void
+    {
+        $uri    = '/pinned-users?fields[pinned_posts_users]=name,posts&fields[posts]=body';
+        $tag    = Tag::create(['name' => 'php']);
+        $counts = [];
+
+        $this->getJson($uri)->assertOk();
+
+        foreach ([5, 50] as $total) {
+
+            $this->seedAuthors($total);
+
+            Post::query()->each(static function (Post $post) use ($tag): void {
+                $post->tags()->syncWithoutDetaching([$tag->id]);
+            });
+
+            [$response, $counts[]] = $this->countStatements($uri);
+
+            $post = (array) $response->json('data.0.posts.0');
+
+            self::assertEqualsCanonicalizing(['_type', 'id', 'title', 'tags'], array_keys($post));
+            self::assertSame(['php'], array_column((array) $post['tags'], 'name'));
+        }
+
+        self::assertSame($counts[0], $counts[1]);
+    }
+
+    /**
+     * Request the URI, returning the response and the statements it ran.
+     *
+     * @param  string  $uri
+     * @return array{\Illuminate\Testing\TestResponse<\Symfony\Component\HttpFoundation\Response>, int}
+     */
+    private function countStatements(string $uri): array
+    {
+        $response   = null;
+        $statements = $this->recordStatements(function () use (&$response, $uri): void {
+            $response = $this->getJson($uri)->assertOk();
+        });
+
+        assert($response instanceof TestResponse);
+
+        return [$response, count($statements)];
+    }
+
+    /**
+     * Seed further authors with a post each until the given total is reached.
+     *
+     * @param  int  $total
+     * @return void
+     */
+    private function seedAuthors(int $total): void
+    {
+        for ($index = User::query()->count(); $index < $total; $index++) {
+
+            $user = User::create(['name' => 'Author ' . $index, 'email' => 'author' . $index . '@example.com', 'status' => 'active']);
+
+            Post::create(['user_id' => $user->id, 'title' => 'Post ' . $index, 'body' => 'Content']);
+        }
     }
 }

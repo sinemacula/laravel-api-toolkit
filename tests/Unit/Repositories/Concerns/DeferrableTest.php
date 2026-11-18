@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
@@ -34,6 +35,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversTrait(Deferrable::class)]
+#[Group('database')]
 final class DeferrableTest extends TestCase
 {
     use CreatesDeferredWriteTargets;

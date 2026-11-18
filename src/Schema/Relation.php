@@ -98,11 +98,13 @@ final class Relation extends BaseDefinition
     }
 
     /**
-     * Apply an eager-load constraint callback to this relation.
+     * Shape the rows this field's eager load renders.
      *
      * The callback receives the relation itself, so pivot clauses apply. It may
-     * filter and order the relation but never bound it; declare limit() for
-     * that.
+     * filter and order the rows but never bound them; declare limit() for that.
+     * Filters, existence checks and aggregates never run it, so a traversable
+     * or shared relation may not be constrained; a row predicate belongs in a
+     * relation method on the model.
      *
      * @param  callable(\Illuminate\Contracts\Database\Eloquent\Builder): void  $constraint
      * @return self

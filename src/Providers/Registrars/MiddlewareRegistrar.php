@@ -108,7 +108,7 @@ final readonly class MiddlewareRegistrar
     /**
      * Register the throttle middleware alias.
      *
-     * Uses the Redis variant when the default cache store is redis.
+     * Uses the Redis variant when the default cache store's driver is redis.
      *
      * @param  \Illuminate\Routing\Router  $router
      * @return void
@@ -136,8 +136,10 @@ final readonly class MiddlewareRegistrar
             return $customClass;
         }
 
-        return Config::get('cache.default') !== 'redis'
-            ? ThrottleRequests::class
-            : ThrottleRequestsWithRedis::class;
+        $store = Config::get('cache.default');
+
+        return is_string($store) && Config::get('cache.stores.' . $store . '.driver') === 'redis'
+            ? ThrottleRequestsWithRedis::class
+            : ThrottleRequests::class;
     }
 }

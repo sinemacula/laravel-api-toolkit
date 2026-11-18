@@ -6,11 +6,14 @@ namespace Tests\Unit\Http\Resources;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\LazyCollection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ProvidesApiEnvelope;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
@@ -356,6 +359,70 @@ final class ApiResourceCollectionTest extends TestCase
 
         self::assertFalse($user->relationLoaded('organization'));
         self::assertArrayNotHasKey('organization', $result[0]);
+    }
+
+    /**
+     * Provide each container a collection may be built from.
+     *
+     * @return iterable<string, array{\Closure(array<int, \Tests\Fixtures\Models\User>): mixed}>
+     */
+    public static function containerProvider(): iterable
+    {
+        yield 'array' => [static fn (array $users): array => $users];
+        yield 'collection' => [static fn (array $users): mixed => collect($users)];
+        yield 'lazy collection' => [static fn (array $users): mixed => LazyCollection::make($users)];
+        yield 'length-aware paginator' => [static fn (array $users): mixed => new LengthAwarePaginator($users, 3, 15)];
+        yield 'cursor paginator' => [static fn (array $users): mixed => new CursorPaginator($users, 15)];
+    }
+
+    /**
+     * Test that wrapping the items loads no relation for any of them, whatever
+     * container they arrive in.
+     *
+     * @param  \Closure(array<int, \Tests\Fixtures\Models\User>): mixed  $container
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('containerProvider')]
+    public function testWrappingTheItemsLoadsNoRelation(\Closure $container): void
+    {
+        $organization = Organization::create(['name' => 'Wrap Corp', 'slug' => 'wrap-corp']);
+
+        $users = array_map(
+            static fn (int $index): User => User::create(['name' => 'Wrapped ' . $index, 'email' => 'wrapped' . $index . '@example.com', 'organization_id' => $organization->id]),
+            [1, 2, 3],
+        );
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
+
+        $parser->parse(Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => 'id,name,organization']]));
+
+        $collection = new ApiResourceCollection($container($users), UserResource::class);
+
+        self::assertContainsOnlyInstancesOf(UserResource::class, $collection->collection ?? []);
+        self::assertCount(3, $collection->collection ?? []);
+
+        foreach ($users as $user) {
+            self::assertFalse($user->relationLoaded('organization'));
+        }
+    }
+
+    /**
+     * Test that a missing value is kept rather than wrapped.
+     *
+     * @return void
+     */
+    public function testMissingValueIsKeptUnwrapped(): void
+    {
+        $collection = new ApiResourceCollection(new MissingValue, UserResource::class);
+
+        self::assertInstanceOf(MissingValue::class, $collection->resource);
     }
 
     /**

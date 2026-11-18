@@ -459,10 +459,10 @@ return [
     | middleware group only).
     |
     | `throttle.enabled` registers the toolkit's ThrottleRequests as the
-    | 'throttle' alias, using the Redis variant when the default cache store is
-    | 'redis'. `throttle.class` replaces it with your own class, for example one
-    | using ThrottleRequestsTrait that overrides resolveRequestSignature() to
-    | key guests by something other than their IP.
+    | 'throttle' alias, using the Redis variant when the default cache store
+    | uses the 'redis' driver. `throttle.class` replaces it with your own class,
+    | for example one using ThrottleRequestsTrait that overrides
+    | resolveRequestSignature() to key guests by something other than their IP.
     */
 
     'middleware' => [
