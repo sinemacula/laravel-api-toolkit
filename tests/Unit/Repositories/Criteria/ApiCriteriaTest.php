@@ -14,6 +14,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
@@ -1158,34 +1159,38 @@ final class ApiCriteriaTest extends TestCase
 
     /**
      * Test that the surface resolves an undeclared related resource from the
-     * configured map's well-formed entries, and from nothing when the map is
-     * not a list of bindings.
+     * configured map.
      *
      * @return void
      */
-    public function testBuildQuerySurfaceResolvesRelatedLevelsFromTheWellFormedMapEntries(): void
+    public function testBuildQuerySurfaceResolvesRelatedLevelsFromTheConfiguredMap(): void
     {
         $this->criteria->usingResource(TraversingUserResource::class);
 
-        $method = new \ReflectionMethod($this->criteria, 'buildQuerySurface');
+        Config::set('api-toolkit.resources.resource_map', [Profile::class => ProfileResource::class]);
 
-        Config::set('api-toolkit.resources.resource_map', [Profile::class => ProfileResource::class, 'junk' => 42, 7 => ProfileResource::class]);
-
-        $surface = $method->invoke($this->criteria, new User);
+        $surface = (new \ReflectionMethod($this->criteria, 'buildQuerySurface'))->invoke($this->criteria, new User);
 
         self::assertInstanceOf(QuerySurface::class, $surface);
 
         $surface->through('profile', new Profile, false)->guardFilter('bio');
+    }
 
-        Config::set('api-toolkit.resources.resource_map', ProfileResource::class);
+    /**
+     * Test that a malformed resource map is refused rather than filtered.
+     *
+     * @return void
+     */
+    public function testBuildQuerySurfaceRefusesAMalformedResourceMap(): void
+    {
+        $this->criteria->usingResource(TraversingUserResource::class);
 
-        $surface = $method->invoke($this->criteria, new User);
+        Config::set('api-toolkit.resources.resource_map', [Profile::class => ProfileResource::class, 'junk' => 42]);
 
-        self::assertInstanceOf(QuerySurface::class, $surface);
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.resources.resource_map setting must be a map of model classes to resource classes; [42] given.');
 
-        $this->expectException(ValidationException::class);
-
-        $surface->through('profile', new Profile, false)->guardFilter('bio');
+        (new \ReflectionMethod($this->criteria, 'buildQuerySurface'))->invoke($this->criteria, new User);
     }
 
     /**

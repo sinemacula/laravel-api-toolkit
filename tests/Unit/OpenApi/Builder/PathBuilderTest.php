@@ -277,7 +277,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testIndexDocumentsNoQueryCostRefusalWhileEveryCapIsDisabled(): void
     {
-        config()->set('api-toolkit.query_cost', array_fill_keys(array_keys(QueryCostLimits::DEFAULTS), null));
+        config()->set('api-toolkit.query_cost', array_fill_keys(QueryCostLimits::NAMES, null));
         config()->set('api-toolkit.parser.max_limit', null);
 
         $this->registerRestRoutes();
