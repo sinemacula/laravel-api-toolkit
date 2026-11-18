@@ -146,11 +146,12 @@ final class AbilityFlagHttpTest extends TestCase
                 ->assertJsonPath('data.*.can_restore', [true, false]);
         });
 
-        $select = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'from "articles"') && !str_contains($sql, 'count(*)')));
+        $statements = str_replace(['`', '"'], '', $statements);
+        $select     = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'from articles') && !str_contains($sql, 'count(*)')));
 
         self::assertCount(1, $select);
         self::assertStringNotContainsString('*', $select[0]);
-        self::assertStringContainsString('"user_id"', $select[0]);
+        self::assertStringContainsString('user_id', $select[0]);
     }
 
     /**
