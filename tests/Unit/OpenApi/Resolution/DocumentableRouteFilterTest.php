@@ -191,20 +191,6 @@ final class DocumentableRouteFilterTest extends TestCase
     }
 
     /**
-     * Test that a serialized closure that cannot be restored is kept.
-     *
-     * @return void
-     */
-    public function testUnrestorableSerializedClosureIsKept(): void
-    {
-        $this->setBlocklist([__NAMESPACE__]);
-
-        $handler = 'O:55:"Laravel\SerializableClosure\UnsignedSerializableClosure":1:{';
-
-        self::assertFalse($this->filter->isExcluded(null, $this->route($handler)));
-    }
-
-    /**
      * Test that a non-closure handler without a controller is kept.
      *
      * @return void

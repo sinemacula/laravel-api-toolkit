@@ -107,7 +107,7 @@ final readonly class DocumentableRouteFilter
 
     /**
      * Resolve the route's closure handler, restoring one a cached route table
-     * serialized.
+     * serialized as the router does before running it.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @return (\Closure(mixed ...): mixed)|null
@@ -117,29 +117,14 @@ final readonly class DocumentableRouteFilter
         $handler = $route->getAction('uses');
 
         if (is_string($handler) && RouteAction::containsSerializedClosure(['uses' => $handler])) {
-            $handler = $this->restore($handler);
+
+            /** @var \Laravel\SerializableClosure\SerializableClosure|\Laravel\SerializableClosure\UnsignedSerializableClosure $wrapper */
+            $wrapper = unserialize($handler, ['allowed_classes' => self::SERIALIZED_CLOSURE_CLASSES]);
+
+            return $wrapper->getClosure();
         }
 
         return $handler instanceof \Closure ? $handler : null;
-    }
-
-    /**
-     * Restore a serialized closure as the router does before running it.
-     *
-     * @param  string  $serialized
-     * @return (\Closure(mixed ...): mixed)|null
-     */
-    private function restore(string $serialized): ?\Closure
-    {
-        try {
-            $wrapper = unserialize($serialized, ['allowed_classes' => self::SERIALIZED_CLOSURE_CLASSES]);
-
-            return $wrapper instanceof SerializableClosure || $wrapper instanceof UnsignedSerializableClosure
-                ? $wrapper->getClosure()
-                : null;
-        } catch (\Throwable) {
-            return null;
-        }
     }
 
     /**
