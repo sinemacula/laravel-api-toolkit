@@ -1193,7 +1193,9 @@ invalidation leaves at most one stale copy behind.
 
 A service is generic over its input and output. Declare both with `@extends Service<TInput, TOutput>` and
 `$this->input` is typed as `TInput` in every hook. The input is readonly, so a subclass with its own constructor
-passes it to `parent::__construct($input)` rather than redeclaring or assigning `$input`.
+passes it to `parent::__construct($input)` rather than redeclaring or assigning `$input`. `make()` resolves the service
+from the container and hands the input to the first constructor parameter typed to accept it, whatever its name; a
+constructor that cannot take it throws a `LogicException`.
 
 ```php
 /**
@@ -1223,6 +1225,17 @@ public function signIn(SignInPayload $payload): UserResource
 }
 
 SignInPayload::from(['email' => 'a@example.com', 'password' => 'secret']);
+```
+
+Form, multipart and query string values arrive as strings, so an `int`, `float` or `bool` property is cast from any
+value the `integer`, `numeric` or `boolean` rule accepts. A property its rules let be absent needs a default; without
+one, `from()` throws a `LogicException` naming it.
+
+`toArray()` returns only the fields the input sent, an explicit `null` included, so a partial update persists them
+without resetting the rest. A payload built with `new` returns every property:
+
+```php
+UpdateUserPayload::from(['email' => 'new@example.com'])->toArray(); // ['email' => 'new@example.com']
 ```
 
 `messages()` and `attributes()` customise the messages and field names, as on a FormRequest. A `status.enum` entry

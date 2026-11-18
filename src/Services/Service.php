@@ -62,14 +62,23 @@ abstract class Service implements LockKeyProvider
     /**
      * Resolve a new service instance from the container with the given input.
      *
+     * The input is passed to the first constructor parameter typed to accept
+     * it, whatever its name.
+     *
      * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $input
      * @return static
+     *
+     * @throws \LogicException
      */
     public static function make(ServiceInput $input): static
     {
-        $class    = static::class;
-        $instance = App::make($class, ['input' => $input]);
+        $parameter = self::inputParameter($input);
+        $instance  = App::make(static::class, $parameter === null ? [] : [$parameter => $input]);
         assert($instance instanceof static);
+
+        if ($instance->input !== $input) {
+            throw new \LogicException(sprintf('%s was not constructed with the input given to make()', $instance::class));
+        }
 
         return $instance;
     }
@@ -325,5 +334,26 @@ abstract class Service implements LockKeyProvider
     protected function lockId(): string
     {
         return '';
+    }
+
+    /**
+     * Return the name of the first constructor parameter typed to accept the
+     * input.
+     *
+     * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $input
+     * @return string|null
+     */
+    private static function inputParameter(ServiceInput $input): ?string
+    {
+        foreach ((new \ReflectionMethod(static::class, '__construct'))->getParameters() as $parameter) {
+
+            $type = $parameter->getType();
+
+            if ($type instanceof \ReflectionNamedType && is_a($input, $type->getName())) {
+                return $parameter->getName();
+            }
+        }
+
+        return null;
     }
 }

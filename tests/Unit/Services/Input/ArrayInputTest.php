@@ -83,6 +83,21 @@ final class ArrayInputTest extends TestCase
     }
 
     /**
+     * Test that an explicit null is a present value, not an absent key.
+     *
+     * @return void
+     */
+    public function testExplicitNullIsReturnedInsteadOfTheDefault(): void
+    {
+        $input = new ArrayInput(['name' => null]);
+
+        self::assertNull($input->get('name', 'fallback'));
+        self::assertSame('', $input->string('name'));
+        self::assertSame([], $input->array('name'));
+        self::assertSame(['name' => null], $input->toArray());
+    }
+
+    /**
      * Test that toArray() returns the original attribute snapshot.
      *
      * @return void

@@ -10,12 +10,14 @@ use Illuminate\Support\Facades\Lang;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\DataProviderExternal;
 use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Input\Payload;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Fixtures\Enums\Magnitude;
 use Tests\Fixtures\Enums\Platform;
+use Tests\Fixtures\Input\OptionalRulePayload;
 use Tests\Fixtures\Input\SampleInput;
 use Tests\Fixtures\Input\StorePayload;
 use Tests\Fixtures\Services\Input\BackedEnumInput;
@@ -23,6 +25,7 @@ use Tests\Fixtures\Services\Input\Concerns\DescribesInput;
 use Tests\Fixtures\Services\Input\Concerns\SensitiveCredentials;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\Fixtures\Services\Input\PlatformInput;
+use Tests\Fixtures\Services\Input\ScalarInput;
 use Tests\Fixtures\Services\Input\SensitiveBaseInput;
 use Tests\Fixtures\Services\Input\SensitiveInput;
 use Tests\TestCase;
@@ -803,6 +806,132 @@ final class PayloadTest extends TestCase
     }
 
     /**
+     * Test that toArray() of a constructed payload includes its defaults.
+     *
+     * @return void
+     */
+    public function testToArrayOfAConstructedPayloadIncludesItsDefaults(): void
+    {
+        $input = new SampleInput(city: 'Rome');
+
+        self::assertSame(['city' => 'Rome', 'age' => null, 'status' => null], $input->toArray());
+    }
+
+    /**
+     * Test that toArray() of a hydrated payload leaves out the fields its input
+     * omitted and keeps an explicit null.
+     *
+     * @return void
+     */
+    public function testToArrayLeavesOutTheFieldsTheInputOmitted(): void
+    {
+        $input = SampleInput::from(['city' => 'Berlin', 'age' => null]);
+
+        self::assertNull($input->status);
+        self::assertSame(['city' => 'Berlin', 'age' => null], $input->toArray());
+    }
+
+    /**
+     * Test that the omitted fields stay omitted after a serialise round trip.
+     *
+     * @return void
+     */
+    public function testOmittedFieldsSurviveASerialiseRoundTrip(): void
+    {
+        $restored = unserialize(serialize(SampleInput::from(['city' => 'Oslo'])));
+
+        self::assertInstanceOf(SampleInput::class, $restored);
+        self::assertSame(['city' => 'Oslo'], $restored->toArray());
+    }
+
+    /**
+     * Provide values the integer, numeric or boolean rule accepts, with the
+     * property that casts them and the value it receives.
+     *
+     * @return iterable<string, array{string, mixed, bool|float|int}>
+     */
+    public static function castableScalarProvider(): iterable
+    {
+        yield 'int from a string' => ['count', '5', 5];
+        yield 'int from a negative string' => ['count', '-5', -5];
+        yield 'int from an integral float' => ['count', 5.0, 5];
+        yield 'float from a decimal string' => ['ratio', '1.5', 1.5];
+        yield 'float from an integer string' => ['ratio', '2', 2.0];
+        yield 'bool from a one string' => ['enabled', '1', true];
+        yield 'bool from a zero string' => ['enabled', '0', false];
+        yield 'bool from one' => ['enabled', 1, true];
+        yield 'bool from zero' => ['enabled', 0, false];
+    }
+
+    /**
+     * Test that a scalar parameter is cast from a value its rule accepts.
+     *
+     * @param  string  $key
+     * @param  mixed  $value
+     * @param  bool|float|int  $expected
+     * @return void
+     */
+    #[DataProvider('castableScalarProvider')]
+    public function testFromCastsAScalarParameterFromAValueItsRuleAccepts(string $key, mixed $value, bool|float|int $expected): void
+    {
+        self::assertSame([$key => $expected], ScalarInput::from([$key => $value])->toArray());
+    }
+
+    /**
+     * Provide values no integer, numeric or boolean rule accepts, with the
+     * property that would receive them.
+     *
+     * @return iterable<string, array{string, mixed}>
+     */
+    public static function uncastableScalarProvider(): iterable
+    {
+        yield 'int from a decimal string' => ['count', '5.5'];
+        yield 'int from a fractional float' => ['count', 5.5];
+        yield 'int from a bool' => ['count', true];
+        yield 'float from a word' => ['ratio', 'half'];
+        yield 'bool from a word' => ['enabled', 'yes'];
+        yield 'bool from a decimal string' => ['enabled', '1.0'];
+        yield 'bool from two' => ['enabled', 2];
+    }
+
+    /**
+     * Test that a value no scalar rule accepts reaches the constructor as is.
+     *
+     * @param  string  $key
+     * @param  mixed  $value
+     * @return void
+     */
+    #[DataProvider('uncastableScalarProvider')]
+    public function testFromPassesAnUncastableScalarThroughUnchanged(string $key, mixed $value): void
+    {
+        $this->expectException(\TypeError::class);
+
+        ScalarInput::from([$key => $value]);
+    }
+
+    /**
+     * Test that a parameter without a default whose rule lets it be absent
+     * fails naming the class, the property and the body key.
+     *
+     * @return void
+     */
+    public function testOptionalRuleOnARequiredParameterFailsClearly(): void
+    {
+        self::assertSame('Ada', OptionalRulePayload::from(['display_name' => 'Ada'])->displayName);
+
+        try {
+            OptionalRulePayload::from([]);
+
+            self::fail('Expected a LogicException for the absent required parameter.');
+        } catch (\LogicException $exception) {
+            self::assertSame(
+                sprintf('%s::$displayName has no default, but its rules let "display_name" be absent', OptionalRulePayload::class),
+                $exception->getMessage(),
+            );
+        }
+    }
+
+    /**
      * Test that from() never hydrates non-promoted constructor parameters.
      *
      * @return void
@@ -1487,7 +1616,7 @@ final class PayloadTest extends TestCase
 
         self::assertSame('Paris', $input->city);
         self::assertSame('GB', $input->countryCode);
-        self::assertSame(['city' => 'Paris', 'countryCode' => 'GB'], $input->toArray());
+        self::assertSame(['city' => 'Paris'], $input->toArray());
 
         $this->expectException(ValidationException::class);
 

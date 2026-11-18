@@ -32,11 +32,15 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     /** @var array<class-string, array<string, string>> Body key per property name per class */
     private static array $bodyKeys = [];
 
+    /** @var list<string>|null The properties from() hydrated; null when constructed directly */
+    private ?array $hydrated = null;
+
     /**
      * Validate the source against rules() and return a hydrated instance.
      *
      * Enum parameters are cast from a backed value or a lowercase case name,
-     * checked by the validator so an unmatched value fails with the rest. A
+     * checked by the validator so an unmatched value fails with the rest. Int,
+     * float and bool parameters are cast from the strings their rules accept. A
      * precognitive request validates only the fields it names.
      *
      * @param  array<string, mixed>|\Illuminate\Http\Request  $source
@@ -78,21 +82,30 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
             $key = $keys[$name] ?? $name;
 
             if (!array_key_exists($key, $validated)) {
+
+                if (!$parameter->isOptional()) {
+                    throw new \LogicException(sprintf('%s::$%s has no default, but its rules let "%s" be absent', static::class, $name, $key));
+                }
+
                 continue;
             }
 
             $namedArgs[$name] = self::castValue($parameter, $validated[$key]);
         }
 
-        $className = static::class;
+        $className          = static::class;
+        $instance           = new $className(...$namedArgs);
+        $instance->hydrated = array_keys($namedArgs);
 
-        return new $className(...$namedArgs);
+        return $instance;
     }
 
     /**
      * Return the public promoted properties keyed by their body keys.
      *
-     * The map reaches lifecycle-event listeners verbatim; mark a parameter
+     * An instance built by from() leaves out the properties its input omitted,
+     * so a default is never mistaken for a sent value. The map reaches
+     * lifecycle-event listeners verbatim; mark a parameter
      * #[\SensitiveParameter] to leave it out.
      *
      * @return array<string, mixed>
@@ -103,8 +116,9 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
         $result  = [];
         $allVars = (array) $this;
         $keys    = self::bodyKeys(static::class);
+        $names   = self::summaryProperties(static::class);
 
-        foreach (self::summaryProperties(static::class) as $name) {
+        foreach ($this->hydrated === null ? $names : array_intersect($names, $this->hydrated) as $name) {
             if (!array_key_exists($name, $allVars)) {
                 continue;
             }
@@ -345,7 +359,10 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     }
 
     /**
-     * Cast a validated value to the parameter's enum type, if it has one.
+     * Cast a validated value to the parameter's enum or scalar type.
+     *
+     * A scalar is cast only from a value the integer, numeric or boolean rule
+     * accepts, so anything else reaches the constructor unchanged.
      *
      * @param  \ReflectionParameter  $parameter
      * @param  mixed  $value
@@ -355,6 +372,17 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     {
         $enum = self::enumType($parameter);
 
-        return $enum === null || $value instanceof $enum ? $value : Enum::resolve($enum, $value);
+        if ($enum !== null) {
+            return $value instanceof $enum ? $value : Enum::resolve($enum, $value);
+        }
+
+        $type = $parameter->getType();
+
+        return match ($type instanceof \ReflectionNamedType ? $type->getName() : null) {
+            'int'   => is_string($value) || is_float($value) ? filter_var($value, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE) ?? $value : $value,
+            'float' => is_string($value) && is_numeric($value) ? (float) $value : $value,
+            'bool'  => in_array($value, [0, 1, '0', '1'], true) ? (bool) $value : $value,
+            default => $value,
+        };
     }
 }

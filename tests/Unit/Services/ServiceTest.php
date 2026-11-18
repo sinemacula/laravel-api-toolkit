@@ -4,6 +4,9 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Services;
 
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
@@ -24,9 +27,11 @@ use SineMacula\ApiToolkit\Services\ServiceResult;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Fixtures\Exceptions\ServiceExecutionException;
 use Tests\Fixtures\Input\SampleInput;
+use Tests\Fixtures\Input\StorePayload;
 use Tests\Fixtures\Services\ContextRecordingService;
 use Tests\Fixtures\Services\FailingService;
 use Tests\Fixtures\Services\OutputService;
+use Tests\Fixtures\Services\RenamedInputService;
 use Tests\Fixtures\Services\StubActor;
 use Tests\Fixtures\Services\TypedInputService;
 use Tests\TestCase;
@@ -239,17 +244,76 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that make() resolves the service from the container.
+     * Test that make() returns the container's instance built with the input.
      *
      * @return void
      */
     public function testMakeResolvesFromContainer(): void
     {
-        $input   = new ArrayInput(['message' => 'from-container']);
-        $service = OutputService::make($input);
+        $bound = null;
 
-        self::assertInstanceOf(OutputService::class, $service);
-        self::assertTrue($service->run()->succeeded());
+        $this->app->bind(OutputService::class, static function (Container $app, array $parameters) use (&$bound): OutputService {
+            return $bound = new OutputService(...$parameters);
+        });
+
+        $service = OutputService::make(new ArrayInput(['message' => 'from-container']));
+
+        self::assertSame($bound, $service);
+        self::assertSame(['message' => 'from-container'], $service->run()->output());
+    }
+
+    /**
+     * Test that make() hands the given input to a subclass constructor that
+     * names it differently, and injects the constructor's other dependencies.
+     *
+     * @return void
+     */
+    public function testMakeHandsTheGivenInputToASubclassConstructor(): void
+    {
+        $this->app->instance('request', Request::create('/', 'POST', ['title' => 'from-request']));
+
+        $input   = new StorePayload(title: 'given');
+        $service = RenamedInputService::make($input);
+
+        self::assertSame($input, $service->run()->output());
+        self::assertSame($this->app->make(Dispatcher::class), $service->events);
+    }
+
+    /**
+     * Test that make() fails when the constructor cannot take the input.
+     *
+     * @return void
+     */
+    public function testMakeThrowsWhenTheConstructorCannotTakeTheInput(): void
+    {
+        $service = new class extends Service {
+            /**
+             * Construct the service with an input of its own.
+             */
+            public function __construct()
+            {
+                parent::__construct(new ArrayInput([]));
+            }
+
+            /**
+             * Return nothing.
+             *
+             * @return null
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                return null;
+            }
+        };
+
+        try {
+            $service::make(new ArrayInput([]));
+
+            self::fail('Expected a LogicException for the input make() could not pass.');
+        } catch (\LogicException $exception) {
+            self::assertSame(sprintf('%s was not constructed with the input given to make()', $service::class), $exception->getMessage());
+        }
     }
 
     /**
