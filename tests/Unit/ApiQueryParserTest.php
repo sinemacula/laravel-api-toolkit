@@ -10,8 +10,11 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\ApiQueryParser;
+use SineMacula\ApiToolkit\Enums\TrashedState;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Query\ApiQuerySnapshot;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Resources\PostResource;
@@ -175,7 +178,7 @@ final class ApiQueryParserTest extends TestCase
         $this->parser->parse($request);
 
         self::assertNull($this->parser->getAggregates('user'));
-        self::assertSame([], $this->getProperty($this->parser, 'parameters'));
+        self::assertSame([], $this->parsedParameters());
     }
 
     /**
@@ -506,7 +509,7 @@ final class ApiQueryParserTest extends TestCase
      */
     public function testGetCursorCastsNonStringScalarToString(): void
     {
-        $this->setProperty($this->parser, 'parameters', ['cursor' => 100]);
+        $this->seedParameters(['cursor' => 100]);
 
         self::assertSame('100', $this->parser->getCursor());
     }
@@ -549,7 +552,7 @@ final class ApiQueryParserTest extends TestCase
      */
     public function testGetSearchReturnsNullForAnUnparsedParameter(): void
     {
-        $this->setProperty($this->parser, 'parameters', ['search' => 'smith']);
+        $this->seedParameters(['search' => 'smith']);
 
         self::assertNull($this->parser->getSearch());
     }
@@ -650,7 +653,7 @@ final class ApiQueryParserTest extends TestCase
      */
     public function testGetFieldsTrimsStoredParameterValues(): void
     {
-        $this->setProperty($this->parser, 'parameters', ['fields' => ['users' => [' first_name ', ' last_name ']]]);
+        $this->seedParameters(['fields' => ['users' => [' first_name ', ' last_name ']]]);
 
         self::assertSame(['first_name', 'last_name'], $this->parser->getFields('users'));
         self::assertNull($this->parser->getFields(''));
@@ -664,7 +667,7 @@ final class ApiQueryParserTest extends TestCase
      */
     public function testGetAggregatesTrimsStoredParameterValues(): void
     {
-        $this->setProperty($this->parser, 'parameters', ['aggregates' => ['users' => [' posts_count ', 7, ' orders_sum_total ']]]);
+        $this->seedParameters(['aggregates' => ['users' => [' posts_count ', 7, ' orders_sum_total ']]]);
 
         self::assertSame(['posts_count', 'orders_sum_total'], $this->parser->getAggregates('users'));
     }
@@ -676,7 +679,7 @@ final class ApiQueryParserTest extends TestCase
      */
     public function testGetLimitReturnsNullForFractionalValueBelowOne(): void
     {
-        $this->setProperty($this->parser, 'parameters', ['limit' => '0.5']);
+        $this->seedParameters(['limit' => '0.5']);
 
         self::assertNull($this->parser->getLimit());
     }
@@ -689,7 +692,7 @@ final class ApiQueryParserTest extends TestCase
      */
     public function testGetPageReturnsOneForFractionalValueBelowOne(): void
     {
-        $this->setProperty($this->parser, 'parameters', ['page' => '0.5']);
+        $this->seedParameters(['page' => '0.5']);
 
         self::assertSame(1, $this->parser->getPage());
     }
@@ -706,7 +709,7 @@ final class ApiQueryParserTest extends TestCase
         $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['page' => ' 2 ', 'limit' => ' 10 ']);
         $this->parser->parse($request);
 
-        $parameters = $this->getProperty($this->parser, 'parameters');
+        $parameters = $this->parsedParameters();
 
         self::assertSame('2', $parameters['page']);
         self::assertSame('10', $parameters['limit']);
@@ -960,6 +963,8 @@ final class ApiQueryParserTest extends TestCase
     {
         $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['users' => 'name'], 'page' => '2']));
 
+        $token = $this->parser->token();
+
         $this->assertParseRejected(['fields' => ['users' => 'emial'], 'page' => '3', 'cursor' => 'x'], [
             'fields.users' => ['The "emial" field is not declared on the "users" resource type.'],
         ]);
@@ -967,6 +972,383 @@ final class ApiQueryParserTest extends TestCase
         self::assertSame(['name'], $this->parser->getFields('users'));
         self::assertSame(2, $this->parser->getPage());
         self::assertFalse($this->parser->isCursorPaginated());
+        self::assertSame($token, $this->parser->token());
+        self::assertSame(['fields' => ['users' => 'name']], $this->parser->snapshot()->parameters);
+    }
+
+    /**
+     * Test that the parser reads as parsed only between a parse and a reset.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testIsParsedFollowsParseAndReset(): void
+    {
+        self::assertFalse($this->parser->isParsed());
+
+        $this->parser->parse(Request::create(self::TEST_URL));
+
+        self::assertTrue($this->parser->isParsed());
+
+        $this->parser->reset();
+
+        self::assertFalse($this->parser->isParsed());
+    }
+
+    /**
+     * Test that reset clears cursor pagination along with the parameters.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testResetClearsCursorPagination(): void
+    {
+        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['pagination' => 'cursor']));
+
+        $this->parser->reset();
+
+        self::assertFalse($this->parser->isCursorPaginated());
+    }
+
+    /**
+     * Test that every parse gets a token of its own, that using() restores the
+     * outer one and that reset leaves none.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testTokenIdentifiesTheCurrentQuery(): void
+    {
+        self::assertNull($this->parser->token());
+
+        $this->parser->parse(Request::create(self::TEST_URL));
+
+        $first = $this->parser->token();
+
+        $this->parser->parse(Request::create(self::TEST_URL));
+
+        $second = $this->parser->token();
+        $inner  = $this->parser->using(new ApiQuerySnapshot([]), fn (): ?object => $this->parser->token());
+
+        self::assertNotNull($first);
+        self::assertNotSame($first, $second);
+        self::assertNotNull($inner);
+        self::assertNotSame($second, $inner);
+        self::assertSame($second, $this->parser->token());
+
+        $this->parser->reset();
+
+        self::assertNull($this->parser->token());
+    }
+
+    /**
+     * Test that a snapshot of an unparsed parser is refused.
+     *
+     * @return void
+     */
+    public function testSnapshotRefusesAnUnparsedQuery(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('No API query has been parsed to snapshot.');
+
+        $this->parser->snapshot();
+    }
+
+    /**
+     * Test that a snapshot carries the selection exactly as sent, and never the
+     * page.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testSnapshotCarriesTheSelectionAsSentWithoutThePage(): void
+    {
+        $selection = [
+            'fields'     => ['users' => ' name , email '],
+            'aggregates' => ['users' => 'posts_count'],
+            'filters'    => '{"status":{"$eq":"paid"}}',
+            'search'     => 'john',
+            'order'      => 'name:desc',
+            'trashed'    => 'with',
+        ];
+
+        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), $selection + [
+            'page'       => '2',
+            'limit'      => '5',
+            'cursor'     => 'eyJpZCI6MX0',
+            'pagination' => 'cursor',
+            'unrelated'  => 'x',
+        ]));
+
+        self::assertSame($selection, $this->parser->snapshot()->parameters);
+    }
+
+    /**
+     * Test that every getter reads the snapshot inside using(), on its first
+     * page and unlimited, and the parsed query again once it returns.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testUsingReadsTheSnapshotInPlaceOfTheParsedQuery(): void
+    {
+        $outer = [
+            'fields'     => ['users' => 'name'],
+            'filters'    => '{"status":"active"}',
+            'page'       => '3',
+            'limit'      => '5',
+            'cursor'     => 'eyJpZCI6MX0',
+            'pagination' => 'cursor',
+        ];
+
+        $snapshot = new ApiQuerySnapshot([
+            'fields'     => ['users' => 'email'],
+            'aggregates' => ['users' => 'posts_count'],
+            'filters'    => '{"status":"paid"}',
+            'search'     => 'john',
+            'order'      => 'name:desc',
+            'trashed'    => 'only',
+        ]);
+
+        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), $outer));
+
+        $inside = $this->parser->using($snapshot, fn (): array => $this->readState());
+
+        self::assertSame([
+            'fields'     => ['email'],
+            'aggregates' => ['posts_count'],
+            'filters'    => ['status' => 'paid'],
+            'search'     => 'john',
+            'order'      => ['name' => 'desc'],
+            'trashed'    => TrashedState::ONLY,
+            'page'       => 1,
+            'limit'      => null,
+            'cursor'     => '',
+            'cursorRead' => false,
+            'snapshot'   => $snapshot->parameters,
+        ], $inside);
+
+        self::assertSame([
+            'fields'     => ['name'],
+            'aggregates' => null,
+            'filters'    => ['status' => 'active'],
+            'search'     => null,
+            'order'      => [],
+            'trashed'    => TrashedState::NONE,
+            'page'       => 3,
+            'limit'      => 5,
+            'cursor'     => 'eyJpZCI6MX0',
+            'cursorRead' => true,
+            'snapshot'   => ['fields' => ['users' => 'name'], 'filters' => '{"status":"active"}'],
+        ], $this->readState());
+    }
+
+    /**
+     * Test that using() restores the parsed query when the callback throws.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testUsingRestoresTheQueryWhenTheCallbackThrows(): void
+    {
+        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['users' => 'name']]));
+
+        $token = $this->parser->token();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('The callback failed.');
+
+        try {
+            $this->parser->using(new ApiQuerySnapshot(['fields' => ['users' => 'email']]), static fn (): bool => throw new \RuntimeException('The callback failed.'));
+        } finally {
+            self::assertSame(['name'], $this->parser->getFields('users'));
+            self::assertSame($token, $this->parser->token());
+        }
+    }
+
+    /**
+     * Test that nested using() calls each restore the query they replaced.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testNestedUsingRestoresEachQueryInTurn(): void
+    {
+        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['users' => 'name']]));
+
+        $outer = new ApiQuerySnapshot(['fields' => ['users' => 'email']]);
+        $inner = new ApiQuerySnapshot(['fields' => ['users' => 'status']]);
+
+        $seen = $this->parser->using($outer, fn (): array => [
+            $this->parser->getFields('users'),
+            $this->parser->using($inner, fn (): ?array => $this->parser->getFields('users')),
+            $this->parser->getFields('users'),
+        ]);
+
+        self::assertSame([['email'], ['status'], ['email']], $seen);
+        self::assertSame(['name'], $this->parser->getFields('users'));
+    }
+
+    /**
+     * Provide snapshots the parse-level checks refuse, with the refusal each
+     * raises.
+     *
+     * @return iterable<string, array{array<string, mixed>, class-string<\Throwable>}>
+     */
+    public static function refusedSnapshotProvider(): iterable
+    {
+        yield 'filters that are not an object' => [['filters' => '[1]'], ValidationException::class];
+        yield 'filters over the byte cap' => [['filters' => '{"name":"' . str_repeat('a', 64) . '"}'], QueryTooExpensiveException::class];
+    }
+
+    /**
+     * Test that a snapshot the parse-level checks refuse fails before the
+     * callback runs and leaves the parsed query in place.
+     *
+     * @param  array<string, mixed>  $parameters
+     * @param  class-string<\Throwable>  $refusal
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('refusedSnapshotProvider')]
+    public function testUsingRefusesASnapshotBeforeTheCallback(array $parameters, string $refusal): void
+    {
+        Config::set('api-toolkit.query_cost.max_bytes', 32);
+
+        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['users' => 'name']]));
+
+        $token = $this->parser->token();
+        $ran   = false;
+
+        try {
+            $this->parser->using(new ApiQuerySnapshot($parameters), static function () use (&$ran): void {
+                $ran = true;
+            });
+            self::fail('Expected the snapshot to be refused.');
+        } catch (\Throwable $exception) {
+            self::assertInstanceOf($refusal, $exception);
+        }
+
+        self::assertFalse($ran);
+        self::assertSame(['name'], $this->parser->getFields('users'));
+        self::assertSame($token, $this->parser->token());
+    }
+
+    /**
+     * Test that using() on an unparsed parser leaves it unparsed afterwards.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testUsingOnAnUnparsedParserLeavesItUnparsed(): void
+    {
+        self::assertTrue($this->parser->using(new ApiQuerySnapshot([]), fn (): bool => $this->parser->isParsed()));
+        self::assertFalse($this->parser->isParsed());
+        self::assertNull($this->parser->token());
+    }
+
+    /**
+     * Test that every change of query drops the eager-load plans, which read
+     * child selections from the query.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testEveryChangeOfQueryDropsTheEagerLoadPlans(): void
+    {
+        $this->seedEagerLoadPlan();
+        $this->parser->parse(Request::create(self::TEST_URL));
+
+        self::assertSame([], $this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache'));
+
+        $this->seedEagerLoadPlan();
+
+        $inside = $this->parser->using(new ApiQuerySnapshot([]), function (): mixed {
+            $plans = $this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache');
+
+            $this->seedEagerLoadPlan();
+
+            return $plans;
+        });
+
+        self::assertSame([], $inside);
+        self::assertSame([], $this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache'));
+
+        $this->seedEagerLoadPlan();
+        $this->parser->reset();
+
+        self::assertSame([], $this->getStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache'));
+    }
+
+    /**
+     * Read every value the parser exposes.
+     *
+     * @return array<string, mixed>
+     */
+    private function readState(): array
+    {
+        return [
+            'fields'     => $this->parser->getFields('users'),
+            'aggregates' => $this->parser->getAggregates('users'),
+            'filters'    => $this->parser->getFilters(),
+            'search'     => $this->parser->getSearch()?->value(),
+            'order'      => $this->parser->getOrder(),
+            'trashed'    => $this->parser->getTrashed(),
+            'page'       => $this->parser->getPage(),
+            'limit'      => $this->parser->getLimit(),
+            'cursor'     => $this->parser->getCursor(),
+            'cursorRead' => $this->parser->isCursorPaginated(),
+            'snapshot'   => $this->parser->snapshot()->parameters,
+        ];
+    }
+
+    /**
+     * Seed the parser state with the given extracted parameters.
+     *
+     * @param  array<string, mixed>  $parameters
+     * @return void
+     */
+    private function seedParameters(array $parameters): void
+    {
+        $this->setProperty($this->parser, 'state', [
+            'parameters'      => $parameters,
+            'cursorPaginated' => false,
+            'snapshot'        => new ApiQuerySnapshot([]),
+            'token'           => new \stdClass,
+        ]);
+    }
+
+    /**
+     * Return the extracted parameters of the parsed query.
+     *
+     * @return array<string, mixed>
+     */
+    private function parsedParameters(): array
+    {
+        /** @var array{parameters: array<string, mixed>} $state */
+        $state = $this->getProperty($this->parser, 'state');
+
+        return $state['parameters'];
+    }
+
+    /**
+     * Seed the eager-load memo with a plan.
+     *
+     * @return void
+     */
+    private function seedEagerLoadPlan(): void
+    {
+        $this->setStaticProperty(EagerLoadPlanner::class, 'eagerLoadCache', ['seeded' => ['posts']]);
     }
 
     /**

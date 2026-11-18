@@ -72,6 +72,9 @@ final class ApiCriteria implements CriteriaInterface
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard */
     private readonly QueryCostGuard $queryCostGuard;
 
+    /** @var object|null The identity of the API query these criteria apply */
+    private ?object $queryToken;
+
     /**
      * Constructor.
      *
@@ -111,6 +114,7 @@ final class ApiCriteria implements CriteriaInterface
         $this->columnProjectionApplier     = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector), $this->schemaIntrospector);
         $this->softDeleteVisibilityApplier = new SoftDeleteVisibilityApplier;
         $this->queryCostGuard              = new QueryCostGuard;
+        $this->queryToken                  = ApiQuery::token();
 
         $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
 
@@ -128,6 +132,7 @@ final class ApiCriteria implements CriteriaInterface
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      *
      * @throws \Illuminate\Validation\ValidationException
+     * @throws \LogicException
      * @throws \SineMacula\ApiToolkit\Exceptions\MissingSearchDriverException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      * @throws \SineMacula\ApiToolkit\Exceptions\UnservableSearchException
@@ -135,6 +140,8 @@ final class ApiCriteria implements CriteriaInterface
     #[\Override]
     public function apply(Builder|Model $model): Builder
     {
+        $this->bindQuery();
+
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
         $query = $model instanceof Model ? $model::query() : $model;
 
@@ -172,6 +179,32 @@ final class ApiCriteria implements CriteriaInterface
     protected function metadataCacheWriter(): MetadataCacheWriter
     {
         return $this->metadataCacheWriter;
+    }
+
+    /**
+     * Bind the criteria to the current API query, refusing to apply without one
+     * or under another.
+     *
+     * Criteria composed before the query is parsed, as by a controller built
+     * ahead of route-level parsing, bind to the first query they apply under.
+     *
+     * @return void
+     *
+     * @throws \LogicException
+     */
+    private function bindQuery(): void
+    {
+        $token = ApiQuery::token();
+
+        if ($token === null) {
+            throw new \LogicException('API criteria need a parsed API query: apply them inside a request handled by ParseApiQuery, or inside ApiQuery::using().');
+        }
+
+        $this->queryToken ??= $token;
+
+        if ($this->queryToken !== $token) {
+            throw new \LogicException('API criteria were composed under a different API query: compose and apply them inside the same request or ApiQuery::using() call.');
+        }
     }
 
     /**

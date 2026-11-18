@@ -10,10 +10,14 @@ use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Concerns\QuerySelectionValidator;
 use SineMacula\ApiToolkit\Enums\TrashedState;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
+use SineMacula\ApiToolkit\Query\ApiQuerySnapshot;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
  * Validates and parses the API parameters in a request's query string.
+ *
+ * @phpstan-type ParsedQuery array{parameters: array<string, mixed>, cursorPaginated: bool, snapshot: \SineMacula\ApiToolkit\Query\ApiQuerySnapshot, token: object}
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -22,11 +26,8 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
  */
 class ApiQueryParser
 {
-    /** @var array<string, mixed> */
-    protected array $parameters = [];
-
-    /** @var bool Whether the parsed request reads by cursor rather than by page */
-    protected bool $cursorPaginated = false;
+    /** @var ParsedQuery|null The parsed query, replaced as a whole, or null when none is parsed */
+    private ?array $state = null;
 
     /** @var \SineMacula\ApiToolkit\Concerns\QueryParameterValidator */
     private readonly QueryParameterValidator $validator;
@@ -58,7 +59,7 @@ class ApiQueryParser
      */
     public function getFields(string $resource): ?array
     {
-        return $this->trimStringList($this->getParameters('fields', $resource));
+        return $this->trimStringList($this->state['parameters']['fields'][$resource] ?? null);
     }
 
     /**
@@ -70,7 +71,7 @@ class ApiQueryParser
      */
     public function getAggregates(string $resource): ?array
     {
-        return $this->trimStringList($this->getParameters('aggregates', $resource));
+        return $this->trimStringList($this->state['parameters']['aggregates'][$resource] ?? null);
     }
 
     /**
@@ -81,7 +82,7 @@ class ApiQueryParser
     public function getFilters(): ?array
     {
         /** @var array<string, mixed>|null $filters */
-        $filters = $this->getParameters('filters');
+        $filters = $this->state['parameters']['filters'] ?? null;
 
         return $filters ?? [];
     }
@@ -94,7 +95,7 @@ class ApiQueryParser
      */
     public function getSearch(): ?SearchTerm
     {
-        $search = $this->getParameters('search');
+        $search = $this->state['parameters']['search'] ?? null;
 
         return $search instanceof SearchTerm ? $search : null;
     }
@@ -109,7 +110,7 @@ class ApiQueryParser
     public function getOrder(): array
     {
         /** @var array<string, 'asc'|'desc'>|null $order */
-        $order = $this->getParameters('order');
+        $order = $this->state['parameters']['order'] ?? null;
 
         return $order ?? [];
     }
@@ -122,7 +123,7 @@ class ApiQueryParser
      */
     public function getLimit(): ?int
     {
-        $limit = $this->getParameters('limit');
+        $limit = $this->state['parameters']['limit'] ?? null;
 
         $limit = is_numeric($limit) ? (int) $limit : 0;
 
@@ -137,7 +138,7 @@ class ApiQueryParser
      */
     public function getPage(): ?int
     {
-        $page = $this->getParameters('page');
+        $page = $this->state['parameters']['page'] ?? null;
 
         $page = is_numeric($page) ? (int) $page : 0;
 
@@ -169,7 +170,7 @@ class ApiQueryParser
      */
     public function isCursorPaginated(): bool
     {
-        return $this->cursorPaginated;
+        return $this->state['cursorPaginated'] ?? false;
     }
 
     /**
@@ -180,7 +181,7 @@ class ApiQueryParser
      */
     public function getCursor(): ?string
     {
-        $cursor = $this->getParameters('cursor');
+        $cursor = $this->state['parameters']['cursor'] ?? null;
 
         return is_scalar($cursor) ? (string) $cursor : '';
     }
@@ -193,19 +194,94 @@ class ApiQueryParser
      */
     public function getTrashed(): TrashedState
     {
-        $trashed = $this->getParameters('trashed');
+        $trashed = $this->state['parameters']['trashed'] ?? null;
 
         return TrashedState::fromParameter(is_string($trashed) ? $trashed : null);
     }
 
     /**
-     * Reset the parser by clearing all parsed parameters.
+     * Determine whether a query has been parsed.
+     *
+     * @return bool
+     */
+    public function isParsed(): bool
+    {
+        return $this->state !== null;
+    }
+
+    /**
+     * Return the selection the current query carries, for replay through
+     * using().
+     *
+     * @return \SineMacula\ApiToolkit\Query\ApiQuerySnapshot
+     *
+     * @throws \LogicException
+     */
+    public function snapshot(): ApiQuerySnapshot
+    {
+        if ($this->state === null) {
+            throw new \LogicException('No API query has been parsed to snapshot.');
+        }
+
+        return $this->state['snapshot'];
+    }
+
+    /**
+     * Run the callback with the given snapshot as the current query, restoring
+     * the previous query afterwards.
+     *
+     * The snapshot is validated as a request is, before the callback runs.
+     *
+     * @template T
+     *
+     * @param  \SineMacula\ApiToolkit\Query\ApiQuerySnapshot  $query
+     * @param  \Closure(): T  $callback
+     * @return T
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function using(ApiQuerySnapshot $query, \Closure $callback): mixed
+    {
+        $previous = $this->state;
+
+        $this->load($query->parameters, false);
+
+        try {
+            return $callback();
+        } finally {
+            $this->reset();
+
+            $this->state = $previous;
+        }
+    }
+
+    /**
+     * Return the identity of the current query, or null when none is parsed.
+     *
+     * @return object|null
+     *
+     * @internal
+     */
+    public function token(): ?object
+    {
+        return $this->state['token'] ?? null;
+    }
+
+    /**
+     * Reset the parser to its unparsed state.
+     *
+     * Every change of query passes through here: the eager-load plans read
+     * child selections from the query, so a plan built under another one is
+     * dropped.
      *
      * @return void
      */
     public function reset(): void
     {
-        $this->parameters = [];
+        $this->state = null;
+
+        EagerLoadPlanner::clearCache();
     }
 
     /**
@@ -222,17 +298,38 @@ class ApiQueryParser
      */
     public function parse(Request $request): void
     {
-        $this->validator->validate($request->query->all());
+        // Read from the parsed request, which may not be the current one
+        $this->load($request->query->all(), $request->query('pagination') === 'cursor' || $request->query->has('cursor'));
+    }
 
-        $parameters = $this->extractor->extract($request);
+    /**
+     * Validate and extract the given input, then make it the current query.
+     *
+     * Nothing is assigned until the input is accepted.
+     *
+     * @param  array<string, mixed>  $input
+     * @param  bool  $cursorPaginated
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function load(array $input, bool $cursorPaginated): void
+    {
+        $this->validator->validate($input);
+
+        $parameters = $this->extractor->extract($input);
 
         $this->selectionValidator->validate($parameters);
 
-        $this->parameters = $parameters;
+        $this->reset();
 
-        // Read from the parsed request, which may not be the current one
-        $this->cursorPaginated = $request->query('pagination') === 'cursor'
-            || $request->query->has('cursor');
+        $this->state = [
+            'parameters'      => $parameters,
+            'cursorPaginated' => $cursorPaginated,
+            'snapshot'        => new ApiQuerySnapshot(array_intersect_key($input, array_flip(ApiQuerySnapshot::KEYS))),
+            'token'           => new \stdClass,
+        ];
     }
 
     /**
@@ -248,21 +345,5 @@ class ApiQueryParser
         }
 
         return array_values(array_map('trim', array_filter($values, 'is_string')));
-    }
-
-    /**
-     * Extract the specified parameter.
-     *
-     * @param  string  $option
-     * @param  string|null  $resource
-     * @return mixed
-     */
-    private function getParameters(string $option, ?string $resource = null): mixed
-    {
-        if ($resource !== null) {
-            return $this->parameters[$option][$resource] ?? null;
-        }
-
-        return $this->parameters[$option] ?? null;
     }
 }
