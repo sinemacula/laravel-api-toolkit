@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
  *
  * Every audience is exported before anything is written, so one empty audience
  * fails the whole run unless --allow-empty is passed, and a document that
- * cannot be written replaces none of them.
+ * cannot be staged replaces none of them.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

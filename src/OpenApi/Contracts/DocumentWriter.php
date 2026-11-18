@@ -13,7 +13,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Contracts;
 interface DocumentWriter
 {
     /**
-     * Persist every serialized document at its path, or none of them.
+     * Persist every serialized document at its path, as one batch.
      *
      * @param  array<string, string>  $documents
      * @return void

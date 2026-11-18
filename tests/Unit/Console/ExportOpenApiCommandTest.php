@@ -259,7 +259,7 @@ final class ExportOpenApiCommandTest extends TestCase
 
         $this->app->instance(DocumentWriter::class, new class implements DocumentWriter {
             /**
-             * Persist every serialized document at its path, or none of them.
+             * Persist every serialized document at its path, as one batch.
              *
              * @param  array<string, string>  $documents
              * @return void
