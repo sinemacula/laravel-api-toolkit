@@ -214,13 +214,15 @@ final readonly class QuerySurfaceReader
         }
 
         return new QueryColumnDescriptor(
-            property       : $property,
-            column         : $column,
-            capability     : $capability,
-            operators      : $operators,
-            sortable       : $sortable,
-            unindexedReason: $sortable ? $field->unindexedReason : null,
-            strategy       : $strategy,
+            property         : $property,
+            column           : $column,
+            capability       : $capability,
+            operators        : $operators,
+            sortable         : $sortable,
+            unindexedReason  : $sortable ? $field->unindexedReason : null,
+            strategy         : $strategy,
+            filterConditional: $capability !== null && array_key_exists($column, $compiled->getConditionalFilterKeys()),
+            sortConditional  : $sortable            && array_key_exists($column, $compiled->getConditionalSortKeys()),
         );
     }
 }

@@ -12,6 +12,7 @@ use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
@@ -392,6 +393,131 @@ final class ValueResolverTest extends TestCase
         $result = $this->resolver->resolveFieldValue('field', $definition, $resource, null);
 
         self::assertInstanceOf(MissingValue::class, $result);
+    }
+
+    /**
+     * Provide each combination of caller and row guard results.
+     *
+     * @return iterable<string, array{bool, bool}>
+     */
+    public static function guardOutcomes(): iterable
+    {
+        yield 'both pass' => [true, true];
+        yield 'caller denies' => [false, true];
+        yield 'row denies' => [true, false];
+        yield 'both deny' => [false, false];
+    }
+
+    /**
+     * Test that a field shows only when its caller guards and then its row
+     * guards pass, each handed the request.
+     *
+     * @param  bool  $caller
+     * @param  bool  $row
+     * @return void
+     */
+    #[DataProvider('guardOutcomes')]
+    public function testResolveFieldValueShowsOnlyWhenCallerAndRowGuardsPass(bool $caller, bool $row): void
+    {
+        $request    = Request::create('/');
+        $definition = $this->makeFieldDefinition(
+            guards      : [static fn ($resource, $given): bool => $given === $request && $row],
+            callerGuards: [static fn ($given): bool => $given === $request && $caller],
+        );
+
+        $result = $this->resolver->resolveFieldValue('name', $definition, new JsonResource((object) ['name' => 'Alice']), $request);
+
+        self::assertSame($caller && $row, !$result instanceof MissingValue);
+    }
+
+    /**
+     * Test that an aggregate shows only when its caller guards and then its row
+     * guards pass, each handed the request.
+     *
+     * @param  bool  $caller
+     * @param  bool  $row
+     * @return void
+     */
+    #[DataProvider('guardOutcomes')]
+    public function testResolveAggregatesPayloadShowsOnlyWhenCallerAndRowGuardsPass(bool $caller, bool $row): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('users')->andReturn(null);
+
+        $request = Request::create('/');
+        $owner   = (new User)->setRawAttributes(['aggregate_posts_count' => 2]);
+        $schema  = $this->aggregateSchema($this->aggregate(
+            'posts_count',
+            AggregateFunction::COUNT,
+            guards      : [static fn ($resource, $given): bool => $given === $request && $row],
+            callerGuards: [static fn ($given): bool => $given === $request && $caller],
+        ));
+
+        self::assertSame($caller && $row ? ['posts_count' => 2] : [], $this->resolver->resolveAggregatesPayload($owner, $schema, 'users', $request));
+    }
+
+    /**
+     * Test that a caller its guards deny never reaches a row guard, accessor,
+     * compute or transformer of a field or an aggregate.
+     *
+     * @return void
+     */
+    public function testADeniedCallerRunsNothingElse(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('users')->andReturn(null);
+
+        /** @var \ArrayObject<int, string> $calls */
+        $calls = new \ArrayObject;
+
+        $rowGuard = static function () use ($calls): bool {
+
+            $calls[] = 'row guard';
+
+            return true;
+        };
+
+        $transformer = static function ($resource, $value) use ($calls): mixed {
+
+            $calls[] = 'transformer';
+
+            return $value;
+        };
+
+        $resolve = static function () use ($calls): string {
+
+            $calls[] = 'resolve';
+
+            return 'x';
+        };
+
+        $deny     = [static fn (): bool => false];
+        $computed = $this->makeFieldDefinition(compute: $resolve, guards: [$rowGuard], transformers: [$transformer], callerGuards: $deny);
+        $accessed = new CompiledFieldDefinition(
+            accessor    : $resolve,
+            compute     : null,
+            relation    : null,
+            resource    : null,
+            fields      : null,
+            constraint  : null,
+            extras      : [],
+            needs       : [],
+            guards      : [$rowGuard],
+            transformers: [$transformer],
+            callerGuards: $deny,
+        );
+        $schema = $this->aggregateSchema($this->aggregate(
+            'posts_count',
+            AggregateFunction::COUNT,
+            guards      : [$rowGuard],
+            transformers: [$transformer],
+            callerGuards: $deny,
+        ));
+
+        $resource = new JsonResource((new User)->setRawAttributes(['aggregate_posts_count' => 2]));
+
+        self::assertInstanceOf(MissingValue::class, $this->resolver->resolveFieldValue('computed', $computed, $resource, null));
+        self::assertInstanceOf(MissingValue::class, $this->resolver->resolveFieldValue('accessed', $accessed, $resource, null));
+        self::assertSame([], $this->resolver->resolveAggregatesPayload($resource, $schema, 'users', null));
+        self::assertSame([], $calls->getArrayCopy());
     }
 
     /**
@@ -1430,6 +1556,7 @@ final class ValueResolverTest extends TestCase
      * @param  bool  $isDefault
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
+     * @param  array<int, callable(mixed): bool>  $callerGuards
      * @return \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition
      */
     private function aggregate(
@@ -1440,6 +1567,7 @@ final class ValueResolverTest extends TestCase
         bool $isDefault = true,
         array $guards = [],
         array $transformers = [],
+        array $callerGuards = [],
     ): CompiledAggregateDefinition {
         return new CompiledAggregateDefinition(
             presentKey: $key,
@@ -1450,6 +1578,7 @@ final class ValueResolverTest extends TestCase
             isDefault: $isDefault,
             guards: $guards,
             transformers: $transformers,
+            callerGuards: $callerGuards,
         );
     }
 
@@ -1576,6 +1705,7 @@ final class ValueResolverTest extends TestCase
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
      * @param  int|null  $limit
+     * @param  array<int, callable(mixed): bool>  $callerGuards
      * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
     private function makeFieldDefinition(
@@ -1590,6 +1720,7 @@ final class ValueResolverTest extends TestCase
         array $guards = [],
         array $transformers = [],
         ?int $limit = null,
+        array $callerGuards = [],
     ): CompiledFieldDefinition {
         return new CompiledFieldDefinition(
             accessor: $accessor,
@@ -1603,6 +1734,7 @@ final class ValueResolverTest extends TestCase
             guards: $guards,
             transformers: $transformers,
             limit: $limit,
+            callerGuards: $callerGuards,
         );
     }
 }

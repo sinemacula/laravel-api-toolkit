@@ -28,6 +28,7 @@ final readonly class CompiledAggregateDefinition
      * @param  bool  $isDefault
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
+     * @param  array<int, callable(mixed): bool>  $callerGuards
      */
     public function __construct(
 
@@ -49,11 +50,14 @@ final readonly class CompiledAggregateDefinition
         /** Whether this aggregate is included by default */
         public bool $isDefault,
 
-        /** Guard closures that control visibility */
+        /** Row guard closures that control visibility */
         public array $guards,
 
         /** Value transformer closures */
         public array $transformers = [],
+
+        /** Caller guard closures that control visibility */
+        public array $callerGuards = [],
     ) {}
 
     /**

@@ -8,6 +8,8 @@ use Illuminate\Contracts\Database\Eloquent\Builder;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\Capability;
+use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
@@ -39,6 +41,10 @@ final class RawSchemaValidatorTest extends TestCase
     /** @var string The defect refusing a constrained traversable relation */
     private const string CONSTRAINED_TRAVERSAL = 'A traversable relation may not be constrained, as a filter would reach the rows it hides; '
         . 'move the row predicate into a relation method';
+
+    /** @var string The defect refusing a row-guarded field on the query surface */
+    private const string ROW_GUARDED = 'A field with a row guard may not be %s, as a query would reveal what the guard hides; '
+        . 'guard it with visibleTo() where visibility depends on the caller alone';
 
     /**
      * Test that Closure constraints with callable guards and transformers pass.
@@ -230,6 +236,181 @@ final class RawSchemaValidatorTest extends TestCase
             [self::RESOURCE, 'name', 'Transformer at index 0 is not callable'],
             [self::RESOURCE, 'email', 'Transformers must be a list of callables'],
         ], $errors);
+    }
+
+    /**
+     * Test that caller guards declared as anything other than a list of
+     * callables are reported.
+     *
+     * @return void
+     */
+    public function testReportsCallerGuardsThatAreNotCallableLists(): void
+    {
+        $errors = $this->collectErrors([
+            'name'  => ['accessor' => 'name', 'caller_guards' => static fn (): bool => true],
+            'email' => ['accessor' => 'email', 'caller_guards' => [static fn (): bool => true, 'not_a_function']],
+        ]);
+
+        self::assertSame([
+            [self::RESOURCE, 'name', 'Caller guards must be a list of callables'],
+            [self::RESOURCE, 'email', 'Caller guard at index 1 is not callable'],
+        ], $errors);
+    }
+
+    /**
+     * Provide one query declaration of each kind.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Schema\Field|\SineMacula\ApiToolkit\Schema\Relation, string}>
+     */
+    public static function rowGuardedQueryDeclarations(): iterable
+    {
+        yield 'filterable' => [Field::scalar('salary')->filterable(Capability::RANGE), 'filterable'];
+        yield 'sortable' => [Field::scalar('salary')->sortable(), 'sortable'];
+        yield 'searchable' => [Field::scalar('email')->searchable(SearchStrategy::SUBSTRING), 'searchable'];
+        yield 'traversable' => [Relation::to('posts', PostResource::class)->traversable(), 'traversable'];
+    }
+
+    /**
+     * Test that a row guard refuses each declaration that would let a query
+     * reach the values it hides.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\Field|\SineMacula\ApiToolkit\Schema\Relation  $definition
+     * @param  string  $declaration
+     * @return void
+     */
+    #[DataProvider('rowGuardedQueryDeclarations')]
+    public function testRefusesARowGuardedFieldOnTheQuerySurface(Field|Relation $definition, string $declaration): void
+    {
+        $errors = $this->collectErrors(Field::set($definition->guard(static fn (): bool => true)));
+
+        self::assertSame([[self::RESOURCE, array_key_first($definition->toArray()), sprintf(self::ROW_GUARDED, $declaration)]], $errors);
+    }
+
+    /**
+     * Test that a row guard reports every query declaration a field makes.
+     *
+     * @return void
+     */
+    public function testRefusesEveryQueryDeclarationOfOneRowGuardedField(): void
+    {
+        $errors = $this->collectErrors(Field::set(
+            Field::scalar('email')->guard(static fn (): bool => true)->filterable(Capability::EXACT)->sortable()->searchable(SearchStrategy::PREFIX),
+        ));
+
+        self::assertSame([
+            [self::RESOURCE, 'email', sprintf(self::ROW_GUARDED, 'filterable')],
+            [self::RESOURCE, 'email', sprintf(self::ROW_GUARDED, 'sortable')],
+            [self::RESOURCE, 'email', sprintf(self::ROW_GUARDED, 'searchable')],
+        ], $errors);
+    }
+
+    /**
+     * Test that a caller guard refuses a searchable declaration, since a search
+     * matches the same columns for every caller.
+     *
+     * @return void
+     */
+    public function testRefusesACallerGuardedSearchableField(): void
+    {
+        $errors = $this->collectErrors(Field::set(
+            Field::scalar('email')->visibleTo(static fn (): bool => true)->searchable(SearchStrategy::SUBSTRING),
+        ));
+
+        self::assertSame([
+            [self::RESOURCE, 'email', 'A field with a caller guard may not be searchable, as a search matches the same columns for every caller'],
+        ], $errors);
+    }
+
+    /**
+     * Test that a caller guard admits filterable, sortable and traversable
+     * declarations, and an empty row guard list declares no row guard.
+     *
+     * @return void
+     */
+    public function testAcceptsCallerGuardedFilterSortAndTraversalDeclarations(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        RawSchemaValidator::assertValid([
+            ...Field::set(
+                Field::scalar('salary')->visibleTo(static fn (): bool => true)->filterable(Capability::RANGE)->sortable(),
+                Relation::to('posts', PostResource::class)->visibleTo(static fn (): bool => true)->traversable(),
+            ),
+            'name' => ['filterable' => 'name', 'capability' => Capability::EXACT, 'guards' => []],
+        ], self::RESOURCE);
+    }
+
+    /**
+     * Provide two capabilities for one column, in both orders.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\Capability, \SineMacula\ApiToolkit\Enums\Capability}>
+     */
+    public static function conflictingCapabilities(): iterable
+    {
+        yield 'exact then range' => [Capability::EXACT, Capability::RANGE];
+        yield 'range then exact' => [Capability::RANGE, Capability::EXACT];
+    }
+
+    /**
+     * Test that one column filterable with two capabilities is refused on the
+     * later declaration, in either order.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\Capability  $first
+     * @param  \SineMacula\ApiToolkit\Enums\Capability  $second
+     * @return void
+     */
+    #[DataProvider('conflictingCapabilities')]
+    public function testRefusesOneColumnFilterableWithTwoCapabilities(Capability $first, Capability $second): void
+    {
+        $errors = $this->collectErrors(Field::set(
+            Field::scalar('salary')->filterable($first),
+            Field::scalar('salary', 'pay')->visibleTo(static fn (): bool => true)->filterable($second),
+        ));
+
+        self::assertSame([[self::RESOURCE, 'pay', sprintf(
+            'Field is declared filterable against "salary" with the "%s" capability, and field "salary" declares the same column '
+            . 'with "%s", so the column would answer a different set of operators for each',
+            $second->value,
+            $first->value,
+        )]], $errors);
+    }
+
+    /**
+     * Test that a repeated capability is read past to the declaration that
+     * changes it, and every conflicting column is reported.
+     *
+     * @return void
+     */
+    public function testReadsPastARepeatedCapabilityToEachChange(): void
+    {
+        $errors = $this->collectErrors([
+            'status'    => ['filterable' => 'status', 'capability' => Capability::EXACT],
+            'state'     => ['filterable' => 'status', 'capability' => Capability::EXACT],
+            'condition' => ['filterable' => 'status', 'capability' => Capability::RANGE],
+            'kind'      => ['filterable' => 'kind', 'capability' => Capability::EXACT],
+            'sort'      => ['filterable' => 'kind', 'capability' => Capability::ENUM],
+        ]);
+
+        self::assertSame(['condition', 'sort'], array_column($errors, 1));
+    }
+
+    /**
+     * Test that a declaration without a capability, and one capability repeated
+     * under differing caller guards, are no conflict.
+     *
+     * @return void
+     */
+    public function testAcceptsARepeatedCapabilityAndACapabilitylessDeclaration(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        RawSchemaValidator::assertValid([
+            'name'   => ['filterable' => 'name'],
+            'label'  => ['filterable' => 'name', 'capability' => Capability::EXACT],
+            'salary' => ['filterable' => 'salary', 'capability' => Capability::RANGE, 'caller_guards' => [static fn (): bool => true]],
+            'pay'    => ['filterable' => 'salary', 'capability' => Capability::RANGE, 'caller_guards' => [static fn (): bool => false]],
+            'secret' => ['filterable' => 'salary', 'capability' => 'range'],
+        ], self::RESOURCE);
     }
 
     /**

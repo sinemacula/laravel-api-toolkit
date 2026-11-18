@@ -454,6 +454,50 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
+     * Test that a column only caller-guarded fields declare reports its filter
+     * and its order as conditional independently, and only where it answers
+     * them.
+     *
+     * @return void
+     */
+    public function testConditionalFilterAndOrderAreReportedIndependently(): void
+    {
+        $field = static fn (string $column): CompiledFieldDefinition => new CompiledFieldDefinition(
+            accessor        : null,
+            compute         : null,
+            relation        : null,
+            resource        : null,
+            fields          : null,
+            constraint      : null,
+            extras          : [],
+            needs           : [],
+            guards          : [],
+            transformers    : [],
+            filterable      : $column,
+            filterCapability: Capability::EXACT,
+            sortable        : $column,
+        );
+
+        $schema = new CompiledSchema(
+            fields               : ['email' => $field('email'), 'name' => $field('name'), 'payload' => $field('payload'), 'secret' => $field('secret')],
+            filterableColumns    : ['email' => Capability::EXACT, 'name' => Capability::EXACT, 'payload' => Capability::DOCUMENT, 'secret' => Capability::EXACT],
+            sortableColumns      : ['email', 'name', 'payload'],
+            conditionalFilterKeys: ['email' => ['email'], 'payload' => ['payload']],
+            conditionalSortKeys  : ['name' => ['name'], 'payload' => ['payload'], 'secret' => ['secret']],
+        );
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
+
+        $columns = [];
+
+        foreach ($this->ghostSurface('GhostResource', ['$eq'])->columns as $column) {
+            $columns[$column->property] = [$column->filterConditional, $column->sortConditional];
+        }
+
+        self::assertSame(['email' => [true, false], 'name' => [false, true], 'payload' => [false, true], 'secret' => [false, false]], $columns);
+    }
+
+    /**
      * Read a single resource's surface.
      *
      * @param  class-string  $resourceClass
@@ -482,12 +526,13 @@ final class QuerySurfaceReaderTest extends TestCase
      * Read the surface of a resource name the compiler has been primed for.
      *
      * @param  string  $resourceClass
+     * @param  array<int, string>|null  $vocabulary
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
      */
-    private function ghostSurface(string $resourceClass): QuerySurfaceDescriptor
+    private function ghostSurface(string $resourceClass, ?array $vocabulary = null): QuerySurfaceDescriptor
     {
         /** @var class-string $resourceClass */
-        return $this->surface($resourceClass);
+        return $this->surface($resourceClass, $vocabulary);
     }
 
     /**

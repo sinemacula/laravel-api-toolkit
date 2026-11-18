@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema\Validation;
 
 use SineMacula\ApiToolkit\Enums\AggregateFunction;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\AggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
@@ -21,7 +22,10 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 final class RawSchemaValidator
 {
     /** @var array<string, string> Callable list keys mapped to the label reported for a defect */
-    private const array CALLABLE_LISTS = ['guards' => 'Guard', 'transformers' => 'Transformer'];
+    private const array CALLABLE_LISTS = ['guards' => 'Guard', 'caller_guards' => 'Caller guard', 'transformers' => 'Transformer'];
+
+    /** @var list<string> The declarations that put a field on the query surface */
+    private const array QUERY_DECLARATIONS = ['filterable', 'sortable', 'searchable', 'traversable'];
 
     /** @var string The characters an aggregate key may hold, so it survives the relation alias and the SQL alias */
     private const string AGGREGATE_KEY_PATTERN = '/^[\w\p{M}]+$/Du';
@@ -40,15 +44,18 @@ final class RawSchemaValidator
      */
     public static function assertValid(array $rawSchema, string $resourceClass): void
     {
-        $errors     = [];
-        $aggregates = [];
-        $relations  = [];
-        $traversed  = [];
+        $errors       = [];
+        $aggregates   = [];
+        $relations    = [];
+        $traversed    = [];
+        $capabilities = [];
 
         foreach ($rawSchema as $key => $definition) {
 
             $defects = [
                 ...self::collectDefects($definition),
+                ...self::collectGuardDefects($definition),
+                ...self::collectCapabilityDefects($key, $definition, $capabilities),
                 ...self::collectAggregateDefects($key, $definition, $aggregates),
                 ...self::collectRelationDefects($key, $definition, $relations, $traversed),
             ];
@@ -98,10 +105,75 @@ final class RawSchemaValidator
         }
 
         foreach (self::CALLABLE_LISTS as $list => $label) {
-            array_push($defects, ...self::collectCallableDefects($definition[$list] ?? [], $list, $label));
+            array_push($defects, ...self::collectCallableDefects($definition[$list] ?? [], $label));
         }
 
         return $defects;
+    }
+
+    /**
+     * Collect the query declarations a field's guards forbid.
+     *
+     * A row guard may read the row, so no query can honour it. A search matches
+     * one set of columns for every caller, so a caller guard cannot narrow it.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return list<string>
+     */
+    private static function collectGuardDefects(array $definition): array
+    {
+        $rowGuarded = self::carries($definition, 'guards');
+        $defects    = [];
+
+        foreach (self::QUERY_DECLARATIONS as $declaration) {
+
+            if (!$rowGuarded || !is_string($definition[$declaration] ?? null)) {
+                continue;
+            }
+
+            $defects[] = sprintf('A field with a row guard may not be %s, as a query would reveal what the guard hides; '
+                . 'guard it with visibleTo() where visibility depends on the caller alone', $declaration);
+        }
+
+        if (self::carries($definition, 'caller_guards') && is_string($definition['searchable'] ?? null)) {
+            $defects[] = 'A field with a caller guard may not be searchable, as a search matches the same columns for every caller';
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Collect the defect of a filterable column another field already declares
+     * with a different capability.
+     *
+     * @param  string  $key
+     * @param  array<string, mixed>  $definition
+     * @param  array<string, array{string, \SineMacula\ApiToolkit\Enums\Capability}>  $capabilities
+     * @return list<string>
+     */
+    private static function collectCapabilityDefects(string $key, array $definition, array &$capabilities): array
+    {
+        $column     = $definition['filterable'] ?? null;
+        $capability = $definition['capability'] ?? null;
+
+        if (!is_string($column) || !$capability instanceof Capability) {
+            return [];
+        }
+
+        $declared = $capabilities[$column] ??= [$key, $capability];
+
+        if ($declared[1] === $capability) {
+            return [];
+        }
+
+        return [sprintf(
+            'Field is declared filterable against "%s" with the "%s" capability, and field "%s" declares the same column '
+            . 'with "%s", so the column would answer a different set of operators for each',
+            $column,
+            $capability->value,
+            $declared[0],
+            $declared[1]->value,
+        )];
     }
 
     /**
@@ -266,14 +338,13 @@ final class RawSchemaValidator
      * Collect the defects in a single raw guard or transformer list.
      *
      * @param  mixed  $callables
-     * @param  string  $list
      * @param  string  $label
      * @return list<string>
      */
-    private static function collectCallableDefects(mixed $callables, string $list, string $label): array
+    private static function collectCallableDefects(mixed $callables, string $label): array
     {
         if (!is_array($callables)) {
-            return [sprintf('%s must be a list of callables', ucfirst($list))];
+            return [sprintf('%ss must be a list of callables', $label)];
         }
 
         $defects = [];
@@ -288,5 +359,17 @@ final class RawSchemaValidator
         }
 
         return $defects;
+    }
+
+    /**
+     * Determine whether the definition carries a non-empty guard list.
+     *
+     * @param  array<string, mixed>  $definition
+     * @param  string  $list
+     * @return bool
+     */
+    private static function carries(array $definition, string $list): bool
+    {
+        return is_array($definition[$list] ?? null) && $definition[$list] !== [];
     }
 }

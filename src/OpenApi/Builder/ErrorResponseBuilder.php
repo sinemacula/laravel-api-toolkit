@@ -23,7 +23,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  *
  * The route's facts and the operation's inputs name the exceptions the handler
  * receives, each documented as the ApiException it renders as, beside the
- * ApiExceptions the action's @throws tags name.
+ * ApiExceptions the @throws tags of the action and its route middleware name.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -60,10 +60,10 @@ final readonly class ErrorResponseBuilder
      */
     public function __construct(
 
-        /** The resolver reading a route's auth, authorization, and limits. */
+        /** The resolver reading a route's middleware, auth, authorization, and limits. */
         private RouteMiddlewareResolver $middleware,
 
-        /** The resolver of the ApiExceptions an action's throws tags name. */
+        /** The resolver of the ApiExceptions a method's throws tags name. */
         private ThrowsErrorResolver $throws,
 
         /** The resolver of the headers each exception declares. */
@@ -137,8 +137,8 @@ final readonly class ErrorResponseBuilder
     }
 
     /**
-     * List each documented ApiException with its headers, those the action's
-     * throws tags name first.
+     * List each documented ApiException with its headers, those the throws tags
+     * of the action and its route middleware name first.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -150,7 +150,7 @@ final readonly class ErrorResponseBuilder
     {
         $sources = [];
 
-        foreach ($controllerClass === null ? [] : $this->throws->resolve($controllerClass, $action) as $exception) {
+        foreach ($this->thrownExceptions($controllerClass, $action, $route) as $exception) {
             $sources[] = [$exception, $this->headers->forException($exception)];
         }
 
@@ -171,6 +171,26 @@ final readonly class ErrorResponseBuilder
         }
 
         return $sources;
+    }
+
+    /**
+     * List the ApiExceptions the throws tags name, the action's first and then
+     * each route middleware's in dispatch order.
+     *
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @param  \Illuminate\Routing\Route  $route
+     * @return list<class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
+     */
+    private function thrownExceptions(?string $controllerClass, string $action, Route $route): array
+    {
+        $exceptions = $controllerClass === null ? [] : $this->throws->resolve($controllerClass, $action);
+
+        foreach ($this->middleware->classes($route) as $middleware) {
+            array_push($exceptions, ...$this->throws->resolve($middleware, method_exists($middleware, 'handle') ? 'handle' : '__invoke'));
+        }
+
+        return $exceptions;
     }
 
     /**

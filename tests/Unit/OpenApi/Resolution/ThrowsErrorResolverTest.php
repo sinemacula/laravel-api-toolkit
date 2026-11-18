@@ -19,11 +19,14 @@ use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Exceptions\UnauthenticatedException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
+use Tests\Fixtures\Middleware\EnforceQuota;
+use Tests\Fixtures\Middleware\RequireSubscription;
 use Tests\Fixtures\OpenApi\BurstLimitedException;
 use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathReflectionGapController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathRouteFactsController;
+use Tests\Fixtures\OpenApi\PaymentRequiredException;
 use Tests\Fixtures\OpenApi\QuotaExceededException;
 use Tests\TestCase;
 
@@ -190,6 +193,17 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
+     * Test that the ApiExceptions a middleware's handler names are listed.
+     *
+     * @return void
+     */
+    public function testMiddlewareHandlerExceptionsAreListed(): void
+    {
+        self::assertSame([PaymentRequiredException::class], $this->resolve(RequireSubscription::class, 'handle'));
+        self::assertSame([QuotaExceededException::class], $this->resolve(EnforceQuota::class, '__invoke'));
+    }
+
+    /**
      * Test that names resolving to no class are skipped.
      *
      * @return void
@@ -200,17 +214,17 @@ final class ThrowsErrorResolverTest extends TestCase
     }
 
     /**
-     * Resolve the exception classes the given action documents.
+     * Resolve the exception classes the given method documents.
      *
-     * @param  string  $controllerClass
-     * @param  string  $action
+     * @param  string  $class
+     * @param  string  $method
      * @return list<class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
      */
-    private function resolve(string $controllerClass, string $action): array
+    private function resolve(string $class, string $method): array
     {
         require_once dirname(__DIR__, 3) . '/Fixtures/OpenApi/ImportedThrows/ImportedThrowsController.stub';
 
-        /** @var class-string $controllerClass */
-        return (new ThrowsErrorResolver(new ClassNameResolver))->resolve($controllerClass, $action);
+        /** @var class-string $class */
+        return (new ThrowsErrorResolver(new ClassNameResolver))->resolve($class, $method);
     }
 }
