@@ -139,6 +139,8 @@ final class ToolkitConfigValidator
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
+     *
+     * @SuppressWarnings("php:S1144")
      */
     private static function checkResourcePaths(): void
     {
@@ -155,6 +157,8 @@ final class ToolkitConfigValidator
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException
+     *
+     * @SuppressWarnings("php:S1144")
      */
     private static function checkAudienceServers(): void
     {
@@ -174,6 +178,8 @@ final class ToolkitConfigValidator
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
+     *
+     * @SuppressWarnings("php:S1144")
      */
     private static function checkDefaultAudience(): void
     {
@@ -192,6 +198,8 @@ final class ToolkitConfigValidator
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
+     *
+     * @SuppressWarnings("php:S1144")
      */
     private static function checkDefaultLimit(): void
     {
@@ -211,6 +219,8 @@ final class ToolkitConfigValidator
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
+     *
+     * @SuppressWarnings("php:S1144")
      */
     private static function checkThrottleClass(): void
     {
