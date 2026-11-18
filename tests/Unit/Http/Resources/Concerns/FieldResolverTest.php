@@ -50,8 +50,6 @@ final class FieldResolverTest extends TestCase
      */
     public function testGetFieldsMemoisesTheAssembledListAcrossInstances(): void
     {
-        config()->set('api-toolkit.resources.fixed_fields', []);
-
         ApiQuery::shouldReceive('getFields')
             ->with('users')
             ->andReturn(['name', 'email']);
@@ -83,8 +81,6 @@ final class FieldResolverTest extends TestCase
      */
     public function testExcludedFieldsAreDistinguishedInTheMemo(): void
     {
-        config()->set('api-toolkit.resources.fixed_fields', []);
-
         ApiQuery::shouldReceive('getFields')
             ->with('users')
             ->andReturn(null);
@@ -109,8 +105,6 @@ final class FieldResolverTest extends TestCase
      */
     public function testBaseFieldsAreDistinguishedInTheMemo(): void
     {
-        config()->set('api-toolkit.resources.fixed_fields', []);
-
         ApiQuery::shouldReceive('getFields')->andReturn(null);
 
         $schema = new CompiledSchema([], []);
@@ -123,36 +117,12 @@ final class FieldResolverTest extends TestCase
     }
 
     /**
-     * Test that the configured fixed fields form part of the memo key, so a
-     * change to the fixed-field config is reflected in the assembled list.
-     *
-     * @return void
-     */
-    public function testConfigFixedFieldsAreDistinguishedInTheMemo(): void
-    {
-        ApiQuery::shouldReceive('getFields')->with('users')->andReturn(null);
-
-        $schema = new CompiledSchema([], []);
-
-        config()->set('api-toolkit.resources.fixed_fields', ['id']);
-        $withId = (new FieldResolver)->getFields($schema, 'users', ['name'], []);
-
-        config()->set('api-toolkit.resources.fixed_fields', ['uuid']);
-        $withUuid = (new FieldResolver)->getFields($schema, 'users', ['name'], []);
-
-        self::assertSame(['name', 'id'], $withId);
-        self::assertSame(['name', 'uuid'], $withUuid);
-    }
-
-    /**
-     * Test that the per-resource fixed fields form part of the memo key.
+     * Test that the fixed fields form part of the memo key.
      *
      * @return void
      */
     public function testFixedFieldParameterIsDistinguishedInTheMemo(): void
     {
-        config()->set('api-toolkit.resources.fixed_fields', []);
-
         ApiQuery::shouldReceive('getFields')->with('users')->andReturn(null);
 
         $schema = new CompiledSchema([], []);
@@ -172,16 +142,13 @@ final class FieldResolverTest extends TestCase
      */
     public function testGetFieldsReturnsDefaultFieldsWhenNoQueryFields(): void
     {
-
-        config()->set('api-toolkit.resources.fixed_fields', ['id']);
-
         ApiQuery::shouldReceive('getFields')
             ->with('users')
             ->andReturn(null);
 
         $schema = new CompiledSchema([], []);
 
-        $result = $this->resolver->getFields($schema, 'users', ['name', 'email'], []);
+        $result = $this->resolver->getFields($schema, 'users', ['name', 'email'], ['id']);
 
         self::assertSame(['name', 'email', 'id'], $result);
     }
@@ -193,9 +160,6 @@ final class FieldResolverTest extends TestCase
      */
     public function testGetFieldsReturnsQueryFieldsWhenPresent(): void
     {
-
-        config()->set('api-toolkit.resources.fixed_fields', []);
-
         ApiQuery::shouldReceive('getFields')
             ->with('users')
             ->andReturn(['name', 'status']);
@@ -215,9 +179,6 @@ final class FieldResolverTest extends TestCase
      */
     public function testGetFieldsReturnsAllFieldKeysWhenAllMode(): void
     {
-
-        config()->set('api-toolkit.resources.fixed_fields', []);
-
         $this->resolver->withAll();
 
         ApiQuery::shouldReceive('getFields')
@@ -238,9 +199,6 @@ final class FieldResolverTest extends TestCase
      */
     public function testGetFieldsExcludesFieldsSetViaWithoutFields(): void
     {
-
-        config()->set('api-toolkit.resources.fixed_fields', []);
-
         $this->resolver->withoutFields(['email']);
 
         ApiQuery::shouldReceive('getFields')
@@ -261,16 +219,13 @@ final class FieldResolverTest extends TestCase
      */
     public function testGetFieldsIncludesFixedFieldsAlways(): void
     {
-
-        config()->set('api-toolkit.resources.fixed_fields', ['id', '_type']);
-
         ApiQuery::shouldReceive('getFields')
             ->with('users')
             ->andReturn(['name']);
 
         $schema = new CompiledSchema([], []);
 
-        $result = $this->resolver->getFields($schema, 'users', [], ['uuid']);
+        $result = $this->resolver->getFields($schema, 'users', [], ['id', '_type', 'uuid']);
 
         self::assertSame(['name', 'id', '_type', 'uuid'], $result);
     }
@@ -282,9 +237,6 @@ final class FieldResolverTest extends TestCase
      */
     public function testGetFieldsDeduplicatesResult(): void
     {
-
-        config()->set('api-toolkit.resources.fixed_fields', ['id']);
-
         ApiQuery::shouldReceive('getFields')
             ->with('users')
             ->andReturn(['id', 'name']);
@@ -303,9 +255,6 @@ final class FieldResolverTest extends TestCase
      */
     public function testWithFieldsOverridesDefaultAndQueryFields(): void
     {
-
-        config()->set('api-toolkit.resources.fixed_fields', []);
-
         $this->resolver->withFields(['bio', 'avatar']);
 
         ApiQuery::shouldReceive('getFields')
@@ -325,7 +274,6 @@ final class FieldResolverTest extends TestCase
      */
     public function testShouldRespondWithAllReturnsTrueWhenAllFlagSet(): void
     {
-
         $this->resolver->withAll();
 
         ApiQuery::shouldReceive('getFields')
@@ -343,7 +291,6 @@ final class FieldResolverTest extends TestCase
      */
     public function testShouldRespondWithAllReturnsTrueWhenQueryContainsAll(): void
     {
-
         ApiQuery::shouldReceive('getFields')
             ->with('users')
             ->andReturn([':all', 'name']);
@@ -358,7 +305,6 @@ final class FieldResolverTest extends TestCase
      */
     public function testShouldRespondWithAllReturnsFalseByDefault(): void
     {
-
         ApiQuery::shouldReceive('getFields')
             ->with('users')
             ->andReturn(null);
@@ -420,9 +366,6 @@ final class FieldResolverTest extends TestCase
      */
     public function testGetFieldsReindexesAfterDeduplication(): void
     {
-
-        config()->set('api-toolkit.resources.fixed_fields', []);
-
         $this->resolver->withFields(['name', 'id', 'name', 'email']);
 
         $schema = new CompiledSchema([], []);

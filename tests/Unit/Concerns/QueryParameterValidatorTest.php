@@ -204,6 +204,154 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
+     * Provide each parameter the parser reads carrying malformed UTF-8.
+     *
+     * @return iterable<string, array{string, mixed}>
+     */
+    public static function malformedEncodingProvider(): iterable
+    {
+        foreach (['page', 'limit', 'cursor', 'filters', 'search', 'order', 'trashed'] as $parameter) {
+            yield $parameter => [$parameter, "n\xFFme"];
+        }
+
+        foreach (QueryParameterValidator::SELECTIONS as $parameter) {
+            yield $parameter . ' type' => [$parameter, ["\xFF" => 'name']];
+            yield $parameter . ' name' => [$parameter, ['users' => "n\xFFme"]];
+        }
+
+        yield 'overlong sequence' => ['order', "\xC0\xAF"];
+        yield 'encoded surrogate' => ['order', "\xED\xA0\x80"];
+        yield 'beyond the last code point' => ['order', "\xF4\x90\x80\x80"];
+    }
+
+    /**
+     * Test that a parameter the parser reads is refused on the parameter when
+     * any key or value in it is not valid UTF-8.
+     *
+     * @param  string  $parameter
+     * @param  mixed  $value
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('malformedEncodingProvider')]
+    public function testMalformedEncodingIsRefusedOnTheParameter(string $parameter, mixed $value): void
+    {
+        try {
+            $this->validator->validate([$parameter => $value]);
+            self::fail('A malformed parameter passed validation.');
+        } catch (ValidationException $exception) {
+            self::assertSame([$parameter => [self::malformedEncodingMessage($parameter)]], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that every malformed parameter is named in the one rejection.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testEachMalformedParameterIsNamed(): void
+    {
+        try {
+            $this->validator->validate(['order' => "\xFF", 'page' => '1', 'search' => "\xFF"]);
+            self::fail('Malformed parameters passed validation.');
+        } catch (ValidationException $exception) {
+            self::assertSame([
+                'search' => [self::malformedEncodingMessage('search')],
+                'order'  => [self::malformedEncodingMessage('order')],
+            ], $exception->errors());
+        }
+    }
+
+    /**
+     * Provide parameters the encoding check passes.
+     *
+     * @return iterable<string, array{array<string, mixed>}>
+     */
+    public static function wellFormedEncodingProvider(): iterable
+    {
+        yield 'multibyte order' => [['order' => 'nämé']];
+        yield 'multibyte selection' => [['fields' => ['users' => 'nämé'], 'aggregates' => ['nämé' => null]]];
+        yield 'integer page and limit' => [['page' => 2, 'limit' => 10]];
+        yield 'application parameters' => [['q' => "\xFF", 'pretty' => "\xFF", 'pagination' => "\xFF"]];
+    }
+
+    /**
+     * Test that well-formed values, integers and parameters the parser does not
+     * read pass validation.
+     *
+     * @param  array<string, mixed>  $parameters
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('wellFormedEncodingProvider')]
+    public function testWellFormedParametersPassTheEncodingCheck(array $parameters): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->validator->validate($parameters);
+    }
+
+    /**
+     * Provide values that are not text.
+     *
+     * @return iterable<string, array{mixed}>
+     */
+    public static function nonTextValueProvider(): iterable
+    {
+        yield 'null' => [null];
+        yield 'boolean' => [true];
+    }
+
+    /**
+     * Test that a value that is not text is left to the shape rules.
+     *
+     * @param  mixed  $value
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('nonTextValueProvider')]
+    public function testNonTextValueIsLeftToTheShapeRules(mixed $value): void
+    {
+        try {
+            $this->validator->validate(['search' => $value]);
+            self::fail('A non-text search term passed validation.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['search' => ['The search field must be a string.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Provide filter documents that are malformed and over the byte cap.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function oversizedMalformedFilterProvider(): iterable
+    {
+        yield 'malformed JSON' => ['{' . str_repeat('x', 100)];
+        yield 'malformed UTF-8' => ['{"name":"' . str_repeat("\xFF", 100) . '"}'];
+    }
+
+    /**
+     * Test that a filter document over the byte cap is refused for its size
+     * before its shape or encoding is read.
+     *
+     * @param  string  $filters
+     * @return void
+     */
+    #[DataProvider('oversizedMalformedFilterProvider')]
+    public function testOversizedMalformedDocumentIsRefusedForItsSizeBeforeItsShape(string $filters): void
+    {
+        Config::set('api-toolkit.query_cost.max_bytes', 64);
+
+        $this->assertRejectedForCost(['filters' => $filters], 'filters', QueryCostLimits::MAX_BYTES, 64, strlen($filters));
+    }
+
+    /**
      * Test that a filter document of exactly the byte cap is accepted.
      *
      * @return void
@@ -520,6 +668,17 @@ final class QueryParameterValidatorTest extends TestCase
         $this->expectException(ValidationException::class);
 
         $this->validator->validate(['limit' => 'abc']);
+    }
+
+    /**
+     * Build the message refusing the parameter for malformed UTF-8.
+     *
+     * @param  string  $parameter
+     * @return string
+     */
+    private static function malformedEncodingMessage(string $parameter): string
+    {
+        return 'The ' . $parameter . ' parameter must be valid UTF-8.';
     }
 
     /**

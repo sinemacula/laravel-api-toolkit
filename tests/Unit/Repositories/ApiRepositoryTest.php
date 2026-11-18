@@ -461,11 +461,12 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that persist invalidates the cache when a sync fails after the save.
+     * Test that persist invalidates the cache even when the write fails and
+     * rolls back.
      *
      * @return void
      */
-    public function testPersistInvalidatesTheCacheWhenASyncFailsAfterTheSave(): void
+    public function testPersistInvalidatesTheCacheWhenTheWriteFails(): void
     {
         $tag = Tag::create(['name' => 'php']);
 
@@ -475,7 +476,9 @@ final class ApiRepositoryTest extends TestCase
 
         $tags->get(); // @phpstan-ignore staticMethod.dynamicCall
 
-        $persist = static fn (): bool => $tags->persist($tag, ['name' => 'laravel', 'posts' => 1.5]);
+        DB::table('tags')->where('id', $tag->id)->update(['name' => 'laravel']);
+
+        $persist = static fn (): bool => $tags->persist($tag, ['name' => 'symfony', 'posts' => 1.5]);
 
         $this->assertThrows($persist, \InvalidArgumentException::class, 'must be given models or their keys');
 

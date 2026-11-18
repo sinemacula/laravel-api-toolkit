@@ -52,6 +52,9 @@ final readonly class ResourceSchemaBuilder
     /** The property extension marking a shape the document does not describe */
     private const string UNDOCUMENTED_KEY = 'x-undocumented';
 
+    /** The schema extension naming the fields returned when none are selected */
+    private const string DEFAULT_FIELDS_KEY = 'x-default-fields';
+
     /**
      * Constructor.
      *
@@ -128,7 +131,6 @@ final readonly class ResourceSchemaBuilder
     {
         $compiled   = SchemaCompiler::compile($resourceClass);
         $properties = [];
-        $required   = [];
         $limited    = [];
 
         foreach ($compiled->getFieldKeys() as $fieldKey) {
@@ -145,12 +147,6 @@ final readonly class ResourceSchemaBuilder
             }
 
             $properties[$fieldKey] = $this->withQuerySurface($property, $field, $compiled);
-
-            if (!$this->isRequired($field)) {
-                continue;
-            }
-
-            $required[] = $fieldKey;
         }
 
         if ($compiled->getAggregateDefinitions() !== []) {
@@ -161,12 +157,20 @@ final readonly class ResourceSchemaBuilder
             $properties[RelationLimit::TRUNCATED_KEY] = $this->buildTruncatedProperty($limited);
         }
 
-        if (is_a($resourceClass, ApiResourceInterface::class, true)) {
-            $properties = [self::TYPE_PROPERTY => $this->buildTypeProperty($resourceClass)] + $properties;
-            $required   = [self::TYPE_PROPERTY, ...$required];
+        if (!is_a($resourceClass, ApiResourceInterface::class, true)) {
+            return $this->wrapObjectSchema($properties, [], $compiled->getTraversableRelations());
         }
 
-        return $this->wrapObjectSchema($properties, $required, $compiled->getTraversableRelations());
+        $fixed    = $resourceClass::getFixedFields();
+        $defaults = array_intersect([...$resourceClass::getDefaultFields(), ...$fixed], array_keys($properties));
+        $required = array_filter($fixed, fn (string $key): bool => $this->isAlwaysPresent($compiled->getField($key)));
+
+        $properties = [self::TYPE_PROPERTY => $this->buildTypeProperty($resourceClass)] + $properties;
+
+        return [
+            ...$this->wrapObjectSchema($properties, [self::TYPE_PROPERTY, ...$required], $compiled->getTraversableRelations()),
+            self::DEFAULT_FIELDS_KEY => array_values(array_unique($defaults)),
+        ];
     }
 
     /**
@@ -481,15 +485,18 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Determine whether a field is a required property of the schema.
+     * Determine whether a fixed field is present in every response.
      *
-     * Guarded fields are conditionally present, so never required.
+     * Only a plain column read is; a relation, compute, accessor, guard or
+     * transformer may leave it out.
      *
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition|null  $field
      * @return bool
      */
-    private function isRequired(CompiledFieldDefinition $field): bool
+    private function isAlwaysPresent(?CompiledFieldDefinition $field): bool
     {
-        return $field->relation === null && $field->guards === [];
+        return $field !== null
+            && [$field->relation, $field->compute, $field->accessor] === [null, null, null]
+            && [...$field->guards, ...$field->transformers]          === [];
     }
 }
