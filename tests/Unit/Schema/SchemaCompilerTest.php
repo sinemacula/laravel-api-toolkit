@@ -221,7 +221,7 @@ final class SchemaCompilerTest extends TestCase
 
     /**
      * Test that duplicate markers are de-duplicated into zero-based lists and a
-     * column declared filterable twice keeps the last capability.
+     * column declared filterable twice is keyed once.
      *
      * A non-trailing duplicate leaves a key gap, so the reindex is observable.
      *

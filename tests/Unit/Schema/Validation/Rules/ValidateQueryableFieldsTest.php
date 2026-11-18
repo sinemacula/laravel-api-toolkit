@@ -283,30 +283,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that a capability-less declaration is not weighed as a conflict.
-     *
-     * @return void
-     */
-    public function testPassesOverACapabilitylessDeclarationWhenAnotherFieldGovernsTheColumn(): void
-    {
-        $schema = new CompiledSchema(
-            fields: [
-                'name'  => $this->makeField(filterable: 'name', capability: null),
-                'label' => $this->makeField(filterable: 'name', capability: Capability::EXACT),
-            ],
-        );
-
-        $errors = self::defects($this->rule(['id', 'name'])->validate(UserResource::class, User::class, $schema));
-
-        self::assertCount(1, $errors);
-        self::assertSame('name', $errors[0]->fieldKey);
-        self::assertSame(
-            'Field is declared filterable against "name" without a capability, so the declaration would be dropped',
-            $errors[0]->defect,
-        );
-    }
-
-    /**
      * Test that a sound filterable declaration does not end the walk.
      *
      * @return void

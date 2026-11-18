@@ -611,8 +611,8 @@ return ApiQuery::using($this->input->query->without('order', 'fields'), function
   rendered later reads the restored query, and a resource resolves its fields once, so build it where it renders.
 - Work that changes which rows match iterates with `lazyById()` on a snapshot `without('order')`. Keyset iteration
   after a client order skips rows, and so does offset `lazy()` as the set changes.
-- `allowsTrashed()` and request-based field guards see the worker's console request, which is not reconstructed, so a
-  carried `trashed` the worker's gate refuses fails the job.
+- `allowsTrashed()` and field guards see the worker's console request, which is not reconstructed, so a carried
+  `trashed` the worker's gate refuses, or a carried key a caller guard hides, fails the job.
 
 **Allowlist** - only schema fields declared `filterable()`, `sortable()`, or `traversable()` are accepted, and any
 other key is rejected with a validation error. There is no opt-out: a resource that declares nothing is queryable by
