@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\MissingValue;
 use SineMacula\ApiToolkit\Concerns\OrdersFields;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
@@ -35,8 +36,8 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     /** @var array<int, string> Default fields to include if no specific fields are requested */
     protected static array $default = [];
 
-    /** @var array<int, string> Fixed fields to include in the response */
-    protected array $fixed = [];
+    /** @var array<int, string> Fields added to every selection, after the configured fixed fields */
+    protected static array $fixed = [];
 
     /** @var \SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver */
     private readonly FieldResolver $fieldResolver;
@@ -99,7 +100,7 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
             $schema,
             static::getResourceType(),
             static::getDefaultFields(),
-            $this->fixed,
+            static::getFixedFields(),
         );
 
         $truncated = [];
@@ -186,6 +187,18 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     public static function getDefaultFields(): array
     {
         return static::$default;
+    }
+
+    /**
+     * Get the fields added to every selection: the configured fixed fields,
+     * then the resource's own.
+     *
+     * @return array<int, string>
+     */
+    #[\Override]
+    public static function getFixedFields(): array
+    {
+        return array_values(array_unique([...ResourceSettings::fixedFields(), ...static::$fixed]));
     }
 
     /**

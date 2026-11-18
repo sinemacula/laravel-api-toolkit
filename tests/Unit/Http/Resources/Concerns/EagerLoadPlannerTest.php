@@ -198,11 +198,11 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
-     * Test that visited resource/path pairs are not traversed again.
+     * Test that a path several fields load is planned once.
      *
      * @return void
      */
-    public function testBuildEagerLoadMapPreventsCyclicTraversal(): void
+    public function testBuildEagerLoadMapPlansAPathSharedByTwoFieldsOnce(): void
     {
 
         $resourceWithDuplicatePaths = new class {
@@ -228,10 +228,7 @@ final class EagerLoadPlannerTest extends TestCase
         $resourceClass = $resourceWithDuplicatePaths::class;
         $result        = EagerLoadPlanner::buildEagerLoadMap($resourceClass, ['items', 'items_alias']);
 
-        $plainPaths = array_values(array_filter($result, 'is_string'));
-        $itemsCount = count(array_filter($plainPaths, static fn (string $path): bool => $path === 'items'));
-
-        self::assertSame(1, $itemsCount);
+        self::assertSame(['items'], $result);
     }
 
     /**
@@ -248,13 +245,15 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
-     * Test that explicit child fields on a relation definition are used for
-     * recursion instead of defaults.
+     * Test that a relation's explicit child fields plan its nested relations in
+     * place of the fields the request selects for the child.
      *
      * @return void
      */
     public function testBuildEagerLoadMapUsesExplicitChildFieldsFromDefinition(): void
     {
+        ApiQuery::shouldReceive('getFields')
+            ->andReturnUsing(static fn (string $type): ?array => $type === 'posts' ? ['title'] : null);
 
         $parentResource = new class {
             /** @var string The resource type identifier. */
@@ -266,19 +265,14 @@ final class EagerLoadPlannerTest extends TestCase
             public static function schema(): array
             {
                 return [
-                    'organization' => [
-                        'relation' => 'organization',
-                        'resource' => OrganizationResource::class,
-                        'fields'   => ['id', 'name'],
-                    ],
+                    'posts'        => ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['id', 'tags']],
+                    'latest_posts' => ['relation' => 'posts', 'resource' => PostResource::class],
                 ];
             }
         };
 
-        $resourceClass = $parentResource::class;
-        $result        = EagerLoadPlanner::buildEagerLoadMap($resourceClass, ['organization']);
-
-        self::assertContains('organization', $result);
+        self::assertSame(['posts', 'posts.tags'], EagerLoadPlanner::buildEagerLoadMap($parentResource::class, ['posts']));
+        self::assertSame(['posts'], EagerLoadPlanner::buildEagerLoadMap($parentResource::class, ['latest_posts']));
     }
 
     /**
@@ -410,12 +404,12 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
-     * Test that an already-visited path is skipped while later fields are still
+     * Test that a repeated field is planned once while later fields are still
      * traversed.
      *
      * @return void
      */
-    public function testBuildEagerLoadMapContinuesAfterVisitedPath(): void
+    public function testBuildEagerLoadMapContinuesAfterARepeatedField(): void
     {
 
         ApiQuery::shouldReceive('getFields')
@@ -887,8 +881,8 @@ final class EagerLoadPlannerTest extends TestCase
      * Test that a pair of resources naming each other stops instead of
      * descending without bound.
      *
-     * The visited set is keyed by the lengthening path, so without a depth
-     * bound a cycle would exhaust memory.
+     * Paths lengthen on every descent, so only the resources already on the
+     * path end a cycle.
      *
      * @return void
      */
@@ -918,6 +912,97 @@ final class EagerLoadPlannerTest extends TestCase
                 sprintf('The walk must not descend past the cycle: %s', $path),
             );
         }
+    }
+
+    /**
+     * Test that fields over one relation each plan the nested relations their
+     * own projection selects.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapPlansEachAliasProjectionOverOneRelation(): void
+    {
+        $resource = new class {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'aliased_projection_test';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'posts'        => ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['id', 'tags']],
+                    'post_authors' => ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['id', 'user']],
+                ];
+            }
+        };
+
+        ApiQuery::shouldReceive('getFields')->andReturn(null);
+
+        self::assertSame(['posts', 'posts.tags', 'posts.user'], EagerLoadPlanner::buildEagerLoadMap($resource::class, ['posts', 'post_authors']));
+    }
+
+    /**
+     * Test that two relations rendered through one child resource each plan
+     * that child's nested relation under their own path.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapPlansTheSameChildUnderEveryPath(): void
+    {
+        $resource = new class {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'shared_child_test';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'billing_address'  => ['relation' => 'billing_address', 'resource' => PostResource::class, 'fields' => ['user']],
+                    'shipping_address' => ['relation' => 'shipping_address', 'resource' => PostResource::class, 'fields' => ['user']],
+                ];
+            }
+        };
+
+        ApiQuery::shouldReceive('getFields')->andReturn(null);
+
+        self::assertSame(
+            ['billing_address', 'billing_address.user', 'shipping_address', 'shipping_address.user'],
+            EagerLoadPlanner::buildEagerLoadMap($resource::class, ['billing_address', 'shipping_address']),
+        );
+    }
+
+    /**
+     * Test that a path bounded by one field and loaded plainly by another is
+     * planned once, as the bounded entry.
+     *
+     * @return void
+     */
+    public function testBuildEagerLoadMapPlansABoundedPathOnlyAsItsScopedEntry(): void
+    {
+        $resource = new class {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'scoped_and_plain_test';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'post_titles' => ['relation' => 'posts', 'accessor' => 'title'],
+                    'posts'       => ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['id'], 'limit' => 5],
+                ];
+            }
+        };
+
+        $map = EagerLoadPlanner::buildEagerLoadMap($resource::class, ['post_titles', 'posts']);
+
+        self::assertSame(['posts'], array_keys($map));
+        self::assertInstanceOf(\Closure::class, $map['posts']);
     }
 
     /**

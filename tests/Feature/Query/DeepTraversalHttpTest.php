@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace Tests\Feature\Query;
 
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
@@ -15,8 +14,7 @@ use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
-use Tests\Fixtures\Resources\DeepTraversalPostResource;
-use Tests\Fixtures\Resources\FilterableUserResource;
+use Tests\Fixtures\Resources\DeepTraversalUserResource;
 use Tests\TestCase;
 
 /**
@@ -35,8 +33,7 @@ final class DeepTraversalHttpTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up a users route, the deep-traversal Post resource map, and seeded
-     * users and posts.
+     * Set up a users route and seeded users and posts.
      *
      * @return void
      */
@@ -47,19 +44,15 @@ final class DeepTraversalHttpTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        Config::set('api-toolkit.resources.resource_map', [
-            Post::class => DeepTraversalPostResource::class,
-        ]);
-
         Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
-            $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
+            $users = $repository->usingResource(DeepTraversalUserResource::class)->withApiCriteria()->paginate();
 
-            return new ApiResourceCollection($users, FilterableUserResource::class);
+            return new ApiResourceCollection($users, DeepTraversalUserResource::class);
         });
 
-        $alice = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
-        $bob   = User::create(['name' => 'Bob', 'email' => 'bob@example.com']);
+        $alice = User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);
+        $bob   = User::create(['name' => 'Bob', 'email' => 'bob@example.com', 'status' => 'inactive']);
 
         Post::create(['user_id' => $alice->id, 'title' => 'Alice Post', 'body' => 'Content']);
         Post::create(['user_id' => $bob->id, 'title' => 'Bob Post', 'body' => 'Content']);
@@ -81,5 +74,40 @@ final class DeepTraversalHttpTest extends TestCase
         $response->assertJsonCount(1, 'data');
         $response->assertJsonPath('data.0.name', 'Alice');
         $response->assertJsonPath('meta.total', 1);
+    }
+
+    /**
+     * Test that the author level is governed by the resource the post declares
+     * for it, which filters a column the root resource does not.
+     *
+     * @return void
+     */
+    public function testNestedLevelOfTheRootModelIsGovernedByItsDeclaredResource(): void
+    {
+        $filters = json_encode(['posts' => ['user' => ['status' => 'inactive']]]);
+
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
+
+        $response->assertOk();
+        $response->assertJsonPath('data.*.name', ['Bob']);
+    }
+
+    /**
+     * Test that a column the root resource filters is refused at a nested level
+     * whose declared resource does not.
+     *
+     * @return void
+     */
+    public function testRootColumnIsRefusedWhereTheNestedResourceOmitsIt(): void
+    {
+        $this->getJson('/users?filters=' . urlencode((string) json_encode(['created_at' => ['$ge' => '2000-01-01']])))->assertOk();
+
+        $filters = json_encode(['posts' => ['user' => ['created_at' => ['$ge' => '2000-01-01']]]]);
+
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
+
+        $response->assertStatus(422);
+
+        self::assertArrayHasKey('filters.created_at', (array) $response->json('error.meta'));
     }
 }

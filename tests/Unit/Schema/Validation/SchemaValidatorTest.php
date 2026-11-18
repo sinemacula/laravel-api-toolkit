@@ -6,16 +6,27 @@ namespace Tests\Unit\Schema\Validation;
 
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationInterfaces;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSensitiveColumns;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
+use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\SensitiveQueryableResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -70,9 +81,9 @@ final class SchemaValidatorTest extends TestCase
             ->method('validate')
             ->willReturn([]);
 
-        $validator = new SchemaValidator($rule);
+        $validator = new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule);
 
-        $validator->validate([User::class => UserResource::class]);
+        $validator->validate([Organization::class => OrganizationResource::class]);
 
         self::assertTrue(true);
     }
@@ -84,18 +95,18 @@ final class SchemaValidatorTest extends TestCase
      */
     public function testValidateThrowsInvalidSchemaExceptionOnErrors(): void
     {
-        $error = new SchemaValidationError(UserResource::class, 'id', 'Test defect');
+        $error = new SchemaValidationError(OrganizationResource::class, 'id', 'Test defect');
 
         $rule = self::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturn([$error]);
 
-        $validator = new SchemaValidator($rule);
+        $validator = new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule);
 
         $this->expectException(InvalidSchemaException::class);
 
-        $validator->validate([User::class => UserResource::class]);
+        $validator->validate([Organization::class => OrganizationResource::class]);
     }
 
     /**
@@ -105,8 +116,8 @@ final class SchemaValidatorTest extends TestCase
      */
     public function testExceptionContainsAllErrors(): void
     {
-        $errorA = new SchemaValidationError(UserResource::class, 'id', 'Defect A');
-        $errorB = new SchemaValidationError(UserResource::class, 'name', 'Defect B');
+        $errorA = new SchemaValidationError(OrganizationResource::class, 'id', 'Defect A');
+        $errorB = new SchemaValidationError(OrganizationResource::class, 'name', 'Defect B');
 
         $ruleA = self::createStub(SchemaValidationRule::class);
 
@@ -118,10 +129,10 @@ final class SchemaValidatorTest extends TestCase
         $ruleB->method('validate')
             ->willReturn([$errorB]);
 
-        $validator = new SchemaValidator($ruleA, $ruleB);
+        $validator = new SchemaValidator(app(SchemaIntrospectionProvider::class), $ruleA, $ruleB);
 
         try {
-            $validator->validate([User::class => UserResource::class]);
+            $validator->validate([Organization::class => OrganizationResource::class]);
             self::fail('Expected InvalidSchemaException was not thrown');
         } catch (InvalidSchemaException $exception) {
             self::assertCount(2, $exception->getErrors());
@@ -142,7 +153,7 @@ final class SchemaValidatorTest extends TestCase
         $rule->expects(self::never())
             ->method('validate');
 
-        $validator = new SchemaValidator($rule);
+        $validator = new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule);
 
         $validator->validate([]);
 
@@ -168,11 +179,11 @@ final class SchemaValidatorTest extends TestCase
             ->method('validate')
             ->willReturn([]);
 
-        $validator = new SchemaValidator($ruleA, $ruleB);
+        $validator = new SchemaValidator(app(SchemaIntrospectionProvider::class), $ruleA, $ruleB);
 
         $validator->validate([
-            User::class => UserResource::class,
-            Post::class => PostResource::class,
+            Organization::class => OrganizationResource::class,
+            Post::class         => PostResource::class,
         ]);
 
         self::assertTrue(true);
@@ -185,9 +196,9 @@ final class SchemaValidatorTest extends TestCase
      */
     public function testValidateWithNoRulesPassesWithoutErrors(): void
     {
-        $validator = new SchemaValidator;
+        $validator = new SchemaValidator(app(SchemaIntrospectionProvider::class));
 
-        $validator->validate([User::class => UserResource::class]);
+        $validator->validate([Organization::class => OrganizationResource::class]);
 
         self::assertTrue(true);
     }
@@ -199,31 +210,31 @@ final class SchemaValidatorTest extends TestCase
      */
     public function testErrorsFromMultipleResourcesAreAggregated(): void
     {
-        $userError = new SchemaValidationError(UserResource::class, 'id', 'User defect');
-        $postError = new SchemaValidationError(PostResource::class, 'title', 'Post defect');
+        $organizationError = new SchemaValidationError(OrganizationResource::class, 'id', 'Organization defect');
+        $postError         = new SchemaValidationError(PostResource::class, 'title', 'Post defect');
 
         $rule = self::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
-            ->willReturnCallback(function (string $resourceClass) use ($userError, $postError): array {
-                if ($resourceClass === UserResource::class) {
-                    return [$userError];
+            ->willReturnCallback(function (string $resourceClass) use ($organizationError, $postError): array {
+                if ($resourceClass === OrganizationResource::class) {
+                    return [$organizationError];
                 }
 
                 return [$postError];
             });
 
-        $validator = new SchemaValidator($rule);
+        $validator = new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule);
 
         try {
             $validator->validate([
-                User::class => UserResource::class,
-                Post::class => PostResource::class,
+                Organization::class => OrganizationResource::class,
+                Post::class         => PostResource::class,
             ]);
             self::fail('Expected InvalidSchemaException was not thrown');
         } catch (InvalidSchemaException $exception) {
             self::assertCount(2, $exception->getErrors());
-            self::assertSame($userError, $exception->getErrors()[0]);
+            self::assertSame($organizationError, $exception->getErrors()[0]);
             self::assertSame($postError, $exception->getErrors()[1]);
         }
     }
@@ -236,24 +247,24 @@ final class SchemaValidatorTest extends TestCase
      */
     public function testReportPartitionsTheFindingsAndCountsTheResources(): void
     {
-        $userError  = new SchemaValidationError(UserResource::class, 'id', 'User defect');
-        $userClaim  = new UnverifiedDeclaration(UserResource::class, 'name', 'a claim', User::class);
-        $postError  = new SchemaValidationError(PostResource::class, 'title', 'Post defect');
-        $postClaim  = new UnverifiedDeclaration(PostResource::class, 'body', 'another claim', Post::class);
-        $byResource = [UserResource::class => [$userClaim, $userError], PostResource::class => [$postError, $postClaim]];
+        $organizationError = new SchemaValidationError(OrganizationResource::class, 'id', 'Organization defect');
+        $organizationClaim = new UnverifiedDeclaration(OrganizationResource::class, 'name', 'a claim', Organization::class);
+        $postError         = new SchemaValidationError(PostResource::class, 'title', 'Post defect');
+        $postClaim         = new UnverifiedDeclaration(PostResource::class, 'body', 'another claim', Post::class);
+        $byResource        = [OrganizationResource::class => [$organizationClaim, $organizationError], PostResource::class => [$postError, $postClaim]];
 
         $rule = self::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
             ->willReturnCallback(static fn (string $resourceClass): array => $byResource[$resourceClass]);
 
-        $report = (new SchemaValidator($rule))->report([
-            User::class => UserResource::class,
-            Post::class => PostResource::class,
+        $report = (new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule))->report([
+            Organization::class => OrganizationResource::class,
+            Post::class         => PostResource::class,
         ]);
 
-        self::assertSame([$userError, $postError], $report->errors);
-        self::assertSame([$userClaim, $postClaim], $report->unverified);
+        self::assertSame([$organizationError, $postError], $report->errors);
+        self::assertSame([$organizationClaim, $postClaim], $report->unverified);
         self::assertSame(2, $report->resourceCount);
     }
 
@@ -265,7 +276,7 @@ final class SchemaValidatorTest extends TestCase
      */
     public function testUnboundCataloguedResourceIsValidatedWithoutAModel(): void
     {
-        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, TagResource::class]);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [OrganizationResource::class, TagResource::class]);
 
         $calls = [];
         $rule  = self::createStub(SchemaValidationRule::class);
@@ -277,10 +288,40 @@ final class SchemaValidatorTest extends TestCase
                 return [];
             });
 
-        $report = (new SchemaValidator($rule))->report([User::class => UserResource::class]);
+        $report = (new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule))->report([Organization::class => OrganizationResource::class]);
 
-        self::assertSame([[UserResource::class, User::class], [TagResource::class, null]], $calls);
+        self::assertSame([[OrganizationResource::class, Organization::class], [TagResource::class, null]], $calls);
         self::assertSame(2, $report->resourceCount);
+    }
+
+    /**
+     * Test that a catalogued resource a filter reaches is validated with the
+     * model it reaches, never again without one.
+     *
+     * @return void
+     */
+    public function testReachedCataloguedResourceIsValidatedOnlyWithItsModel(): void
+    {
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, PostResource::class]);
+
+        $calls = [];
+        $rule  = self::createStub(SchemaValidationRule::class);
+
+        $rule->method('validate')
+            ->willReturnCallback(static function (string $resourceClass, ?string $modelClass) use (&$calls): array {
+                $calls[] = [$resourceClass, $modelClass];
+
+                return [];
+            });
+
+        $report = (new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule))->report([User::class => UserResource::class]);
+
+        self::assertSame([
+            [UserResource::class, User::class],
+            [OrganizationResource::class, Organization::class],
+            [PostResource::class, Post::class],
+        ], $calls);
+        self::assertSame(3, $report->resourceCount);
     }
 
     /**
@@ -293,9 +334,9 @@ final class SchemaValidatorTest extends TestCase
         $rule = self::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
-            ->willReturn([new UnverifiedDeclaration(UserResource::class, 'name', 'a claim', User::class)]);
+            ->willReturn([new UnverifiedDeclaration(OrganizationResource::class, 'name', 'a claim', Organization::class)]);
 
-        (new SchemaValidator($rule))->validate([User::class => UserResource::class]);
+        (new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule))->validate([Organization::class => OrganizationResource::class]);
 
         $this->expectNotToPerformAssertions();
     }
@@ -308,18 +349,184 @@ final class SchemaValidatorTest extends TestCase
      */
     public function testValidateThrowsWithTheDefectsOnly(): void
     {
-        $error = new SchemaValidationError(UserResource::class, 'id', 'Test defect');
+        $error = new SchemaValidationError(OrganizationResource::class, 'id', 'Test defect');
 
         $rule = self::createStub(SchemaValidationRule::class);
 
         $rule->method('validate')
-            ->willReturn([new UnverifiedDeclaration(UserResource::class, 'name', 'a claim', User::class), $error]);
+            ->willReturn([new UnverifiedDeclaration(OrganizationResource::class, 'name', 'a claim', Organization::class), $error]);
 
         try {
-            (new SchemaValidator($rule))->validate([User::class => UserResource::class]);
+            (new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule))->validate([Organization::class => OrganizationResource::class]);
             self::fail('Expected InvalidSchemaException was not thrown');
         } catch (InvalidSchemaException $exception) {
             self::assertSame([$error], $exception->getErrors());
         }
+    }
+
+    /**
+     * Test that a resource a filter reaches through a declared relation is
+     * validated although no model maps to it.
+     *
+     * @return void
+     */
+    public function testValidatesAnUnmappedResourceAFilterReaches(): void
+    {
+        $posts = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'sensitive_author_posts';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Relation::to('user', SensitiveQueryableResource::class)->traversable(),
+                );
+            }
+        };
+
+        $report = (new SchemaValidator(app(SchemaIntrospectionProvider::class), new ValidateSensitiveColumns))->report([Post::class => $posts::class]);
+
+        self::assertSame(2, $report->resourceCount);
+        self::assertEquals(
+            [new SchemaValidationError(
+                SensitiveQueryableResource::class,
+                'password',
+                'Field is declared filterable against "password", which is configured as a sensitive column and may never be queried',
+            )],
+            $report->errors,
+        );
+    }
+
+    /**
+     * Test that each resource is validated once per model it serves, however
+     * many relations reach it.
+     *
+     * @return void
+     */
+    public function testValidatesEachResourceAndModelPairOnce(): void
+    {
+        $validated = [];
+
+        $rule = self::createStub(SchemaValidationRule::class);
+
+        $rule->method('validate')
+            ->willReturnCallback(static function (string $resourceClass, ?string $modelClass) use (&$validated): array {
+                $validated[] = [$resourceClass, $modelClass];
+
+                return [];
+            });
+
+        $report = (new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule))->report([
+            User::class         => UserResource::class,
+            Organization::class => OrganizationResource::class,
+        ]);
+
+        self::assertSame([
+            [UserResource::class, User::class],
+            [OrganizationResource::class, Organization::class],
+            [PostResource::class, Post::class],
+        ], $validated);
+        self::assertSame(3, $report->resourceCount);
+    }
+
+    /**
+     * Test that resources reaching each other are validated once each.
+     *
+     * @return void
+     */
+    public function testTraversalCycleTerminates(): void
+    {
+        $users = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'cyclic_users';
+
+            /** @var string */
+            public static string $posts = '';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(Field::scalar('id'), Relation::to('posts', self::$posts)->traversable());
+            }
+        };
+
+        $posts = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'cyclic_posts';
+
+            /** @var string */
+            public static string $user = '';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(Field::scalar('id'), Relation::to('user', self::$user)->traversable());
+            }
+        };
+
+        $users::$posts = $posts::class;
+        $posts::$user  = $users::class;
+
+        $report = (new SchemaValidator(app(SchemaIntrospectionProvider::class)))->report([User::class => $users::class]);
+
+        self::assertSame(2, $report->resourceCount);
+    }
+
+    /**
+     * Test that a relation the model lacks, a missing resource class and a
+     * class that is no resource reach nothing, and are still reported.
+     *
+     * @return void
+     */
+    public function testUnreachableRelationsAddNoResourceAndAreStillReported(): void
+    {
+        $posts = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'unreachable_posts';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return [
+                    'ghost' => ['relation' => 'ghost', 'resource' => UserResource::class, 'traversable' => 'ghost'],
+                    'user'  => ['relation' => 'user', 'resource' => 'Tests\Fixtures\Resources\MissingResource', 'traversable' => 'user'],
+                    'tags'  => ['relation' => 'tags', 'resource' => \stdClass::class, 'traversable' => 'tags'],
+                ];
+            }
+        };
+
+        $validator = new SchemaValidator(
+            app(SchemaIntrospectionProvider::class),
+            new ValidateRelationMethods,
+            new ValidateRelationClasses,
+            new ValidateRelationInterfaces,
+        );
+
+        $report = $validator->report([Post::class => $posts::class]);
+
+        self::assertSame(1, $report->resourceCount);
+        self::assertSame(['ghost', 'user', 'tags'], array_map(static fn (SchemaValidationError $error): string => $error->fieldKey, $report->errors));
     }
 }

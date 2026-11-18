@@ -45,6 +45,7 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
+use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
@@ -245,20 +246,64 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that a resource create or update documents the validation error
-     * without a request body, and a read or delete does not.
+     * Test that a resource operation documents the failures its query
+     * parameters and body raise, and a delete documents none.
      *
      * @return void
      */
-    public function testResourceWriteActionsDocumentTheValidationError(): void
+    public function testResourceOperationsDocumentTheFailuresTheirInputsRaise(): void
     {
         $this->registerRestRoutes();
         $this->router()->put('errors/{error}', [PathErrorController::class, 'update']);
 
-        self::assertSame([201, 403, 409, 422, 500], array_keys($this->responsesOf('/users', 'post')));
-        self::assertSame([200, 403, 404, 422, 500], array_keys($this->responsesOf('/errors/{error}', 'put')));
-        self::assertSame([200, 403, 404, 500], array_keys($this->responsesOf('/users/{user}', 'get')));
-        self::assertSame([204, 403, 404, 500], array_keys($this->responsesOf('/users/{user}', 'delete')));
+        $paths = $this->build();
+
+        self::assertSame([200, 403, 422, 500], $this->statusesOf($paths, '/users', 'get'));
+        self::assertSame(['Error10106', 'Error10201'], $this->examplesOf($paths, '/users', 'get', 422));
+        self::assertSame([200, 403, 404, 422, 500], $this->statusesOf($paths, '/users/{user}', 'get'));
+        self::assertSame(['Error10106'], $this->examplesOf($paths, '/users/{user}', 'get', 422));
+        self::assertSame([201, 403, 409, 422, 500], $this->statusesOf($paths, '/users', 'post'));
+        self::assertSame(['Error10106'], $this->examplesOf($paths, '/users', 'post', 422));
+        self::assertSame(['Error10106'], $this->examplesOf($paths, '/users/{user}', 'patch', 422));
+        self::assertSame([204, 403, 404, 500], $this->statusesOf($paths, '/users/{user}', 'delete'));
+        self::assertSame([200, 403, 404, 422, 500], $this->statusesOf($paths, '/errors/{error}', 'put'));
+    }
+
+    /**
+     * Test that an index documents no query cost refusal while every cap is
+     * disabled.
+     *
+     * @return void
+     */
+    public function testIndexDocumentsNoQueryCostRefusalWhileEveryCapIsDisabled(): void
+    {
+        config()->set('api-toolkit.query_cost', array_fill_keys(array_keys(QueryCostLimits::DEFAULTS), null));
+        config()->set('api-toolkit.parser.max_limit', null);
+
+        $this->registerRestRoutes();
+
+        self::assertSame(['Error10106'], $this->examplesOf($this->build(), '/users', 'get', 422));
+    }
+
+    /**
+     * Test that an operation outside the resource contract documents a
+     * validation failure only for its body.
+     *
+     * @return void
+     */
+    public function testOperationOutsideTheResourceContractDocumentsOnlyItsBodyFailure(): void
+    {
+        $this->router()->get('plain', [PathPlainController::class, 'report']);
+        $this->router()->get('widgets', [PathDeclaredBodyUserController::class, 'index']);
+        $this->router()->post('users', [PathDeclaredResourceUserController::class, 'store']);
+        $this->router()->put('users/{user}', [PathDeclaredResourceUserController::class, 'update']);
+
+        $paths = $this->build();
+
+        self::assertSame([200, 500], $this->statusesOf($paths, '/plain', 'get'));
+        self::assertSame([206, 403, 500], $this->statusesOf($paths, '/widgets', 'get'));
+        self::assertSame(['Error10106'], $this->examplesOf($paths, '/users', 'post', 422));
+        self::assertSame(['Error10106'], $this->examplesOf($paths, '/users/{user}', 'put', 422));
     }
 
     /**
@@ -952,7 +997,7 @@ final class PathBuilderTest extends TestCase
 
         self::assertSame(['User'], $operation['tags']);
         self::assertSame(['Fields', 'Aggregates'], $this->referencedParameterNames($operation));
-        self::assertSame([200, 403, 404, 500], array_keys($responses));
+        self::assertSame([200, 403, 404, 422, 500], array_keys($responses));
         self::assertSame([
             'description' => 'The requested resource.',
             'content'     => ['application/json' => ['schema' => (new EnvelopeBuilder)->singleEnvelope('#/components/schemas/User')]],
@@ -1364,7 +1409,7 @@ final class PathBuilderTest extends TestCase
         $responses = $this->build()['/gaps']['get']['responses'];
 
         self::assertIsArray($responses);
-        self::assertSame([200, 401, 403, 500], array_keys($responses));
+        self::assertSame([200, 401, 403, 422, 500], array_keys($responses));
         self::assertSame(
             (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
             $responses[200]['content']['application/json']['schema']['anyOf'][0],
@@ -1643,7 +1688,7 @@ final class PathBuilderTest extends TestCase
         $envelope  = new EnvelopeBuilder;
 
         self::assertIsArray($responses);
-        self::assertSame([206, 403, 500], array_keys($responses));
+        self::assertSame([206, 403, 422, 500], array_keys($responses));
         self::assertSame('Partial Content.', $responses[206]['description']);
         self::assertIsArray($responses[206]['headers']);
         self::assertSame(['Total-Count', 'X-Request-Id'], array_keys($responses[206]['headers']));
@@ -1870,6 +1915,41 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * List the statuses a built operation documents.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @param  string  $path
+     * @param  string  $method
+     * @return list<array-key>
+     */
+    private function statusesOf(array $paths, string $path, string $method): array
+    {
+        $responses = $this->operationOf($paths, $path, $method)['responses'] ?? null;
+
+        self::assertIsArray($responses);
+
+        return array_keys($responses);
+    }
+
+    /**
+     * List the example names a built operation's error response references.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @param  string  $path
+     * @param  string  $method
+     * @param  int  $status
+     * @return list<array-key>
+     */
+    private function examplesOf(array $paths, string $path, string $method, int $status): array
+    {
+        $examples = $this->operationOf($paths, $path, $method)['responses'][$status]['content']['application/json']['examples'] ?? null;
+
+        self::assertIsArray($examples);
+
+        return array_keys($examples);
+    }
+
+    /**
      * Build a path builder over the catalogue.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder
@@ -1933,20 +2013,23 @@ final class PathBuilderTest extends TestCase
 
     /**
      * Build a catalogue mapping the user and article models to their resources,
-     * with the package's error catalogue.
+     * with the package's error catalogue and the configured query limits.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue
      */
     private function catalogue(): MetadataCatalogue
     {
-        assert($this->app !== null);
+        $app = $this->app;
+
+        assert($app !== null);
 
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn([
             User::class    => UserResource::class,
             Article::class => ArticleResource::class,
         ]);
-        $catalogue->method('getErrorCatalogue')->willReturn($this->app->make(ErrorCatalogueReader::class)->read());
+        $catalogue->method('getErrorCatalogue')->willReturn($app->make(ErrorCatalogueReader::class)->read());
+        $catalogue->method('getQueryLimits')->willReturnCallback(static fn (): array => $app->make(MetadataCatalogue::class)->getQueryLimits());
 
         return $catalogue;
     }

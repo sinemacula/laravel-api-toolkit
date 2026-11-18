@@ -141,6 +141,28 @@ final class ColumnNarrowingHttpTest extends TestCase
     }
 
     /**
+     * Test that a configured fixed field keeps its column in a narrowed select,
+     * so the response still carries it.
+     *
+     * @return void
+     */
+    public function testNarrowedSelectKeepsAConfiguredFixedField(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+        Config::set('api-toolkit.resources.fixed_fields', ['id', '_type', 'status']);
+
+        DB::enableQueryLog();
+        $response = $this->getJson('/users?' . http_build_query(['fields' => ['users' => 'name']]));
+        $sql      = $this->unquote($this->baseUsersSelect());
+
+        $response->assertOk();
+
+        self::assertStringNotContainsString('users.*', $sql);
+        self::assertStringContainsString('status', $sql);
+        self::assertSame(['_type' => 'users', 'id' => 1, 'name' => 'Alice', 'status' => 'active'], $response->json('data.0'));
+    }
+
+    /**
      * Get the base users SELECT statement from the recorded query log.
      *
      * @return string

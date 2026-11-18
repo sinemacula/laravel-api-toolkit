@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Enums\Capability;
@@ -113,6 +114,43 @@ final class SchemaCompilerTest extends TestCase
         self::assertInstanceOf(CompiledFieldDefinition::class, $name);
         self::assertSame('name', $name->filterable);
         self::assertSame(Capability::ENUM, $name->filterCapability);
+    }
+
+    /**
+     * Provide schemas declaring a traversable accessor-only alias beside a
+     * sibling declaring the resource, in both orders.
+     *
+     * @return iterable<string, array{array<string, array<string, mixed>>}>
+     */
+    public static function traversableResourceProvider(): iterable
+    {
+        $alias    = ['relation' => 'organization', 'accessor' => 'name', 'traversable' => 'organization'];
+        $resource = ['relation' => 'organization', 'resource' => self::STUB_ORGANIZATION_RESOURCE];
+        $others   = [
+            'profile' => ['relation' => 'profile', 'accessor' => 'bio', 'traversable' => 'profile'],
+            'posts'   => ['relation' => 'posts', 'resource' => self::STUB_ORGANIZATION_RESOURCE],
+        ];
+
+        yield 'alias first' => [['organization_name' => $alias, 'organization' => $resource, ...$others]];
+        yield 'resource first' => [['organization' => $resource, 'organization_name' => $alias, ...$others]];
+    }
+
+    /**
+     * Test that a traversable relation resolves to the resource any field over
+     * it declares, whichever is declared first, and an accessor-only one to
+     * none.
+     *
+     * @param  array<string, array<string, mixed>>  $schema
+     * @return void
+     */
+    #[DataProvider('traversableResourceProvider')]
+    public function testCompileRecordsTheResourceDeclaredOverEachTraversableRelation(array $schema): void
+    {
+        $compiled = SchemaCompiler::compile($this->createStubResourceClass($schema));
+
+        self::assertSame(self::STUB_ORGANIZATION_RESOURCE, $compiled->getTraversableResource('organization'));
+        self::assertNull($compiled->getTraversableResource('profile'));
+        self::assertNull($compiled->getTraversableResource('posts'));
     }
 
     /**

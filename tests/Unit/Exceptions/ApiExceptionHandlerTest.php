@@ -642,29 +642,6 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that the pretty request parameter produces indented JSON output.
-     *
-     * @return void
-     */
-    public function testPrettyParameterFormatsJsonWithIndentation(): void
-    {
-        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb(), ['pretty' => '1']);
-        $request->headers->set('Accept', self::ACCEPT_JSON);
-
-        config()->set('app.debug', false);
-
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new NotFoundHttpException, $request);
-
-        self::assertInstanceOf(JsonResponse::class, $response);
-
-        $content = $response->getContent();
-
-        self::assertIsString($content);
-        self::assertStringContainsString("\n    ", $content);
-    }
-
-    /**
      * Test that JSON output is compact when the pretty request parameter is not
      * provided.
      *
@@ -686,6 +663,126 @@ final class ApiExceptionHandlerTest extends TestCase
 
         self::assertIsString($content);
         self::assertStringNotContainsString("\n", $content);
+    }
+
+    /**
+     * Provide each pretty value and whether it asks for indented output.
+     *
+     * @return iterable<string, array{string, bool}>
+     */
+    public static function prettyValueProvider(): iterable
+    {
+        yield '1' => ['1', true];
+        yield 'true' => ['true', true];
+        yield 'yes' => ['yes', true];
+        yield '0' => ['0', false];
+        yield 'false' => ['false', false];
+        yield 'off' => ['off', false];
+        yield 'no' => ['no', false];
+    }
+
+    /**
+     * Test that the pretty parameter is read as a boolean, as the pretty-print
+     * middleware reads it.
+     *
+     * @param  string  $value
+     * @param  bool  $indented
+     * @return void
+     */
+    #[DataProvider('prettyValueProvider')]
+    public function testPrettyParameterIsReadAsABoolean(string $value, bool $indented): void
+    {
+        config()->set('app.debug', false);
+
+        $content = $this->renderToJson(new NotFoundHttpException, self::jsonRequest(['pretty' => $value]))->getContent();
+
+        self::assertIsString($content);
+        self::assertSame($indented, str_contains($content, "\n    "));
+    }
+
+    /**
+     * Provide the query of a compact and of a pretty-printed request.
+     *
+     * @return iterable<string, array{array<string, string>}>
+     */
+    public static function prettyQueryProvider(): iterable
+    {
+        yield 'compact' => [[]];
+        yield 'pretty' => [['pretty' => '1']];
+    }
+
+    /**
+     * Test that malformed UTF-8 in a validation key and message is substituted
+     * rather than failing the 422.
+     *
+     * @param  array<string, string>  $query
+     * @return void
+     */
+    #[DataProvider('prettyQueryProvider')]
+    public function testMalformedUtf8InAValidationFailureIsSubstituted(array $query): void
+    {
+        config()->set('app.debug', false);
+
+        $exception = ValidationException::withMessages(["order.n\xFFme" => "The \"n\xFFme\" key is not permitted."]);
+        $response  = $this->renderToJson($exception, self::jsonRequest($query));
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertStringContainsString('order.n\ufffdme', (string) $response->getContent());
+        self::assertSame(["order.n\u{FFFD}me" => ["The \"n\u{FFFD}me\" key is not permitted."]], $response->getData(true)['error']['meta']);
+    }
+
+    /**
+     * Test that malformed UTF-8 in custom meta is substituted rather than
+     * failing the response.
+     *
+     * @return void
+     */
+    public function testMalformedUtf8InCustomMetaIsSubstituted(): void
+    {
+        config()->set('app.debug', false);
+
+        $response = $this->renderToJson(new ConflictException(["k\xFF" => "v\xFF"]), self::jsonRequest());
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame(["k\u{FFFD}" => "v\u{FFFD}"], $response->getData(true)['error']['meta']);
+    }
+
+    /**
+     * Test that malformed UTF-8 in the message of the previous exception is
+     * substituted in the debug meta rather than hiding that exception.
+     *
+     * @return void
+     */
+    public function testMalformedUtf8InADebugPreviousMessageIsSubstituted(): void
+    {
+        config()->set('app.debug', false);
+        config()->set('api-toolkit.exceptions.include_debug_info', true);
+
+        $response = $this->renderToJson(new \RuntimeException("Driver error near \xFF"), self::jsonRequest());
+        $meta     = $response->getData(true)['error']['meta'];
+
+        self::assertSame(500, $response->getStatusCode());
+        self::assertSame("Driver error near \u{FFFD}", $meta['message']);
+        self::assertSame(\RuntimeException::class, $meta['exception']);
+    }
+
+    /**
+     * Test that malformed UTF-8 in a precognitive validation body is
+     * substituted rather than failing the 422.
+     *
+     * @return void
+     */
+    public function testMalformedUtf8InAPrecognitiveValidationBodyIsSubstituted(): void
+    {
+        config()->set('app.debug', false);
+
+        $exception = ValidationException::withMessages(["items.\xFF.name" => "The items.\xFF.name field is required."]);
+        $response  = $this->renderToJson($exception, self::precognitiveRequest(self::ACCEPT_JSON));
+
+        self::assertSame(
+            ["items.\u{FFFD}.name" => ["The items.\u{FFFD}.name field is required."]],
+            $response->getData(true)['errors'],
+        );
     }
 
     /**
@@ -1543,6 +1640,37 @@ final class ApiExceptionHandlerTest extends TestCase
         assert($prepared instanceof \Throwable);
 
         return $prepared;
+    }
+
+    /**
+     * Render the exception through the handler, asserting a JSON response.
+     *
+     * @param  \Throwable  $exception
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    private function renderToJson(\Throwable $exception, Request $request): JsonResponse
+    {
+        $response = (new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, $exception, $request);
+
+        self::assertInstanceOf(JsonResponse::class, $response);
+
+        return $response;
+    }
+
+    /**
+     * Build a request expecting JSON with the given query.
+     *
+     * @param  array<string, string>  $query
+     * @return \Illuminate\Http\Request
+     */
+    private static function jsonRequest(array $query = []): Request
+    {
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb(), $query);
+
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        return $request;
     }
 
     /**

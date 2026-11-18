@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 
-use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 
@@ -81,13 +80,11 @@ final class FieldResolver
 
         $excluded = $this->excludedFields ?? [];
 
-        $configFixed = ResourceSettings::fixedFields();
-
         // Request-scoped memo so a homogeneous page assembles the list once
-        $key = self::cacheKey($this->fields, $excluded, $configFixed, $fixedFields);
+        $key = self::cacheKey($this->fields, $excluded, $fixedFields);
 
         return self::$resolvedCache[$key] ??= array_values(array_unique(
-            array_merge(array_diff($this->fields, $excluded), $configFixed, $fixedFields),
+            array_merge(array_diff($this->fields, $excluded), $fixedFields),
         ));
     }
 
@@ -129,16 +126,14 @@ final class FieldResolver
      *
      * @param  array<int, string>  $fields
      * @param  array<int, string>  $excluded
-     * @param  array<int, string>  $configFixed
      * @param  array<int, string>  $fixedFields
      * @return string
      */
-    private static function cacheKey(array $fields, array $excluded, array $configFixed, array $fixedFields): string
+    private static function cacheKey(array $fields, array $excluded, array $fixedFields): string
     {
         return implode('|', [
             implode("\0", $fields),
             implode("\0", $excluded),
-            implode("\0", $configFixed),
             implode("\0", $fixedFields),
         ]);
     }

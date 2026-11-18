@@ -200,6 +200,7 @@ final readonly class ContainerBindingRegistrar
     private function registerSchemaValidator(): void
     {
         $this->container->singleton(SchemaValidator::class, fn (Container $app): SchemaValidator => new SchemaValidator(
+            $app->make(SchemaIntrospectionProvider::class),
             new ValidateRelationClasses,
             new ValidateRelationInterfaces,
             new ValidateRelationMethods,

@@ -91,7 +91,7 @@ final class ApiExceptionHandler
 
         // Precognition clients read Laravel's validation body
         if ($exception instanceof ValidationException && $request->isPrecognitive()) {
-            return Response::json(['message' => $exception->getMessage(), 'errors' => $exception->errors()], $exception->status);
+            return Response::json(['message' => $exception->getMessage(), 'errors' => $exception->errors()], $exception->status, [], JSON_INVALID_UTF8_SUBSTITUTE);
         }
 
         return self::renderApiExceptionWithJson($request, $prepared['exception'], $prepared['debug']);
@@ -193,7 +193,11 @@ final class ApiExceptionHandler
      */
     private static function renderApiExceptionWithJson(Request $request, ApiException $exception, bool $includeDebug): JsonResponse
     {
-        $options = (bool) $request->input('pretty') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : JSON_UNESCAPED_SLASHES;
+        $options = JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE;
+
+        if ($request->boolean('pretty')) {
+            $options |= JSON_PRETTY_PRINT;
+        }
 
         return Response::json(self::convertApiExceptionToArray($exception, $includeDebug), $exception->getStatusCode(), $exception->getHeaders(), $options);
     }

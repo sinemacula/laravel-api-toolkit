@@ -13,10 +13,10 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
- * Validate that default and pinned field selections name declared fields, and
- * that every embedded resource's type can be selected.
+ * Validate that default, fixed and pinned field selections name declared
+ * fields, and that every embedded resource's type can be selected.
  *
- * Neither selection expands :all, so it is a defect in both.
+ * No selection expands :all, so it is a defect in each.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -24,7 +24,7 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 final class ValidateFieldSelections implements SchemaValidationRule
 {
     /**
-     * Validate the default fields and each relation's pinned fields.
+     * Validate the default and fixed fields and each relation's pinned fields.
      *
      * @param  string  $resourceClass
      * @param  string|null  $modelClass
@@ -42,6 +42,10 @@ final class ValidateFieldSelections implements SchemaValidationRule
 
         foreach ($this->undeclared($resourceClass::getDefaultFields(), $schema) as $name) {
             $errors[] = new SchemaValidationError($resourceClass, $name, $this->describe('Default', $name, $resourceClass));
+        }
+
+        foreach ($this->undeclared($resourceClass::getFixedFields(), $schema) as $name) {
+            $errors[] = new SchemaValidationError($resourceClass, $name, $this->describe('Fixed', $name, $resourceClass));
         }
 
         foreach ($schema->getFieldKeys() as $key) {

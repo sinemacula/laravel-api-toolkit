@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
@@ -245,12 +246,12 @@ final class ConfigMetadataCatalogueTest extends TestCase
     public function testGetQuerySurfacesReturnsOneSurfacePerRegisteredResource(): void
     {
         Config::set('api-toolkit.resources.paths', []);
-        Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+        Config::set('api-toolkit.resources.resource_map', [Post::class => PostResource::class]);
 
         $surfaces = $this->makeCatalogue()->getQuerySurfaces();
 
         self::assertCount(1, $surfaces);
-        self::assertSame(UserResource::class, $surfaces[0]->resource);
+        self::assertSame(PostResource::class, $surfaces[0]->resource);
         self::assertNotSame([], $surfaces[0]->columns);
     }
 
@@ -402,7 +403,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
             $registry,
             new ErrorCatalogueReader(new ApiExceptionDiscoverer([])),
             $discovery,
-            new QuerySurfaceReader,
+            new QuerySurfaceReader(app(SchemaIntrospectionProvider::class)),
         );
     }
 

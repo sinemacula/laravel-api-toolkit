@@ -87,6 +87,9 @@ final readonly class ColumnProjectionApplier
     /**
      * Resolve the rendered field set for the resource class.
      *
+     * The fixed fields join it, less those the schema does not declare, such as
+     * `_type`, which read no column.
+     *
      * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
      * @param  string  $resourceClass
      * @return array<int, string>
@@ -94,10 +97,13 @@ final readonly class ColumnProjectionApplier
     private function resolveFields(ResourceMetadataProvider $metadataProvider, string $resourceClass): array
     {
         $resourceType = $metadataProvider->getResourceType($resourceClass);
+        $declared     = $metadataProvider->getAllFields($resourceClass);
 
-        return in_array(':all', ApiQuery::getFields($resourceType) ?? [], true)
-            ? $metadataProvider->getAllFields($resourceClass)
+        $fields = in_array(':all', ApiQuery::getFields($resourceType) ?? [], true)
+            ? $declared
             : $metadataProvider->resolveFields($resourceClass);
+
+        return [...$fields, ...array_intersect($metadataProvider->getFixedFields($resourceClass), $declared)];
     }
 
     /**

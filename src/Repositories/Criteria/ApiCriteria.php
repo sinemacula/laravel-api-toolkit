@@ -26,6 +26,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
+use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\IndexProof;
@@ -282,16 +283,9 @@ final class ApiCriteria implements CriteriaInterface
     {
         $resource = $this->resolveResource($model);
 
-        $schema = $resource && is_subclass_of($resource, ApiResourceInterface::class)
-            ? SchemaCompiler::compile($resource)
-            : null;
-
         return new QuerySurface(
-            $schema?->getFilterableColumns()    ?? [],
-            $schema?->getSortableColumns()      ?? [],
-            $schema?->getTraversableRelations() ?? [],
-            $model,
-            ResourceSettings::resourceMap(),
+            $resource && is_subclass_of($resource, ApiResourceInterface::class) ? SchemaCompiler::compile($resource) : null,
+            new RelationTraversal($this->schemaIntrospector, ResourceSettings::resourceMap()),
         );
     }
 }

@@ -139,6 +139,37 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
+     * Test that getFixedFields lists the configured fixed fields, then the
+     * resource's own, each once.
+     *
+     * @return void
+     */
+    public function testGetFixedFieldsListsConfiguredThenResourceFieldsOnce(): void
+    {
+        $resourceClass = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'fixed_list_test';
+
+            /** @var array<int, string> */
+            protected static array $fixed = ['id', 'status'];
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(Field::scalar('id'), Field::scalar('status'));
+            }
+        };
+
+        self::assertSame(['id', '_type'], UserResource::getFixedFields());
+        self::assertSame(['id', '_type', 'status'], $resourceClass::getFixedFields());
+    }
+
+    /**
      * Test that getAllFields returns all field keys excluding aggregates.
      *
      * @return void
@@ -1755,8 +1786,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that eagerLoadMapFor includes child fields from explicit relation
-     * field projections.
+     * Test that eagerLoadMapFor plans the nested relations an explicit child
+     * projection selects.
      *
      * @return void
      */
@@ -1769,7 +1800,7 @@ final class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'explicit_fields_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'organization'];
+            protected static array $default = ['id', 'posts'];
 
             /**
              * Get the resource schema.
@@ -1781,16 +1812,12 @@ final class ApiResourceTest extends TestCase
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Relation::to('organization', OrganizationResource::class)
-                        ->fields(['id', 'name']),
+                    Relation::to('posts', PostResource::class)->fields(['id', 'tags']),
                 );
             }
         };
 
-        $fields = ['organization'];
-        $map    = $resourceClass::eagerLoadMapFor($fields);
-
-        self::assertNotEmpty($map);
+        self::assertSame(['posts', 'posts.tags'], array_keys($resourceClass::eagerLoadMapFor(['posts'])));
     }
 
     /**
@@ -1842,9 +1869,9 @@ final class ApiResourceTest extends TestCase
         $resource = new $resourceClass($user);
         $resource->withFields(['id', 'organization']);
 
-        $result = $resource->resolve();
+        $organization = json_decode((string) json_encode($resource->resolve()['organization'] ?? null), true);
 
-        self::assertArrayHasKey('organization', $result);
+        self::assertSame(['_type' => 'organizations', 'id' => $org->id, 'name' => 'ChildFieldOrg'], $organization);
     }
 
     /**
@@ -2815,7 +2842,7 @@ final class ApiResourceTest extends TestCase
             protected static array $default = ['id', 'name'];
 
             /** @var array<int, string> */
-            protected array $fixed = ['email'];
+            protected static array $fixed = ['email'];
 
             /**
              * Get the resource schema.

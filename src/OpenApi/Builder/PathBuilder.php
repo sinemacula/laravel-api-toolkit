@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
 use Illuminate\Routing\Route;
+use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
@@ -149,14 +150,15 @@ final readonly class PathBuilder
         $requestBody = array_intersect($route->verbs, self::BODY_VERBS) === []
             ? []
             : $this->requestBody->resolve($controllerClass, $action) ?? [];
-        $responses += $this->errors->build($controllerClass, $action, $route->route, $requestBody !== [] || ($resource !== null && in_array($action, ['store', 'update'], true)));
+        $bodyExceptions = $requestBody !== [] || ($resource !== null && in_array($action, ['store', 'update'], true)) ? [ValidationException::class] : [];
 
-        return $this->assembleOperation(
-            $responses,
-            $route->route,
-            $requestBody,
-            $contract === null ? [] : $this->queryParameters->referencesFor($action, $resource['model']),
-        );
+        [$queryParameters, $queryExceptions] = $contract === null
+            ? [[], []]
+            : [$this->queryParameters->referencesFor($action, $resource['model']), $this->queryParameters->exceptionsFor($action, $resource['model'])];
+
+        $responses += $this->errors->build($controllerClass, $action, $route->route, [...$bodyExceptions, ...$queryExceptions]);
+
+        return $this->assembleOperation($responses, $route->route, $requestBody, $queryParameters);
     }
 
     /**

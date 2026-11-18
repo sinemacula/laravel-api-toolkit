@@ -43,6 +43,18 @@ final class ResourceMetadataService implements ResourceMetadataProvider
     }
 
     /**
+     * Get the fields added to every selection of the given resource class.
+     *
+     * @param  string  $resourceClass
+     * @return array<int, string>
+     */
+    #[\Override]
+    public function getFixedFields(string $resourceClass): array
+    {
+        return $resourceClass::getFixedFields();
+    }
+
+    /**
      * Get all non-metric field keys for the given resource class.
      *
      * @param  string  $resourceClass
