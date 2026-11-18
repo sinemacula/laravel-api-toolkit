@@ -15,7 +15,8 @@ use SineMacula\ApiToolkit\Validation\Rejection;
  * Per-query enforcement policy for one resource's declared query surface.
  *
  * Each level of a filter is governed by its own surface, and a level no
- * resource governs refuses every key.
+ * resource governs refuses every key. A key only caller-guarded fields declare
+ * is refused, as if undeclared, to a caller none of them admits.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -27,6 +28,7 @@ final readonly class QuerySurface
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema|null  $schema
      * @param  \SineMacula\ApiToolkit\Schema\RelationTraversal  $traversal
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission  $admission
      */
     public function __construct(
 
@@ -35,6 +37,9 @@ final readonly class QuerySurface
 
         /** Resolves the resource governing each related level */
         private RelationTraversal $traversal,
+
+        /** Admits the request to caller-guarded keys at every level */
+        private CallerAdmission $admission,
     ) {}
 
     /**
@@ -51,7 +56,7 @@ final readonly class QuerySurface
     {
         $resource = $this->schema === null ? null : $this->traversal->governingResource($this->schema, $relation, $related, $polymorphic);
 
-        return new self($resource === null ? null : SchemaCompiler::compile($resource), $this->traversal);
+        return new self($resource === null ? null : SchemaCompiler::compile($resource), $this->traversal, $this->admission);
     }
 
     /**
@@ -104,7 +109,9 @@ final readonly class QuerySurface
      */
     public function guardSort(string $column): void
     {
-        $this->guard(in_array($column, $this->schema?->getSortableColumns() ?? [], true), 'order', $column);
+        $declared = in_array($column, $this->schema?->getSortableColumns() ?? [], true);
+
+        $this->guard($declared && $this->admits($this->schema->getConditionalSortKeys(), $column), 'order', $column);
     }
 
     /**
@@ -121,7 +128,7 @@ final readonly class QuerySurface
     }
 
     /**
-     * Determine whether the key is a declared traversable relation.
+     * Determine whether the key is a traversable relation the caller may use.
      *
      * Lets the router skip the cached relation lookup for undeclared keys.
      *
@@ -130,18 +137,36 @@ final readonly class QuerySurface
      */
     public function isDeclaredRelation(string $relation): bool
     {
-        return in_array($relation, $this->schema?->getTraversableRelations() ?? [], true);
+        return in_array($relation, $this->schema?->getTraversableRelations() ?? [], true)
+            && $this->admits($this->schema->getConditionalTraversalKeys(), $relation);
     }
 
     /**
-     * Resolve the column's declared filter capability, or null.
+     * Resolve the column's filter capability, or null when the caller may not
+     * filter by it.
      *
      * @param  string  $column
      * @return \SineMacula\ApiToolkit\Enums\Capability|null
      */
     private function capabilityFor(string $column): ?Capability
     {
-        return $this->schema?->getFilterableColumns()[$column] ?? null;
+        $capability = $this->schema?->getFilterableColumns()[$column] ?? null;
+
+        return $capability !== null && $this->admits($this->schema->getConditionalFilterKeys(), $column) ? $capability : null;
+    }
+
+    /**
+     * Determine whether the caller is admitted to a declared key.
+     *
+     * @param  array<string, list<string>>  $conditional
+     * @param  string  $key
+     * @return bool
+     */
+    private function admits(array $conditional, string $key): bool
+    {
+        $declarers = $conditional[$key] ?? null;
+
+        return $declarers === null || ($this->schema !== null && $this->admission->admits($this->schema, $declarers));
     }
 
     /**

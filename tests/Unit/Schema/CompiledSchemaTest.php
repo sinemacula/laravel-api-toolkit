@@ -324,4 +324,30 @@ final class CompiledSchemaTest extends TestCase
         self::assertNull($schema->getTraversableResource('profile'));
         self::assertNull((new CompiledSchema([], []))->getTraversableResource('posts'));
     }
+
+    /**
+     * Test that each kind of conditional key is returned on its own, and
+     * defaults to empty.
+     *
+     * @return void
+     */
+    public function testConditionalKeysAreReturnedPerKindAndDefaultToEmpty(): void
+    {
+        $schema = new CompiledSchema(
+            fields                  : [],
+            conditionalFilterKeys   : ['email' => ['email', 'contact']],
+            conditionalSortKeys     : ['salary' => ['salary']],
+            conditionalTraversalKeys: ['posts' => ['posts']],
+        );
+
+        self::assertSame(['email' => ['email', 'contact']], $schema->getConditionalFilterKeys());
+        self::assertSame(['salary' => ['salary']], $schema->getConditionalSortKeys());
+        self::assertSame(['posts' => ['posts']], $schema->getConditionalTraversalKeys());
+
+        $empty = new CompiledSchema([]);
+
+        self::assertSame([], $empty->getConditionalFilterKeys());
+        self::assertSame([], $empty->getConditionalSortKeys());
+        self::assertSame([], $empty->getConditionalTraversalKeys());
+    }
 }

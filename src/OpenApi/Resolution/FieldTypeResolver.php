@@ -152,7 +152,7 @@ final readonly class FieldTypeResolver
      */
     private function isOpaque(CompiledFieldDefinition $field): bool
     {
-        return $this->hasAlternateSource($field) || $this->hasInterceptors($field);
+        return $this->hasAlternateSource($field) || $this->hasTransformers($field);
     }
 
     /**
@@ -170,15 +170,17 @@ final readonly class FieldTypeResolver
     }
 
     /**
-     * Determine whether a guard or transformer intervenes between the column
-     * and the emitted value.
+     * Determine whether a transformer intervenes between the column and the
+     * emitted value.
+     *
+     * A guard decides only whether the value is present, never its type.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return bool
      */
-    private function hasInterceptors(CompiledFieldDefinition $field): bool
+    private function hasTransformers(CompiledFieldDefinition $field): bool
     {
-        return $field->guards !== [] || $field->transformers !== [];
+        return $field->transformers !== [];
     }
 
     /**

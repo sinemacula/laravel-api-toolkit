@@ -37,6 +37,7 @@ final readonly class CompiledFieldDefinition
      * @param  string|null  $searchable
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy|null  $searchStrategy
      * @param  int|null  $limit
+     * @param  array<int, callable(mixed): bool>  $callerGuards
      */
     public function __construct(
 
@@ -64,7 +65,7 @@ final readonly class CompiledFieldDefinition
         /** Declared base-table column reads for this field */
         public array $needs,
 
-        /** Guard closures that control visibility */
+        /** Row guard closures that control visibility */
         public array $guards,
 
         /** Value transformer closures */
@@ -96,5 +97,8 @@ final readonly class CompiledFieldDefinition
 
         /** Most related records rendered per parent, or null when undeclared */
         public ?int $limit = null,
+
+        /** Caller guard closures that control visibility */
+        public array $callerGuards = [],
     ) {}
 }

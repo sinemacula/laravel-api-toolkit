@@ -21,14 +21,13 @@ use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\GuardedExportResource;
 use Tests\Fixtures\Resources\PerItemGuardedExportResource;
-use Tests\Fixtures\Resources\ThrowingGuardExportResource;
 use Tests\TestCase;
 
 /**
  * Feature tests for field guards inside content-negotiated exports.
  *
- * A flat tabular schema cannot honour a row-dependent or fail-closed guard, so
- * those exports abort before any row is streamed.
+ * A flat tabular schema cannot honour a row guard, so those exports abort
+ * before any row is streamed.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -79,12 +78,12 @@ final class GuardedExportTest extends TestCase
     }
 
     /**
-     * Test that a request-scoped guard drops its column from the streamed CSV
-     * unless the request permits it.
+     * Test that a caller guard drops its column from the streamed CSV unless
+     * the request permits it.
      *
      * @return void
      */
-    public function testRequestScopedGuardDropsAndKeepsColumnInStreamedCsv(): void
+    public function testCallerGuardDropsAndKeepsColumnInStreamedCsv(): void
     {
         $bare = $this->get('/guarded-export/users', ['Accept' => 'text/csv']);
 
@@ -111,18 +110,15 @@ final class GuardedExportTest extends TestCase
     }
 
     /**
-     * Test that row-dependent and fail-closed guards abort the export before
-     * any row is streamed.
+     * Test that a row guard aborts the export before any row is streamed.
      *
      * @return void
      */
-    public function testRowDependentAndFailClosedGuardsAbortWithoutLeakingRows(): void
+    public function testRowGuardAbortsTheExportWithoutLeakingRows(): void
     {
         $routes = [
             '/guarded-abort/per-item',
             '/guarded-abort/per-item/1',
-            '/guarded-abort/throwing',
-            '/guarded-abort/throwing/1',
         ];
 
         foreach ($routes as $route) {
@@ -194,9 +190,5 @@ final class GuardedExportTest extends TestCase
         Route::get('/guarded-abort/per-item', static fn (): AnonymousResourceCollection => PerItemGuardedExportResource::collection(User::paginate(10)));
 
         Route::get('/guarded-abort/per-item/{id}', static fn (int $id): PerItemGuardedExportResource => new PerItemGuardedExportResource(User::findOrFail($id)));
-
-        Route::get('/guarded-abort/throwing', static fn (): AnonymousResourceCollection => ThrowingGuardExportResource::collection(User::paginate(10)));
-
-        Route::get('/guarded-abort/throwing/{id}', static fn (int $id): ThrowingGuardExportResource => new ThrowingGuardExportResource(User::findOrFail($id)));
     }
 }
