@@ -142,7 +142,7 @@ final readonly class ResourceSchemaBuilder
 
             $property = $this->buildFieldProperty($fieldKey, $field, $modelClass, $built);
 
-            // Capping precedes transformers, so truncation is inferred
+            // Capping precedes transforming, so overrides still truncate
             if ($this->isBoundedArray($property)) {
                 $limited[] = $fieldKey;
             }
@@ -276,7 +276,7 @@ final readonly class ResourceSchemaBuilder
     /**
      * Determine whether the resolved relation is a to-one relation.
      *
-     * Leaf classes are listed since HasOneThrough extends HasManyThrough.
+     * Leaf classes are listed since each shares a base with a to-many class.
      *
      * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
      * @return bool

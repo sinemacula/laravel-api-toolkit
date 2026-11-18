@@ -18,6 +18,7 @@ use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\AuthoredPost;
@@ -262,6 +263,57 @@ final class ResourceSchemaBuilderTest extends TestCase
         self::assertIsArray($properties);
         self::assertSame(['$ref' => '#/components/schemas/ProfiledUser'], $properties['author']);
         self::assertSame(['$ref' => '#/components/schemas/Profile'], $properties['profile']);
+    }
+
+    /**
+     * Test that a morph-to relation admits its target or null.
+     *
+     * @return void
+     */
+    public function testMorphToRelationAdmitsItsTargetOrNull(): void
+    {
+        $noteable   = $this->relationField(null, 'noteable');
+        $properties = $this->buildGhost(new CompiledSchema(['noteable' => $noteable], []), modelClass: Note::class)['properties'];
+
+        self::assertIsArray($properties);
+        self::assertSame(['oneOf' => [['type' => 'object', 'x-undocumented' => true], ['type' => 'null']]], $properties['noteable']);
+    }
+
+    /**
+     * Test that a callable default model keeps the bare target, while an empty
+     * attribute default, which Eloquent treats as none, admits null.
+     *
+     * @return void
+     */
+    public function testCallableDefaultKeepsTheBareTargetAndAnEmptyDefaultAdmitsNull(): void
+    {
+        $schema = new CompiledSchema([
+            'editor'   => $this->relationField(null, 'editor', UserResource::class),
+            'reviewer' => $this->relationField(null, 'reviewer', UserResource::class),
+        ], []);
+
+        $properties   = $this->buildGhost($schema, modelClass: AuthoredPost::class)['properties'];
+        $undocumented = ['type' => 'object', 'x-undocumented' => true];
+
+        self::assertIsArray($properties);
+        self::assertSame($undocumented, $properties['editor']);
+        self::assertSame(['oneOf' => [$undocumented, ['type' => 'null']]], $properties['reviewer']);
+    }
+
+    /**
+     * Test that a declared to-many relation drops the inferred bound but is
+     * still documented as truncatable.
+     *
+     * @return void
+     */
+    public function testDeclaredToManyRelationDropsItsBoundButKeepsItsTruncation(): void
+    {
+        $posts      = $this->relationField(5, openApi: new OpenApiFieldSchema(type: 'integer'));
+        $properties = $this->buildGhost(new CompiledSchema(['posts' => $posts], []))['properties'];
+
+        self::assertIsArray($properties);
+        self::assertSame(['type' => 'integer'], $properties['posts']);
+        self::assertSame(['posts'], $properties['_truncated']['items']['enum']);
     }
 
     /**
@@ -1065,17 +1117,19 @@ final class ResourceSchemaBuilderTest extends TestCase
     /**
      * Build the schema of a synthetic resource compiled from the given schema.
      *
-     * The user model backs it so scalar properties resolve against a table.
+     * The user model backs it by default so scalar properties resolve against a
+     * table.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @param  array<int, string>|null  $vocabulary
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
      * @return array<string, mixed>
      */
-    private function buildGhost(CompiledSchema $schema, ?array $vocabulary = null): array
+    private function buildGhost(CompiledSchema $schema, ?array $vocabulary = null, string $modelClass = User::class): array
     {
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
 
-        return $this->makeGhostBuilder([User::class => 'GhostResource'], $vocabulary)->build()['Ghost'];
+        return $this->makeGhostBuilder([$modelClass => 'GhostResource'], $vocabulary)->build()['Ghost'];
     }
 
     /**
@@ -1140,6 +1194,7 @@ final class ResourceSchemaBuilderTest extends TestCase
      * @param  string  $resource
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
+     * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema|null  $openApi
      * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
     private function relationField(
@@ -1148,6 +1203,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         string $resource = PostResource::class,
         array $guards = [],
         array $transformers = [],
+        ?OpenApiFieldSchema $openApi = null,
     ): CompiledFieldDefinition {
         return new CompiledFieldDefinition(
             accessor: null,
@@ -1160,6 +1216,7 @@ final class ResourceSchemaBuilderTest extends TestCase
             needs: [],
             guards: $guards,
             transformers: $transformers,
+            openApi: $openApi,
             limit: $limit,
         );
     }

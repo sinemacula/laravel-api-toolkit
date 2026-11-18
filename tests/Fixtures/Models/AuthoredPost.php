@@ -32,6 +32,26 @@ final class AuthoredPost extends Model
     }
 
     /**
+     * Get the post's editor, or an anonymous user when there is none.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Tests\Fixtures\Models\User, $this>
+     */
+    public function editor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id')->withDefault(static fn (User $user): User => $user->forceFill(['name' => 'Anonymous']));
+    }
+
+    /**
+     * Get the post's reviewer, whose empty default Eloquent treats as none.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Tests\Fixtures\Models\User, $this>
+     */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id')->withDefault([]);
+    }
+
+    /**
      * Get the author's profile, or a placeholder when there is none.
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasOne<\Tests\Fixtures\Models\Profile, $this>
