@@ -7,6 +7,7 @@ namespace Tests\Unit\Facades;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\TestCase;
@@ -51,19 +52,19 @@ final class ApiQueryTest extends TestCase
     }
 
     /**
-     * Test that the facade accessor falls back to the default alias when the
-     * configured alias is not a string.
+     * Test that the facade accessor fails when the configured alias is not a
+     * string, rather than resolving another binding.
      *
      * @return void
      */
-    public function testFacadeAccessorFallsBackWhenAliasIsNotString(): void
+    public function testFacadeAccessorFailsWhenAliasIsNotString(): void
     {
         Config::set('api-toolkit.parser.alias', null);
 
-        $reflection = new \ReflectionMethod(ApiQuery::class, 'getFacadeAccessor');
-        $accessor   = $reflection->invoke(null);
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.parser.alias setting must be a non-empty string; [null] given.');
 
-        self::assertSame('api.query', $accessor);
+        (new \ReflectionMethod(ApiQuery::class, 'getFacadeAccessor'))->invoke(null);
     }
 
     /**

@@ -6,8 +6,10 @@ namespace Tests\Unit\OpenApi\Metadata;
 
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
@@ -66,11 +68,45 @@ final class ConfigMetadataCatalogueTest extends TestCase
     public function testGetResourceMapReturnsEmptyArrayWhenUnconfigured(): void
     {
         Config::set('api-toolkit.resources.paths', []);
-        Config::set('api-toolkit.resources.resource_map', null);
+        Config::set('api-toolkit.resources.resource_map', []);
 
         $catalogue = $this->makeCatalogue();
 
         self::assertSame([], $catalogue->getResourceMap());
+    }
+
+    /**
+     * Provide resource maps the export refuses, with the binding each names.
+     *
+     * @return iterable<string, array{array<string, string>, string}>
+     */
+    public static function unexportableResourceMapProvider(): iterable
+    {
+        yield 'a non-Eloquent key' => [[\stdClass::class => UserResource::class], 'stdClass => ' . UserResource::class];
+        yield 'a resource that is not an API resource' => [[User::class => \stdClass::class], User::class . ' => stdClass'];
+    }
+
+    /**
+     * Test that the export refuses a binding runtime would refuse, rather than
+     * documenting a resource no request can serve.
+     *
+     * @param  array<string, string>  $map
+     * @param  string  $binding
+     * @return void
+     */
+    #[DataProvider('unexportableResourceMapProvider')]
+    public function testGetResourceMapRefusesABindingThatIsNotAModelAndAResource(array $map, string $binding): void
+    {
+        Config::set('api-toolkit.resources.paths', []);
+        Config::set('api-toolkit.resources.resource_map', $map);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The api-toolkit.resources.resource_map setting must be a map of Eloquent model classes to API resource classes; [\'%s\'] given.',
+            $binding,
+        ));
+
+        $this->makeCatalogue()->getResourceMap();
     }
 
     /**
@@ -230,7 +266,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
         $limits = $this->makeCatalogue()->getQueryLimits();
 
         self::assertSame(
-            [...array_keys(QueryCostLimits::DEFAULTS), QueryParameterValidator::MAX_LIMIT],
+            [...QueryCostLimits::NAMES, QueryParameterValidator::MAX_LIMIT],
             array_keys($limits),
         );
         self::assertSame(42, $limits[QueryCostLimits::MAX_NODES]);
@@ -249,15 +285,32 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that a numeric-string page-size ceiling is truncated to an int.
+     * Test that a page-size ceiling of digits, as the environment gives, is
+     * reported as an integer.
      *
      * @return void
      */
-    public function testGetQueryLimitsTruncatesANumericPageSizeCeiling(): void
+    public function testGetQueryLimitsReadsADigitStringPageSizeCeiling(): void
+    {
+        Config::set('api-toolkit.parser.max_limit', '75');
+
+        self::assertSame(75, $this->makeCatalogue()->getQueryLimits()[QueryParameterValidator::MAX_LIMIT]);
+    }
+
+    /**
+     * Test that a fractional page-size ceiling fails the export rather than
+     * documenting a ceiling the request path does not enforce.
+     *
+     * @return void
+     */
+    public function testGetQueryLimitsRefusesAFractionalPageSizeCeiling(): void
     {
         Config::set('api-toolkit.parser.max_limit', '75.9');
 
-        self::assertSame(75, $this->makeCatalogue()->getQueryLimits()[QueryParameterValidator::MAX_LIMIT]);
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.parser.max_limit setting must be an integer of at least 0, or null; [\'75.9\'] given.');
+
+        $this->makeCatalogue()->getQueryLimits();
     }
 
     /**
@@ -302,15 +355,19 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that the shortest word is reported at its enforced floor.
+     * Test that a shortest word beneath the floor fails the export rather than
+     * being reported at the floor.
      *
      * @return void
      */
-    public function testGetSearchBoundsReportsTheShortestWordFloorRatherThanAValueBeneathIt(): void
+    public function testGetSearchBoundsRefusesAShortestWordBeneathTheFloor(): void
     {
         Config::set('api-toolkit.search.min_word_length', 1);
 
-        self::assertSame(3, $this->makeCatalogue()->getSearchBounds()['min_word_length']);
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.search.min_word_length setting must be an integer of at least 3; [1] given.');
+
+        $this->makeCatalogue()->getSearchBounds();
     }
 
     /**

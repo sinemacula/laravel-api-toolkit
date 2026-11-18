@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\PendingCommand;
 use SineMacula\ApiToolkit\Cache\CacheManager;
+use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Exceptions\UnservableSearchException;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
@@ -382,7 +383,7 @@ abstract class EngineSearchTestCase extends TestCase
 
             static::assertTrue($this->serves());
 
-            $this->travel(IndexProof::DEFAULT_TTL + 1)->seconds();
+            $this->travel(QuerySettings::indexProofTtl() + 1)->seconds();
             $this->crossBoundary();
 
             static::assertFalse($this->serves());

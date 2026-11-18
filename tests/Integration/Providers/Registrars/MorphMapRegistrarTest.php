@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Providers\Registrars\MorphMapRegistrar;
 use Tests\Fixtures\Discovery\Multi\MultiModelResource;
 use Tests\Fixtures\Models\Organization;
@@ -75,15 +76,22 @@ final class MorphMapRegistrarTest extends TestCase
     }
 
     /**
-     * Test that nothing is registered when the resource map is not an array.
+     * Test that a resource map that is not an array fails rather than
+     * registering nothing.
      *
      * @return void
      */
-    public function testRegistersNothingWhenTheResourceMapIsNotAnArray(): void
+    public function testFailsWhenTheResourceMapIsNotAnArray(): void
     {
         Config::set('api-toolkit.resources.resource_map', UserResource::class);
 
-        (new MorphMapRegistrar)->register();
+        try {
+            (new MorphMapRegistrar)->register();
+
+            self::fail('The malformed map registered aliases.');
+        } catch (InvalidConfigurationException $exception) {
+            self::assertSame(sprintf('The api-toolkit.resources.resource_map setting must be an array; [\'%s\'] given.', UserResource::class), $exception->getMessage());
+        }
 
         self::assertSame([], Relation::morphMap());
     }

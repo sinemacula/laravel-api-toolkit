@@ -11,10 +11,11 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Testing\PendingCommand;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
+use SineMacula\ApiToolkit\Enums\AudiencePosture;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\OperationIdCollisionException;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
-use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Tag;
@@ -225,27 +226,22 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Test that an empty configured output path falls back to the default
-     * project path.
+     * Test that an empty configured output path fails naming the setting,
+     * rather than writing somewhere else.
      *
      * @return void
      */
-    public function testCommandFallsBackToDefaultPathWhenConfiguredOutputIsEmpty(): void
+    public function testCommandFailsWhenTheConfiguredOutputIsEmpty(): void
     {
         $this->registerResourceMap();
         $this->registerDocumentedRoute();
 
         $this->getConfig()->set('api-toolkit.openapi.output', '');
 
-        $default = base_path('openapi.json');
-        @unlink($default);
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.openapi.output setting must be a non-empty string; [\'\'] given.');
 
-        $this->runCommand()
-            ->assertExitCode(0);
-
-        self::assertFileExists($default);
-
-        @unlink($default);
+        $this->runCommand()->run();
     }
 
     /**
@@ -641,7 +637,7 @@ final class ExportOpenApiCommandTest extends TestCase
     {
         $this->getConfig()->set('api-toolkit.openapi.audiences', [
             'public'   => [],
-            'internal' => ['posture' => AudienceResolver::POSTURE_ALLOWLIST],
+            'internal' => ['posture' => AudiencePosture::ALLOWLIST->value],
         ]);
     }
 

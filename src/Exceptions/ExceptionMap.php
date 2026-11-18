@@ -13,9 +13,9 @@ use Illuminate\Http\Exceptions\OriginMismatchException;
 use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Illuminate\Session\TokenMismatchException as LaravelTokenMismatchException;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\UnauthorizedException as LaravelUnauthorizedException;
 use Illuminate\Validation\ValidationException;
+use SineMacula\ApiToolkit\Config\HttpSettings;
 use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
 use SineMacula\Http\Enums\HttpStatus;
 use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
@@ -80,9 +80,6 @@ final readonly class ExceptionMap
         503 => ServiceUnavailableHttpException::class,
     ];
 
-    /** The message for a setting that is not an array */
-    private const string SETTING_MESSAGE = 'The api-toolkit.exceptions.map setting must be an array of ApiException classes keyed by the exception class they replace.';
-
     /** The message for a key that cannot be mapped */
     private const string KEY_MESSAGE = 'The api-toolkit.exceptions.map key [%s] must be an interface or a Throwable class, and not an ApiException.';
 
@@ -109,7 +106,7 @@ final readonly class ExceptionMap
      *
      * @return self
      *
-     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
      */
     public static function fromConfig(): self
     {
@@ -213,23 +210,13 @@ final readonly class ExceptionMap
      *
      * @return array<string, class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>
      *
-     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
      */
     private static function configuredEntries(): array
     {
-        $map = Config::get('api-toolkit.exceptions.map');
-
-        if ($map === null) {
-            return [];
-        }
-
-        if (!is_array($map)) {
-            throw new InvalidExceptionMapException(self::SETTING_MESSAGE);
-        }
-
         $entries = [];
 
-        foreach ($map as $key => $target) {
+        foreach (HttpSettings::exceptionMap() as $key => $target) {
             $source           = self::validSource($key);
             $entries[$source] = self::validTarget($source, $target);
         }
@@ -243,7 +230,7 @@ final readonly class ExceptionMap
      * @param  int|string  $source
      * @return string
      *
-     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
      */
     private static function validSource(int|string $source): string
     {
@@ -256,11 +243,11 @@ final readonly class ExceptionMap
         }
 
         if (!$valid) {
-            throw new InvalidExceptionMapException(sprintf(self::KEY_MESSAGE, $source), previous: $failure);
+            throw InvalidConfigurationException::because(sprintf(self::KEY_MESSAGE, $source), $failure);
         }
 
         if (self::isPrepared($source)) {
-            throw new InvalidExceptionMapException(sprintf(self::PREPARED_MESSAGE, $source));
+            throw InvalidConfigurationException::because(sprintf(self::PREPARED_MESSAGE, $source));
         }
 
         return $source;
@@ -290,7 +277,7 @@ final readonly class ExceptionMap
      * @param  mixed  $target
      * @return class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>
      *
-     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
      */
     private static function validTarget(string $source, mixed $target): string
     {
@@ -303,7 +290,7 @@ final readonly class ExceptionMap
         }
 
         if (!$valid) {
-            throw new InvalidExceptionMapException(sprintf(self::TARGET_MESSAGE, is_string($target) ? $target : get_debug_type($target), $source), previous: $failure);
+            throw InvalidConfigurationException::because(sprintf(self::TARGET_MESSAGE, is_string($target) ? $target : get_debug_type($target), $source), $failure);
         }
 
         return $target;

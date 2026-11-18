@@ -12,6 +12,12 @@ return [
     | Each setting read from the environment is named API_TOOLKIT_ followed by
     | its key, upper-cased with dots as underscores: deferred_writes.on_failure
     | is API_TOOLKIT_DEFERRED_WRITES_ON_FAILURE.
+    |
+    | A boolean also accepts 1, 0, on, off, yes and no, in any case, and an
+    | integer a string of digits. Every setting is validated once the
+    | application boots to serve requests or queue jobs, and when config:cache
+    | or optimize builds the config cache: an invalid value, or a key the
+    | toolkit does not read, fails naming the key.
     */
 
     /*
@@ -57,9 +63,8 @@ return [
     |   TokenMismatchException           - HttpException with 419
     | An HttpException carrying only a status renders as the key its status
     | stands for, such as NotFoundHttpException for 404, unless a key names
-    | HttpException or HttpExceptionInterface itself. The map is validated once
-    | an application serving requests has booted, and drives the OpenAPI error
-    | responses too. It does not affect reporting.
+    | HttpException or HttpExceptionInterface itself. The map drives the
+    | OpenAPI error responses too. It does not affect reporting.
     */
 
     'exceptions' => [
@@ -83,8 +88,9 @@ return [
     |
     | `paths` are scanned at boot for resources carrying the ForModel attribute.
     | Null scans the Http/Resources directory of the app and of each module; an
-    | empty array disables discovery. The result is compiled by `php artisan
-    | optimize`, so rebuild or clear it after changing the paths.
+    | empty array disables discovery. Each listed path must be a directory. The
+    | result is compiled by `php artisan optimize`, so rebuild or clear it after
+    | changing the paths.
     |
     | `resource_map` holds explicit model to resource bindings. An entry wins
     | over a discovered binding, so use it to pick the canonical resource or to
@@ -266,7 +272,8 @@ return [
     |
     | Caps on the structural cost of a single request, which is rejected with a
     | 422 naming the parameter, the cap and the value supplied. Tune them to
-    | your own traffic; 0 or null disables a cap.
+    | your own traffic; 0 or null disables a cap, and a negative one is
+    | rejected.
     |
     | `max_bytes`       - byte length of the filter document.
     | `max_parse_depth` - levels the filter document nests, objects and lists
@@ -307,9 +314,8 @@ return [
     | Bounds on the `search` parameter, which matches only the root resource's
     | searchable columns. A term outside them is rejected with a 422.
     |
-    | `min_word_length` is the shortest word a term may carry. It may be raised
-    | but not lowered below 3, since shorter words are answered wrongly or by a
-    | full scan on supported engines.
+    | `min_word_length` is the shortest word a term may carry, at least 3, since
+    | shorter words are answered wrongly or by a full scan on supported engines.
     |
     | `max_length` and `max_words` cap the length and word count of a term.
     |
@@ -332,8 +338,7 @@ return [
 
         // Seconds the request-time index proof is shared before the catalogue
         // is read again; a migration or api-toolkit:invalidate-metadata retires
-        // it sooner. 0 keeps it for one operation; a negative or non-numeric
-        // value falls back to 60
+        // it sooner. 0 keeps it for one operation
         'index_proof_ttl' => env('API_TOOLKIT_SEARCH_INDEX_PROOF_TTL', 60),
 
         // Connection names (config/database.php keys) allowed to serve a search
@@ -375,17 +380,17 @@ return [
 
     'deferred_writes' => [
 
-        'chunk_size' => is_numeric($chunkSize = env('API_TOOLKIT_DEFERRED_WRITES_CHUNK_SIZE', 500)) ? (int) $chunkSize : 500,
+        'chunk_size' => env('API_TOOLKIT_DEFERRED_WRITES_CHUNK_SIZE', 500),
 
-        'pool_limit' => is_numeric($poolLimit = env('API_TOOLKIT_DEFERRED_WRITES_POOL_LIMIT', 10000)) ? (int) $poolLimit : 10000,
+        'pool_limit' => env('API_TOOLKIT_DEFERRED_WRITES_POOL_LIMIT', 10000),
 
         'on_failure' => env('API_TOOLKIT_DEFERRED_WRITES_ON_FAILURE', 'collect'),
 
-        'transactional' => (bool) env('API_TOOLKIT_DEFERRED_WRITES_TRANSACTIONAL', false),
+        'transactional' => env('API_TOOLKIT_DEFERRED_WRITES_TRANSACTIONAL', false),
 
-        'rethrow_at_boundary' => (bool) env('API_TOOLKIT_DEFERRED_WRITES_RETHROW_AT_BOUNDARY', false),
+        'rethrow_at_boundary' => env('API_TOOLKIT_DEFERRED_WRITES_RETHROW_AT_BOUNDARY', false),
 
-        'invalidate_query_cache' => (bool) env('API_TOOLKIT_DEFERRED_WRITES_INVALIDATE_QUERY_CACHE', true),
+        'invalidate_query_cache' => env('API_TOOLKIT_DEFERRED_WRITES_INVALIDATE_QUERY_CACHE', true),
 
     ],
 

@@ -6,9 +6,9 @@ namespace SineMacula\ApiToolkit\Providers\Registrars;
 
 use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Laravel\Octane\Contracts\OperationTerminated;
+use SineMacula\ApiToolkit\Config\LifecycleSettings;
 use SineMacula\ApiToolkit\Listeners\MigrationInvalidationListener;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
@@ -82,7 +82,7 @@ final class LifecycleRegistrar
      */
     private function registerMigrationInvalidationListener(): void
     {
-        if (!(bool) Config::get('api-toolkit.lifecycle.migrations', true)) {
+        if (!LifecycleSettings::shouldInvalidateOnMigrations()) {
             return;
         }
 

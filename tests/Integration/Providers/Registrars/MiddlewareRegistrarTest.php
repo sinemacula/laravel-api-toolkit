@@ -12,6 +12,7 @@ use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Middleware\ValidatePostSize;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -122,6 +123,27 @@ final class MiddlewareRegistrarTest extends TestCase
 
         self::assertSame([TrustProxies::class, HandleCors::class, PreventRequestsDuringMaintenance::class], array_slice($middleware, 0, 3));
         self::assertCount(1, array_keys($middleware, PreventRequestsDuringMaintenance::class, true));
+    }
+
+    /**
+     * Test that a misspelt pretty-print scope fails rather than registering the
+     * middleware globally.
+     *
+     * @return void
+     */
+    public function testMisspeltPrettyPrintScopeFails(): void
+    {
+        $app = $this->getApplication();
+
+        /** @var \Illuminate\Config\Repository $config */
+        $config = $app->make('config');
+
+        $config->set('api-toolkit.middleware.json_pretty_print.scope', 'API');
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.middleware.json_pretty_print.scope setting must be one of global, api; [\'API\'] given.');
+
+        (new MiddlewareRegistrar($app))->register();
     }
 
     /**

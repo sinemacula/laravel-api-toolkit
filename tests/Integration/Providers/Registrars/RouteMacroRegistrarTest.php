@@ -6,6 +6,7 @@ namespace Tests\Integration\Providers\Registrars;
 
 use Illuminate\Routing\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\AudiencePosture;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\Providers\Registrars\RouteMacroRegistrar;
 use Tests\TestCase;
@@ -111,7 +112,7 @@ final class RouteMacroRegistrarTest extends TestCase
 
         self::assertFalse($resolver->isInAudience(
             'public',
-            AudienceResolver::POSTURE_BLOCKLIST,
+            AudiencePosture::BLOCKLIST,
             null,
             null,
             $route,

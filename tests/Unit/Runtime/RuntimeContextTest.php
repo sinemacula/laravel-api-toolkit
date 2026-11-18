@@ -198,4 +198,106 @@ final class RuntimeContextTest extends TestCase
         Config::set('queue.default', 1);
         self::assertFalse($context->isServingAsQueueWorker(null));
     }
+
+    /**
+     * Provide command lines with the command each names.
+     *
+     * @return iterable<string, array{array<int, string>|null, string|null}>
+     */
+    public static function argvProvider(): iterable
+    {
+        yield 'no arguments' => [null, null];
+        yield 'no command' => [['artisan'], null];
+        yield 'options only' => [['artisan', '-q', '--env', 'production'], null];
+        yield 'a bare command' => [['artisan', 'queue:work'], 'queue:work'];
+        yield 'leading flags' => [['artisan', '-q', '--no-interaction', 'optimize'], 'optimize'];
+        yield 'leading inline option' => [['artisan', '--env=production', 'config:cache'], 'config:cache'];
+        yield 'leading separate env value' => [['artisan', '--env', 'optimize', 'route:cache'], 'route:cache'];
+        yield 'a later argument' => [['artisan', 'migrate', '--path', 'queue:work'], 'migrate'];
+    }
+
+    /**
+     * Test that, with no command started in process, the command is the one
+     * named on the command line.
+     *
+     * @param  array<int, string>|null  $argv
+     * @param  string|null  $expected
+     * @return void
+     */
+    #[DataProvider('argvProvider')]
+    public function testCommandIsReadFromTheCommandLine(?array $argv, ?string $expected): void
+    {
+        $original = $_SERVER['argv'] ?? null;
+
+        $_SERVER['argv'] = $argv;
+
+        try {
+            self::assertSame($expected, (new RuntimeContext)->command());
+        } finally {
+            $_SERVER['argv'] = $original;
+        }
+    }
+
+    /**
+     * Test that the innermost command started in process wins over the command
+     * line until it finishes, and forgetting them restores the command line.
+     *
+     * @return void
+     */
+    public function testInnermostStartedCommandWinsUntilItFinishes(): void
+    {
+        $original = $_SERVER['argv'] ?? null;
+
+        $_SERVER['argv'] = ['artisan', 'app:deploy'];
+
+        $context = new RuntimeContext;
+
+        try {
+            RuntimeContext::enterCommand('optimize');
+            RuntimeContext::enterCommand('config:cache');
+
+            self::assertSame('config:cache', $context->command());
+
+            RuntimeContext::leaveCommand();
+
+            self::assertSame('optimize', $context->command());
+
+            RuntimeContext::enterCommand('route:cache');
+            RuntimeContext::reset();
+
+            self::assertSame('app:deploy', $context->command());
+        } finally {
+            $_SERVER['argv'] = $original;
+        }
+    }
+
+    /**
+     * Provide commands with whether each serves queue jobs.
+     *
+     * @return iterable<string, array{string|null, bool}>
+     */
+    public static function workerCommandProvider(): iterable
+    {
+        yield 'queue worker' => ['queue:work', true];
+        yield 'queue listener' => ['queue:listen', true];
+        yield 'horizon worker' => ['horizon:work', true];
+        yield 'horizon master' => ['horizon', false];
+        yield 'another command' => ['queue:restart', false];
+        yield 'no command' => [null, false];
+    }
+
+    /**
+     * Test that only the commands serving queue jobs count as a queue worker.
+     *
+     * @param  string|null  $command
+     * @param  bool  $expected
+     * @return void
+     */
+    #[DataProvider('workerCommandProvider')]
+    public function testIsRunningQueueWorkerForTheWorkerCommandsOnly(?string $command, bool $expected): void
+    {
+        RuntimeContext::enterCommand($command);
+
+        self::assertSame($expected, (new RuntimeContext)->isRunningQueueWorker());
+    }
 }

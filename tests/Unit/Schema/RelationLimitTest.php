@@ -15,6 +15,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\RelationLimit;
 use Tests\Fixtures\Models\Comment;
@@ -72,12 +73,12 @@ final class RelationLimitTest extends TestCase
     }
 
     /**
-     * Test that a published configuration without the setting keeps the default
-     * bound.
+     * Test that a published configuration without the setting fails rather than
+     * leaving relations unbounded.
      *
      * @return void
      */
-    public function testConfigurationWithoutTheSettingKeepsTheDefault(): void
+    public function testConfigurationWithoutTheSettingFails(): void
     {
         /** @var array<string, mixed> $resources */
         $resources = Config::get('api-toolkit.resources');
@@ -86,7 +87,26 @@ final class RelationLimitTest extends TestCase
 
         Config::set('api-toolkit.resources', $resources);
 
-        self::assertSame(25, RelationLimit::for(self::field()));
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.resources.relation_limit setting is missing; add it from the published config.');
+
+        RelationLimit::for(self::field());
+    }
+
+    /**
+     * Test that an invalid default fails rather than leaving relations
+     * unbounded.
+     *
+     * @return void
+     */
+    public function testInvalidDefaultFails(): void
+    {
+        Config::set('api-toolkit.resources.relation_limit', -4);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.resources.relation_limit setting must be an integer of at least 0, or null; [-4] given.');
+
+        RelationLimit::for(self::field());
     }
 
     /**
@@ -97,9 +117,8 @@ final class RelationLimitTest extends TestCase
     public static function disabledDefaultProvider(): iterable
     {
         yield 'zero' => [0];
+        yield 'zero string' => ['0'];
         yield 'null' => [null];
-        yield 'negative' => [-4];
-        yield 'not numeric' => ['many'];
     }
 
     /**

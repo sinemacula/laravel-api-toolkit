@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Cache;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\LifecycleSettings;
 use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Exceptions\MetadataCacheUnavailableException;
 
@@ -27,12 +28,6 @@ use SineMacula\ApiToolkit\Exceptions\MetadataCacheUnavailableException;
  */
 final class MetadataCacheWriter
 {
-    /** @var string Config key for the seconds the store is bypassed after a failure */
-    public const string RETRY_AFTER_KEY = 'api-toolkit.cache.retry_after';
-
-    /** @var int */
-    public const int DEFAULT_RETRY_AFTER = 30;
-
     /** @var int|null Unix time the store may next be tried after a failure */
     private static ?int $bypassedUntil = null;
 
@@ -231,7 +226,7 @@ final class MetadataCacheWriter
      */
     private function bypass(MetadataCacheUnavailableException $exception): void
     {
-        self::$bypassedUntil = now()->getTimestamp() + self::retryAfter();
+        self::$bypassedUntil = now()->getTimestamp() + LifecycleSettings::cacheRetryAfter();
 
         $this->generation->forget();
 
@@ -254,7 +249,7 @@ final class MetadataCacheWriter
             return;
         }
 
-        self::$rejectionReportedUntil = $now + self::retryAfter();
+        self::$rejectionReportedUntil = $now + LifecycleSettings::cacheRetryAfter();
 
         FailureReporter::report(new MetadataCacheUnavailableException(
             'The cache store rejected a metadata write, so the value is served without being stored.',
@@ -296,18 +291,6 @@ final class MetadataCacheWriter
         $driver = Config::get('cache.stores.' . self::store() . '.driver');
 
         return is_string($driver) ? $driver : null;
-    }
-
-    /**
-     * Return the seconds the store is bypassed for after it fails.
-     *
-     * @return int
-     */
-    private static function retryAfter(): int
-    {
-        $seconds = Config::get(self::RETRY_AFTER_KEY, self::DEFAULT_RETRY_AFTER);
-
-        return is_numeric($seconds) && $seconds >= 0 ? (int) $seconds : self::DEFAULT_RETRY_AFTER;
     }
 
     /**

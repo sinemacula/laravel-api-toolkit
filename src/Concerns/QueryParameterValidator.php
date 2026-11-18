@@ -4,9 +4,9 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Concerns;
 
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Validation\Rejection;
@@ -22,11 +22,8 @@ use SineMacula\ApiToolkit\Validation\Rejection;
  */
 final class QueryParameterValidator
 {
-    /** @var string Config key for the page-size ceiling, also used as the rejection reason */
+    /** @var string The reason a page size above the ceiling is refused for */
     public const string MAX_LIMIT = 'max_limit';
-
-    /** @var int The ceiling applied when the configured value is absent or unreadable */
-    public const int DEFAULT_MAX_LIMIT = 100;
 
     /** @var array<int, string> The parameters keyed by resource type */
     public const array SELECTIONS = ['fields', 'aggregates'];
@@ -63,31 +60,6 @@ final class QueryParameterValidator
         $this->assertParameterShapes($parameters);
         $this->guardFilterNesting($filters, $limits);
         $this->guardPageSize($parameters['limit'] ?? null);
-    }
-
-    /**
-     * Resolve the hard ceiling on a client-supplied page size.
-     *
-     * An absent or unreadable key falls back to the default; only an explicit
-     * null or zero disables the ceiling.
-     *
-     * @return int
-     */
-    public static function pageSizeCeiling(): int
-    {
-        $key = 'api-toolkit.parser.' . self::MAX_LIMIT;
-
-        if (!Config::has($key)) {
-            return self::DEFAULT_MAX_LIMIT;
-        }
-
-        $ceiling = Config::get($key);
-
-        return match (true) {
-            $ceiling === null    => 0,
-            is_numeric($ceiling) => (int) $ceiling,
-            default              => self::DEFAULT_MAX_LIMIT,
-        };
     }
 
     /**
@@ -180,7 +152,7 @@ final class QueryParameterValidator
      */
     private function guardPageSize(mixed $limit): void
     {
-        $ceiling   = self::pageSizeCeiling();
+        $ceiling   = QuerySettings::maxLimit();
         $requested = is_numeric($limit) ? (int) $limit : 0;
 
         if ($ceiling > 0 && $requested > $ceiling) {

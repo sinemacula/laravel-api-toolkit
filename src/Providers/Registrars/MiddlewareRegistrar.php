@@ -10,6 +10,8 @@ use Illuminate\Foundation\Http\Kernel as HttpKernel;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as FrameworkMaintenance;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\HttpSettings;
+use SineMacula\ApiToolkit\Enums\MiddlewareScope;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -48,12 +50,12 @@ final readonly class MiddlewareRegistrar
         /** @var \Illuminate\Foundation\Http\Kernel $kernel */
         $kernel = $this->container->make(Kernel::class);
 
-        if (Config::get('api-toolkit.parser.register_middleware', true)) {
+        if (HttpSettings::shouldRegisterParserMiddleware()) {
             $kernel->pushMiddleware(ParseApiQuery::class);
         }
 
         $this->registerMaintenanceModeMiddleware($kernel);
-        $this->registerScopedMiddleware($kernel, 'api-toolkit.middleware.json_pretty_print', JsonPrettyPrint::class);
+        $this->registerJsonPrettyPrintMiddleware($kernel);
         $this->registerThrottleMiddleware($router);
     }
 
@@ -68,7 +70,7 @@ final readonly class MiddlewareRegistrar
      */
     private function registerMaintenanceModeMiddleware(HttpKernel $kernel): void
     {
-        if (!Config::get('api-toolkit.middleware.maintenance_mode_swap.enabled', true)) {
+        if (!HttpSettings::shouldSwapMaintenanceMode()) {
             return;
         }
 
@@ -81,28 +83,25 @@ final readonly class MiddlewareRegistrar
     }
 
     /**
-     * Register a middleware globally or on the api group, as configured.
+     * Register the pretty-print middleware globally or on the api group, as
+     * configured.
      *
      * @param  \Illuminate\Foundation\Http\Kernel  $kernel
-     * @param  string  $config
-     * @param  class-string  $middleware
      * @return void
      */
-    private function registerScopedMiddleware(HttpKernel $kernel, string $config, string $middleware): void
+    private function registerJsonPrettyPrintMiddleware(HttpKernel $kernel): void
     {
-        if (!Config::get($config . '.enabled', true)) {
+        if (!HttpSettings::shouldPrettyPrintJson()) {
             return;
         }
 
-        $scope = Config::get($config . '.scope', 'global');
-
-        if ($scope === 'api') {
-            $kernel->appendMiddlewareToGroup('api', $middleware);
+        if (HttpSettings::jsonPrettyPrintScope() === MiddlewareScope::API) {
+            $kernel->appendMiddlewareToGroup('api', JsonPrettyPrint::class);
 
             return;
         }
 
-        $kernel->pushMiddleware($middleware);
+        $kernel->pushMiddleware(JsonPrettyPrint::class);
     }
 
     /**
@@ -115,7 +114,7 @@ final readonly class MiddlewareRegistrar
      */
     private function registerThrottleMiddleware(Router $router): void
     {
-        if (!Config::get('api-toolkit.middleware.throttle.enabled', true)) {
+        if (!HttpSettings::shouldRegisterThrottle()) {
             return;
         }
 
@@ -125,12 +124,11 @@ final readonly class MiddlewareRegistrar
     /**
      * Return the throttle middleware that should be used.
      *
-     * @return class-string
+     * @return string
      */
     private function getThrottleMiddleware(): string
     {
-        /** @var class-string|null $customClass */
-        $customClass = Config::get('api-toolkit.middleware.throttle.class');
+        $customClass = HttpSettings::throttleClass();
 
         if ($customClass !== null) {
             return $customClass;

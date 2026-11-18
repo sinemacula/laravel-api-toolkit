@@ -16,7 +16,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Exceptions\GoneException;
-use SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
@@ -158,7 +158,7 @@ final class OpenApiErrorExampleParityTest extends TestCase
     {
         config()->set('api-toolkit.exceptions.map', [ModelNotFoundException::class => GoneException::class]);
 
-        $this->expectException(InvalidExceptionMapException::class);
+        $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage(sprintf(
             'The api-toolkit.exceptions.map key [%s] never matches: Laravel converts it before rendering, so map the exception it becomes.',
             ModelNotFoundException::class,

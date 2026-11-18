@@ -4,7 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\OpenApiSettings;
+use SineMacula\ApiToolkit\Enums\AudiencePosture;
 
 /**
  * Reads the OpenAPI audience registry from the toolkit config.
@@ -14,9 +15,6 @@ use Illuminate\Support\Facades\Config;
  */
 final readonly class AudienceConfiguration
 {
-    /** The audience assumed when none is configured */
-    private const string DEFAULT_AUDIENCE = 'public';
-
     /** The document title assumed when none is configured */
     private const string DEFAULT_INFO_TITLE = 'API Components';
 
@@ -63,23 +61,20 @@ final readonly class AudienceConfiguration
      */
     public function defaultAudience(): string
     {
-        $configured = Config::get('api-toolkit.openapi.default_audience');
-
-        return is_string($configured) && $configured !== '' ? $configured : self::DEFAULT_AUDIENCE;
+        return OpenApiSettings::defaultAudience();
     }
 
     /**
      * Resolve the posture for the given audience, defaulting to blocklist.
      *
      * @param  string  $audience
-     * @return string
+     * @return \SineMacula\ApiToolkit\Enums\AudiencePosture
      */
-    public function postureFor(string $audience): string
+    public function postureFor(string $audience): AudiencePosture
     {
-        $definition = $this->audiences()[$audience] ?? [];
-        $posture    = is_array($definition) ? ($definition['posture'] ?? null) : null;
+        $posture = $this->audiences()[$audience]['posture'] ?? null;
 
-        return is_string($posture) && $posture !== '' ? $posture : AudienceResolver::POSTURE_BLOCKLIST;
+        return is_string($posture) ? AudiencePosture::from($posture) : AudiencePosture::BLOCKLIST;
     }
 
     /**
@@ -116,27 +111,24 @@ final readonly class AudienceConfiguration
      */
     public function serversFor(string $audience): array
     {
-        $definition = $this->audiences()[$audience] ?? [];
-        $servers    = is_array($definition) ? ($definition['servers'] ?? null) : null;
-        $validator  = new ServerListValidator;
+        $servers   = $this->audiences()[$audience]['servers'] ?? null;
+        $validator = new ServerListValidator;
 
         if ($servers !== null) {
             return $validator->validate($servers, $audience);
         }
 
-        return $validator->validate(Config::get('api-toolkit.openapi.servers'));
+        return $validator->validate(OpenApiSettings::servers());
     }
 
     /**
-     * Read the raw audience registry from config.
+     * Read the audience registry from config.
      *
-     * @return array<string, mixed>
+     * @return array<string, array<string, mixed>>
      */
     private function audiences(): array
     {
-        $audiences = Config::get('api-toolkit.openapi.audiences');
-
-        return is_array($audiences) ? $audiences : [];
+        return OpenApiSettings::audiences();
     }
 
     /**
@@ -148,40 +140,9 @@ final readonly class AudienceConfiguration
      */
     private function infoValue(string $audience, string $key): ?string
     {
-        $perAudience = $this->audienceInfo($audience)[$key] ?? null;
+        /** @var array<string, string> $perAudience */
+        $perAudience = $this->audiences()[$audience]['info'] ?? [];
 
-        if (is_string($perAudience) && $perAudience !== '') {
-            return $perAudience;
-        }
-
-        $topLevel = $this->topLevelInfo()[$key] ?? null;
-
-        return is_string($topLevel) && $topLevel !== '' ? $topLevel : null;
-    }
-
-    /**
-     * Read the per-audience info block from config.
-     *
-     * @param  string  $audience
-     * @return array<string, mixed>
-     */
-    private function audienceInfo(string $audience): array
-    {
-        $definition = $this->audiences()[$audience] ?? [];
-        $info       = is_array($definition) ? ($definition['info'] ?? null) : null;
-
-        return is_array($info) ? $info : [];
-    }
-
-    /**
-     * Read the top-level info default block from config.
-     *
-     * @return array<string, mixed>
-     */
-    private function topLevelInfo(): array
-    {
-        $info = Config::get('api-toolkit.openapi.info');
-
-        return is_array($info) ? $info : [];
+        return $perAudience[$key] ?? OpenApiSettings::info()[$key] ?? null;
     }
 }

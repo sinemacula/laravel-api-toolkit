@@ -8,8 +8,8 @@ use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -112,12 +112,10 @@ final class ApiCriteria implements CriteriaInterface
         $this->softDeleteVisibilityApplier = new SoftDeleteVisibilityApplier;
         $this->queryCostGuard              = new QueryCostGuard;
 
-        $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
-
         $this->relationTrashedGate = new RelationTrashedGate(
             $this->schemaIntrospector,
             $this->request,
-            is_array($resourceMap) ? $resourceMap : [],
+            ResourceSettings::resourceMap(),
         );
     }
 
@@ -288,16 +286,12 @@ final class ApiCriteria implements CriteriaInterface
             ? SchemaCompiler::compile($resource)
             : null;
 
-        $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
-
         return new QuerySurface(
             $schema?->getFilterableColumns()    ?? [],
             $schema?->getSortableColumns()      ?? [],
             $schema?->getTraversableRelations() ?? [],
             $model,
-            is_array($resourceMap)
-                ? array_filter($resourceMap, static fn (mixed $resource, mixed $model): bool => is_string($model) && is_string($resource), ARRAY_FILTER_USE_BOTH)
-                : [],
+            ResourceSettings::resourceMap(),
         );
     }
 }

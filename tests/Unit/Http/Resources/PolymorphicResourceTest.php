@@ -105,7 +105,7 @@ final class PolymorphicResourceTest extends TestCase
         $resource = new PolymorphicResource($user);
 
         $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('Resource not found for:');
+        $this->expectExceptionMessageMatches('/^' . preg_quote('Resource not found for: ' . User::class, '/') . '$/');
 
         $resource->toArray(request());
     }

@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
@@ -405,27 +406,23 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that narrowing defaults to disabled when the config flag is absent.
+     * Test that an absent narrowing flag fails rather than reading as disabled,
+     * which a published section predating it would otherwise do.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testAbsentNarrowFlagDefaultsToDisabled(): void
+    public function testAbsentNarrowFlagFails(): void
     {
         Config::set('api-toolkit.resources', []);
 
         $this->parseRequest(new Request);
 
-        $provider = self::createStub(ResourceMetadataProvider::class);
-        $provider->method('getResourceType')->willReturn('users');
-        $provider->method('resolveFields')->willReturn(self::USER_DEFAULT_FIELDS);
-        $provider->method('eagerLoadMapFor')->willReturn([]);
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.resources.narrow_columns setting is missing; add it from the published config.');
 
-        $query  = (new User)->newQuery();
-        $result = $this->makeApplier()->apply($query, $provider, UserResource::class, ['name' => 'asc']);
-
-        self::assertNull($result->getQuery()->columns);
+        $this->makeApplier()->apply((new User)->newQuery(), self::createStub(ResourceMetadataProvider::class), UserResource::class, ['name' => 'asc']);
     }
 
     /**

@@ -5,8 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -52,7 +52,7 @@ final readonly class ColumnProjectionApplier
     public function apply(Builder $query, ResourceMetadataProvider $metadataProvider, ?string $resourceClass, array $order): Builder
     {
         if (
-            !Config::get('api-toolkit.resources.narrow_columns', false)
+            !ResourceSettings::shouldNarrowColumns()
             || $resourceClass === null
             || !is_subclass_of($resourceClass, ApiResourceInterface::class)
         ) {

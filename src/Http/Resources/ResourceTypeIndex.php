@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 
 /**
@@ -63,7 +64,7 @@ final class ResourceTypeIndex
     private static function refresh(): void
     {
         $source = [
-            Config::get('api-toolkit.resources.resource_map'),
+            ResourceSettings::resourceMap(),
             Config::get(ResourceDiscovery::RESOURCES_KEY),
         ];
 

@@ -598,7 +598,6 @@ final class MakeResourceCommandTest extends TestCase
     {
         yield 'outside the configured paths' => [['/nonexistent/resources'], 'is outside every resource discovery path'];
         yield 'no discovery paths' => [[], 'Resource discovery is disabled'];
-        yield 'malformed discovery paths' => [false, 'Resource discovery is disabled'];
     }
 
     /**
@@ -642,7 +641,7 @@ final class MakeResourceCommandTest extends TestCase
      */
     public function testResourceNestedBeneathAConfiguredPathDoesNotWarn(): void
     {
-        Config::set('api-toolkit.resources.paths', [42, null, $this->root . '/app/Http/Resources/']);
+        Config::set('api-toolkit.resources.paths', [$this->root . '/app/Http/Resources/']);
 
         $this->pendingArtisan(self::COMMAND, ['name' => 'Admin/PostResource', '--model' => Post::class])
             ->doesntExpectOutputToContain('discovery')

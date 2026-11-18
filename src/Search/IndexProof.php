@@ -5,8 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Search;
 
 use Illuminate\Database\Connection;
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
@@ -24,12 +24,6 @@ use SineMacula\ApiToolkit\Schema\Introspection\SchemaIdentity;
  */
 final class IndexProof
 {
-    /** @var int The seconds an answer is shared for when none is configured */
-    public const int DEFAULT_TTL = 60;
-
-    /** @var string The config key holding the seconds an answer is shared for */
-    public const string TTL_KEY = 'api-toolkit.search.index_proof_ttl';
-
     /** @var array<string, array<int, string>> */
     private static array $cache = [];
 
@@ -81,7 +75,7 @@ final class IndexProof
      */
     private function share(string $key, callable $prove): array
     {
-        $ttl = self::ttl();
+        $ttl = QuerySettings::indexProofTtl();
 
         // A cache write with no lifetime forgets the value
         if ($ttl === 0) {
@@ -114,18 +108,6 @@ final class IndexProof
                 SearchTerm::minimumWordLength(),
             ])),
         ]);
-    }
-
-    /**
-     * Return the configured sharing TTL, or the default when it is invalid.
-     *
-     * @return int
-     */
-    private static function ttl(): int
-    {
-        $ttl = Config::get(self::TTL_KEY, self::DEFAULT_TTL);
-
-        return is_numeric($ttl) && $ttl >= 0 ? (int) $ttl : self::DEFAULT_TTL;
     }
 
     /**

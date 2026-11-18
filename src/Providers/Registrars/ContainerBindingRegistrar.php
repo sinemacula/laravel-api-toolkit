@@ -7,14 +7,14 @@ namespace SineMacula\ApiToolkit\Providers\Registrars;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
+use SineMacula\ApiToolkit\Config\HttpSettings;
+use SineMacula\ApiToolkit\Config\LifecycleSettings;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
-use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
@@ -113,9 +113,7 @@ final readonly class ContainerBindingRegistrar
      */
     private function registerQueryParser(): void
     {
-        $alias = Config::get('api-toolkit.parser.alias');
-
-        $this->container->scoped(is_string($alias) ? $alias : 'api.query', fn ($app) => new ApiQueryParser);
+        $this->container->scoped(HttpSettings::parserAlias(), fn ($app) => new ApiQueryParser);
     }
 
     /**
@@ -226,21 +224,13 @@ final readonly class ContainerBindingRegistrar
      */
     private function registerWritePool(): void
     {
-        $this->container->scoped(WritePool::class, function (): WritePool {
-
-            $chunkSize     = Config::get('api-toolkit.deferred_writes.chunk_size', 500);
-            $poolLimit     = Config::get('api-toolkit.deferred_writes.pool_limit', 10000);
-            $onFailure     = Config::get('api-toolkit.deferred_writes.on_failure', 'collect');
-            $transactional = Config::get('api-toolkit.deferred_writes.transactional', false);
-
-            return new WritePool(
-                is_numeric($chunkSize) ? (int) $chunkSize : 500,
-                is_numeric($poolLimit) ? (int) $poolLimit : 10000,
-                FlushStrategy::from(is_string($onFailure) ? $onFailure : 'collect'),
-                (bool) $transactional,
-                $this->transactionTracker(...),
-            );
-        });
+        $this->container->scoped(WritePool::class, fn (): WritePool => new WritePool(
+            LifecycleSettings::chunkSize(),
+            LifecycleSettings::poolLimit(),
+            LifecycleSettings::flushStrategy(),
+            LifecycleSettings::isFlushTransactional(),
+            $this->transactionTracker(...),
+        ));
     }
 
     /**

@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\Config;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 
 /**
  * Tests for the CacheKeys enum.
@@ -56,16 +58,29 @@ final class CacheKeysTest extends TestCase
     }
 
     /**
-     * Test that resolveKey uses the default prefix when no config is set.
+     * Test that resolveKey uses the shipped prefix.
      *
      * @return void
      */
-    public function testResolveKeyUsesDefaultPrefixWhenConfigMissing(): void
+    public function testResolveKeyUsesTheShippedPrefix(): void
     {
-        $result = CacheKeys::MODEL_RESOURCES->resolveKey(['User']);
+        self::assertSame('api-toolkit:model-resources:User', CacheKeys::MODEL_RESOURCES->resolveKey(['User']));
+    }
 
-        self::assertStringStartsWith('api-toolkit:', $result);
-        self::assertSame('api-toolkit:model-resources:User', $result);
+    /**
+     * Test that resolveKey fails when the prefix is missing, rather than
+     * sharing another application's keys.
+     *
+     * @return void
+     */
+    public function testResolveKeyFailsWhenThePrefixIsMissing(): void
+    {
+        Config::set('api-toolkit.cache', []);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.cache.prefix setting is missing; add it from the published config.');
+
+        CacheKeys::MODEL_RESOURCES->resolveKey(['User']);
     }
 
     /**
@@ -117,5 +132,17 @@ final class CacheKeysTest extends TestCase
     public function testExpectedCaseCount(): void
     {
         self::assertCount(7, CacheKeys::cases());
+    }
+
+    /**
+     * Get the package providers.
+     *
+     * @param  mixed  $app
+     * @return array<int, class-string>
+     */
+    #[\Override]
+    protected function getPackageProviders(mixed $app): array
+    {
+        return [ApiServiceProvider::class];
     }
 }

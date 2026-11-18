@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 
@@ -81,8 +81,7 @@ final class FieldResolver
 
         $excluded = $this->excludedFields ?? [];
 
-        /** @var array<int, string> $configFixed */
-        $configFixed = Config::get('api-toolkit.resources.fixed_fields', []);
+        $configFixed = ResourceSettings::fixedFields();
 
         // Request-scoped memo so a homogeneous page assembles the list once
         $key = self::cacheKey($this->fields, $excluded, $configFixed, $fixedFields);

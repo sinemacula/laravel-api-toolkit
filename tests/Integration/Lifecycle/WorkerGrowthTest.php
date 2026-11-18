@@ -22,6 +22,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
+use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\IndexProof;
@@ -73,6 +74,11 @@ final class WorkerGrowthTest extends TestCase
         ValueResolver::class . '::$relatedModelCache',
     ];
 
+    /** @var array<int, string> Stacks each finishing console command pops */
+    private const array COMMAND_SCOPED = [
+        RuntimeContext::class . '::$commands',
+    ];
+
     /**
      * Leave the rows a test writes committed, as one engine updates its
      * full-text index only when a transaction commits.
@@ -83,14 +89,14 @@ final class WorkerGrowthTest extends TestCase
     public function beginDatabaseTransaction(): void {}
 
     /**
-     * Test that every static array in the toolkit is either emptied by a flush
-     * or keyed by code alone.
+     * Test that every static array in the toolkit is emptied by a flush, keyed
+     * by code alone or popped as each console command finishes.
      *
      * @return void
      */
     public function testEveryStaticArrayIsFlushedOrKeyedByCode(): void
     {
-        $expected = [...self::FLUSHED, ...self::CODE_KEYED];
+        $expected = [...self::FLUSHED, ...self::CODE_KEYED, ...self::COMMAND_SCOPED];
 
         sort($expected);
 

@@ -27,13 +27,14 @@ use Illuminate\Validation\Validator;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use SineMacula\ApiToolkit\Exceptions\ConflictException;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Exceptions\GoneException;
-use SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use SineMacula\ApiToolkit\Exceptions\UnhandledException;
@@ -393,7 +394,8 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that debug mode includes meta with exception trace.
+     * Test that debug mode, spelt as an environment variable reads, includes
+     * meta with exception trace.
      *
      * @return void
      */
@@ -402,7 +404,7 @@ final class ApiExceptionHandlerTest extends TestCase
         $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);
 
-        config()->set('app.debug', true);
+        config()->set('app.debug', '1');
 
         $original = new \RuntimeException(self::GENERIC_ERROR_MESSAGE);
 
@@ -1121,28 +1123,74 @@ final class ApiExceptionHandlerTest extends TestCase
         self::assertNull((new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new \RuntimeException, $request));
 
         ExceptionsFacade::assertReportedCount(1);
-        ExceptionsFacade::assertReported(static fn (InvalidExceptionMapException $exception): bool => $exception->getMessage()
+        ExceptionsFacade::assertReported(static fn (InvalidConfigurationException $exception): bool => $exception->getMessage()
             === 'The api-toolkit.exceptions.map key [stdClass] must be an interface or a Throwable class, and not an ApiException.');
     }
 
     /**
-     * Test that rendering an invalid map failure leaves it to Laravel without
-     * reporting it again.
+     * Test that rendering an invalid configuration failure leaves it to Laravel
+     * without reading the configuration or reporting it again.
      *
      * @return void
      */
-    public function testInvalidMapFailureIsLeftToLaravelUnreported(): void
+    public function testInvalidConfigurationFailureIsLeftToLaravelUnreported(): void
     {
         ExceptionsFacade::fake();
 
         $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);
 
+        config()->set('api-toolkit.exceptions.render_strategy', 'bogus');
         config()->set('api-toolkit.exceptions.map', [\stdClass::class => ConflictException::class]);
 
-        self::assertNull((new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new InvalidExceptionMapException('Invalid.'), $request));
+        self::assertNull((new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, InvalidConfigurationException::because('Invalid.'), $request));
 
         ExceptionsFacade::assertNothingReported();
+    }
+
+    /**
+     * Provide the invalid rendering settings and the message each reports.
+     *
+     * @return iterable<string, array{0: string, 1: mixed, 2: string}>
+     */
+    public static function invalidRenderingSettingProvider(): iterable
+    {
+        yield 'render strategy typo' => [
+            'render_strategy',
+            'json-when-expected',
+            'The api-toolkit.exceptions.render_strategy setting must be one of always_json, json_when_expected, auto; [\'json-when-expected\'] given.',
+        ];
+
+        yield 'debug info spelling' => [
+            'include_debug_info',
+            'maybe',
+            'The api-toolkit.exceptions.include_debug_info setting must be a boolean, or one of 1, 0, true, false, on, off, yes, no; [\'maybe\'] given.',
+        ];
+    }
+
+    /**
+     * Test that an invalid rendering setting is reported once and leaves the
+     * rendering, of an ApiException too, to Laravel.
+     *
+     * @param  string  $setting
+     * @param  mixed  $value
+     * @param  string  $message
+     * @return void
+     */
+    #[DataProvider('invalidRenderingSettingProvider')]
+    public function testInvalidRenderingSettingIsReportedAndLeavesRenderingToLaravel(string $setting, mixed $value, string $message): void
+    {
+        ExceptionsFacade::fake();
+
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
+        $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        config()->set('api-toolkit.exceptions.' . $setting, $value);
+
+        self::assertNull((new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new ConflictException, $request));
+
+        ExceptionsFacade::assertReportedCount(1);
+        ExceptionsFacade::assertReported(static fn (InvalidConfigurationException $exception): bool => $exception->getMessage() === $message);
     }
 
     /**
@@ -1232,7 +1280,7 @@ final class ApiExceptionHandlerTest extends TestCase
     {
         $exception = self::httpExceptionImplementor($status);
 
-        $mapped = (new \ReflectionMethod(ApiExceptionHandler::class, 'mapApiException'))->invoke(null, $exception);
+        $mapped = (new \ReflectionMethod(ApiExceptionHandler::class, 'mapApiException'))->invoke(null, ExceptionMap::fromConfig(), $exception);
 
         self::assertInstanceOf(ApiException::class, $mapped);
         self::assertSame($expectedStatus, $mapped->getStatusCode());
@@ -1345,7 +1393,7 @@ final class ApiExceptionHandlerTest extends TestCase
         self::assertInstanceOf($source, $sample);
         self::assertSame($sample, $this->prepare($sample));
 
-        $mapped = (new \ReflectionMethod(ApiExceptionHandler::class, 'mapApiException'))->invoke(null, $sample);
+        $mapped = (new \ReflectionMethod(ApiExceptionHandler::class, 'mapApiException'))->invoke(null, ExceptionMap::fromConfig(), $sample);
 
         self::assertInstanceOf(ApiException::class, $mapped);
         self::assertSame($expectedStatus, $mapped->getStatusCode());
@@ -1430,6 +1478,18 @@ final class ApiExceptionHandlerTest extends TestCase
         ApiExceptionHandler::handles($exceptions);
 
         self::assertFalse($handler->shouldReport($sample));
+    }
+
+    /**
+     * Get the package providers.
+     *
+     * @param  mixed  $app
+     * @return array<int, class-string>
+     */
+    #[\Override]
+    protected function getPackageProviders(mixed $app): array
+    {
+        return [ApiServiceProvider::class];
     }
 
     /**
