@@ -13,8 +13,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
@@ -39,6 +41,7 @@ final class DeferredQueueRequestTest extends TestCase
     public function testDeferredJobLeavesTheParsedQueryReadableAfterItRuns(): void
     {
         Config::set('queue.connections.deferred', ['driver' => 'deferred']);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
 
         $attempts = [];
         $flushes  = 0;

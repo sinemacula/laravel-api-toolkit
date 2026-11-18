@@ -208,14 +208,14 @@ final class CacheManagerTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query'); // @phpstan-ignore method.nonObject
 
-        $parser->parse(Request::create('/test', 'GET', ['fields' => 'name,email']));
+        $parser->parse(Request::create('/test', 'GET', ['limit' => '5']));
 
-        self::assertSame(['name', 'email'], $parser->getFields());
+        self::assertSame(5, $parser->getLimit());
 
         $manager = $this->app->make(CacheManager::class); // @phpstan-ignore method.nonObject
         $manager->flush();
 
-        self::assertNull($parser->getFields());
+        self::assertNull($parser->getLimit());
     }
 
     /**
@@ -236,13 +236,13 @@ final class CacheManagerTest extends TestCase
 
         self::assertInstanceOf(ApiQueryParser::class, $parser);
 
-        $parser->parse(Request::create('/test', 'GET', ['fields' => 'name,email']));
+        $parser->parse(Request::create('/test', 'GET', ['limit' => '5']));
 
         config()->set('api-toolkit.parser.alias', null);
 
         $this->app->make(CacheManager::class)->flush();
 
-        self::assertNull($parser->getFields());
+        self::assertNull($parser->getLimit());
     }
 
     /**

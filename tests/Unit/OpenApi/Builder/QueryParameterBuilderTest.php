@@ -313,15 +313,18 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        self::assertIsString($parameters['Fields']['description']);
-        self::assertStringContainsString('fields[users]=id,name', $parameters['Fields']['description']);
+        self::assertSame(
+            'Sparse fieldsets: restrict the attributes returned per resource type, e.g. fields[users]=id,name. '
+            . 'Unknown resource types and names are rejected.',
+            $parameters['Fields']['description'],
+        );
         self::assertIsString($parameters['Search']['description']);
         self::assertStringContainsString('search=John Smith', $parameters['Search']['description']);
         self::assertIsString($parameters['Order']['description']);
         self::assertStringContainsString('order=name,created_at:desc', $parameters['Order']['description']);
         self::assertSame(
             'Relation aggregates: request the keys of the resource\'s aggregates object per resource type, e.g. aggregates[users]=posts_count. '
-            . 'Requesting any aggregate replaces the defaults of that type.',
+            . 'Requesting any aggregate replaces the defaults of that type. Unknown resource types and names are rejected.',
             $parameters['Aggregates']['description'],
         );
         self::assertIsString($parameters['Filters']['description']);

@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
@@ -22,6 +23,7 @@ use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\AggregatingUserResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -63,6 +65,8 @@ final class QueryCostRejectionTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [AggregatingUserResource::class, FilterableUserResource::class, PostResource::class, UserResource::class]);
 
         $this->registerApiExceptionHandler();
 
@@ -270,17 +274,19 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that aggregates beyond the shipped cap issue no SQL.
+     * Test that aggregates beyond the cap issue no SQL.
      *
      * @return void
      */
     public function testAggregatesBeyondTheCapIssueNoSql(): void
     {
-        $response = $this->recordQueries('/users?' . http_build_query([
-            'aggregates' => [FilterableUserResource::RESOURCE_TYPE => 'posts_count,organization_count,profile_count,posts_sum_id,posts_max_created_at,posts_avg_id'],
+        Config::set('api-toolkit.query_cost.max_aggregates', 2);
+
+        $response = $this->recordQueries('/aggregate-users?' . http_build_query([
+            'aggregates' => [UserResource::RESOURCE_TYPE => 'posts_count,posts_sum_id,posts_avg_id'],
         ]));
 
-        $this->assertRejectionEnvelope($response, 'aggregates', '', 'max_aggregates', 5, 6);
+        $this->assertRejectionEnvelope($response, 'aggregates', '', 'max_aggregates', 2, 3);
     }
 
     /**
@@ -317,7 +323,7 @@ final class QueryCostRejectionTest extends TestCase
         $response = $this->recordQueries('/aggregate-users?' . http_build_query([
             'fields'     => [UserResource::RESOURCE_TYPE => 'name'],
             'filters'    => json_encode(['name' => 'Carol']),
-            'aggregates' => [FilterableUserResource::RESOURCE_TYPE => 'posts_count,organization_count,profile_count,posts_sum_id,posts_max_created_at,posts_avg_id'],
+            'aggregates' => [AggregatingUserResource::RESOURCE_TYPE => 'posts_count,has_published_posts,posts_sum_id,posts_avg_id,posts_min_created_at,last_posted_at'],
         ]));
 
         $response->assertOk();

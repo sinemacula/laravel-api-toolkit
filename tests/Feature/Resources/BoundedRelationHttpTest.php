@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\RelationWindow;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Schema\RelationLimit;
 use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
@@ -27,7 +28,11 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\BoundedOrganizationResource;
+use Tests\Fixtures\Resources\BoundedPostResource;
 use Tests\Fixtures\Resources\BoundedUserResource;
+use Tests\Fixtures\Resources\CommentResource;
+use Tests\Fixtures\Resources\CountryResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\TestCase;
 
 /**
@@ -56,6 +61,16 @@ final class BoundedRelationHttpTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [
+            ArticleResource::class,
+            BoundedOrganizationResource::class,
+            BoundedPostResource::class,
+            BoundedUserResource::class,
+            CommentResource::class,
+            CountryResource::class,
+            TagResource::class,
+        ]);
 
         $this->registerApiExceptionHandler();
 

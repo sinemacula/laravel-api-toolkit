@@ -8,6 +8,7 @@ use Illuminate\Container\Container;
 use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
@@ -21,6 +22,7 @@ use SineMacula\ApiToolkit\Exceptions\GoneException;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Exceptions\NotFoundException;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
@@ -43,13 +45,18 @@ use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Fixtures\Input\StorePayload;
 use Tests\Fixtures\Models\Log;
+use Tests\Fixtures\Models\Organization;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\MissingColumnQueryableResource;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\SearchableComputedResource;
 use Tests\Fixtures\Resources\SensitiveQueryableResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\TrailingIndexSortableResource;
 use Tests\Fixtures\Resources\UnbackedQueryableResource;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\TestCase;
 
@@ -213,6 +220,8 @@ final class ContainerBindingRegistrarTest extends TestCase
             }
         };
 
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [OrganizationResource::class]);
+
         $validator = $app->make(SchemaValidator::class);
 
         $this->expectException(InvalidSchemaException::class);
@@ -222,6 +231,41 @@ final class ContainerBindingRegistrarTest extends TestCase
         ));
 
         $validator->validate([User::class => $resource::class]);
+    }
+
+    /**
+     * Test that the shipped rules refuse a relation child whose type cannot be
+     * selected.
+     *
+     * @return void
+     */
+    public function testRegisterBindsSchemaValidatorRefusingAnUncataloguedRelationChild(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        SchemaCompiler::clearCache();
+
+        $validator = $app->make(SchemaValidator::class);
+
+        $this->expectException(InvalidSchemaException::class);
+        $this->expectExceptionMessage(sprintf(
+            "Schema validation failed with 1 error(s):\n  - [%s] Field \"tags\": Relation \"tags\" renders %s, "
+            . 'which is neither mapped nor under resources.paths, so its type cannot be selected',
+            PostResource::class,
+            TagResource::class,
+        ));
+
+        $map = [
+            Organization::class => OrganizationResource::class,
+            Post::class         => PostResource::class,
+            User::class         => UserResource::class,
+        ];
+
+        Config::set('api-toolkit.resources.resource_map', $map);
+
+        $validator->validate($map);
     }
 
     /**
