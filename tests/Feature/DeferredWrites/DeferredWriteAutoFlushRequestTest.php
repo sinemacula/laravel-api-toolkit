@@ -13,6 +13,7 @@ use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\Deferrable;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
+use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\DeferrableUserRepository;
 use Tests\TestCase;
 
@@ -74,5 +75,43 @@ final class DeferredWriteAutoFlushRequestTest extends TestCase
         $pool = $this->app->make(WritePool::class); // @phpstan-ignore method.nonObject
 
         self::assertTrue($pool->isEmpty());
+    }
+
+    /**
+     * Test that rows a failed auto-flush kept are retried once per pool limit
+     * of new rows mid-request, while the new rows insert as full chunks.
+     *
+     * @return void
+     */
+    public function testRowsAFailedAutoFlushKeptAreNotRetriedOnEveryDeferral(): void
+    {
+        Config::set('api-toolkit.deferred_writes.pool_limit', 3);
+        Config::set('api-toolkit.deferred_writes.chunk_size', 3);
+
+        User::create(['name' => 'Taken', 'email' => 'taken@example.com']);
+
+        Route::post('/retrying-users', function (DeferrableUserRepository $repository): JsonResponse {
+
+            foreach (range(1, 3) as $i) {
+                $repository->defer(['name' => "Duplicate {$i}", 'email' => 'taken@example.com']);
+            }
+
+            foreach (range(1, 6) as $i) {
+                $repository->defer(['name' => "User {$i}", 'email' => "user{$i}@example.com"]);
+            }
+
+            return response()->json(['persisted_during_request' => DB::table('users')->count()], 202);
+        });
+
+        $inserts = 0;
+
+        DB::connection()->beforeExecuting(function (string $query) use (&$inserts): void {
+            $inserts += (int) str_starts_with($query, 'insert into');
+        });
+
+        $this->postJson('/retrying-users')->assertStatus(202)->assertJsonPath('persisted_during_request', 7);
+
+        self::assertSame(6, $inserts);
+        self::assertSame(7, DB::table('users')->count());
     }
 }

@@ -22,6 +22,9 @@ final class WritePool
     /** @var array<string, array<string, list<array<string, mixed>>>> Records buffered by connection, then table */
     private array $buffer = [];
 
+    /** @var array<string, int> Records added to each connection since its last flush, which count toward the pool limit */
+    private array $added = [];
+
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult|null Outcome of the most recent auto-flush */
     private ?WritePoolFlushResult $lastAutoFlushResult = null;
 
@@ -56,7 +59,8 @@ final class WritePool
     /**
      * Add an attribute array to the buffer for the given connection and table.
      *
-     * Reaching the pool limit auto-flushes every connection with no open
+     * Reaching the pool limit with records added since each connection's last
+     * flush auto-flushes every connection holding such records and no open
      * transaction, which may throw.
      *
      * @param  string  $connection
@@ -69,13 +73,14 @@ final class WritePool
     public function add(string $connection, string $table, array $attributes): void
     {
         $this->buffer[$connection][$table][] = $attributes;
+        $this->added[$connection]            = ($this->added[$connection] ?? 0) + 1;
 
-        if ($this->count() < $this->poolLimit) {
+        if (array_sum($this->added) < $this->poolLimit) {
             return;
         }
 
         $detector = new DeferredWriteTransactionDetector($this->transactions);
-        $idle     = array_filter(array_keys($this->buffer), fn (string $name): bool => !$detector->hasOpenTransaction($name));
+        $idle     = array_filter(array_keys($this->buffer), fn (string $name): bool => isset($this->added[$name]) && !$detector->hasOpenTransaction($name));
 
         if ($idle === []) {
             return;
@@ -156,6 +161,8 @@ final class WritePool
             $this->invalidateFlushedTables($exception->flushResult());
 
             throw $exception;
+        } finally {
+            $this->added = array_diff_key($this->added, array_flip($connections));
         }
 
         $this->invalidateFlushedTables($result);
@@ -348,7 +355,8 @@ final class WritePool
     }
 
     /**
-     * Insert each chunk of a target, accumulating the outcome.
+     * Insert each chunk of a target, in its own savepoint inside an open
+     * transaction, accumulating the outcome.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
@@ -363,7 +371,12 @@ final class WritePool
         foreach ($context->chunks() as $chunkIndex => $chunk) {
 
             try {
-                DB::connection($context->connection())->table($context->table())->insert($chunk);
+                $connection = DB::connection($context->connection());
+                $insert     = fn (): bool => $connection->table($context->table())->insert($chunk);
+
+                // A failed statement aborts an enclosing PostgreSQL transaction
+                $connection->transactionLevel() > 0 ? $connection->transaction($insert) : $insert();
+
                 $accumulator->recordSuccess($chunk);
             } catch (\Throwable $exception) { // @phpstan-ignore catch.neverThrown
                 $this->handleChunkFailure($context->withChunkIndex($chunkIndex), $accumulator, $chunk, $exception);
