@@ -8,6 +8,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Foundation\Application;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Route as RouteFacade;
 use Illuminate\Support\Facades\Validator as RequestValidator;
 use Opis\JsonSchema\ValidationResult;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -45,6 +46,7 @@ use Tests\Fixtures\OpenApi\PathKeyedArrayController;
 use Tests\Fixtures\OpenApi\PathNumericKeyController;
 use Tests\Fixtures\OpenApi\PathOperationController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
+use Tests\Fixtures\OpenApi\PathPlainController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
@@ -240,6 +242,62 @@ final class OpenApiExporterValidityTest extends TestCase
             self::assertCount($count, $document['servers']);
             self::assertTrue($result->isValid(), 'A document carrying servers must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
         }
+    }
+
+    /**
+     * Test that a document with domain routes stays valid, every path parameter
+     * is in its template, and each path and verb is one operation.
+     *
+     * @return void
+     */
+    public function testDocumentWithDomainRoutesValidatesAsOpenApiThreeOne(): void
+    {
+        $this->registerUserRoutes();
+
+        RouteFacade::domain('{account}.example.com')->get('projects/{value}', [PathBindingController::class, 'value'])->whereIn('account', ['acme', 'globex']);
+        RouteFacade::domain('{status}.example.com')->get('statuses', [PathBindingController::class, 'status']);
+        RouteFacade::domain('{user}.example.com')->get('members/{user}', [PathBindingController::class, 'user']);
+        RouteFacade::domain('a.example.com')->get('reports', [PathPlainController::class, 'report']);
+        RouteFacade::domain('b.example.com')->get('reports', [PathPlainController::class, 'report']);
+
+        $this->getConfig()->set('api-toolkit.openapi.servers', [
+            ['url' => 'https://api.example.com/v1', 'description' => 'Production'],
+            ['url' => 'http://localhost:{port}', 'variables' => ['port' => ['default' => '8000']]],
+        ]);
+
+        $document = $this->export()->document;
+        $result   = $this->validateDocument($document);
+        $paths    = $document['paths'];
+
+        self::assertIsArray($paths);
+
+        $operations = 0;
+
+        foreach ($paths as $template => $item) {
+
+            self::assertIsArray($item);
+
+            $operations += count($item);
+
+            foreach ($item as $operation) {
+                self::assertIsArray($operation);
+                $this->assertPathParametersInTemplate((string) $template, $operation);
+            }
+        }
+
+        $reports = $paths['/reports']['get']['servers'];
+
+        self::assertIsArray($reports);
+        self::assertSame(10, $operations);
+        self::assertSame(
+            ['account' => ['enum' => ['acme', 'globex'], 'default' => 'acme']],
+            $paths['/projects/{value}']['get']['servers'][0]['variables'],
+        );
+        self::assertSame(
+            ['https://a.example.com/v1', 'http://a.example.com:{port}', 'https://b.example.com/v1', 'http://b.example.com:{port}'],
+            array_column($reports, 'url'),
+        );
+        self::assertTrue($result->isValid(), 'A document with domain routes must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
     }
 
     /**
@@ -1781,6 +1839,26 @@ final class OpenApiExporterValidityTest extends TestCase
         }
 
         return $names;
+    }
+
+    /**
+     * Assert that each path parameter of the operation is in the path template.
+     *
+     * @param  string  $template
+     * @param  array<array-key, mixed>  $operation
+     * @return void
+     */
+    private function assertPathParametersInTemplate(string $template, array $operation): void
+    {
+        foreach ((array) ($operation['parameters'] ?? []) as $parameter) {
+
+            if (!is_array($parameter) || ($parameter['in'] ?? null) !== 'path') {
+                continue;
+            }
+
+            self::assertIsString($parameter['name']);
+            self::assertStringContainsString('{' . $parameter['name'] . '}', $template);
+        }
     }
 
     /**

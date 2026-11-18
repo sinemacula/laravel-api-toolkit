@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi\Builder;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -15,6 +16,8 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteKeySchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
+use Tests\Fixtures\Enums\Caseless;
+use Tests\Fixtures\Enums\UserLevel;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Account;
 use Tests\Fixtures\Models\Shipment;
@@ -276,6 +279,132 @@ final class PathParameterBuilderTest extends TestCase
     public function testMissingActionIsAString(): void
     {
         self::assertSame(self::STRING, $this->schemaOf($this->router()->get('tickets/{ticket}', [PathBindingController::class, 'missing'])));
+    }
+
+    /**
+     * Test that only the URI's parameters are path parameters, a name in both
+     * the domain and the URI listed once.
+     *
+     * @return void
+     */
+    public function testOnlyTheUrisParametersArePathParameters(): void
+    {
+        $route = $this->router()->get('users/{user}/{value?}', [PathBindingController::class, 'value'])->domain('{account}.{user}.example.com');
+
+        self::assertSame(['user', 'value'], array_column($this->builder()->build($route), 'name'));
+    }
+
+    /**
+     * Test that each domain parameter is a variable defaulting to its name, in
+     * the order the domain declares them.
+     *
+     * @return void
+     */
+    public function testDomainParametersAreVariablesDefaultingToTheirName(): void
+    {
+        $route = $this->router()->get('projects', [PathBindingController::class, 'value'])->domain('{region}.{account?}.example.com');
+
+        self::assertSame(
+            ['region' => ['default' => 'region'], 'account' => ['default' => 'account']],
+            $this->builder()->hostVariables($route),
+        );
+    }
+
+    /**
+     * Test that a route without a domain has no server variables.
+     *
+     * @return void
+     */
+    public function testRouteWithoutADomainHasNoVariables(): void
+    {
+        self::assertSame([], $this->builder()->hostVariables($this->router()->get('statuses/{status}', [PathBindingController::class, 'status'])));
+    }
+
+    /**
+     * Test that a list of literals narrows a domain variable to an enum
+     * defaulting to its first value, whatever the parameter binds.
+     *
+     * @return void
+     */
+    public function testLiteralConstraintNarrowsTheVariable(): void
+    {
+        $route = $this->router()->get('statuses/{status}', [PathBindingController::class, 'status'])
+            ->domain('{account}.{status}.example.com')
+            ->whereIn('account', ['acme', 'globex'])
+            ->whereIn('status', ['active']);
+
+        self::assertSame(
+            ['account' => ['enum' => ['acme', 'globex'], 'default' => 'acme'], 'status' => ['enum' => ['active'], 'default' => 'active']],
+            $this->builder()->hostVariables($route),
+        );
+    }
+
+    /**
+     * Test that a bound string-backed enum narrows a domain variable to its
+     * values, without registering its component, unless a list of literals
+     * constrains it.
+     *
+     * @return void
+     */
+    public function testBoundEnumNarrowsTheVariable(): void
+    {
+        $bound       = $this->router()->get('projects', [PathBindingController::class, 'status'])->domain('{status}.example.com');
+        $constrained = $this->router()->get('reports', [PathBindingController::class, 'status'])->domain('{status}.example.com')->whereIn('status', ['banned']);
+
+        self::assertSame(
+            ['status' => ['enum' => ['active', 'inactive', 'banned'], 'default' => 'active']],
+            $this->builder()->hostVariables($bound),
+        );
+        self::assertSame(['status' => ['enum' => ['banned'], 'default' => 'banned']], $this->builder()->hostVariables($constrained));
+        self::assertSame([], $this->enums->classes());
+    }
+
+    /**
+     * Provide the URI, action and constraint of a domain route whose binding or
+     * constraint cannot narrow its variable.
+     *
+     * @return iterable<string, array{0: string, 1: array{class-string, string}|\Closure(never): mixed, 2: string|null}>
+     */
+    public static function unnarrowedVariableProvider(): iterable
+    {
+        yield 'enum bound through the uri' => ['statuses/{status}', [PathBindingController::class, 'status'], null];
+        yield 'enum without cases' => ['projects', static fn (Caseless $status): string => $status->value, null];
+        yield 'int-backed enum' => ['projects', static fn (UserLevel $status): int => $status->value, null];
+        yield 'model' => ['projects', static fn (User $status): User => $status, null];
+        yield 'pattern' => ['projects', static fn (string $status): string => $status, '[a-z]+'];
+    }
+
+    /**
+     * Test that a domain variable nothing narrows defaults to its name.
+     *
+     * @param  string  $uri
+     * @param  array{class-string, string}|\Closure(never): mixed  $action
+     * @param  string|null  $constraint
+     * @return void
+     */
+    #[DataProvider('unnarrowedVariableProvider')]
+    public function testUnnarrowedVariableDefaultsToItsName(string $uri, array|\Closure $action, ?string $constraint): void
+    {
+        $route = $this->router()->get($uri, $action)->domain('{status}.example.com')->where('status', $constraint);
+
+        self::assertSame(['status' => ['default' => 'status']], $this->builder()->hostVariables($route));
+    }
+
+    /**
+     * Test that an explicit binder keeps a domain variable's constraint but
+     * drops its enum binding.
+     *
+     * @return void
+     */
+    public function testExplicitBinderDropsTheVariablesBinding(): void
+    {
+        $this->router()->bind('status', static fn (string $value): UserStatus => UserStatus::from($value));
+
+        $bound       = $this->router()->get('projects', [PathBindingController::class, 'status'])->domain('{status}.example.com');
+        $constrained = $this->router()->get('reports', [PathBindingController::class, 'status'])->domain('{status}.example.com')->whereIn('status', ['banned']);
+
+        self::assertSame(['status' => ['default' => 'status']], $this->builder()->hostVariables($bound));
+        self::assertSame(['status' => ['enum' => ['banned'], 'default' => 'banned']], $this->builder()->hostVariables($constrained));
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Tests\Unit\OpenApi;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Route as RouteFacade;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder;
@@ -576,6 +577,29 @@ final class OpenApiAssemblerTest extends TestCase
 
         self::assertSame($partner, $assembler->assemble('partner')['servers']);
         self::assertSame($global, $assembler->assemble('public')['servers']);
+    }
+
+    /**
+     * Test that a domain route's servers are built from its audience's own
+     * servers, which replace the global list.
+     *
+     * @return void
+     */
+    public function testDomainRouteServersFollowTheAudiencesServers(): void
+    {
+        RouteFacade::domain('{account}.example.com')->get('projects', [PathFixtureController::class, 'index']);
+
+        $this->config()->set('api-toolkit.openapi.servers', [['url' => 'https://api.example.com/v1']]);
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'public'  => [],
+            'partner' => ['servers' => [['url' => 'https://partners.example.com/v2']]],
+        ]);
+
+        $assembler = $this->makeAssembler();
+        $variables = ['account' => ['default' => 'account']];
+
+        self::assertSame([['url' => 'https://{account}.example.com/v2', 'variables' => $variables]], $assembler->assemble('partner')['paths']['/projects']['get']['servers']);
+        self::assertSame([['url' => 'https://{account}.example.com/v1', 'variables' => $variables]], $assembler->assemble('public')['paths']['/projects']['get']['servers']);
     }
 
     /**
