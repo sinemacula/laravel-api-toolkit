@@ -8,7 +8,7 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
+use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Routing\Attributes\CustomAuthorization;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
@@ -21,9 +21,9 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 /**
  * Builds an operation's error responses, keyed by HTTP status.
  *
- * The route's facts name the exceptions the handler receives, each documented
- * as the ApiException the exception map renders it as, beside the ApiExceptions
- * the action's @throws tags name.
+ * The route's facts and the operation's inputs name the exceptions the handler
+ * receives, each documented as the ApiException it renders as, beside the
+ * ApiExceptions the action's @throws tags name.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -44,7 +44,7 @@ final readonly class ErrorResponseBuilder
         401 => 'Unauthenticated.',
         403 => 'Forbidden.',
         404 => 'The requested resource does not exist.',
-        422 => 'The request payload failed validation.',
+        422 => 'The request failed validation.',
         429 => 'Too many requests.',
         500 => 'An unexpected server error occurred.',
     ];
@@ -82,16 +82,16 @@ final readonly class ErrorResponseBuilder
      * @param  class-string|null  $controllerClass
      * @param  string  $action
      * @param  \Illuminate\Routing\Route  $route
-     * @param  bool  $acceptsBody
+     * @param  list<class-string<\Throwable>>  $inputExceptions
      * @return array<int, array<string, mixed>>
      *
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ErrorCatalogueMismatchException
      */
-    public function build(?string $controllerClass, string $action, Route $route, bool $acceptsBody): array
+    public function build(?string $controllerClass, string $action, Route $route, array $inputExceptions): array
     {
         $errors = [];
 
-        foreach ($this->sources($controllerClass, $action, $route, $acceptsBody) as [$exception, $headers]) {
+        foreach ($this->sources($controllerClass, $action, $route, $inputExceptions) as [$exception, $headers]) {
 
             $status = $exception::getHttpStatusCode();
 
@@ -143,10 +143,10 @@ final readonly class ErrorResponseBuilder
      * @param  class-string|null  $controllerClass
      * @param  string  $action
      * @param  \Illuminate\Routing\Route  $route
-     * @param  bool  $acceptsBody
+     * @param  list<class-string<\Throwable>>  $inputExceptions
      * @return list<array{0: class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>, 1: array<string, array<string, mixed>>}>
      */
-    private function sources(?string $controllerClass, string $action, Route $route, bool $acceptsBody): array
+    private function sources(?string $controllerClass, string $action, Route $route, array $inputExceptions): array
     {
         $sources = [];
 
@@ -156,7 +156,13 @@ final readonly class ErrorResponseBuilder
 
         $defaults = ExceptionMap::defaults();
 
-        foreach ($this->baselineExceptions($controllerClass, $action, $route, $acceptsBody) as $received) {
+        foreach ($this->receivedExceptions($controllerClass, $action, $route, $inputExceptions) as $received) {
+
+            if (is_a($received, ApiException::class, true)) {
+                $sources[] = [$received, $this->headers->forException($received)];
+
+                continue;
+            }
 
             $exception = $this->exceptions->targetFor($received);
 
@@ -168,21 +174,22 @@ final readonly class ErrorResponseBuilder
     }
 
     /**
-     * List the exceptions the handler receives for the route's facts.
+     * List the exceptions the handler receives for the route's facts and the
+     * operation's inputs.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
      * @param  \Illuminate\Routing\Route  $route
-     * @param  bool  $acceptsBody
+     * @param  list<class-string<\Throwable>>  $inputExceptions
      * @return list<class-string<\Throwable>>
      */
-    private function baselineExceptions(?string $controllerClass, string $action, Route $route, bool $acceptsBody): array
+    private function receivedExceptions(?string $controllerClass, string $action, Route $route, array $inputExceptions): array
     {
         $facts = [
             AuthenticationException::class   => $this->middleware->authenticates($route),
             AccessDeniedHttpException::class => $this->middleware->authorizes($route) || $this->declaresCustomAuthorization($controllerClass, $action),
             NotFoundHttpException::class     => $route->parameterNames() !== [],
-            ValidationException::class       => $acceptsBody,
+            ...array_fill_keys($inputExceptions, true),
             ThrottleRequestsException::class => $this->middleware->throttles($route),
             \Throwable::class                => true,
         ];

@@ -79,20 +79,7 @@ jobs:
                 run: composer update --prefer-lowest --prefer-dist --no-blocking --no-interaction --no-progress
 
             -   name: Assert the declared floors resolved
-                run: |
-                    requirements=$(jq -r '.require | to_entries[] | select(.key != "php") | "\(.key)\t\(.value)"' composer.json)
-                    fail=0
-                    while IFS=$'\t' read -r name constraint; do
-                        if [[ ! "$constraint" =~ ^\^([0-9]+)\.([0-9]+)(\.([0-9]+))?$ ]]; then
-                            echo "::error::${name} has no single caret floor: ${constraint}"; fail=1; continue
-                        fi
-                        floor="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[4]:-0}"
-                        installed=$(composer show "$name" --format=json | jq -r '.versions[0] | ltrimstr("v")')
-                        if [[ "$installed" != "$floor" ]]; then
-                            echo "::error::${name} resolved ${installed}, not its declared floor ${floor}"; fail=1
-                        fi
-                    done <<< "$requirements"
-                    exit "$fail"
+                run: .github/scripts/assert-dependency-floors.sh
 
             -   name: PHPUnit
                 run: composer test
@@ -243,7 +230,7 @@ jobs:
                     request /users/0 | jq -e '.error.status == 404'
 
     integration:
-        name: Integration / ${{ matrix.database }}
+        name: Integration / ${{ matrix.database }}${{ matrix.dependencies == 'lowest' && ' lowest' || '' }}
         runs-on: ubuntu-latest
 
         env:
@@ -254,9 +241,12 @@ jobs:
             DB_USERNAME: ${{ matrix.db_username }}
             DB_PASSWORD: ${{ matrix.db_password }}
 
+        # The lowest legs pair the dependency floors with each engine's oldest supported version
         strategy:
             fail-fast: false
             matrix:
+                database: [ mysql, pgsql ]
+                dependencies: [ highest, lowest ]
                 include:
                     -   database: mysql
                         image: mysql:8.4
@@ -266,12 +256,15 @@ jobs:
                         db_password: password
                         health_cmd: mysqladmin ping -h 127.0.0.1
                     -   database: pgsql
-                        image: postgres:17
+                        image: postgres:18
                         db_driver: pgsql
                         db_port: 5432
                         db_username: postgres
                         db_password: password
                         health_cmd: pg_isready -h 127.0.0.1 -U postgres -d api_toolkit_test
+                    -   database: pgsql
+                        dependencies: lowest
+                        image: postgres:15
 
         # Each image ignores the other's variables, so one service block serves both legs. Probes use
         # loopback because a socket probe can answer from the engine's temporary init server.
@@ -306,11 +299,57 @@ jobs:
                     php-version: 8.3
                     extensions: pdo_mysql, pdo_pgsql
 
+            -   name: Install the lowest dependencies
+                if: matrix.dependencies == 'lowest'
+                run: composer update --prefer-lowest --prefer-dist --no-blocking --no-interaction --no-progress
+
+            -   name: Assert the declared floors resolved
+                if: matrix.dependencies == 'lowest'
+                run: .github/scripts/assert-dependency-floors.sh
+
             # Serial: these suites create and drop real tables in one shared database
             -   name: Database Tests
                 run: vendor/bin/phpunit --testsuite Integration,Feature --exclude-group "$DB_DRIVER"
+
+            -   name: Unit Database Tests
+                run: vendor/bin/phpunit --testsuite Unit --group database
 
             # A skip here means the leg never reached its engine
             -   name: Engine Tests
                 run: vendor/bin/phpunit --group "$DB_DRIVER" --fail-on-skipped
 
+    redis:
+        name: Integration / redis
+        runs-on: ubuntu-latest
+
+        env:
+            REDIS_HOST: 127.0.0.1
+
+        services:
+            redis:
+                image: redis:7
+                ports:
+                    - 6379:6379
+                options: >-
+                    --health-cmd="redis-cli ping"
+                    --health-interval=10s
+                    --health-timeout=5s
+                    --health-retries=5
+                    --health-start-period=30s
+                    --health-start-interval=5s
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v7
+                with:
+                    persist-credentials: false
+
+            -   name: Setup PHP
+                uses: sinemacula/.github/.github/actions/setup-php@v3.2.0
+                with:
+                    php-version: 8.3
+                    extensions: redis
+
+            # A skip here means the leg never reached redis
+            -   name: Redis Tests
+                run: vendor/bin/phpunit --group redis --fail-on-skipped

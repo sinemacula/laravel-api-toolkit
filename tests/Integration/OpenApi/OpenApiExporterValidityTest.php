@@ -579,9 +579,10 @@ final class OpenApiExporterValidityTest extends TestCase
         sort($referenced);
 
         self::assertSame(
-            ['Error10001', 'Error10101', 'Error10102', 'Error10103', 'Error10105', 'Error10106', 'Error10107', 'Error10108', 'Error20002'],
+            ['Error10001', 'Error10101', 'Error10102', 'Error10103', 'Error10105', 'Error10106', 'Error10107', 'Error10108', 'Error10201', 'Error20002'],
             array_keys($examples),
         );
+        self::assertSame(422, $examples['Error10201']['value']['error']['status']);
         self::assertSame(array_map(static fn (string $name): string => '#/components/examples/' . $name, array_keys($examples)), $referenced);
 
         foreach ($examples as $name => $example) {
@@ -1578,11 +1579,11 @@ final class OpenApiExporterValidityTest extends TestCase
         $paths = $this->export()->document['paths'];
 
         self::assertIsArray($paths['/users']['get']['responses']);
-        self::assertSame([200, 401, 403, 500], array_keys($paths['/users']['get']['responses']));
+        self::assertSame([200, 401, 403, 422, 500], array_keys($paths['/users']['get']['responses']));
         self::assertIsArray($paths['/users']['post']['responses']);
         self::assertSame([201, 401, 403, 409, 422, 500], array_keys($paths['/users']['post']['responses']));
         self::assertIsArray($paths['/users/{user}']['get']['responses']);
-        self::assertSame([200, 401, 403, 404, 500], array_keys($paths['/users/{user}']['get']['responses']));
+        self::assertSame([200, 401, 403, 404, 422, 500], array_keys($paths['/users/{user}']['get']['responses']));
         self::assertIsArray($paths['/users/{user}']['put']['responses']);
         self::assertSame([200, 401, 403, 404, 422, 500], array_keys($paths['/users/{user}']['put']['responses']));
         self::assertIsArray($paths['/users/{user}']['delete']['responses']);

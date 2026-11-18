@@ -92,6 +92,7 @@ final class ApiResourceInterfaceTest extends TestCase
         $expectedMethods = [
             'getResourceType',
             'getDefaultFields',
+            'getFixedFields',
             'schema',
             'getAllFields',
             'resolveFields',

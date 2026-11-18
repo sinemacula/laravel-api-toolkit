@@ -33,6 +33,13 @@ interface ApiResourceInterface
     public static function getDefaultFields(): array;
 
     /**
+     * Get the fields added to every selection.
+     *
+     * @return array<int, string>
+     */
+    public static function getFixedFields(): array;
+
+    /**
      * Return the resource schema.
      *
      * @return array<string, array<string, mixed>>

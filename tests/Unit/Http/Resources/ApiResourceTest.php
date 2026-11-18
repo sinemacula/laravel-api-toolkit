@@ -139,6 +139,37 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
+     * Test that getFixedFields lists the configured fixed fields, then the
+     * resource's own, each once.
+     *
+     * @return void
+     */
+    public function testGetFixedFieldsListsConfiguredThenResourceFieldsOnce(): void
+    {
+        $resourceClass = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'fixed_list_test';
+
+            /** @var array<int, string> */
+            protected static array $fixed = ['id', 'status'];
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(Field::scalar('id'), Field::scalar('status'));
+            }
+        };
+
+        self::assertSame(['id', '_type'], UserResource::getFixedFields());
+        self::assertSame(['id', '_type', 'status'], $resourceClass::getFixedFields());
+    }
+
+    /**
      * Test that getAllFields returns all field keys excluding aggregates.
      *
      * @return void
@@ -2811,7 +2842,7 @@ final class ApiResourceTest extends TestCase
             protected static array $default = ['id', 'name'];
 
             /** @var array<int, string> */
-            protected array $fixed = ['email'];
+            protected static array $fixed = ['email'];
 
             /**
              * Get the resource schema.
