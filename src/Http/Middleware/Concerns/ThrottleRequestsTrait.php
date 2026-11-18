@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Http\Middleware\Concerns;
 
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Routing\Route;
 use SineMacula\ApiToolkit\Exceptions\RequestSignatureException;
 
 /**
@@ -31,7 +32,7 @@ trait ThrottleRequestsTrait
         // route() is documented as never null, so call the resolver directly
         $route = ($request->getRouteResolver())();
 
-        if ($route === null) {
+        if (!$route instanceof Route) {
             throw new RequestSignatureException('Unable to generate the request signature. Route unavailable.');
         }
 
@@ -39,11 +40,11 @@ trait ThrottleRequestsTrait
         $user       = $request->user();
         $identifier = $user instanceof Authenticatable ? $user->getAuthIdentifier() : null;
 
-        // Key anonymous callers by IP so they do not share one bucket
+        // Key by route pattern so walking ids shares one bucket; guests by IP
         return sha1(
             $request->method()
             . '|' . (is_string($serverName) ? $serverName : '')
-            . '|' . $request->path()
+            . '|' . $route->uri()
             . '|' . (is_int($identifier) || is_string($identifier) || $identifier instanceof \Stringable ? $identifier : $request->ip()),
         );
     }
