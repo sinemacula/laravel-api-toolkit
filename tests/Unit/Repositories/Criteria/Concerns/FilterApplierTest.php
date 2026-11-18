@@ -2122,7 +2122,9 @@ final class FilterApplierTest extends TestCase
     /**
      * Apply the filters to the notes and return the matched titles in order.
      *
-     * Users are governed by the public user resource; posts by nothing.
+     * Users are governed by the public user resource; posts by nothing. The
+     * resource declared over the relation, which filters no name, governs no
+     * type.
      *
      * @param  array<string, mixed>  $filters
      * @return array<int, string>
@@ -2132,7 +2134,12 @@ final class FilterApplierTest extends TestCase
      */
     private function matchedNoteTitles(array $filters): array
     {
-        $surface = $this->declaredSurface(filterable: ['title' => Capability::EXACT], relations: ['noteable'], resourceMap: [User::class => PublicUserResource::class]);
+        $surface = $this->declaredSurface(
+            filterable : ['title' => Capability::EXACT],
+            relations  : ['noteable'],
+            resourceMap: [User::class => PublicUserResource::class],
+            resources  : ['noteable' => PublicAuthorPostResource::class],
+        );
 
         /** @var array<int, string> */
         return $this->applier->apply((new Note)->newQuery(), $filters, $this->operatorRegistry, $surface)->orderBy('title')->pluck('title')->all();
