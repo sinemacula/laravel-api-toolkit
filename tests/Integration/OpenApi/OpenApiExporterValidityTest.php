@@ -509,9 +509,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         self::assertIsArray($document['components']['schemas']);
         self::assertArrayNotHasKey('Organization', $document['components']['schemas']);
-        self::assertIsArray($properties['organization']);
-        self::assertArrayNotHasKey('$ref', $properties['organization']);
-        self::assertTrue($properties['organization']['x-undocumented']);
+        self::assertSame(['oneOf' => [['type' => 'object', 'x-undocumented' => true], ['type' => 'null']]], $properties['organization']);
 
         $this->assertReferencesResolve($document);
         self::assertTrue($this->validateDocument($document)->isValid());
@@ -676,18 +674,24 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a to-one relation emits a single reference.
+     * Test that a to-one relation validates populated or null, and nothing
+     * else.
      *
      * @return void
      */
-    public function testToOneRelationEmitsSingleReference(): void
+    public function testToOneRelationAdmitsTheRelatedResourceOrNull(): void
     {
         $this->registerUserRoutes();
 
-        $document     = $this->export()->document;
-        $organization = $document['components']['schemas']['User']['properties']['organization'];
+        $document = $this->export()->document;
+        $pointer  = '/components/schemas/User';
+        $user     = ['_type' => 'users', 'id' => 1, 'name' => 'Ada'];
+        $acme     = ['_type' => 'organizations', 'id' => 1, 'name' => 'Acme', 'slug' => 'acme'];
+        $result   = $this->validateAgainstExported($document, $pointer, [...$user, 'organization' => $acme]);
 
-        self::assertSame(['$ref' => '#/components/schemas/Organization'], $organization);
+        self::assertTrue($result->isValid(), $this->formatErrors($result));
+        self::assertTrue($this->validateAgainstExported($document, $pointer, [...$user, 'organization' => null])->isValid());
+        self::assertFalse($this->validateAgainstExported($document, $pointer, [...$user, 'organization' => 'Acme'])->isValid());
     }
 
     /**

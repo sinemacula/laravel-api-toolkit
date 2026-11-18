@@ -327,6 +327,7 @@ class UserResource extends ApiResource
             Field::scalar('email')->filterable(Capability::EXACT)->searchable(SearchStrategy::SUBSTRING),
             Field::timestamp('created_at')->sortable(),
             Field::compute('full_name', 'getFullName'),
+            Field::can('restore'),
             Relation::to('organization', OrganizationResource::class)->traversable(),
             Count::of('memberships')->default(),
             Sum::of('orders', 'total'),
@@ -378,6 +379,15 @@ Field::scalar('full_name')->needs('first_name', 'last_name'),
 Field::accessor('initials', fn ($resource) => $resource->first_name[0] . $resource->last_name[0])
     ->needs('first_name', 'last_name'),
 ```
+
+**Ability flags** - `Field::can('restore')` renders whether the current user passes a policy ability on each record, as
+the boolean `can_restore`. The key is `can_` and the snake-cased ability, so `Field::can('forceDelete')` is
+`can_force_delete`; pass an alias as the second argument for an ability with dots or hyphens, or one whose key would
+collide with another's. The flag renders only when the field set includes it, so a page runs the policy only when asked.
+The request's user answers, a guest request answers as a guest, and a resource resolved without a request answers for
+the authenticated user. Load the relations the policy reads with `extras()`. Without `needs()` the flag leaves the
+select unnarrowed; with it, the list must cover every column the policy and any `before()` hook read. The flag is
+computed, so it cannot be filtered, sorted or searched.
 
 **Query capabilities** - `filterable()` takes the access path the column has, and the capability decides which
 operators the column answers. Any other operator is refused with a `422`:
@@ -1009,6 +1019,12 @@ operators have all been removed from the registry is documented as answering no 
 A resource schema requires only what every response carries: `_type`, and each fixed field read straight from its
 column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names
 none for that type and no parent relation pins them: the declared `$default` fields, then the fixed ones.
+
+A relation rendered through a child resource is typed from its Eloquent relation: a to-many relation as an array of the
+related schema, and a to-one relation as the related schema or `null`, since it renders `null` when the related row is
+absent. A to-one relation with a default model from `withDefault()` never does, so it is the related schema alone. A
+relation's `openapi()` declaration replaces the inferred schema and its `maxItems`, and a transformed relation without
+one is left undocumented; either still lists the relation in `_truncated` when it is cut.
 
 Every operation also lists the errors it can return, derived from the route: an unauthenticated request behind auth
 middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
