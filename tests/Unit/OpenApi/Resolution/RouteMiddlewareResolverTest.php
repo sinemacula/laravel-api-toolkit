@@ -11,8 +11,12 @@ use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Http\Middleware\EnsureActionIsAuthorized;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
+use Tests\Fixtures\Controllers\CustomActionController;
+use Tests\Fixtures\Middleware\EnforceQuota;
+use Tests\Fixtures\Middleware\RequireSubscription;
 use Tests\Fixtures\OpenApi\ClosureMiddlewareController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathRouteFactsController;
@@ -228,6 +232,72 @@ final class RouteMiddlewareResolverTest extends TestCase
 
         self::assertSame([], $this->resolver()->guards($this->bind($route)));
         self::assertFalse($this->resolver()->authenticates($route));
+    }
+
+    /**
+     * Test that aliased, grouped and parameterised middleware are listed by
+     * class, once each, in priority order.
+     *
+     * @return void
+     */
+    public function testClassesListsEachMiddlewareClassOnceInPriorityOrder(): void
+    {
+        $this->router()->aliasMiddleware('subscribed', RequireSubscription::class);
+        $this->router()->middlewareGroup('billing', ['subscribed:pro', EnforceQuota::class]);
+
+        $route = $this->route('billing', 'can:view,post', 'subscribed:team', 'auth:api');
+
+        self::assertSame(
+            [RequireSubscription::class, EnforceQuota::class, Authenticate::class, Authorize::class],
+            $this->resolver()->classes($route),
+        );
+    }
+
+    /**
+     * Test that closures and unknown aliases are not listed as classes.
+     *
+     * @return void
+     */
+    public function testClassesSkipsClosuresAndUnknownAliases(): void
+    {
+        $route = new Route(['GET'], 'test', ['uses' => ClosureMiddlewareController::class . '@show']);
+
+        self::assertSame([Authenticate::class], $this->resolver()->classes($this->bind($route)));
+        self::assertSame([EnforceQuota::class], $this->resolver()->classes($this->route('unknown-alias:quota', EnforceQuota::class)));
+    }
+
+    /**
+     * Test that middleware removed by alias, by class or by parent class is not
+     * listed.
+     *
+     * @return void
+     */
+    public function testClassesHonoursExcludedMiddleware(): void
+    {
+        $this->router()->aliasMiddleware('subscribed', RequireSubscription::class);
+
+        $byAlias  = $this->route('subscribed', EnforceQuota::class)->withoutMiddleware('subscribed');
+        $byClass  = $this->route('subscribed:pro', EnforceQuota::class)->withoutMiddleware(RequireSubscription::class);
+        $byParent = $this->route(ThrottleRequestsWithRedis::class . ':api', EnforceQuota::class)->withoutMiddleware(ThrottleRequests::class);
+
+        self::assertSame([EnforceQuota::class], $this->resolver()->classes($byAlias));
+        self::assertSame([EnforceQuota::class], $this->resolver()->classes($byClass));
+        self::assertSame([EnforceQuota::class], $this->resolver()->classes($byParent));
+    }
+
+    /**
+     * Test that controller middleware is listed only for the actions it applies
+     * to.
+     *
+     * @return void
+     */
+    public function testClassesIncludesControllerMiddlewareForItsActions(): void
+    {
+        $update = new Route(['PUT'], 'users/{user}', ['uses' => CustomActionController::class . '@update']);
+        $lock   = new Route(['POST'], 'users/{user}/lock', ['uses' => CustomActionController::class . '@lock']);
+
+        self::assertSame([Authorize::class, EnsureActionIsAuthorized::class], $this->resolver()->classes($this->bind($update)));
+        self::assertSame([], $this->resolver()->classes($this->bind($lock)));
     }
 
     /**
