@@ -76,6 +76,9 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     /** @var string The property extension naming what a field may be queried by. */
     private const string SURFACE_KEY = 'x-query-surface';
 
+    /** @var string A token the application registers beside the shipped ones. */
+    private const string STARTS_WITH = '$starts';
+
     /** @var string|null The temporary docs directory to clean up. */
     private ?string $docsDir = null;
 
@@ -206,15 +209,17 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that every advertised operator is permitted by the gate.
+     * Test that every advertised operator, a registered one included, is
+     * permitted by the gate.
      *
      * @return void
      */
     public function testEveryAdvertisedOperatorIsPermittedByTheGate(): void
     {
         $this->registerRoutes();
+        $this->registerStartsWith();
 
-        $asserted = 0;
+        $asserted = [];
 
         foreach ($this->advertisedSurfaces($this->export()) as $surface) {
 
@@ -233,33 +238,32 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
                     ));
                 }
 
-                $asserted++;
+                $asserted[$operator] = true;
             }
         }
 
-        self::assertGreaterThan(0, $asserted);
+        self::assertArrayHasKey(self::STARTS_WITH, $asserted);
     }
 
     /**
-     * Test that every omitted operator is refused by the gate.
-     *
-     * Only matrix-governed operators are asserted; any other token was bound to
-     * a handler by the application.
+     * Test that every registered operator a surface omits, a registered one
+     * included, is refused by the gate.
      *
      * @return void
      */
     public function testEveryOmittedOperatorIsRefusedByTheGate(): void
     {
         $this->registerRoutes();
+        $this->registerStartsWith();
 
-        $asserted = 0;
+        $asserted = [];
 
         foreach ($this->advertisedSurfaces($this->export()) as $surface) {
 
             $gate     = $this->gateFor($surface['model']);
             $accepted = implode(', ', $surface['operators']);
 
-            foreach (array_diff($this->governedOperators(), $surface['operators']) as $operator) {
+            foreach (array_diff($this->registry()->tokens(), $surface['operators']) as $operator) {
 
                 $message = sprintf(
                     'The "%s" operator is not permitted on the "%s" key for this resource, which accepts %s.',
@@ -276,11 +280,11 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
                     self::assertSame(['filters.' . $surface['key'] . '.' . $operator => [$message]], $exception->errors());
                 }
 
-                $asserted++;
+                $asserted[$operator] = true;
             }
         }
 
-        self::assertGreaterThan(0, $asserted);
+        self::assertArrayHasKey(self::STARTS_WITH, $asserted);
     }
 
     /**
@@ -561,7 +565,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
         );
 
         $expected = array_map(
-            static fn (Capability $case): array => $case->permittedOperators(),
+            static fn (Capability $case): array => $case->defaultOperators(),
             Capability::cases(),
         );
 
@@ -582,7 +586,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
 
         $case = Capability::from($capability['capability']);
 
-        self::assertSame($case->permittedOperators(), $this->tokensIn($operators['operators']));
+        self::assertSame($case->defaultOperators(), $this->tokensIn($operators['operators']));
     }
 
     /**
@@ -938,26 +942,18 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
             SchemaCompiler::compile($this->resourceMap()[$modelClass]),
             new RelationTraversal(app(SchemaIntrospectionProvider::class), $this->resourceMap()),
             new CallerAdmission(Request::create('/'), new GuardEvaluator),
+            $this->registry(),
         );
     }
 
     /**
-     * List every operator token the capability matrix governs.
+     * Register a prefix-match token admitted on ordered columns only.
      *
-     * @return array<int, string>
+     * @return void
      */
-    private function governedOperators(): array
+    private function registerStartsWith(): void
     {
-        $tokens = [];
-
-        foreach (Capability::cases() as $case) {
-
-            foreach ($case->permittedOperators() as $token) {
-                $tokens[$token] = true;
-            }
-        }
-
-        return array_keys($tokens);
+        $this->registry()->register(self::STARTS_WITH, static function (): void {}, Capability::RANGE);
     }
 
     /**

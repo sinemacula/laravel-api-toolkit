@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Contracts;
 
+use SineMacula\ApiToolkit\Enums\Capability;
+
 /**
  * Exposes the toolkit's metadata surfaces to the OpenAPI exporter.
  *
@@ -25,6 +27,15 @@ interface MetadataCatalogue
      * @return array<int, string>
      */
     public function getOperatorTokens(): array;
+
+    /**
+     * Return the registered filter operator tokens a column declaring the
+     * capability answers.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\Capability  $capability
+     * @return array<int, string>
+     */
+    public function getOperatorsFor(Capability $capability): array;
 
     /**
      * Return the structural filter operators applied outside the registry.

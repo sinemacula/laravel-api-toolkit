@@ -232,7 +232,8 @@ final class FilterApplier
     }
 
     /**
-     * Apply the bare equality shorthand for a column.
+     * Apply the bare equality shorthand for a column through the registered
+     * equality handler.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
@@ -253,7 +254,11 @@ final class FilterApplier
 
         $value = $this->guard->resolve($model, $column, self::OPERATOR_EQUAL, FilterValueShape::SCALAR, $value, $context->path());
 
-        $query->where($column, '=', PureEnumFilterValue::resolve($model, $column, $value));
+        $applied = count($query->getQuery()->wheres);
+
+        $this->operatorRegistry->resolve(self::OPERATOR_EQUAL)?->apply($query, $column, PureEnumFilterValue::resolve($model, $column, $value));
+
+        $this->isolateCondition($query->getQuery(), $applied);
     }
 
     /**
@@ -275,7 +280,7 @@ final class FilterApplier
      */
     private function applyCondition(Builder $query, string $column, string $token, mixed $operand, FilterContext $context, QuerySurface $surface): void
     {
-        $handler = in_array($token, self::STRUCTURAL_OPERATORS, true) ? null : $this->operatorRegistry->resolve($token);
+        $handler = $this->operatorRegistry->resolve($token);
 
         if ($handler === null) {
 
