@@ -614,6 +614,7 @@ Each row goes to its model's connection, resolved when the row is deferred, so a
 does not redirect it. Timestamps follow the model: none when it has timestamps disabled, otherwise its own
 `CREATED_AT` and `UPDATED_AT` columns in its date format, and a timestamp you pass is kept. Rows are inserted in
 consecutive runs of one column set, so a row may leave out optional columns and they keep their database default.
+Tables are flushed in the order their first row was deferred, so defer a parent before the rows that reference it.
 
 Reaching `deferred_writes.pool_limit` flushes automatically, but never on a connection with an open transaction: those
 rows wait for the next deferral outside a transaction or for the boundary flush, so rolling the transaction back does
