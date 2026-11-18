@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\Services\Pipeline\TransactionStage;
  * authorize -> validate -> [lock] -> [tx] -> concerns -> prepare -> handle ->
  * commit -> release -> afterCommit, with onFailure after rollback and release.
  * Release, afterCommit and ServiceCompleted follow the outermost commit.
+ * onFinalFailure runs only when the queue gives up on a job.
  *
  * @phpstan-type ServiceHooks array{
  *     authorize: \Closure(): void,
@@ -56,10 +57,71 @@ final class ServiceRunner
      */
     public function run(Service $service, ServiceContext $context): ServiceResult
     {
+        return $this->bound($service, $context, fn (): ServiceResult => $this->execute($service, $context));
+    }
+
+    /**
+     * Run authorize() and validate() without the rest of the lifecycle,
+     * throwing a refusal to the caller.
+     *
+     * No run takes place, so no event fires and onFailure() is not called.
+     *
+     * @param  \SineMacula\ApiToolkit\Services\Service  $service
+     * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
+     * @return void
+     *
+     * @phpstan-ignore missingType.generics
+     */
+    public function preflight(Service $service, ServiceContext $context): void
+    {
+        $this->bound($service, $context, function () use ($service, $context): void {
+            $this->runPreFlight($service->serviceHooks(), $context);
+        });
+    }
+
+    /**
+     * Relay a queued job's terminal failure to the service's onFinalFailure().
+     *
+     * The other hooks are not rebuilt, so a lockId() that cannot be resolved
+     * after the failed run does not prevent it. Its exceptions are reported.
+     *
+     * @param  \SineMacula\ApiToolkit\Services\Service  $service
+     * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
+     * @param  \Throwable  $exception
+     * @return void
+     *
+     * @phpstan-ignore missingType.generics
+     */
+    public function runFinalFailure(Service $service, ServiceContext $context, \Throwable $exception): void
+    {
+        $this->bound($service, $context, static function () use ($service, $exception): void {
+            try {
+                ($service->finalFailureHook())($exception);
+            } catch (\Throwable $e) {
+                FailureReporter::report($e, 'Service onFinalFailure threw an exception.');
+            }
+        });
+    }
+
+    /**
+     * Call the callback with the context bound to the service, restoring the
+     * context it replaces afterwards.
+     *
+     * @template TReturn
+     *
+     * @param  \SineMacula\ApiToolkit\Services\Service  $service
+     * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
+     * @param  \Closure(): TReturn  $callback
+     * @return TReturn
+     *
+     * @phpstan-ignore missingType.generics
+     */
+    private function bound(Service $service, ServiceContext $context, \Closure $callback): mixed
+    {
         $previous = $service->bindRunContext($context);
 
         try {
-            return $this->execute($service, $context);
+            return $callback();
         } finally {
             $service->bindRunContext($previous);
         }

@@ -7,6 +7,7 @@ namespace Tests\Unit\Http\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\Http\Enums\HttpMethod;
@@ -33,6 +34,8 @@ final class ParseApiQueryTest extends TestCase
     {
         ApiQuery::shouldReceive('parse')
             ->once();
+        ApiQuery::shouldReceive('token')
+            ->andReturn(new \stdClass);
 
         $request          = Request::create('/test', HttpMethod::GET->getVerb());
         $middleware       = new ParseApiQuery;
@@ -58,6 +61,8 @@ final class ParseApiQueryTest extends TestCase
     {
         ApiQuery::shouldReceive('parse')
             ->once();
+        ApiQuery::shouldReceive('token')
+            ->andReturn(new \stdClass);
 
         $request          = Request::create('/test', HttpMethod::GET->getVerb());
         $middleware       = new ParseApiQuery;
@@ -67,5 +72,73 @@ final class ParseApiQueryTest extends TestCase
 
         self::assertSame($expectedResponse, $result);
         self::assertSame(201, $result->getStatusCode());
+    }
+
+    /**
+     * Test that a request passing the middleware twice is parsed once.
+     *
+     * @return void
+     */
+    public function testRequestIsParsedOnce(): void
+    {
+        $request = Request::create('/test', HttpMethod::GET->getVerb());
+
+        $this->handle($request);
+
+        $token = ApiQuery::token();
+
+        $this->handle($request);
+
+        self::assertNotNull($token);
+        self::assertSame($token, ApiQuery::token());
+    }
+
+    /**
+     * Provide the requests a parsed request is followed by, each of which must
+     * be parsed afresh.
+     *
+     * @return iterable<string, array{\Closure(\Illuminate\Http\Request): \Illuminate\Http\Request}>
+     */
+    public static function reparsedRequestProvider(): iterable
+    {
+        yield 'another request' => [static fn (): Request => Request::create('/test', HttpMethod::GET->getVerb())];
+        yield 'a copy of the request' => [static fn (Request $request): Request => $request->duplicate()];
+        yield 'the request after a reset' => [static function (Request $request): Request {
+            ApiQuery::reset();
+
+            return $request;
+        }];
+    }
+
+    /**
+     * Test that a request whose query is not the current one is parsed again.
+     *
+     * @param  \Closure(\Illuminate\Http\Request): \Illuminate\Http\Request  $next
+     * @return void
+     */
+    #[DataProvider('reparsedRequestProvider')]
+    public function testRequestIsParsedWhenItsQueryIsNotCurrent(\Closure $next): void
+    {
+        $request = Request::create('/test', HttpMethod::GET->getVerb());
+
+        $this->handle($request);
+
+        $token = ApiQuery::token();
+
+        $this->handle($next($request));
+
+        self::assertNotNull(ApiQuery::token());
+        self::assertNotSame($token, ApiQuery::token());
+    }
+
+    /**
+     * Pass the request through the middleware.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return void
+     */
+    private function handle(Request $request): void
+    {
+        (new ParseApiQuery)->handle($request, static fn (): Response => new Response('ok'));
     }
 }

@@ -65,6 +65,7 @@ final class WorkerGrowthTest extends TestCase
         ApiResource::class . '::$fixed',
         FieldColumnMapper::class . '::$cache',
         Payload::class . '::$bodyKeys',
+        Payload::class . '::$sensitiveClasses',
         Payload::class . '::$summaryProperties',
         ResourceTypeIndex::class . '::$classes',
         ResourceTypeIndex::class . '::$source',
