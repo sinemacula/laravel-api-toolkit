@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi\Metadata;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\NotFoundException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use Tests\Fixtures\Exceptions\ServiceExecutionException;
@@ -199,19 +200,31 @@ final class ApiExceptionDiscovererTest extends TestCase
     }
 
     /**
-     * Test that fromComposer reads and sanitises the extra namespaces.
+     * Test that fromComposer reads the extra namespaces.
      *
      * @return void
      */
     public function testFromComposerReadsConfiguredExtraNamespaces(): void
     {
+        config()->set('api-toolkit.openapi.exception_namespaces', ['SineMacula\ApiToolkit\\']);
+
+        self::assertContains(NotFoundException::class, ApiExceptionDiscoverer::fromComposer()->discover());
+    }
+
+    /**
+     * Test that fromComposer fails for extra namespaces that are not a list of
+     * names, rather than dropping them.
+     *
+     * @return void
+     */
+    public function testFromComposerRefusesMalformedExtraNamespaces(): void
+    {
         config()->set('api-toolkit.openapi.exception_namespaces', ['SineMacula\ApiToolkit\\', 123]);
 
-        self::assertContains(NotFoundException::class, ApiExceptionDiscoverer::fromComposer()->discover());
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.openapi.exception_namespaces.1 setting must be a non-empty string; [123] given.');
 
-        config()->set('api-toolkit.openapi.exception_namespaces', 'not-an-array');
-
-        self::assertContains(NotFoundException::class, ApiExceptionDiscoverer::fromComposer()->discover());
+        ApiExceptionDiscoverer::fromComposer();
     }
 
     /**

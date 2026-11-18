@@ -5,8 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Console;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use SineMacula\ApiToolkit\Config\OpenApiSettings;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
@@ -242,9 +242,7 @@ final class ExportOpenApiCommand extends Command
             return $option;
         }
 
-        $configured = Config::get('api-toolkit.openapi.output');
-
-        return is_string($configured) && $configured !== '' ? $configured : base_path('openapi.json');
+        return OpenApiSettings::output();
     }
 
     /**

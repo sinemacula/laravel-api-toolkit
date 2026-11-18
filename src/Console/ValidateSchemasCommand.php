@@ -5,13 +5,13 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Console;
 
 use Illuminate\Console\Command;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
 use SineMacula\ApiToolkit\Schema\Introspection\CatalogueProbe;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationReport;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
-use SineMacula\ApiToolkit\Support\ResourceMap;
 
 /**
  * Artisan command to validate all registered resource schemas.
@@ -41,7 +41,7 @@ final class ValidateSchemasCommand extends Command
      */
     public function handle(SchemaValidator $validator): int
     {
-        $resourceMap = ResourceMap::configured();
+        $resourceMap = ResourceSettings::bindings();
 
         if ($resourceMap === [] && ResourceTypeIndex::all() === []) {
             return $this->reportEmptyMap();

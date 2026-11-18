@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Integration\Providers;
 
 use Illuminate\Console\Events\CommandFinished;
+use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -38,7 +39,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\GoneException;
-use SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
@@ -58,6 +59,8 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use SineMacula\ApiToolkit\Validation\Rejection;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Concerns\LocalisesToolkitMessages;
@@ -289,41 +292,6 @@ final class ApiServiceProviderTest extends TestCase
 
         self::assertTrue($events->hasListeners(NotificationSending::class));
         self::assertTrue($events->hasListeners(NotificationSent::class));
-    }
-
-    /**
-     * Test that notification listeners are not registered when disabled.
-     *
-     * @return void
-     */
-    public function testNotificationListenersAreNotRegisteredWhenDisabled(): void
-    {
-        $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.notifications.enable_logging', false);
-
-        $provider = new ApiServiceProvider($app);
-        $provider->register();
-
-        // Smoke test only: re-registering with logging disabled must not throw
-        self::assertTrue(true);
-    }
-
-    /**
-     * Test that registerNotificationLogging returns early when disabled.
-     *
-     * @return void
-     */
-    public function testRegisterNotificationLoggingSkipsWhenDisabled(): void
-    {
-        $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.notifications.enable_logging', false);
-
-        $provider = new ApiServiceProvider($app);
-        $provider->boot();
-
-        self::assertFalse((bool) $this->getConfig()->get('api-toolkit.notifications.enable_logging'));
     }
 
     /**
@@ -620,50 +588,55 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that validate schemas runs during boot when enabled.
-     *
-     * @return void
-     */
-    public function testValidateSchemasRunsDuringBootWhenEnabled(): void
-    {
-        $app = $this->getApplication();
-
-        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
-        $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            User::class         => UserResource::class,
-            Post::class         => PostResource::class,
-            Tag::class          => TagResource::class,
-            Organization::class => OrganizationResource::class,
-        ]);
-
-        $provider = new ApiServiceProvider($app);
-        $provider->register();
-        $provider->boot();
-
-        // Boot did not throw, so the valid schemas passed validation
-        self::assertTrue(true);
-    }
-
-    /**
-     * Test that validate schemas is skipped when disabled.
+     * Test that boot leaves an invalid resource alone, and reads nothing, when
+     * schema validation is disabled.
      *
      * @return void
      */
     public function testValidateSchemasSkippedWhenDisabled(): void
     {
-        $app = $this->getApplication();
-
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', false);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            User::class => UserResource::class,
+            User::class => BrokenResource::class,
         ]);
 
-        $provider = new ApiServiceProvider($app);
-        $provider->register();
-        $provider->boot();
+        $statements = $this->recordStatements(fn () => $this->bootWithArgv(null));
 
-        // Smoke test only: boot completes with schema validation disabled
-        self::assertFalse((bool) $this->getConfig()->get('api-toolkit.resources.validate_schemas'));
+        self::assertStatementCount(0, $statements);
+        self::assertSame([User::class => BrokenResource::class], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Provide the environment spellings of true.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function environmentTrueProvider(): iterable
+    {
+        yield 'one' => ['1'];
+        yield 'on' => ['on'];
+        yield 'yes' => ['yes'];
+        yield 'upper-case true' => ['TRUE'];
+    }
+
+    /**
+     * Test that an environment spelling of true enables boot validation, which
+     * a strict comparison with true would leave off.
+     *
+     * @param  string  $value
+     * @return void
+     */
+    #[DataProvider('environmentTrueProvider')]
+    public function testValidateSchemasAcceptsEnvironmentSpellingsOfTrue(string $value): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', $value);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => BrokenResource::class,
+        ]);
+
+        $this->expectException(InvalidSchemaException::class);
+
+        $this->bootWithArgv(null);
     }
 
     /**
@@ -896,7 +869,7 @@ final class ApiServiceProviderTest extends TestCase
     {
         $this->getConfig()->set('api-toolkit.exceptions.map', [\stdClass::class => GoneException::class]);
 
-        $this->expectException(InvalidExceptionMapException::class);
+        $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('The api-toolkit.exceptions.map key [stdClass] must be an interface or a Throwable class, and not an ApiException.');
 
         $this->outsideTheConsole(fn () => (new ApiServiceProvider($this->getApplication()))->boot());
@@ -914,7 +887,7 @@ final class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.exceptions.map', [NotFoundHttpException::class => \RuntimeException::class]);
 
-        $this->expectException(InvalidExceptionMapException::class);
+        $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage(sprintf(
             'The api-toolkit.exceptions.map target [RuntimeException] for [%s] must be an instantiable ApiException with a CODE, a 4xx or 5xx status, '
             . 'and ApiException\'s own constructor and getStatusCode().',
@@ -925,33 +898,31 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that an absent or empty exception map passes the boot validation.
+     * Test that an empty exception map passes the boot validation.
      *
      * @return void
      */
-    public function testAbsentOrEmptyExceptionMapPassesTheBootValidation(): void
+    public function testEmptyExceptionMapPassesTheBootValidation(): void
     {
         $validate = $this->outsideTheConsole(fn (): callable => $this->registeredBootedCallback());
 
-        foreach ([null, []] as $map) {
-            $this->getConfig()->set('api-toolkit.exceptions.map', $map);
-            $validate($this->getApplication());
-        }
+        $this->getConfig()->set('api-toolkit.exceptions.map', []);
+        $validate($this->getApplication());
 
         $this->getConfig()->set('api-toolkit.exceptions.map', [\stdClass::class => GoneException::class]);
 
-        $this->expectException(InvalidExceptionMapException::class);
+        $this->expectException(InvalidConfigurationException::class);
 
         $validate($this->getApplication());
     }
 
     /**
-     * Test that the console skips the exception map validation, so a broken map
-     * cannot block the commands that repair it.
+     * Test that the console skips the configuration validation, so a broken
+     * setting cannot block the commands that repair it.
      *
      * @return void
      */
-    public function testConsoleSkipsTheExceptionMapValidation(): void
+    public function testConsoleSkipsTheConfigurationValidation(): void
     {
         $app = $this->getApplication();
 
@@ -968,6 +939,135 @@ final class ApiServiceProviderTest extends TestCase
         } finally {
             $this->setProperty($app, 'booted', true);
         }
+    }
+
+    /**
+     * Test that register fills the settings a published configuration lacks,
+     * but leaves a cached configuration as it was built.
+     *
+     * @return void
+     */
+    public function testRegisterMergesTheShippedSettingsUnlessTheConfigurationIsCached(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources', ['fixed_fields' => ['id']]);
+
+        $app->instance('config_loaded_from_cache', true);
+
+        (new ApiServiceProvider($app))->register();
+
+        self::assertSame(['fixed_fields' => ['id']], $this->getConfig()->get('api-toolkit.resources'));
+
+        $app->instance('config_loaded_from_cache', false);
+
+        (new ApiServiceProvider($app))->register();
+
+        self::assertSame(['id'], $this->getConfig()->get('api-toolkit.resources.fixed_fields'));
+        self::assertTrue($this->getConfig()->get('api-toolkit.resources.narrow_columns'));
+    }
+
+    /**
+     * Provide the commands that serve queue jobs or build the config cache.
+     *
+     * @return iterable<string, array{array<int, string>}>
+     */
+    public static function validatingCommandProvider(): iterable
+    {
+        yield 'queue worker' => [['artisan', 'queue:work']];
+        yield 'queue listener' => [['artisan', 'queue:listen', 'redis']];
+        yield 'horizon worker' => [['artisan', 'horizon:work', 'redis', '--supervisor=default']];
+        yield 'config cache' => [['artisan', 'config:cache']];
+        yield 'optimize' => [['artisan', '--env', 'production', 'optimize']];
+    }
+
+    /**
+     * Test that a command serving queue jobs, or building the config cache from
+     * a fresh configuration, validates every setting once booted.
+     *
+     * @param  array<int, string>  $argv
+     * @return void
+     */
+    #[DataProvider('validatingCommandProvider')]
+    public function testCommandsServingJobsOrCachingConfigValidateTheConfiguration(array $argv): void
+    {
+        $this->getConfig()->set('api-toolkit.query_cost.max_depth', '-1');
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.query_cost.max_depth setting must be an integer of at least 0, or null; [\'-1\'] given.');
+
+        $this->bootWithArgv($argv);
+    }
+
+    /**
+     * Provide the invocations that leave settings to their read sites.
+     *
+     * @return iterable<string, array{array<int, string>|null}>
+     */
+    public static function nonValidatingCommandProvider(): iterable
+    {
+        yield 'no arguments' => [null];
+        yield 'config clear' => [['artisan', 'config:clear']];
+        yield 'route cache' => [['artisan', 'route:cache']];
+        yield 'a queue name argument' => [['artisan', 'migrate', '--path', 'queue:work']];
+    }
+
+    /**
+     * Test that other commands leave each setting to the site that reads it.
+     *
+     * @param  array<int, string>|null  $argv
+     * @return void
+     */
+    #[DataProvider('nonValidatingCommandProvider')]
+    public function testOtherCommandsLeaveTheConfigurationToItsReadSites(?array $argv): void
+    {
+        self::assertFalse($this->bootRegistersValidation($argv));
+    }
+
+    /**
+     * Test that building the config cache over a cached configuration leaves
+     * the validation to the fresh application the build boots, so a stale cache
+     * cannot block its own rebuild.
+     *
+     * @return void
+     */
+    public function testConfigCacheOverACachedConfigurationSkipsTheValidation(): void
+    {
+        self::assertTrue($this->bootRegistersValidation(['artisan', 'config:cache']));
+
+        $this->getApplication()->instance('config_loaded_from_cache', true);
+
+        self::assertFalse($this->bootRegistersValidation(['artisan', 'config:cache']));
+        self::assertFalse($this->bootRegistersValidation(['artisan', 'optimize']));
+        self::assertTrue($this->bootRegistersValidation(['artisan', 'queue:work']));
+    }
+
+    /**
+     * Test that an application booted while config:cache runs in process, as
+     * the one the command builds the cache from, sees that command rather than
+     * the one on the command line.
+     *
+     * @return void
+     */
+    public function testAnApplicationBootedDuringAnInProcessConfigCacheSeesThatCommand(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $events = $this->getEventDispatcher();
+
+        $events->dispatch(new CommandStarting('config:cache', new ArrayInput([]), new NullOutput));
+
+        self::assertTrue($this->bootRegistersValidation(['artisan', 'app:deploy']));
+        self::assertSame([], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+
+        $events->dispatch(new CommandFinished('config:cache', new ArrayInput([]), new NullOutput, 0));
+
+        self::assertFalse($this->bootRegistersValidation(['artisan', 'app:deploy']));
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], $this->getConfig()->get('api-toolkit.resources.resource_map'));
     }
 
     /**
@@ -1122,20 +1222,6 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that configuration contains the validate schemas key.
-     *
-     * @return void
-     */
-    public function testConfigurationContainsValidateSchemasKey(): void
-    {
-        $config = $this->getConfig()->get('api-toolkit.resources');
-
-        self::assertIsArray($config);
-        self::assertArrayHasKey('validate_schemas', $config);
-        self::assertFalse($config['validate_schemas']);
-    }
-
-    /**
      * Test that CacheManager is bound as a singleton.
      *
      * @return void
@@ -1258,20 +1344,20 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that an invalid on_failure value throws a ValueError.
+     * Test that a misspelt on_failure value fails naming the cases.
      *
      * @return void
      */
-    public function testInvalidOnFailureConfigThrowsValueError(): void
+    public function testMisspeltOnFailureConfigFails(): void
     {
         $app = $this->getApplication();
 
-        $this->getConfig()->set('api-toolkit.deferred_writes.on_failure', 'invalid');
+        $this->getConfig()->set('api-toolkit.deferred_writes.on_failure', 'Collect');
 
-        $provider = new ApiServiceProvider($app);
-        $provider->register();
+        (new ApiServiceProvider($app))->register();
 
-        $this->expectException(\ValueError::class);
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.deferred_writes.on_failure setting must be one of log, throw, collect; [\'Collect\'] given.');
 
         $app->make(WritePool::class);
     }
@@ -1311,6 +1397,7 @@ final class ApiServiceProviderTest extends TestCase
         $app->forgetInstance('router');
 
         $provider = new ApiServiceProvider($app);
+        $provider->register();
         $provider->boot();
 
         /** @var \Orchestra\Testbench\Http\Kernel $kernel */
@@ -1439,27 +1526,27 @@ final class ApiServiceProviderTest extends TestCase
         ]);
 
         $provider = new ApiServiceProvider($app);
+        $provider->register();
         $provider->boot();
 
-        self::assertNull($this->getConfig()->get('api-toolkit.resources.validate_schemas'));
+        self::assertFalse($this->getConfig()->get('api-toolkit.resources.validate_schemas'));
     }
 
     /**
-     * Test that schema validation is skipped for a non-array resource map.
+     * Test that schema validation fails for a non-array resource map rather
+     * than skipping it.
      *
      * @return void
      */
-    public function testValidateSchemasSkippedWhenResourceMapIsNotAnArray(): void
+    public function testValidateSchemasFailsWhenResourceMapIsNotAnArray(): void
     {
-        $app = $this->getApplication();
-
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', 'not-an-array');
 
-        $provider = new ApiServiceProvider($app);
-        $provider->boot();
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.resources.resource_map setting must be an array; [\'not-an-array\'] given.');
 
-        self::assertSame('not-an-array', $this->getConfig()->get('api-toolkit.resources.resource_map'));
+        $this->bootWithArgv(null);
     }
 
     /**
@@ -1476,6 +1563,7 @@ final class ApiServiceProviderTest extends TestCase
         $before = $this->countRawListeners(NotificationSending::class);
 
         $provider = new ApiServiceProvider($app);
+        $provider->register();
         $provider->boot();
 
         self::assertSame($before + 1, $this->countRawListeners(NotificationSending::class));
@@ -1594,24 +1682,23 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that the WritePool uses default sizes for non-numeric config.
+     * Test that the WritePool fails for a non-numeric size rather than using a
+     * default.
      *
      * @return void
      */
-    public function testWritePoolFallsBackToDefaultSizesWhenConfigValuesAreNotNumeric(): void
+    public function testWritePoolFailsForANonNumericSize(): void
     {
         $app = $this->getApplication();
 
         $this->getConfig()->set('api-toolkit.deferred_writes.chunk_size', 'not-numeric');
-        $this->getConfig()->set('api-toolkit.deferred_writes.pool_limit', 'not-numeric');
 
-        $provider = new ApiServiceProvider($app);
-        $provider->register();
+        (new ApiServiceProvider($app))->register();
 
-        $pool = $app->make(WritePool::class);
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.deferred_writes.chunk_size setting must be an integer of at least 1; [\'not-numeric\'] given.');
 
-        self::assertSame(500, (new \ReflectionProperty(WritePool::class, 'chunkSize'))->getValue($pool));
-        self::assertSame(10000, (new \ReflectionProperty(WritePool::class, 'poolLimit'))->getValue($pool));
+        $app->make(WritePool::class);
     }
 
     /**
@@ -1809,6 +1896,34 @@ final class ApiServiceProviderTest extends TestCase
         self::assertCount(count($before) + 1, $after);
 
         return end($after);
+    }
+
+    /**
+     * Boot a fresh provider with the given console arguments, reporting whether
+     * it deferred the configuration validation.
+     *
+     * @param  array<int, string>|null  $argv
+     * @return bool
+     */
+    private function bootRegistersValidation(?array $argv): bool
+    {
+        $app = $this->getApplication();
+
+        $this->setProperty($app, 'booted', false);
+
+        try {
+            /** @var list<callable> $before */
+            $before = $this->getProperty($app, 'bootedCallbacks');
+
+            $this->bootWithArgv($argv);
+
+            /** @var list<callable> $after */
+            $after = $this->getProperty($app, 'bootedCallbacks');
+        } finally {
+            $this->setProperty($app, 'booted', true);
+        }
+
+        return count($after) > count($before);
     }
 
     /**

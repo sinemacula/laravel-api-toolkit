@@ -5,10 +5,10 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Concerns\QuerySelectionValidator;
+use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Enums\TrashedState;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Query\ApiQuerySnapshot;
@@ -155,9 +155,7 @@ class ApiQueryParser
      */
     public function getResolvedLimit(): int
     {
-        $limit = $this->getLimit() ?? Config::get('api-toolkit.parser.defaults.limit');
-
-        return is_numeric($limit) && (int) $limit > 0 ? (int) $limit : 1;
+        return $this->getLimit() ?? QuerySettings::defaultLimit();
     }
 
     /**

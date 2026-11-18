@@ -12,9 +12,9 @@ use Illuminate\Database\Eloquent\Relations\MorphOneOrMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
@@ -131,7 +131,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
             }
 
             return $model->relationResolver($model::class, $key) !== null;
-        }, $this->relationCacheTtl());
+        }, QuerySettings::relationCacheTtl());
     }
 
     /**
@@ -404,18 +404,6 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         }
 
         return $definitions;
-    }
-
-    /**
-     * Resolve the relation lookup cache TTL in seconds, defaulting to a day.
-     *
-     * @return int
-     */
-    private function relationCacheTtl(): int
-    {
-        $ttl = Config::get('api-toolkit.repositories.relation_cache_ttl', 86400);
-
-        return is_numeric($ttl) ? (int) $ttl : 86400;
     }
 
     /**

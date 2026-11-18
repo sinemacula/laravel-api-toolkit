@@ -6,7 +6,7 @@ namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Exceptions\ResourceMappingException;
 
@@ -110,14 +110,8 @@ final class PolymorphicResource extends JsonResource
             throw new ResourceMappingException('Resource must be an object to be mapped');
         }
 
-        $map   = Config::get('api-toolkit.resources.resource_map', []);
-        $class = $resource::class;
-
-        if (!isset($map[$class]) || !is_string($map[$class])) {
-            throw new ResourceMappingException("Resource not found for: {$class}");
-        }
-
-        $resourceClass = $map[$class];
+        $class         = $resource::class;
+        $resourceClass = ResourceSettings::resourceMap()[$class] ?? throw new ResourceMappingException("Resource not found for: {$class}");
 
         if (!is_subclass_of($resourceClass, ApiResourceInterface::class)) {
             throw new ResourceMappingException("Resource [{$resourceClass}] must implement " . ApiResourceInterface::class);

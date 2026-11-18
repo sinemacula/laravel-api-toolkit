@@ -357,22 +357,21 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the write pool is built with cast config and non-transactional.
+     * Test that the write pool is built from environment spellings of its
+     * settings.
      *
      * @return void
      */
-    public function testRegisterBuildsWritePoolWithCastConfigAndDefaultTransactional(): void
+    public function testRegisterBuildsWritePoolFromEnvironmentSpellings(): void
     {
         $app = $this->getApplication();
 
         /** @var \Illuminate\Config\Repository $config */
         $config = $app->make('config');
 
-        $config->set('api-toolkit.deferred_writes', [
-            'chunk_size' => '700',
-            'pool_limit' => '900',
-            'on_failure' => 'collect',
-        ]);
+        $config->set('api-toolkit.deferred_writes.chunk_size', '700');
+        $config->set('api-toolkit.deferred_writes.pool_limit', '900');
+        $config->set('api-toolkit.deferred_writes.transactional', 'off');
 
         (new ContainerBindingRegistrar($app))->register();
 

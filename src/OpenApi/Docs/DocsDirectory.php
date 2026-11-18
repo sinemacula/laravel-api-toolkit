@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Docs;
 
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\OpenApiSettings;
 
 /**
  * Locates and reads the Markdown docs directory.
@@ -17,21 +17,14 @@ final readonly class DocsDirectory
     /** The subdirectory holding one directory of files per audience */
     public const string AUDIENCE_DIRECTORY = 'audiences';
 
-    /** The default docs directory, relative to the application resources */
-    private const string DEFAULT_DIRECTORY = 'api-docs';
-
     /**
-     * Resolve the docs directory, defaulting to the application resources.
+     * Resolve the docs directory.
      *
      * @return string
      */
     public function root(): string
     {
-        $configured = Config::get('api-toolkit.openapi.docs_path');
-
-        return is_string($configured) && $configured !== ''
-            ? $configured
-            : resource_path(self::DEFAULT_DIRECTORY);
+        return OpenApiSettings::docsPath();
     }
 
     /**

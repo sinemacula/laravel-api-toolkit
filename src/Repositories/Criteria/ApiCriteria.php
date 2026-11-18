@@ -8,8 +8,8 @@ use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -117,12 +117,10 @@ final class ApiCriteria implements CriteriaInterface
         $this->queryCostGuard              = new QueryCostGuard;
         $this->queryToken                  = ApiQuery::token();
 
-        $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
-
         $this->relationTrashedGate = new RelationTrashedGate(
             $this->schemaIntrospector,
             $this->request,
-            is_array($resourceMap) ? $resourceMap : [],
+            ResourceSettings::resourceMap(),
         );
     }
 
@@ -316,17 +314,11 @@ final class ApiCriteria implements CriteriaInterface
      */
     private function buildQuerySurface(Model $model): QuerySurface
     {
-        $resource    = $this->resolveResource($model);
-        $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
+        $resource = $this->resolveResource($model);
 
         return new QuerySurface(
             $resource && is_subclass_of($resource, ApiResourceInterface::class) ? SchemaCompiler::compile($resource) : null,
-            new RelationTraversal(
-                $this->schemaIntrospector,
-                is_array($resourceMap)
-                    ? array_filter($resourceMap, static fn (mixed $resource, mixed $model): bool => is_string($model) && is_string($resource), ARRAY_FILTER_USE_BOTH)
-                    : [],
-            ),
+            new RelationTraversal($this->schemaIntrospector, ResourceSettings::resourceMap()),
         );
     }
 }

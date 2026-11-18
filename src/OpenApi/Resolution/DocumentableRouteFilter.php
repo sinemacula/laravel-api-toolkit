@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 use Illuminate\Routing\Route;
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\OpenApiSettings;
 
 /**
  * Excludes framework and tooling routes from the documented surface.
@@ -110,15 +110,6 @@ final readonly class DocumentableRouteFilter
      */
     private function blocklist(): array
     {
-        $configured = Config::get('api-toolkit.openapi.exclude.namespaces', self::DEFAULT_NAMESPACES);
-
-        if (!is_array($configured)) {
-            return self::DEFAULT_NAMESPACES;
-        }
-
-        return array_values(array_filter(
-            array_map(static fn (mixed $prefix): string => is_string($prefix) || $prefix instanceof \Stringable ? (string) $prefix : '', $configured),
-            static fn (string $prefix): bool => $prefix !== '',
-        ));
+        return OpenApiSettings::excludedNamespaces();
     }
 }

@@ -10,6 +10,7 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use Tests\TestCase;
@@ -531,7 +532,7 @@ final class QueryParameterValidatorTest extends TestCase
     public static function disabledCeilingProvider(): iterable
     {
         yield 'zero' => [0];
-        yield 'negative' => [-1];
+        yield 'zero string' => ['0'];
         yield 'null' => [null];
     }
 
@@ -554,104 +555,59 @@ final class QueryParameterValidatorTest extends TestCase
     }
 
     /**
-     * Provide the ceiling values that fall back to the shipped default.
+     * Provide ceilings that are neither null nor a whole number of at least 0,
+     * with how the message names each.
      *
-     * @return iterable<string, array{mixed}>
+     * @return iterable<string, array{mixed, string}>
      */
     public static function unreadableCeilingProvider(): iterable
     {
-        yield 'non-numeric' => ['not-a-number'];
-        yield 'empty environment value' => [''];
-        yield 'array' => [[100]];
+        yield 'non-numeric' => ['not-a-number', '\'not-a-number\''];
+        yield 'empty environment value' => ['', '\'\''];
+        yield 'array' => [[100], 'array'];
+        yield 'negative' => [-1, '-1'];
     }
 
     /**
-     * Test that an unreadable ceiling falls back to the shipped default.
-     *
-     * An empty environment variable reads as an empty string, which must not
-     * mean no ceiling.
+     * Test that an unreadable ceiling fails rather than falling back to a
+     * default or disabling the ceiling.
      *
      * @param  mixed  $ceiling
+     * @param  string  $given
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     #[DataProvider('unreadableCeilingProvider')]
-    public function testUnreadableCeilingFallsBackToTheShippedDefault(mixed $ceiling): void
+    public function testUnreadableCeilingFails(mixed $ceiling, string $given): void
     {
         Config::set(self::MAX_LIMIT_KEY, $ceiling);
 
-        $this->expectException(QueryTooExpensiveException::class);
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage(sprintf('The api-toolkit.parser.max_limit setting must be an integer of at least 0, or null; [%s] given.', $given));
 
-        $this->validator->validate(['limit' => '100000']);
+        $this->validator->validate(['limit' => '10']);
     }
 
     /**
-     * Test that a config predating the page-size key keeps the shipped ceiling.
+     * Test that a config predating the page-size key fails rather than reading
+     * as no ceiling.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testAbsentCeilingKeyKeepsTheShippedDefault(): void
+    public function testAbsentCeilingKeyFails(): void
     {
         Config::set('api-toolkit.parser', Arr::except(
             (array) Config::get('api-toolkit.parser'),
             ['max_limit'],
         ));
 
-        self::assertFalse(Config::has(self::MAX_LIMIT_KEY));
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.parser.max_limit setting is missing; add it from the published config.');
 
-        $this->expectException(QueryTooExpensiveException::class);
-
-        $this->validator->validate(['limit' => '100000']);
-    }
-
-    /**
-     * Provide each configured ceiling state and the value it must resolve to.
-     *
-     * @return iterable<string, array{mixed, int}>
-     */
-    public static function ceilingResolutionProvider(): iterable
-    {
-        yield 'configured value is honoured' => [250, 250];
-        yield 'numeric string is read' => ['250', 250];
-        yield 'explicit null disables' => [null, 0];
-        yield 'explicit zero disables' => [0, 0];
-        yield 'unreadable falls back' => ['not-a-number', QueryParameterValidator::DEFAULT_MAX_LIMIT];
-    }
-
-    /**
-     * Test that the ceiling resolves to the documented value for each
-     * configured state.
-     *
-     * @param  mixed  $configured
-     * @param  int  $expected
-     * @return void
-     */
-    #[DataProvider('ceilingResolutionProvider')]
-    public function testCeilingResolvesToTheDocumentedValue(mixed $configured, int $expected): void
-    {
-        Config::set(self::MAX_LIMIT_KEY, $configured);
-
-        self::assertSame($expected, QueryParameterValidator::pageSizeCeiling());
-    }
-
-    /**
-     * Test that the ceiling reported to a rejected caller is the shipped
-     * default when unconfigured.
-     *
-     * @return void
-     */
-    public function testAbsentCeilingReportsTheShippedDefaultToTheCaller(): void
-    {
-        Config::set('api-toolkit.parser', Arr::except(
-            (array) Config::get('api-toolkit.parser'),
-            ['max_limit'],
-        ));
-
-        self::assertSame(100, QueryParameterValidator::DEFAULT_MAX_LIMIT);
-        self::assertSame(100, QueryParameterValidator::pageSizeCeiling());
+        $this->validator->validate(['limit' => '10']);
     }
 
     /**

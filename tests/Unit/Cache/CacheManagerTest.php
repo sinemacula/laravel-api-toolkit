@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
-use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
@@ -17,6 +16,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\MetadataInvalidationException;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
@@ -219,30 +219,25 @@ final class CacheManagerTest extends TestCase
     }
 
     /**
-     * Test that flush resets the parser bound under the default alias when the
-     * configured alias is not a string.
+     * Test that flush fails when the configured alias is not a string, rather
+     * than resetting a parser under another binding.
      *
      * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testFlushResetsTheDefaultParserWhenTheAliasIsNotAString(): void
+    public function testFlushFailsWhenTheAliasIsNotAString(): void
     {
         Event::fake();
 
-        self::assertNotNull($this->app);
+        $app = $this->app;
 
-        $parser = $this->app->make('api.query');
-
-        self::assertInstanceOf(ApiQueryParser::class, $parser);
-
-        $parser->parse(Request::create('/test', 'GET', ['limit' => '5']));
+        self::assertNotNull($app);
 
         config()->set('api-toolkit.parser.alias', null);
 
-        $this->app->make(CacheManager::class)->flush();
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.parser.alias setting must be a non-empty string; [null] given.');
 
-        self::assertNull($parser->getLimit());
+        $app->make(CacheManager::class)->flush();
     }
 
     /**

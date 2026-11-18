@@ -8,6 +8,8 @@ use Illuminate\Routing\RedirectController;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
 use Tests\TestCase;
 
@@ -166,41 +168,34 @@ final class DocumentableRouteFilterTest extends TestCase
     }
 
     /**
-     * Test that a non-array blocklist falls back to the built-in default.
+     * Provide malformed blocklists, with the message each fails with.
      *
-     * @return void
+     * @return iterable<string, array{mixed, string}>
      */
-    public function testNonArrayBlocklistFallsBackToDefault(): void
+    public static function malformedBlocklistProvider(): iterable
     {
-        Config::set('api-toolkit.openapi.exclude.namespaces', 'Acme\Internal');
-
-        self::assertTrue($this->filter->isExcluded(RedirectController::class, $this->route()));
-        self::assertFalse($this->filter->isExcluded('Acme\Internal\Reports\Controller', $this->route()));
+        yield 'a single prefix' => ['Acme\Internal', 'The api-toolkit.openapi.exclude.namespaces setting must be a list of non-empty strings; [\'Acme\Internal\'] given.'];
+        yield 'an empty prefix' => [['Acme\Internal', ''], 'The api-toolkit.openapi.exclude.namespaces.1 setting must be a non-empty string; [\'\'] given.'];
+        yield 'a non-string prefix' => [[new \ArrayObject], 'The api-toolkit.openapi.exclude.namespaces.0 setting must be a non-empty string; [ArrayObject] given.'];
     }
 
     /**
-     * Test that a stringable blocklist prefix is cast to a string.
+     * Test that a malformed blocklist fails rather than falling back to the
+     * built-in default or skipping entries.
      *
+     * @param  mixed  $blocklist
+     * @param  string  $message
      * @return void
      */
-    public function testStringablePrefixExcludesMatchingClass(): void
+    #[DataProvider('malformedBlocklistProvider')]
+    public function testMalformedBlocklistFails(mixed $blocklist, string $message): void
     {
-        $prefix = new class implements \Stringable {
-            /**
-             * Render the configured prefix as a string.
-             *
-             * @return string
-             */
-            #[\Override]
-            public function __toString(): string
-            {
-                return 'Acme\Internal';
-            }
-        };
+        Config::set('api-toolkit.openapi.exclude.namespaces', $blocklist);
 
-        Config::set('api-toolkit.openapi.exclude.namespaces', [$prefix]);
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage($message);
 
-        self::assertTrue($this->filter->isExcluded('Acme\Internal\Reports\Controller', $this->route()));
+        $this->filter->isExcluded(RedirectController::class, $this->route());
     }
 
     /**

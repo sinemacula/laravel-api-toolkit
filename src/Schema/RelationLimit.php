@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 
 /**
  * Resolves how many related records a resource relation renders per parent.
@@ -26,9 +26,6 @@ final class RelationLimit
     /** The response key listing the relations cut to their limit */
     public const string TRUNCATED_KEY = '_truncated';
 
-    /** The default limit when the configuration does not name one */
-    private const int DEFAULT_LIMIT = 25;
-
     /**
      * Return the effective limit of the field's relation, or 0 when unbounded.
      *
@@ -43,7 +40,7 @@ final class RelationLimit
             return 0;
         }
 
-        return $field->limit ?? self::default();
+        return $field->limit ?? ResourceSettings::relationLimit();
     }
 
     /**
@@ -76,19 +73,5 @@ final class RelationLimit
             || $relation instanceof MorphMany
             || $relation instanceof BelongsToMany
             || $relation instanceof HasManyThrough;
-    }
-
-    /**
-     * Return the configured limit of a relation that declares none.
-     *
-     * A published configuration that predates the setting keeps the default.
-     *
-     * @return int
-     */
-    private static function default(): int
-    {
-        $limit = Config::get('api-toolkit.resources.relation_limit', self::DEFAULT_LIMIT);
-
-        return is_numeric($limit) ? max(0, (int) $limit) : 0;
     }
 }

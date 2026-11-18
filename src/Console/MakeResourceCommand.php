@@ -8,8 +8,8 @@ use Illuminate\Console\GeneratorCommand;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Filesystem\Filesystem;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Str;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 
 /**
@@ -341,13 +341,11 @@ final class MakeResourceCommand extends GeneratorCommand
      */
     private function discoveryReachWarning(string $directory): ?string
     {
-        $configured = Config::get('api-toolkit.resources.paths');
+        $configured = ResourceSettings::paths();
 
-        $patterns = match (true) {
-            $configured === null  => [$this->pattern(app_path('Http/Resources')), app_path('*/Http/Resources')],
-            is_array($configured) => array_map(fn (string $root): string => $this->pattern(rtrim($root, '/')), array_filter($configured, is_string(...))),
-            default               => [],
-        };
+        $patterns = $configured === null
+            ? [$this->pattern(app_path('Http/Resources')), app_path('*/Http/Resources')]
+            : array_map(fn (string $root): string => $this->pattern(rtrim($root, '/')), $configured);
 
         if ($patterns === []) {
             return 'Resource discovery is disabled, so bind the resource in the resource_map.';
@@ -404,7 +402,7 @@ final class MakeResourceCommand extends GeneratorCommand
      */
     private function compiledMapWarning(ResourceDiscovery $discovery): ?string
     {
-        if (!is_file($discovery->cachePath()) || Config::get('api-toolkit.resources.validate_schemas') === true) {
+        if (!is_file($discovery->cachePath()) || ResourceSettings::shouldValidateSchemas()) {
             return null;
         }
 
@@ -422,7 +420,7 @@ final class MakeResourceCommand extends GeneratorCommand
         $morphMap = Relation::morphMap();
 
         if (
-            !Config::get('api-toolkit.resources.enable_dynamic_morph_mapping')
+            !ResourceSettings::shouldMapMorphTypes()
             || array_key_exists($this->resourceType, $morphMap)
             || in_array($this->model, $morphMap, true)
         ) {

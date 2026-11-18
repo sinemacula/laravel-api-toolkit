@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\OpenApiSettings;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 
 /**
@@ -40,10 +40,7 @@ final readonly class ApiExceptionDiscoverer
      */
     public static function fromComposer(): self
     {
-        $configured = Config::get('api-toolkit.openapi.exception_namespaces', []);
-        $namespaces = is_array($configured) ? array_filter($configured, 'is_string') : [];
-
-        return new self(Psr4RootMap::fromComposer()->all(), $namespaces);
+        return new self(Psr4RootMap::fromComposer()->all(), OpenApiSettings::exceptionNamespaces());
     }
 
     /**

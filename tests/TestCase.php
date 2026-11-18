@@ -22,6 +22,7 @@ use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
+use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\IndexProof;
@@ -114,6 +115,7 @@ abstract class TestCase extends OrchestraTestCase
         SearchPlan::clearCache();
         IndexProof::clearCache();
         MetadataCacheWriter::reset();
+        RuntimeContext::reset();
 
         Model::preventLazyLoading(false);
 

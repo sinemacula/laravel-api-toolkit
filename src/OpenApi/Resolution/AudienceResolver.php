@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 use Illuminate\Routing\Route;
+use SineMacula\ApiToolkit\Enums\AudiencePosture;
 use SineMacula\ApiToolkit\OpenApi\Attributes\DocumentedIn;
 use SineMacula\ApiToolkit\OpenApi\Attributes\NotDocumentedIn;
 use SineMacula\ApiToolkit\OpenApi\Attributes\Undocumented;
@@ -20,12 +21,6 @@ use SineMacula\ApiToolkit\OpenApi\Attributes\Undocumented;
  */
 final readonly class AudienceResolver
 {
-    /** @var string The posture under which a route joins only by opting in. */
-    public const string POSTURE_ALLOWLIST = 'allowlist';
-
-    /** @var string The posture under which a route joins unless excluded. */
-    public const string POSTURE_BLOCKLIST = 'blocklist';
-
     /** @var string The route action key the route macros store directives on. */
     public const string ROUTE_ACTION_KEY = 'sinemacula.openapi.audience';
 
@@ -33,13 +28,13 @@ final readonly class AudienceResolver
      * Determine whether the route belongs to the given audience.
      *
      * @param  string  $audience
-     * @param  string  $posture
+     * @param  \SineMacula\ApiToolkit\Enums\AudiencePosture  $posture
      * @param  class-string|null  $controllerClass
      * @param  string|null  $method
      * @param  \Illuminate\Routing\Route  $route
      * @return bool
      */
-    public function isInAudience(string $audience, string $posture, ?string $controllerClass, ?string $method, Route $route): bool
+    public function isInAudience(string $audience, AudiencePosture $posture, ?string $controllerClass, ?string $method, Route $route): bool
     {
         $levels = [
             $this->routeDirectives($route),
@@ -63,7 +58,7 @@ final readonly class AudienceResolver
             return $included && !$excluded;
         }
 
-        return $posture !== self::POSTURE_ALLOWLIST;
+        return $posture === AudiencePosture::BLOCKLIST;
     }
 
     /**

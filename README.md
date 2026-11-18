@@ -30,7 +30,14 @@ php artisan vendor:publish --provider="SineMacula\ApiToolkit\ApiServiceProvider"
 `sinemacula/laravel-repositories` package under `repositories.cache`.
 
 Each setting read from the environment is named `API_TOOLKIT_` followed by its key, upper-cased with dots as
-underscores: `deferred_writes.on_failure` is `API_TOOLKIT_DEFERRED_WRITES_ON_FAILURE`.
+underscores: `deferred_writes.on_failure` is `API_TOOLKIT_DEFERRED_WRITES_ON_FAILURE`. A boolean also accepts `1`, `0`,
+`on`, `off`, `yes` and `no`, and an integer a string of digits.
+
+Every setting is validated once the application boots to serve requests or queue jobs, and when `config:cache` or
+`optimize` builds the config cache. An invalid value, or a key the toolkit does not read, throws
+`InvalidConfigurationException` naming the key; nothing is defaulted, clamped or ignored. Other console commands fail
+only where they read the invalid setting, which for a setting read at boot is every command. Under a cached
+configuration the message names the cache file to delete before rebuilding it.
 
 The Markdown templates for the generated API manual are published with `--tag=api-toolkit-docs`.
 
@@ -157,10 +164,10 @@ declares a match strategy (`SearchStrategy::EXACT`, `PREFIX` or `SUBSTRING`), an
 refuses a strategy it cannot serve from an index. Terms are bounded by `api-toolkit.search`; a term outside the bounds
 is rejected with a 422, not trimmed.
 
-The minimum word length is three characters. Configuration can raise it but not lower it: below three, MySQL matches
-nothing once a word is shorter than the n-gram token size, and PostgreSQL answers by reading the whole table. The
-minimum applies to each word, because a short word is dropped from a MySQL full-text phrase but kept by a PostgreSQL
-pattern match, so the two engines would return different rows.
+The minimum word length is three characters. Configuration can raise it, and refuses a value below three: below three,
+MySQL matches nothing once a word is shorter than the n-gram token size, and PostgreSQL answers by reading the whole
+table. The minimum applies to each word, because a short word is dropped from a MySQL full-text phrase but kept by a
+PostgreSQL pattern match, so the two engines would return different rows.
 
 Drivers ship for MySQL, PostgreSQL and SQLite, registered under the driver name each connection reports. On MySQL the
 proof also checks that the planner can use the index, which the catalogue only reports from 8.0; on older versions
@@ -817,10 +824,10 @@ unrecognised status such as `499` as a generic `500`. A key naming `HttpExceptio
 takes precedence over all of these.
 
 A target must be an instantiable `ApiException` with a `CODE`, a 4xx or 5xx status, and `ApiException`'s own constructor
-and `getStatusCode()`. The map is validated once the application has booted to serve requests, and an invalid one throws
-`InvalidExceptionMapException`; console commands skip the check, so `config:clear` still runs. A map found invalid while
-rendering is reported, and Laravel renders the exception itself. The map does not change reporting: silence a mapped
-exception with `$exceptions->dontReport()`.
+and `getStatusCode()`. The map is validated with every other setting, and an invalid one throws
+`InvalidConfigurationException`. An invalid map or rendering setting found while rendering is reported, and Laravel
+renders the exception itself. The map does not change reporting: silence a mapped exception with
+`$exceptions->dontReport()`.
 
 **Reporting** - an `ApiException` is a handled response and is never reported or logged, whatever reporters are
 registered and in whatever order. This matches Laravel's treatment of its own HTTP exceptions; use the response

@@ -6,6 +6,7 @@ namespace Tests\Unit\OpenApi\Docs;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocsDirectory;
 use Tests\Concerns\WritesDocsDirectories;
 use Tests\TestCase;
@@ -24,23 +25,30 @@ final class DocsDirectoryTest extends TestCase
     use WritesDocsDirectories;
 
     /**
-     * Test that the root is the configured docs path, else the resources
-     * default.
+     * Test that the root is the configured docs path.
      *
      * @return void
      */
-    public function testRootIsTheConfiguredPathElseTheResourcesDefault(): void
+    public function testRootIsTheConfiguredPath(): void
     {
         $this->config()->set('api-toolkit.openapi.docs_path', 'docs/api');
 
         self::assertSame('docs/api', (new DocsDirectory)->root());
+    }
 
-        foreach (['', null, 42] as $unset) {
+    /**
+     * Test that an empty docs path fails rather than reading another directory.
+     *
+     * @return void
+     */
+    public function testEmptyRootFails(): void
+    {
+        $this->config()->set('api-toolkit.openapi.docs_path', '');
 
-            $this->config()->set('api-toolkit.openapi.docs_path', $unset);
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.openapi.docs_path setting must be a non-empty string; [\'\'] given.');
 
-            self::assertSame(resource_path('api-docs'), (new DocsDirectory)->root());
-        }
+        (new DocsDirectory)->root();
     }
 
     /**

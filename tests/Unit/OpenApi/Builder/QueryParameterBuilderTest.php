@@ -780,7 +780,7 @@ final class QueryParameterBuilderTest extends TestCase
      */
     private static function capNames(): array
     {
-        return [...array_keys(QueryCostLimits::DEFAULTS), QueryParameterValidator::MAX_LIMIT];
+        return [...QueryCostLimits::NAMES, QueryParameterValidator::MAX_LIMIT];
     }
 
     /**

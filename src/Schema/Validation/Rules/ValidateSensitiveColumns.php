@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema\Validation\Rules;
 
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
@@ -20,17 +20,6 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
  */
 final class ValidateSensitiveColumns extends ValidatesEachField
 {
-    /** @var array<int, string> Shipped defaults, mirrored by the published config */
-    public const array DEFAULTS = [
-        'password',
-        'token',
-        'remember_token',
-        'two_factor_secret',
-        'two_factor_recovery_codes',
-        'two_factor_confirmed_at',
-        'email_verified_at',
-    ];
-
     /**
      * Validate the compiled schema for the given resource class.
      *
@@ -43,7 +32,7 @@ final class ValidateSensitiveColumns extends ValidatesEachField
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
     {
         $errors    = parent::validate($resourceClass, $modelClass, $schema);
-        $sensitive = $this->sensitiveColumns();
+        $sensitive = ResourceSettings::sensitiveColumns();
 
         foreach ($schema->getAggregateDefinitions() as $key => $aggregate) {
 
@@ -72,7 +61,7 @@ final class ValidateSensitiveColumns extends ValidatesEachField
     #[\Override]
     protected function checkField(string $resourceClass, string $key, CompiledFieldDefinition $field): array
     {
-        $sensitive = $this->sensitiveColumns();
+        $sensitive = ResourceSettings::sensitiveColumns();
         $errors    = [];
 
         foreach (['filterable' => $field->filterable, 'sortable' => $field->sortable, 'searchable' => $field->searchable] as $declaration => $column) {
@@ -89,19 +78,5 @@ final class ValidateSensitiveColumns extends ValidatesEachField
         }
 
         return $errors;
-    }
-
-    /**
-     * Read the configured sensitive column names.
-     *
-     * Falls back to the defaults when the published config declares no list.
-     *
-     * @return array<mixed>
-     */
-    private function sensitiveColumns(): array
-    {
-        $configured = Config::get('api-toolkit.resources.sensitive_columns', self::DEFAULTS);
-
-        return is_array($configured) ? $configured : self::DEFAULTS;
     }
 }

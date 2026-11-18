@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Search;
 
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\QuerySettings;
 
 /**
  * Reads the connections on which the index proof behind a search is waived.
@@ -28,8 +28,6 @@ final class IndexProofWaiver
             return false;
         }
 
-        $waived = Config::get('api-toolkit.search.unverified_connections', []);
-
-        return is_array($waived) && in_array($connection, $waived, true);
+        return in_array($connection, QuerySettings::unverifiedConnections(), true);
     }
 }

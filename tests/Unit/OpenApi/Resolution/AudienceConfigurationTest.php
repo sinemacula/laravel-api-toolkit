@@ -6,9 +6,11 @@ namespace Tests\Unit\OpenApi\Resolution;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Enums\AudiencePosture;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
-use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use Tests\TestCase;
 
 /**
@@ -88,15 +90,18 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that the default audience falls back to public when unconfigured.
+     * Test that an unset default audience fails rather than assuming public.
      *
      * @return void
      */
-    public function testDefaultAudienceFallsBackToPublic(): void
+    public function testUnsetDefaultAudienceFails(): void
     {
         $this->config()->set('api-toolkit.openapi.default_audience', null);
 
-        self::assertSame('public', (new AudienceConfiguration)->defaultAudience());
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.openapi.default_audience setting must be a non-empty string; [null] given.');
+
+        (new AudienceConfiguration)->defaultAudience();
     }
 
     /**
@@ -107,10 +112,10 @@ final class AudienceConfigurationTest extends TestCase
     public function testReturnsExplicitPosture(): void
     {
         $this->config()->set('api-toolkit.openapi.audiences', [
-            'partner' => ['posture' => AudienceResolver::POSTURE_ALLOWLIST],
+            'partner' => ['posture' => AudiencePosture::ALLOWLIST->value],
         ]);
 
-        self::assertSame(AudienceResolver::POSTURE_ALLOWLIST, (new AudienceConfiguration)->postureFor('partner'));
+        self::assertSame(AudiencePosture::ALLOWLIST, (new AudienceConfiguration)->postureFor('partner'));
     }
 
     /**
@@ -124,8 +129,23 @@ final class AudienceConfigurationTest extends TestCase
 
         $configuration = new AudienceConfiguration;
 
-        self::assertSame(AudienceResolver::POSTURE_BLOCKLIST, $configuration->postureFor('public'));
-        self::assertSame(AudienceResolver::POSTURE_BLOCKLIST, $configuration->postureFor('unconfigured'));
+        self::assertSame(AudiencePosture::BLOCKLIST, $configuration->postureFor('public'));
+        self::assertSame(AudiencePosture::BLOCKLIST, $configuration->postureFor('unconfigured'));
+    }
+
+    /**
+     * Test that a misspelt posture fails rather than documenting every route.
+     *
+     * @return void
+     */
+    public function testMisspeltPostureFails(): void
+    {
+        $this->config()->set('api-toolkit.openapi.audiences', ['partner' => ['posture' => 'allow_list']]);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.openapi.audiences.partner.posture setting must be one of allowlist, blocklist; [\'allow_list\'] given.');
+
+        (new AudienceConfiguration)->postureFor('partner');
     }
 
     /**
@@ -183,7 +203,7 @@ final class AudienceConfigurationTest extends TestCase
      */
     public function testInfoFallsBackToHardDefaults(): void
     {
-        $this->config()->set('api-toolkit.openapi.info', null);
+        $this->config()->set('api-toolkit.openapi.info', []);
         $this->config()->set('api-toolkit.openapi.audiences', ['public' => []]);
 
         self::assertSame([
@@ -193,27 +213,36 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that malformed info config falls through to the hard defaults.
+     * Provide malformed info settings and the message each fails with.
      *
+     * @return iterable<string, array{0: mixed, 1: mixed, 2: string}>
+     */
+    public static function malformedInfoProvider(): iterable
+    {
+        yield 'top-level info not an array' => ['not-an-array', [], 'The api-toolkit.openapi.info setting must be an array; [\'not-an-array\'] given.'];
+        yield 'empty title' => [[], ['title' => ''], 'The api-toolkit.openapi.audiences.public.info.title setting must be a non-empty string; [\'\'] given.'];
+        yield 'nested version' => [[], ['version' => ['nested']], 'The api-toolkit.openapi.audiences.public.info.version setting must be a non-empty string; [array] given.'];
+        yield 'unknown key' => [[], ['contact' => 'ops'], 'The api-toolkit.openapi.audiences.public.info.contact setting is not a toolkit setting; remove it or correct its name.'];
+    }
+
+    /**
+     * Test that a malformed info block fails rather than falling back.
+     *
+     * @param  mixed  $info
+     * @param  mixed  $audienceInfo
+     * @param  string  $message
      * @return void
      */
-    public function testInfoGuardsMalformedConfig(): void
+    #[DataProvider('malformedInfoProvider')]
+    public function testMalformedInfoFails(mixed $info, mixed $audienceInfo, string $message): void
     {
-        $this->config()->set('api-toolkit.openapi.info', 'not-an-array');
-        $this->config()->set('api-toolkit.openapi.audiences', [
-            'public' => [
-                'info' => [
-                    'title'       => '',
-                    'version'     => ['nested'],
-                    'description' => 42,
-                ],
-            ],
-        ]);
+        $this->config()->set('api-toolkit.openapi.info', $info);
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => ['info' => $audienceInfo]]);
 
-        self::assertSame([
-            'title'   => 'API Components',
-            'version' => '1.0.0',
-        ], (new AudienceConfiguration)->infoFor('public'));
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage($message);
+
+        (new AudienceConfiguration)->infoFor('public');
     }
 
     /**
@@ -277,16 +306,31 @@ final class AudienceConfigurationTest extends TestCase
     }
 
     /**
-     * Test that unset servers resolve none and a malformed audience inherits.
+     * Test that no servers resolve none.
      *
      * @return void
      */
     public function testServersDefaultToNone(): void
     {
-        $this->config()->set('api-toolkit.openapi.servers', null);
-        $this->config()->set('api-toolkit.openapi.audiences', ['public' => 'not-an-array']);
+        $this->config()->set('api-toolkit.openapi.servers', []);
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => []]);
 
         self::assertSame([], (new AudienceConfiguration)->serversFor('public'));
+    }
+
+    /**
+     * Test that an audience that is not an array fails rather than inheriting.
+     *
+     * @return void
+     */
+    public function testMalformedAudienceFails(): void
+    {
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => 'not-an-array']);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.openapi.audiences.public setting must be an array; [\'not-an-array\'] given.');
+
+        (new AudienceConfiguration)->serversFor('public');
     }
 
     /**

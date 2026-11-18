@@ -6,6 +6,7 @@ namespace Tests\Unit\OpenApi\Docs;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Docs\TagList;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\OrphanedDocumentationException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\TagConfigurationException;
@@ -50,10 +51,6 @@ final class TagListTest extends TestCase
         $this->useDocsDirectory(['operations/users.index.md' => 'Lists the users.']);
 
         self::assertNull((new TagList)->for('public', $this->routes(['public' => ['User']])));
-
-        config()->set('api-toolkit.openapi.tags', null);
-
-        self::assertNull((new TagList)->for('public', $this->routes(['public' => ['User']])));
     }
 
     /**
@@ -74,33 +71,37 @@ final class TagListTest extends TestCase
     /**
      * Provide tag orders that are not a list of distinct, non-empty names.
      *
-     * @return iterable<string, array{mixed}>
+     * @return iterable<string, array{mixed, class-string<\Throwable>, string}>
      */
     public static function malformedOrders(): iterable
     {
-        yield 'not an array' => ['User'];
-        yield 'a map' => [['first' => 'User']];
-        yield 'a non-string' => [['User', 7]];
-        yield 'an empty name' => [['User', '']];
-        yield 'a duplicate' => [['User', 'Article', 'User']];
+        yield 'null' => [null, InvalidConfigurationException::class, 'The api-toolkit.openapi.tags setting must be a list of non-empty strings; [null] given.'];
+        yield 'not an array' => ['User', InvalidConfigurationException::class, 'The api-toolkit.openapi.tags setting must be a list of non-empty strings; [\'User\'] given.'];
+        yield 'a map' => [['first' => 'User'], InvalidConfigurationException::class, 'The api-toolkit.openapi.tags setting must be a list of non-empty strings; [array] given.'];
+        yield 'a non-string' => [['User', 7], InvalidConfigurationException::class, 'The api-toolkit.openapi.tags.1 setting must be a non-empty string; [7] given.'];
+        yield 'an empty name' => [['User', ''], InvalidConfigurationException::class, 'The api-toolkit.openapi.tags.1 setting must be a non-empty string; [\'\'] given.'];
+        yield 'a duplicate' => [
+            ['User', 'Article', 'User'],
+            TagConfigurationException::class,
+            'Unable to export the OpenAPI tags: api-toolkit.openapi.tags must name each tag once.',
+        ];
     }
 
     /**
      * Test that a malformed order fails even while the list is off.
      *
      * @param  mixed  $order
+     * @param  class-string<\Throwable>  $exception
+     * @param  string  $message
      * @return void
      */
     #[DataProvider('malformedOrders')]
-    public function testMalformedOrderFailsEvenWhileTheListIsOff(mixed $order): void
+    public function testMalformedOrderFailsEvenWhileTheListIsOff(mixed $order, string $exception, string $message): void
     {
         config()->set('api-toolkit.openapi.tags', $order);
 
-        $this->expectException(TagConfigurationException::class);
-        $this->expectExceptionMessageMatches('/^' . preg_quote(
-            'Unable to export the OpenAPI tags: api-toolkit.openapi.tags must be a list of distinct, non-empty tag names.',
-            '/',
-        ) . '$/');
+        $this->expectException($exception);
+        $this->expectExceptionMessageMatches('/^' . preg_quote($message, '/') . '$/');
 
         (new TagList)->for('public', $this->routes(['public' => ['User', 'Article', '7']]));
     }
