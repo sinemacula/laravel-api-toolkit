@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
 use SineMacula\ApiToolkit\Services\Contracts\Actor;
+use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
 use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
 use SineMacula\ApiToolkit\Services\Events\ServiceCompleted;
@@ -322,6 +323,82 @@ final class ServiceTest extends TestCase
 
         self::assertSame($input, $made->run()->output());
         self::assertNull($made->secondary);
+    }
+
+    /**
+     * Test that make() hands the input to a parameter whose union type accepts
+     * it.
+     *
+     * @return void
+     */
+    public function testMakeHandsTheInputToAUnionTypedParameter(): void
+    {
+        $service = new class (new ArrayInput([])) extends Service {
+            /**
+             * Construct the service with a union-typed input.
+             *
+             * @param  \Tests\Fixtures\Input\StorePayload|\SineMacula\ApiToolkit\Services\Input\ArrayInput  $payload
+             */
+            public function __construct(StorePayload|ArrayInput $payload)
+            {
+                parent::__construct($payload);
+            }
+
+            /**
+             * Return the input.
+             *
+             * @return \SineMacula\ApiToolkit\Services\Contracts\ServiceInput
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                return $this->input;
+            }
+        };
+
+        $input = new ArrayInput(['message' => 'union']);
+
+        self::assertSame($input, $service::make($input)->run()->output());
+    }
+
+    /**
+     * Test that make() hands the input to a parameter whose intersection type
+     * it satisfies, and refuses an input that misses one of its members.
+     *
+     * @return void
+     */
+    public function testMakeHandsTheInputToAnIntersectionTypedParameterOnlyWhenItSatisfiesEveryMember(): void
+    {
+        $service = new class (new StorePayload(title: 'own')) extends Service {
+            /**
+             * Construct the service with an intersection-typed input.
+             *
+             * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput&\SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema  $payload
+             */
+            public function __construct(ServiceInput&DefinesInputSchema $payload)
+            {
+                parent::__construct($payload);
+            }
+
+            /**
+             * Return the input.
+             *
+             * @return \SineMacula\ApiToolkit\Services\Contracts\ServiceInput
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                return $this->input;
+            }
+        };
+
+        $input = new StorePayload(title: 'given');
+
+        self::assertSame($input, $service::make($input)->run()->output());
+
+        $this->expectException(\LogicException::class);
+
+        $service::make(new ArrayInput([]));
     }
 
     /**

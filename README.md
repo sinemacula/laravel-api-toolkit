@@ -1204,8 +1204,8 @@ invalidation leaves at most one stale copy behind.
 A service is generic over its input and output. Declare both with `@extends Service<TInput, TOutput>` and
 `$this->input` is typed as `TInput` in every hook. The input is readonly, so a subclass with its own constructor
 passes it to `parent::__construct($input)` rather than redeclaring or assigning `$input`. `make()` resolves the service
-from the container and hands the input to the first constructor parameter whose class or interface type accepts it,
-whatever its name; a constructor that cannot take it throws a `LogicException`.
+from the container and hands the input to the first constructor parameter whose class, interface, union or intersection
+type accepts it, whatever its name; a constructor that cannot take it throws a `LogicException`.
 
 ```php
 /**
