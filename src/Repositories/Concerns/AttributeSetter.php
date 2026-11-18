@@ -50,10 +50,12 @@ final readonly class AttributeSetter
     ) {}
 
     /**
-     * Persist the given attributes, syncing relations once the model is saved.
+     * Persist the given attributes, saving the model and syncing its relations
+     * in one transaction on its connection.
      *
      * Every key is classified before any is assigned, so a key naming a
-     * relation that cannot be written leaves the model untouched.
+     * relation that cannot be written leaves the model untouched. A cancelled
+     * save syncs nothing and returns false.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>  $attributes
@@ -83,13 +85,18 @@ final readonly class AttributeSetter
             $this->write($model, $attribute, $attributes[$attribute], $write);
         }
 
-        $saved = $model->save();
+        return $model->getConnection()->transaction(function () use ($model, $attributes, $syncs): bool {
 
-        foreach ($syncs as $attribute => $relation) {
-            $this->sync($model, $attribute, $attributes[$attribute], $relation);
-        }
+            if (!$model->save()) {
+                return false;
+            }
 
-        return $saved;
+            foreach ($syncs as $attribute => $relation) {
+                $this->sync($model, $attribute, $attributes[$attribute], $relation);
+            }
+
+            return true;
+        });
     }
 
     /**
