@@ -17,8 +17,10 @@ use SineMacula\ApiToolkit\Schema\ColumnNarrower;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\RegistersApiExceptionHandler;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\AggregatingUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -48,7 +50,7 @@ final class ColumnNarrowingHttpTest extends TestCase
     {
         parent::setUp();
 
-        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [AggregatingUserResource::class, UserResource::class]);
 
         FieldColumnMapper::clearCache();
         SchemaCompiler::clearCache();
@@ -60,6 +62,13 @@ final class ColumnNarrowingHttpTest extends TestCase
             $users = $repository->usingResource(UserResource::class)->withApiCriteria()->paginate();
 
             return new ApiResourceCollection($users, UserResource::class);
+        });
+
+        Route::middleware(ParseApiQuery::class)->get('/aggregating-users', function (UserRepository $repository): ApiResourceCollection {
+
+            $users = $repository->usingResource(AggregatingUserResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($users, AggregatingUserResource::class);
         });
 
         User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'password' => 'secret', 'status' => 'active']);
@@ -107,8 +116,8 @@ final class ColumnNarrowingHttpTest extends TestCase
         $on->assertOk();
         $onSql = $this->baseUsersSelect();
 
-        self::assertStringContainsString('users.*', $this->unquote($offSql));
-        self::assertStringNotContainsString('users.*', $this->unquote($onSql));
+        self::assertStringStartsWith('select * from users', $this->unquote($offSql));
+        self::assertStringNotContainsString('*', $this->unquote($onSql));
         self::assertStringContainsString('name', $this->unquote($onSql));
         self::assertStringContainsString('email', $this->unquote($onSql));
         self::assertStringNotContainsString('password', $this->unquote($onSql));
@@ -135,7 +144,7 @@ final class ColumnNarrowingHttpTest extends TestCase
         $response->assertOk();
 
         // The un-annotated compute is opaque, so its columns are unknown
-        self::assertStringContainsString('users.*', $this->unquote($sql));
+        self::assertStringStartsWith('select * from users', $this->unquote($sql));
 
         $response->assertJsonPath('data.0.full_label', 'Alice <alice@example.com>');
     }
@@ -157,9 +166,47 @@ final class ColumnNarrowingHttpTest extends TestCase
 
         $response->assertOk();
 
-        self::assertStringNotContainsString('users.*', $sql);
+        self::assertStringNotContainsString('*', $sql);
         self::assertStringContainsString('status', $sql);
         self::assertSame(['_type' => 'users', 'id' => 1, 'name' => 'Alice', 'status' => 'active'], $response->json('data.0'));
+    }
+
+    /**
+     * Test that ':all' keeps the aggregates, default or requested, when the
+     * select is narrowed.
+     *
+     * @return void
+     */
+    public function testAllTokenKeepsTheAggregatesWhenNarrowed(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        Post::create(['user_id' => 1, 'title' => 'First', 'body' => 'Content', 'published' => true]);
+        Post::create(['user_id' => 1, 'title' => 'Second', 'body' => 'Content']);
+
+        DB::enableQueryLog();
+        $defaults    = $this->getJson('/aggregating-users?' . http_build_query(['fields' => ['aggregating_users' => ':all']]));
+        $defaultsSql = $this->unquote($this->baseUsersSelect());
+
+        DB::enableQueryLog();
+        $requested = $this->getJson('/aggregating-users?' . http_build_query([
+            'fields'     => ['aggregating_users' => ':all'],
+            'aggregates' => ['aggregating_users' => 'posts_count'],
+        ]));
+        $requestedSql = $this->unquote($this->baseUsersSelect());
+
+        $defaults->assertOk();
+        $defaults->assertJsonPath('data.0.aggregates.posts_count', 2);
+        $defaults->assertJsonPath('data.0.aggregates.has_published_posts', true);
+        $defaults->assertJsonPath('data.1.aggregates', ['posts_count' => 0, 'has_published_posts' => false]);
+
+        $requested->assertOk();
+        $requested->assertJsonPath('data.0.aggregates', ['posts_count' => 2]);
+
+        self::assertStringStartsWith('select id, name, (select count(*) from posts', $defaultsSql);
+        self::assertStringContainsString('as aggregate_has_published_posts', $defaultsSql);
+        self::assertStringStartsWith('select id, name, (select count(*) from posts', $requestedSql);
+        self::assertStringNotContainsString('aggregate_has_published_posts', $requestedSql);
     }
 
     /**

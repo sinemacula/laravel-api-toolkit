@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 
 /**
@@ -18,27 +19,31 @@ final class QueryCostGuard
     /**
      * Reject the request when it exceeds one of the flat caps.
      *
-     * @param  string|null  $resourceType
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function guard(?string $resourceType): void
+    public function guard(): void
     {
         $limits = QueryCostLimits::fromConfig();
 
         $limits->enforce(QueryCostLimits::MAX_ORDER_KEYS, count(ApiQuery::getOrder()), 'order');
-        $limits->enforce(QueryCostLimits::MAX_AGGREGATES, $this->countAggregates($resourceType), 'aggregates');
+        $limits->enforce(QueryCostLimits::MAX_AGGREGATES, $this->countAggregates(), 'aggregates');
     }
 
     /**
-     * Count the relation aggregates the request asks for.
+     * Count the relation aggregates the request asks for across every resource
+     * type, rendered or not.
      *
-     * @param  string|null  $resourceType
+     * The parser refuses a type no catalogued resource carries, so the
+     * catalogue names every type requested.
+     *
      * @return int
      */
-    private function countAggregates(?string $resourceType): int
+    private function countAggregates(): int
     {
-        return $resourceType === null ? 0 : count(ApiQuery::getAggregates($resourceType) ?? []);
+        $types = array_unique(array_map(static fn (string $resource): string => $resource::getResourceType(), ResourceTypeIndex::all()));
+
+        return array_sum(array_map(static fn (string $type): int => count(ApiQuery::getAggregates($type) ?? []), $types));
     }
 }

@@ -303,6 +303,43 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
+     * Test that a conditional filter and a conditional order are each marked in
+     * their own cell, and a note says who may use them.
+     *
+     * @return void
+     */
+    public function testConditionalFilterAndOrderAreMarkedInTheirOwnCells(): void
+    {
+        $markdown = $this->combinedGenerator()->generate([$this->surface(UserResource::class, [
+            new QueryColumnDescriptor(
+                property         : 'email',
+                column           : 'email',
+                capability       : Capability::EXACT,
+                operators        : ['$eq'],
+                sortable         : true,
+                filterConditional: true,
+            ),
+            new QueryColumnDescriptor(
+                property       : 'salary',
+                column         : 'salary',
+                capability     : Capability::RANGE,
+                operators      : ['$gt'],
+                sortable       : true,
+                unindexedReason: 'small',
+                sortConditional: true,
+            ),
+        ])], [], []);
+
+        self::assertStringContainsString('| `email` | `email` | `exact` (conditional) | `$eq` | Index-backed | - |', $markdown);
+        self::assertStringContainsString('| `salary` | `salary` | `range` | `$gt` | Unindexed: small (conditional) | - |', $markdown);
+        self::assertStringContainsString(
+            "offset pagination.\n\nA filter or order marked conditional is open only to callers the resource shows the field to; any other "
+            . 'caller is refused as for an undeclared key.',
+            $markdown,
+        );
+    }
+
+    /**
      * Test that an aliased column is tabled under property and column.
      *
      * @return void

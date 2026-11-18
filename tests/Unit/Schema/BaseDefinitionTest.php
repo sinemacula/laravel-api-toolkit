@@ -318,4 +318,40 @@ final class BaseDefinitionTest extends TestCase
             ],
         ], $field->toArray());
     }
+
+    /**
+     * Test that visibleTo adds caller guards apart from the row guards and
+     * returns self for fluent chaining.
+     *
+     * @return void
+     */
+    public function testVisibleToAddsCallerGuardsApartFromRowGuards(): void
+    {
+        $field  = Field::scalar('salary');
+        $first  = static fn (): bool => true;
+        $second = static fn (): bool => false;
+
+        self::assertSame([], $field->getCallerGuards());
+        self::assertSame($field, $field->visibleTo($first)->visibleTo($second));
+        self::assertSame([$first, $second], $field->getCallerGuards());
+        self::assertSame([], $field->getGuards());
+    }
+
+    /**
+     * Test that the caller guards serialize beside the row guards, and are
+     * omitted when none is declared.
+     *
+     * @return void
+     */
+    public function testToArrayCarriesCallerGuardsBesideTheRowGuards(): void
+    {
+        $guard       = static fn (): bool => true;
+        $callerGuard = static fn (): bool => true;
+
+        self::assertSame(
+            ['salary' => ['guards' => [$guard], 'caller_guards' => [$callerGuard]]],
+            Field::scalar('salary')->guard($guard)->visibleTo($callerGuard)->toArray(),
+        );
+        self::assertSame(['salary' => []], Field::scalar('salary')->toArray());
+    }
 }

@@ -142,11 +142,12 @@ final readonly class ResourceSchemaBuilder
 
             $property = $this->buildFieldProperty($fieldKey, $field, $modelClass, $built);
 
+            // Capping precedes transforming, so overrides still truncate
             if ($this->isBoundedArray($property)) {
                 $limited[] = $fieldKey;
             }
 
-            $properties[$fieldKey] = $this->withQuerySurface($property, $field, $compiled);
+            $properties[$fieldKey] = $this->withQuerySurface($this->overrideProperty($field) ?? $property, $field, $compiled);
         }
 
         if ($compiled->getAggregateDefinitions() !== []) {
@@ -196,10 +197,30 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
+     * Resolve the schema that replaces a field's inferred one, if any.
+     *
+     * A declaration wins, and a transformer changes the value, so an undeclared
+     * one is undocumented.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @return array<string, mixed>|null
+     */
+    private function overrideProperty(CompiledFieldDefinition $field): ?array
+    {
+        return match (true) {
+            $field->openApi      !== null => $field->openApi->toArray(),
+            $field->transformers !== []   => OpenApiFieldSchema::undocumented()->toArray(),
+            default                       => null,
+        };
+    }
+
+    /**
      * Build the relation property from its resolved Eloquent cardinality.
      *
      * An unmapped resource has no component, so it becomes an undocumented
-     * object, never a dangling $ref.
+     * object, never a dangling $ref. An unresolved relation may take any shape,
+     * and a to-one relation renders null when the related model is absent,
+     * unless it declares a default model.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  string  $relation
@@ -207,6 +228,8 @@ final readonly class ResourceSchemaBuilder
      * @param  class-string  $modelClass
      * @param  array<string, true>  $built
      * @return array<string, mixed>
+     *
+     * @SuppressWarnings("php:S3011")
      */
     private function buildRelationProperty(CompiledFieldDefinition $field, string $relation, string $childResource, string $modelClass, array $built): array
     {
@@ -216,12 +239,19 @@ final readonly class ResourceSchemaBuilder
         $limit    = RelationLimit::for($field);
         $array    = ['type' => 'array', 'items' => $target] + ($limit > 0 ? ['maxItems' => $limit] : []);
         $instance = $this->resolveRelation($relation, $modelClass);
+        $null     = ['type' => 'null'];
 
         if ($instance === null) {
-            return $this->conservativeRelationProperty($target, $array);
+            return ['oneOf' => [$target, $array, $null], 'x-cardinality' => 'unknown'];
         }
 
-        return $this->isToOne($instance) ? $target : $array;
+        if (!$this->isToOne($instance)) {
+            return $array;
+        }
+
+        $defaulted = (bool) (new \ReflectionProperty($instance, 'withDefault'))->getValue($instance);
+
+        return $defaulted ? $target : ['oneOf' => [$target, $null]];
     }
 
     /**
@@ -243,7 +273,7 @@ final readonly class ResourceSchemaBuilder
     /**
      * Determine whether the resolved relation is a to-one relation.
      *
-     * Leaf classes are listed since HasOneThrough extends HasManyThrough.
+     * Leaf classes are listed since each shares a base with a to-many class.
      *
      * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
      * @return bool
@@ -257,25 +287,6 @@ final readonly class ResourceSchemaBuilder
             $relation instanceof HasOneThrough => true,
             default                            => false,
         };
-    }
-
-    /**
-     * Build the relation property for an unknown cardinality.
-     *
-     * @param  array<string, mixed>  $target
-     * @param  array<string, mixed>  $array
-     * @return array<string, mixed>
-     */
-    private function conservativeRelationProperty(array $target, array $array): array
-    {
-        return [
-            'oneOf' => [
-                $target,
-                $array,
-                ['type' => 'null'],
-            ],
-            'x-cardinality' => 'unknown',
-        ];
     }
 
     /**
@@ -431,11 +442,17 @@ final readonly class ResourceSchemaBuilder
             return null;
         }
 
-        return [
+        $surface = [
             'key'        => $field->filterable,
             'capability' => $capability->value,
             'operators'  => $operators,
         ];
+
+        if (array_key_exists($field->filterable, $compiled->getConditionalFilterKeys())) {
+            $surface['conditional'] = true;
+        }
+
+        return $surface;
     }
 
     /**
@@ -459,11 +476,15 @@ final readonly class ResourceSchemaBuilder
             'indexed' => $field->unindexedReason === null,
         ];
 
-        if ($field->unindexedReason === null) {
-            return $surface;
+        if ($field->unindexedReason !== null) {
+            $surface['reason'] = $field->unindexedReason;
         }
 
-        return [...$surface, 'reason' => $field->unindexedReason];
+        if (array_key_exists($field->sortable, $compiled->getConditionalSortKeys())) {
+            $surface['conditional'] = true;
+        }
+
+        return $surface;
     }
 
     /**
@@ -487,8 +508,8 @@ final readonly class ResourceSchemaBuilder
     /**
      * Determine whether a fixed field is present in every response.
      *
-     * Only a plain column read is; a relation, compute, accessor, guard or
-     * transformer may leave it out.
+     * Only a plain column read is; a relation, compute, accessor, either guard
+     * or transformer may leave it out.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition|null  $field
      * @return bool
@@ -496,7 +517,7 @@ final readonly class ResourceSchemaBuilder
     private function isAlwaysPresent(?CompiledFieldDefinition $field): bool
     {
         return $field !== null
-            && [$field->relation, $field->compute, $field->accessor] === [null, null, null]
-            && [...$field->guards, ...$field->transformers]          === [];
+            && [$field->relation, $field->compute, $field->accessor]                 === [null, null, null]
+            && [...$field->guards, ...$field->callerGuards, ...$field->transformers] === [];
     }
 }

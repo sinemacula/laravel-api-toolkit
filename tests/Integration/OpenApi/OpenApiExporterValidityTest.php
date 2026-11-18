@@ -8,6 +8,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Foundation\Application;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Route as RouteFacade;
 use Illuminate\Support\Facades\Validator as RequestValidator;
 use Opis\JsonSchema\ValidationResult;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -16,9 +17,11 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ErrorCatalogueMismatchException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
@@ -28,6 +31,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\ValidatesOpenApiDocuments;
 use Tests\Concerns\WritesDocsDirectories;
 use Tests\Fixtures\Enums\TicketPriority;
+use Tests\Fixtures\Middleware\RequireSubscription;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
@@ -45,6 +49,7 @@ use Tests\Fixtures\OpenApi\PathKeyedArrayController;
 use Tests\Fixtures\OpenApi\PathNumericKeyController;
 use Tests\Fixtures\OpenApi\PathOperationController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
+use Tests\Fixtures\OpenApi\PathPlainController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
@@ -53,6 +58,7 @@ use Tests\Fixtures\OpenApi\PathRouteFactsController;
 use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
+use Tests\Fixtures\OpenApi\PaymentRequiredException;
 use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -240,6 +246,62 @@ final class OpenApiExporterValidityTest extends TestCase
             self::assertCount($count, $document['servers']);
             self::assertTrue($result->isValid(), 'A document carrying servers must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
         }
+    }
+
+    /**
+     * Test that a document with domain routes stays valid, every path parameter
+     * is in its template, and each path and verb is one operation.
+     *
+     * @return void
+     */
+    public function testDocumentWithDomainRoutesValidatesAsOpenApiThreeOne(): void
+    {
+        $this->registerUserRoutes();
+
+        RouteFacade::domain('{account}.example.com')->get('projects/{value}', [PathBindingController::class, 'value'])->whereIn('account', ['acme', 'globex']);
+        RouteFacade::domain('{status}.example.com')->get('statuses', [PathBindingController::class, 'status']);
+        RouteFacade::domain('{user}.example.com')->get('members/{user}', [PathBindingController::class, 'user']);
+        RouteFacade::domain('a.example.com')->get('reports', [PathPlainController::class, 'report']);
+        RouteFacade::domain('b.example.com')->get('reports', [PathPlainController::class, 'report']);
+
+        $this->getConfig()->set('api-toolkit.openapi.servers', [
+            ['url' => 'https://api.example.com/v1', 'description' => 'Production'],
+            ['url' => 'http://localhost:{port}', 'variables' => ['port' => ['default' => '8000']]],
+        ]);
+
+        $document = $this->export()->document;
+        $result   = $this->validateDocument($document);
+        $paths    = $document['paths'];
+
+        self::assertIsArray($paths);
+
+        $operations = 0;
+
+        foreach ($paths as $template => $item) {
+
+            self::assertIsArray($item);
+
+            $operations += count($item);
+
+            foreach ($item as $operation) {
+                self::assertIsArray($operation);
+                $this->assertPathParametersInTemplate((string) $template, $operation);
+            }
+        }
+
+        $reports = $paths['/reports']['get']['servers'];
+
+        self::assertIsArray($reports);
+        self::assertSame(10, $operations);
+        self::assertSame(
+            ['account' => ['enum' => ['acme', 'globex'], 'default' => 'acme']],
+            $paths['/projects/{value}']['get']['servers'][0]['variables'],
+        );
+        self::assertSame(
+            ['https://a.example.com/v1', 'http://a.example.com:{port}', 'https://b.example.com/v1', 'http://b.example.com:{port}'],
+            array_column($reports, 'url'),
+        );
+        self::assertTrue($result->isValid(), 'A document with domain routes must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
     }
 
     /**
@@ -509,9 +571,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         self::assertIsArray($document['components']['schemas']);
         self::assertArrayNotHasKey('Organization', $document['components']['schemas']);
-        self::assertIsArray($properties['organization']);
-        self::assertArrayNotHasKey('$ref', $properties['organization']);
-        self::assertTrue($properties['organization']['x-undocumented']);
+        self::assertSame(['oneOf' => [['type' => 'object', 'x-undocumented' => true], ['type' => 'null']]], $properties['organization']);
 
         $this->assertReferencesResolve($document);
         self::assertTrue($this->validateDocument($document)->isValid());
@@ -676,18 +736,24 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that a to-one relation emits a single reference.
+     * Test that a to-one relation validates populated or null, and nothing
+     * else.
      *
      * @return void
      */
-    public function testToOneRelationEmitsSingleReference(): void
+    public function testToOneRelationAdmitsTheRelatedResourceOrNull(): void
     {
         $this->registerUserRoutes();
 
-        $document     = $this->export()->document;
-        $organization = $document['components']['schemas']['User']['properties']['organization'];
+        $document = $this->export()->document;
+        $pointer  = '/components/schemas/User';
+        $user     = ['_type' => 'users', 'id' => 1, 'name' => 'Ada'];
+        $acme     = ['_type' => 'organizations', 'id' => 1, 'name' => 'Acme', 'slug' => 'acme'];
+        $result   = $this->validateAgainstExported($document, $pointer, [...$user, 'organization' => $acme]);
 
-        self::assertSame(['$ref' => '#/components/schemas/Organization'], $organization);
+        self::assertTrue($result->isValid(), $this->formatErrors($result));
+        self::assertTrue($this->validateAgainstExported($document, $pointer, [...$user, 'organization' => null])->isValid());
+        self::assertFalse($this->validateAgainstExported($document, $pointer, [...$user, 'organization' => 'Acme'])->isValid());
     }
 
     /**
@@ -1484,6 +1550,50 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that a route middleware's thrown exception survives assembly and the
+     * document stays valid.
+     *
+     * @return void
+     */
+    public function testMiddlewareThrowsSurviveAssemblyAndStayValid(): void
+    {
+        $this->router()->middlewareGroup('billing', [RequireSubscription::class]);
+        $this->router()->get('reports', [PathRouteFactsController::class, 'report'])->middleware('billing');
+
+        $document = $this->export()->document;
+        $response = $document['paths']['/reports']['get']['responses']['402'];
+
+        self::assertIsArray($response['headers']);
+        self::assertSame(['Error20003' => ['$ref' => '#/components/examples/Error20003']], $response['content']['application/json']['examples']);
+        self::assertSame(['X-Upgrade-Url'], array_keys($response['headers']));
+        self::assertSame(402, $document['components']['examples']['Error20003']['value']['error']['status']);
+
+        $result = $this->validateDocument($document);
+
+        self::assertTrue($result->isValid(), 'A document carrying middleware errors must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that a middleware naming an uncatalogued code fails the export.
+     *
+     * @return void
+     */
+    public function testMiddlewareNamingAnUncataloguedCodeFailsTheExport(): void
+    {
+        $this->makeApplication()->instance(ApiExceptionDiscoverer::class, new ApiExceptionDiscoverer([], []));
+        $this->router()->get('reports', [PathRouteFactsController::class, 'report'])->middleware(RequireSubscription::class);
+
+        $this->expectException(ErrorCatalogueMismatchException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The error code 20003 of [%s] is not in the error catalogue; add its namespace to api-toolkit.openapi.exception_namespaces.',
+            PaymentRequiredException::class,
+        ));
+
+        $this->export();
+    }
+
+    /**
      * Test that declared response headers survive assembly and stay valid.
      *
      * @return void
@@ -1796,6 +1906,26 @@ final class OpenApiExporterValidityTest extends TestCase
         }
 
         return $names;
+    }
+
+    /**
+     * Assert that each path parameter of the operation is in the path template.
+     *
+     * @param  string  $template
+     * @param  array<array-key, mixed>  $operation
+     * @return void
+     */
+    private function assertPathParametersInTemplate(string $template, array $operation): void
+    {
+        foreach ((array) ($operation['parameters'] ?? []) as $parameter) {
+
+            if (!is_array($parameter) || ($parameter['in'] ?? null) !== 'path') {
+                continue;
+            }
+
+            self::assertIsString($parameter['name']);
+            self::assertStringContainsString('{' . $parameter['name'] . '}', $template);
+        }
     }
 
     /**

@@ -129,22 +129,18 @@ final class ApiResourceIntegrationTest extends TestCase
     }
 
     /**
-     * Test that resource collection resolves correctly.
+     * Test that every item of a resource collection renders the same keys.
      *
      * @return void
      */
     public function testResourceCollectionResolvesCorrectly(): void
     {
-        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb());
+        $request = Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), ['fields' => ['users' => 'name,organization']]);
         ApiQuery::parse($request);
 
-        $users = User::all();
+        $data = UserResource::collection(User::query()->orderBy('id')->get())->resolve();
 
-        $collection = UserResource::collection($users);
-        $data       = $collection->resolve();
-
-        self::assertCount(2, $data);
-        self::assertArrayHasKey('_type', $data[0]);
+        self::assertSame([['_type', 'id', 'name'], ['_type', 'id', 'name']], array_map(array_keys(...), $data));
     }
 
     /**
