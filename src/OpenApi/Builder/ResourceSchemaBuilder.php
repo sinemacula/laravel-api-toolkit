@@ -142,11 +142,12 @@ final readonly class ResourceSchemaBuilder
 
             $property = $this->buildFieldProperty($fieldKey, $field, $modelClass, $built);
 
+            // Capping precedes transformers, so truncation is inferred
             if ($this->isBoundedArray($property)) {
                 $limited[] = $fieldKey;
             }
 
-            $properties[$fieldKey] = $this->withQuerySurface($property, $field, $compiled);
+            $properties[$fieldKey] = $this->withQuerySurface($this->overrideRelationProperty($field) ?? $property, $field, $compiled);
         }
 
         if ($compiled->getAggregateDefinitions() !== []) {
@@ -196,10 +197,33 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
+     * Resolve the schema a relation declares in place of its inferred one.
+     *
+     * A transformer replaces the child, so an undeclared one is undocumented.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @return array<string, mixed>|null
+     */
+    private function overrideRelationProperty(CompiledFieldDefinition $field): ?array
+    {
+        if ($field->relation === null || $field->resource === null) {
+            return null;
+        }
+
+        return match (true) {
+            $field->openApi      !== null => $field->openApi->toArray(),
+            $field->transformers !== []   => OpenApiFieldSchema::undocumented()->toArray(),
+            default                       => null,
+        };
+    }
+
+    /**
      * Build the relation property from its resolved Eloquent cardinality.
      *
      * An unmapped resource has no component, so it becomes an undocumented
-     * object, never a dangling $ref.
+     * object, never a dangling $ref. An unresolved relation may take any shape,
+     * and a to-one relation renders null when the related model is absent,
+     * unless it declares a default model.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  string  $relation
@@ -207,6 +231,8 @@ final readonly class ResourceSchemaBuilder
      * @param  class-string  $modelClass
      * @param  array<string, true>  $built
      * @return array<string, mixed>
+     *
+     * @SuppressWarnings("php:S3011")
      */
     private function buildRelationProperty(CompiledFieldDefinition $field, string $relation, string $childResource, string $modelClass, array $built): array
     {
@@ -216,12 +242,19 @@ final readonly class ResourceSchemaBuilder
         $limit    = RelationLimit::for($field);
         $array    = ['type' => 'array', 'items' => $target] + ($limit > 0 ? ['maxItems' => $limit] : []);
         $instance = $this->resolveRelation($relation, $modelClass);
+        $null     = ['type' => 'null'];
 
         if ($instance === null) {
-            return $this->conservativeRelationProperty($target, $array);
+            return ['oneOf' => [$target, $array, $null], 'x-cardinality' => 'unknown'];
         }
 
-        return $this->isToOne($instance) ? $target : $array;
+        if (!$this->isToOne($instance)) {
+            return $array;
+        }
+
+        $defaulted = (bool) (new \ReflectionProperty($instance, 'withDefault'))->getValue($instance);
+
+        return $defaulted ? $target : ['oneOf' => [$target, $null]];
     }
 
     /**
@@ -257,25 +290,6 @@ final readonly class ResourceSchemaBuilder
             $relation instanceof HasOneThrough => true,
             default                            => false,
         };
-    }
-
-    /**
-     * Build the relation property for an unknown cardinality.
-     *
-     * @param  array<string, mixed>  $target
-     * @param  array<string, mixed>  $array
-     * @return array<string, mixed>
-     */
-    private function conservativeRelationProperty(array $target, array $array): array
-    {
-        return [
-            'oneOf' => [
-                $target,
-                $array,
-                ['type' => 'null'],
-            ],
-            'x-cardinality' => 'unknown',
-        ];
     }
 
     /**

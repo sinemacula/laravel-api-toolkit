@@ -1008,6 +1008,11 @@ A resource schema requires only what every response carries: `_type`, and each f
 column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names
 none for that type and no parent relation pins them: the declared `$default` fields, then the fixed ones.
 
+A relation is typed from its Eloquent relation: a to-many relation as an array of the related schema, and a to-one
+relation as the related schema or `null`, since it renders `null` when the related row is absent. A to-one relation
+declaring `withDefault()` never does, so it is the related schema alone. A relation's `openapi()` declaration replaces
+the inferred schema, and a transformed relation without one is left undocumented.
+
 Every operation also lists the errors it can return, derived from the route: an unauthenticated request behind auth
 middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
 `AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the path
