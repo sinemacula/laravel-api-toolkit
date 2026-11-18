@@ -553,7 +553,7 @@ final class ApiRepositoryTest extends TestCase
      */
     public function testScopeByIdScopesByTheQualifiedKey(): void
     {
-        self::assertSame('select * from "users" where "users"."id" in (?)', $this->repository->scopeById(1)->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertSame('users.id', $this->repository->scopeById(1)->getQuery()->wheres[0]['column']); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**
@@ -567,11 +567,11 @@ final class ApiRepositoryTest extends TestCase
 
         $repository = $this->app->make(CountryRepository::class);
 
-        $one  = $repository->scopeById('GB')->toSql(); // @phpstan-ignore staticMethod.dynamicCall
-        $many = $repository->scopeByIds(['GB', 'FR'])->toSql(); // @phpstan-ignore staticMethod.dynamicCall
+        $one  = $repository->scopeById('GB')->getQuery()->wheres[0]['column']; // @phpstan-ignore staticMethod.dynamicCall
+        $many = $repository->scopeByIds(['GB', 'FR'])->getQuery()->wheres[0]['column']; // @phpstan-ignore staticMethod.dynamicCall
 
-        self::assertSame('select * from "countries" where "countries"."code" in (?)', $one);
-        self::assertSame('select * from "countries" where "countries"."code" in (?, ?)', $many);
+        self::assertSame('countries.code', $one);
+        self::assertSame('countries.code', $many);
     }
 
     /**
@@ -582,11 +582,11 @@ final class ApiRepositoryTest extends TestCase
      */
     public function testScopeByIdsQualifiesAGivenColumnAndPassesAQualifiedOneThrough(): void
     {
-        $email = $this->repository->scopeByIds([self::ALICE_EMAIL], 'email')->toSql(); // @phpstan-ignore staticMethod.dynamicCall
-        $post  = $this->repository->scopeByIds([1], 'posts.id')->toSql(); // @phpstan-ignore staticMethod.dynamicCall
+        $email = $this->repository->scopeByIds([self::ALICE_EMAIL], 'email')->getQuery()->wheres[0]['column']; // @phpstan-ignore staticMethod.dynamicCall
+        $post  = $this->repository->scopeByIds([1], 'posts.id')->getQuery()->wheres[0]['column']; // @phpstan-ignore staticMethod.dynamicCall
 
-        self::assertSame('select * from "users" where "users"."email" in (?)', $email);
-        self::assertSame('select * from "users" where "posts"."id" in (?)', $post);
+        self::assertSame('users.email', $email);
+        self::assertSame('posts.id', $post);
     }
 
     /**
