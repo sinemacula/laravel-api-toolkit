@@ -4,12 +4,11 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Concerns;
 
-use Illuminate\Http\Request;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
- * Extracts and parses the API parameters in a request's query string.
+ * Extracts and parses the API parameters in a query input.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -20,14 +19,14 @@ final class QueryParameterExtractor
     public const array PARAMETERS = ['page', 'limit', 'cursor', 'fields', 'aggregates', 'filters', 'search', 'order', 'trashed'];
 
     /**
-     * Extract and parse all parameters from the request's query string.
+     * Extract and parse every API parameter present in the given input.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param  array<string, mixed>  $input
      * @return array<string, mixed>
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function extract(Request $request): array
+    public function extract(array $input): array
     {
         $parameters = [];
 
@@ -44,11 +43,11 @@ final class QueryParameterExtractor
         ];
 
         foreach (self::PARAMETERS as $name) {
-            if (!$request->query->has($name)) {
+            if (!array_key_exists($name, $input)) {
                 continue;
             }
 
-            $parameters[$name] = $parsers[$name]($request->query($name));
+            $parameters[$name] = $parsers[$name]($input[$name]);
         }
 
         return $parameters;
