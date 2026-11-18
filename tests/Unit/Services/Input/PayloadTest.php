@@ -897,6 +897,7 @@ final class PayloadTest extends TestCase
         yield 'bool from a capitalised word' => ['enabled', 'Yes'];
         yield 'bool from a decimal string' => ['enabled', '1.0'];
         yield 'bool from two' => ['enabled', 2];
+        yield 'bool from an integral float' => ['enabled', 1.0];
     }
 
     /**
