@@ -6,18 +6,22 @@ namespace Tests\Unit\Services\Jobs;
 
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
+use SineMacula\ApiToolkit\Services\Events\ServiceCompleted;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 use SineMacula\ApiToolkit\Services\ServiceContext;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Fixtures\Exceptions\ServiceExecutionException;
+use Tests\Fixtures\Input\StorePayload;
 use Tests\Fixtures\Services\Jobs\ConcernCapturingService;
 use Tests\Fixtures\Services\Jobs\ContextCapturingConcern;
 use Tests\Fixtures\Services\Jobs\ContextReadingService;
 use Tests\Fixtures\Services\Jobs\CountingFailingService;
+use Tests\Fixtures\Services\RenamedInputService;
 use Tests\Fixtures\Services\StubActor;
 use Tests\TestCase;
 
@@ -85,6 +89,24 @@ final class ServiceJobTest extends TestCase
 
         self::assertNotNull(ContextCapturingConcern::$captured);
         self::assertSame(ServiceSource::QUEUE, ContextCapturingConcern::$captured->source);
+    }
+
+    /**
+     * Test that handle() runs a service that names its input differently on the
+     * dispatched input, not one built from the worker's request.
+     *
+     * @return void
+     */
+    public function testHandleRunsAServiceWithARenamedInputParameterOnTheDispatchedInput(): void
+    {
+        Event::fake([ServiceCompleted::class]);
+
+        $input = new StorePayload(title: 'dispatched', quantity: 2);
+        $job   = new ServiceJob(RenamedInputService::class, $input, ServiceContext::for(new StubActor));
+
+        $job->handle(new ServiceRunner);
+
+        Event::assertDispatched(ServiceCompleted::class, static fn (ServiceCompleted $event): bool => $event->inputSummary === $input->toArray());
     }
 
     /**

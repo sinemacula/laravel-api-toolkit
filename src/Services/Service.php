@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Services;
 
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Reflector;
 use SineMacula\ApiToolkit\Concerns\Lockable;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Services\Actors\AnonymousActor;
@@ -62,16 +63,31 @@ abstract class Service implements LockKeyProvider
     /**
      * Resolve a new service instance from the container with the given input.
      *
+     * The input is passed to the first constructor parameter whose class,
+     * interface or union type accepts it, whatever its name.
+     *
      * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $input
      * @return static
+     *
+     * @throws \LogicException
      */
     public static function make(ServiceInput $input): static
     {
-        $class    = static::class;
-        $instance = App::make($class, ['input' => $input]);
-        assert($instance instanceof static);
+        $class = static::class;
 
-        return $instance;
+        foreach ((new \ReflectionMethod($class, '__construct'))->getParameters() as $parameter) {
+
+            $accepting = array_filter(Reflector::getParameterClassNames($parameter), static fn (string $name): bool => is_a($input, $name));
+
+            if ($accepting !== []) {
+                $instance = App::make($class, [$parameter->getName() => $input]);
+                assert($instance instanceof static);
+
+                return $instance;
+            }
+        }
+
+        throw new \LogicException(sprintf('%s::__construct() has no parameter that accepts %s', $class, $input::class));
     }
 
     /**
