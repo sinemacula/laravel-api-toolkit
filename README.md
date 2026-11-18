@@ -948,9 +948,11 @@ to the `api` middleware group only). The maintenance middleware replaces Laravel
 global stack, after `HandleCors`, so maintenance responses still carry CORS headers (nothing is added if Laravel's has
 been removed). `throttle` is registered as the router's `throttle` alias.
 
-**Rate-limit keys** - each request is keyed by method, host, path and caller. Authenticated requests are keyed by
-user identifier; guests by client IP (`$request->ip()`), as Laravel's stock `ThrottleRequests` does, so one guest
-cannot exhaust the limit for every other guest.
+**Rate-limit keys** - `throttle:{max},{minutes}` keys each request by method, host, route and caller. The route is the
+matched URI pattern, so `/users/1` and `/users/2` draw on one `/users/{id}` budget and walking ids does not escape the
+limit. Authenticated requests are keyed by user identifier; guests by client IP (`$request->ip()`), as Laravel's stock
+`ThrottleRequests` does, so one guest cannot exhaust the limit for every other guest. A named limiter
+(`throttle:{name}`) uses the key its `Limit` defines.
 
 Behind a proxy, load balancer, CDN or NAT, many callers can share one IP and be throttled together. Configure
 Laravel's `TrustProxies` middleware so `$request->ip()` resolves the real client IP.
