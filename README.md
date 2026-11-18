@@ -572,6 +572,9 @@ a `MorphTo` from a model or `null`, and a `BelongsToMany` or `MorphToMany` from 
 model is saved. A key naming any other relation throws an `InvalidArgumentException` before any key is assigned, and
 a key that is neither a column nor a mutator fails at save with the database's `QueryException`. A set mutator named
 like a relation takes precedence over it. `$fillable` and `$guarded` are not applied, so pass only validated input.
+The save and the syncs run in one transaction on the model's connection, so a sync that fails rolls the save back and
+leaves the model instance stale; discard it. A save that a `saving`, `creating` or `updating` listener cancels syncs
+nothing and returns `false`.
 
 **Cacheable trait** - per-query caching for any `ApiRepository` subclass:
 
@@ -622,6 +625,8 @@ Each row goes to its model's connection, resolved when the row is deferred, so a
 does not redirect it. Timestamps follow the model: none when it has timestamps disabled, otherwise its own
 `CREATED_AT` and `UPDATED_AT` columns in its date format, and a timestamp you pass is kept. Rows are inserted in
 consecutive runs of one column set, so a row may leave out optional columns and they keep their database default.
+Each connection flushes its tables in the order they joined the buffer, and a table keeps its place while it holds rows,
+so defer a parent before the rows that reference it.
 
 Reaching `deferred_writes.pool_limit` flushes automatically, but never on a connection with an open transaction: those
 rows wait for the next deferral outside a transaction or for the boundary flush, so rolling the transaction back does
