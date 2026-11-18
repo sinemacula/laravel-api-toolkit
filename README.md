@@ -343,7 +343,7 @@ non-numeric column, a minimum or maximum the related model would read back throu
 Only fields marked `filterable()` or `sortable()` can be queried, and `?search=` matches only fields marked
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. `$default` lists the fields
 returned when the client sends no `?fields`, and the static `$fixed` the fields every response carries, after those in
-`resources.fixed_fields`.
+`resources.fixed_fields`. Schema validation rejects a default or fixed field the resource does not declare.
 
 **Schema lifetime** - `schema()` runs once per resource class per worker, and its result is shared by every request
 the worker serves, under Octane and on queue workers alike. It must not read or capture the request, the user, the
