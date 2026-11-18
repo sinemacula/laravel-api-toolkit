@@ -6,6 +6,7 @@ namespace Tests\Unit\Http\Resources\Concerns;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Gate;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -22,7 +23,9 @@ use SineMacula\Exporter\Schema\CastRegistry;
 use SineMacula\Exporter\Schema\Column;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserLevel;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Policies\ArticlePolicy;
 use Tests\Fixtures\Resources\DeviceResource;
 use Tests\Fixtures\Resources\GuardedExportResource;
 use Tests\Fixtures\Resources\PerItemGuardedExportResource;
@@ -253,6 +256,54 @@ final class DerivesTabularSchemaTest extends TestCase
         self::assertCount(1, $columns);
         self::assertSame('contact', $columns[0]->getKey());
         self::assertSame('alice@example.com', $columns[0]->toCellValue($user, $request, new CastRegistry)->raw);
+    }
+
+    /**
+     * Test that an ability flag exports a boolean cell answering for the
+     * request's user on each row.
+     *
+     * @return void
+     */
+    public function testAbilityFieldExportsABooleanCellPerRow(): void
+    {
+        $resource = new class (null) extends ApiResource implements ProvidesTabularExport {
+            use DerivesTabularSchema;
+
+            /** @var string */
+            public const string RESOURCE_TYPE = 'ability_export';
+
+            /** @var array<int, string> */
+            protected static array $default = ['can_restore'];
+
+            /**
+             * Return the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::can('restore'),
+                );
+            }
+        };
+
+        Gate::policy(Article::class, ArticlePolicy::class);
+
+        $request = Request::create('/');
+
+        $request->setUserResolver(static fn (): User => (new User)->forceFill(['id' => 1]));
+
+        ApiQuery::parse($request);
+
+        $column = $resource->tabular($request)->columns()[0];
+        $cells  = array_map(
+            static fn (Article $article): mixed => $column->toCellValue($article, $request, new CastRegistry)->raw,
+            [(new Article)->forceFill(['user_id' => 1]), (new Article)->forceFill(['user_id' => 2])],
+        );
+
+        self::assertSame([true, false], $cells);
     }
 
     /**
