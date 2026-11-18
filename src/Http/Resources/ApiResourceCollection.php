@@ -5,6 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Request;
+use Illuminate\Pagination\AbstractCursorPaginator;
+use Illuminate\Pagination\AbstractPaginator;
+use Illuminate\Support\Enumerable;
 
 /**
  * Resource collection that applies the requested field selection to each item.
@@ -49,6 +52,30 @@ final class ApiResourceCollection extends ToolkitCollection
 
             return (new $resourceClass($item, false, $this->fields ?? null, $this->excludedFields ?? null))->resolve($request);
         })->all();
+    }
+
+    /**
+     * Wrap each item in the collected resource by its value alone.
+     *
+     * The framework passes each item's key as the second constructor argument,
+     * which a resource reads as its load-missing flag, so every item after the
+     * first would load the relations its planner deliberately left unloaded.
+     *
+     * @param  mixed  $resource
+     * @return mixed
+     */
+    #[\Override]
+    protected function collectResource($resource): mixed
+    {
+        $collects = $this->collects;
+        $wrap     = static fn (mixed $item): mixed => $item instanceof $collects ? $item : new $collects($item);
+
+        return parent::collectResource(match (true) {
+            $resource instanceof AbstractPaginator, $resource instanceof AbstractCursorPaginator => $resource->through($wrap),
+            $resource instanceof Enumerable                                                      => $resource->map($wrap),
+            is_array($resource)                                                                  => array_map($wrap, $resource),
+            default                                                                              => $resource,
+        });
     }
 
     /**
