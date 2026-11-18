@@ -43,13 +43,14 @@ final class RawSchemaValidator
         $errors     = [];
         $aggregates = [];
         $relations  = [];
+        $traversed  = [];
 
         foreach ($rawSchema as $key => $definition) {
 
             $defects = [
                 ...self::collectDefects($definition),
                 ...self::collectAggregateDefects($key, $definition, $aggregates),
-                ...self::collectRelationDefects($key, $definition, $relations),
+                ...self::collectRelationDefects($key, $definition, $relations, $traversed),
             ];
 
             foreach ($defects as $defect) {
@@ -61,7 +62,7 @@ final class RawSchemaValidator
             }
         }
 
-        foreach (self::collectSharedRelationDefects($relations) as $key => $defect) {
+        foreach (self::collectSharedRelationDefects($relations, $traversed) as [$key, $defect]) {
             $errors[] = new SchemaValidationError(
                 resourceClass: $resourceClass,
                 fieldKey: $key,
@@ -144,70 +145,87 @@ final class RawSchemaValidator
     }
 
     /**
-     * Collect the defects in a field definition's relation, grouping the
-     * definitions that shape a relation's rows by the relation they load.
+     * Collect the defects in the relations a field definition loads or
+     * traverses, grouping it by the relation it loads.
      *
      * @param  string  $key
      * @param  array<string, mixed>  $definition
      * @param  array<string, array<string, array<string, mixed>>>  $relations
+     * @param  list<string>  $traversed
      * @return list<string>
      */
-    private static function collectRelationDefects(string $key, array $definition, array &$relations): array
+    private static function collectRelationDefects(string $key, array $definition, array &$relations, array &$traversed): array
     {
-        $relation = SchemaCompiler::resolveFieldRelation($definition);
-
-        if ($relation === null || self::aggregateFunction($definition) !== null) {
+        if (self::aggregateFunction($definition) !== null) {
             return [];
         }
 
-        $defects     = [];
-        $constrained = isset($definition['constraint']);
+        $relation = SchemaCompiler::resolveFieldRelation($definition);
+        $marker   = $definition['traversable'] ?? null;
 
-        if (str_contains($relation, '.')) {
-            $defects[] = sprintf('Relation "%s" names a nested path; declare each segment as a relation of its own resource', $relation);
-        }
-
-        if ($constrained && is_string($definition['traversable'] ?? null)) {
-            $defects[] = 'A traversable relation may not be constrained, as a filter would reach the rows it hides; move the row predicate into a relation method';
-        }
-
-        if ($constrained || is_string($definition['resource'] ?? null)) {
+        if ($relation !== null) {
             $relations[$relation][$key] = $definition;
+        }
+
+        if (is_string($marker)) {
+            $traversed[] = $marker;
+        }
+
+        $defects = [];
+
+        foreach (array_unique(array_filter([$relation, $marker], is_string(...))) as $name) {
+
+            if (!str_contains($name, '.')) {
+                continue;
+            }
+
+            $defects[] = sprintf('Relation "%s" names a nested path; declare each segment as a relation of its own resource', $name);
         }
 
         return $defects;
     }
 
     /**
-     * Collect one defect per relation loaded by several fields that would each
-     * need their own rows.
+     * Collect the key and defect of each relation whose fields would need rows
+     * of their own.
      *
-     * The relation loads once, so its fields may neither be constrained nor
-     * render different resources.
+     * The relation loads once and filters never run its constraint, so a
+     * constrained relation may be neither traversable nor loaded by another
+     * field, and the fields loading it must render one resource.
      *
      * @param  array<string, array<string, array<string, mixed>>>  $relations
-     * @return array<string, string>
+     * @param  list<string>  $traversed
+     * @return list<array{string, string}>
      */
-    private static function collectSharedRelationDefects(array $relations): array
+    private static function collectSharedRelationDefects(array $relations, array $traversed): array
     {
         $defects = [];
 
         foreach ($relations as $relation => $definitions) {
 
-            $constrained = array_filter($definitions, static fn (array $definition): bool => isset($definition['constraint']));
-            $resources   = array_unique(array_filter(array_column($definitions, 'resource'), is_string(...)));
+            $constrained = array_keys(array_filter($definitions, static fn (array $definition): bool => isset($definition['constraint'])));
 
-            if (count($definitions) < 2 || ($constrained === [] && count($resources) < 2)) {
+            if ($constrained !== [] && in_array($relation, $traversed, true)) {
+                $defects[] = [
+                    $constrained[0],
+                    'A traversable relation may not be constrained, as a filter would reach the rows it hides; move the row predicate into a relation method',
+                ];
+            }
+
+            $loaders   = array_filter($definitions, static fn (array $definition): bool => isset($definition['constraint']) || is_string($definition['resource'] ?? null));
+            $resources = array_unique(array_filter(array_column($loaders, 'resource'), is_string(...)));
+
+            if (count($loaders) < 2 || ($constrained === [] && count($resources) < 2)) {
                 continue;
             }
 
-            $keys = array_keys($definitions);
+            $keys = array_keys($loaders);
 
-            $defects[$keys[0]] = sprintf(
+            $defects[] = [$keys[0], sprintf(
                 'Fields "%s" share the "%s" relation, which loads once, so none may be constrained and all must render one resource; declare a relation method for each',
                 implode('", "', $keys),
                 $relation,
-            );
+            )];
         }
 
         return $defects;

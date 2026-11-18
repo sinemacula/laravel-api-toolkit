@@ -18,6 +18,7 @@ use Tests\Fixtures\Resources\BoundedPostResource;
 use Tests\Fixtures\Resources\CommentResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\QueryableTagResource;
 
 /**
  * Tests for the RawSchemaValidator.
@@ -280,17 +281,28 @@ final class RawSchemaValidatorTest extends TestCase
     }
 
     /**
-     * Test that a traversable relation carrying a constraint is refused.
+     * Test that a constrained relation is refused when its own field, an
+     * accessor-only sibling or another field's marker makes it traversable.
      *
      * @return void
      */
-    public function testRefusesAConstrainedTraversableRelation(): void
+    public function testRefusesAConstrainedRelationAFilterTraverses(): void
     {
-        $errors = $this->collectErrors(Field::set(
-            Relation::to('posts', PostResource::class)->constrain(self::constraint())->traversable(),
-        ));
+        $errors = $this->collectErrors([
+            ...Field::set(
+                Relation::to('posts', PostResource::class)->constrain(self::constraint())->traversable(),
+                Relation::to('comments', CommentResource::class)->constrain(self::constraint()),
+                Relation::to('comments', 'body', 'comment_bodies')->traversable(),
+                Relation::to('tags', QueryableTagResource::class)->constrain(self::constraint()),
+            ),
+            'organization' => ['relation' => 'organization', 'accessor' => 'name', 'traversable' => 'tags'],
+        ]);
 
-        self::assertSame([[self::RESOURCE, 'posts', self::CONSTRAINED_TRAVERSAL]], $errors);
+        self::assertSame([
+            [self::RESOURCE, 'posts', self::CONSTRAINED_TRAVERSAL],
+            [self::RESOURCE, 'comments', self::CONSTRAINED_TRAVERSAL],
+            [self::RESOURCE, 'tags', self::CONSTRAINED_TRAVERSAL],
+        ], $errors);
     }
 
     /**
@@ -316,6 +328,14 @@ final class RawSchemaValidatorTest extends TestCase
                 Relation::to('posts', 'title', 'post_titles'),
             ),
             self::sharedRelation('"posts", "bounded_posts"', 'posts'),
+        ];
+
+        yield 'malformed resource beside a constraint' => [
+            [
+                'posts'        => ['relation' => 'posts', 'resource' => [PostResource::class], 'constraint' => self::constraint()],
+                'pinned_posts' => ['relation' => 'posts', 'resource' => PostResource::class],
+            ],
+            self::sharedRelation('"posts", "pinned_posts"', 'posts'),
         ];
 
         yield 'array form' => [
@@ -365,7 +385,8 @@ final class RawSchemaValidatorTest extends TestCase
     }
 
     /**
-     * Test that a relation naming a nested path is refused, in either form.
+     * Test that a relation naming a nested path is refused, in either form and
+     * as a traversable marker.
      *
      * @return void
      */
@@ -373,13 +394,16 @@ final class RawSchemaValidatorTest extends TestCase
     {
         $errors = $this->collectErrors([
             ...Field::set(Relation::to('user.organization', OrganizationResource::class, 'organization')->constrain(self::constraint())->traversable()),
-            'tags' => ['relation' => ['posts.tags', 'posts'], 'accessor' => 'name'],
+            'tags'    => ['relation' => ['posts.tags', 'posts'], 'accessor' => 'name'],
+            'authors' => ['relation' => 'posts.author', 'accessor' => 'name', 'traversable' => 'posts.user'],
         ]);
 
         self::assertSame([
             [self::RESOURCE, 'organization', 'Relation "user.organization" names a nested path; declare each segment as a relation of its own resource'],
-            [self::RESOURCE, 'organization', self::CONSTRAINED_TRAVERSAL],
             [self::RESOURCE, 'tags', 'Relation "posts.tags" names a nested path; declare each segment as a relation of its own resource'],
+            [self::RESOURCE, 'authors', 'Relation "posts.author" names a nested path; declare each segment as a relation of its own resource'],
+            [self::RESOURCE, 'authors', 'Relation "posts.user" names a nested path; declare each segment as a relation of its own resource'],
+            [self::RESOURCE, 'organization', self::CONSTRAINED_TRAVERSAL],
         ], $errors);
     }
 
