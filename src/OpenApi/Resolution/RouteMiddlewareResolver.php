@@ -13,7 +13,8 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
 
 /**
- * Reads the authentication, authorization and throttling facts of a route.
+ * Reads the middleware classes of a route and its authentication, authorization
+ * and throttling facts.
  *
  * Middleware is resolved as the router dispatches it, so groups, aliases and
  * exclusions apply.
@@ -36,6 +37,30 @@ final readonly class RouteMiddlewareResolver
         /** The router resolving middleware aliases, groups, and exclusions. */
         private Router $router,
     ) {}
+
+    /**
+     * List the middleware classes the route runs, once each, in dispatch order.
+     *
+     * @param  \Illuminate\Routing\Route  $route
+     * @return list<class-string>
+     */
+    public function classes(Route $route): array
+    {
+        $classes = [];
+
+        foreach ($this->resolvedMiddleware($route) as $entry) {
+
+            $class = explode(':', $entry)[0];
+
+            if (!class_exists($class) || in_array($class, $classes, true)) {
+                continue;
+            }
+
+            $classes[] = $class;
+        }
+
+        return $classes;
+    }
 
     /**
      * List the auth guards the route authenticates against, in order.
