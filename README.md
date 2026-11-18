@@ -363,7 +363,8 @@ Only fields marked `filterable()` or `sortable()` can be queried, and `?search=`
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. A column declared filterable with
 two capabilities fails to compile. `$default` lists the fields returned when the client sends no `?fields`, and the
 static `$fixed` the fields added to every selection, after those in `resources.fixed_fields`. Schema validation rejects
-a default or fixed field the resource does not declare.
+a default or fixed field the resource does not declare. A tabular export has a column for each selected field, in the
+order selected: the requested fields, every field for `:all`, or the defaults. Relations and fixed fields are left out.
 
 **Guards** - `guard(fn ($resource, $request) => ...)` is a row guard and `visibleTo(fn ($request) => ...)` a caller
 guard; either hides the field, aggregate or relation when it returns exactly `false`. A query cannot honour a row guard
@@ -879,8 +880,8 @@ callback.
 ### Controllers and Authorization
 
 `SineMacula\ApiToolkit\Http\Routing\Controller` provides the response helpers: `respondWithData()` wraps an array in
-`data`, and `respondWithItem()` and `respondWithCollection()` render a resource or a collection. Each takes an optional
-`HttpStatus` and headers.
+`data`, and `respondWithItem()` and `respondWithCollection()` render a resource or a collection, or the export the
+request negotiates. Each takes an optional `HttpStatus` and headers, which an export carries too.
 
 `AuthorizedController` extends it with resource authorization. Declare the model with `#[AuthorizesResource]`:
 

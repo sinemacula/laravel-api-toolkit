@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
+use SineMacula\ApiToolkit\Http\Resources\PolymorphicCollection;
 use SineMacula\ApiToolkit\Http\Resources\PolymorphicResource;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\Organization;
@@ -28,13 +29,15 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(PolymorphicResource::class)]
+#[CoversClass(PolymorphicCollection::class)]
 #[CoversClass(ApiExceptionHandler::class)]
 final class PolymorphicCollectionTest extends TestCase
 {
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up each test with a mapped heterogeneous feed route.
+     * Set up each test with a mapped heterogeneous feed route and paginated
+     * user feeds.
      *
      * @return void
      */
@@ -56,7 +59,11 @@ final class PolymorphicCollectionTest extends TestCase
         $user         = User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active', 'organization_id' => $organization->id]);
         $post         = Post::create(['user_id' => $user->id, 'title' => 'Hello World', 'body' => 'Content', 'published' => true]);
 
+        User::create(['name' => 'Bob', 'email' => 'bob@example.com', 'status' => 'active']);
+
         Route::get('/feed', static fn () => PolymorphicResource::collection(collect([$user, $organization, $post])));
+        Route::get('/users/feed', static fn () => PolymorphicResource::collection(User::query()->paginate(1)));
+        Route::get('/users/cursor-feed', static fn () => PolymorphicResource::collection(User::query()->orderBy('id')->cursorPaginate(1)));
     }
 
     /**
@@ -75,6 +82,46 @@ final class PolymorphicCollectionTest extends TestCase
         $response->assertJsonPath('data.0.name', 'Alice');
         $response->assertJsonPath('data.1.name', 'Acme Corp');
         $response->assertJsonPath('data.2.title', 'Hello World');
+    }
+
+    /**
+     * Test that a paginated feed renders the toolkit envelope and its
+     * Total-Count header.
+     *
+     * @return void
+     */
+    public function testPaginatedFeedRendersTheToolkitEnvelope(): void
+    {
+        $response = $this->getJson('/users/feed');
+
+        $response->assertOk();
+        $response->assertHeader('Total-Count', '2');
+        $response->assertJsonPath('data.0._type', 'users');
+        $response->assertJsonPath('meta', ['total' => 2, 'count' => 1, 'continue' => true]);
+        $response->assertJsonPath('links.self', url('/users/feed?page=1'));
+        $response->assertJsonPath('links.next', url('/users/feed?page=2'));
+    }
+
+    /**
+     * Test that a cursor-paginated feed renders the toolkit cursor envelope.
+     *
+     * @return void
+     */
+    public function testCursorPaginatedFeedRendersTheToolkitEnvelope(): void
+    {
+        $response = $this->getJson('/users/cursor-feed');
+
+        $response->assertOk();
+        $response->assertHeaderMissing('Total-Count');
+        $response->assertJsonPath('data.0.name', 'Alice');
+        $response->assertJsonPath('meta', ['continue' => true]);
+        $response->assertJsonPath('links.self', url('/users/cursor-feed'));
+        $response->assertJsonPath('links.prev', null);
+
+        $next = $response->json('links.next');
+
+        self::assertIsString($next);
+        self::assertStringContainsString('cursor=', $next);
     }
 
     /**

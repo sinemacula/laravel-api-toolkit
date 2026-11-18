@@ -4,12 +4,17 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\Exports;
 
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\Group;
+use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\DerivesTabularSchema;
+use SineMacula\ApiToolkit\Http\Resources\PolymorphicCollection;
+use SineMacula\ApiToolkit\Http\Resources\PolymorphicResource;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Http\Resources\ToolkitCollection;
 use SineMacula\ApiToolkit\Http\Resources\ToolkitResource;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -30,6 +35,8 @@ use Tests\TestCase;
 #[CoversClass(ToolkitResource::class)]
 #[CoversClass(ToolkitCollection::class)]
 #[CoversClass(ApiResource::class)]
+#[CoversClass(PolymorphicResource::class)]
+#[CoversClass(PolymorphicCollection::class)]
 #[CoversTrait(DerivesTabularSchema::class)]
 #[Group('exporter')]
 final class ExportNegotiatorIntegrationTest extends TestCase
@@ -45,6 +52,8 @@ final class ExportNegotiatorIntegrationTest extends TestCase
         parent::setUp();
 
         SchemaCompiler::clearCache();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [ExportableUserResource::class]);
 
         $this->seedUsers();
         $this->registerRoutes();
@@ -183,6 +192,35 @@ final class ExportNegotiatorIntegrationTest extends TestCase
     }
 
     /**
+     * Test that a polymorphic feed negotiates exports like any toolkit
+     * collection, refusing a tabular format its mixed rows cannot share.
+     *
+     * @return void
+     */
+    public function testPolymorphicFeedNegotiatesExports(): void
+    {
+        Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+
+        $this->get('/export/feed')
+            ->assertOk()
+            ->assertHeader('Vary', 'Accept')
+            ->assertHeader('Total-Count', '2');
+
+        $lines = explode("\n", trim($this->get('/export/feed?format=ndjson')->assertOk()->streamedContent()));
+
+        self::assertSame([['users', 'Alice'], ['users', 'Bob']], array_map(static function (string $line): array {
+
+            $item = json_decode($line, true);
+
+            assert(is_array($item));
+
+            return [$item['_type'], $item['name']];
+        }, $lines));
+
+        $this->get('/export/feed', ['Accept' => 'text/csv'])->assertStatus(406);
+    }
+
+    /**
      * Test that an item returns the JSON envelope and Vary header by default.
      *
      * @return void
@@ -238,7 +276,7 @@ final class ExportNegotiatorIntegrationTest extends TestCase
      */
     public function testDerivedTabularSchemaResolvesComputedColumn(): void
     {
-        $response = $this->get('/export/users', ['Accept' => 'text/csv']);
+        $response = $this->get('/export/users?fields[exportable_users]=label', ['Accept' => 'text/csv']);
         $content  = $response->streamedContent();
 
         self::assertStringContainsString('Alice <alice@example.com>', $content);
@@ -251,7 +289,7 @@ final class ExportNegotiatorIntegrationTest extends TestCase
      */
     public function testDerivedTabularSchemaResolvesTimestampAccessor(): void
     {
-        $response = $this->get('/export/users', ['Accept' => 'text/csv']);
+        $response = $this->get('/export/users?fields[exportable_users]=created_at', ['Accept' => 'text/csv']);
         $content  = $response->streamedContent();
 
         self::assertMatchesRegularExpression('/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $content);
@@ -312,12 +350,14 @@ final class ExportNegotiatorIntegrationTest extends TestCase
      */
     private function registerRoutes(): void
     {
-        Route::get('/export/users', static fn () => ExportableUserResource::collection(User::paginate(10)));
+        Route::middleware(ParseApiQuery::class)->get('/export/users', static fn () => ExportableUserResource::collection(User::paginate(10)));
 
         Route::get('/export/users/{id}', static fn (int $id) => new ExportableUserResource(User::findOrFail($id)));
 
         Route::get('/export/basic-users', static fn () => UserResource::collection(User::paginate(10)));
 
         Route::get('/export/basic-users/{id}', static fn (int $id) => new UserResource(User::findOrFail($id)));
+
+        Route::get('/export/feed', static fn () => PolymorphicResource::collection(User::paginate(10)));
     }
 }

@@ -27,6 +27,7 @@ use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Policies\ArticlePolicy;
 use Tests\Fixtures\Resources\DeviceResource;
+use Tests\Fixtures\Resources\ExportableUserResource;
 use Tests\Fixtures\Resources\GuardedExportResource;
 use Tests\Fixtures\Resources\PerItemGuardedExportResource;
 use Tests\TestCase;
@@ -54,7 +55,7 @@ final class DerivesTabularSchemaTest extends TestCase
     {
         parent::setUp();
 
-        Config::set(ResourceDiscovery::RESOURCES_KEY, [GuardedExportResource::class]);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [GuardedExportResource::class, ExportableUserResource::class]);
 
         SchemaCompiler::clearCache();
     }
@@ -321,7 +322,7 @@ final class DerivesTabularSchemaTest extends TestCase
 
         $cells = array_map(
             static fn (Column $column): mixed => $column->toCellValue($row, $request, new CastRegistry)->raw,
-            (new DeviceResource(null))->tabular($request)->columns(),
+            (new DeviceResource(null))->withAll()->tabular($request)->columns(),
         );
 
         self::assertSame([1, 'Phone', 'mobile_app', 2], $cells);
@@ -340,12 +341,54 @@ final class DerivesTabularSchemaTest extends TestCase
 
         ApiQuery::parse($request);
 
-        $keys = array_map(
-            static fn (Column $column): string => $column->getKey(),
-            (new GuardedExportResource($user))->tabular($request)->columns(),
-        );
+        self::assertSame(['name'], $this->columnKeys(new GuardedExportResource($user), $request));
+    }
 
-        self::assertSame(['name'], $keys);
+    /**
+     * Provide the field selections a request makes, with the columns each
+     * exports.
+     *
+     * @return iterable<string, array{string, list<string>}>
+     */
+    public static function requestedSelections(): iterable
+    {
+        yield 'no fields' => ['/', ['id', 'name', 'email']];
+        yield 'all selector' => ['/?fields[exportable_users]=:all', ['id', 'name', 'email', 'created_at', 'label']];
+        yield 'listed' => ['/?fields[exportable_users]=label,name', ['label', 'name']];
+    }
+
+    /**
+     * Test that the columns are the fields the request selects, without the
+     * relations or the fixed fields.
+     *
+     * @param  string  $uri
+     * @param  list<string>  $expected
+     * @return void
+     */
+    #[DataProvider('requestedSelections')]
+    public function testColumnsAreTheFieldsTheRequestSelects(string $uri, array $expected): void
+    {
+        $request = Request::create($uri);
+
+        ApiQuery::parse($request);
+
+        self::assertSame($expected, $this->columnKeys(new ExportableUserResource(null), $request));
+    }
+
+    /**
+     * Test that the resource's own selection decides the columns as it decides
+     * the rendered fields.
+     *
+     * @return void
+     */
+    public function testResourceSelectionDecidesTheColumns(): void
+    {
+        $request = Request::create('/');
+
+        ApiQuery::parse($request);
+
+        self::assertSame(['id', 'name', 'email', 'created_at', 'label'], $this->columnKeys((new ExportableUserResource(null))->withAll(), $request));
+        self::assertSame(['id', 'name'], $this->columnKeys((new ExportableUserResource(null))->withoutFields(['email']), $request));
     }
 
     /**
@@ -428,6 +471,18 @@ final class DerivesTabularSchemaTest extends TestCase
         $resource::$secret = $secret;
 
         return $resource;
+    }
+
+    /**
+     * Get the keys of the given resource's columns.
+     *
+     * @param  \SineMacula\Exporter\Contracts\ProvidesTabularExport  $resource
+     * @param  \Illuminate\Http\Request  $request
+     * @return array<int, string>
+     */
+    private function columnKeys(ProvidesTabularExport $resource, Request $request): array
+    {
+        return array_map(static fn (Column $column): string => $column->getKey(), $resource->tabular($request)->columns());
     }
 
     /**
