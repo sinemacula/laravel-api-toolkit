@@ -11,12 +11,14 @@ use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Exceptions\ServiceFailedException;
 use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
+use SineMacula\ApiToolkit\Services\Events\ServiceCompleted;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 use SineMacula\ApiToolkit\Services\Service;
@@ -24,6 +26,7 @@ use SineMacula\ApiToolkit\Services\ServiceContext;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Concerns\UsesDatabaseQueue;
 use Tests\Fixtures\Exceptions\ServiceExecutionException;
+use Tests\Fixtures\Input\StorePayload;
 use Tests\Fixtures\Services\Input\BackedEnumInput;
 use Tests\Fixtures\Services\Input\SensitiveInput;
 use Tests\Fixtures\Services\Jobs\ConcernCapturingService;
@@ -35,6 +38,7 @@ use Tests\Fixtures\Services\Jobs\EncryptedService;
 use Tests\Fixtures\Services\Jobs\MissingLockSubjectService;
 use Tests\Fixtures\Services\Jobs\RefusingService;
 use Tests\Fixtures\Services\Jobs\ReportQueueService;
+use Tests\Fixtures\Services\RenamedInputService;
 use Tests\Fixtures\Services\StubActor;
 use Tests\TestCase;
 
@@ -253,6 +257,24 @@ final class ServiceJobTest extends TestCase
 
         self::assertNotNull(ContextCapturingConcern::$captured);
         self::assertSame(ServiceSource::QUEUE, ContextCapturingConcern::$captured->source);
+    }
+
+    /**
+     * Test that handle() runs a service that names its input differently on the
+     * dispatched input, not one built from the worker's request.
+     *
+     * @return void
+     */
+    public function testHandleRunsAServiceWithARenamedInputParameterOnTheDispatchedInput(): void
+    {
+        Event::fake([ServiceCompleted::class]);
+
+        $input = new StorePayload(title: 'dispatched', quantity: 2);
+        $job   = RenamedInputService::make($input)->withContext(ServiceContext::for(new StubActor))->toJob();
+
+        $job->handle(new ServiceRunner);
+
+        Event::assertDispatched(ServiceCompleted::class, static fn (ServiceCompleted $event): bool => $event->inputSummary === $input->toArray());
     }
 
     /**

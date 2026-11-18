@@ -4,14 +4,20 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\Services\Input;
 
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Services\Input\Payload;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Controllers\StorePayloadController;
+use Tests\Fixtures\Input\OptionalRulePayload;
 use Tests\Fixtures\Input\StorePayload;
+use Tests\Fixtures\Input\UpdateUserPayload;
+use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\TestCase;
 
@@ -30,7 +36,7 @@ final class PayloadContainerResolutionTest extends TestCase
     use RegistersApiExceptionHandler;
 
     /**
-     * Set up each test with the toolkit handler and a payload-backed route.
+     * Set up each test with the toolkit handler and payload-backed routes.
      *
      * @return void
      */
@@ -42,6 +48,15 @@ final class PayloadContainerResolutionTest extends TestCase
         $this->registerApiExceptionHandler();
 
         Route::post('/store-payload', StorePayloadController::class);
+        Route::get('/store-payload', StorePayloadController::class);
+        Route::post('/optional-rule', static fn (OptionalRulePayload $payload): JsonResponse => new JsonResponse(['display_name' => $payload->displayName]));
+
+        Route::patch('/users/{user}', static function (int $user, UpdateUserPayload $payload, UserRepository $users): JsonResponse {
+
+            $users->persist(User::query()->findOrFail($user), $payload->toArray());
+
+            return new JsonResponse($payload->toArray());
+        });
     }
 
     /**
@@ -84,6 +99,63 @@ final class PayloadContainerResolutionTest extends TestCase
     }
 
     /**
+     * Test that form, multipart and query string scalars hydrate the payload's
+     * int properties.
+     *
+     * @return void
+     */
+    public function testFormEncodedRequestHydratesScalarProperties(): void
+    {
+        $body = ['title' => 'Widget', 'quantity' => '5', 'unit_price' => '1250'];
+
+        $responses = [
+            'form'      => $this->post('/store-payload', $body),
+            'multipart' => $this->post('/store-payload', $body + ['attachment' => UploadedFile::fake()->create('spec.pdf')]),
+            'query'     => $this->get('/store-payload?' . http_build_query($body)),
+        ];
+
+        foreach ($responses as $response) {
+            $response->assertStatus(200);
+            $response->assertJsonPath('quantity', 5);
+            $response->assertJsonPath('unit_price', 1250);
+        }
+    }
+
+    /**
+     * Test that a payload whose rule lets a required parameter be absent fails
+     * as a server error rather than a validation failure.
+     *
+     * @return void
+     */
+    public function testOptionalRuleOnARequiredParameterYields500(): void
+    {
+        $this->postJson('/optional-rule', ['display_name' => 'Ada'])->assertExactJson(['display_name' => 'Ada']);
+
+        $response = $this->postJson('/optional-rule', []);
+
+        $response->assertStatus(500);
+        $response->assertJsonPath('error.status', 500);
+    }
+
+    /**
+     * Test that a partial update persists the fields it sends and leaves the
+     * rest of the row untouched.
+     *
+     * @return void
+     */
+    public function testPartialUpdateLeavesTheFieldsItOmitsUntouched(): void
+    {
+        $user = User::query()->create(['name' => 'Original', 'email' => 'old@example.com']);
+
+        $response = $this->patchJson('/users/' . $user->id, ['email' => 'new@example.com']);
+
+        $response->assertStatus(200);
+        $response->assertExactJson(['email' => 'new@example.com']);
+
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Original', 'email' => 'new@example.com']);
+    }
+
+    /**
      * Test that direct from() construction is unchanged by the container hook.
      *
      * @return void
@@ -101,10 +173,7 @@ final class PayloadContainerResolutionTest extends TestCase
 
         self::assertSame('Gizmo', $fromRequest->title);
         self::assertSame(499, $fromRequest->unitPrice);
-        self::assertSame(
-            ['title' => 'Gizmo', 'quantity' => null, 'status' => null, 'unit_price' => 499],
-            $fromRequest->toArray(),
-        );
+        self::assertSame(['title' => 'Gizmo', 'unit_price' => 499], $fromRequest->toArray());
     }
 
     /**

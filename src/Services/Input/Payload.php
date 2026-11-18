@@ -26,6 +26,9 @@ use SineMacula\ApiToolkit\Services\Input\Rules\Enum;
  */
 abstract class Payload implements DefinesInputSchema, ServiceInput
 {
+    /** @var array<int|string, bool> The values the boolean, accepted and declined rules accept */
+    private const array BOOLEANS = [1 => true, 'true' => true, 'yes' => true, 'on' => true, 0 => false, 'false' => false, 'no' => false, 'off' => false];
+
     /** @var array<class-string, list<string>> Summary property names per class */
     private static array $summaryProperties = [];
 
@@ -35,11 +38,15 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     /** @var array<class-string, bool> Whether each class promotes a sensitive parameter */
     private static array $sensitiveClasses = [];
 
+    /** @var list<string>|null The properties from() hydrated; null when constructed directly */
+    private ?array $hydrated = null;
+
     /**
      * Validate the source against rules() and return a hydrated instance.
      *
      * Enum parameters are cast from a backed value or a lowercase case name,
-     * checked by the validator so an unmatched value fails with the rest. A
+     * checked by the validator so an unmatched value fails with the rest. Int,
+     * float and bool parameters are cast from the strings their rules accept. A
      * precognitive request validates only the fields it names.
      *
      * @param  array<string, mixed>|\Illuminate\Http\Request  $source
@@ -73,29 +80,20 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
             self::applyPrecognition($validator, $source);
         }
 
-        $validated = $validator->validate();
-        $namedArgs = [];
+        $namedArgs          = self::namedArguments($parameters, $keys, $validator->validate());
+        $className          = static::class;
+        $instance           = new $className(...$namedArgs);
+        $instance->hydrated = array_keys($namedArgs);
 
-        foreach ($parameters as $name => $parameter) {
-
-            $key = $keys[$name] ?? $name;
-
-            if (!array_key_exists($key, $validated)) {
-                continue;
-            }
-
-            $namedArgs[$name] = self::castValue($parameter, $validated[$key]);
-        }
-
-        $className = static::class;
-
-        return new $className(...$namedArgs);
+        return $instance;
     }
 
     /**
      * Return the public promoted properties keyed by their body keys.
      *
-     * The map reaches lifecycle-event listeners verbatim; mark a parameter
+     * An instance built by from() leaves out the properties its input omitted,
+     * so a default is never mistaken for a sent value. The map reaches
+     * lifecycle-event listeners verbatim; mark a parameter
      * #[\SensitiveParameter] to leave it out.
      *
      * @return array<string, mixed>
@@ -106,8 +104,9 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
         $result  = [];
         $allVars = (array) $this;
         $keys    = self::bodyKeys(static::class);
+        $names   = self::summaryProperties(static::class);
 
-        foreach (self::summaryProperties(static::class) as $name) {
+        foreach ($this->hydrated === null ? $names : array_intersect($names, $this->hydrated) as $name) {
             if (!array_key_exists($name, $allVars)) {
                 continue;
             }
@@ -386,7 +385,36 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     }
 
     /**
-     * Cast a validated value to the parameter's enum type, if it has one.
+     * Map each promoted parameter to its cast validated value, leaving out the
+     * ones the input omitted.
+     *
+     * @param  array<string, \ReflectionParameter>  $parameters
+     * @param  array<string, string>  $keys
+     * @param  array<array-key, mixed>  $validated
+     * @return array<string, mixed>
+     *
+     * @throws \LogicException
+     */
+    private static function namedArguments(array $parameters, array $keys, array $validated): array
+    {
+        $namedArgs = [];
+
+        foreach ($parameters as $name => $parameter) {
+
+            $key = $keys[$name] ?? $name;
+
+            if (array_key_exists($key, $validated)) {
+                $namedArgs[$name] = self::castValue($parameter, $validated[$key]);
+            } elseif (!$parameter->isOptional()) {
+                throw new \LogicException(sprintf('%s::$%s has no default, but its rules let "%s" be absent', static::class, $name, $key));
+            }
+        }
+
+        return $namedArgs;
+    }
+
+    /**
+     * Cast a validated value to the parameter's enum or scalar type.
      *
      * @param  \ReflectionParameter  $parameter
      * @param  mixed  $value
@@ -396,6 +424,31 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     {
         $enum = self::enumType($parameter);
 
-        return $enum === null || $value instanceof $enum ? $value : Enum::resolve($enum, $value);
+        if ($enum !== null) {
+            return $value instanceof $enum ? $value : Enum::resolve($enum, $value);
+        }
+
+        $type = $parameter->getType();
+
+        return $type instanceof \ReflectionNamedType ? self::castScalar($type->getName(), $value) : $value;
+    }
+
+    /**
+     * Cast a value to an int, float or bool type only where the integer,
+     * numeric, boolean, accepted or declined rule accepts it, leaving any other
+     * value unchanged.
+     *
+     * @param  string  $type
+     * @param  mixed  $value
+     * @return mixed
+     */
+    private static function castScalar(string $type, mixed $value): mixed
+    {
+        return match ($type) {
+            'int'   => filter_var($value, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE) ?? $value,
+            'float' => is_numeric($value) ? (float) $value : $value,
+            'bool'  => is_int($value) || is_string($value) ? self::BOOLEANS[$value] ?? $value : $value,
+            default => $value,
+        };
     }
 }
