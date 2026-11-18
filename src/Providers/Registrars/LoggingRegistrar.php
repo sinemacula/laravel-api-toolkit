@@ -29,18 +29,13 @@ final class LoggingRegistrar
     }
 
     /**
-     * Register notification logging when enabled and notifications are
-     * installed.
+     * Register notification logging when enabled.
      *
      * @return void
      */
     private function registerNotificationLogging(): void
     {
         if (!Config::get('api-toolkit.notifications.enable_logging', true)) {
-            return;
-        }
-
-        if (!class_exists(NotificationSending::class)) {
             return;
         }
 

@@ -113,6 +113,18 @@ final readonly class Psr4RootMap
     }
 
     /**
+     * Determine whether the path lies beneath a vendor directory, whichever
+     * separators the platform reports it with.
+     *
+     * @param  string  $path
+     * @return bool
+     */
+    private static function isVendored(string $path): bool
+    {
+        return str_contains(str_replace('\\', '/', $path), self::VENDOR);
+    }
+
+    /**
      * Reduce a directory list to its existing, non-vendor real paths.
      *
      * @param  array<int, string>  $dirs
@@ -126,7 +138,7 @@ final readonly class Psr4RootMap
 
             $real = realpath($dir);
 
-            if ($real === false || str_contains($real, self::VENDOR)) {
+            if ($real === false || self::isVendored($real)) {
                 continue;
             }
 
@@ -152,7 +164,7 @@ final readonly class Psr4RootMap
             $real = realpath($dir);
             $path = $real === false ? $dir : $real;
 
-            if (!str_contains($path, self::VENDOR)) {
+            if (!self::isVendored($path)) {
                 return true;
             }
         }

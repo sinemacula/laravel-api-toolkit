@@ -82,6 +82,20 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
+     * Test that the relevance key counts toward the sort key cap.
+     *
+     * @return void
+     */
+    public function testRelevanceKeyCountsTowardTheSortKeyCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_order_keys', 2);
+
+        $this->parseQuery(['search' => 'smith', 'order' => 'relevance,name,email']);
+
+        $this->assertRejectedForCost('order', QueryCostLimits::MAX_ORDER_KEYS, 2, 3);
+    }
+
+    /**
      * Test that exactly the aggregate cap is accepted, counting each requested
      * key.
      *

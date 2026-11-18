@@ -19,6 +19,7 @@ use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Queue\Events\JobAttempted;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobTimedOut;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Event;
@@ -27,6 +28,7 @@ use Illuminate\Support\ServiceProvider;
 use Laravel\Octane\Contracts\OperationTerminated;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Cache\CacheManager;
@@ -1152,6 +1154,7 @@ final class ApiServiceProviderTest extends TestCase
      *
      * @return void
      */
+    #[Group('octane')]
     public function testOctaneFlushListenerRegistered(): void
     {
         $app = $this->getApplication();
@@ -1549,6 +1552,8 @@ final class ApiServiceProviderTest extends TestCase
     {
         self::assertTrue($this->hasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
         self::assertTrue($this->hasSubscriberListener(CommandFinished::class, WritePoolFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(JobAttempted::class, WritePoolFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(JobTimedOut::class, WritePoolFlushSubscriber::class));
     }
 
     /**

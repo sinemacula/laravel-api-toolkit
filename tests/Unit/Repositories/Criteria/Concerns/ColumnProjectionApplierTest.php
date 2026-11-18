@@ -466,15 +466,16 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
-     * Test that the random-ordering keyword is not retained as a safety column.
+     * Test that the order keywords are not retained as safety columns.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testExcludesRandomOrderKeywordFromRetainedColumns(): void
+    public function testExcludesTheOrderKeywordsFromRetainedColumns(): void
     {
         Config::set('api-toolkit.resources.narrow_columns', true);
+        Config::set('api-toolkit.repositories.allow_random_order', true);
 
         $this->parseRequest(new Request);
 
@@ -484,16 +485,17 @@ final class ColumnProjectionApplierTest extends TestCase
         $provider->method('eagerLoadMapFor')->willReturn([]);
 
         $introspector = self::createStub(SchemaIntrospectionProvider::class);
-        $introspector->method('getColumns')->willReturn([...self::USER_COLUMNS, 'random']);
+        $introspector->method('getColumns')->willReturn([...self::USER_COLUMNS, 'random', 'relevance']);
         $introspector->method('getDeletedAtColumn')->willReturn(null);
         $introspector->method('resolveRelation')->willReturn(null);
 
         $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector), $introspector);
 
-        $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, ['random' => 'asc'])->getQuery()->columns;
+        $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, ['random' => 'asc', 'relevance' => 'asc'])->getQuery()->columns;
 
         self::assertNotNull($columns);
         self::assertNotContains('random', $columns);
+        self::assertNotContains('relevance', $columns);
     }
 
     /**

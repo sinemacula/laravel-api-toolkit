@@ -82,6 +82,29 @@ final readonly class SearchApplier
     }
 
     /**
+     * Order the query's matches by relevance to the term, best first.
+     *
+     * The index proof is not taken again: apply() took it for the same query.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
+     * @param  string|null  $resourceClass
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\MissingSearchDriverException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    public function rank(Builder $query, SearchTerm $term, ?string $resourceClass): void
+    {
+        $plan   = $this->resolvePlan($resourceClass);
+        $driver = $this->drivers->resolve($query->getModel()->getConnection()->getDriverName());
+
+        $driver->rank($query, $plan, $term);
+    }
+
+    /**
      * Resolve the resource's search plan, refusing one with nothing searchable.
      *
      * @param  string|null  $resourceClass

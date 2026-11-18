@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 /**
  * Fixture post model.
@@ -56,6 +57,16 @@ final class Post extends Model
     public function countries(): BelongsToMany
     {
         return $this->belongsToMany(Country::class, 'country_post', 'post_id', 'country_code', 'id', 'code');
+    }
+
+    /**
+     * Get the post's notes.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\MorphMany<\Tests\Fixtures\Models\Note, $this>
+     */
+    public function notes(): MorphMany
+    {
+        return $this->morphMany(Note::class, 'noteable');
     }
 
     /**

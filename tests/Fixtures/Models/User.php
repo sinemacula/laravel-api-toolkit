@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Tests\Fixtures\Enums\UserStatus;
 
 /**
@@ -109,6 +110,16 @@ final class User extends Model implements AuthenticatableContract
     public function comments(): HasMany
     {
         return $this->hasMany(Comment::class, 'user_id');
+    }
+
+    /**
+     * Get the user's notes.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\MorphMany<\Tests\Fixtures\Models\Note, $this>
+     */
+    public function notes(): MorphMany
+    {
+        return $this->morphMany(Note::class, 'noteable');
     }
 
     /**

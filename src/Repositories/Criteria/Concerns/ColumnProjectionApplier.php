@@ -140,7 +140,7 @@ final readonly class ColumnProjectionApplier
     }
 
     /**
-     * Extract the order column names, excluding the random-ordering keyword.
+     * Extract the order column names, excluding the order keywords.
      *
      * @param  array<string, string>  $order
      * @return array<int, string>
@@ -149,7 +149,7 @@ final readonly class ColumnProjectionApplier
     {
         return array_values(array_filter(
             array_keys($order),
-            static fn (string $column): bool => $column !== OrderApplier::ORDER_BY_RANDOM,
+            static fn (string $column): bool => !OrderApplier::isKeyword($column),
         ));
     }
 }

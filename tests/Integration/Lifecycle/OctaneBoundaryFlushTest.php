@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Config;
 use Laravel\Octane\Contracts\OperationTerminated;
 use Laravel\Octane\Events\RequestTerminated;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
@@ -40,6 +41,7 @@ use Tests\TestCase;
 #[CoversClass(MetadataCacheWriter::class)]
 #[CoversClass(OctaneFlushListener::class)]
 #[CoversClass(RuntimeContext::class)]
+#[Group('octane')]
 final class OctaneBoundaryFlushTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
