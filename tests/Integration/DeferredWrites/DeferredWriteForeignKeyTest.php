@@ -60,8 +60,8 @@ final class DeferredWriteForeignKeyTest extends TestCase
     }
 
     /**
-     * Test that a row whose parent is missing fails alone, and is retained or
-     * dropped as the strategy says.
+     * Test that a row whose parent is missing fails only its own chunk, which
+     * is retained or dropped as the strategy says.
      *
      * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
      * @param  int  $retained
@@ -71,7 +71,7 @@ final class DeferredWriteForeignKeyTest extends TestCase
      * @throws \SineMacula\Repositories\Exceptions\RepositoryException
      */
     #[DataProvider('strategyProvider')]
-    public function testARowWithAMissingParentFailsAloneUnderEachStrategy(FlushStrategy $strategy, int $retained, bool $throws): void
+    public function testARowWithAMissingParentFailsOnlyItsChunk(FlushStrategy $strategy, int $retained, bool $throws): void
     {
         $pool  = $this->bindPool($strategy);
         $owner = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);

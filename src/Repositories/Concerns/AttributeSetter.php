@@ -51,7 +51,7 @@ final readonly class AttributeSetter
 
     /**
      * Persist the given attributes, saving the model and syncing its relations
-     * in one transaction.
+     * in one transaction on its connection.
      *
      * Every key is classified before any is assigned, so a key naming a
      * relation that cannot be written leaves the model untouched. A cancelled
