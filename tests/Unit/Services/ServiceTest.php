@@ -337,9 +337,9 @@ final class ServiceTest extends TestCase
             /**
              * Construct the service with a union-typed input.
              *
-             * @param  \Tests\Fixtures\Input\StorePayload|\SineMacula\ApiToolkit\Services\Input\ArrayInput  $payload
+             * @param  \SineMacula\ApiToolkit\Services\Input\ArrayInput|\Tests\Fixtures\Input\StorePayload  $payload
              */
-            public function __construct(StorePayload|ArrayInput $payload)
+            public function __construct(ArrayInput|StorePayload $payload)
             {
                 parent::__construct($payload);
             }
@@ -373,9 +373,9 @@ final class ServiceTest extends TestCase
             /**
              * Construct the service with an intersection-typed input.
              *
-             * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput&\SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema  $payload
+             * @param  \SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema&\SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $payload
              */
-            public function __construct(ServiceInput&DefinesInputSchema $payload)
+            public function __construct(DefinesInputSchema&ServiceInput $payload)
             {
                 parent::__construct($payload);
             }

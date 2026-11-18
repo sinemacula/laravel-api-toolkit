@@ -78,11 +78,17 @@ abstract class Service implements LockKeyProvider
 
             $type = $parameter->getType();
 
-            if ($type !== null && self::accepts($type, $input)) {
-                $instance = App::make($class, [$parameter->getName() => $input]);
-                assert($instance instanceof static);
+            foreach ($type instanceof \ReflectionUnionType ? $type->getTypes() : [$type] as $alternative) {
 
-                return $instance;
+                $required = $alternative instanceof \ReflectionIntersectionType ? $alternative->getTypes() : [$alternative];
+                $unmet    = array_filter($required, static fn (?\ReflectionType $member): bool => !$member instanceof \ReflectionNamedType || !is_a($input, $member->getName()));
+
+                if ($unmet === []) {
+                    $instance = App::make($class, [$parameter->getName() => $input]);
+                    assert($instance instanceof static);
+
+                    return $instance;
+                }
             }
         }
 
@@ -340,26 +346,5 @@ abstract class Service implements LockKeyProvider
     protected function lockId(): string
     {
         return '';
-    }
-
-    /**
-     * Determine whether a declared class, interface, union or intersection type
-     * accepts the input.
-     *
-     * @param  \ReflectionType  $type
-     * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $input
-     * @return bool
-     */
-    private static function accepts(\ReflectionType $type, ServiceInput $input): bool
-    {
-        if ($type instanceof \ReflectionNamedType) {
-            return is_a($input, $type->getName());
-        }
-
-        assert($type instanceof \ReflectionUnionType || $type instanceof \ReflectionIntersectionType);
-
-        $accepted = array_map(static fn (\ReflectionType $member): bool => self::accepts($member, $input), $type->getTypes());
-
-        return $type instanceof \ReflectionUnionType ? in_array(true, $accepted, true) : !in_array(false, $accepted, true);
     }
 }
