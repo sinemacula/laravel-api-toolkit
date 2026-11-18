@@ -674,36 +674,6 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Test that getAllAggregates is empty when no aggregates are set.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testGetAllAggregatesIsEmptyWhenNoAggregatesSet(): void
-    {
-        $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb()));
-
-        self::assertSame([], $this->parser->getAllAggregates());
-    }
-
-    /**
-     * Test that getAllAggregates trims the keys stored for every type, reading
-     * a value that is no list as no keys.
-     *
-     * @return void
-     */
-    public function testGetAllAggregatesTrimsTheKeysOfEveryType(): void
-    {
-        $this->setProperty($this->parser, 'parameters', ['aggregates' => [
-            'users' => [' posts_count ', 7, ' orders_sum_total '],
-            'posts' => 'tags_count',
-        ]]);
-
-        self::assertSame(['users' => ['posts_count', 'orders_sum_total'], 'posts' => []], $this->parser->getAllAggregates());
-    }
-
-    /**
      * Test that getLimit truncates fractional values below one to null.
      *
      * @return void

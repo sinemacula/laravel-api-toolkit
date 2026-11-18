@@ -75,18 +75,6 @@ class ApiQueryParser
     }
 
     /**
-     * Returns the relation aggregate keys selected, keyed by resource type.
-     *
-     * @return array<array-key, array<int, string>>
-     */
-    public function getAllAggregates(): array
-    {
-        $aggregates = $this->getParameters('aggregates');
-
-        return is_array($aggregates) ? array_map(fn (mixed $keys): array => $this->trimStringList($keys) ?? [], $aggregates) : [];
-    }
-
-    /**
      * Returns a list of filters set with the URL modifiers.
      *
      * @return array<string, mixed>|null

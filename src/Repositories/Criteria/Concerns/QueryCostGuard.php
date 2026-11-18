@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 
 /**
@@ -68,10 +69,15 @@ final class QueryCostGuard
      * Count the relation aggregates the request asks for across every resource
      * type, rendered or not.
      *
+     * The parser refuses a type no catalogued resource carries, so the
+     * catalogue names every type requested.
+     *
      * @return int
      */
     private function countAggregates(): int
     {
-        return array_sum(array_map(count(...), ApiQuery::getAllAggregates()));
+        $types = array_unique(array_map(static fn (string $resource): string => $resource::getResourceType(), ResourceTypeIndex::all()));
+
+        return array_sum(array_map(static fn (string $type): int => count(ApiQuery::getAggregates($type) ?? []), $types));
     }
 }

@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Resources\V1\UserResource as VersionedUserResource;
 use Tests\TestCase;
 
 /**
@@ -97,7 +98,7 @@ final class QueryCostGuardTest extends TestCase
 
     /**
      * Test that exactly the aggregate cap is accepted, counting each requested
-     * key.
+     * key once though two resources carry its type.
      *
      * @return void
      *
@@ -105,6 +106,7 @@ final class QueryCostGuardTest extends TestCase
      */
     public function testExactlyTheAggregateCapIsAccepted(): void
     {
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, VersionedUserResource::class]);
         Config::set('api-toolkit.query_cost.max_aggregates', 2);
 
         $this->parseQuery([
@@ -250,7 +252,7 @@ final class QueryCostGuardTest extends TestCase
         Config::set('api-toolkit.query_cost.max_offset', 1);
 
         ApiQuery::shouldReceive('getOrder')->andReturn([]);
-        ApiQuery::shouldReceive('getAllAggregates')->andReturn([]);
+        ApiQuery::shouldReceive('getAggregates')->andReturn(null);
         ApiQuery::shouldReceive('getPage')->andReturn(null);
 
         $this->expectNotToPerformAssertions();
