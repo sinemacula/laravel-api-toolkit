@@ -73,7 +73,7 @@ final class ToolkitConfig
     {
         $value = self::readValue($key);
 
-        return self::toBoolean($value) ?? throw InvalidConfigurationException::mustBe(self::key($key), self::A_BOOLEAN, $value);
+        return self::isTrue($key, $value, self::A_BOOLEAN);
     }
 
     /**
@@ -88,11 +88,7 @@ final class ToolkitConfig
     {
         $value = self::readValue($key);
 
-        if ($value === null) {
-            return null;
-        }
-
-        return self::toBoolean($value) ?? throw InvalidConfigurationException::mustBe(self::key($key), self::A_BOOLEAN . self::OR_NULL, $value);
+        return $value === null ? null : self::isTrue($key, $value, self::A_BOOLEAN . self::OR_NULL);
     }
 
     /**
@@ -341,18 +337,25 @@ final class ToolkitConfig
     }
 
     /**
-     * Convert a boolean, or one of its accepted spellings.
+     * Determine whether the value of the given setting spells true, failing
+     * when it spells no boolean.
      *
+     * @param  string  $key
      * @param  mixed  $value
-     * @return bool|null
+     * @param  string  $expectation
+     * @return bool
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
      */
-    private static function toBoolean(mixed $value): ?bool
+    private static function isTrue(string $key, mixed $value, string $expectation): bool
     {
         if (is_bool($value)) {
             return $value;
         }
 
-        return is_int($value) || is_string($value) ? self::BOOLEANS[strtolower(trim((string) $value))] ?? null : null;
+        $spelling = is_int($value) || is_string($value) ? strtolower(trim((string) $value)) : '';
+
+        return self::BOOLEANS[$spelling] ?? throw InvalidConfigurationException::mustBe(self::key($key), $expectation, $value);
     }
 
     /**

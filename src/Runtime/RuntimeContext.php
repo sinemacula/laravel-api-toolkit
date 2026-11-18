@@ -47,9 +47,11 @@ final class RuntimeContext
      */
     public static function leaveCommand(?string $command): void
     {
-        if (end(self::$commands) === $command) {
-            array_pop(self::$commands);
+        if (end(self::$commands) !== $command) {
+            return;
         }
+
+        array_pop(self::$commands);
     }
 
     /**

@@ -121,8 +121,8 @@ final class ConfigCacheTest extends TestCase
     }
 
     /**
-     * Test that an application booted from a cache holding an invalid value
-     * can run config:cache, which rebuilds it from a valid environment with the
+     * Test that an application booted from a cache holding an invalid value can
+     * run config:cache, which rebuilds it from a valid environment with the
      * explicit bindings alone beside the shipped settings.
      *
      * @return void

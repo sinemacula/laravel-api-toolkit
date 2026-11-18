@@ -154,7 +154,6 @@ final class ToolkitConfigValidator
      *
      * @return void
      *
-     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException
      */
     private static function checkAudienceServers(): void
