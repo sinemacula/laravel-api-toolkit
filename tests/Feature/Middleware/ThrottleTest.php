@@ -71,7 +71,7 @@ final class ThrottleTest extends TestCase
 
         $this->getJson('/ping')->assertStatus(429)->assertHeader('Retry-After', 1);
 
-        $this->travel(2)->seconds();
+        $this->travel(1)->seconds();
 
         $this->getJson('/ping')->assertOk();
     }

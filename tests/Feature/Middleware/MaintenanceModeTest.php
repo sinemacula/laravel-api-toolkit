@@ -245,7 +245,12 @@ final class MaintenanceModeTest extends TestCase
      */
     public function testJsonClientGetsEnvelopeDespiteRedirectAndTemplate(): void
     {
-        $response = $this->duringMaintenance(fn () => $this->getJson('/data'), ['redirect' => '/elsewhere', 'template' => 'Down']);
+        $payload = ['redirect' => '/elsewhere', 'template' => 'Down'];
+
+        $this->duringMaintenance(fn () => $this->get('/data'), $payload)->assertRedirect('/elsewhere');
+        $this->duringMaintenance(fn () => $this->get('/elsewhere'), $payload)->assertStatus(503)->assertContent('Down');
+
+        $response = $this->duringMaintenance(fn () => $this->getJson('/data'), $payload);
 
         $response->assertStatus(503);
         $response->assertJsonPath('error.code', 10200);
