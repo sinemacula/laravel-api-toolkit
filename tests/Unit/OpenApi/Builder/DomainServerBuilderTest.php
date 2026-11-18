@@ -143,6 +143,26 @@ final class DomainServerBuilderTest extends TestCase
     }
 
     /**
+     * Test that servers differing only in values that compare loosely equal are
+     * both kept.
+     *
+     * @return void
+     */
+    public function testLooselyEqualEntriesAreKept(): void
+    {
+        self::assertSame(
+            [
+                ['url' => 'http://admin.example.com:{port}', 'variables' => ['port' => ['default' => '8080']]],
+                ['url' => 'http://admin.example.com:{port}', 'variables' => ['port' => ['default' => '08080']]],
+            ],
+            $this->build('admin.example.com', [], [
+                ['url' => 'http://localhost:{port}', 'variables' => ['port' => ['default' => '8080']]],
+                ['url' => 'http://127.0.0.1:{port}', 'variables' => ['port' => ['default' => '08080']]],
+            ]),
+        );
+    }
+
+    /**
      * Provide a route's scheme restrictions, a server URL and the URL it
      * becomes.
      *

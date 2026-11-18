@@ -1450,8 +1450,30 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Provide routes on two domains that claim one path and verb without
-     * sharing an operation.
+     * Test that joining two domain routes keeps servers differing only in
+     * values that compare loosely equal.
+     *
+     * @return void
+     */
+    public function testJoinedDomainRoutesKeepLooselyEqualServers(): void
+    {
+        RouteFacade::domain('{account}.example.com')->get('reports', [PathPlainController::class, 'report']);
+        RouteFacade::domain('{account?}.example.com')->get('reports', [PathPlainController::class, 'report']);
+
+        $paths = $this->build(servers: [
+            ['url' => 'http://localhost:{port}', 'variables' => ['port' => ['default' => '8080']]],
+            ['url' => 'http://127.0.0.1:{port}', 'variables' => ['port' => ['default' => '08080']]],
+        ]);
+
+        self::assertSame([
+            ['url' => 'http://{account}.example.com:{port}', 'variables' => ['port' => ['default' => '8080'], 'account' => ['default' => 'account']]],
+            ['url' => 'http://{account}.example.com:{port}', 'variables' => ['port' => ['default' => '08080'], 'account' => ['default' => 'account']]],
+        ], $this->operationOf($paths, '/reports', 'get')['servers'] ?? null);
+    }
+
+    /**
+     * Provide routes on several domains that claim one path and verb, the last
+     * sharing no operation with the one before it.
      *
      * @return iterable<string, array{0: \Closure(): void}>
      */
@@ -1476,11 +1498,17 @@ final class PathBuilderTest extends TestCase
             RouteFacade::domain('a.example.com')->get('reports', [PathPlainController::class, 'report'])->middleware('auth');
             RouteFacade::domain('b.example.com')->get('reports', [PathPlainController::class, 'report']);
         }];
+
+        yield 'one action after another operation replaced it' => [static function (): void {
+            RouteFacade::domain('a.example.com')->get('reports', [PathPlainController::class, 'report']);
+            RouteFacade::domain('c.example.com')->get('reports', [PathPlainController::class, 'report'])->middleware('auth');
+            RouteFacade::domain('b.example.com')->get('reports', [PathPlainController::class, 'report']);
+        }];
     }
 
     /**
-     * Test that the later of two routes on two domains replaces the earlier
-     * unless they share one controller action and operation.
+     * Test that a later route on another domain replaces the earlier operation
+     * unless both share one controller action and operation.
      *
      * @param  \Closure(): void  $register
      * @return void

@@ -350,11 +350,11 @@ final class PathParameterBuilderTest extends TestCase
     {
         $bound       = $this->router()->get('projects', [PathBindingController::class, 'status'])->domain('{status}.example.com');
         $constrained = $this->router()->get('reports', [PathBindingController::class, 'status'])->domain('{status}.example.com')->whereIn('status', ['banned']);
+        $patterned   = $this->router()->get('audits', [PathBindingController::class, 'status'])->domain('{status}.example.com')->where('status', '[a-z]+');
+        $values      = ['status' => ['enum' => ['active', 'inactive', 'banned'], 'default' => 'active']];
 
-        self::assertSame(
-            ['status' => ['enum' => ['active', 'inactive', 'banned'], 'default' => 'active']],
-            $this->builder()->hostVariables($bound),
-        );
+        self::assertSame($values, $this->builder()->hostVariables($bound));
+        self::assertSame($values, $this->builder()->hostVariables($patterned));
         self::assertSame(['status' => ['enum' => ['banned'], 'default' => 'banned']], $this->builder()->hostVariables($constrained));
         self::assertSame([], $this->enums->classes());
     }

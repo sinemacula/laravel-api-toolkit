@@ -103,7 +103,7 @@ final readonly class PathBuilder
                 $built = ['tags' => [$route->tag]] + $this->documentation($route, $verb, $descriptions) + $operation;
                 $claim = $claims[$route->path][$verb] ?? null;
                 $hosts = $claim !== null && $this->joins($claim, $route, $built)
-                    ? array_values(array_unique([...$claim[2], ...$domain], SORT_REGULAR))
+                    ? [...$claim[2], ...array_filter($domain, static fn (array $server): bool => !in_array($server, $claim[2], true))]
                     : $domain;
 
                 $claims[$route->path][$verb] = [$route, $built, $hosts];

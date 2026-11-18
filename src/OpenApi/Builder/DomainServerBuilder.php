@@ -35,7 +35,7 @@ final readonly class DomainServerBuilder
      * @param  array<string, array<string, mixed>>  $variables
      * @param  list<array<string, mixed>>  $servers
      * @param  string  $audience
-     * @return non-empty-list<array<string, mixed>>
+     * @return list<array<string, mixed>>
      *
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException
      */
@@ -59,10 +59,16 @@ final readonly class DomainServerBuilder
                 }
             }
 
-            $built[] = $this->rehost($server, [$head, $domain, $tail], $variables);
+            $entry = $this->rehost($server, [$head, $domain, $tail], $variables);
+
+            if (in_array($entry, $built, true)) {
+                continue;
+            }
+
+            $built[] = $entry;
         }
 
-        return array_values(array_unique($built, SORT_REGULAR));
+        return $built;
     }
 
     /**
@@ -84,8 +90,8 @@ final readonly class DomainServerBuilder
     /**
      * Split the URL around its host, forcing the scheme when one is given.
      *
-     * A URL without an authority is served from `https://<host>`, followed by
-     * the URL when it is an absolute path.
+     * A URL without an authority is served from the host over the forced
+     * scheme, else https, followed by the URL when it is an absolute path.
      *
      * @param  string  $url
      * @param  string|null  $scheme
