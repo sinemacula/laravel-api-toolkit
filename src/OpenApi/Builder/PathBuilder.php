@@ -105,15 +105,13 @@ final readonly class PathBuilder
 
         foreach ($routes as $route) {
 
-            $conditional = null;
-            $plain       = null;
-            $domain      = $this->domainServersOf($route, $servers, $audience);
+            $resolved = [];
+            $domain   = $this->domainServersOf($route, $servers, $audience);
 
             foreach ($route->verbs as $verb) {
 
-                $operation = in_array(strtoupper($verb), RequireIfMatch::METHODS, true)
-                    ? $conditional ??= $this->resolveOperation($route, true)
-                    : $plain       ??= $this->resolveOperation($route, false);
+                $conditional = in_array(strtoupper($verb), RequireIfMatch::METHODS, true);
+                $operation   = $resolved[(int) $conditional] ??= $this->resolveOperation($route, $conditional);
 
                 $built = ['tags' => [$route->tag]] + $this->documentation($route, $verb, $descriptions) + $operation;
                 $claim = $claims[$route->path][$verb] ?? null;

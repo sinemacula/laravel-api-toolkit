@@ -837,7 +837,7 @@ final class AttributeSetterTest extends TestCase
         $tag      = Tag::create(['name' => 'php']);
 
         Document::saved(static function (Document $saved): void {
-            $saved->setRawAttributes(['version' => (string) $saved->getRawOriginal('version')] + $saved->getAttributes(), true);
+            $saved->setRawAttributes(['version' => (string) $saved->version] + $saved->getAttributes(), true);
         });
 
         self::assertTrue($this->attributeSetter->persist($document, ['tags' => [$tag->id]]));

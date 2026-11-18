@@ -98,8 +98,8 @@ trait HasVersion
     }
 
     /**
-     * Compute the version after the one this instance wrote since it last
-     * synced, else after the stored one.
+     * Compute the version after the stored one, or after the one this instance
+     * wrote since it last synced when that is later.
      *
      * @return int
      *
@@ -109,12 +109,12 @@ trait HasVersion
     {
         $column = $this->getVersionColumn();
         $stored = $this->getRawOriginal($column);
-        $stored = $this->writtenVersion ?? (is_numeric($stored) ? (int) $stored : null);
+        $stored = is_numeric($stored) ? (int) $stored : null;
 
-        if ($stored === null) {
+        if ($stored === null && $this->writtenVersion === null) {
             throw new \LogicException(sprintf('%s cannot advance its [%s] version, as the stored version was not loaded or is null.', static::class, $column));
         }
 
-        return $stored + 1;
+        return max($stored ?? 0, $this->writtenVersion ?? 0) + 1;
     }
 }

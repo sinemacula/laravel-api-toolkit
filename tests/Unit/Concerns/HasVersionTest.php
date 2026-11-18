@@ -146,15 +146,48 @@ final class HasVersionTest extends TestCase
         $document = $this->documentAtVersion(5);
 
         Document::saved(static function (Document $saved): void {
-            if ($saved->title === 'Revised') {
-                $saved->update(['title' => 'Revised again']);
+
+            if ($saved->title !== 'Revised') {
+                return;
             }
+
+            $saved->update(['title' => 'Revised again']);
         });
 
         $document->update(['title' => 'Revised']);
 
         self::assertSame(7, $document->version);
         self::assertSame(7, $this->storedVersion($document));
+    }
+
+    /**
+     * Test that a write from a saved listener advances past a version raised
+     * and synced alone after the update, rather than from the version the
+     * update wrote.
+     *
+     * @return void
+     */
+    public function testWriteFromASavedListenerAdvancesPastAVersionSyncedAlone(): void
+    {
+        $document = $this->documentAtVersion(5);
+
+        Document::saved(static function (Document $saved): void {
+
+            if ($saved->title !== 'Revised') {
+                return;
+            }
+
+            Document::query()->whereKey($saved->id)->update(['version' => 16]);
+
+            $saved->version = 16;
+            $saved->syncOriginalAttribute('version');
+
+            $saved->update(['title' => 'Revised again']);
+        });
+
+        $document->update(['title' => 'Revised']);
+
+        self::assertSame(17, $this->storedVersion($document));
     }
 
     /**
