@@ -72,14 +72,14 @@ final class InvalidConfigurationException extends \LogicException
     }
 
     /**
-     * Create one exception listing every given problem.
+     * Create one exception listing every given problem once.
      *
      * @param  list<string>  $problems
      * @return self
      */
     public static function invalid(array $problems): self
     {
-        return self::because(implode(' ', $problems));
+        return self::because(implode(' ', array_unique($problems)));
     }
 
     /**

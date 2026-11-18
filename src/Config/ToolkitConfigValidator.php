@@ -51,7 +51,7 @@ final class ToolkitConfigValidator
             : [InvalidConfigurationException::mustBe(ToolkitConfig::ROOT, ToolkitConfig::AN_ARRAY, $configured)->problem];
 
         if ($problems !== []) {
-            throw InvalidConfigurationException::invalid(array_values(array_unique($problems)));
+            throw InvalidConfigurationException::invalid($problems);
         }
     }
 
@@ -126,7 +126,8 @@ final class ToolkitConfigValidator
             self::checkResourcePaths(...),
             ResourceSettings::bindings(...),
             static fn (): array => (new ServerListValidator)->validate(OpenApiSettings::servers()),
-            self::checkAudiences(...),
+            self::checkAudienceServers(...),
+            self::checkDefaultAudience(...),
             self::checkDefaultLimit(...),
             self::checkThrottleClass(...),
         ];
@@ -149,19 +150,16 @@ final class ToolkitConfigValidator
     }
 
     /**
-     * Check that every audience is valid, its servers included, and that the
-     * default audience is one of them.
+     * Check that the servers of every audience are valid.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException
      */
-    private static function checkAudiences(): void
+    private static function checkAudienceServers(): void
     {
-        $audiences = OpenApiSettings::audiences();
-
-        foreach ($audiences as $name => $audience) {
+        foreach (OpenApiSettings::audiences() as $name => $audience) {
 
             if (!array_key_exists('servers', $audience)) {
                 continue;
@@ -169,10 +167,20 @@ final class ToolkitConfigValidator
 
             (new ServerListValidator)->validate($audience['servers'], (string) $name);
         }
+    }
 
+    /**
+     * Check that the default audience is a declared one.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
+     */
+    private static function checkDefaultAudience(): void
+    {
         $default = OpenApiSettings::defaultAudience();
 
-        if (!array_key_exists($default, $audiences)) {
+        if (!array_key_exists($default, OpenApiSettings::audiences())) {
             $expectation = 'an audience declared in ' . ToolkitConfig::key('openapi.audiences');
 
             throw InvalidConfigurationException::mustBe(ToolkitConfig::key('openapi.default_audience'), $expectation, $default);

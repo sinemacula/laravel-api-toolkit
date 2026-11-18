@@ -117,6 +117,23 @@ final class ToolkitConfigValidatorTest extends TestCase
     }
 
     /**
+     * Test that an audience's malformed servers do not hide an undeclared
+     * default audience.
+     *
+     * @return void
+     */
+    public function testValidationReportsAnUndeclaredDefaultBesideMalformedServers(): void
+    {
+        Config::set('api-toolkit.openapi.default_audience', 'partner');
+        Config::set('api-toolkit.openapi.audiences', ['public' => ['servers' => 'https://api.example.com']]);
+
+        $this->assertValidationFails(
+            'Unable to export the OpenAPI servers of audience [public]: they must be a list of server objects. '
+            . 'The api-toolkit.openapi.default_audience setting must be an audience declared in api-toolkit.openapi.audiences; [\'partner\'] given.',
+        );
+    }
+
+    /**
      * Test that a default page size above the ceiling fails, and passes once
      * the ceiling is off.
      *

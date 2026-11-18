@@ -237,25 +237,6 @@ final class ToolkitConfig
     }
 
     /**
-     * Read the raw value of a setting, failing when it is not set.
-     *
-     * @param  string  $key
-     * @return mixed
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
-     */
-    public static function readValue(string $key): mixed
-    {
-        $key = self::key($key);
-
-        if (!Config::has($key)) {
-            throw InvalidConfigurationException::missing($key);
-        }
-
-        return Config::get($key);
-    }
-
-    /**
      * Return the full key of the given setting.
      *
      * @param  string  $key
@@ -314,6 +295,25 @@ final class ToolkitConfig
         }
 
         Config::set(self::ROOT, self::mergeBeneath(self::defaults(), $configured ?? [], ''));
+    }
+
+    /**
+     * Read the raw value of a setting, failing when it is not set.
+     *
+     * @param  string  $key
+     * @return mixed
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
+     */
+    private static function readValue(string $key): mixed
+    {
+        $key = self::key($key);
+
+        if (!Config::has($key)) {
+            throw InvalidConfigurationException::missing($key);
+        }
+
+        return Config::get($key);
     }
 
     /**
@@ -404,6 +404,6 @@ final class ToolkitConfig
      */
     private static function cases(string $enum): string
     {
-        return 'one of ' . implode(', ', array_map(static fn (\BackedEnum $case): string => (string) $case->value, $enum::cases()));
+        return 'one of ' . implode(', ', array_column($enum::cases(), 'value'));
     }
 }

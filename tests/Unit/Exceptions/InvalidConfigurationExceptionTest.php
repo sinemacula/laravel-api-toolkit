@@ -74,13 +74,16 @@ final class InvalidConfigurationExceptionTest extends TestCase
     }
 
     /**
-     * Test that the problems are listed in one message, in order.
+     * Test that the problems are listed in one message, in order, each once.
      *
      * @return void
      */
-    public function testInvalidListsEveryProblem(): void
+    public function testInvalidListsEveryProblemOnce(): void
     {
-        self::assertSame('First problem. Second problem.', InvalidConfigurationException::invalid(['First problem.', 'Second problem.'])->getMessage());
+        self::assertSame(
+            'First problem. Second problem.',
+            InvalidConfigurationException::invalid(['First problem.', 'Second problem.', 'First problem.'])->getMessage(),
+        );
     }
 
     /**
