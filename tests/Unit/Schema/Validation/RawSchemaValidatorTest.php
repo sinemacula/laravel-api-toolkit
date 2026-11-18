@@ -396,6 +396,7 @@ final class RawSchemaValidatorTest extends TestCase
             ...Field::set(Relation::to('user.organization', OrganizationResource::class, 'organization')->constrain(self::constraint())->traversable()),
             'tags'    => ['relation' => ['posts.tags', 'posts'], 'accessor' => 'name'],
             'authors' => ['relation' => 'posts.author', 'accessor' => 'name', 'traversable' => 'posts.user'],
+            'writers' => ['relation' => 'user', 'accessor' => 'name', 'traversable' => 'posts.writer'],
         ]);
 
         self::assertSame([
@@ -403,6 +404,7 @@ final class RawSchemaValidatorTest extends TestCase
             [self::RESOURCE, 'tags', 'Relation "posts.tags" names a nested path; declare each segment as a relation of its own resource'],
             [self::RESOURCE, 'authors', 'Relation "posts.author" names a nested path; declare each segment as a relation of its own resource'],
             [self::RESOURCE, 'authors', 'Relation "posts.user" names a nested path; declare each segment as a relation of its own resource'],
+            [self::RESOURCE, 'writers', 'Relation "posts.writer" names a nested path; declare each segment as a relation of its own resource'],
             [self::RESOURCE, 'organization', self::CONSTRAINED_TRAVERSAL],
         ], $errors);
     }
