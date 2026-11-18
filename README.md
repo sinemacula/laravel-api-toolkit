@@ -134,10 +134,10 @@ while `{"$and":[{"posts":{"a":1}},{"posts":{"b":2}}]}` may match different posts
 The key is the Eloquent relation name, whatever alias the field renders under. The related level is governed by the
 resource the relation declares, so `Relation::to('author', PublicUserResource::class)->traversable()` accepts only what
 `PublicUserResource` filters, even where the related model's `resource_map` entry filters more. A relation declaring
-no resource falls back to that entry, and a `MorphTo` is governed by the entry of each concrete type, so a key one type
-present in the table does not permit is rejected. A level no resource governs rejects every key. A `MorphTo` with no
-type stored is never descended, so its nested keys go unchecked, `$has` matches nothing and `$hasnt` matches every
-row.
+no resource falls back to that entry, and a `MorphTo` is governed by the entry of each concrete type, so a key is
+rejected unless every type stored in the table permits it. A level no resource governs rejects every key. A `MorphTo`
+with no type stored is never descended, so its nested keys go unchecked, `$has` matches nothing and `$hasnt` matches
+every row.
 
 A filter that cannot narrow the query is rejected with a 422 keyed by its position, such as `filters.$or.1.name`,
 rather than dropped: a group that is not a non-empty list, an empty group document, a condition with no column, a
@@ -460,7 +460,7 @@ public function publishedPosts(): HasMany
 Relation::to('publishedPosts', PostResource::class)->alias('posts')->traversable(),
 ```
 
-A relation loads once per path, so the schema compiler rejects a `traversable()` relation that is also constrained,
+A relation loads once per path, so the schema compiler rejects a constrained relation any field makes `traversable()`,
 fields over one relation where any is constrained or they render different resources, and a relation name holding a
 dot. Fields over one relation may differ in `fields()`, and an accessor-only field may share any relation.
 
@@ -1101,7 +1101,7 @@ public function export(): JsonResponse {}
 reference, and the query surface reference, which tables each resource's queryable columns alongside the request
 bounds, and names the resource governing each traversable relation. The surface reference is written per audience,
 under `audiences/<audience>/`, so it only reaches documents that already carry the resource's schema, and the
-resources their filters reach:
+resources their filters reach through a relation that is not a `MorphTo`:
 
 ```bash
 php artisan api-toolkit:docs:generate

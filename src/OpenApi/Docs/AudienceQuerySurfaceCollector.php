@@ -15,7 +15,7 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
  *
  * A surface is kept where the resource's schema survived into the audience's
  * document, so both are pruned by one decision, and so is every surface a kept
- * one's filters descend into.
+ * one names as the resource governing a relation.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -63,7 +63,7 @@ final readonly class AudienceQuerySurfaceCollector
 
     /**
      * Reduce the surfaces to those whose schema the audience's document keeps,
-     * and those a kept surface's filters descend into.
+     * and those a kept surface names as governing a relation.
      *
      * @param  string  $audience
      * @param  array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>  $surfaces
