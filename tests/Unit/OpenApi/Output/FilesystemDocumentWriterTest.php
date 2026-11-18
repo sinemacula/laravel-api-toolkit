@@ -152,17 +152,19 @@ final class FilesystemDocumentWriterTest extends TestCase
 
     /**
      * Test that a failed write surfaces as a DocumentWriteException naming the
-     * document.
+     * document and removes the staging file it may have left partly written.
      *
      * @return void
      */
-    public function testThrowsWhenTheWriteFails(): void
+    public function testThrowsAndRemovesTheStagingFileWhenTheWriteFails(): void
     {
         $path = $this->directory . '/openapi.json';
 
-        $files = self::createStub(Filesystem::class);
+        $files = $this->createMock(Filesystem::class);
         $files->method('isDirectory')->willReturn(true);
         $files->method('put')->willReturn(false);
+        $files->expects(self::never())->method('move');
+        $files->expects(self::once())->method('delete')->with([$path . '.tmp'])->willReturn(true);
 
         $this->expectException(DocumentWriteException::class);
         $this->expectExceptionMessage(sprintf('Unable to write the OpenAPI document to [%s].', $path));

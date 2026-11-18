@@ -104,7 +104,7 @@ final class OpenApiCompiledRoutesTest extends TestCase
         $router->get('reports', [PathPlainController::class, 'report'])->undocumented(); // @phpstan-ignore method.notFound
         $router->get('internal-health', static fn (): null => null);
         $router->group([], __DIR__ . '/../../Fixtures/OpenApi/Routes/closures.inc');
-        $router->fallback(static fn (): null => null);
+        $router->fallback([PathPlainController::class, 'index']);
     }
 
     /**

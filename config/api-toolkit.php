@@ -208,7 +208,7 @@ return [
             // each with a scheme `name` and an OpenAPI security scheme
             // `definition`. Built in: jwt, basic, sanctum, token, session. A
             // mapping keeping a built-in name replaces its definition, and
-            // drivers sharing a name must share its definition
+            // mappings sharing a name must share its definition
             'drivers' => [],
 
         ],

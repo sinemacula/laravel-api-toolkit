@@ -16,8 +16,8 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
  * Artisan command to export the toolkit's OpenAPI 3.1 document.
  *
  * Every audience is exported before anything is written, so one empty audience
- * fails the whole run unless --allow-empty is passed; the documents are then
- * written together, replacing none on a failed write.
+ * fails the whole run unless --allow-empty is passed, and a document that
+ * cannot be written replaces none of them.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

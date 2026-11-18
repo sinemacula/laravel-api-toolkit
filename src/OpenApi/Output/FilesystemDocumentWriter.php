@@ -46,7 +46,9 @@ final readonly class FilesystemDocumentWriter implements DocumentWriter
 
         try {
             foreach ($documents as $path => $contents) {
-                $staged[$path] = $this->stage($path, $contents);
+                $staged[$path] = $path . self::STAGING_SUFFIX;
+
+                $this->stage($path, $staged[$path], $contents);
             }
 
             foreach ($staged as $path => $staging) {
@@ -63,15 +65,16 @@ final readonly class FilesystemDocumentWriter implements DocumentWriter
     }
 
     /**
-     * Write the document to a staging file beside its target.
+     * Write the document to its staging file beside its target.
      *
      * @param  string  $path
+     * @param  string  $staging
      * @param  string  $contents
-     * @return string
+     * @return void
      *
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\DocumentWriteException
      */
-    private function stage(string $path, string $contents): string
+    private function stage(string $path, string $staging, string $contents): void
     {
         $directory = dirname($path);
 
@@ -79,12 +82,8 @@ final readonly class FilesystemDocumentWriter implements DocumentWriter
             throw new DocumentWriteException(sprintf('Unable to create directory [%s] for the OpenAPI document.', $directory));
         }
 
-        $staging = $path . self::STAGING_SUFFIX;
-
         if ($this->files->put($staging, $contents) === false) {
             throw new DocumentWriteException(sprintf('Unable to write the OpenAPI document to [%s].', $path));
         }
-
-        return $staging;
     }
 }

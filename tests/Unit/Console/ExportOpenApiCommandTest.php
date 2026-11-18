@@ -392,12 +392,12 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Test that --all hands every audience's document to the writer at once, so
-     * a failed write leaves none of them written.
+     * Test that --all hands every audience's document to the writer in one
+     * batch, so the writer can replace all of them or none.
      *
      * @return void
      */
-    public function testCommandAllFlagWritesEveryAudienceOrNone(): void
+    public function testCommandAllFlagWritesEveryAudienceInOneBatch(): void
     {
         $this->registerResourceMap();
         $this->registerDocumentedRoute();

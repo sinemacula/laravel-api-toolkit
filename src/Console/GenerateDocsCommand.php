@@ -43,8 +43,9 @@ final class GenerateDocsCommand extends Command
     /**
      * Execute the console command.
      *
-     * Every section is generated before any is written, so a failed export or
-     * write leaves the docs directory untouched.
+     * Every section is generated before any is written, so a failed export
+     * leaves the docs directory untouched and a section that cannot be written
+     * replaces no file.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\ErrorCatalogueDocGenerator  $errors

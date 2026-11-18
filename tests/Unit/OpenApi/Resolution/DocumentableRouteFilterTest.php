@@ -12,6 +12,7 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
 use Laravel\SerializableClosure\SerializableClosure;
+use Laravel\SerializableClosure\Serializers\Signed;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
@@ -185,9 +186,18 @@ final class DocumentableRouteFilterTest extends TestCase
     {
         $this->setBlocklist([__NAMESPACE__]);
 
-        $handler = serialize(new SerializableClosure(static fn (): null => null));
+        $signer = Signed::$signer;
 
-        self::assertTrue($this->filter->isExcluded(null, $this->route($handler)));
+        SerializableClosure::setSecretKey('secret');
+
+        try {
+            $handler = serialize(new SerializableClosure(static fn (): null => null));
+
+            self::assertStringContainsString(Signed::class, $handler);
+            self::assertTrue($this->filter->isExcluded(null, $this->route($handler)));
+        } finally {
+            Signed::$signer = $signer;
+        }
     }
 
     /**
