@@ -258,12 +258,41 @@ final class RuntimeContextTest extends TestCase
 
             self::assertSame('config:cache', $context->command());
 
-            RuntimeContext::leaveCommand();
+            RuntimeContext::leaveCommand('config:cache');
 
             self::assertSame('optimize', $context->command());
 
             RuntimeContext::enterCommand('route:cache');
             RuntimeContext::reset();
+
+            self::assertSame('app:deploy', $context->command());
+        } finally {
+            $_SERVER['argv'] = $original;
+        }
+    }
+
+    /**
+     * Test that a command finishing without having started in process leaves
+     * the innermost started one in place.
+     *
+     * @return void
+     */
+    public function testFinishingACommandThatDidNotStartLeavesTheInnermostOne(): void
+    {
+        $original = $_SERVER['argv'] ?? null;
+
+        $_SERVER['argv'] = ['artisan', 'app:deploy'];
+
+        $context = new RuntimeContext;
+
+        try {
+            RuntimeContext::enterCommand('optimize');
+            RuntimeContext::leaveCommand('config:cache');
+
+            self::assertSame('optimize', $context->command());
+
+            RuntimeContext::leaveCommand('optimize');
+            RuntimeContext::leaveCommand('optimize');
 
             self::assertSame('app:deploy', $context->command());
         } finally {

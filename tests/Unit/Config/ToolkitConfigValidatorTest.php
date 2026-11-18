@@ -96,6 +96,27 @@ final class ToolkitConfigValidatorTest extends TestCase
     }
 
     /**
+     * Test that a setting a cross check reads is reported even when another
+     * setting that check reads first fails, and each problem only once.
+     *
+     * @return void
+     */
+    public function testValidationReportsEachSettingACrossCheckReads(): void
+    {
+        Config::set('api-toolkit.parser.max_limit', '-1');
+        Config::set('api-toolkit.parser.defaults.limit', '0');
+        Config::set('api-toolkit.openapi.default_audience', '');
+        Config::set('api-toolkit.openapi.audiences', ['public' => ['posture' => 'open']]);
+
+        $this->assertValidationFails(
+            'The api-toolkit.openapi.default_audience setting must be a non-empty string; [\'\'] given. '
+            . 'The api-toolkit.parser.max_limit setting must be an integer of at least 0, or null; [\'-1\'] given. '
+            . 'The api-toolkit.parser.defaults.limit setting must be an integer of at least 1; [\'0\'] given. '
+            . 'The api-toolkit.openapi.audiences.public.posture setting must be one of allowlist, blocklist; [\'open\'] given.',
+        );
+    }
+
+    /**
      * Test that a default page size above the ceiling fails, and passes once
      * the ceiling is off.
      *
@@ -159,6 +180,11 @@ final class ToolkitConfigValidatorTest extends TestCase
         yield 'a malformed audience server' => [
             ['openapi.audiences' => ['public' => [], 'partner' => ['servers' => [['description' => 'No URL']]]]],
             'Unable to export the OpenAPI servers of audience [partner]: server [0] must declare a non-empty string url.',
+        ];
+
+        yield 'a malformed server list of a numbered audience' => [
+            ['openapi.audiences' => ['public' => [], '7' => ['servers' => [['description' => 'No URL']]]]],
+            'Unable to export the OpenAPI servers of audience [7]: server [0] must declare a non-empty string url.',
         ];
 
         yield 'a malformed global server list' => [

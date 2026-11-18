@@ -1038,6 +1038,7 @@ final class ApiServiceProviderTest extends TestCase
         $this->getApplication()->instance('config_loaded_from_cache', true);
 
         self::assertFalse($this->bootRegistersValidation(['artisan', 'config:cache']));
+        self::assertFalse($this->bootRegistersValidation(['artisan', 'optimize']));
         self::assertTrue($this->bootRegistersValidation(['artisan', 'queue:work']));
     }
 

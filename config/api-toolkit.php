@@ -145,7 +145,7 @@ return [
     | OpenAPI exporter
     |
     | Used by the `api-toolkit:export-openapi` and `api-toolkit:docs:generate`
-    | commands only; nothing here runs during a request.
+    | commands only; a request just validates these settings at boot.
     |
     | `output` is the path the document is written to when no `--output` option
     | is given.

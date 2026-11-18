@@ -121,14 +121,27 @@ final class ConfigCacheTest extends TestCase
     }
 
     /**
-     * Test that a valid environment rebuilds over a cache holding an invalid
-     * value, writing the explicit bindings alone beside the shipped settings.
+     * Test that an application booted from a cache holding an invalid value
+     * can run config:cache, which rebuilds it from a valid environment with the
+     * explicit bindings alone beside the shipped settings.
      *
      * @return void
      */
     public function testConfigCacheRebuildsOverAnInvalidCacheWithoutDiscoveredBindings(): void
     {
+        assert($this->app !== null);
+
         file_put_contents($this->cachePath, '<?php return [\'api-toolkit\' => [\'query_cost\' => [\'max_depth\' => -1]]];');
+
+        $this->app->instance('config_loaded_from_cache', true);
+
+        Config::set('api-toolkit.query_cost.max_depth', -1);
+
+        RuntimeContext::enterCommand('config:cache');
+
+        (new ApiServiceProvider($this->app))->boot();
+
+        RuntimeContext::leaveCommand('config:cache');
 
         self::assertSame(0, $this->runInProcess('config:cache'));
 

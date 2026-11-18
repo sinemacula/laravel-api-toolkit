@@ -247,8 +247,8 @@ final class ResourceDiscoveryTest extends TestCase
      */
     public static function malformedPathsProvider(): iterable
     {
-        yield 'false' => [false, 'The api-toolkit.resources.paths setting must be a list of non-empty strings; [false] given.'];
-        yield 'a single path' => ['not-an-array', 'The api-toolkit.resources.paths setting must be a list of non-empty strings; [\'not-an-array\'] given.'];
+        yield 'false' => [false, 'The api-toolkit.resources.paths setting must be a list of non-empty strings, or null; [false] given.'];
+        yield 'a single path' => ['not-an-array', 'The api-toolkit.resources.paths setting must be a list of non-empty strings, or null; [\'not-an-array\'] given.'];
         yield 'a non-string entry' => [[123], 'The api-toolkit.resources.paths.0 setting must be a non-empty string; [123] given.'];
     }
 

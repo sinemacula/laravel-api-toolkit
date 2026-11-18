@@ -35,7 +35,7 @@ final class HttpSettings
      */
     public static function shouldIncludeDebugInfo(): ?bool
     {
-        return ToolkitConfig::readValue('exceptions.include_debug_info') === null ? null : ToolkitConfig::readBoolean('exceptions.include_debug_info');
+        return ToolkitConfig::readNullableBoolean('exceptions.include_debug_info');
     }
 
     /**

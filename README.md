@@ -36,7 +36,8 @@ underscores: `deferred_writes.on_failure` is `API_TOOLKIT_DEFERRED_WRITES_ON_FAI
 Every setting is validated once the application boots to serve requests or queue jobs, and when `config:cache` or
 `optimize` builds the config cache. An invalid value, or a key the toolkit does not read, throws
 `InvalidConfigurationException` naming the key; nothing is defaulted, clamped or ignored. Other console commands fail
-only where they read the invalid setting.
+only where they read the invalid setting, which for a setting read at boot is every command. Under a cached
+configuration the message names the cache file to delete before rebuilding it.
 
 The Markdown templates for the generated API manual are published with `--tag=api-toolkit-docs`.
 

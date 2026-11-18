@@ -30,6 +30,15 @@ final class ToolkitConfig
     /** @var string What a string setting accepts */
     public const string A_NON_EMPTY_STRING = 'a non-empty string';
 
+    /** @var string What a boolean setting accepts */
+    private const string A_BOOLEAN = 'a boolean, or one of 1, 0, true, false, on, off, yes, no';
+
+    /** @var string What a list setting accepts */
+    private const string A_LIST = 'a list of non-empty strings';
+
+    /** @var string What a nullable setting accepts besides its type */
+    private const string OR_NULL = ', or null';
+
     /** @var list<string> The settings whose value is taken whole, never merged or walked */
     private const array OPAQUE = [
         'exceptions.map',
@@ -62,18 +71,28 @@ final class ToolkitConfig
      */
     public static function readBoolean(string $key): bool
     {
-        $value    = self::readValue($key);
-        $spelling = is_int($value) || is_string($value) ? strtolower(trim((string) $value)) : null;
+        $value = self::readValue($key);
 
-        if (is_bool($value)) {
-            return $value;
+        return self::toBoolean($value) ?? throw InvalidConfigurationException::mustBe(self::key($key), self::A_BOOLEAN, $value);
+    }
+
+    /**
+     * Read a boolean setting, or null.
+     *
+     * @param  string  $key
+     * @return bool|null
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
+     */
+    public static function readNullableBoolean(string $key): ?bool
+    {
+        $value = self::readValue($key);
+
+        if ($value === null) {
+            return null;
         }
 
-        if ($spelling === null || !array_key_exists($spelling, self::BOOLEANS)) {
-            throw InvalidConfigurationException::mustBe(self::key($key), 'a boolean, or one of 1, 0, true, false, on, off, yes, no', $value);
-        }
-
-        return self::BOOLEANS[$spelling];
+        return self::toBoolean($value) ?? throw InvalidConfigurationException::mustBe(self::key($key), self::A_BOOLEAN . self::OR_NULL, $value);
     }
 
     /**
@@ -180,19 +199,22 @@ final class ToolkitConfig
      */
     public static function readList(string $key): array
     {
+        return self::checkedList($key, self::readValue($key), self::A_LIST);
+    }
+
+    /**
+     * Read a setting holding a list of non-empty strings, or null.
+     *
+     * @param  string  $key
+     * @return list<string>|null
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
+     */
+    public static function readNullableList(string $key): ?array
+    {
         $value = self::readValue($key);
 
-        if (!is_array($value) || !array_is_list($value)) {
-            throw InvalidConfigurationException::mustBe(self::key($key), 'a list of non-empty strings', $value);
-        }
-
-        foreach ($value as $index => $entry) {
-            if (!is_string($entry) || $entry === '') {
-                throw InvalidConfigurationException::mustBe(self::key($key . '.' . $index), self::A_NON_EMPTY_STRING, $entry);
-            }
-        }
-
-        return $value;
+        return $value === null ? null : self::checkedList($key, $value, self::A_LIST . self::OR_NULL);
     }
 
     /**
@@ -316,6 +338,46 @@ final class ToolkitConfig
         }
 
         return $configured;
+    }
+
+    /**
+     * Convert a boolean, or one of its accepted spellings.
+     *
+     * @param  mixed  $value
+     * @return bool|null
+     */
+    private static function toBoolean(mixed $value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return is_int($value) || is_string($value) ? self::BOOLEANS[strtolower(trim((string) $value))] ?? null : null;
+    }
+
+    /**
+     * Check that the value of the given setting is a list of non-empty strings.
+     *
+     * @param  string  $key
+     * @param  mixed  $value
+     * @param  string  $expectation
+     * @return list<string>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException
+     */
+    private static function checkedList(string $key, mixed $value, string $expectation): array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            throw InvalidConfigurationException::mustBe(self::key($key), $expectation, $value);
+        }
+
+        foreach ($value as $index => $entry) {
+            if (!is_string($entry) || $entry === '') {
+                throw InvalidConfigurationException::mustBe(self::key($key . '.' . $index), self::A_NON_EMPTY_STRING, $entry);
+            }
+        }
+
+        return $value;
     }
 
     /**

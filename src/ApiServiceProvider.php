@@ -173,7 +173,7 @@ final class ApiServiceProvider extends ServiceProvider
     private function trackRunningCommands(): void
     {
         Event::listen(CommandStarting::class, static fn (CommandStarting $event) => RuntimeContext::enterCommand($event->command));
-        Event::listen(CommandFinished::class, static fn () => RuntimeContext::leaveCommand());
+        Event::listen(CommandFinished::class, static fn (CommandFinished $event) => RuntimeContext::leaveCommand($event->command));
     }
 
     /**

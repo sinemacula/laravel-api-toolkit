@@ -39,7 +39,7 @@ final class ResourceSettings
      */
     public static function paths(): ?array
     {
-        return ToolkitConfig::readValue('resources.paths') === null ? null : ToolkitConfig::readList('resources.paths');
+        return ToolkitConfig::readNullableList('resources.paths');
     }
 
     /**

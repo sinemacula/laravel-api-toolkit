@@ -100,14 +100,14 @@ final class OpenApiSettings
      * Return the audiences keyed by name, each checked for shape; servers are
      * validated where they are exported.
      *
-     * @return array<string, array<string, mixed>>
+     * @return array<array-key, array<string, mixed>>
      */
     public static function audiences(): array
     {
         $audiences = [];
 
         foreach (ToolkitConfig::readMap('openapi.audiences') as $name => $audience) {
-            $audiences[(string) $name] = self::checkedAudience(ToolkitConfig::key('openapi.audiences.' . $name), $audience);
+            $audiences[$name] = self::checkedAudience(ToolkitConfig::key('openapi.audiences.' . $name), $audience);
         }
 
         return $audiences;

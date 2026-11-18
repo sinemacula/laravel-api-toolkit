@@ -124,7 +124,7 @@ final readonly class AudienceConfiguration
     /**
      * Read the audience registry from config.
      *
-     * @return array<string, array<string, mixed>>
+     * @return array<array-key, array<string, mixed>>
      */
     private function audiences(): array
     {

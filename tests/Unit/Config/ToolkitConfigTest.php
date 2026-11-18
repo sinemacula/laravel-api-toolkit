@@ -227,6 +227,24 @@ final class ToolkitConfigTest extends TestCase
             ['id' => 'id'],
             'must be a list of non-empty strings; [array] given.',
         ];
+        yield 'nullable list' => ['resources.paths', ToolkitConfig::readNullableList(...), ['app'], ['app'], false, 'must be a list of non-empty strings, or null; [false] given.'];
+        yield 'nullable list null' => ['resources.paths', ToolkitConfig::readNullableList(...), null, null, 'app', 'must be a list of non-empty strings, or null; [\'app\'] given.'];
+        yield 'nullable boolean' => [
+            'exceptions.include_debug_info',
+            ToolkitConfig::readNullableBoolean(...),
+            'off',
+            false,
+            'maybe',
+            'must be a boolean, or one of 1, 0, true, false, on, off, yes, no, or null; [\'maybe\'] given.',
+        ];
+        yield 'nullable boolean null' => [
+            'exceptions.include_debug_info',
+            ToolkitConfig::readNullableBoolean(...),
+            null,
+            null,
+            '',
+            'must be a boolean, or one of 1, 0, true, false, on, off, yes, no, or null; [\'\'] given.',
+        ];
         yield 'map' => ['exceptions.map', ToolkitConfig::readMap(...), ['a' => 'b', 'c' => 'd'], ['a' => 'b', 'c' => 'd'], 'none', 'must be an array; [\'none\'] given.'];
     }
 

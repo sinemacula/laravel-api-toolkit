@@ -107,7 +107,7 @@ final class SettingCases
             'off',
             false,
             'maybe',
-            self::refused('exceptions.include_debug_info', self::BOOLEAN, '\'maybe\''),
+            self::refused('exceptions.include_debug_info', self::BOOLEAN . ', or null', '\'maybe\''),
         ];
 
         yield 'exception map' => [
@@ -137,7 +137,7 @@ final class SettingCases
             ['app/Http/Resources'],
             ['app/Http/Resources'],
             false,
-            self::refused('resources.paths', self::LIST, 'false'),
+            self::refused('resources.paths', self::LIST . ', or null', 'false'),
         ];
 
         yield 'resource map' => [

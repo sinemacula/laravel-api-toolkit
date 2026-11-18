@@ -51,12 +51,13 @@ final class ToolkitConfigValidator
             : [InvalidConfigurationException::mustBe(ToolkitConfig::ROOT, ToolkitConfig::AN_ARRAY, $configured)->problem];
 
         if ($problems !== []) {
-            throw InvalidConfigurationException::invalid($problems);
+            throw InvalidConfigurationException::invalid(array_values(array_unique($problems)));
         }
     }
 
     /**
-     * List the reads of every setting checked on its own.
+     * List the reads of every setting checked on its own, including those a
+     * check below reads, so one setting's failure cannot hide another's.
      *
      * @return list<callable(): mixed>
      */
@@ -75,6 +76,7 @@ final class ToolkitConfigValidator
             ResourceSettings::relationLimit(...),
             OpenApiSettings::output(...),
             OpenApiSettings::docsPath(...),
+            OpenApiSettings::defaultAudience(...),
             OpenApiSettings::info(...),
             OpenApiSettings::shouldExportOperationIds(...),
             OpenApiSettings::tags(...),
@@ -83,6 +85,8 @@ final class ToolkitConfigValidator
             OpenApiSettings::exceptionNamespaces(...),
             HttpSettings::parserAlias(...),
             HttpSettings::shouldRegisterParserMiddleware(...),
+            QuerySettings::maxLimit(...),
+            QuerySettings::defaultLimit(...),
             QuerySettings::canOrderRandomly(...),
             QuerySettings::relationCacheTtl(...),
             ...array_map(static fn (string $cap): \Closure => static fn (): int => QuerySettings::costCap($cap), QueryCostLimits::NAMES),
@@ -163,7 +167,7 @@ final class ToolkitConfigValidator
                 continue;
             }
 
-            (new ServerListValidator)->validate($audience['servers'], $name);
+            (new ServerListValidator)->validate($audience['servers'], (string) $name);
         }
 
         $default = OpenApiSettings::defaultAudience();

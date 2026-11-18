@@ -39,13 +39,17 @@ final class RuntimeContext
     }
 
     /**
-     * Record that the innermost command has finished.
+     * Record that the given command has finished, when it is the innermost one
+     * started.
      *
+     * @param  string|null  $command
      * @return void
      */
-    public static function leaveCommand(): void
+    public static function leaveCommand(?string $command): void
     {
-        array_pop(self::$commands);
+        if (end(self::$commands) === $command) {
+            array_pop(self::$commands);
+        }
     }
 
     /**

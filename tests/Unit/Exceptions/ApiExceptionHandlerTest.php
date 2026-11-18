@@ -1164,7 +1164,7 @@ final class ApiExceptionHandlerTest extends TestCase
         yield 'debug info spelling' => [
             'include_debug_info',
             'maybe',
-            'The api-toolkit.exceptions.include_debug_info setting must be a boolean, or one of 1, 0, true, false, on, off, yes, no; [\'maybe\'] given.',
+            'The api-toolkit.exceptions.include_debug_info setting must be a boolean, or one of 1, 0, true, false, on, off, yes, no, or null; [\'maybe\'] given.',
         ];
     }
 
