@@ -356,10 +356,11 @@ return [
     | trait and flushes them as bulk INSERTs at the end of the request, command
     | or job. Buffered records are lost if the process dies before the flush.
     |
-    | `chunk_size` is the most records per INSERT; keep it below the database's
-    | binding limit divided by the widest deferred table's column count.
+    | `chunk_size` is the most records per INSERT. A wide table's chunks are
+    | cut further so no INSERT binds more than 32766 values.
     |
-    | `pool_limit` is the buffered record count that triggers a flush.
+    | `pool_limit` is the buffered record count that triggers a flush. Records
+    | a failed flush kept do not count toward it.
     |
     | `on_failure` decides what a failed chunk insert does:
     |   'collect' - keep the failed records for the next flush (default).
