@@ -1786,8 +1786,8 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
-     * Test that eagerLoadMapFor includes child fields from explicit relation
-     * field projections.
+     * Test that eagerLoadMapFor plans the nested relations an explicit child
+     * projection selects.
      *
      * @return void
      */
@@ -1800,7 +1800,7 @@ final class ApiResourceTest extends TestCase
             public const string RESOURCE_TYPE = 'explicit_fields_test';
 
             /** @var array<int, string> */
-            protected static array $default = ['id', 'organization'];
+            protected static array $default = ['id', 'posts'];
 
             /**
              * Get the resource schema.
@@ -1812,16 +1812,12 @@ final class ApiResourceTest extends TestCase
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Relation::to('organization', OrganizationResource::class)
-                        ->fields(['id', 'name']),
+                    Relation::to('posts', PostResource::class)->fields(['id', 'tags']),
                 );
             }
         };
 
-        $fields = ['organization'];
-        $map    = $resourceClass::eagerLoadMapFor($fields);
-
-        self::assertNotEmpty($map);
+        self::assertSame(['posts', 'posts.tags'], array_keys($resourceClass::eagerLoadMapFor(['posts'])));
     }
 
     /**
@@ -1873,9 +1869,9 @@ final class ApiResourceTest extends TestCase
         $resource = new $resourceClass($user);
         $resource->withFields(['id', 'organization']);
 
-        $result = $resource->resolve();
+        $organization = json_decode((string) json_encode($resource->resolve()['organization'] ?? null), true);
 
-        self::assertArrayHasKey('organization', $result);
+        self::assertSame(['_type' => 'organizations', 'id' => $org->id, 'name' => 'ChildFieldOrg'], $organization);
     }
 
     /**

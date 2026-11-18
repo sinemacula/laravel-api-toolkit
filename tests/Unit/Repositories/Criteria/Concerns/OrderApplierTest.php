@@ -13,7 +13,9 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
+use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Search\SearchTerm;
@@ -380,7 +382,10 @@ final class OrderApplierTest extends TestCase
      */
     private function surface(): QuerySurface
     {
-        return new QuerySurface([], ['name', 'email', 'created_at'], [], new User);
+        return new QuerySurface(
+            new CompiledSchema([], sortableColumns: ['name', 'email', 'created_at']),
+            new RelationTraversal(app(SchemaIntrospectionProvider::class), []),
+        );
     }
 
     /**

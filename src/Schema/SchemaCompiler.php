@@ -77,6 +77,19 @@ final class SchemaCompiler
     }
 
     /**
+     * Resolve the primary relation name for a field definition.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return string|null
+     */
+    public static function resolveFieldRelation(array $definition): ?string
+    {
+        $relations = (array) ($definition['relation'] ?? null);
+
+        return isset($relations[0]) && is_string($relations[0]) ? $relations[0] : null;
+    }
+
+    /**
      * Build a CompiledSchema from a raw schema array.
      *
      * @param  array<string, array<string, mixed>>  $rawSchema
@@ -94,6 +107,7 @@ final class SchemaCompiler
         $sortable    = [];
         $traversable = [];
         $searchable  = [];
+        $resources   = [];
 
         foreach ($rawSchema as $schemaKey => $definition) {
 
@@ -107,16 +121,25 @@ final class SchemaCompiler
 
             self::collectQueryMarkers($definition, $filterable, $sortable, $traversable, $searchable);
 
-            $fields[$schemaKey] = self::buildFieldDefinition($definition);
+            $field = self::buildFieldDefinition($definition);
+
+            if ($field->relation !== null && $field->resource !== null) {
+                $resources[$field->relation] = $field->resource;
+            }
+
+            $fields[$schemaKey] = $field;
         }
+
+        $traversable = array_values(array_unique($traversable));
 
         return new CompiledSchema(
             $fields,
             $aggregates,
             $filterable,
             array_values(array_unique($sortable)),
-            array_values(array_unique($traversable)),
+            $traversable,
             $searchable,
+            array_intersect_key($resources, array_flip($traversable)),
         );
     }
 
@@ -306,19 +329,6 @@ final class SchemaCompiler
         $value = $definition[$key] ?? null;
 
         return is_string($value) ? $value : null;
-    }
-
-    /**
-     * Resolve the primary relation name for a field definition.
-     *
-     * @param  array<string, mixed>  $definition
-     * @return string|null
-     */
-    private static function resolveFieldRelation(array $definition): ?string
-    {
-        $relations = (array) ($definition['relation'] ?? null);
-
-        return isset($relations[0]) && is_string($relations[0]) ? $relations[0] : null;
     }
 
     /**

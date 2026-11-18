@@ -5,19 +5,27 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi\Metadata;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AliasedQueryableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\PublicUserResource;
 use Tests\Fixtures\Resources\SharedColumnMarkerResource;
 use Tests\Fixtures\Resources\SplitColumnMarkerResource;
 use Tests\Fixtures\Resources\UndeclaredQueryMarkerResource;
@@ -38,20 +46,116 @@ final class QuerySurfaceReaderTest extends TestCase
     use InteractsWithNonPublicMembers;
 
     /**
-     * Test that one surface is read per registered resource, in registry order.
+     * Test that one surface is read per registered resource in registry order,
+     * then one per resource a filter reaches through them.
      *
      * @return void
      */
-    public function testReadsOneSurfacePerResourceInRegistryOrder(): void
+    public function testReadsEachRegisteredResourceThenEachReachedOneOnce(): void
     {
-        $surfaces = (new QuerySurfaceReader)->read([
+        $surfaces = $this->reader()->read([
             User::class         => UserResource::class,
             Organization::class => OrganizationResource::class,
         ], $this->vocabulary());
 
-        self::assertCount(2, $surfaces);
-        self::assertSame(UserResource::class, $surfaces[0]->resource);
-        self::assertSame(OrganizationResource::class, $surfaces[1]->resource);
+        self::assertSame(
+            [UserResource::class, OrganizationResource::class, PostResource::class],
+            array_map(static fn (QuerySurfaceDescriptor $surface): string => $surface->resource, $surfaces),
+        );
+    }
+
+    /**
+     * Test that each relation names the resource governing the keys under it,
+     * per type for a polymorphic one and none where nothing does.
+     *
+     * @return void
+     */
+    public function testRelationsNameTheResourceGoverningThem(): void
+    {
+        $notes = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'governed_notes';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Relation::to('noteable', 'id', 'noteable_key')->traversable(),
+                    Relation::to('owner', PublicUserResource::class)->traversable(),
+                    Relation::to('labels', \stdClass::class)->traversable(),
+                    Relation::to('ghost', 'id', 'ghost_key')->traversable(),
+                );
+            }
+        };
+
+        $surfaces = $this->reader()->read([Note::class => $notes::class], $this->vocabulary());
+
+        self::assertEquals([
+            new QueryRelationDescriptor('noteable', polymorphic: true),
+            new QueryRelationDescriptor('owner', PublicUserResource::class),
+            new QueryRelationDescriptor('labels'),
+            new QueryRelationDescriptor('ghost'),
+        ], $surfaces[0]->relations);
+        self::assertSame([$notes::class, PublicUserResource::class], array_map(static fn (QuerySurfaceDescriptor $surface): string => $surface->resource, $surfaces));
+    }
+
+    /**
+     * Test that resources reaching each other are each read once.
+     *
+     * @return void
+     */
+    public function testResourcesReachingEachOtherAreReadOnce(): void
+    {
+        $users = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'cyclic_surface_users';
+
+            /** @var string */
+            public static string $posts = '';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(Field::scalar('id'), Relation::to('posts', self::$posts)->traversable());
+            }
+        };
+
+        $posts = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'cyclic_surface_posts';
+
+            /** @var string */
+            public static string $user = '';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(Field::scalar('id'), Relation::to('user', self::$user)->traversable());
+            }
+        };
+
+        $users::$posts = $posts::class;
+        $posts::$user  = $users::class;
+
+        $surfaces = $this->reader()->read([User::class => $users::class], $this->vocabulary());
+
+        self::assertSame([$users::class, $posts::class], array_map(static fn (QuerySurfaceDescriptor $surface): string => $surface->resource, $surfaces));
     }
 
     /**
@@ -61,7 +165,7 @@ final class QuerySurfaceReaderTest extends TestCase
      */
     public function testEmptyResourceMapReadsNoSurfaces(): void
     {
-        self::assertSame([], (new QuerySurfaceReader)->read([], $this->vocabulary()));
+        self::assertSame([], $this->reader()->read([], $this->vocabulary()));
     }
 
     /**
@@ -162,7 +266,10 @@ final class QuerySurfaceReaderTest extends TestCase
      */
     public function testOnlyTraversableRelationsAreReported(): void
     {
-        self::assertSame(['organization'], $this->surface(AliasedQueryableUserResource::class)->relations);
+        self::assertEquals(
+            [new QueryRelationDescriptor('organization', OrganizationResource::class)],
+            $this->surface(AliasedQueryableUserResource::class)->relations,
+        );
     }
 
     /**
@@ -355,10 +462,20 @@ final class QuerySurfaceReaderTest extends TestCase
      */
     private function surface(string $resourceClass, ?array $vocabulary = null): QuerySurfaceDescriptor
     {
-        return (new QuerySurfaceReader)->read(
+        return $this->reader()->read(
             [User::class => $resourceClass],
             $vocabulary ?? $this->vocabulary(),
         )[0];
+    }
+
+    /**
+     * Build the reader under test.
+     *
+     * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader
+     */
+    private function reader(): QuerySurfaceReader
+    {
+        return new QuerySurfaceReader(app(SchemaIntrospectionProvider::class));
     }
 
     /**

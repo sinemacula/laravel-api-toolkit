@@ -5,16 +5,17 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
 use Illuminate\Database\Eloquent\Model;
-use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
- * Per-query enforcement policy for a resource's declared query surface.
+ * Per-query enforcement policy for one resource's declared query surface.
  *
- * Undeclared keys and unmapped related models fail closed at every level.
+ * Each level of a filter is governed by its own surface, and a level no
+ * resource governs refuses every key.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -22,44 +23,48 @@ use SineMacula\ApiToolkit\Validation\Rejection;
 final readonly class QuerySurface
 {
     /**
-     * Create a new query surface bound to the root query's model.
+     * Create a new query surface for the given resource schema.
      *
-     * @param  array<string, \SineMacula\ApiToolkit\Enums\Capability>  $filterableColumns
-     * @param  array<int, string>  $sortableColumns
-     * @param  array<int, string>  $traversableRelations
-     * @param  \Illuminate\Database\Eloquent\Model  $rootModel
-     * @param  array<string, string>  $resourceMap
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema|null  $schema
+     * @param  \SineMacula\ApiToolkit\Schema\RelationTraversal  $traversal
      */
     public function __construct(
 
-        /** Declared filterable columns for the root resource, mapped to their capability */
-        private array $filterableColumns,
+        /** The governing resource's compiled schema, or null when none governs */
+        private ?CompiledSchema $schema,
 
-        /** Declared sortable columns for the root resource. */
-        private array $sortableColumns,
-
-        /** Declared traversable relations for the root resource. */
-        private array $traversableRelations,
-
-        /** The root query's Eloquent model instance. */
-        private Model $rootModel,
-
-        /** Resource map used to resolve related model resource classes. */
-        private array $resourceMap = [],
+        /** Resolves the resource governing each related level */
+        private RelationTraversal $traversal,
     ) {}
 
     /**
-     * Guard a filter column on the given model, rejecting an undeclared key.
+     * Return the surface governing the level a relation descends to.
+     *
+     * @param  string  $relation
+     * @param  \Illuminate\Database\Eloquent\Model  $related
+     * @param  bool  $polymorphic
+     * @return self
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
+     */
+    public function through(string $relation, Model $related, bool $polymorphic): self
+    {
+        $resource = $this->schema === null ? null : $this->traversal->governingResource($this->schema, $relation, $related, $polymorphic);
+
+        return new self($resource === null ? null : SchemaCompiler::compile($resource), $this->traversal);
+    }
+
+    /**
+     * Guard a filter column, rejecting an undeclared key.
      *
      * @param  string  $column
-     * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function guardFilter(string $column, Model $model): void
+    public function guardFilter(string $column): void
     {
-        $this->guard($this->permitsFilter($column, $model), 'filters', $column);
+        $this->guard($this->capabilityFor($column) !== null, 'filters', $column);
     }
 
     /**
@@ -69,14 +74,13 @@ final readonly class QuerySurface
      *
      * @param  string  $column
      * @param  string  $operator
-     * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
-    public function guardFilterOperator(string $column, string $operator, Model $model): void
+    public function guardFilterOperator(string $column, string $operator): void
     {
-        $capability = $this->capabilityFor($column, $model);
+        $capability = $this->capabilityFor($column);
 
         if ($capability === null) {
             throw Rejection::at('filters.' . $column, 'query.undeclared_key', ['key' => $column]);
@@ -91,31 +95,29 @@ final readonly class QuerySurface
     }
 
     /**
-     * Guard a sort column on the given model.
+     * Guard a sort column.
      *
      * @param  string  $column
-     * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function guardSort(string $column, Model $model): void
+    public function guardSort(string $column): void
     {
-        $this->guard($this->permitsSort($column, $model), 'order', $column);
+        $this->guard(in_array($column, $this->schema?->getSortableColumns() ?? [], true), 'order', $column);
     }
 
     /**
-     * Guard a relation traversal key on the given model.
+     * Guard a relation traversal key.
      *
      * @param  string  $relation
-     * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function guardRelation(string $relation, Model $model): void
+    public function guardRelation(string $relation): void
     {
-        $this->guard($this->permitsRelation($relation, $model), 'filters', $relation);
+        $this->guard($this->isDeclaredRelation($relation), 'filters', $relation);
     }
 
     /**
@@ -124,114 +126,22 @@ final readonly class QuerySurface
      * Lets the router skip the cached relation lookup for undeclared keys.
      *
      * @param  string  $relation
-     * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return bool
      */
-    public function isDeclaredRelation(string $relation, Model $model): bool
+    public function isDeclaredRelation(string $relation): bool
     {
-        return $this->permitsRelation($relation, $model);
+        return in_array($relation, $this->schema?->getTraversableRelations() ?? [], true);
     }
 
     /**
-     * Determine whether the column is filterable on the given model.
+     * Resolve the column's declared filter capability, or null.
      *
      * @param  string  $column
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return bool
-     */
-    private function permitsFilter(string $column, Model $model): bool
-    {
-        return $this->capabilityFor($column, $model) !== null;
-    }
-
-    /**
-     * Resolve the column's declared filter capability on the model, or null.
-     *
-     * @param  string  $column
-     * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return \SineMacula\ApiToolkit\Enums\Capability|null
      */
-    private function capabilityFor(string $column, Model $model): ?Capability
+    private function capabilityFor(string $column): ?Capability
     {
-        if ($this->governsRoot($model)) {
-            return $this->filterableColumns[$column] ?? null;
-        }
-
-        return $this->resolveRelatedSchema($model)?->getFilterableColumns()[$column] ?? null;
-    }
-
-    /**
-     * Determine whether the column is sortable on the given model.
-     *
-     * @param  string  $column
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return bool
-     */
-    private function permitsSort(string $column, Model $model): bool
-    {
-        if ($this->governsRoot($model)) {
-            return in_array($column, $this->sortableColumns, true);
-        }
-
-        $schema = $this->resolveRelatedSchema($model);
-
-        return $schema !== null && in_array($column, $schema->getSortableColumns(), true);
-    }
-
-    /**
-     * Determine whether the relation is traversable on the given model.
-     *
-     * @param  string  $relation
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return bool
-     */
-    private function permitsRelation(string $relation, Model $model): bool
-    {
-        return $this->governsRoot($model)
-            ? in_array($relation, $this->traversableRelations, true)
-            : $this->permitsRelatedRelation($relation, $model);
-    }
-
-    /**
-     * Determine whether the relation is traversable on a related model.
-     *
-     * @param  string  $relation
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return bool
-     */
-    private function permitsRelatedRelation(string $relation, Model $model): bool
-    {
-        $schema = $this->resolveRelatedSchema($model);
-
-        return $schema !== null && in_array($relation, $schema->getTraversableRelations(), true);
-    }
-
-    /**
-     * Resolve the related model's mapped resource schema, or null if unmapped.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return \SineMacula\ApiToolkit\Schema\CompiledSchema|null
-     */
-    private function resolveRelatedSchema(Model $model): ?CompiledSchema
-    {
-        $resourceClass = $this->resourceMap[$model::class] ?? null;
-
-        if ($resourceClass === null || !is_subclass_of($resourceClass, ApiResourceInterface::class)) {
-            return null;
-        }
-
-        return SchemaCompiler::compile($resourceClass);
-    }
-
-    /**
-     * Determine whether the given model is the root model.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @return bool
-     */
-    private function governsRoot(Model $model): bool
-    {
-        return $model::class === $this->rootModel::class;
+        return $this->schema?->getFilterableColumns()[$column] ?? null;
     }
 
     /**

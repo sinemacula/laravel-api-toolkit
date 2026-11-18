@@ -20,7 +20,7 @@ final readonly class QuerySurfaceDescriptor
      *
      * @param  class-string  $resource
      * @param  array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor>  $columns
-     * @param  array<int, string>  $relations
+     * @param  list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor>  $relations
      */
     public function __construct(
 
@@ -30,7 +30,7 @@ final readonly class QuerySurfaceDescriptor
         /** The columns the resource answers a query on */
         public array $columns,
 
-        /** The relation names a filter may descend through */
+        /** The relations a filter may descend through */
         public array $relations = [],
     ) {}
 }

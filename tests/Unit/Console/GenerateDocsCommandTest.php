@@ -151,7 +151,7 @@ final class GenerateDocsCommandTest extends TestCase
         self::assertStringContainsString('| Shortest word, in characters | 3 |', $contents);
         self::assertStringContainsString('"reason": "max_in_items",', $contents);
         self::assertStringContainsString('| `email` | `email` | `exact` |', $contents);
-        self::assertStringContainsString('Traversable relations: `organization`, `posts`.', $contents);
+        self::assertStringContainsString('Traversable relations: `organization` (Organization), `posts` (Post).', $contents);
     }
 
     /**
@@ -226,6 +226,24 @@ final class GenerateDocsCommandTest extends TestCase
 
         self::assertStringContainsString('## QueryableTag', $internal);
         self::assertStringContainsString('| `name` | `name` | `exact` |', $internal);
+    }
+
+    /**
+     * Test that a resource governing a kept surface's nested filters is
+     * described although no model maps to it.
+     *
+     * @return void
+     */
+    public function testSurfaceReachedThroughAKeptRelationIsDescribed(): void
+    {
+        $this->runCommand()->assertExitCode(0);
+
+        $contents = (string) file_get_contents($this->surfaceFile);
+
+        self::assertStringContainsString(
+            "\n### Post\n\n| Field | Key | Filter | Operators | Order | Search |\n| --- | --- | --- | --- | --- | --- |\n| `title` | `title` | `exact` |",
+            $contents,
+        );
     }
 
     /**

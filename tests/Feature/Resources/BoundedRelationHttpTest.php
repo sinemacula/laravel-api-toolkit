@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
@@ -180,6 +181,44 @@ final class BoundedRelationHttpTest extends TestCase
         $response->assertJsonPath('data.0._truncated', ['latest_posts']);
 
         self::assertSame(array_slice($posts, 0, 5), array_column(self::rows($response->json('data.0.latest_posts')), 'id'));
+    }
+
+    /**
+     * Provide both orders of selecting the two fields.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function aliasOrderProvider(): iterable
+    {
+        yield 'posts first' => ['name,posts,latest_posts'];
+        yield 'latest posts first' => ['name,latest_posts,posts'];
+    }
+
+    /**
+     * Test that two fields over relations to one model each render their own
+     * rows, in whichever order they are selected.
+     *
+     * @param  string  $selection
+     * @return void
+     */
+    #[DataProvider('aliasOrderProvider')]
+    public function testTwoFieldsOverOneModelRenderTheirOwnRows(string $selection): void
+    {
+        [$user] = $this->seedUsers([7]);
+
+        $posts = Post::query()->where('user_id', $user)->orderBy('id')->pluck('id')->all();
+
+        foreach ($posts as $offset => $post) {
+            Post::query()->whereKey($post)->update(['created_at' => Carbon::parse('2026-01-01 00:00:00')->addDays($offset)]);
+        }
+
+        $response = $this->getJson('/users?fields[bounded_users]=' . $selection . '&fields[bounded_posts]=id');
+
+        $response->assertOk();
+
+        self::assertSame(array_slice($posts, 0, 5), array_column(self::rows($response->json('data.0.posts')), 'id'));
+        self::assertSame(array_slice(array_reverse($posts), 0, 5), array_column(self::rows($response->json('data.0.latest_posts')), 'id'));
+        self::assertEqualsCanonicalizing(['posts', 'latest_posts'], (array) $response->json('data.0._truncated'));
     }
 
     /**

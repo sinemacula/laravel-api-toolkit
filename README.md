@@ -133,6 +133,14 @@ or relation names keyed to filter documents, and compile to `whereHas()` and `wh
 one relation document must hold for the same related row: `{"posts":{"a":1,"b":2}}` needs one post matching both,
 while `{"$and":[{"posts":{"a":1}},{"posts":{"b":2}}]}` may match different posts.
 
+The key is the Eloquent relation name, whatever alias the field renders under. The related level is governed by the
+resource the relation declares, so `Relation::to('author', PublicUserResource::class)->traversable()` accepts only what
+`PublicUserResource` filters, even where the related model's `resource_map` entry filters more. A relation declaring
+no resource falls back to that entry, and a `MorphTo` is governed by the entry of each concrete type, so a key is
+rejected unless every type stored in the table permits it. A level no resource governs rejects every key. A `MorphTo`
+with no type stored is never descended, so its nested keys go unchecked, `$has` matches nothing and `$hasnt` matches
+every row.
+
 A filter that cannot narrow the query is rejected with a 422 keyed by its position, such as `filters.$or.1.name`,
 rather than dropped: a group that is not a non-empty list, an empty group document, a condition with no column, a
 column given an empty object, a list, or a key that is not a registered condition, and any entry that adds no
@@ -443,6 +451,22 @@ loaded collection, including one your own code loaded, is cut when it renders. A
 keeps every row and is cut only in the response. A collection your application loaded below the bound never carries
 `_truncated`, so its absence proves nothing about a relation you limited yourself.
 
+A constraint shapes the rendered rows only: filters, `$has`, `$hasnt` and aggregates never run it. A row predicate
+belongs in a relation method, which Eloquent applies everywhere:
+
+```php
+public function publishedPosts(): HasMany
+{
+    return $this->hasMany(Post::class)->where('published', true);
+}
+
+Relation::to('publishedPosts', PostResource::class)->alias('posts')->traversable(),
+```
+
+A relation loads once per path, so the schema compiler rejects a constrained relation any field makes `traversable()`,
+fields over one relation where any is constrained or they render different resources, and a relation name holding a
+dot. Fields over one relation may differ in `fields()`, and an accessor-only field may share any relation.
+
 **Field-set control** at instantiation:
 
 ```php
@@ -466,6 +490,9 @@ Validation checks that:
 - no declaration names a column configured as sensitive.
 - every `limit()` sits on a to-many relation rendered through a child resource, every field over one relation shares
   one limit, and no field is named `_truncated`.
+
+Every resource a filter reaches through a `traversable()` relation is validated too, once per related model, whether or
+not the resource map lists it.
 
 At boot, checks that read the connection are skipped where it cannot be read, such as a boot with no database or
 before migrations have run.
@@ -1088,8 +1115,9 @@ public function export(): JsonResponse {}
 `api-toolkit:docs:generate` writes the generated reference sections into the Markdown docs directory
 (`api-toolkit.openapi.docs_path`) that is assembled into the document's description: the error catalogue, the enum
 reference, and the query surface reference, which tables each resource's queryable columns alongside the request
-bounds. The surface reference is written per audience, under `audiences/<audience>/`, so it only reaches documents
-that already carry the resource's schema:
+bounds, and names the resource governing each traversable relation. The surface reference is written per audience,
+under `audiences/<audience>/`, so it only reaches documents that already carry the resource's schema, and the
+resources their filters reach through a relation that is not a `MorphTo`:
 
 ```bash
 php artisan api-toolkit:docs:generate

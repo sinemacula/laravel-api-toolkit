@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Docs;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
@@ -350,7 +351,7 @@ final readonly class QuerySurfaceDocGenerator
     /**
      * Render the relations a filter may descend through.
      *
-     * @param  array<int, string>  $relations
+     * @param  list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor>  $relations
      * @return string
      */
     private function relationsLine(array $relations): string
@@ -359,7 +360,24 @@ final readonly class QuerySurfaceDocGenerator
             return 'Traversable relations: none.';
         }
 
-        return 'Traversable relations: ' . implode(', ', array_map($this->code(...), $relations)) . '.';
+        return 'Traversable relations: ' . implode(', ', array_map($this->relation(...), $relations)) . '.';
+    }
+
+    /**
+     * Render a relation with the resource governing the keys under it.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor  $relation
+     * @return string
+     */
+    private function relation(QueryRelationDescriptor $relation): string
+    {
+        $governor = match (true) {
+            $relation->polymorphic       => 'per type',
+            $relation->resource === null => 'no nested filters',
+            default                      => SchemaComponentName::fromResource($relation->resource),
+        };
+
+        return sprintf('%s (%s)', $this->code($relation->relation), $governor);
     }
 
     /**
