@@ -5,6 +5,14 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 use Illuminate\Routing\Route;
+use Illuminate\Routing\RouteAction;
+use Illuminate\Routing\RouteFileRegistrar;
+use Illuminate\Support\ServiceProvider;
+use Laravel\SerializableClosure\SerializableClosure;
+use Laravel\SerializableClosure\Serializers\Native;
+use Laravel\SerializableClosure\Serializers\Signed;
+use Laravel\SerializableClosure\Support\SelfReference;
+use Laravel\SerializableClosure\UnsignedSerializableClosure;
 use SineMacula\ApiToolkit\Config\OpenApiSettings;
 
 /**
@@ -31,6 +39,18 @@ final readonly class DocumentableRouteFilter
         'Spatie\Ignition',
         'Barryvdh\\',
         'Clockwork\\',
+    ];
+
+    /** The classes that require route files, scoping each closure declared in one */
+    private const array ROUTE_FILE_LOADERS = [RouteFileRegistrar::class, ServiceProvider::class];
+
+    /** The classes a cached route's serialized closure may be restored from */
+    private const array SERIALIZED_CLOSURE_CLASSES = [
+        SerializableClosure::class,
+        UnsignedSerializableClosure::class,
+        Native::class,
+        Signed::class,
+        SelfReference::class,
     ];
 
     /**
@@ -60,28 +80,66 @@ final readonly class DocumentableRouteFilter
     /**
      * Resolve the declaring namespace of the route's closure handler, if any.
      *
+     * A closure declared in a route file is scoped to the class that required
+     * the file, which says nothing about where it was declared.
+     *
      * @param  \Illuminate\Routing\Route  $route
      * @return string|null
      */
     private function closureNamespace(Route $route): ?string
     {
-        $handler = $route->getAction('uses');
+        $handler = $this->closure($route);
 
-        if (!$handler instanceof \Closure) {
+        if ($handler === null) {
             return null;
         }
 
+        $reflection = new \ReflectionFunction($handler);
+        $scope      = $reflection->getClosureScopeClass();
+
+        // PHP 8.4 reports no namespace for a closure, so prefer its scope class
+        $namespace = $scope !== null && !in_array($scope->getName(), self::ROUTE_FILE_LOADERS, true)
+            ? $scope->getNamespaceName()
+            : $reflection->getNamespaceName();
+
+        return $namespace === '' ? null : $namespace;
+    }
+
+    /**
+     * Resolve the route's closure handler, restoring one a cached route table
+     * serialized.
+     *
+     * @param  \Illuminate\Routing\Route  $route
+     * @return (\Closure(mixed ...): mixed)|null
+     */
+    private function closure(Route $route): ?\Closure
+    {
+        $handler = $route->getAction('uses');
+
+        if (is_string($handler) && RouteAction::containsSerializedClosure(['uses' => $handler])) {
+            $handler = $this->restore($handler);
+        }
+
+        return $handler instanceof \Closure ? $handler : null;
+    }
+
+    /**
+     * Restore a serialized closure as the router does before running it.
+     *
+     * @param  string  $serialized
+     * @return (\Closure(mixed ...): mixed)|null
+     */
+    private function restore(string $serialized): ?\Closure
+    {
         try {
-            $reflection = new \ReflectionFunction($handler);
+            $wrapper = unserialize($serialized, ['allowed_classes' => self::SERIALIZED_CLOSURE_CLASSES]);
+
+            return $wrapper instanceof SerializableClosure || $wrapper instanceof UnsignedSerializableClosure
+                ? $wrapper->getClosure()
+                : null;
         } catch (\Throwable) {
             return null;
         }
-
-        // PHP 8.4 reports no namespace for a closure, so prefer its scope class
-        $scope     = $reflection->getClosureScopeClass();
-        $namespace = $scope !== null ? $scope->getNamespaceName() : $reflection->getNamespaceName();
-
-        return $namespace === '' ? null : $namespace;
     }
 
     /**

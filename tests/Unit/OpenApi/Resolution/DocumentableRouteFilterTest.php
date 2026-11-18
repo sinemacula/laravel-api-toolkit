@@ -4,13 +4,19 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Resolution;
 
+use Illuminate\Http\Request;
 use Illuminate\Routing\RedirectController;
 use Illuminate\Routing\Route;
+use Illuminate\Routing\RouteFileRegistrar;
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\ServiceProvider;
+use Laravel\SerializableClosure\SerializableClosure;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter;
+use Tests\Fixtures\OpenApi\RouteFileServiceProvider;
 use Tests\TestCase;
 
 /**
@@ -24,6 +30,9 @@ use Tests\TestCase;
 #[CoversClass(DocumentableRouteFilter::class)]
 final class DocumentableRouteFilterTest extends TestCase
 {
+    /** @var string The application route file declaring a closure route. */
+    private const string ROUTE_FILE = __DIR__ . '/../../../Fixtures/OpenApi/Routes/closures.inc';
+
     /** @var \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentableRouteFilter */
     private DocumentableRouteFilter $filter;
 
@@ -114,6 +123,85 @@ final class DocumentableRouteFilterTest extends TestCase
         $this->setBlocklist([__NAMESPACE__]);
 
         self::assertTrue($this->filter->isExcluded(null, $this->route(static fn (): null => null)));
+    }
+
+    /**
+     * Test that a closure declared in a route file the router loads is kept
+     * under the default blocklist, though the router's loader scopes it.
+     *
+     * @return void
+     */
+    public function testClosureFromRouterLoadedRouteFileIsKept(): void
+    {
+        $this->router()->group([], self::ROUTE_FILE);
+
+        $route = $this->loadedRoute();
+
+        self::assertSame(RouteFileRegistrar::class, $this->scopeOf($route));
+        self::assertFalse($this->filter->isExcluded(null, $route));
+    }
+
+    /**
+     * Test that a closure declared in a route file a service provider loads is
+     * kept under the default blocklist, though the provider base scopes it.
+     *
+     * @return void
+     */
+    public function testClosureFromProviderLoadedRouteFileIsKept(): void
+    {
+        assert($this->app !== null);
+
+        (new RouteFileServiceProvider($this->app))->boot();
+
+        $route = $this->loadedRoute();
+
+        self::assertSame(ServiceProvider::class, $this->scopeOf($route));
+        self::assertFalse($this->filter->isExcluded(null, $route));
+    }
+
+    /**
+     * Test that a closure a cached route table serialized is still excluded by
+     * its declaring namespace.
+     *
+     * @return void
+     */
+    public function testCachedClosureUnderBlocklistedNamespaceIsExcluded(): void
+    {
+        $this->setBlocklist([__NAMESPACE__]);
+
+        $route = $this->route(static fn (): null => null);
+        $route->prepareForSerialization();
+
+        self::assertIsString($route->getAction('uses'));
+        self::assertTrue($this->filter->isExcluded(null, $route));
+    }
+
+    /**
+     * Test that a signed serialized closure is restored like an unsigned one.
+     *
+     * @return void
+     */
+    public function testSignedSerializedClosureUnderBlocklistedNamespaceIsExcluded(): void
+    {
+        $this->setBlocklist([__NAMESPACE__]);
+
+        $handler = serialize(new SerializableClosure(static fn (): null => null));
+
+        self::assertTrue($this->filter->isExcluded(null, $this->route($handler)));
+    }
+
+    /**
+     * Test that a serialized closure that cannot be restored is kept.
+     *
+     * @return void
+     */
+    public function testUnrestorableSerializedClosureIsKept(): void
+    {
+        $this->setBlocklist([__NAMESPACE__]);
+
+        $handler = 'O:55:"Laravel\SerializableClosure\UnsignedSerializableClosure":1:{';
+
+        self::assertFalse($this->filter->isExcluded(null, $this->route($handler)));
     }
 
     /**
@@ -210,6 +298,43 @@ final class DocumentableRouteFilterTest extends TestCase
 
         // The router stores a callable string as the action's handler verbatim.
         return is_string($handler) ? $route->setAction(['uses' => $handler]) : $route;
+    }
+
+    /**
+     * Resolve the closure route the route file declares.
+     *
+     * @return \Illuminate\Routing\Route
+     */
+    private function loadedRoute(): Route
+    {
+        return $this->router()->getRoutes()->match(Request::create('/status'));
+    }
+
+    /**
+     * Resolve the scope class of the route's closure handler.
+     *
+     * @param  \Illuminate\Routing\Route  $route
+     * @return string|null
+     */
+    private function scopeOf(Route $route): ?string
+    {
+        $handler = $route->getAction('uses');
+
+        assert($handler instanceof \Closure);
+
+        return (new \ReflectionFunction($handler))->getClosureScopeClass()?->getName();
+    }
+
+    /**
+     * Resolve the application router.
+     *
+     * @return \Illuminate\Routing\Router
+     */
+    private function router(): Router
+    {
+        assert($this->app !== null);
+
+        return $this->app->make(Router::class);
     }
 
     /**
