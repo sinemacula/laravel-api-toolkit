@@ -10,6 +10,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Request;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
@@ -134,7 +135,9 @@ abstract class ApiRepository extends Repository
     /**
      * Persist the given attributes to the model.
      *
-     * Handles create and update; many-to-many relations sync after the save.
+     * Handles create and update; many-to-many relations sync after the save. A
+     * cacheable repository then invalidates its table, even when a sync fails
+     * after the save.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>|\Illuminate\Support\Collection<string, mixed>  $attributes
@@ -147,7 +150,11 @@ abstract class ApiRepository extends Repository
     {
         $attributes = $attributes instanceof Collection ? $attributes->all() : $attributes;
 
-        return $this->attributeSetter->persist($model, $attributes);
+        try {
+            return $this->attributeSetter->persist($model, $attributes);
+        } finally {
+            $this->invalidateCache();
+        }
     }
 
     /**
@@ -203,6 +210,25 @@ abstract class ApiRepository extends Repository
     protected function metadataCacheWriter(): MetadataCacheWriter
     {
         return $this->app->make(MetadataCacheWriter::class);
+    }
+
+    /**
+     * Invalidate a cacheable repository's table, reporting rather than throwing
+     * a cache failure, since the write has already happened.
+     *
+     * @return void
+     */
+    private function invalidateCache(): void
+    {
+        if (!method_exists($this, 'flushCache')) {
+            return;
+        }
+
+        try {
+            $this->flushCache();
+        } catch (\Throwable $exception) {
+            FailureReporter::report($exception, 'Repository cache flush after persist failed.');
+        }
     }
 
     /**

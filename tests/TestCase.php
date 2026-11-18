@@ -262,6 +262,7 @@ abstract class TestCase extends OrchestraTestCase
         // Isolate the file cache so parallel mutant processes never share it
         $this->fileCachePath = sys_get_temp_dir() . '/api-toolkit-test-cache-' . getmypid() . '-' . uniqid('', true);
         $config->set('cache.stores.file.path', $this->fileCachePath);
+        $config->set('cache.stores.file.lock_path', $this->fileCachePath);
 
         // Refuse cached classes on a serializing store, as production does.
         $config->set('cache.serializable_classes', false);
