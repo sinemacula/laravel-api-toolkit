@@ -95,59 +95,7 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
             }
         }
 
-        foreach ($this->capabilityConflicts($declared) as $key => $defect) {
-            $errors[] = new SchemaValidationError(
-                resourceClass: $resourceClass,
-                fieldKey: $key,
-                defect: $defect,
-            );
-        }
-
         return $errors;
-    }
-
-    /**
-     * Return the capability conflicts between fields sharing a column, by key.
-     *
-     * An alias repeating the same capability is not a conflict.
-     *
-     * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition>  $declared
-     * @return array<string, string>
-     */
-    private function capabilityConflicts(array $declared): array
-    {
-        $governing = [];
-        $conflicts = [];
-
-        foreach ($declared as $key => $field) {
-
-            if ($field->filterable === null || $field->filterCapability === null) {
-                continue;
-            }
-
-            $seen = $governing[$field->filterable] ?? null;
-
-            if ($seen === null) {
-                $governing[$field->filterable] = [$key, $field->filterCapability];
-
-                continue;
-            }
-
-            if ($seen[1] === $field->filterCapability) {
-                continue;
-            }
-
-            $conflicts[$key] = sprintf(
-                'Field is declared filterable against "%s" with the "%s" capability, and field "%s" declares the same '
-                . 'column with "%s", so the operators the column answers are left to declaration order',
-                $field->filterable,
-                $field->filterCapability->value,
-                $seen[0],
-                $seen[1]->value,
-            );
-        }
-
-        return $conflicts;
     }
 
     /**

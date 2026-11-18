@@ -47,6 +47,13 @@ final readonly class QuerySurfaceDocGenerator
     private const string RELEVANCE = '`order=relevance` ranks rows by how closely they match `search`: the whole value, then the start, then the '
         . 'start of a word, then anywhere; it needs `search` and offset pagination.';
 
+    /** The fixed note saying who may use a conditional key. */
+    private const string CONDITIONAL = 'A filter or order marked conditional is open only to callers the resource shows the field to; any other caller '
+        . 'is refused as for an undeclared key.';
+
+    /** The suffix marking a filter or order only some callers may use. */
+    private const string CONDITIONAL_SUFFIX = ' (conditional)';
+
     /** The cell shown where a column answers nothing, or a row is undescribed. */
     private const string NO_VALUE = '-';
 
@@ -67,7 +74,7 @@ final readonly class QuerySurfaceDocGenerator
         QueryCostLimits::MAX_NODES         => 'The keys a filter visits in total.',
         QueryCostLimits::MAX_IN_ITEMS      => 'The items a single operator value list carries, such as the one `$in` reads.',
         QueryCostLimits::MAX_ORDER_KEYS    => 'The columns one request may order by.',
-        QueryCostLimits::MAX_AGGREGATES    => 'The relation aggregates one request may ask for.',
+        QueryCostLimits::MAX_AGGREGATES    => 'The relation aggregates one request may ask for, across every resource type.',
         QueryCostLimits::MAX_OFFSET        => 'The rows a paginated read may scan past to reach its page.',
         QueryParameterValidator::MAX_LIMIT => 'The records one page may carry, asked for with `limit`.',
     ];
@@ -101,7 +108,7 @@ final readonly class QuerySurfaceDocGenerator
      */
     public function generate(array $surfaces, array $limits, array $bounds): string
     {
-        $lines = [self::BANNER, '', '# Query Surface Reference', '', self::INTRO, '', self::KEYS, self::ALIASES, '', self::ORDERS, '', self::RELEVANCE];
+        $lines = [self::BANNER, '', '# Query Surface Reference', '', self::INTRO, '', self::KEYS, self::ALIASES, '', self::ORDERS, '', self::RELEVANCE, '', self::CONDITIONAL];
 
         $lines = array_merge(
             $lines,
@@ -309,11 +316,26 @@ final readonly class QuerySurfaceDocGenerator
             '| %s | %s | %s | %s | %s | %s |',
             $this->code($column->property),
             $this->code($column->column),
-            $column->capability === null ? self::NO_VALUE : $this->code($column->capability->value),
+            $this->filter($column),
             $this->operators($column),
             $this->order($column),
             $column->strategy === null ? self::NO_VALUE : $this->code($column->strategy->value),
         );
+    }
+
+    /**
+     * Render the capability the column answers a filter with.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor  $column
+     * @return string
+     */
+    private function filter(QueryColumnDescriptor $column): string
+    {
+        if ($column->capability === null) {
+            return self::NO_VALUE;
+        }
+
+        return $this->code($column->capability->value) . ($column->filterConditional ? self::CONDITIONAL_SUFFIX : '');
     }
 
     /**
@@ -343,9 +365,11 @@ final readonly class QuerySurfaceDocGenerator
             return self::NO_VALUE;
         }
 
-        return $column->unindexedReason === null
+        $order = $column->unindexedReason === null
             ? self::INDEXED
             : self::UNINDEXED . $this->escape($column->unindexedReason);
+
+        return $order . ($column->sortConditional ? self::CONDITIONAL_SUFFIX : '');
     }
 
     /**

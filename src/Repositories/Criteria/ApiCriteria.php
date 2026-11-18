@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
@@ -146,7 +147,7 @@ final class ApiCriteria implements CriteriaInterface
 
         $resourceType = $this->getResourceType($query->getModel());
 
-        $this->queryCostGuard->guard($resourceType);
+        $this->queryCostGuard->guard();
 
         $surface = $this->buildQuerySurface($query->getModel());
 
@@ -155,18 +156,19 @@ final class ApiCriteria implements CriteriaInterface
 
         $query = $this->searchApplier->apply($query, $this->getSearch(), $this->resolveResource($query->getModel()));
         $query = $this->applyGroupedFilters($query, $surface);
-        $query = $this->eagerLoadApplier->apply(
+
+        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
+        $query = $this->limitApplier->apply($query, $this->getLimit());
+        $query = $this->applyOrderingAndProjection($query, $surface);
+
+        // After the projection, so the aggregate subselects add to its columns
+        return $this->eagerLoadApplier->apply(
             $query,
             $this->metadataProvider,
             $this->resolveResource($query->getModel()),
             $resourceType,
             $this->relationTrashedGate,
         );
-
-        $query = $this->limitApplier->apply($query, $this->getLimit());
-
-        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
-        return $this->applyOrderingAndProjection($query, $surface);
     }
 
     /**
@@ -225,7 +227,7 @@ final class ApiCriteria implements CriteriaInterface
     }
 
     /**
-     * Apply ordering, then narrow the base-table projection as the final step.
+     * Apply ordering, then narrow the base-table projection.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
@@ -305,7 +307,7 @@ final class ApiCriteria implements CriteriaInterface
     }
 
     /**
-     * Build the declared query surface for the resolved resource.
+     * Build the query surface the request may use for the resolved resource.
      *
      * An unmapped model yields an empty surface, so every key is rejected.
      *
@@ -319,6 +321,7 @@ final class ApiCriteria implements CriteriaInterface
         return new QuerySurface(
             $resource && is_subclass_of($resource, ApiResourceInterface::class) ? SchemaCompiler::compile($resource) : null,
             new RelationTraversal($this->schemaIntrospector, ResourceSettings::resourceMap()),
+            new CallerAdmission($this->request, new GuardEvaluator),
         );
     }
 }

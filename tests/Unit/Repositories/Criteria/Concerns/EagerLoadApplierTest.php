@@ -10,9 +10,11 @@ use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Schema\Field;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -61,8 +63,7 @@ final class EagerLoadApplierTest extends TestCase
         $this->parseRequest(new Request);
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
-        $provider->expects(self::never())->method('resolveFields');
-        $provider->expects(self::never())->method('getAllFields');
+        $provider->expects(self::never())->method('eagerLoadMapFor');
 
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, $provider, null, 'users', $this->gate());
@@ -83,8 +84,7 @@ final class EagerLoadApplierTest extends TestCase
         $this->parseRequest(new Request);
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
-        $provider->expects(self::never())->method('resolveFields');
-        $provider->expects(self::never())->method('getAllFields');
+        $provider->expects(self::never())->method('eagerLoadMapFor');
 
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, $provider, UserResource::class, null, $this->gate());
@@ -104,8 +104,7 @@ final class EagerLoadApplierTest extends TestCase
         $this->parseRequest(new Request);
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
-        $provider->expects(self::never())->method('resolveFields');
-        $provider->expects(self::never())->method('getAllFields');
+        $provider->expects(self::never())->method('eagerLoadMapFor');
 
         $query  = (new User)->newQuery();
         $result = $this->applier->apply($query, $provider, \stdClass::class, 'users', $this->gate());
@@ -114,13 +113,13 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply uses getAllFields when the ':all' token is present.
+     * Test that the ':all' token plans every field and the aggregates.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithAllTokenUsesGetAllFields(): void
+    public function testApplyPlansEveryFieldAndTheAggregatesUnderTheAllToken(): void
     {
         $this->parseRequest(new Request([
             'fields' => ['users' => ':all'],
@@ -129,17 +128,12 @@ final class EagerLoadApplierTest extends TestCase
         $provider = $this->createMock(ResourceMetadataProvider::class);
 
         $provider->expects(self::once())
-            ->method('getAllFields')
-            ->with(UserResource::class)
-            ->willReturn(['id', 'name', 'organization']);
+            ->method('eagerLoadMapFor')
+            ->with(UserResource::class, [...UserResource::getAllFields(), 'aggregates'])
+            ->willReturn([]);
 
-        $provider->expects(self::never())
-            ->method('resolveFields');
-
-        $provider->method('eagerLoadMapFor')
-            ->willReturn(['organization' => fn () => null]);
-
-        $provider->method('eagerLoadAggregatesFor')
+        $provider->expects(self::once())
+            ->method('eagerLoadAggregatesFor')
             ->willReturn([]);
 
         $query = (new User)->newQuery();
@@ -147,13 +141,13 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply uses resolveFields when the ':all' token is absent.
+     * Test that apply plans the requested fields followed by the fixed fields.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithSpecificFieldsUsesResolveFields(): void
+    public function testApplyPlansTheRequestedAndFixedFields(): void
     {
         $this->parseRequest(new Request([
             'fields' => ['users' => self::STUB_USER_FIELDS],
@@ -161,18 +155,13 @@ final class EagerLoadApplierTest extends TestCase
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
 
-        $provider->expects(self::once())
-            ->method('resolveFields')
+        $provider->method('getFixedFields')
             ->with(UserResource::class)
-            ->willReturn(['id', 'name']);
+            ->willReturn(['organization']);
 
-        $provider->expects(self::never())
-            ->method('getAllFields');
-
-        $provider->method('eagerLoadMapFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadAggregatesFor')
+        $provider->expects(self::once())
+            ->method('eagerLoadMapFor')
+            ->with(UserResource::class, ['id', 'name', 'organization'])
             ->willReturn([]);
 
         $query = (new User)->newQuery();
@@ -180,7 +169,7 @@ final class EagerLoadApplierTest extends TestCase
     }
 
     /**
-     * Test that apply returns early when the resolved fields are empty.
+     * Test that apply returns early when the resource selects no field.
      *
      * @return void
      *
@@ -188,14 +177,23 @@ final class EagerLoadApplierTest extends TestCase
      */
     public function testApplyWithEmptyFieldsReturnsEarlyWithoutEagerLoading(): void
     {
-        $this->parseRequest(new Request([
-            'fields' => ['users' => 'id'],
-        ]));
+        $this->parseRequest(new Request);
+
+        $resource = new class (null) extends ApiResource {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'fieldless_users';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(Field::scalar('id'));
+            }
+        };
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
-
-        $provider->method('resolveFields')
-            ->willReturn([]);
 
         $provider->expects(self::never())
             ->method('eagerLoadMapFor');
@@ -204,7 +202,7 @@ final class EagerLoadApplierTest extends TestCase
             ->method('eagerLoadAggregatesFor');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
+        $result = $this->applier->apply($query, $provider, $resource::class, 'fieldless_users', $this->gate());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -223,9 +221,6 @@ final class EagerLoadApplierTest extends TestCase
         ]));
 
         $provider = self::createStub(ResourceMetadataProvider::class);
-
-        $provider->method('resolveFields')
-            ->willReturn(['id', 'name', 'organization']);
 
         $provider->method('eagerLoadMapFor')
             ->willReturn(['organization' => fn () => null]);
@@ -254,9 +249,6 @@ final class EagerLoadApplierTest extends TestCase
 
         $provider = self::createStub(ResourceMetadataProvider::class);
 
-        $provider->method('resolveFields')
-            ->willReturn(['id', 'name']);
-
         $provider->method('eagerLoadMapFor')
             ->willReturn([]);
 
@@ -280,7 +272,7 @@ final class EagerLoadApplierTest extends TestCase
     public function testApplySelectsEveryAggregateEntry(): void
     {
         $this->parseRequest(new Request([
-            'fields'     => ['users' => self::STUB_USER_FIELDS],
+            'fields'     => ['users' => 'id,name,aggregates'],
             'aggregates' => ['users' => 'posts_count,posts_sum_id'],
         ]));
 
@@ -289,9 +281,6 @@ final class EagerLoadApplierTest extends TestCase
         };
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
-
-        $provider->method('resolveFields')
-            ->willReturn(['id', 'name']);
 
         $provider->method('eagerLoadMapFor')
             ->willReturn([]);
@@ -328,13 +317,10 @@ final class EagerLoadApplierTest extends TestCase
     public function testApplySelectsNothingWithoutAggregateEntries(): void
     {
         $this->parseRequest(new Request([
-            'fields' => ['users' => self::STUB_USER_FIELDS],
+            'fields' => ['users' => 'id,name,aggregates'],
         ]));
 
         $provider = $this->createMock(ResourceMetadataProvider::class);
-
-        $provider->method('resolveFields')
-            ->willReturn(['id', 'name']);
 
         $provider->method('eagerLoadMapFor')
             ->willReturn([]);
@@ -348,6 +334,32 @@ final class EagerLoadApplierTest extends TestCase
         $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
 
         self::assertEmpty($result->getQuery()->columns ?? []);
+    }
+
+    /**
+     * Test that apply plans no aggregate the selection leaves out, defaults
+     * included.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testApplyLoadsNoAggregateTheSelectionLeavesOut(): void
+    {
+        $this->parseRequest(new Request);
+
+        $provider = $this->createMock(ResourceMetadataProvider::class);
+
+        $provider->method('eagerLoadMapFor')
+            ->willReturn([]);
+
+        $provider->expects(self::never())
+            ->method('eagerLoadAggregatesFor');
+
+        $query  = (new User)->newQuery();
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
+
+        self::assertNull($result->getQuery()->columns);
     }
 
     /**

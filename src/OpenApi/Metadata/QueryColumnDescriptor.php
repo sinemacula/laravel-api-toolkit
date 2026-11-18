@@ -28,6 +28,8 @@ final readonly class QueryColumnDescriptor
      * @param  bool  $sortable
      * @param  string|null  $unindexedReason
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy|null  $strategy
+     * @param  bool  $filterConditional
+     * @param  bool  $sortConditional
      */
     public function __construct(
 
@@ -51,5 +53,11 @@ final readonly class QueryColumnDescriptor
 
         /** The strategy a free-text search matches the column by */
         public ?SearchStrategy $strategy = null,
+
+        /** Whether only some callers may filter by the column */
+        public bool $filterConditional = false,
+
+        /** Whether only some callers may order by the column */
+        public bool $sortConditional = false,
     ) {}
 }

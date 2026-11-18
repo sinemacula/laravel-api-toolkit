@@ -283,7 +283,7 @@ return [
     | `max_nodes`       - total filter keys visited.
     | `max_in_items`    - items in one operator value list, such as `$in`.
     | `max_order_keys`  - sort columns.
-    | `max_aggregates`  - relation aggregates.
+    | `max_aggregates`  - relation aggregates, across every resource type.
     | `max_offset`      - rows skipped to reach a page, (page - 1) x page size;
     |                     cursor pagination is exempt.
     */
@@ -356,10 +356,11 @@ return [
     | trait and flushes them as bulk INSERTs at the end of the request, command
     | or job. Buffered records are lost if the process dies before the flush.
     |
-    | `chunk_size` is the most records per INSERT; keep it below the database's
-    | binding limit divided by the widest deferred table's column count.
+    | `chunk_size` is the most records per INSERT. A wide table's chunks are
+    | cut further so no INSERT binds more than 32766 values.
     |
-    | `pool_limit` is the buffered record count that triggers a flush.
+    | `pool_limit` is the buffered record count that triggers a flush. Records
+    | a failed flush kept do not count toward it.
     |
     | `on_failure` decides what a failed chunk insert does:
     |   'collect' - keep the failed records for the next flush (default).

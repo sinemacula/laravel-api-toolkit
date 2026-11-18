@@ -13,6 +13,9 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
  */
 final readonly class DeferredWriteChunker
 {
+    /** @var int The most bound values one INSERT carries, SQLite's default limit and below MySQL's and PostgreSQL's */
+    private const int MAX_BINDINGS = 32766;
+
     /**
      * Create a new deferred write chunker instance.
      *
@@ -34,23 +37,36 @@ final readonly class DeferredWriteChunker
      */
     public function chunk(array $records): array
     {
-        $size   = max(1, $this->chunkSize);
         $chunks = [];
         $run    = [];
 
         foreach ($records as $record) {
 
             if ($run !== [] && $this->columns($record) !== $this->columns($run[0])) {
-                array_push($chunks, ...array_chunk($run, $size));
+                array_push($chunks, ...$this->chunkRun($run));
                 $run = [];
             }
 
             $run[] = $record;
         }
 
-        array_push($chunks, ...array_chunk($run, $size));
+        array_push($chunks, ...$this->chunkRun($run));
 
         return $chunks;
+    }
+
+    /**
+     * Chunk a run of one column set by the chunk size, cut further so no chunk
+     * binds more values than the database accepts.
+     *
+     * @param  list<array<string, mixed>>  $run
+     * @return list<list<array<string, mixed>>>
+     */
+    private function chunkRun(array $run): array
+    {
+        $columns = max(1, count($run[0] ?? []));
+
+        return array_chunk($run, max(1, min($this->chunkSize, intdiv(self::MAX_BINDINGS, $columns))));
     }
 
     /**

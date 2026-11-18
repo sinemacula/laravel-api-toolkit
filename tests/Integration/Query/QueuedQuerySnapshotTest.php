@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use Tests\Concerns\UsesDatabaseQueue;
 use Tests\Fixtures\Jobs\QueryReplayingJob;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\GuardedQueryableUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -108,6 +109,25 @@ final class QueuedQuerySnapshotTest extends TestCase
         self::assertNull(QueryReplayingJob::$rendered);
         self::assertIsString($exception);
         self::assertStringStartsWith('LogicException: ' . self::UNPARSED, $exception);
+    }
+
+    /**
+     * Test that a carried key a caller guard hides from the worker's request
+     * fails the job instead of filtering by it.
+     *
+     * @return void
+     */
+    public function testQueuedJobFailsOnAKeyACallerGuardHidesFromTheWorker(): void
+    {
+        Queue::push(new QueryReplayingJob(new ApiQuerySnapshot(['filters' => '{"email":"alice@example.com"}']), GuardedQueryableUserResource::class));
+
+        $this->workUntilEmpty(1);
+
+        $exception = DB::connection('queue_probe')->table('failed_jobs')->value('exception');
+
+        self::assertNull(QueryReplayingJob::$rendered);
+        self::assertIsString($exception);
+        self::assertStringContainsString('The "email" key is not a permitted query parameter for this resource.', $exception);
     }
 
     /**
