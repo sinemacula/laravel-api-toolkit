@@ -31,6 +31,7 @@ use Tests\Fixtures\Resources\BoundedOrganizationResource;
 use Tests\Fixtures\Resources\BoundedPostResource;
 use Tests\Fixtures\Resources\BoundedUserResource;
 use Tests\Fixtures\Resources\CommentResource;
+use Tests\Fixtures\Resources\CountryResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\TestCase;
 
@@ -67,6 +68,7 @@ final class BoundedRelationHttpTest extends TestCase
             BoundedPostResource::class,
             BoundedUserResource::class,
             CommentResource::class,
+            CountryResource::class,
             TagResource::class,
         ]);
 

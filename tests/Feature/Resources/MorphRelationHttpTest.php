@@ -6,6 +6,7 @@ namespace Tests\Feature\Resources;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -13,6 +14,7 @@ use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\RelationWindow;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
 use SineMacula\ApiToolkit\Schema\RelationLimit;
 use Tests\Concerns\RegistersApiExceptionHandler;
@@ -22,8 +24,10 @@ use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\NoteRepository;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\BoundedPostResource;
 use Tests\Fixtures\Resources\BoundedUserResource;
 use Tests\Fixtures\Resources\NoteResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\TestCase;
 
 /**
@@ -51,6 +55,8 @@ final class MorphRelationHttpTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [BoundedPostResource::class, BoundedUserResource::class, NoteResource::class, TagResource::class]);
 
         $this->registerApiExceptionHandler();
 

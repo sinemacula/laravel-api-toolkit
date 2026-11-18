@@ -5,11 +5,13 @@ declare(strict_types = 1);
 namespace Tests\Integration\Search;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Post;
@@ -49,6 +51,8 @@ abstract class EngineSearchHttpTestCase extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [EngineSearchUserResource::class, EqualityPrefixSearchableUserResource::class, TrashedSearchArticleResource::class]);
 
         if (DB::connection()->getDriverName() !== $this->engine()) {
             static::markTestSkipped(sprintf('The %s search suite runs against its own engine only.', $this->engine()));
