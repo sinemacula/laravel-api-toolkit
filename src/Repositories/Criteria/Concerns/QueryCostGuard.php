@@ -21,17 +21,16 @@ final class QueryCostGuard
     /**
      * Reject the request when it exceeds one of the flat caps.
      *
-     * @param  string|null  $resourceType
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function guard(?string $resourceType): void
+    public function guard(): void
     {
         $limits = QueryCostLimits::fromConfig();
 
         $limits->enforce(QueryCostLimits::MAX_ORDER_KEYS, count(ApiQuery::getOrder()), 'order');
-        $limits->enforce(QueryCostLimits::MAX_AGGREGATES, $this->countAggregates($resourceType), 'aggregates');
+        $limits->enforce(QueryCostLimits::MAX_AGGREGATES, $this->countAggregates(), 'aggregates');
 
         $this->guardOffset($limits);
     }
@@ -66,13 +65,13 @@ final class QueryCostGuard
     }
 
     /**
-     * Count the relation aggregates the request asks for.
+     * Count the relation aggregates the request asks for across every resource
+     * type, rendered or not.
      *
-     * @param  string|null  $resourceType
      * @return int
      */
-    private function countAggregates(?string $resourceType): int
+    private function countAggregates(): int
     {
-        return $resourceType === null ? 0 : count(ApiQuery::getAggregates($resourceType) ?? []);
+        return array_sum(array_map(count(...), ApiQuery::getAllAggregates()));
     }
 }

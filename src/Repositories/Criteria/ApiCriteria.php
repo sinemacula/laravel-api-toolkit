@@ -139,7 +139,7 @@ final class ApiCriteria implements CriteriaInterface
 
         $resourceType = $this->getResourceType($query->getModel());
 
-        $this->queryCostGuard->guard($resourceType);
+        $this->queryCostGuard->guard();
 
         $surface = $this->buildQuerySurface($query->getModel());
 
@@ -148,18 +148,19 @@ final class ApiCriteria implements CriteriaInterface
 
         $query = $this->searchApplier->apply($query, $this->getSearch(), $this->resolveResource($query->getModel()));
         $query = $this->applyGroupedFilters($query, $surface);
-        $query = $this->eagerLoadApplier->apply(
+
+        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
+        $query = $this->limitApplier->apply($query, $this->getLimit());
+        $query = $this->applyOrderingAndProjection($query, $surface);
+
+        // After the projection, so the aggregate subselects add to its columns
+        return $this->eagerLoadApplier->apply(
             $query,
             $this->metadataProvider,
             $this->resolveResource($query->getModel()),
             $resourceType,
             $this->relationTrashedGate,
         );
-
-        $query = $this->limitApplier->apply($query, $this->getLimit());
-
-        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
-        return $this->applyOrderingAndProjection($query, $surface);
     }
 
     /**
@@ -192,7 +193,7 @@ final class ApiCriteria implements CriteriaInterface
     }
 
     /**
-     * Apply ordering, then narrow the base-table projection as the final step.
+     * Apply ordering, then narrow the base-table projection.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface

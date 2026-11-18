@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Config\HttpSettings;
  *
  * @method static array<int, string>|null getFields(string $resource)
  * @method static array<int, string>|null getAggregates(string $resource)
+ * @method static array<array-key, array<int, string>> getAllAggregates()
  * @method static array<string, mixed>|null getFilters()
  * @method static \SineMacula\ApiToolkit\Search\SearchTerm|null getSearch()
  * @method static array<string, 'asc'|'desc'> getOrder()

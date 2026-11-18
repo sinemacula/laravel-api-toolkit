@@ -264,7 +264,8 @@ GET /users?limit=25    // honoured as-is
 ```
 
 **Relation aggregates** - request declared aggregates per resource type by their keys. Requesting any aggregate replaces
-every default of that type, as `?fields` replaces `$default`, and the response renders them under the `aggregates` field:
+every default of that type, as `?fields` replaces `$default`. A type's aggregates apply wherever it renders, at the root
+or embedded, and render under its `aggregates` field when its field selection includes it:
 
 ```http
 GET /users?fields[users]=name,aggregates&aggregates[users]=posts_count,orders_sum_total,last_order_at
@@ -275,7 +276,7 @@ ApiQuery::getAggregates('users');      // ['posts_count', 'orders_sum_total', 'l
 ```
 
 An aggregate key the type does not declare is rejected with a 422 on `aggregates.{type}`, and `?aggregates[users]=`
-selects none.
+selects none. A resource embedded through a `MorphTo` relation or a `PolymorphicResource` loads no aggregates.
 
 ```json
 {
@@ -598,9 +599,9 @@ Two overrides cover what the catalogue cannot show:
 search relevance order, so a `sortable()` column named `relevance` cannot be ordered by; schema validation reports it.
 
 **Query cost caps** - `api-toolkit.query_cost` bounds the filter document's size and nesting, the keys and value-list
-items it dispatches, the sort keys and relation aggregates requested, and how deep a request pages. A request over a
-cap is rejected before any SQL is issued, with a `422` naming the parameter, the position within it, the cap, the
-limit and the value supplied. Set a cap to `0` to disable it.
+items it dispatches, the sort keys and relation aggregates requested across every resource type, and how deep a request
+pages. A request over a cap is rejected before any SQL is issued, with a `422` naming the parameter, the position within
+it, the cap, the limit and the value supplied. Set a cap to `0` to disable it.
 
 **Writes** - `persist($model, $attributes)` creates or updates the model from an array or collection of attributes.
 Each key is written through Eloquent's `setAttribute()`, so casts, both mutator styles and JSON paths such as

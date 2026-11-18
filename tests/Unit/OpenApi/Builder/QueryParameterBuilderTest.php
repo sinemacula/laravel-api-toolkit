@@ -341,7 +341,8 @@ final class QueryParameterBuilderTest extends TestCase
         self::assertStringContainsString('order=name,created_at:desc', $parameters['Order']['description']);
         self::assertSame(
             'Relation aggregates: request the keys of the resource\'s aggregates object per resource type, e.g. aggregates[users]=posts_count. '
-            . 'Requesting any aggregate replaces the defaults of that type. Unknown resource types and names are rejected.',
+            . 'Requesting any aggregate replaces the defaults of that type. A type\'s aggregates apply wherever it renders, at the root or '
+            . 'embedded, when its fields select aggregates. Unknown resource types and names are rejected.',
             $parameters['Aggregates']['description'],
         );
         self::assertIsString($parameters['Filters']['description']);

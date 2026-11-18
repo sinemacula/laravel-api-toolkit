@@ -64,7 +64,7 @@ final class QueryCostGuardTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard(self::RESOURCE_TYPE);
+        $this->guard->guard();
     }
 
     /**
@@ -113,12 +113,11 @@ final class QueryCostGuardTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard(self::RESOURCE_TYPE);
+        $this->guard->guard();
     }
 
     /**
-     * Test that one aggregate key too many is rejected, while another type's
-     * keys are not charged.
+     * Test that one aggregate key too many is rejected.
      *
      * @return void
      */
@@ -127,8 +126,24 @@ final class QueryCostGuardTest extends TestCase
         Config::set('api-toolkit.query_cost.max_aggregates', 2);
 
         $this->parseQuery([
+            'aggregates' => [self::RESOURCE_TYPE => 'posts_count,posts_sum_id,posts_avg_id'],
+        ]);
+
+        $this->assertRejectedForCost('aggregates', QueryCostLimits::MAX_AGGREGATES, 2, 3);
+    }
+
+    /**
+     * Test that the keys of every resource type are charged against one cap.
+     *
+     * @return void
+     */
+    public function testAggregatesOfEveryTypeAreChargedTogether(): void
+    {
+        Config::set('api-toolkit.query_cost.max_aggregates', 2);
+
+        $this->parseQuery([
             'aggregates' => [
-                self::RESOURCE_TYPE => 'posts_count,posts_sum_id,posts_avg_id',
+                self::RESOURCE_TYPE => 'posts_count,posts_sum_id',
                 'organizations'     => 'users_count',
             ],
         ]);
@@ -153,7 +168,7 @@ final class QueryCostGuardTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard(self::RESOURCE_TYPE);
+        $this->guard->guard();
     }
 
     /**
@@ -185,7 +200,7 @@ final class QueryCostGuardTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard(self::RESOURCE_TYPE);
+        $this->guard->guard();
     }
 
     /**
@@ -220,7 +235,7 @@ final class QueryCostGuardTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard(self::RESOURCE_TYPE);
+        $this->guard->guard();
     }
 
     /**
@@ -235,12 +250,12 @@ final class QueryCostGuardTest extends TestCase
         Config::set('api-toolkit.query_cost.max_offset', 1);
 
         ApiQuery::shouldReceive('getOrder')->andReturn([]);
-        ApiQuery::shouldReceive('getAggregates')->andReturn(null);
+        ApiQuery::shouldReceive('getAllAggregates')->andReturn([]);
         ApiQuery::shouldReceive('getPage')->andReturn(null);
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard(self::RESOURCE_TYPE);
+        $this->guard->guard();
     }
 
     /**
@@ -256,7 +271,7 @@ final class QueryCostGuardTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard(null);
+        $this->guard->guard();
     }
 
     /**
@@ -271,7 +286,7 @@ final class QueryCostGuardTest extends TestCase
     private function assertRejectedForCost(string $parameter, string $reason, int $limit, int $actual): void
     {
         try {
-            $this->guard->guard(self::RESOURCE_TYPE);
+            $this->guard->guard();
 
             self::fail('Expected a rejection for the "' . $reason . '" cap.');
         } catch (QueryTooExpensiveException $exception) {

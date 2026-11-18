@@ -32,25 +32,20 @@ final class ApiResourceCollection extends ToolkitCollection
     #[\Override]
     public function toArray(Request $request): array
     {
-        /** @var class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource> $resourceClass */
-        $resourceClass = $this->collects;
+        /** @var \Illuminate\Support\Collection<int|string, \SineMacula\ApiToolkit\Http\Resources\ApiResource> $items */
+        $items = collect($this->collection);
 
-        return collect($this->collection)->map(function ($item) use ($resourceClass, $request): array {
+        return $items->map(function (ApiResource $item) use ($request): array {
 
-            if ($item instanceof ApiResource) {
-
-                if (isset($this->fields)) {
-                    $item->withFields($this->fields);
-                }
-
-                if (isset($this->excludedFields)) {
-                    $item->withoutFields($this->excludedFields);
-                }
-
-                return $item->resolve($request);
+            if (isset($this->fields)) {
+                $item->withFields($this->fields);
             }
 
-            return (new $resourceClass($item, false, $this->fields ?? null, $this->excludedFields ?? null))->resolve($request);
+            if (isset($this->excludedFields)) {
+                $item->withoutFields($this->excludedFields);
+            }
+
+            return $item->resolve($request);
         })->all();
     }
 
