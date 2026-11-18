@@ -16,9 +16,11 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ErrorCatalogueMismatchException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ReachableSchemaResolver;
@@ -28,6 +30,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\ValidatesOpenApiDocuments;
 use Tests\Concerns\WritesDocsDirectories;
 use Tests\Fixtures\Enums\TicketPriority;
+use Tests\Fixtures\Middleware\RequireSubscription;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
@@ -53,6 +56,7 @@ use Tests\Fixtures\OpenApi\PathRouteFactsController;
 use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathTagInternalController;
+use Tests\Fixtures\OpenApi\PaymentRequiredException;
 use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -1470,6 +1474,50 @@ final class OpenApiExporterValidityTest extends TestCase
 
         self::assertSame('#/components/schemas/ErrorEnvelope', $conflict['schema']['$ref']);
         self::assertSame(['Error10108' => ['$ref' => '#/components/examples/Error10108']], $conflict['examples']);
+    }
+
+    /**
+     * Test that a route middleware's thrown exception survives assembly and the
+     * document stays valid.
+     *
+     * @return void
+     */
+    public function testMiddlewareThrowsSurviveAssemblyAndStayValid(): void
+    {
+        $this->router()->middlewareGroup('billing', [RequireSubscription::class]);
+        $this->router()->get('reports', [PathRouteFactsController::class, 'report'])->middleware('billing');
+
+        $document = $this->export()->document;
+        $response = $document['paths']['/reports']['get']['responses']['402'];
+
+        self::assertIsArray($response['headers']);
+        self::assertSame(['Error20003' => ['$ref' => '#/components/examples/Error20003']], $response['content']['application/json']['examples']);
+        self::assertSame(['X-Upgrade-Url'], array_keys($response['headers']));
+        self::assertSame(402, $document['components']['examples']['Error20003']['value']['error']['status']);
+
+        $result = $this->validateDocument($document);
+
+        self::assertTrue($result->isValid(), 'A document carrying middleware errors must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
+        $this->assertReferencesResolve($document);
+    }
+
+    /**
+     * Test that a middleware naming an uncatalogued code fails the export.
+     *
+     * @return void
+     */
+    public function testMiddlewareNamingAnUncataloguedCodeFailsTheExport(): void
+    {
+        $this->makeApplication()->instance(ApiExceptionDiscoverer::class, new ApiExceptionDiscoverer([], []));
+        $this->router()->get('reports', [PathRouteFactsController::class, 'report'])->middleware(RequireSubscription::class);
+
+        $this->expectException(ErrorCatalogueMismatchException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The error code 20003 of [%s] is not in the error catalogue; add its namespace to api-toolkit.openapi.exception_namespaces.',
+            PaymentRequiredException::class,
+        ));
+
+        $this->export();
     }
 
     /**
