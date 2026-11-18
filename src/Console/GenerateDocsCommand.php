@@ -43,8 +43,8 @@ final class GenerateDocsCommand extends Command
     /**
      * Execute the console command.
      *
-     * Every section is generated before any is written, so a failed export
-     * leaves the docs directory untouched.
+     * Every section is generated before any is written, so a failed export or
+     * write leaves the docs directory untouched.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\ErrorCatalogueDocGenerator  $errors
@@ -74,10 +74,9 @@ final class GenerateDocsCommand extends Command
             ...$this->surfaceReferences($docs, $catalogue, $surface, $surfaces),
         ];
 
-        foreach ($files as $path => $contents) {
+        $writer->write($files);
 
-            $writer->write($path, $contents);
-
+        foreach (array_keys($files) as $path) {
             $this->components->info(sprintf('Wrote %s.', $path));
         }
 

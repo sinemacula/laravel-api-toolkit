@@ -16,7 +16,8 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
  * Artisan command to export the toolkit's OpenAPI 3.1 document.
  *
  * Every audience is exported before anything is written, so one empty audience
- * fails the whole run unless --allow-empty is passed.
+ * fails the whole run unless --allow-empty is passed; the documents are then
+ * written together, replacing none on a failed write.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -26,6 +27,9 @@ final class ExportOpenApiCommand extends Command
     /** @var string The notice printed when the export runs without a database */
     private const string NO_DATABASE_NOTICE = 'No database connection - field types and nullability are inferred'
         . ' from declared casts only; run against a database for the most accurate output.';
+
+    /** @var int The flags every document is serialized with */
+    private const int JSON_FLAGS = JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR;
 
     /** @var string The console command signature */
     protected $signature = <<<'EOD'
@@ -68,14 +72,34 @@ final class ExportOpenApiCommand extends Command
             return self::FAILURE;
         }
 
-        $base    = $this->resolveOutputPath();
-        $perFile = (bool) $this->option('all');
+        $written = $this->keyByPath($exports);
 
-        foreach ($exports as [$audience, $result]) {
-            $this->writeDocument($writer, $result, $perFile ? $this->audienceOutputPath($base, $audience) : $base, $audience);
+        $writer->write(array_map(static fn (array $export): string => json_encode($export[1]->document, self::JSON_FLAGS), $written));
+
+        foreach ($written as $path => [$audience, $result]) {
+            $this->reportWritten($result, $path, $audience);
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Key each export by the path it is written to.
+     *
+     * @param  list<array{string, \SineMacula\ApiToolkit\OpenApi\ExportResult}>  $exports
+     * @return array<string, array{string, \SineMacula\ApiToolkit\OpenApi\ExportResult}>
+     */
+    private function keyByPath(array $exports): array
+    {
+        $base    = $this->resolveOutputPath();
+        $perFile = (bool) $this->option('all');
+        $keyed   = [];
+
+        foreach ($exports as $export) {
+            $keyed[$perFile ? $this->audienceOutputPath($base, $export[0]) : $base] = $export;
+        }
+
+        return $keyed;
     }
 
     /**
@@ -180,22 +204,15 @@ final class ExportOpenApiCommand extends Command
     }
 
     /**
-     * Serialize and write the exported document, then report the result.
+     * Report the document written for the audience.
      *
-     * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter  $writer
      * @param  \SineMacula\ApiToolkit\OpenApi\ExportResult  $result
      * @param  string  $path
      * @param  string  $audience
      * @return void
-     *
-     * @throws \JsonException
      */
-    private function writeDocument(DocumentWriter $writer, ExportResult $result, string $path, string $audience): void
+    private function reportWritten(ExportResult $result, string $path, string $audience): void
     {
-        $json = json_encode($result->document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-
-        $writer->write($path, $json);
-
         if ($result->operationCount === 0) {
             $this->components->warn(sprintf('The [%s] audience documents no operations; wrote an empty document to %s.', $audience, $path));
 

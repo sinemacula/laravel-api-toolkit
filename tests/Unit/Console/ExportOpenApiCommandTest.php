@@ -259,16 +259,15 @@ final class ExportOpenApiCommandTest extends TestCase
 
         $this->app->instance(DocumentWriter::class, new class implements DocumentWriter {
             /**
-             * Persist the serialized document at the given path.
+             * Persist every serialized document at its path, or none of them.
              *
-             * @param  string  $path
-             * @param  string  $contents
+             * @param  array<string, string>  $documents
              * @return void
              *
              * @throws \RuntimeException
              */
             #[\Override]
-            public function write(string $path, string $contents): void
+            public function write(array $documents): void
             {
                 throw new \RuntimeException('Unable to write the OpenAPI document.');
             }
@@ -389,6 +388,60 @@ final class ExportOpenApiCommandTest extends TestCase
         } finally {
             @unlink($public);
             @unlink($internal);
+        }
+    }
+
+    /**
+     * Test that --all hands every audience's document to the writer at once, so
+     * a failed write leaves none of them written.
+     *
+     * @return void
+     */
+    public function testCommandAllFlagWritesEveryAudienceOrNone(): void
+    {
+        $this->registerResourceMap();
+        $this->registerDocumentedRoute();
+        $this->getConfig()->set('api-toolkit.openapi.audiences', [
+            'public'   => [],
+            'internal' => [],
+        ]);
+
+        $writer = new class implements DocumentWriter {
+            /** @var list<array<string, string>> The documents of each write. */
+            public array $writes = [];
+
+            /**
+             * Record the documents, then fail as a full disk would.
+             *
+             * @param  array<string, string>  $documents
+             * @return void
+             *
+             * @throws \RuntimeException
+             */
+            #[\Override]
+            public function write(array $documents): void
+            {
+                $this->writes[] = $documents;
+
+                throw new \RuntimeException('No space left on device.');
+            }
+        };
+
+        assert($this->app instanceof Application);
+
+        $this->app->instance(DocumentWriter::class, $writer);
+
+        $base = sys_get_temp_dir() . '/api-toolkit-all-' . uniqid('', true);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('No space left on device.');
+
+        try {
+            Artisan::call(self::COMMAND, ['--output' => $base . '.json', '--all' => true]);
+        } finally {
+            self::assertCount(1, $writer->writes);
+            self::assertSame([$base . '.public.json', $base . '.internal.json'], array_keys($writer->writes[0]));
+            self::assertStringContainsString('"openapi"', $writer->writes[0][$base . '.internal.json']);
         }
     }
 
