@@ -361,6 +361,19 @@ final class ApiResourceCollectionTest extends TestCase
     }
 
     /**
+     * Provide each container a collection may be built from.
+     *
+     * @return iterable<string, array{\Closure(array<int, \Tests\Fixtures\Models\User>): mixed}>
+     */
+    public static function containerProvider(): iterable
+    {
+        yield 'array' => [static fn (array $users): array => $users];
+        yield 'collection' => [static fn (array $users): mixed => collect($users)];
+        yield 'length-aware paginator' => [static fn (array $users): mixed => new LengthAwarePaginator($users, 3, 15)];
+        yield 'cursor paginator' => [static fn (array $users): mixed => new CursorPaginator($users, 15)];
+    }
+
+    /**
      * Test that wrapping the items loads no relation for any of them, whatever
      * container they arrive in.
      *
@@ -390,25 +403,12 @@ final class ApiResourceCollectionTest extends TestCase
 
         $collection = new ApiResourceCollection($container($users), UserResource::class);
 
-        self::assertContainsOnlyInstancesOf(UserResource::class, $collection->collection);
-        self::assertCount(3, $collection->collection);
+        self::assertContainsOnlyInstancesOf(UserResource::class, $collection->collection ?? []);
+        self::assertCount(3, $collection->collection ?? []);
 
         foreach ($users as $user) {
             self::assertFalse($user->relationLoaded('organization'));
         }
-    }
-
-    /**
-     * Provide each container a collection may be built from.
-     *
-     * @return iterable<string, array{\Closure(array<int, \Tests\Fixtures\Models\User>): mixed}>
-     */
-    public static function containerProvider(): iterable
-    {
-        yield 'array' => [static fn (array $users): array => $users];
-        yield 'collection' => [static fn (array $users): mixed => collect($users)];
-        yield 'length-aware paginator' => [static fn (array $users): mixed => new LengthAwarePaginator($users, 3, 15)];
-        yield 'cursor paginator' => [static fn (array $users): mixed => new CursorPaginator($users, 15)];
     }
 
     /**

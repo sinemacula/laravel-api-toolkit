@@ -36,7 +36,8 @@ final class RawSchemaValidatorTest extends TestCase
     private const string RESOURCE = 'App\Http\Resources\UserResource';
 
     /** @var string The defect refusing a constrained traversable relation */
-    private const string CONSTRAINED_TRAVERSAL = 'A traversable relation may not be constrained, as a filter would reach the rows it hides; move the row predicate into a relation method';
+    private const string CONSTRAINED_TRAVERSAL = 'A traversable relation may not be constrained, as a filter would reach the rows it hides; '
+        . 'move the row predicate into a relation method';
 
     /**
      * Test that Closure constraints with callable guards and transformers pass.
@@ -293,20 +294,6 @@ final class RawSchemaValidatorTest extends TestCase
     }
 
     /**
-     * Test that fields sharing one relation are refused when one constrains it
-     * or they render different resources, the defect naming every key.
-     *
-     * @param  array<string, array<string, mixed>>  $schema
-     * @param  string  $defect
-     * @return void
-     */
-    #[DataProvider('sharedRelationProvider')]
-    public function testRefusesFieldsSharingARelationThatNeedTheirOwnRows(array $schema, string $defect): void
-    {
-        self::assertSame([[self::RESOURCE, (string) array_key_first($schema), $defect]], $this->collectErrors($schema));
-    }
-
-    /**
      * Provide schemas whose fields over one relation would each need their own
      * rows, with the defect each is refused with.
      *
@@ -338,6 +325,20 @@ final class RawSchemaValidatorTest extends TestCase
             ],
             self::sharedRelation('"posts", "pinned_posts"', 'posts'),
         ];
+    }
+
+    /**
+     * Test that fields sharing one relation are refused when one constrains it
+     * or they render different resources, the defect naming every key.
+     *
+     * @param  array<string, array<string, mixed>>  $schema
+     * @param  string  $defect
+     * @return void
+     */
+    #[DataProvider('sharedRelationProvider')]
+    public function testRefusesFieldsSharingARelationThatNeedTheirOwnRows(array $schema, string $defect): void
+    {
+        self::assertSame([[self::RESOURCE, (string) array_key_first($schema), $defect]], $this->collectErrors($schema));
     }
 
     /**

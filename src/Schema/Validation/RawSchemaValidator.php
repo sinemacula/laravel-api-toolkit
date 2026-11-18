@@ -195,7 +195,7 @@ final class RawSchemaValidator
         foreach ($relations as $relation => $definitions) {
 
             $constrained = array_filter($definitions, static fn (array $definition): bool => isset($definition['constraint']));
-            $resources   = array_unique(array_column($definitions, 'resource'));
+            $resources   = array_unique(array_filter(array_column($definitions, 'resource'), is_string(...)));
 
             if (count($definitions) < 2 || ($constrained === [] && count($resources) < 2)) {
                 continue;

@@ -132,6 +132,16 @@ final class RelationTraversalTest extends TestCase
     }
 
     /**
+     * Test that a class that is no model reaches nothing.
+     *
+     * @return void
+     */
+    public function testAClassThatIsNoModelHasNoEdges(): void
+    {
+        self::assertSame([], $this->traversal()->edges(UserResource::class, \stdClass::class));
+    }
+
+    /**
      * Build a traversal over the fixture resource map.
      *
      * @return \SineMacula\ApiToolkit\Schema\RelationTraversal

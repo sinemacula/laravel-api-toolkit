@@ -183,7 +183,7 @@ final class SchemaValidatorTest extends TestCase
 
         $validator->validate([
             Organization::class => OrganizationResource::class,
-            Post::class => PostResource::class,
+            Post::class         => PostResource::class,
         ]);
 
         self::assertTrue(true);
@@ -211,7 +211,7 @@ final class SchemaValidatorTest extends TestCase
     public function testErrorsFromMultipleResourcesAreAggregated(): void
     {
         $organizationError = new SchemaValidationError(OrganizationResource::class, 'id', 'Organization defect');
-        $postError = new SchemaValidationError(PostResource::class, 'title', 'Post defect');
+        $postError         = new SchemaValidationError(PostResource::class, 'title', 'Post defect');
 
         $rule = self::createStub(SchemaValidationRule::class);
 
@@ -229,7 +229,7 @@ final class SchemaValidatorTest extends TestCase
         try {
             $validator->validate([
                 Organization::class => OrganizationResource::class,
-                Post::class => PostResource::class,
+                Post::class         => PostResource::class,
             ]);
             self::fail('Expected InvalidSchemaException was not thrown');
         } catch (InvalidSchemaException $exception) {
@@ -247,11 +247,11 @@ final class SchemaValidatorTest extends TestCase
      */
     public function testReportPartitionsTheFindingsAndCountsTheResources(): void
     {
-        $organizationError  = new SchemaValidationError(OrganizationResource::class, 'id', 'Organization defect');
-        $organizationClaim  = new UnverifiedDeclaration(OrganizationResource::class, 'name', 'a claim', Organization::class);
-        $postError  = new SchemaValidationError(PostResource::class, 'title', 'Post defect');
-        $postClaim  = new UnverifiedDeclaration(PostResource::class, 'body', 'another claim', Post::class);
-        $byResource = [OrganizationResource::class => [$organizationClaim, $organizationError], PostResource::class => [$postError, $postClaim]];
+        $organizationError = new SchemaValidationError(OrganizationResource::class, 'id', 'Organization defect');
+        $organizationClaim = new UnverifiedDeclaration(OrganizationResource::class, 'name', 'a claim', Organization::class);
+        $postError         = new SchemaValidationError(PostResource::class, 'title', 'Post defect');
+        $postClaim         = new UnverifiedDeclaration(PostResource::class, 'body', 'another claim', Post::class);
+        $byResource        = [OrganizationResource::class => [$organizationClaim, $organizationError], PostResource::class => [$postError, $postClaim]];
 
         $rule = self::createStub(SchemaValidationRule::class);
 
@@ -260,7 +260,7 @@ final class SchemaValidatorTest extends TestCase
 
         $report = (new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule))->report([
             Organization::class => OrganizationResource::class,
-            Post::class => PostResource::class,
+            Post::class         => PostResource::class,
         ]);
 
         self::assertSame([$organizationError, $postError], $report->errors);
@@ -395,7 +395,11 @@ final class SchemaValidatorTest extends TestCase
 
         self::assertSame(2, $report->resourceCount);
         self::assertEquals(
-            [new SchemaValidationError(SensitiveQueryableResource::class, 'password', 'Field is declared filterable against "password", which is configured as a sensitive column and may never be queried')],
+            [new SchemaValidationError(
+                SensitiveQueryableResource::class,
+                'password',
+                'Field is declared filterable against "password", which is configured as a sensitive column and may never be queried',
+            )],
             $report->errors,
         );
     }
@@ -507,7 +511,7 @@ final class SchemaValidatorTest extends TestCase
             {
                 return [
                     'ghost' => ['relation' => 'ghost', 'resource' => UserResource::class, 'traversable' => 'ghost'],
-                    'user'  => ['relation' => 'user', 'resource' => 'Tests\\Fixtures\\Resources\\MissingResource', 'traversable' => 'user'],
+                    'user'  => ['relation' => 'user', 'resource' => 'Tests\Fixtures\Resources\MissingResource', 'traversable' => 'user'],
                     'tags'  => ['relation' => 'tags', 'resource' => \stdClass::class, 'traversable' => 'tags'],
                 ];
             }

@@ -184,6 +184,17 @@ final class BoundedRelationHttpTest extends TestCase
     }
 
     /**
+     * Provide both orders of selecting the two fields.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function aliasOrderProvider(): iterable
+    {
+        yield 'posts first' => ['name,posts,latest_posts'];
+        yield 'latest posts first' => ['name,latest_posts,posts'];
+    }
+
+    /**
      * Test that two fields over relations to one model each render their own
      * rows, in whichever order they are selected.
      *
@@ -208,17 +219,6 @@ final class BoundedRelationHttpTest extends TestCase
         self::assertSame(array_slice($posts, 0, 5), array_column(self::rows($response->json('data.0.posts')), 'id'));
         self::assertSame(array_slice(array_reverse($posts), 0, 5), array_column(self::rows($response->json('data.0.latest_posts')), 'id'));
         self::assertEqualsCanonicalizing(['posts', 'latest_posts'], (array) $response->json('data.0._truncated'));
-    }
-
-    /**
-     * Provide both orders of selecting the two fields.
-     *
-     * @return iterable<string, array{string}>
-     */
-    public static function aliasOrderProvider(): iterable
-    {
-        yield 'posts first' => ['name,posts,latest_posts'];
-        yield 'latest posts first' => ['name,latest_posts,posts'];
     }
 
     /**

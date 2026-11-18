@@ -318,9 +318,9 @@ final class CompiledSchemaTest extends TestCase
      */
     public function testGetTraversableResourceReturnsTheDeclaredResourceOrNull(): void
     {
-        $schema = new CompiledSchema([], [], [], [], ['posts', 'profile'], [], ['posts' => 'App\\Http\\Resources\\PostResource']);
+        $schema = new CompiledSchema([], [], [], [], ['posts', 'profile'], [], ['posts' => 'App\Http\Resources\PostResource']);
 
-        self::assertSame('App\\Http\\Resources\\PostResource', $schema->getTraversableResource('posts'));
+        self::assertSame('App\Http\Resources\PostResource', $schema->getTraversableResource('posts'));
         self::assertNull($schema->getTraversableResource('profile'));
         self::assertNull((new CompiledSchema([], []))->getTraversableResource('posts'));
     }

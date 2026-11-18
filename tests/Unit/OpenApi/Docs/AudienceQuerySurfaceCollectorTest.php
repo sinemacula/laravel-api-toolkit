@@ -45,11 +45,7 @@ final class AudienceQuerySurfaceCollectorTest extends TestCase
     {
         Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
 
-        $router = $this->app?->make(Router::class);
-
-        assert($router instanceof Router);
-
-        $router->get('users', [PathFixtureController::class, 'index']);
+        app(Router::class)->get('users', [PathFixtureController::class, 'index']);
 
         $surfaces = [
             new QuerySurfaceDescriptor(QueryableTagResource::class, []),
@@ -71,11 +67,7 @@ final class AudienceQuerySurfaceCollectorTest extends TestCase
 
         $catalogue->method('getQuerySurfaces')->willReturn($surfaces);
 
-        $exporter = $this->app?->make(ExportOpenApiComponents::class);
-
-        assert($exporter instanceof ExportOpenApiComponents);
-
-        $collected = (new AudienceQuerySurfaceCollector($exporter, $catalogue, new AudienceConfiguration))->collect();
+        $collected = (new AudienceQuerySurfaceCollector(app(ExportOpenApiComponents::class), $catalogue, new AudienceConfiguration))->collect();
 
         self::assertSame(['public'], array_keys($collected));
         self::assertSame([$surfaces[1], $surfaces[2], $surfaces[3], $surfaces[4]], $collected['public']);

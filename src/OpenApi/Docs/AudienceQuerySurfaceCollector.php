@@ -99,9 +99,12 @@ final readonly class AudienceQuerySurfaceCollector
             $kept[$surface->resource] = $surface;
 
             foreach ($surface->relations as $relation) {
-                if ($relation->resource !== null && isset($byClass[$relation->resource])) {
-                    $queue[] = $byClass[$relation->resource];
+
+                if ($relation->resource === null || !isset($byClass[$relation->resource])) {
+                    continue;
                 }
+
+                $queue[] = $byClass[$relation->resource];
             }
         }
 

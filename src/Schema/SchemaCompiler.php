@@ -77,6 +77,19 @@ final class SchemaCompiler
     }
 
     /**
+     * Resolve the primary relation name for a field definition.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return string|null
+     */
+    public static function resolveFieldRelation(array $definition): ?string
+    {
+        $relations = (array) ($definition['relation'] ?? null);
+
+        return isset($relations[0]) && is_string($relations[0]) ? $relations[0] : null;
+    }
+
+    /**
      * Build a CompiledSchema from a raw schema array.
      *
      * @param  array<string, array<string, mixed>>  $rawSchema
@@ -316,19 +329,6 @@ final class SchemaCompiler
         $value = $definition[$key] ?? null;
 
         return is_string($value) ? $value : null;
-    }
-
-    /**
-     * Resolve the primary relation name for a field definition.
-     *
-     * @param  array<string, mixed>  $definition
-     * @return string|null
-     */
-    public static function resolveFieldRelation(array $definition): ?string
-    {
-        $relations = (array) ($definition['relation'] ?? null);
-
-        return isset($relations[0]) && is_string($relations[0]) ? $relations[0] : null;
     }
 
     /**

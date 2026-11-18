@@ -240,7 +240,10 @@ final class GenerateDocsCommandTest extends TestCase
 
         $contents = (string) file_get_contents($this->surfaceFile);
 
-        self::assertStringContainsString("\n### Post\n\n| Field | Key | Filter | Operators | Order | Search |\n| --- | --- | --- | --- | --- | --- |\n| `title` | `title` | `exact` |", $contents);
+        self::assertStringContainsString(
+            "\n### Post\n\n| Field | Key | Filter | Operators | Order | Search |\n| --- | --- | --- | --- | --- | --- |\n| `title` | `title` | `exact` |",
+            $contents,
+        );
     }
 
     /**

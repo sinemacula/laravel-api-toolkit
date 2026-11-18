@@ -89,7 +89,11 @@ final class User extends Model implements AuthenticatableContract
      */
     public function publishedPosts(): HasMany
     {
-        return $this->hasMany(Post::class)->where('published', true);
+        $posts = $this->hasMany(Post::class);
+
+        $posts->where('published', true);
+
+        return $posts;
     }
 
     /**
@@ -99,7 +103,11 @@ final class User extends Model implements AuthenticatableContract
      */
     public function latestPosts(): HasMany
     {
-        return $this->hasMany(Post::class)->latest();
+        $posts = $this->hasMany(Post::class);
+
+        $posts->latest();
+
+        return $posts;
     }
 
     /**

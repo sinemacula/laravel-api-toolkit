@@ -33,6 +33,7 @@ final readonly class SchemaValidator
         /** Resolves the relations a filter may descend through */
         private SchemaIntrospectionProvider $introspector,
 
+        // The rules each resource is validated against
         SchemaValidationRule ...$rules,
     ) {
         $this->rules = $rules;

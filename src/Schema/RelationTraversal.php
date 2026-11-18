@@ -57,16 +57,21 @@ final readonly class RelationTraversal
     /**
      * Resolve each traversable relation of a resource served for a model.
      *
-     * A relation the model does not define is skipped.
+     * A relation the model does not define is skipped, and a class that is no
+     * model has none.
      *
      * @param  string  $resourceClass
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  string  $modelClass
      * @return list<\SineMacula\ApiToolkit\Schema\RelationEdge>
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     public function edges(string $resourceClass, string $modelClass): array
     {
+        if (!is_subclass_of($modelClass, Model::class)) {
+            return [];
+        }
+
         $schema = SchemaCompiler::compile($resourceClass);
         $model  = new $modelClass;
         $edges  = [];

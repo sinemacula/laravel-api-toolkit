@@ -66,32 +66,13 @@ final class RelationTypeTraversalHttpTest extends TestCase
         Config::set('api-toolkit.resources.resource_map', [Profile::class => ProfileResource::class]);
 
         foreach (self::ROUTES as $uri => [$model, $resource]) {
-            Route::middleware(ParseApiQuery::class)->get($uri, static function (ApiCriteria $criteria) use ($model, $resource): ApiResourceCollection {
-                return new ApiResourceCollection($criteria->usingResource($resource)->apply(new $model)->get(), $resource);
-            });
+            Route::middleware(ParseApiQuery::class)->get($uri, static fn (ApiCriteria $criteria): ApiResourceCollection => new ApiResourceCollection(
+                $criteria->usingResource($resource)->apply(new $model)->get(),
+                $resource,
+            ));
         }
 
         $this->seedRelations();
-    }
-
-    /**
-     * Test that a filter through the relation matches exactly the rows it
-     * reaches, and its existence checks split the rows between them.
-     *
-     * @param  string  $uri
-     * @param  array<string, mixed>  $filters
-     * @param  string  $label
-     * @param  array<int, string>  $expected
-     * @return void
-     */
-    #[DataProvider('traversalProvider')]
-    public function testFilterThroughTheRelationMatchesExactlyTheRowsItReaches(string $uri, array $filters, string $label, array $expected): void
-    {
-        $response = $this->getJson($uri . '?filters=' . urlencode((string) json_encode($filters)));
-
-        $response->assertOk();
-
-        self::assertEqualsCanonicalizing($expected, array_column((array) $response->json('data'), $label));
     }
 
     /**
@@ -121,6 +102,26 @@ final class RelationTypeTraversalHttpTest extends TestCase
         yield 'has-many-through miss' => ['/organizations', ['posts' => ['title' => 'Unwritten']], 'name', []];
         yield 'has-many-through $has' => ['/organizations', ['$has' => 'posts'], 'name', ['Acme']];
         yield 'has-many-through $hasnt' => ['/organizations', ['$hasnt' => 'posts'], 'name', ['Empty']];
+    }
+
+    /**
+     * Test that a filter through the relation matches exactly the rows it
+     * reaches, and its existence checks split the rows between them.
+     *
+     * @param  string  $uri
+     * @param  array<string, mixed>  $filters
+     * @param  string  $label
+     * @param  array<int, string>  $expected
+     * @return void
+     */
+    #[DataProvider('traversalProvider')]
+    public function testFilterThroughTheRelationMatchesExactlyTheRowsItReaches(string $uri, array $filters, string $label, array $expected): void
+    {
+        $response = $this->getJson($uri . '?filters=' . urlencode((string) json_encode($filters)));
+
+        $response->assertOk();
+
+        self::assertEqualsCanonicalizing($expected, array_column((array) $response->json('data'), $label));
     }
 
     /**

@@ -117,24 +117,6 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that a traversable relation resolves to the resource any field over
-     * it declares, whichever is declared first, and an accessor-only one to
-     * none.
-     *
-     * @param  array<string, array<string, mixed>>  $schema
-     * @return void
-     */
-    #[DataProvider('traversableResourceProvider')]
-    public function testCompileRecordsTheResourceDeclaredOverEachTraversableRelation(array $schema): void
-    {
-        $compiled = SchemaCompiler::compile($this->createStubResourceClass($schema));
-
-        self::assertSame(self::STUB_ORGANIZATION_RESOURCE, $compiled->getTraversableResource('organization'));
-        self::assertNull($compiled->getTraversableResource('profile'));
-        self::assertNull($compiled->getTraversableResource('posts'));
-    }
-
-    /**
      * Provide schemas declaring a traversable accessor-only alias beside a
      * sibling declaring the resource, in both orders.
      *
@@ -151,6 +133,24 @@ final class SchemaCompilerTest extends TestCase
 
         yield 'alias first' => [['organization_name' => $alias, 'organization' => $resource, ...$others]];
         yield 'resource first' => [['organization' => $resource, 'organization_name' => $alias, ...$others]];
+    }
+
+    /**
+     * Test that a traversable relation resolves to the resource any field over
+     * it declares, whichever is declared first, and an accessor-only one to
+     * none.
+     *
+     * @param  array<string, array<string, mixed>>  $schema
+     * @return void
+     */
+    #[DataProvider('traversableResourceProvider')]
+    public function testCompileRecordsTheResourceDeclaredOverEachTraversableRelation(array $schema): void
+    {
+        $compiled = SchemaCompiler::compile($this->createStubResourceClass($schema));
+
+        self::assertSame(self::STUB_ORGANIZATION_RESOURCE, $compiled->getTraversableResource('organization'));
+        self::assertNull($compiled->getTraversableResource('profile'));
+        self::assertNull($compiled->getTraversableResource('posts'));
     }
 
     /**
