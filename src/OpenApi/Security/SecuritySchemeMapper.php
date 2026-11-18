@@ -33,8 +33,8 @@ final readonly class SecuritySchemeMapper
     }
 
     /**
-     * Resolve the definition for a scheme name, the first declaring driver
-     * winning.
+     * Resolve the definition for a scheme name, a configured driver winning
+     * over the built-in ones.
      *
      * @param  string  $name
      * @return array<string, mixed>|null
@@ -51,13 +51,14 @@ final readonly class SecuritySchemeMapper
     }
 
     /**
-     * Build the driver-keyed scheme map, config overrides over the defaults.
+     * Build the driver-keyed scheme map, the configured drivers ahead of the
+     * built-in ones they leave unmapped.
      *
      * @return array<string, array{name: string, definition: array<string, mixed>}>
      */
     private function map(): array
     {
-        return array_merge($this->defaults(), OpenApiSettings::securityDrivers());
+        return OpenApiSettings::securityDrivers() + $this->defaults();
     }
 
     /**
