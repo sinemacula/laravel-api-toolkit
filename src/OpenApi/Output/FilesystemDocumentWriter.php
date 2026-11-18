@@ -32,7 +32,7 @@ final readonly class FilesystemDocumentWriter implements DocumentWriter
 
     /**
      * Persist every serialized document at its filesystem path, staging each
-     * beside its target so none is replaced unless all could be written.
+     * beside its target so none is replaced unless all could be staged.
      *
      * @param  array<string, string>  $documents
      * @return void

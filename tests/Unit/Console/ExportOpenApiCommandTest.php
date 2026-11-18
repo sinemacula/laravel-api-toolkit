@@ -393,7 +393,7 @@ final class ExportOpenApiCommandTest extends TestCase
 
     /**
      * Test that --all hands every audience's document to the writer in one
-     * batch, so the writer can replace all of them or none.
+     * batch, so the writer can stage all of them before replacing any.
      *
      * @return void
      */

@@ -101,8 +101,8 @@ final class FilesystemDocumentWriterTest extends TestCase
     }
 
     /**
-     * Test that a document that cannot be written leaves every other document
-     * as it was and no staging file behind.
+     * Test that a document that cannot be staged leaves every other document as
+     * it was and no staging file behind.
      *
      * @return void
      */
