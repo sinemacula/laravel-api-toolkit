@@ -1153,6 +1153,44 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
+     * Test that fields over one bounded relation load the aggregates any of
+     * them selects, each once.
+     *
+     * @return void
+     */
+    public function testFieldsOverOneRelationKeepEachOthersAggregates(): void
+    {
+        $resource = new class {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'aliased_aggregates_test';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'posts'         => ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['id', 'aggregates'], 'limit' => 5],
+                    'metered_posts' => ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['id', 'aggregates'], 'limit' => 5],
+                    'titled_posts'  => ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['title'], 'limit' => 5],
+                ];
+            }
+        };
+
+        ApiQuery::shouldReceive('getAggregates')->with('posts')->andReturn(['tags_count']);
+
+        $closure = EagerLoadPlanner::buildEagerLoadMap($resource::class, ['posts', 'metered_posts', 'titled_posts'])['posts'] ?? null;
+
+        self::assertInstanceOf(\Closure::class, $closure);
+
+        $relation = $this->eagerRelation(new User, 'posts');
+
+        $closure($relation);
+
+        self::assertSame(1, substr_count($relation->toSql(), '"aggregate_tags_count"'));
+    }
+
+    /**
      * Test that a child leaving its aggregates unselected keeps its path plain,
      * whatever its type requests.
      *

@@ -241,7 +241,10 @@ final class EagerLoadPlanner
             return;
         }
 
-        $scoped[$fullPath] = [$owner, $constraint, $limit, $aggregates];
+        // Another field over the same path keeps the aggregates it selected
+        $planned = $scoped[$fullPath][3] ?? [];
+
+        $scoped[$fullPath] = [$owner, $constraint, $limit, [...$planned, ...array_filter($aggregates, static fn (array $entry): bool => !in_array($entry, $planned, true))]];
     }
 
     /**
