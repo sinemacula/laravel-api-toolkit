@@ -246,6 +246,25 @@ final class ThrottleRequestsTraitTest extends TestCase
     }
 
     /**
+     * Test that requests to different URLs of one parameterised route share a
+     * signature keyed by the route pattern.
+     *
+     * @return void
+     */
+    public function testUrlsOfOneRouteShareTheRoutePatternSignature(): void
+    {
+        $trait = $this->createTraitInstance();
+
+        $first  = $this->createRequestWithRoute('/users/1', HttpMethod::GET->getVerb(), pattern: '/users/{id}');
+        $second = $this->createRequestWithRoute('/users/2', HttpMethod::GET->getVerb(), pattern: '/users/{id}');
+
+        $expected = sha1('GET|localhost|users/{id}|127.0.0.1');
+
+        self::assertSame($expected, $trait->resolveRequestSignature($first));  // @phpstan-ignore method.notFound
+        self::assertSame($expected, $trait->resolveRequestSignature($second)); // @phpstan-ignore method.notFound
+    }
+
+    /**
      * Test that resolveRequestSignature stays compatible with the protected
      * hook on Laravel's base ThrottleRequests middleware.
      *
@@ -291,17 +310,19 @@ final class ThrottleRequestsTraitTest extends TestCase
     }
 
     /**
-     * Create a request with a route attached.
+     * Create a request with a route attached, matching the given pattern or the
+     * URI itself.
      *
      * @param  string  $uri
      * @param  string  $method
      * @param  string  $ip
+     * @param  string|null  $pattern
      * @return \Illuminate\Http\Request
      */
-    private function createRequestWithRoute(string $uri, string $method, string $ip = '127.0.0.1'): Request
+    private function createRequestWithRoute(string $uri, string $method, string $ip = '127.0.0.1', ?string $pattern = null): Request
     {
         $request = Request::create($uri, $method, [], [], [], ['REMOTE_ADDR' => $ip]);
-        $route   = new Route($method, $uri, static function (): void {
+        $route   = new Route($method, $pattern ?? $uri, static function (): void {
             // Route action placeholder
         });
         $request->setRouteResolver(fn () => $route);
