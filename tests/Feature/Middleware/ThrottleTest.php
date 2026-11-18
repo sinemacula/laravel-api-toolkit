@@ -46,12 +46,15 @@ final class ThrottleTest extends TestCase
 
     /**
      * Test that exceeding the rate limit renders the toolkit throttled envelope
-     * with a Retry-After header.
+     * with headers counting down to the end of the window, and that the caller
+     * is served again once the window has passed.
      *
      * @return void
      */
-    public function testExceedingTheRateLimitRendersTheThrottledEnvelope(): void
+    public function testExceedingTheRateLimitRendersTheThrottledEnvelopeUntilTheWindowPasses(): void
     {
+        $this->freezeTime();
+
         $this->getJson('/ping')->assertOk();
 
         $response = $this->getJson('/ping');
@@ -59,7 +62,33 @@ final class ThrottleTest extends TestCase
         $response->assertStatus(429);
         $response->assertJsonPath('error.status', 429);
         $response->assertJsonPath('error.code', 10107);
-        $response->assertHeader('Retry-After');
+        $response->assertHeader('Retry-After', 60);
+        $response->assertHeader('X-RateLimit-Limit', 1);
+        $response->assertHeader('X-RateLimit-Remaining', 0);
+        $response->assertHeader('X-RateLimit-Reset', now()->addSeconds(60)->timestamp);
+
+        $this->travel(59)->seconds();
+
+        $this->getJson('/ping')->assertStatus(429)->assertHeader('Retry-After', 1);
+
+        $this->travel(2)->seconds();
+
+        $this->getJson('/ping')->assertOk();
+    }
+
+    /**
+     * Test that every URL of a parameterised route draws on one budget, so a
+     * caller walking ids is throttled like a caller repeating one URL.
+     *
+     * @return void
+     */
+    public function testUrlsOfOneParameterisedRouteShareOneBudget(): void
+    {
+        Route::middleware(ThrottleRequests::class . ':1,1')->get('/users/{id}', static fn (string $id): array => ['id' => $id]);
+
+        $this->getJson('/users/1')->assertOk();
+        $this->getJson('/users/2')->assertStatus(429);
+        $this->getJson('/ping')->assertOk();
     }
 
     /**
@@ -97,21 +126,5 @@ final class ThrottleTest extends TestCase
         $second->assertOk();
         $second->assertHeader('X-RateLimit-Limit', 2);
         $second->assertHeader('X-RateLimit-Remaining', 0);
-    }
-
-    /**
-     * Test that the throttled response carries the retry and reset headers.
-     *
-     * @return void
-     */
-    public function testThrottledResponseCarriesRetryAndResetHeaders(): void
-    {
-        $this->getJson('/ping')->assertOk();
-
-        $response = $this->getJson('/ping');
-
-        $response->assertStatus(429);
-        $response->assertHeader('Retry-After');
-        $response->assertHeader('X-RateLimit-Reset');
     }
 }
