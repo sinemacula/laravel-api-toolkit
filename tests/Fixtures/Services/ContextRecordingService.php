@@ -116,6 +116,18 @@ final class ContextRecordingService extends Service
     }
 
     /**
+     * Record the context the onFinalFailure step read.
+     *
+     * @param  \Throwable  $exception
+     * @return void
+     */
+    #[\Override]
+    protected function onFinalFailure(\Throwable $exception): void
+    {
+        $this->seen['onFinalFailure'] = $this->context();
+    }
+
+    /**
      * Record the context concerns() read and declare no concerns.
      *
      * @return array<int, class-string<\SineMacula\ApiToolkit\Services\Contracts\ServiceConcern>>

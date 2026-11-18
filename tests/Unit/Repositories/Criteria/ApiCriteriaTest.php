@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -18,6 +19,7 @@ use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Query\ApiQuerySnapshot;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
@@ -70,6 +72,12 @@ final class ApiCriteriaTest extends TestCase
     /** @var string */
     private const string OPERATOR_CONTAINS = '$contains';
 
+    /** @var string The refusal raised when no API query is parsed */
+    private const string UNPARSED = 'API criteria need a parsed API query: apply them inside a request handled by ParseApiQuery, or inside ApiQuery::using().';
+
+    /** @var string The refusal raised when another API query is active */
+    private const string MISMATCHED = 'API criteria were composed under a different API query: compose and apply them inside the same request or ApiQuery::using() call.';
+
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria */
     private ApiCriteria $criteria;
 
@@ -113,6 +121,136 @@ final class ApiCriteriaTest extends TestCase
 
         self::assertEmpty($query->getQuery()->wheres);
         self::assertEmpty($query->getQuery()->orders ?? []);
+        self::assertNull($query->getQuery()->limit);
+    }
+
+    /**
+     * Test that criteria refuse to apply when no API query is parsed.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testApplyRefusesAnUnparsedQuery(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage(self::UNPARSED);
+
+        $this->criteria->apply(new User);
+    }
+
+    /**
+     * Test that criteria composed inside using() refuse to apply once it has
+     * returned.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testCriteriaComposedInsideUsingRefuseToApplyAfterIt(): void
+    {
+        $this->parseRequest(new Request);
+
+        $criteria = $this->parser()->using(new ApiQuerySnapshot([]), fn (): ApiCriteria => $this->metricFreeCriteria());
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage(self::MISMATCHED);
+
+        $criteria->apply(new User);
+    }
+
+    /**
+     * Test that criteria composed under the parsed request refuse to apply
+     * inside using().
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testCriteriaComposedBeforeUsingRefuseToApplyInsideIt(): void
+    {
+        $this->parseRequest(new Request);
+
+        $criteria = $this->metricFreeCriteria();
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage(self::MISMATCHED);
+
+        $this->parser()->using(new ApiQuerySnapshot([]), static fn (): BuilderContract => $criteria->apply(new User));
+    }
+
+    /**
+     * Test that criteria composed under one parsed request refuse to apply
+     * under the next.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testCriteriaComposedBeforeAReparseRefuseToApply(): void
+    {
+        $this->parseRequest(new Request);
+
+        $criteria = $this->metricFreeCriteria();
+
+        $this->parseRequest(new Request);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage(self::MISMATCHED);
+
+        $criteria->apply(new User);
+    }
+
+    /**
+     * Test that criteria composed before any parse bind to the first query they
+     * apply under, and refuse the next.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testCriteriaComposedUnparsedBindToTheFirstQueryTheyApplyUnder(): void
+    {
+        $this->parseRequest(new Request(['filters' => json_encode(['name' => 'Alice'])]));
+
+        self::assertSame('Alice', $this->filterGroupWheres($this->criteria->apply(new User))[0]['value']);
+        self::assertSame('Alice', $this->filterGroupWheres($this->criteria->apply(new User))[0]['value']);
+
+        $this->parseRequest(new Request(['filters' => json_encode(['name' => 'Bob'])]));
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage(self::MISMATCHED);
+
+        $this->criteria->apply(new User);
+    }
+
+    /**
+     * Test that criteria composed inside using() apply the snapshot's filters,
+     * search and order, and no page size.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testCriteriaInsideUsingApplyTheSnapshot(): void
+    {
+        $this->parseRequest(new Request([
+            'search'  => 'jones',
+            'filters' => json_encode(['status' => [self::OPERATOR_EQUAL => 'active']]),
+            'order'   => 'id:asc',
+            'limit'   => '5',
+        ]));
+
+        $snapshot = new ApiQuerySnapshot([
+            'search'  => 'smith',
+            'filters' => json_encode(['status' => [self::OPERATOR_EQUAL => 'banned']]),
+            'order'   => 'id:desc',
+        ]);
+
+        $query = $this->parser()->using($snapshot, fn (): BuilderContract => $this->searchableCriteria()->apply(new User));
+
+        self::assertSame(['%smith%', '%smith%', 'banned'], $query->getQuery()->getBindings());
+        self::assertSame(['column' => 'id', 'direction' => 'desc'], $query->getQuery()->orders[0] ?? null);
         self::assertNull($query->getQuery()->limit);
     }
 
@@ -1309,10 +1447,19 @@ final class ApiCriteriaTest extends TestCase
      */
     private function parseRequest(Request $request): void
     {
+        $this->parser()->parse($request);
+    }
+
+    /**
+     * Resolve the API query parser.
+     *
+     * @return \SineMacula\ApiToolkit\ApiQueryParser
+     */
+    private function parser(): ApiQueryParser
+    {
         assert($this->app !== null);
 
-        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
-        $parser = $this->app->make('api.query');
-        $parser->parse($request);
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser */
+        return $this->app->make('api.query');
     }
 }
