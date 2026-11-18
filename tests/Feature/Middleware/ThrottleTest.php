@@ -62,14 +62,14 @@ final class ThrottleTest extends TestCase
         $response->assertStatus(429);
         $response->assertJsonPath('error.status', 429);
         $response->assertJsonPath('error.code', 10107);
-        $response->assertHeader('Retry-After', 60);
-        $response->assertHeader('X-RateLimit-Limit', 1);
-        $response->assertHeader('X-RateLimit-Remaining', 0);
-        $response->assertHeader('X-RateLimit-Reset', now()->addSeconds(60)->timestamp);
+        $response->assertHeader('Retry-After', '60');
+        $response->assertHeader('X-RateLimit-Limit', '1');
+        $response->assertHeader('X-RateLimit-Remaining', '0');
+        $response->assertHeader('X-RateLimit-Reset', (string) now()->addSeconds(60)->timestamp);
 
         $this->travel(59)->seconds();
 
-        $this->getJson('/ping')->assertStatus(429)->assertHeader('Retry-After', 1);
+        $this->getJson('/ping')->assertStatus(429)->assertHeader('Retry-After', '1');
 
         $this->travel(1)->seconds();
 
@@ -118,13 +118,13 @@ final class ThrottleTest extends TestCase
         $first = $this->getJson('/multi');
 
         $first->assertOk();
-        $first->assertHeader('X-RateLimit-Limit', 2);
-        $first->assertHeader('X-RateLimit-Remaining', 1);
+        $first->assertHeader('X-RateLimit-Limit', '2');
+        $first->assertHeader('X-RateLimit-Remaining', '1');
 
         $second = $this->getJson('/multi');
 
         $second->assertOk();
-        $second->assertHeader('X-RateLimit-Limit', 2);
-        $second->assertHeader('X-RateLimit-Remaining', 0);
+        $second->assertHeader('X-RateLimit-Limit', '2');
+        $second->assertHeader('X-RateLimit-Remaining', '0');
     }
 }
