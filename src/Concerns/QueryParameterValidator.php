@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
+use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
  * Validates the shape of incoming API query parameters.
@@ -27,6 +28,22 @@ final class QueryParameterValidator
     /** @var int The ceiling applied when the configured value is absent or unreadable */
     public const int DEFAULT_MAX_LIMIT = 100;
 
+    /** @var array<int, string> The parameters keyed by resource type */
+    public const array SELECTIONS = ['fields', 'aggregates'];
+
+    /** @var array<string, string> The shape each parameter must take */
+    private const array RULES = [
+        'fields.*'     => 'nullable|string',
+        'aggregates.*' => 'nullable|string',
+        'filters'      => 'json',
+        'order'        => 'string',
+        'page'         => 'integer|min:1',
+        'limit'        => 'integer|min:1',
+        'cursor'       => 'string',
+        'search'       => 'string',
+        'trashed'      => 'filled|in:with,only',
+    ];
+
     /**
      * Validate the incoming request parameters.
      *
@@ -42,6 +59,7 @@ final class QueryParameterValidator
         $filters = $parameters['filters'] ?? null;
 
         $this->guardFilterSize($filters, $limits);
+        $this->assertSelectionContainers($parameters);
         $this->assertParameterShapes($parameters);
         $this->guardFilterNesting($filters, $limits);
         $this->guardPageSize($parameters['limit'] ?? null);
@@ -73,6 +91,23 @@ final class QueryParameterValidator
     }
 
     /**
+     * Assert that every selection parameter present is keyed by resource type.
+     *
+     * @param  array<string, mixed>  $parameters
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function assertSelectionContainers(array $parameters): void
+    {
+        foreach (self::SELECTIONS as $parameter) {
+            if (array_key_exists($parameter, $parameters) && !is_array($parameters[$parameter])) {
+                throw Rejection::at($parameter, $parameter . '.not_keyed');
+            }
+        }
+    }
+
+    /**
      * Assert that every supplied parameter matches its expected shape.
      *
      * @param  array<string, mixed>  $parameters
@@ -82,7 +117,7 @@ final class QueryParameterValidator
      */
     private function assertParameterShapes(array $parameters): void
     {
-        $validator = Validator::make($parameters, $this->buildValidationRulesFromParameters($parameters));
+        $validator = Validator::make($parameters, self::RULES);
 
         if ($validator->fails()) {
             throw new ValidationException($validator);
@@ -173,62 +208,5 @@ final class QueryParameterValidator
         }
 
         return $levels;
-    }
-
-    /**
-     * Build the validation rules from the given parameters.
-     *
-     * @param  array<string, mixed>  $parameters
-     * @return array<string, string>
-     */
-    private function buildValidationRulesFromParameters(array $parameters): array
-    {
-        $rules = $this->getBaseValidationRules();
-
-        $this->applyArrayValidationRules($rules, $parameters, 'fields', ['fields.*' => 'string']);
-        $this->applyArrayValidationRules($rules, $parameters, 'aggregates', ['aggregates.*' => 'string']);
-
-        return $rules;
-    }
-
-    /**
-     * Get the base validation rules for all parameters.
-     *
-     * @return array<string, string>
-     */
-    private function getBaseValidationRules(): array
-    {
-        return [
-            'fields'  => 'string',
-            'filters' => 'json',
-            'order'   => 'string',
-            'page'    => 'integer|min:1',
-            'limit'   => 'integer|min:1',
-            'cursor'  => 'string',
-            'search'  => 'string',
-            'trashed' => 'filled|in:with,only',
-        ];
-    }
-
-    /**
-     * Apply validation rules for array parameters.
-     *
-     * @param  array<string, string>  $rules
-     * @param  array<string, mixed>  $parameters
-     * @param  string  $key
-     * @param  array<string, string>  $arrayRules
-     * @return void
-     */
-    private function applyArrayValidationRules(array &$rules, array $parameters, string $key, array $arrayRules): void
-    {
-        if (!isset($parameters[$key]) || !is_array($parameters[$key])) {
-            return;
-        }
-
-        $rules[$key] = 'array';
-
-        foreach ($arrayRules as $ruleKey => $ruleValue) {
-            $rules[$ruleKey] = $ruleValue;
-        }
     }
 }

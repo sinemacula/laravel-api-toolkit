@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
@@ -23,6 +24,7 @@ use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
@@ -46,6 +48,7 @@ use Tests\TestCase;
 #[CoversClass(CacheManager::class)]
 #[CoversClass(OctaneFlushListener::class)]
 #[CoversClass(WritePoolFlushSubscriber::class)]
+#[Group('octane')]
 final class OctaneWorkerTest extends TestCase
 {
     use RunsOctaneWorker;
@@ -62,6 +65,8 @@ final class OctaneWorkerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
 
         Route::post('/octane/users', function (Request $request, DeferrableUserRepository $users): Response {
 

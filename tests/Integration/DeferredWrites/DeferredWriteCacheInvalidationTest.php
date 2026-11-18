@@ -7,9 +7,11 @@ namespace Tests\Integration\DeferredWrites;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\DeferredWriteCacheInvalidator;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
+use Tests\Concerns\CreatesCacheTables;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Repositories\CacheableTagRepository;
 use Tests\TestCase;
@@ -26,6 +28,8 @@ use Tests\TestCase;
 #[CoversClass(WritePoolFlushSubscriber::class)]
 final class DeferredWriteCacheInvalidationTest extends TestCase
 {
+    use CreatesCacheTables;
+
     /**
      * Set up the test environment.
      *
@@ -36,68 +40,75 @@ final class DeferredWriteCacheInvalidationTest extends TestCase
     {
         parent::setUp();
 
-        Config::set('cache.default', 'array');
-
         Tag::create(['name' => 'php']);
         Tag::create(['name' => 'laravel']);
     }
 
     /**
-     * Clean up the testing environment before the next test.
+     * Provide the taggable array store and the database store, which is not
+     * taggable and so invalidates by replacing the table's version key.
      *
-     * @return void
+     * @return iterable<string, array{string}>
      */
-    #[\Override]
-    protected function tearDown(): void
+    public static function storeProvider(): iterable
     {
-        DB::disableQueryLog();
-
-        parent::tearDown();
+        yield 'array store' => ['array'];
+        yield 'database store' => ['database'];
     }
 
     /**
      * Test that the boundary flush invalidates the deferred table's cache.
      *
+     * @param  string  $store
      * @return void
      */
-    public function testBoundaryFlushInvalidatesPerQueryCacheForDeferredTable(): void
+    #[DataProvider('storeProvider')]
+    public function testBoundaryFlushInvalidatesPerQueryCacheForDeferredTable(string $store): void
     {
+        Config::set('cache.default', $store);
         Config::set('api-toolkit.deferred_writes.invalidate_query_cache', true);
 
         $this->warmTagCache();
 
         $this->deferTagAndCompleteBoundary('vue');
 
-        DB::enableQueryLog();
-
-        $result = $this->freshTagRepository()->get(); // @phpstan-ignore staticMethod.dynamicCall
-
-        self::assertCount(1, DB::getQueryLog());
-        self::assertCount(3, $result);
+        self::assertCount(3, $this->freshTagRepository()->get()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**
      * Test that with invalidation off the write persists but the read is stale.
      *
+     * @param  string  $store
      * @return void
      */
-    public function testBoundaryFlushSkipsInvalidationWhenDisabledYetStillPersists(): void
+    #[DataProvider('storeProvider')]
+    public function testBoundaryFlushSkipsInvalidationWhenDisabledYetStillPersists(string $store): void
     {
+        Config::set('cache.default', $store);
         Config::set('api-toolkit.deferred_writes.invalidate_query_cache', false);
 
         $this->warmTagCache();
 
         $this->deferTagAndCompleteBoundary('vue');
 
-        DB::enableQueryLog();
-
-        $result = $this->freshTagRepository()->get(); // @phpstan-ignore staticMethod.dynamicCall
-
-        self::assertCount(0, DB::getQueryLog());
-        self::assertCount(2, $result);
+        self::assertCount(2, $this->freshTagRepository()->get()); // @phpstan-ignore staticMethod.dynamicCall
 
         // The write still persisted; only the cache invalidation was skipped
         self::assertSame(3, DB::table('tags')->count());
+    }
+
+    /**
+     * Create the database cache store's tables before the test transaction
+     * opens.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function defineDatabaseMigrations(): void
+    {
+        parent::defineDatabaseMigrations();
+
+        $this->createCacheTables();
     }
 
     /**

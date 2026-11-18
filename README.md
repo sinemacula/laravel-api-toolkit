@@ -63,18 +63,24 @@ A Payload enum value is checked with the other rules and fails with Laravel's `v
 
 `ApiQueryParser` sits behind the `ApiQuery` facade and is populated by the `ParseApiQuery` middleware, which the
 service provider pushes onto the global middleware stack unless `api-toolkit.parser.register_middleware` is `false`.
+Parameters are read from the query string only; a request body is never parsed.
 
 **Sparse fieldsets** - request only the fields you need for a resource type:
 
 ```http
-GET /users?fields[user]=id,name,email
+GET /users?fields[users]=id,name,email
 ```
 
 ```php
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 
-$fields = ApiQuery::getFields('user'); // ['id', 'name', 'email']
+$fields = ApiQuery::getFields('users'); // ['id', 'name', 'email']
 ```
+
+A type is the lower-cased `RESOURCE_TYPE` of a resource that is mapped or lives under `resources.paths`. Names are
+checked against the type they are keyed by, whatever the endpoint: an unknown type or an undeclared name is rejected
+with a 422 on `fields.{type}` naming each. `?fields=name`, with no type, is rejected too, and `?fields[users]=` returns
+the fixed fields only.
 
 **Filtering** - pass a URL-encoded JSON object of operator tokens:
 
@@ -244,16 +250,19 @@ GET /users?limit=25    // honoured as-is
 every default of that type, as `?fields` replaces `$default`, and the response renders them under the `aggregates` field:
 
 ```http
-GET /users?fields[user]=name,aggregates&aggregates[user]=posts_count,orders_sum_total,last_order_at
+GET /users?fields[users]=name,aggregates&aggregates[users]=posts_count,orders_sum_total,last_order_at
 ```
 
 ```php
-ApiQuery::getAggregates('user');       // ['posts_count', 'orders_sum_total', 'last_order_at']
+ApiQuery::getAggregates('users');      // ['posts_count', 'orders_sum_total', 'last_order_at']
 ```
+
+An aggregate key the type does not declare is rejected with a 422 on `aggregates.{type}`, and `?aggregates[users]=`
+selects none.
 
 ```json
 {
-    "_type": "user",
+    "_type": "users",
     "name": "Ada",
     "aggregates": {"posts_count": 3, "orders_sum_total": 120.5, "last_order_at": "2026-01-01T10:00:00.000000Z"}
 }
@@ -373,7 +382,8 @@ choose the roots, or to an empty array to disable discovery. An explicit `api-to
 always wins over a discovered binding: use it to pick the canonical resource when a model has more than one, or to
 bind a resource outside the scanned paths. When two discovered resources claim the same model and no explicit entry
 resolves it, the first in sorted file order wins and a warning is logged; with `validate_schemas` enabled the boot
-fails instead.
+fails instead. Every resource under the paths is recorded, bound or not, so its type can be selected and schema
+validation covers it; a relation that renders a resource outside both the map and the paths is a schema defect.
 
 Without a compiled map the scan runs on every boot, which is fine for development. In production run
 `php artisan optimize` (or `php artisan api-toolkit:resources:cache`) on every deploy. It compiles the map to
@@ -583,9 +593,9 @@ query with its `constrain()` closure and the related model's global scopes. `?tr
 that read the authenticated user are therefore cached per value. A read with a `MorphTo` include, a relation class other
 than the framework's own, an `afterQuery()` callback other than `chaperone()`'s, a callable `withDefault()` or eager
 loads nested more than 16 levels deep runs uncached. Scopes and constraints run once more per read to build the key, so
-they must be deterministic and free of side effects. `paginate()` is never cached. Writes invalidate the table.
-Eager-loaded rows are cached with their parent, so a write to a related table leaves them stale until the TTL. Call
-`withoutCache()` to bypass the cache for one read, or `flushCache()` to invalidate immediately.
+they must be deterministic and free of side effects. `paginate()` is never cached. Writes, `persist()` included,
+invalidate the table. Eager-loaded rows are cached with their parent, so a write to a related table leaves them stale
+until the TTL. Call `withoutCache()` to bypass the cache for one read, or `flushCache()` to invalidate immediately.
 
 With `$cacheReferenceTable = true`, the table is loaded once per global-scope variant and memoised in-process, and
 `get()` and `find()` are served from that snapshot. A read with criteria, repository scopes or a column list other than
@@ -1325,10 +1335,13 @@ there has empty `sideEffectErrors()`; errors from `afterCommit()` are reported a
 result. A `ServiceCompleted` or `ServiceFailed` listener exception is reported, never thrown.
 
 The lock is held for the rest of the caller's transaction, so `$lockExpiration` must cover it, and a second run with the
-same lock key inside it fails with `LockUnavailableException`. Queue follow-up work from `afterCommit()`, which runs
-once, after the attempt that commits, and never after a rollback. `dispatch()` from `handle()` pushes at once unless the
-queue connection sets `after_commit`, so the job can run for a write that never commits. Transactions interleaved on two
-connections are not supported: the deferred work attaches to the most recent open transaction on any connection.
+same lock key inside it fails with `LockUnavailableException`. On the `database` cache store on MySQL or PostgreSQL,
+give locks a `lock_connection` of their own: a lock row written on the caller's connection stays uncommitted, so a
+competing run blocks until the caller's transaction ends instead of failing with `LockUnavailableException`. Queue
+follow-up work from `afterCommit()`, which runs once, after the attempt that commits, and never after a rollback.
+`dispatch()` from `handle()` pushes at once unless the queue connection sets `after_commit`, so the job can run for a
+write that never commits. Transactions interleaved on two connections are not supported: the deferred work attaches to
+the most recent open transaction on any connection.
 
 #### Reading the Run Context
 
@@ -1465,10 +1478,10 @@ a 422.
 
 ### Notification Audit Log
 
-When `illuminate/notifications` is installed and `api-toolkit.notifications.enable_logging` is `true` (the default),
-every `NotificationSending` event is logged at `debug` and every `NotificationSent` event at `info`. Each line records
-the notification class, the notifiable type, the notifiable id (when the notifiable is an Eloquent model with a key)
-and the channel. List classes in `api-toolkit.notifications.excluded_classes` to skip them.
+When `api-toolkit.notifications.enable_logging` is `true` (the default), every `NotificationSending` event is logged at
+`debug` and every `NotificationSent` event at `info`. Each line records the notification class, the notifiable type, the
+notifiable id (when the notifiable is an Eloquent model with a key) and the channel. List classes in
+`api-toolkit.notifications.excluded_classes` to skip them.
 
 Lines go to the application's default log channel, so whether the `debug` lines are kept depends on that channel's
 level. For a dedicated destination, define a channel in `config/logging.php`:

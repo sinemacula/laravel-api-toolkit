@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
 use SineMacula\ApiToolkit\Cache\CacheManager;
@@ -18,6 +19,8 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -42,6 +45,7 @@ use Tests\TestCase;
  */
 #[CoversClass(CacheManager::class)]
 #[CoversClass(OctaneFlushListener::class)]
+#[Group('octane')]
 final class WorkerGrowthTest extends TestCase
 {
     use RunsOctaneWorker;
@@ -60,6 +64,9 @@ final class WorkerGrowthTest extends TestCase
         FieldColumnMapper::class . '::$cache',
         Payload::class . '::$bodyKeys',
         Payload::class . '::$summaryProperties',
+        ResourceTypeIndex::class . '::$classes',
+        ResourceTypeIndex::class . '::$source',
+        ResourceTypeIndex::class . '::$types',
         SchemaCompiler::class . '::$cache',
         SearchPlan::class . '::$cache',
         ValueResolver::class . '::$castAccessorCache',
@@ -124,6 +131,7 @@ final class WorkerGrowthTest extends TestCase
         });
 
         Config::set('api-toolkit.search.unverified_connections', ['testing']);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [SearchableFilterableUserResource::class]);
 
         $this->beforeApplicationDestroyed(static function (): void {
             DB::table('users')->delete();

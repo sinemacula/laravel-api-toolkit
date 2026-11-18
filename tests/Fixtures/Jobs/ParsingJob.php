@@ -58,7 +58,7 @@ final class ParsingJob implements ShouldQueue
 
         assert($parser instanceof ApiQueryParser);
 
-        $parser->parse(Request::create('/users', 'GET', ['fields' => 'name,email']));
+        $parser->parse(Request::create('/users', 'GET', ['fields' => ['users' => 'name,email']]));
 
         self::$parser = $parser;
 

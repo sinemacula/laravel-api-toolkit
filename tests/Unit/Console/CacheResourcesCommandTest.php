@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\CacheResourcesCommand;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
+use Tests\Fixtures\Discovery\Primary\ChildDiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Post;
@@ -57,8 +58,15 @@ final class CacheResourcesCommandTest extends TestCase
             ->run();
 
         self::assertSame([
-            User::class => DiscoveredUserResource::class,
-            Post::class => DiscoveredPostResource::class,
+            'bindings' => [
+                User::class => DiscoveredUserResource::class,
+                Post::class => DiscoveredPostResource::class,
+            ],
+            'resources' => [
+                ChildDiscoveredUserResource::class,
+                DiscoveredUserResource::class,
+                DiscoveredPostResource::class,
+            ],
         ], require $this->compiledPath());
     }
 
@@ -74,8 +82,15 @@ final class CacheResourcesCommandTest extends TestCase
         $this->pendingArtisan(self::COMMAND)->assertExitCode(0)->run();
 
         self::assertSame([
-            User::class => DiscoveredUserResource::class,
-            Post::class => DiscoveredPostResource::class,
+            'bindings' => [
+                User::class => DiscoveredUserResource::class,
+                Post::class => DiscoveredPostResource::class,
+            ],
+            'resources' => [
+                ChildDiscoveredUserResource::class,
+                DiscoveredUserResource::class,
+                DiscoveredPostResource::class,
+            ],
         ], require $this->compiledPath());
     }
 
@@ -105,8 +120,15 @@ final class CacheResourcesCommandTest extends TestCase
         $this->pendingArtisan(self::COMMAND)->assertExitCode(0)->run();
 
         self::assertSame([
-            User::class => DiscoveredUserResource::class,
-            Post::class => DiscoveredPostResource::class,
+            'bindings' => [
+                User::class => DiscoveredUserResource::class,
+                Post::class => DiscoveredPostResource::class,
+            ],
+            'resources' => [
+                ChildDiscoveredUserResource::class,
+                DiscoveredUserResource::class,
+                DiscoveredPostResource::class,
+            ],
         ], require $this->compiledPath());
     }
 
