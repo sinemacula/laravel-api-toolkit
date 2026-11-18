@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
@@ -44,6 +45,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiRepository::class)]
+#[Group('database')]
 final class ApiRepositoryTest extends TestCase
 {
     use InteractsWithNonPublicMembers;
@@ -272,8 +274,9 @@ final class ApiRepositoryTest extends TestCase
         })->paginate();
 
         $queries = array_column(DB::getQueryLog(), 'query');
+        $grammar = DB::connection()->getQueryGrammar();
 
-        self::assertStringEndsWith('order by "name" desc, "users"."id" desc limit 10 offset 0', (string) end($queries));
+        self::assertStringEndsWith(sprintf('order by %s desc, %s desc limit 10 offset 0', $grammar->wrap('name'), $grammar->wrap('users.id')), (string) end($queries));
     }
 
     /**

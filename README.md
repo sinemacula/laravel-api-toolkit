@@ -860,7 +860,8 @@ The service provider registers the following middleware. Each can be disabled in
   is always `503`, so `--status` is ignored. Non-JSON requests that Laravel redirects (`--redirect`) or renders a
   template for (`--render`) are left alone.
 - **`json_pretty_print`** - pretty-printed JSON when the request carries `?pretty=true`.
-- **`throttle`** - API-friendly rate-limit responses; uses the Redis variant when Redis is the default cache store.
+- **`throttle`** - API-friendly rate-limit responses; uses the Redis variant when the default cache store uses the
+  `redis` driver.
 
 `json_pretty_print` takes `'scope' => 'global'` (default, pushed to the global stack) or `'scope' => 'api'` (appended
 to the `api` middleware group only). The maintenance middleware replaces Laravel's in its existing position in the
@@ -1522,6 +1523,10 @@ API_TOOLKIT_NOTIFICATIONS_LOG_CHANNEL=notifications
 - PHP ^8.3
 - Laravel 13.39+
 - MySQL 8.4+, where the search layer is used
+- PostgreSQL 15+
+
+MariaDB is untested: it reports its own driver name, so search needs a driver registered for it, and a prefix or
+ignored index can count as backing a sort.
 
 ## Testing
 

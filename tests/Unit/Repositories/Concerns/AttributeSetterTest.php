@@ -13,8 +13,10 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
+use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Country;
@@ -37,8 +39,11 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(AttributeSetter::class)]
+#[Group('database')]
 final class AttributeSetterTest extends TestCase
 {
+    use RecordsStatements;
+
     /** @var string */
     private const string ALICE_EMAIL = 'alice@example.com';
 
@@ -352,7 +357,7 @@ final class AttributeSetterTest extends TestCase
         $note = $this->createNote(['options' => ['theme' => 'light', 'font' => 'serif']]);
 
         self::assertTrue($this->attributeSetter->persist($note, ['options->theme' => 'dark']));
-        self::assertSame(['theme' => 'dark', 'font' => 'serif'], $note->fresh()?->options);
+        self::assertEquals(['theme' => 'dark', 'font' => 'serif'], $note->fresh()?->options);
     }
 
     /**
@@ -720,9 +725,12 @@ final class AttributeSetterTest extends TestCase
     {
         $user = $this->createAlice();
 
-        $this->assertThrows(fn (): bool => $this->attributeSetter->persist($user, ['name' => 'changed', 'nickname' => 'Al']), QueryException::class, 'nickname');
+        $persist = fn (): bool => $this->attributeSetter->persist($user, ['name' => 'changed', 'nickname' => 'Al']);
 
-        self::assertSame('Alice', $user->fresh()?->name);
+        // The savepoint rollback undoes any write, so no read could see one
+        $statements = $this->recordStatements(fn (): mixed => $this->assertThrows(static fn (): mixed => DB::transaction($persist), QueryException::class, 'nickname'));
+
+        self::assertSame([], $statements);
     }
 
     /**
