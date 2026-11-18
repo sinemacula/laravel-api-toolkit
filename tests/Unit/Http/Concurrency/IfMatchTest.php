@@ -89,6 +89,8 @@ final class IfMatchTest extends TestCase
         yield 'quote inside a member' => [['"a"b", "%s"']];
         yield 'trailing text after the tag' => [['"%s" x']];
         yield 'trailing newline' => [["\"%s\"\n"]];
+        yield 'wildcard with a trailing newline' => [["*\n"]];
+        yield 'wildcard after a vertical tab' => [["\v*"]];
     }
 
     /**

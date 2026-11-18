@@ -826,6 +826,25 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
+     * Test that a relation-only persist advances the version when the stored
+     * version is read back as a numeric string after the save.
+     *
+     * @return void
+     */
+    public function testPersistChangingOnlyRelationsAdvancesAVersionReadBackAsAString(): void
+    {
+        $document = Document::create(['title' => 'Draft']);
+        $tag      = Tag::create(['name' => 'php']);
+
+        Document::saved(static function (Document $saved): void {
+            $saved->setRawAttributes(['version' => (string) $saved->getRawOriginal('version')] + $saved->getAttributes(), true);
+        });
+
+        self::assertTrue($this->attributeSetter->persist($document, ['tags' => [$tag->id]]));
+        self::assertSame(2, $this->storedVersion($document));
+    }
+
+    /**
      * Test that a persist leaving relation membership as it was does not
      * advance the version.
      *

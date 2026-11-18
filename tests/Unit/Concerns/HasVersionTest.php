@@ -6,6 +6,7 @@ namespace Tests\Unit\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Concerns\HasVersion;
@@ -91,6 +92,86 @@ final class HasVersionTest extends TestCase
 
         self::assertStatementCount(0, $statements);
         self::assertSame(5, $this->storedVersion($document));
+    }
+
+    /**
+     * Test that an update whose listener restores every changed attribute
+     * writes nothing.
+     *
+     * @return void
+     */
+    public function testUpdateLeftCleanByItsListenerRunsNoQueryAndKeepsTheVersion(): void
+    {
+        $draft = new Draft;
+        $draft->fill(['title' => 'Draft'])->save();
+
+        Draft::updating(static function (Draft $updating): void {
+            $updating->setAttribute('title', $updating->getOriginal('title'));
+        });
+
+        $draft->setAttribute('title', 'Revised');
+
+        $statements = $this->recordStatements(static fn (): bool => $draft->save());
+
+        self::assertStatementCount(0, $statements);
+        self::assertSame(1, DB::table('drafts')->where('id', $draft->getKey())->value('revision'));
+    }
+
+    /**
+     * Test that a write from a created listener advances from the version the
+     * insert wrote.
+     *
+     * @return void
+     */
+    public function testWriteFromACreatedListenerAdvancesFromTheInsertedVersion(): void
+    {
+        Document::created(static function (Document $created): void {
+            $created->update(['title' => 'Titled']);
+        });
+
+        $document = Document::create(['title' => 'Draft']);
+
+        self::assertSame(2, $document->version);
+        self::assertSame(2, $this->storedVersion($document));
+    }
+
+    /**
+     * Test that a write from a saved listener advances from the version the
+     * update wrote, not the original the model has yet to sync.
+     *
+     * @return void
+     */
+    public function testWriteFromASavedListenerAdvancesFromTheUpdatedVersion(): void
+    {
+        $document = $this->documentAtVersion(5);
+
+        Document::saved(static function (Document $saved): void {
+            if ($saved->title === 'Revised') {
+                $saved->update(['title' => 'Revised again']);
+            }
+        });
+
+        $document->update(['title' => 'Revised']);
+
+        self::assertSame(7, $document->version);
+        self::assertSame(7, $this->storedVersion($document));
+    }
+
+    /**
+     * Test that a refreshed model advances from the version it read back, not
+     * the older one it wrote.
+     *
+     * @return void
+     */
+    public function testRefreshedModelAdvancesFromTheVersionItReadBack(): void
+    {
+        $document = Document::create(['title' => 'Draft']);
+
+        Document::query()->whereKey($document->id)->update(['version' => 5]);
+
+        $document->refresh()->update(['title' => 'Revised']);
+
+        self::assertSame(6, $this->storedVersion($document));
     }
 
     /**

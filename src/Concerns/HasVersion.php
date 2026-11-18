@@ -9,13 +9,18 @@ namespace SineMacula\ApiToolkit\Concerns;
  * advances by one.
  *
  * The column is written inside the insert and the update themselves, after the
- * model events, so quiet saves advance it too. A clean save writes nothing.
+ * model events, so quiet saves advance it too. A clean save writes nothing. A
+ * write from a created, updated or saved listener advances from the version
+ * just written, before the model syncs its original state.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 trait HasVersion
 {
+    /** @var int|null The version this instance last wrote */
+    private ?int $writtenVersion = null;
+
     /**
      * Get the name of the column holding the version.
      *
@@ -49,7 +54,7 @@ trait HasVersion
     #[\Override]
     protected function getAttributesForInsert(): array
     {
-        $this->attributes[$this->getVersionColumn()] = 1;
+        $this->attributes[$this->getVersionColumn()] = $this->writtenVersion = 1;
 
         return parent::getAttributesForInsert();
     }
@@ -73,13 +78,14 @@ trait HasVersion
 
         $column = $this->getVersionColumn();
 
-        $this->attributes[$column] = $dirty[$column] = $this->nextVersion();
+        $this->attributes[$column] = $dirty[$column] = $this->writtenVersion = $this->nextVersion();
 
         return $dirty;
     }
 
     /**
-     * Compute the version after the stored one.
+     * Compute the version after the stored one, or after the one this instance
+     * wrote when its original state still lags behind it.
      *
      * @return int
      *
@@ -87,13 +93,14 @@ trait HasVersion
      */
     private function nextVersion(): int
     {
-        $column  = $this->getVersionColumn();
-        $current = $this->getRawOriginal($column);
+        $column = $this->getVersionColumn();
+        $stored = $this->getRawOriginal($column);
+        $stored = is_numeric($stored) ? (int) $stored : $this->writtenVersion;
 
-        if (!is_numeric($current)) {
+        if ($stored === null) {
             throw new \LogicException(sprintf('%s cannot advance its [%s] version, as the stored version was not loaded or is null.', static::class, $column));
         }
 
-        return (int) $current + 1;
+        return max($stored, $this->writtenVersion ?? 0) + 1;
     }
 }

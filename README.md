@@ -795,10 +795,10 @@ such as nginx weaken a strong tag they compress. A `412` carries no tag, so the 
 toolkit never answers `304`, and `cache.headers:etag` on these routes hashes the body, so it can answer `304` for a
 changed `?include`.
 
-These writes do not advance the version: `Model::query()->update()`, `upsert()`, `increment()` and `decrement()`,
-`DB::table()`, `Relation::touch()`, and `attach()`, `detach()` or child saves outside `persist()`. Follow them with
-`markVersionChanged()` and a save. On SQLite `lockForUpdate()` compiles to nothing, and the database write lock turns a
-race into a busy error.
+These writes do not advance the version: `Model::query()->update()`, `upsert()`, `increment()` and `decrement()`, a soft
+`delete()`, `DB::table()`, `Relation::touch()`, and `attach()`, `detach()` or child saves outside `persist()`. Follow
+them with `markVersionChanged()` and a save. On SQLite `lockForUpdate()` compiles to nothing, and the database write
+lock turns a race into a busy error.
 
 The export documents the `ETag` on the show, store and update responses of a versioned resource, a required `If-Match`
 on the `PUT`, `PATCH` and `DELETE` operations behind `RequireIfMatch`, and an optional one where such an operation

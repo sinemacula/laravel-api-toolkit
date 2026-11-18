@@ -64,6 +64,7 @@ final readonly class AttributeSetter
      * @return bool
      *
      * @throws \InvalidArgumentException
+     * @throws \LogicException
      * @throws \ValueError
      */
     public function persist(Model $model, array $attributes): bool
@@ -104,7 +105,7 @@ final readonly class AttributeSetter
      */
     private function saveAndSync(Model $model, array $attributes, array $syncs): bool
     {
-        $version = $model instanceof Versioned ? $model->getRawOriginal($model->getVersionColumn()) : null;
+        $version = $this->storedVersion($model);
 
         if (!$model->save()) {
             return false;
@@ -116,11 +117,25 @@ final readonly class AttributeSetter
             $synced = $this->sync($model, $attribute, $attributes[$attribute], $relation) || $synced;
         }
 
-        if ($synced && $model instanceof Versioned && $model->getRawOriginal($model->getVersionColumn()) === $version) {
+        if ($synced && $model instanceof Versioned && $this->storedVersion($model) === $version) {
             $this->recordRelationChange($model);
         }
 
         return true;
+    }
+
+    /**
+     * Read the stored version of a versioned model as a string, so an integer
+     * and a driver's numeric string compare alike.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return string|null
+     */
+    private function storedVersion(Model $model): ?string
+    {
+        $version = $model instanceof Versioned ? $model->getRawOriginal($model->getVersionColumn()) : null;
+
+        return is_scalar($version) ? (string) $version : null;
     }
 
     /**

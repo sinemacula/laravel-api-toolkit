@@ -106,7 +106,7 @@ final readonly class IfMatch
      */
     private static function parse(string $value): self
     {
-        if (trim($value) === '*') {
+        if (trim($value, " \t") === '*') {
             return new self(true, []);
         }
 

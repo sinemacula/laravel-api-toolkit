@@ -152,6 +152,7 @@ abstract class ApiRepository extends Repository
      * @return bool
      *
      * @throws \InvalidArgumentException
+     * @throws \LogicException
      * @throws \ValueError
      */
     public function persist(Model $model, array|Collection $attributes): bool
