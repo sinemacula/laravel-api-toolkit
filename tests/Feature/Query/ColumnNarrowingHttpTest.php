@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
 use SineMacula\ApiToolkit\Schema\ColumnNarrower;
@@ -46,6 +47,8 @@ final class ColumnNarrowingHttpTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
 
         FieldColumnMapper::clearCache();
         SchemaCompiler::clearCache();

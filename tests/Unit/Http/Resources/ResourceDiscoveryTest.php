@@ -7,11 +7,15 @@ namespace Tests\Unit\Http\Resources;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Attributes\ForModel;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
+use Tests\Fixtures\Discovery\Invalid\MissingModelResource;
 use Tests\Fixtures\Discovery\Multi\MultiModelResource;
+use Tests\Fixtures\Discovery\Partial\PartlyBoundResource;
+use Tests\Fixtures\Discovery\Primary\ChildDiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Post;
@@ -227,6 +231,10 @@ final class ResourceDiscoveryTest extends TestCase
         $this->writeCompiledMap([User::class => FirstUserResource::class]);
 
         self::assertSame([User::class => FirstUserResource::class], $this->discovery()->discover());
+
+        $this->discovery()->merge();
+
+        self::assertSame([FirstUserResource::class], Config::get(ResourceDiscovery::RESOURCES_KEY));
     }
 
     /**
@@ -291,6 +299,58 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
+     * Provide compiled files that do not hold both lists of the catalogue.
+     *
+     * @return iterable<string, array{array<string, mixed>}>
+     */
+    public static function incompleteCatalogueProvider(): iterable
+    {
+        yield 'a bare map' => [[User::class => FirstUserResource::class]];
+        yield 'bindings without resources' => [['bindings' => [User::class => FirstUserResource::class]]];
+        yield 'resources without bindings' => [['resources' => [FirstUserResource::class]]];
+        yield 'resources that are not a list' => [['bindings' => [], 'resources' => FirstUserResource::class]];
+    }
+
+    /**
+     * Test that a compiled file without both lists is ignored in favour of a
+     * scan.
+     *
+     * @param  array<string, mixed>  $compiled
+     * @return void
+     */
+    #[DataProvider('incompleteCatalogueProvider')]
+    public function testIncompleteCompiledCatalogueFallsBackToScanning(array $compiled): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary')]);
+
+        $this->useIsolatedBootstrapPath();
+        $this->writeCompiledResources('<?php return ' . var_export($compiled, true) . ';');
+
+        self::assertSame([
+            User::class => DiscoveredUserResource::class,
+            Post::class => DiscoveredPostResource::class,
+        ], $this->discovery()->discover());
+    }
+
+    /**
+     * Test that every instantiable resource under the paths is discovered,
+     * bound to a model or not.
+     *
+     * @return void
+     */
+    public function testResourcesListsEveryResourceUnderThePaths(): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary'), $this->fixturePath('Invalid')]);
+
+        self::assertSame([
+            MissingModelResource::class,
+            ChildDiscoveredUserResource::class,
+            DiscoveredUserResource::class,
+            DiscoveredPostResource::class,
+        ], $this->discovery()->scan()['resources']);
+    }
+
+    /**
      * Test that a compiled map removed after its existence check, as by a
      * racing optimize:clear, falls back to a scan.
      *
@@ -339,8 +399,15 @@ final class ResourceDiscoveryTest extends TestCase
         $this->writeCompiledMap([User::class => FirstUserResource::class]);
 
         self::assertSame([
-            User::class => DiscoveredUserResource::class,
-            Post::class => DiscoveredPostResource::class,
+            'bindings' => [
+                User::class => DiscoveredUserResource::class,
+                Post::class => DiscoveredPostResource::class,
+            ],
+            'resources' => [
+                ChildDiscoveredUserResource::class,
+                DiscoveredUserResource::class,
+                DiscoveredPostResource::class,
+            ],
         ], $this->discovery()->scan());
     }
 
@@ -358,6 +425,47 @@ final class ResourceDiscoveryTest extends TestCase
             User::class => MultiModelResource::class,
             Post::class => MultiModelResource::class,
         ], $this->discovery()->discover());
+    }
+
+    /**
+     * Test that a binding refused for a missing model, or for a model already
+     * bound, leaves the class's later bindings in place.
+     *
+     * @return void
+     */
+    public function testRefusedBindingKeepsTheClassesLaterBindings(): void
+    {
+        Log::shouldReceive('warning')->twice();
+
+        $directory = sys_get_temp_dir() . '/resource-discovery-' . uniqid((string) getmypid(), true);
+
+        mkdir($directory, 0o755, true);
+
+        $file = $directory . '/claims.php';
+
+        file_put_contents($file, implode("\n", [
+            '<?php',
+            'namespace Tests\Fixtures\Discovery\Conflict;',
+            'class FirstUserResource {}',
+            'namespace Tests\Fixtures\Discovery\Multi;',
+            'class MultiModelResource {}',
+        ]));
+
+        try {
+            Config::set('api-toolkit.resources.paths', [$directory]);
+
+            self::assertSame([
+                User::class => FirstUserResource::class,
+                Post::class => MultiModelResource::class,
+            ], $this->discovery()->discover());
+        } finally {
+            unlink($file);
+            rmdir($directory);
+        }
+
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Partial')]);
+
+        self::assertSame([Post::class => PartlyBoundResource::class], $this->discovery()->discover());
     }
 
     /**
@@ -562,6 +670,7 @@ final class ResourceDiscoveryTest extends TestCase
             '<?php',
             'namespace Tests\Fixtures\Discovery\Primary;',
             'class ZzUnloadableHelper {}',
+            'class PlainHelper {}',
             'class DiscoveredUserResource {}',
             'namespace Tests\Fixtures\Discovery\Primary\Nested;',
             'class DiscoveredPostResource {}',
@@ -747,6 +856,29 @@ final class ResourceDiscoveryTest extends TestCase
         self::assertSame([
             Post::class => DiscoveredPostResource::class,
         ], Config::get('api-toolkit.resources.discovered_bindings'));
+
+        self::assertSame([
+            ChildDiscoveredUserResource::class,
+            DiscoveredUserResource::class,
+            DiscoveredPostResource::class,
+        ], Config::get(ResourceDiscovery::RESOURCES_KEY));
+    }
+
+    /**
+     * Test that the merge records the discovered resources when none of them
+     * binds a model, leaving out a resource with no type.
+     *
+     * @return void
+     */
+    public function testMergeRecordsResourcesWithoutBindings(): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Invalid')]);
+        Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+
+        $this->discovery()->merge();
+
+        self::assertSame([User::class => UserResource::class], Config::get('api-toolkit.resources.resource_map'));
+        self::assertSame([MissingModelResource::class], Config::get(ResourceDiscovery::RESOURCES_KEY));
     }
 
     /**
@@ -798,20 +930,23 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that the merge leaves the configuration untouched when nothing is
-     * discovered and no earlier merge contributed, even for a malformed map.
+     * Test that the merge leaves the map untouched when nothing is discovered
+     * and no earlier merge contributed, even for a malformed map, while the
+     * resources an earlier merge recorded are cleared.
      *
      * @return void
      */
-    public function testMergeWithNothingToMergeLeavesTheConfigurationUntouched(): void
+    public function testMergeWithNothingToMergeOnlyClearsTheRecordedResources(): void
     {
         Config::set('api-toolkit.resources.paths', []);
         Config::set('api-toolkit.resources.resource_map', 'not-an-array');
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
 
         $this->discovery()->merge();
 
         self::assertSame('not-an-array', Config::get('api-toolkit.resources.resource_map'));
         self::assertNull(Config::get('api-toolkit.resources.discovered_bindings'));
+        self::assertSame([], Config::get(ResourceDiscovery::RESOURCES_KEY));
     }
 
     /**
@@ -849,7 +984,7 @@ final class ResourceDiscoveryTest extends TestCase
 
         self::assertSame([
             User::class => FirstUserResource::class,
-        ], $this->discovery()->scan());
+        ], $this->discovery()->scan()['bindings']);
     }
 
     /**
@@ -892,7 +1027,7 @@ final class ResourceDiscoveryTest extends TestCase
 
         self::assertSame([
             User::class => FirstUserResource::class,
-        ], $this->discovery()->scan());
+        ], $this->discovery()->scan()['bindings']);
     }
 
     /**

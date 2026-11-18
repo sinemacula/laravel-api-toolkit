@@ -19,6 +19,8 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -63,6 +65,9 @@ final class WorkerGrowthTest extends TestCase
         FieldColumnMapper::class . '::$cache',
         Payload::class . '::$bodyKeys',
         Payload::class . '::$summaryProperties',
+        ResourceTypeIndex::class . '::$classes',
+        ResourceTypeIndex::class . '::$source',
+        ResourceTypeIndex::class . '::$types',
         SchemaCompiler::class . '::$cache',
         SearchPlan::class . '::$cache',
         ValueResolver::class . '::$castAccessorCache',
@@ -127,6 +132,7 @@ final class WorkerGrowthTest extends TestCase
         });
 
         Config::set('api-toolkit.search.unverified_connections', ['testing']);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [SearchableFilterableUserResource::class]);
 
         $this->beforeApplicationDestroyed(static function (): void {
             DB::table('users')->delete();

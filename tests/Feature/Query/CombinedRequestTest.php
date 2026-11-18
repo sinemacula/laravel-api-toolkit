@@ -11,6 +11,7 @@ use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
@@ -56,6 +57,8 @@ final class CombinedRequestTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [CombinedSearchUserResource::class, FilterableUserResource::class]);
 
         $this->registerApiExceptionHandler();
 

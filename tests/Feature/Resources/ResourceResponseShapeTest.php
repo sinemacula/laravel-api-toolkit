@@ -8,18 +8,22 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Concerns\QuerySelectionValidator;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
+use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -38,9 +42,10 @@ use Tests\TestCase;
 #[CoversClass(EagerLoadPlanner::class)]
 #[CoversClass(EagerLoadApplier::class)]
 #[CoversClass(FilterApplier::class)]
+#[CoversClass(QuerySelectionValidator::class)]
 final class ResourceResponseShapeTest extends TestCase
 {
-    use RegistersApiExceptionHandler;
+    use RecordsStatements, RegistersApiExceptionHandler;
 
     /**
      * Set up each test with a repository-backed users route and seeded data.
@@ -51,6 +56,8 @@ final class ResourceResponseShapeTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, PostResource::class]);
 
         $this->registerApiExceptionHandler();
 
@@ -125,6 +132,43 @@ final class ResourceResponseShapeTest extends TestCase
     }
 
     /**
+     * Test that a write selecting an unknown field is rejected before the
+     * controller runs, so nothing is persisted.
+     *
+     * @return void
+     */
+    public function testWriteSelectingAnUnknownFieldIsRejectedBeforeItPersists(): void
+    {
+        $response = $this->postJson(
+            '/users?' . http_build_query(['fields' => ['users' => 'name,emial']]),
+            ['name' => 'Bob', 'email' => 'bob@example.com'],
+        );
+
+        $response->assertUnprocessable();
+
+        self::assertSame(['fields.users' => ['The "emial" field is not declared on the "users" resource type.']], $response->json('error.meta'));
+        self::assertSame(0, User::query()->where('email', 'bob@example.com')->count());
+    }
+
+    /**
+     * Test that a write body carrying a fields attribute is persisted, since
+     * the body is never read as a query parameter.
+     *
+     * @return void
+     */
+    public function testWriteBodyCarryingAFieldsAttributeSucceeds(): void
+    {
+        $response = $this->postJson('/users', [
+            'name'   => 'Bob',
+            'email'  => 'bob@example.com',
+            'fields' => [['label' => 'Team', 'value' => 'Platform']],
+        ]);
+
+        $response->assertCreated();
+        $response->assertJsonPath('data.name', 'Bob');
+    }
+
+    /**
      * Test that count, sum, and average aggregates surface under one aggregates
      * object on an item.
      *
@@ -148,27 +192,31 @@ final class ResourceResponseShapeTest extends TestCase
     }
 
     /**
-     * Test that undeclared aggregate keys are omitted without a database error.
+     * Test that undeclared aggregate keys are rejected together, naming each,
+     * before any query runs and before the aggregate cap is charged.
      *
      * @return void
      */
-    public function testUndeclaredAggregateRelationsAreSilentlyOmitted(): void
+    public function testUndeclaredAggregatesAreRejectedBeforeAnyQuery(): void
     {
-        // The request asks for more aggregates than the shipped cap allows
-        Config::set('api-toolkit.query_cost.max_aggregates', 0);
+        Config::set('api-toolkit.query_cost.max_aggregates', 1);
 
-        $response = $this->getJson('/users?' . http_build_query([
-            'fields'     => ['users' => 'name,aggregates'],
-            'aggregates' => ['users' => 'posts_count,organization_count,comments_count,posts,posts_id'],
-        ]));
+        $statements = $this->recordStatements(function (): void {
 
-        $response->assertOk();
+            $response = $this->getJson('/users?' . http_build_query([
+                'fields'     => ['users' => 'name,aggregates'],
+                'aggregates' => ['users' => 'posts_count,organization_count,posts'],
+            ]));
 
-        /** @var array<string, mixed> $item */
-        $item = $response->json('data.0');
+            $response->assertUnprocessable();
 
-        // Undeclared keys are dropped, not queried
-        self::assertSame(['posts_count' => 2], $item['aggregates']);
+            self::assertSame(['aggregates.users' => [
+                'The "organization_count" aggregate is not declared on the "users" resource type.',
+                'The "posts" aggregate is not declared on the "users" resource type.',
+            ]], $response->json('error.meta'));
+        });
+
+        self::assertStatementCount(0, $statements);
     }
 
     /**

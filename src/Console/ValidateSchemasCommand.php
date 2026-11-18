@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Console;
 
 use Illuminate\Console\Command;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
 use SineMacula\ApiToolkit\Schema\Introspection\CatalogueProbe;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationReport;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
@@ -42,7 +43,7 @@ final class ValidateSchemasCommand extends Command
     {
         $resourceMap = ResourceMap::configured();
 
-        if ($resourceMap === []) {
+        if ($resourceMap === [] && ResourceTypeIndex::all() === []) {
             return $this->reportEmptyMap();
         }
 

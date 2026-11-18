@@ -65,6 +65,23 @@ final readonly class CompiledSchema
     }
 
     /**
+     * Return the names a fieldset may select: every field key, the type and,
+     * where an aggregate is declared, the aggregates object.
+     *
+     * @return array<int, string>
+     */
+    public function getSelectableFields(): array
+    {
+        $names = [...array_keys($this->fields), '_type'];
+
+        if ($this->aggregates !== []) {
+            $names[] = 'aggregates';
+        }
+
+        return $names;
+    }
+
+    /**
      * Return the aggregate definitions keyed by present key.
      *
      * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition>

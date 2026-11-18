@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
@@ -45,6 +46,8 @@ final class ColumnProjectionApplierTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
 
         FieldColumnMapper::clearCache();
         SchemaCompiler::clearCache();

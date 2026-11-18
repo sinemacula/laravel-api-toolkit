@@ -19,6 +19,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
@@ -57,6 +58,19 @@ final class ApiResourceTest extends TestCase
 
     /** @var string Count metric key for the posts relation. */
     private const string COUNT_KEY_POSTS = '__aggregate__:posts_count';
+
+    /**
+     * Set up the testing environment with the fixture resources catalogued.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, PostResource::class, TagResource::class, OrganizationResource::class]);
+    }
 
     /**
      * Clean up the testing environment before the next test.
@@ -1702,6 +1716,9 @@ final class ApiResourceTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser  = $this->app->make('api.query');
         $request = Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['guarded_count_test' => self::AGGREGATES_FIELDS]]);
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [$resourceClass::class]);
+
         $parser->parse($request);
 
         $resource = new $resourceClass($user);
@@ -2746,6 +2763,8 @@ final class ApiResourceTest extends TestCase
             'fields'     => ['nondefault_sum_rt' => self::AGGREGATES_FIELDS],
             'aggregates' => ['nondefault_sum_rt' => 'posts_sum_id'],
         ]);
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [$resourceClass::class]);
 
         $parser->parse($request);
 
