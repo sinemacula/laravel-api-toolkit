@@ -302,10 +302,12 @@ final class ExportNegotiatorIntegrationTest extends TestCase
      */
     public function testDerivedTabularSchemaExcludesRelationFields(): void
     {
-        $response = $this->get('/export/users', ['Accept' => 'text/csv']);
-        $content  = $response->streamedContent();
+        foreach (['fields[exportable_users]=:all', 'fields[exportable_users]=name,organization'] as $query) {
+            $content = $this->get('/export/users?' . $query, ['Accept' => 'text/csv'])->assertOk()->streamedContent();
 
-        self::assertStringNotContainsString('organization', strtolower($content));
+            self::assertStringNotContainsString('organization', strtolower($content));
+            self::assertStringContainsString('Name', $content);
+        }
     }
 
     /**

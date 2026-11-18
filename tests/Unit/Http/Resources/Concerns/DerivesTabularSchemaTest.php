@@ -148,6 +148,21 @@ final class DerivesTabularSchemaTest extends TestCase
     }
 
     /**
+     * Test that a row-guarded field the resource leaves out of its selection is
+     * not exported rather than refused.
+     *
+     * @return void
+     */
+    public function testUnselectedRowGuardedFieldIsNotRefused(): void
+    {
+        $request = Request::create('/');
+
+        ApiQuery::parse($request);
+
+        self::assertSame(['id', 'name'], $this->columnKeys((new PerItemGuardedExportResource(null))->withoutFields(['email']), $request));
+    }
+
+    /**
      * Provide the row guard shapes a resource is written with.
      *
      * @return iterable<string, array{array<string, mixed>}>
@@ -358,8 +373,8 @@ final class DerivesTabularSchemaTest extends TestCase
     }
 
     /**
-     * Test that the columns are the fields the request selects, without the
-     * relations or the fixed fields.
+     * Test that the columns are the scalar fields the request selects, in the
+     * order selected.
      *
      * @param  string  $uri
      * @param  list<string>  $expected
