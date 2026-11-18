@@ -152,6 +152,22 @@ final readonly class SearchTerm
     }
 
     /**
+     * Escape the wildcards and the escape character carried by the term.
+     *
+     * @return string
+     */
+    public function escaped(): string
+    {
+        $escape = self::ESCAPE_CHARACTER;
+
+        return str_replace(
+            [$escape, '%', '_'],
+            [$escape . $escape, $escape . '%', $escape . '_'],
+            $this->value,
+        );
+    }
+
+    /**
      * Resolve a configured bound, falling back to the shipped default.
      *
      * @param  string  $key
@@ -178,21 +194,5 @@ final readonly class SearchTerm
         $normalised = preg_replace(['/[\s\p{Z}]+/u', '/[\p{C}"]/u'], [' ', ''], $term);
 
         return is_string($normalised) ? trim($normalised) : '';
-    }
-
-    /**
-     * Escape the wildcards and the escape character carried by the term.
-     *
-     * @return string
-     */
-    private function escaped(): string
-    {
-        $escape = self::ESCAPE_CHARACTER;
-
-        return str_replace(
-            [$escape, '%', '_'],
-            [$escape . $escape, $escape . '%', $escape . '_'],
-            $this->value,
-        );
     }
 }

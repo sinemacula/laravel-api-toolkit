@@ -9,9 +9,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\QueryException;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -733,38 +731,6 @@ final class AttributeSetterTest extends TestCase
 
         self::assertFalse($this->attributeSetter->persist($user, ['name' => 'Bob']));
         self::assertSame('Alice', $user->fresh()?->name);
-    }
-
-    /**
-     * Define the database migrations.
-     *
-     * @return void
-     */
-    #[\Override]
-    protected function defineDatabaseMigrations(): void
-    {
-        parent::defineDatabaseMigrations();
-
-        Schema::create('notes', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('owner_id')->nullable();
-            $table->nullableMorphs('noteable');
-            $table->unsignedBigInteger('primary_contact_id')->nullable();
-            $table->string('title')->nullable();
-            $table->string('slug')->nullable();
-            $table->string('kind')->nullable();
-            $table->integer('priority')->nullable();
-            $table->boolean('pinned')->nullable();
-            $table->string('status')->nullable();
-            $table->text('meta')->nullable();
-            $table->json('options')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('labelables', function (Blueprint $table): void {
-            $table->unsignedBigInteger('tag_id');
-            $table->morphs('labelable');
-        });
     }
 
     /**

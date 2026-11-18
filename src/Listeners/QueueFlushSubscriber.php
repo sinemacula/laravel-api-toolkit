@@ -50,7 +50,8 @@ final readonly class QueueFlushSubscriber
      * Flush the toolkit's per-operation state when running inside a real queue
      * worker.
      *
-     * Sync-driver jobs run inside the request, so they are not a boundary.
+     * Sync and deferred driver jobs run inside the request, so they are not a
+     * boundary.
      *
      * @param  \Illuminate\Queue\Events\JobAttempted  $event
      * @return void

@@ -7,6 +7,7 @@ namespace Tests\Unit\Http\Resources\Concerns;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Exceptions\PerItemGuardedFieldException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -37,6 +38,7 @@ use Tests\TestCase;
 #[CoversClass(PerItemGuardedFieldException::class)]
 #[CoversClass(RowGuardProbe::class)]
 #[CoversTrait(DerivesTabularSchema::class)]
+#[Group('exporter')]
 final class DerivesTabularSchemaTest extends TestCase
 {
     /**

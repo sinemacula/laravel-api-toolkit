@@ -25,13 +25,16 @@ final class LifecycleRegistrar
     /**
      * Register the toolkit lifecycle listeners.
      *
+     * The queue flush subscriber comes first, so a re-thrown write pool flush
+     * failure at the end of a job attempt cannot skip the state reset.
+     *
      * @return void
      */
     public function register(): void
     {
+        $this->registerQueueFlushSubscriber();
         $this->registerWritePoolFlushSubscriber();
         $this->registerOctaneFlushListener();
-        $this->registerQueueFlushSubscriber();
         $this->registerMigrationInvalidationListener();
     }
 

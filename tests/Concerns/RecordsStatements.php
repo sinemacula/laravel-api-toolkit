@@ -64,12 +64,12 @@ trait RecordsStatements
      * Remove the listener, keeping every other one in its order.
      *
      * @param  \Illuminate\Events\Dispatcher  $events
-     * @param  \Closure  $listener
+     * @param  \Closure(\Illuminate\Database\Events\QueryExecuted): void  $listener
      * @return void
      */
     private static function detachListener(Dispatcher $events, \Closure $listener): void
     {
-        /** @var array<int, mixed> $listeners */
+        /** @var array<int, callable|class-string> $listeners */
         $listeners = $events->getRawListeners()[QueryExecuted::class] ?? [];
 
         $events->forget(QueryExecuted::class);

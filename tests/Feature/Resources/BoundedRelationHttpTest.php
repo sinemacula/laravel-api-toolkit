@@ -19,6 +19,7 @@ use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Comment;
+use Tests\Fixtures\Models\Country;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -191,6 +192,44 @@ final class BoundedRelationHttpTest extends TestCase
             self::assertSame(['red', 'green'], array_column(self::rows($post['tags']), 'name'));
             self::assertSame(['tags'], $post['_truncated']);
         }
+    }
+
+    /**
+     * Test that a relation to a string-keyed model is bounded per parent in the
+     * related keys' lexical order.
+     *
+     * @return void
+     */
+    public function testStringKeyedRelationIsBoundedInKeyOrder(): void
+    {
+        [$user] = $this->seedUsers([2]);
+
+        foreach (['GB' => 'United Kingdom', 'FR' => 'France', 'DE' => 'Germany'] as $code => $name) {
+            Country::create(['code' => $code, 'name' => $name]);
+        }
+
+        Post::query()->where('user_id', $user)->get()->each(static function (Post $post): void {
+            $post->countries()->attach(['GB', 'FR', 'DE']);
+        });
+
+        $data = null;
+
+        $statements = $this->recordStatements(function () use (&$data): void {
+            $data = $this->getJson('/users?fields[bounded_users]=name,posts&fields[bounded_posts]=title,countries&fields[countries]=code')
+                ->assertOk()
+                ->assertJsonCount(2, 'data.0.posts')
+                ->json('data.0.posts');
+        });
+
+        foreach (self::rows($data) as $post) {
+            self::assertSame(['DE', 'FR'], array_column(self::rows($post['countries']), 'code'));
+            self::assertSame(['countries'], $post['_truncated']);
+        }
+
+        $countryQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'countries')));
+
+        self::assertCount(1, $countryQueries);
+        self::assertStringContainsString('laravel_row', $countryQueries[0]);
     }
 
     /**

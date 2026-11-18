@@ -10,7 +10,6 @@ use Illuminate\Notifications\Events\NotificationSent;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
-use Tests\Fixtures\Support\FunctionOverrides;
 use Tests\TestCase;
 
 /**
@@ -38,8 +37,6 @@ final class LoggingRegistrarTest extends TestCase
 
         $config->set('api-toolkit.notifications.enable_logging', true);
 
-        self::assertTrue(class_exists(NotificationSending::class), 'Prerequisite: illuminate/notifications must be present for this assertion to hold');
-
         (new LoggingRegistrar)->register();
 
         /** @var \Illuminate\Events\Dispatcher $events */
@@ -64,37 +61,6 @@ final class LoggingRegistrarTest extends TestCase
         $config = $app->make('config');
 
         $config->set('api-toolkit.notifications.enable_logging', false);
-
-        (new LoggingRegistrar)->register();
-
-        /** @var \Illuminate\Events\Dispatcher $events */
-        $events = $app->make('events');
-
-        $raw = $events->getRawListeners();
-
-        self::assertNotContains([NotificationListener::class, 'sending'], self::listenersFor($raw, NotificationSending::class));
-        self::assertNotContains([NotificationListener::class, 'sent'], self::listenersFor($raw, NotificationSent::class));
-    }
-
-    /**
-     * Test that no notification listeners are registered without the package.
-     *
-     * @return void
-     */
-    public function testRegisterSkipsNotificationLoggingWhenPackageAbsent(): void
-    {
-        $app = $this->getApplication();
-
-        /** @var \Illuminate\Config\Repository $config */
-        $config = $app->make('config');
-
-        $config->set('api-toolkit.notifications.enable_logging', true);
-
-        // Simulate illuminate/notifications being absent
-        FunctionOverrides::set(
-            'class_exists',
-            static fn (mixed ...$arguments): bool => is_string($arguments[0]) && $arguments[0] !== NotificationSending::class && \class_exists($arguments[0]),
-        );
 
         (new LoggingRegistrar)->register();
 

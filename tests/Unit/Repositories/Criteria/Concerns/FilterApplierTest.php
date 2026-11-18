@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Contracts\DeclaresValueShape;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -1652,6 +1653,7 @@ final class FilterApplierTest extends TestCase
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
+    #[Group('exporter')]
     public function testPureEnumColumnOnARelatedModelIsFilteredByItsWireName(): void
     {
         $this->seedDevices();

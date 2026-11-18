@@ -4,7 +4,9 @@ declare(strict_types = 1);
 
 namespace Tests\Concerns;
 
+use Illuminate\Contracts\Console\Kernel as KernelContract;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Console\Kernel;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
@@ -18,7 +20,8 @@ use Illuminate\Support\Facades\Schema;
 trait UsesDatabaseQueue
 {
     /**
-     * Give the database queue a private connection, apart from the suite's.
+     * Give the database queue a private connection, apart from the suite's, and
+     * dispatch the command events a worker dispatches in production.
      *
      * @return void
      */
@@ -48,11 +51,17 @@ trait UsesDatabaseQueue
             $table->longText('exception');
             $table->timestamp('failed_at')->useCurrent();
         });
+
+        $kernel = $this->app->make(KernelContract::class); // @phpstan-ignore method.nonObject
+
+        assert($kernel instanceof Kernel);
+
+        $kernel->rerouteSymfonyCommandEvents();
     }
 
     /**
      * Process the next job on the database queue, allowing the given number of
-     * attempts.
+     * attempts, then drop the scoped instances as the exiting process would.
      *
      * @param  int  $tries
      * @return void
@@ -60,5 +69,29 @@ trait UsesDatabaseQueue
     protected function workOnce(int $tries = 2): void
     {
         Artisan::call('queue:work', ['connection' => 'database', '--once' => true, '--tries' => $tries, '--timeout' => 0]);
+
+        $this->app->forgetScopedInstances(); // @phpstan-ignore method.nonObject
+    }
+
+    /**
+     * Run a daemon worker until the database queue is empty, retrying a failed
+     * attempt at once, or until it has processed the given number of jobs.
+     *
+     * @param  int  $tries
+     * @param  int  $maxJobs
+     * @return void
+     */
+    protected function workUntilEmpty(int $tries = 2, int $maxJobs = 0): void
+    {
+        Artisan::call('queue:work', [
+            'connection'        => 'database',
+            '--stop-when-empty' => true,
+            '--sleep'           => 0,
+            '--backoff'         => 0,
+            '--max-jobs'        => $maxJobs,
+            '--memory'          => 0,
+            '--tries'           => $tries,
+            '--timeout'         => 0,
+        ]);
     }
 }

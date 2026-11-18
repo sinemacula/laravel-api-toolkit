@@ -92,6 +92,22 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
+     * Test that a note says what the relevance order ranks by and needs.
+     *
+     * @return void
+     */
+    public function testRelevanceNoteSaysWhatTheOrderRanksByAndNeeds(): void
+    {
+        $markdown = $this->combinedGenerator()->generate([], [], []);
+
+        self::assertStringContainsString(
+            "any column that admits null.\n\n`order=relevance` ranks rows by how closely they match `search`: the whole value, then the "
+            . 'start, then the start of a word, then anywhere; it needs `search` and offset pagination.',
+            $markdown,
+        );
+    }
+
+    /**
      * Test that the page-size ceiling is tabled with the structural caps.
      *
      * @return void

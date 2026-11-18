@@ -11,7 +11,9 @@ use Illuminate\Database\Schema\Builder as SchemaBuilder;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Concerns\AssertsBoundPlaceholders;
 use Tests\Fixtures\Models\User;
@@ -133,6 +135,27 @@ final class PostgresTrigramSearchDriverTest extends TestCase
 
         self::assertSame('select * from "users" where "users"."name" ilike ? escape \'!\'', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
         self::assertSame(['%' . self::TERM . '%'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that a prefix match is ranked with the case-insensitive comparison
+     * it matches by.
+     *
+     * @return void
+     */
+    public function testRanksAPrefixMatchWithTheCaseInsensitiveComparisonItMatchesBy(): void
+    {
+        $query = $this->apply(['name'], SearchStrategy::PREFIX);
+        $plan  = SearchPlan::build(new CompiledSchema([], [], [], [], [], ['name' => SearchStrategy::PREFIX]));
+
+        (new PostgresTrigramSearchDriver)->rank($query, $plan, SearchTerm::from(self::TERM));
+
+        self::assertSame(
+            'select * from "users" where "users"."name" ilike ? escape \'!\' order by case when "users"."name" ilike ? escape \'!\' then 0 '
+            . 'when "users"."name" ilike ? escape \'!\' then 1 else 3 end asc',
+            $query->toSql(), // @phpstan-ignore staticMethod.dynamicCall
+        );
+        self::assertSame([self::TERM . '%', self::TERM, self::TERM . '%'], $query->getBindings()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**

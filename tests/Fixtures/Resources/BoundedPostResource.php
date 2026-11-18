@@ -9,7 +9,8 @@ use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
 
 /**
- * Fixture post resource whose many-to-many tags are bounded per post.
+ * Fixture post resource whose tags, string-keyed countries and polymorphic
+ * notes are bounded per post.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -34,6 +35,8 @@ final class BoundedPostResource extends ApiResource
             Field::scalar('id'),
             Field::scalar('title'),
             Relation::to('tags', TagResource::class)->limit(2),
+            Relation::to('countries', CountryResource::class)->limit(2),
+            Relation::to('notes', NoteResource::class)->limit(3),
         );
     }
 }

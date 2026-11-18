@@ -7,6 +7,7 @@ namespace Tests\Integration\Exports;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\DerivesTabularSchema;
 use SineMacula\ApiToolkit\Http\Resources\ToolkitCollection;
@@ -30,6 +31,7 @@ use Tests\TestCase;
 #[CoversClass(ToolkitCollection::class)]
 #[CoversClass(ApiResource::class)]
 #[CoversTrait(DerivesTabularSchema::class)]
+#[Group('exporter')]
 final class ExportNegotiatorIntegrationTest extends TestCase
 {
     /**

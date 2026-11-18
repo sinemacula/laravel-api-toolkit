@@ -126,31 +126,6 @@ namespace SineMacula\ApiToolkit\Providers\Registrars;
 use Tests\Fixtures\Support\FunctionOverrides;
 
 /**
- * Override class_exists() within the Providers\Registrars namespace.
- *
- * Lets tests simulate the presence or absence of optional integration packages
- * (Octane, notifications) so the class_exists guards on both branches are
- * observable without changing the installed dependency set.
- *
- * @SuppressWarnings("php:S100")
- * @SuppressWarnings("php:S4144")
- *
- * @param  string  $class
- * @param  bool  $autoload
- * @return bool
- */
-function class_exists(string $class, bool $autoload = true): bool
-{
-    $override = FunctionOverrides::get('class_exists');
-
-    if ($override !== null) {
-        return (bool) $override($class, $autoload);
-    }
-
-    return \class_exists($class, $autoload);
-}
-
-/**
  * Override interface_exists() within the Providers\Registrars namespace.
  *
  * Lets tests simulate the presence or absence of an optional integration's

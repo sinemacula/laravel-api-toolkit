@@ -6,6 +6,7 @@ namespace Tests\Unit\OpenApi\Metadata;
 
 use Composer\Autoload\ClassLoader;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\OpenApi\Metadata\Psr4RootMap;
 use Tests\TestCase;
 
@@ -89,6 +90,34 @@ final class Psr4RootMapTest extends TestCase
         ]);
 
         self::assertSame(['App\Module', 'App'], $map->prefixes());
+    }
+
+    /**
+     * Provide vendor directories as Composer reports them on Windows.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function windowsVendorPaths(): iterable
+    {
+        yield 'backslashes' => ['C:\app\vendor\acme\pkg\src'];
+        yield 'composer mixed separators' => ['C:\app\vendor/composer/../acme/pkg/src'];
+    }
+
+    /**
+     * Test that Windows vendor paths are excluded and application paths kept.
+     *
+     * @param  string  $vendor
+     * @return void
+     */
+    #[DataProvider('windowsVendorPaths')]
+    public function testPrefixesExcludeWindowsVendorPaths(string $vendor): void
+    {
+        $map = new Psr4RootMap([
+            'App\\'      => ['C:\app\src'],
+            'Vendored\\' => [$vendor],
+        ]);
+
+        self::assertSame(['App'], $map->prefixes());
     }
 
     /**

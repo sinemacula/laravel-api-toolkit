@@ -42,7 +42,7 @@ jobs:
                     persist-credentials: false
 
             -   name: Setup PHP
-                uses: sinemacula/.github/.github/actions/setup-php@v3.1.0
+                uses: sinemacula/.github/.github/actions/setup-php@v3.2.0
                 with:
                     php-version: ${{ matrix.php }}
 
@@ -67,7 +67,7 @@ jobs:
                     persist-credentials: false
 
             -   name: Setup PHP
-                uses: sinemacula/.github/.github/actions/setup-php@v3.1.0
+                uses: sinemacula/.github/.github/actions/setup-php@v3.2.0
                 with:
                     php-version: 8.3
 
@@ -84,8 +84,7 @@ jobs:
                             echo "::error::${name} has no single caret floor: ${constraint}"; fail=1; continue
                         fi
                         floor="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[4]:-0}"
-                        package=$name; [[ $name == illuminate/* ]] && package=laravel/framework
-                        installed=$(composer show "$package" --format=json | jq -r '.versions[0] | ltrimstr("v")')
+                        installed=$(composer show "$name" --format=json | jq -r '.versions[0] | ltrimstr("v")')
                         if [[ "$installed" != "$floor" ]]; then
                             echo "::error::${name} resolved ${installed}, not its declared floor ${floor}"; fail=1
                         fi
@@ -94,6 +93,151 @@ jobs:
 
             -   name: PHPUnit
                 run: composer test
+
+    optional:
+        name: Test / Without optional packages
+        runs-on: ubuntu-latest
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v7
+                with:
+                    persist-credentials: false
+
+            -   name: Setup PHP
+                uses: sinemacula/.github/.github/actions/setup-php@v3.1.0
+                with:
+                    php-version: 8.3
+
+            -   name: Remove the optional packages
+                run: |
+                    packages=(laravel/octane sinemacula/laravel-resource-exporter)
+                    composer remove --dev --no-interaction --no-progress "${packages[@]}"
+                    for package in "${packages[@]}"; do
+                        if composer show "$package" > /dev/null 2>&1; then
+                            echo "::error::${package} is still installed"; exit 1
+                        fi
+                    done
+
+            -   name: PHPUnit
+                run: vendor/bin/paratest --exclude-group exporter --exclude-group octane
+
+    dependencies:
+        name: Package / Dependencies
+        runs-on: ubuntu-latest
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v7
+                with:
+                    persist-credentials: false
+
+            -   name: Setup PHP
+                uses: sinemacula/.github/.github/actions/setup-php@v3.1.0
+                with:
+                    php-version: 8.3
+
+            -   name: Validate composer.json
+                run: composer validate --strict
+
+            -   name: Analyse dependencies
+                run: vendor/bin/composer-dependency-analyser
+
+    install:
+        name: Package / Install
+        runs-on: ubuntu-latest
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v7
+                with:
+                    persist-credentials: false
+
+            -   name: Setup PHP
+                uses: sinemacula/.github/.github/actions/setup-php@v3.1.0
+                with:
+                    php-version: 8.3
+
+            -   name: Build the dist archive
+                run: |
+                    git archive --prefix=toolkit/ HEAD | tar -x -C "$RUNNER_TEMP"
+                    diff <(git ls-files src config resources) <(cd "$RUNNER_TEMP/toolkit" && find src config resources -type f | LC_ALL=C sort)
+
+            # A path repository without symlinks installs the archive's contents under vendor/
+            -   name: Install the dist archive into a Laravel application
+                run: |
+                    composer create-project laravel/laravel "$RUNNER_TEMP/app" --prefer-dist --no-interaction --no-progress
+                    cd "$RUNNER_TEMP/app"
+                    composer config repositories.toolkit '{"type": "path", "url": "../toolkit", "options": {"symlink": false, "versions": {"sinemacula/laravel-api-toolkit": "2.0.0"}}}'
+                    composer require sinemacula/laravel-api-toolkit:2.0.0 --no-interaction --no-progress
+
+            -   name: Discover the provider
+                working-directory: ${{ runner.temp }}/app
+                run: php artisan package:discover | grep -F sinemacula/laravel-api-toolkit
+
+            -   name: Publish the config, translations, docs and stub
+                working-directory: ${{ runner.temp }}/app
+                run: |
+                    php artisan vendor:publish --tag=api-toolkit-config
+                    php artisan vendor:publish --tag=api-toolkit-lang
+                    php artisan vendor:publish --tag=api-toolkit-docs
+                    php artisan stub:publish
+                    toolkit=vendor/sinemacula/laravel-api-toolkit
+                    diff "$toolkit/config/api-toolkit.php" config/api-toolkit.php
+                    diff -r "$toolkit/resources/lang" lang/vendor/api-toolkit
+                    diff -r "$toolkit/resources/api-docs" resources/api-docs
+                    diff "$toolkit/resources/stubs/api-toolkit.resource.stub" stubs/api-toolkit.resource.stub
+
+            -   name: Route a resource
+                working-directory: ${{ runner.temp }}/app
+                run: |
+                    sed -i 's/->withExceptions(function (Exceptions $exceptions): void {/&\n        \\SineMacula\\ApiToolkit\\Exceptions\\ApiExceptionHandler::handles($exceptions);/' bootstrap/app.php
+                    grep -qF 'ApiExceptionHandler::handles($exceptions);' bootstrap/app.php
+                    php artisan api-toolkit:make:resource UserResource --model=User
+                    cat > app/Http/Controllers/UserController.php <<'PHP'
+                    <?php
+
+                    namespace App\Http\Controllers;
+
+                    use App\Http\Resources\UserResource;
+                    use App\Models\User;
+                    use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseSchema;
+
+                    class UserController extends Controller
+                    {
+                        #[ResponseSchema(UserResource::class)]
+                        public function show(User $user): UserResource
+                        {
+                            return new UserResource($user);
+                        }
+                    }
+                    PHP
+                    echo "Route::get('/users/{user}', [App\Http\Controllers\UserController::class, 'show']);" >> routes/web.php
+                    php artisan db:seed --force
+
+            -   name: Run the toolkit commands
+                working-directory: ${{ runner.temp }}/app
+                run: |
+                    php artisan api-toolkit:validate-schemas
+                    php artisan api-toolkit:export-openapi --output=openapi.json
+                    jq -e '.openapi == "3.1.0" and .paths["/users/{user}"].get.responses["200"].content["application/json"].schema.properties.data["$ref"] == "#/components/schemas/User"' openapi.json
+                    php artisan api-toolkit:docs:generate
+                    php artisan api-toolkit:invalidate-metadata
+
+            -   name: Cache the application
+                working-directory: ${{ runner.temp }}/app
+                run: |
+                    php artisan config:cache
+                    php artisan route:cache
+                    php artisan optimize
+
+            -   name: Request the resource
+                working-directory: ${{ runner.temp }}/app
+                run: |
+                    php artisan serve --port=8000 > /dev/null 2>&1 &
+                    request() { curl -s --retry 10 --retry-connrefused --retry-delay 1 -H 'Accept: application/json' "http://127.0.0.1:8000$1"; }
+                    request /users/1 | jq -e '.data == {"_type": "user", "id": 1}'
+                    request /users/0 | jq -e '.error.status == 404'
 
     integration:
         name: Integration / ${{ matrix.database }}
@@ -154,7 +298,7 @@ jobs:
                     persist-credentials: false
 
             -   name: Setup PHP
-                uses: sinemacula/.github/.github/actions/setup-php@v3.1.0
+                uses: sinemacula/.github/.github/actions/setup-php@v3.2.0
                 with:
                     php-version: 8.3
                     extensions: pdo_mysql, pdo_pgsql
