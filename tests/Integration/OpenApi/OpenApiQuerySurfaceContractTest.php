@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\OpenApi;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Application;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
@@ -23,7 +22,9 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Concerns\RegistersApiExceptionHandler;
@@ -214,13 +215,12 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
 
         foreach ($this->advertisedSurfaces($this->export()) as $surface) {
 
-            $gate  = $this->gateFor($surface['model']);
-            $model = $this->modelFor($surface['model']);
+            $gate = $this->gateFor($surface['model']);
 
             foreach ($surface['operators'] as $operator) {
 
                 try {
-                    $gate->guardFilterOperator($surface['key'], $operator, $model);
+                    $gate->guardFilterOperator($surface['key'], $operator);
                 } catch (ValidationException $exception) {
                     self::fail(sprintf(
                         'The document advertises "%s" on the "%s" key, which the gate refuses: %s',
@@ -254,7 +254,6 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
         foreach ($this->advertisedSurfaces($this->export()) as $surface) {
 
             $gate     = $this->gateFor($surface['model']);
-            $model    = $this->modelFor($surface['model']);
             $accepted = implode(', ', $surface['operators']);
 
             foreach (array_diff($this->governedOperators(), $surface['operators']) as $operator) {
@@ -267,7 +266,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
                 );
 
                 try {
-                    $gate->guardFilterOperator($surface['key'], $operator, $model);
+                    $gate->guardFilterOperator($surface['key'], $operator);
 
                     self::fail(sprintf('The document omits "%s" from the "%s" key, which the gate permits.', $operator, $surface['key']));
                 } catch (ValidationException $exception) {
@@ -932,26 +931,10 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
      */
     private function gateFor(string $modelClass): QuerySurface
     {
-        $compiled = SchemaCompiler::compile($this->resourceMap()[$modelClass]);
-
         return new QuerySurface(
-            $compiled->getFilterableColumns(),
-            $compiled->getSortableColumns(),
-            $compiled->getTraversableRelations(),
-            $this->modelFor($modelClass),
-            $this->resourceMap(),
+            SchemaCompiler::compile($this->resourceMap()[$modelClass]),
+            new RelationTraversal(app(SchemaIntrospectionProvider::class), $this->resourceMap()),
         );
-    }
-
-    /**
-     * Instantiate the model a gate is bound to.
-     *
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
-     * @return \Illuminate\Database\Eloquent\Model
-     */
-    private function modelFor(string $modelClass): Model
-    {
-        return new $modelClass;
     }
 
     /**

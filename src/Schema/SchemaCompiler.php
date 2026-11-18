@@ -94,6 +94,7 @@ final class SchemaCompiler
         $sortable    = [];
         $traversable = [];
         $searchable  = [];
+        $resources   = [];
 
         foreach ($rawSchema as $schemaKey => $definition) {
 
@@ -107,16 +108,25 @@ final class SchemaCompiler
 
             self::collectQueryMarkers($definition, $filterable, $sortable, $traversable, $searchable);
 
-            $fields[$schemaKey] = self::buildFieldDefinition($definition);
+            $field = self::buildFieldDefinition($definition);
+
+            if ($field->relation !== null && $field->resource !== null) {
+                $resources[$field->relation] = $field->resource;
+            }
+
+            $fields[$schemaKey] = $field;
         }
+
+        $traversable = array_values(array_unique($traversable));
 
         return new CompiledSchema(
             $fields,
             $aggregates,
             $filterable,
             array_values(array_unique($sortable)),
-            array_values(array_unique($traversable)),
+            $traversable,
             $searchable,
+            array_intersect_key($resources, array_flip($traversable)),
         );
     }
 
@@ -314,7 +324,7 @@ final class SchemaCompiler
      * @param  array<string, mixed>  $definition
      * @return string|null
      */
-    private static function resolveFieldRelation(array $definition): ?string
+    public static function resolveFieldRelation(array $definition): ?string
     {
         $relations = (array) ($definition['relation'] ?? null);
 

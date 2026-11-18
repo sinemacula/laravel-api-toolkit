@@ -26,6 +26,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
+use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\IndexProof;
@@ -282,22 +283,17 @@ final class ApiCriteria implements CriteriaInterface
      */
     private function buildQuerySurface(Model $model): QuerySurface
     {
-        $resource = $this->resolveResource($model);
-
-        $schema = $resource && is_subclass_of($resource, ApiResourceInterface::class)
-            ? SchemaCompiler::compile($resource)
-            : null;
-
+        $resource    = $this->resolveResource($model);
         $resourceMap = Config::get('api-toolkit.resources.resource_map', []);
 
         return new QuerySurface(
-            $schema?->getFilterableColumns()    ?? [],
-            $schema?->getSortableColumns()      ?? [],
-            $schema?->getTraversableRelations() ?? [],
-            $model,
-            is_array($resourceMap)
-                ? array_filter($resourceMap, static fn (mixed $resource, mixed $model): bool => is_string($model) && is_string($resource), ARRAY_FILTER_USE_BOTH)
-                : [],
+            $resource && is_subclass_of($resource, ApiResourceInterface::class) ? SchemaCompiler::compile($resource) : null,
+            new RelationTraversal(
+                $this->schemaIntrospector,
+                is_array($resourceMap)
+                    ? array_filter($resourceMap, static fn (mixed $resource, mixed $model): bool => is_string($model) && is_string($resource), ARRAY_FILTER_USE_BOTH)
+                    : [],
+            ),
         );
     }
 }

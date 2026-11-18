@@ -100,4 +100,36 @@ final class RelationExistenceFilterHttpTest extends TestCase
         $response->assertJsonPath('data.0.name', 'Charlie');
         $response->assertJsonPath('meta.total', 1);
     }
+
+    /**
+     * Test that $hasnt with a condition document keeps every user owning no
+     * matching row, those owning no rows at all included.
+     *
+     * @return void
+     */
+    public function testHasntWithConditionsKeepsUsersWithoutAMatchingRow(): void
+    {
+        $filters = json_encode(['$hasnt' => ['posts' => ['title' => 'Alice Post']]]);
+
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
+
+        $response->assertOk();
+        $response->assertJsonPath('data.*.name', ['Bob', 'Charlie']);
+    }
+
+    /**
+     * Test that $has with a condition document inside an $or disjoins with the
+     * document beside it.
+     *
+     * @return void
+     */
+    public function testHasWithConditionsInsideAnOrDisjoinsWithItsSibling(): void
+    {
+        $filters = json_encode(['$or' => [['name' => 'Charlie'], ['$has' => ['posts' => ['title' => 'Bob Post']]]]]);
+
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
+
+        $response->assertOk();
+        $response->assertJsonPath('data.*.name', ['Bob', 'Charlie']);
+    }
 }

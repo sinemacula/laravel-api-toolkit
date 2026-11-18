@@ -13,8 +13,9 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 /**
  * Collects the query surfaces each audience is allowed to be told about.
  *
- * A surface is kept only where the resource's schema survived into the
- * audience's document, so both are pruned by one decision.
+ * A surface is kept where the resource's schema survived into the audience's
+ * document, so both are pruned by one decision, and so is every surface a kept
+ * one's filters descend into.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -61,7 +62,8 @@ final readonly class AudienceQuerySurfaceCollector
     }
 
     /**
-     * Reduce the surfaces to those whose schema the audience's document keeps.
+     * Reduce the surfaces to those whose schema the audience's document keeps,
+     * and those a kept surface's filters descend into.
      *
      * @param  string  $audience
      * @param  array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>  $surfaces
@@ -70,8 +72,14 @@ final readonly class AudienceQuerySurfaceCollector
     private function reachedBy(string $audience, array $surfaces): array
     {
         $schemas = $this->schemaNames($audience);
+        $byClass = [];
+        $kept    = [];
 
-        return array_values(array_filter(
+        foreach ($surfaces as $surface) {
+            $byClass[$surface->resource] = $surface;
+        }
+
+        $queue = array_values(array_filter(
             $surfaces,
             static fn (QuerySurfaceDescriptor $surface): bool => in_array(
                 SchemaComponentName::fromResource($surface->resource),
@@ -79,6 +87,25 @@ final readonly class AudienceQuerySurfaceCollector
                 true,
             ),
         ));
+
+        while ($queue !== []) {
+
+            $surface = array_shift($queue);
+
+            if (isset($kept[$surface->resource])) {
+                continue;
+            }
+
+            $kept[$surface->resource] = true;
+
+            foreach ($surface->relations as $relation) {
+                if ($relation->resource !== null && isset($byClass[$relation->resource])) {
+                    $queue[] = $byClass[$relation->resource];
+                }
+            }
+        }
+
+        return array_values(array_filter($surfaces, static fn (QuerySurfaceDescriptor $surface): bool => isset($kept[$surface->resource])));
     }
 
     /**

@@ -274,4 +274,19 @@ final class CompiledSchemaTest extends TestCase
 
         self::assertSame([], $schema->getTraversableRelations());
     }
+
+    /**
+     * Test that getTraversableResource returns the resource declared over the
+     * relation, and null for a relation declaring none.
+     *
+     * @return void
+     */
+    public function testGetTraversableResourceReturnsTheDeclaredResourceOrNull(): void
+    {
+        $schema = new CompiledSchema([], [], [], [], ['posts', 'profile'], [], ['posts' => 'App\\Http\\Resources\\PostResource']);
+
+        self::assertSame('App\\Http\\Resources\\PostResource', $schema->getTraversableResource('posts'));
+        self::assertNull($schema->getTraversableResource('profile'));
+        self::assertNull((new CompiledSchema([], []))->getTraversableResource('posts'));
+    }
 }

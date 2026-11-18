@@ -4,11 +4,20 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Schema\Validation;
 
+use Illuminate\Contracts\Database\Eloquent\Builder;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Schema\Count;
+use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\Validation\RawSchemaValidator;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
+use Tests\Fixtures\Resources\BoundedPostResource;
+use Tests\Fixtures\Resources\CommentResource;
+use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PostResource;
 
 /**
  * Tests for the RawSchemaValidator.
@@ -25,6 +34,9 @@ final class RawSchemaValidatorTest extends TestCase
 {
     /** @var string The resource class the validated schemas are reported against */
     private const string RESOURCE = 'App\Http\Resources\UserResource';
+
+    /** @var string The defect refusing a constrained traversable relation */
+    private const string CONSTRAINED_TRAVERSAL = 'A traversable relation may not be constrained, as a filter would reach the rows it hides; move the row predicate into a relation method';
 
     /**
      * Test that Closure constraints with callable guards and transformers pass.
@@ -267,6 +279,109 @@ final class RawSchemaValidatorTest extends TestCase
     }
 
     /**
+     * Test that a traversable relation carrying a constraint is refused.
+     *
+     * @return void
+     */
+    public function testRefusesAConstrainedTraversableRelation(): void
+    {
+        $errors = $this->collectErrors(Field::set(
+            Relation::to('posts', PostResource::class)->constrain(self::constraint())->traversable(),
+        ));
+
+        self::assertSame([[self::RESOURCE, 'posts', self::CONSTRAINED_TRAVERSAL]], $errors);
+    }
+
+    /**
+     * Test that fields sharing one relation are refused when one constrains it
+     * or they render different resources, the defect naming every key.
+     *
+     * @param  array<string, array<string, mixed>>  $schema
+     * @param  string  $defect
+     * @return void
+     */
+    #[DataProvider('sharedRelationProvider')]
+    public function testRefusesFieldsSharingARelationThatNeedTheirOwnRows(array $schema, string $defect): void
+    {
+        self::assertSame([[self::RESOURCE, (string) array_key_first($schema), $defect]], $this->collectErrors($schema));
+    }
+
+    /**
+     * Provide schemas whose fields over one relation would each need their own
+     * rows, with the defect each is refused with.
+     *
+     * @return iterable<string, array{array<string, array<string, mixed>>, string}>
+     */
+    public static function sharedRelationProvider(): iterable
+    {
+        yield 'one constrained' => [
+            Field::set(
+                Relation::to('posts', PostResource::class)->limit(5),
+                Relation::to('posts', PostResource::class, 'latest_posts')->constrain(self::constraint()),
+            ),
+            self::sharedRelation('"posts", "latest_posts"', 'posts'),
+        ];
+
+        yield 'two resources' => [
+            Field::set(
+                Relation::to('posts', PostResource::class),
+                Relation::to('posts', BoundedPostResource::class, 'bounded_posts'),
+                Relation::to('posts', 'title', 'post_titles'),
+            ),
+            self::sharedRelation('"posts", "bounded_posts"', 'posts'),
+        ];
+
+        yield 'array form' => [
+            [
+                'posts'        => ['relation' => ['posts', 'tags'], 'resource' => PostResource::class],
+                'pinned_posts' => ['relation' => 'posts', 'resource' => BoundedPostResource::class],
+            ],
+            self::sharedRelation('"posts", "pinned_posts"', 'posts'),
+        ];
+    }
+
+    /**
+     * Test that fields sharing an unconstrained relation over one resource, an
+     * accessor-only sibling and an aggregate beside a constraint all pass.
+     *
+     * @return void
+     */
+    public function testAcceptsFieldsSharingARelationThatLoadsOneSetOfRows(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        RawSchemaValidator::assertValid([
+            ...Field::set(
+                Relation::to('posts', PostResource::class)->fields(['id', 'tags']),
+                Relation::to('posts', PostResource::class, 'post_authors')->fields(['id', 'user'])->traversable(),
+                Relation::to('posts', 'title', 'post_titles')->traversable(),
+                Relation::to('comments', CommentResource::class)->constrain(self::constraint()),
+                Relation::to('comments', 'body', 'comment_bodies'),
+                Count::of('comments')->constrain(self::constraint()),
+            ),
+            'organization' => ['relation' => 'organization', 'traversable' => 'organization'],
+        ], self::RESOURCE);
+    }
+
+    /**
+     * Test that a relation naming a nested path is refused, in either form.
+     *
+     * @return void
+     */
+    public function testRefusesARelationNamingANestedPath(): void
+    {
+        $errors = $this->collectErrors([
+            ...Field::set(Relation::to('user.organization', OrganizationResource::class, 'organization')),
+            'tags' => ['relation' => ['posts.tags', 'posts'], 'accessor' => 'name'],
+        ]);
+
+        self::assertSame([
+            [self::RESOURCE, 'organization', 'Relation "user.organization" names a nested path; declare each segment as a relation of its own resource'],
+            [self::RESOURCE, 'tags', 'Relation "posts.tags" names a nested path; declare each segment as a relation of its own resource'],
+        ], $errors);
+    }
+
+    /**
      * Return the errors for the raw schema as class, key and defect triples.
      *
      * @param  array<string, array<string, mixed>>  $rawSchema
@@ -284,5 +399,33 @@ final class RawSchemaValidatorTest extends TestCase
         }
 
         self::fail('Expected InvalidSchemaException to be thrown.');
+    }
+
+    /**
+     * Return a constraint callback for a relation or aggregate.
+     *
+     * @return \Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void
+     */
+    private static function constraint(): \Closure
+    {
+        return static function (Builder $query): void {
+            $query->where('published', true);
+        };
+    }
+
+    /**
+     * Build the defect refusing the given keys sharing a relation.
+     *
+     * @param  string  $keys
+     * @param  string  $relation
+     * @return string
+     */
+    private static function sharedRelation(string $keys, string $relation): string
+    {
+        return sprintf(
+            'Fields %s share the "%s" relation, which loads once, so none may be constrained and all must render one resource; declare a relation method for each',
+            $keys,
+            $relation,
+        );
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
@@ -34,15 +35,23 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\RelationTraversal;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Device;
+use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\DeepTraversalPostResource;
 use Tests\Fixtures\Resources\DeviceResource;
+use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\PublicAuthorPostResource;
+use Tests\Fixtures\Resources\PublicUserResource;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
@@ -1596,7 +1605,7 @@ final class FilterApplierTest extends TestCase
     {
         $this->seedDevices();
 
-        $surface = new QuerySurface(self::DEVICE_FILTERABLE, [], [], new Device);
+        $surface = $this->declaredSurface(self::DEVICE_FILTERABLE);
 
         $names = $this->applier->apply((new Device)->newQuery(), $filters, $this->operatorRegistry, $surface)
             ->orderBy('id')
@@ -1635,7 +1644,7 @@ final class FilterApplierTest extends TestCase
     #[DataProvider('unknownPureEnumNameProvider')]
     public function testPureEnumColumnRefusesANameThatIsNotAWireName(array $filters, string $position, string $message): void
     {
-        $surface = new QuerySurface(self::DEVICE_FILTERABLE, [], [], new Device);
+        $surface = $this->declaredSurface(self::DEVICE_FILTERABLE);
 
         try {
             $this->applier->apply((new Device)->newQuery(), $filters, $this->operatorRegistry, $surface);
@@ -1940,6 +1949,162 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Test that a relation is governed by the resource declared over it, so a
+     * column only its canonical resource filters is refused beneath it.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testARelationIsGovernedByItsDeclaredResourceNotTheCanonicalOne(): void
+    {
+        $surface = new QuerySurface(
+            SchemaCompiler::compile(PublicAuthorPostResource::class),
+            new RelationTraversal(app(SchemaIntrospectionProvider::class), [User::class => UserResource::class]),
+        );
+
+        $query = $this->applier->apply((new Post)->newQuery(), ['user' => ['name' => 'Alice']], $this->operatorRegistry, $surface);
+
+        self::assertSame('select * from "posts" where exists (select * from "users" where "posts"."user_id" = "users"."id" and "name" = ?)', $query->toSql());
+
+        try {
+            $this->applier->apply((new Post)->newQuery(), ['user' => ['email' => 'alice@example.com']], $this->operatorRegistry, $surface);
+            self::fail('The email key must be refused beneath the declared public user resource.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['filters.email' => ['The "email" key is not a permitted query parameter for this resource.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that existence documents and groups inside a relation are checked
+     * against the resource declared for it, not the related model's mapped one.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $key
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('relationLevelProvider')]
+    public function testEveryFormInsideARelationIsCheckedAgainstThatLevelsResource(array $filters, string $key): void
+    {
+        $canonical = $this->declaredSurface(relations: ['posts'], resourceMap: [Post::class => DeepTraversalPostResource::class]);
+        $declared  = $this->declaredSurface(relations: ['posts'], resourceMap: [Post::class => DeepTraversalPostResource::class], resources: ['posts' => PostResource::class]);
+
+        $this->applier->apply((new User)->newQuery(), $filters, $this->operatorRegistry, $canonical);
+
+        try {
+            $this->applier->apply((new User)->newQuery(), $filters, $this->operatorRegistry, $declared);
+            self::fail('The "' . $key . '" key must be refused beneath the declared post resource.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['filters.' . $key => ['The "' . $key . '" key is not a permitted query parameter for this resource.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Provide documents reaching a relation's level by every form, with the key
+     * each is refused at when the declared resource omits it.
+     *
+     * @return iterable<string, array{array<string, mixed>, string}>
+     */
+    public static function relationLevelProvider(): iterable
+    {
+        yield 'relation key' => [['posts' => ['id' => ['$gt' => 1]]], 'id'];
+        yield '$has document' => [['$has' => ['posts' => ['user' => ['name' => 'Alice']]]], 'user'];
+        yield '$hasnt document' => [['$hasnt' => ['posts' => ['id' => 1]]], 'id'];
+        yield '$or inside a relation' => [['posts' => ['$or' => [['title' => 'First'], ['id' => 1]]]], 'id'];
+        yield '$and inside an existence document' => [['$has' => ['posts' => ['$and' => [['title' => 'First'], ['user' => ['name' => 'Alice']]]]]], 'user'];
+    }
+
+    /**
+     * Test that a polymorphic relation is filtered per type through every
+     * existence method a key compiles to.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  array<int, string>  $expected
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('polymorphicFilterProvider')]
+    public function testAPolymorphicRelationIsFilteredByEachTypesResource(array $filters, array $expected): void
+    {
+        $this->seedNotes();
+
+        self::assertSame($expected, $this->matchedNoteTitles($filters));
+    }
+
+    /**
+     * Test that a polymorphic relation refuses a key the resource of a type
+     * present, or the absence of one, does not permit.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('polymorphicDocumentProvider')]
+    public function testAPolymorphicRelationRefusesAKeyAnUnmappedTypeDoesNotGovern(array $filters): void
+    {
+        $this->seedNotes();
+        $this->attachNote(Post::create(['user_id' => 1, 'title' => 'Alice', 'body' => 'Body']), 'Post note');
+
+        try {
+            $this->matchedNoteTitles($filters);
+            self::fail('The name key must be refused for the unmapped post type.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['filters.name' => ['The "name" key is not a permitted query parameter for this resource.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Provide polymorphic filters through whereHas, a disjoined whereHas and
+     * whereDoesntHave, with the note titles each matches.
+     *
+     * @return iterable<string, array{array<string, mixed>, array<int, string>}>
+     */
+    public static function polymorphicFilterProvider(): iterable
+    {
+        yield 'whereHas' => [['noteable' => ['name' => 'Alice']], ['Alice note']];
+        yield 'whereHas inside $or' => [['$or' => [['title' => 'Loose note'], ['noteable' => ['name' => 'Bob']]]], ['Bob note', 'Loose note']];
+        yield 'whereDoesntHave' => [['$hasnt' => ['noteable' => ['name' => 'Alice']]], ['Bob note', 'Loose note']];
+    }
+
+    /**
+     * Provide the polymorphic filters alone.
+     *
+     * @return iterable<string, array{array<string, mixed>}>
+     */
+    public static function polymorphicDocumentProvider(): iterable
+    {
+        foreach (self::polymorphicFilterProvider() as $name => [$filters]) {
+            yield $name => [$filters];
+        }
+    }
+
+    /**
+     * Test that with no polymorphic type stored, nested keys go unchecked, $has
+     * matches nothing and $hasnt matches every row.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAPolymorphicRelationWithNoStoredTypeLeavesItsBodyUnchecked(): void
+    {
+        foreach (['First note', 'Second note'] as $title) {
+
+            $note        = new Note;
+            $note->title = $title;
+
+            $note->save();
+        }
+
+        self::assertSame([], $this->matchedNoteTitles(['$has' => ['noteable' => ['secret' => 'x']]]));
+        self::assertSame(['First note', 'Second note'], $this->matchedNoteTitles(['$hasnt' => ['noteable' => ['secret' => 'x']]]));
+    }
+
+    /**
      * Apply the filters to the users and return the matched names in order.
      *
      * @param  array<string, mixed>|null  $filters
@@ -1955,17 +2120,72 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Build a query surface for the User root model.
+     * Apply the filters to the notes and return the matched titles in order.
+     *
+     * Users are governed by the public user resource; posts by nothing.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array<int, string>
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function matchedNoteTitles(array $filters): array
+    {
+        $surface = $this->declaredSurface(filterable: ['title' => Capability::EXACT], relations: ['noteable'], resourceMap: [User::class => PublicUserResource::class]);
+
+        /** @var array<int, string> */
+        return $this->applier->apply((new Note)->newQuery(), $filters, $this->operatorRegistry, $surface)->orderBy('title')->pluck('title')->all();
+    }
+
+    /**
+     * Seed a note on each of two users and one attached to nothing.
+     *
+     * @return void
+     */
+    private function seedNotes(): void
+    {
+        foreach (['Alice', 'Bob'] as $name) {
+            $this->attachNote(User::create(['name' => $name, 'email' => strtolower($name) . '@example.com']), $name . ' note');
+        }
+
+        $loose        = new Note;
+        $loose->title = 'Loose note';
+
+        $loose->save();
+    }
+
+    /**
+     * Attach a note with the given title to the model.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $noteable
+     * @param  string  $title
+     * @return void
+     */
+    private function attachNote(Model $noteable, string $title): void
+    {
+        $note        = new Note;
+        $note->title = $title;
+
+        $note->noteable()->associate($noteable)->save();
+    }
+
+    /**
+     * Build a query surface over the given declarations.
      *
      * @param  array<string, \SineMacula\ApiToolkit\Enums\Capability>  $filterable
      * @param  array<int, string>  $sortable
      * @param  array<int, string>  $relations
      * @param  array<string, string>  $resourceMap
+     * @param  array<string, string>  $resources
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
      */
-    private function declaredSurface(array $filterable = [], array $sortable = [], array $relations = [], array $resourceMap = []): QuerySurface
+    private function declaredSurface(array $filterable = [], array $sortable = [], array $relations = [], array $resourceMap = [], array $resources = []): QuerySurface
     {
-        return new QuerySurface($filterable, $sortable, $relations, new User, $resourceMap);
+        return new QuerySurface(
+            new CompiledSchema([], [], $filterable, $sortable, $relations, [], $resources),
+            new RelationTraversal(app(SchemaIntrospectionProvider::class), $resourceMap),
+        );
     }
 
     /**

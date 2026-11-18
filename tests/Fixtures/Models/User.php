@@ -83,6 +83,26 @@ final class User extends Model implements AuthenticatableContract
     }
 
     /**
+     * Get the user's published posts.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+     */
+    public function publishedPosts(): HasMany
+    {
+        return $this->hasMany(Post::class)->where('published', true);
+    }
+
+    /**
+     * Get the user's posts, newest first.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+     */
+    public function latestPosts(): HasMany
+    {
+        return $this->hasMany(Post::class)->latest();
+    }
+
+    /**
      * Get the user's devices.
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Device, $this>

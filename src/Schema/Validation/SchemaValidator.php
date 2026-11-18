@@ -4,8 +4,10 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema\Validation;
 
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
@@ -22,10 +24,16 @@ final readonly class SchemaValidator
     /**
      * Create a new schema validator.
      *
+     * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $introspector
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaValidationRule  ...$rules
      */
-    public function __construct(SchemaValidationRule ...$rules)
-    {
+    public function __construct(
+
+        /** Resolves the relations a filter may descend through */
+        private SchemaIntrospectionProvider $introspector,
+
+        SchemaValidationRule ...$rules,
+    ) {
         $this->rules = $rules;
     }
 
@@ -49,8 +57,10 @@ final readonly class SchemaValidator
     }
 
     /**
-     * Run every rule over the resource map, keeping what could not be verified
-     * apart from the defects.
+     * Run every rule over the resource map and every resource a filter reaches
+     * through it, keeping what could not be verified apart from the defects.
+     *
+     * Each resource is validated once per model it serves.
      *
      * @param  array<class-string, class-string>  $resourceMap
      * @return \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationReport
@@ -59,21 +69,43 @@ final readonly class SchemaValidator
      */
     public function report(array $resourceMap): SchemaValidationReport
     {
-        $findings = [];
+        $traversal = new RelationTraversal($this->introspector, $resourceMap);
+        $queue     = [];
+        $seen      = [];
+        $findings  = [];
 
         foreach ($resourceMap as $modelClass => $resourceClass) {
+            $queue[] = [$resourceClass, $modelClass];
+            $seen[]  = $resourceClass . '|' . $modelClass;
+        }
+
+        while ($queue !== []) {
+
+            [$resourceClass, $modelClass] = array_shift($queue);
 
             $schema = SchemaCompiler::compile($resourceClass);
 
             foreach ($this->rules as $rule) {
                 array_push($findings, ...$rule->validate($resourceClass, $modelClass, $schema));
             }
+
+            foreach ($traversal->edges($resourceClass, $modelClass) as $edge) {
+
+                $pair = $edge->resource . '|' . $edge->model;
+
+                if ($edge->resource === null || in_array($pair, $seen, true)) {
+                    continue;
+                }
+
+                $queue[] = [$edge->resource, $edge->model];
+                $seen[]  = $pair;
+            }
         }
 
         return new SchemaValidationReport(
             errors: array_values(array_filter($findings, static fn (object $finding): bool => $finding instanceof SchemaValidationError)),
             unverified: array_values(array_filter($findings, static fn (object $finding): bool => $finding instanceof UnverifiedDeclaration)),
-            resourceCount: count($resourceMap),
+            resourceCount: count($seen),
         );
     }
 }

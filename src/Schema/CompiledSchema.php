@@ -21,6 +21,7 @@ final readonly class CompiledSchema
      * @param  array<int, string>  $sortableColumns
      * @param  array<int, string>  $traversableRelations
      * @param  array<string, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $searchableColumns
+     * @param  array<string, string>  $traversableResources
      */
     public function __construct(
 
@@ -41,6 +42,9 @@ final readonly class CompiledSchema
 
         /** Declared searchable column names mapped to their match strategy */
         private array $searchableColumns = [],
+
+        /** Traversable relation names mapped to the child resource declared over them */
+        private array $traversableResources = [],
     ) {}
 
     /**
@@ -102,6 +106,17 @@ final readonly class CompiledSchema
     public function getTraversableRelations(): array
     {
         return $this->traversableRelations;
+    }
+
+    /**
+     * Return the child resource declared over a traversable relation, if any.
+     *
+     * @param  string  $relation
+     * @return string|null
+     */
+    public function getTraversableResource(string $relation): ?string
+    {
+        return $this->traversableResources[$relation] ?? null;
     }
 
     /**

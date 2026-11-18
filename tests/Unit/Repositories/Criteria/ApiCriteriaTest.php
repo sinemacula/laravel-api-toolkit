@@ -1147,9 +1147,7 @@ final class ApiCriteriaTest extends TestCase
 
         self::assertInstanceOf(QuerySurface::class, $surface);
 
-        $property = new \ReflectionProperty($surface, 'filterableColumns');
-
-        self::assertSame([], $property->getValue($surface));
+        self::assertNull((new \ReflectionProperty($surface, 'schema'))->getValue($surface));
     }
 
     /**

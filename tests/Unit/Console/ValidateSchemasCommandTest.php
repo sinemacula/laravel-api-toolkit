@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Testing\PendingCommand;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Schema\Introspection\CatalogueProbe;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -26,11 +27,13 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationReport;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 use Tests\Fixtures\Models\CatalogueRow;
+use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BrokenResource;
 use Tests\Fixtures\Resources\CatalogueRowResource;
 use Tests\Fixtures\Resources\MissingNeedsColumnResource;
+use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UnbackedQueryableResource;
 use Tests\Fixtures\Resources\UncompilableResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -71,10 +74,10 @@ final class ValidateSchemasCommandTest extends TestCase
         $rule->method('validate')
             ->willReturn([]);
 
-        $this->getApplication()->instance(SchemaValidator::class, new SchemaValidator($rule));
+        $this->getApplication()->instance(SchemaValidator::class, new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule));
 
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            User::class => UserResource::class,
+            Organization::class => OrganizationResource::class,
         ]);
 
         $this->runCommand()
@@ -96,7 +99,7 @@ final class ValidateSchemasCommandTest extends TestCase
         $rule->method('validate')
             ->willReturn([$error]);
 
-        $this->getApplication()->instance(SchemaValidator::class, new SchemaValidator($rule));
+        $this->getApplication()->instance(SchemaValidator::class, new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule));
 
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
             User::class => UserResource::class,
@@ -471,7 +474,7 @@ final class ValidateSchemasCommandTest extends TestCase
     }
 
     /**
-     * Validate one user resource with a rule returning the given findings.
+     * Validate one resource with a rule returning the given findings.
      *
      * @param  array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|\SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration>  $findings
      * @return void
@@ -483,10 +486,10 @@ final class ValidateSchemasCommandTest extends TestCase
         $rule->method('validate')
             ->willReturn($findings);
 
-        $this->getApplication()->instance(SchemaValidator::class, new SchemaValidator($rule));
+        $this->getApplication()->instance(SchemaValidator::class, new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule));
 
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            User::class => UserResource::class,
+            Organization::class => OrganizationResource::class,
         ]);
     }
 

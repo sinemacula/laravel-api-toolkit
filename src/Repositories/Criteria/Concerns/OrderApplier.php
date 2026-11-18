@@ -94,7 +94,7 @@ final readonly class OrderApplier
                 continue;
             }
 
-            $querySurface->guardSort($column, $query->getModel());
+            $querySurface->guardSort($column);
 
             if ($cursorPaginated) {
                 $this->guardCursorKey($column, $query->getModel());

@@ -42,12 +42,14 @@ final class RawSchemaValidator
     {
         $errors     = [];
         $aggregates = [];
+        $relations  = [];
 
         foreach ($rawSchema as $key => $definition) {
 
             $defects = [
                 ...self::collectDefects($definition),
                 ...self::collectAggregateDefects($key, $definition, $aggregates),
+                ...self::collectRelationDefects($key, $definition, $relations),
             ];
 
             foreach ($defects as $defect) {
@@ -57,6 +59,14 @@ final class RawSchemaValidator
                     defect: $defect,
                 );
             }
+        }
+
+        foreach (self::collectSharedRelationDefects($relations) as $key => $defect) {
+            $errors[] = new SchemaValidationError(
+                resourceClass: $resourceClass,
+                fieldKey: $key,
+                defect: $defect,
+            );
         }
 
         if ($errors !== []) {
@@ -103,8 +113,7 @@ final class RawSchemaValidator
      */
     private static function collectAggregateDefects(string $key, array $definition, array &$aggregates): array
     {
-        $metric   = $definition['metric'] ?? null;
-        $function = is_string($metric) ? AggregateFunction::tryFrom($metric) : null;
+        $function = self::aggregateFunction($definition);
 
         if ($function === null) {
             return str_starts_with($key, AggregateDefinition::KEY_PREFIX)
@@ -135,6 +144,76 @@ final class RawSchemaValidator
     }
 
     /**
+     * Collect the defects in a field definition's relation, grouping the
+     * definitions that shape a relation's rows by the relation they load.
+     *
+     * @param  string  $key
+     * @param  array<string, mixed>  $definition
+     * @param  array<string, array<string, array<string, mixed>>>  $relations
+     * @return list<string>
+     */
+    private static function collectRelationDefects(string $key, array $definition, array &$relations): array
+    {
+        $relation = SchemaCompiler::resolveFieldRelation($definition);
+
+        if ($relation === null || self::aggregateFunction($definition) !== null) {
+            return [];
+        }
+
+        $defects     = [];
+        $constrained = isset($definition['constraint']);
+
+        if (str_contains($relation, '.')) {
+            $defects[] = sprintf('Relation "%s" names a nested path; declare each segment as a relation of its own resource', $relation);
+        }
+
+        if ($constrained && is_string($definition['traversable'] ?? null)) {
+            $defects[] = 'A traversable relation may not be constrained, as a filter would reach the rows it hides; move the row predicate into a relation method';
+        }
+
+        if ($constrained || is_string($definition['resource'] ?? null)) {
+            $relations[$relation][$key] = $definition;
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Collect one defect per relation loaded by several fields that would each
+     * need their own rows.
+     *
+     * The relation loads once, so its fields may neither be constrained nor
+     * render different resources.
+     *
+     * @param  array<string, array<string, array<string, mixed>>>  $relations
+     * @return array<string, string>
+     */
+    private static function collectSharedRelationDefects(array $relations): array
+    {
+        $defects = [];
+
+        foreach ($relations as $relation => $definitions) {
+
+            $constrained = array_filter($definitions, static fn (array $definition): bool => isset($definition['constraint']));
+            $resources   = array_unique(array_filter(array_column($definitions, 'resource'), is_string(...)));
+
+            if (count($definitions) < 2 || ($constrained === [] && count($resources) < 2)) {
+                continue;
+            }
+
+            $keys = array_keys($definitions);
+
+            $defects[$keys[0]] = sprintf(
+                'Fields "%s" share the "%s" relation, which loads once, so none may be constrained and all must render one resource; declare a relation method for each',
+                implode('", "', $keys),
+                $relation,
+            );
+        }
+
+        return $defects;
+    }
+
+    /**
      * Collect the defects in an aggregate's related column.
      *
      * @param  \SineMacula\ApiToolkit\Enums\AggregateFunction  $function
@@ -150,6 +229,19 @@ final class RawSchemaValidator
             !$function->requiresColumn() && $column !== null => [sprintf('The %s aggregate takes no column', $function->value)],
             default                                          => [],
         };
+    }
+
+    /**
+     * Resolve the aggregate function a raw definition declares, if any.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return \SineMacula\ApiToolkit\Enums\AggregateFunction|null
+     */
+    private static function aggregateFunction(array $definition): ?AggregateFunction
+    {
+        $metric = $definition['metric'] ?? null;
+
+        return is_string($metric) ? AggregateFunction::tryFrom($metric) : null;
     }
 
     /**
