@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
 use SineMacula\ApiToolkit\Cache\CacheManager;
@@ -42,6 +43,7 @@ use Tests\TestCase;
  */
 #[CoversClass(CacheManager::class)]
 #[CoversClass(OctaneFlushListener::class)]
+#[Group('octane')]
 final class WorkerGrowthTest extends TestCase
 {
     use RunsOctaneWorker;

@@ -28,6 +28,7 @@ use Illuminate\Support\ServiceProvider;
 use Laravel\Octane\Contracts\OperationTerminated;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Cache\CacheManager;
@@ -1086,6 +1087,7 @@ final class ApiServiceProviderTest extends TestCase
      *
      * @return void
      */
+    #[Group('octane')]
     public function testOctaneFlushListenerRegistered(): void
     {
         $app = $this->getApplication();
