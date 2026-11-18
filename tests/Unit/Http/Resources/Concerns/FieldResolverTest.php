@@ -4,13 +4,13 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Resources\Concerns;
 
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
-use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
@@ -39,6 +39,8 @@ final class FieldResolverTest extends TestCase
     {
         parent::setUp();
 
+        Config::set('api-toolkit.resources.fixed_fields', []);
+
         $this->resolver = new FieldResolver;
     }
 
@@ -54,9 +56,7 @@ final class FieldResolverTest extends TestCase
             ->with('users')
             ->andReturn(['name', 'email']);
 
-        $schema = new CompiledSchema([], []);
-
-        $first = (new FieldResolver)->getFields($schema, 'users', ['name', 'email'], []);
+        $first = (new FieldResolver)->getFields(UserResource::class);
 
         // Tamper the cached entry so only a memo read can return the sentinel
         /** @var array<string, array<int, string>> $cache */
@@ -67,7 +67,7 @@ final class FieldResolverTest extends TestCase
 
         $this->setStaticProperty(FieldResolver::class, 'resolvedCache', [$key => ['sentinel']]);
 
-        $second = (new FieldResolver)->getFields($schema, 'users', ['name', 'email'], []);
+        $second = (new FieldResolver)->getFields(UserResource::class);
 
         self::assertSame(['name', 'email'], $first);
         self::assertSame(['sentinel'], $second);
@@ -85,35 +85,32 @@ final class FieldResolverTest extends TestCase
             ->with('users')
             ->andReturn(null);
 
-        $schema = new CompiledSchema([], []);
-
-        $full = (new FieldResolver)->getFields($schema, 'users', ['name', 'email'], []);
+        $full = (new FieldResolver)->getFields(UserResource::class);
 
         $resolver = new FieldResolver;
         $resolver->withoutFields(['email']);
-        $trimmed = $resolver->getFields($schema, 'users', ['name', 'email'], []);
+        $trimmed = $resolver->getFields(UserResource::class);
 
-        self::assertSame(['name', 'email'], $full);
-        self::assertSame(['name'], $trimmed);
+        self::assertSame(['id', 'name', 'email'], $full);
+        self::assertSame(['id', 'name'], $trimmed);
     }
 
     /**
-     * Test that the resolved base fields form part of the memo key, so two
-     * resolvers with different field sets never share a cached list.
+     * Test that the selected fields form part of the memo key, so two resolvers
+     * with different field sets never share a cached list.
      *
      * @return void
      */
-    public function testBaseFieldsAreDistinguishedInTheMemo(): void
+    public function testSelectedFieldsAreDistinguishedInTheMemo(): void
     {
-        ApiQuery::shouldReceive('getFields')->andReturn(null);
+        $name = new FieldResolver;
+        $name->withFields(['name']);
 
-        $schema = new CompiledSchema([], []);
+        $email = new FieldResolver;
+        $email->withFields(['email']);
 
-        $name  = (new FieldResolver)->getFields($schema, 'users', ['name'], []);
-        $title = (new FieldResolver)->getFields($schema, 'users', ['title'], []);
-
-        self::assertSame(['name'], $name);
-        self::assertSame(['title'], $title);
+        self::assertSame(['name'], $name->getFields(UserResource::class));
+        self::assertSame(['email'], $email->getFields(UserResource::class));
     }
 
     /**
@@ -121,40 +118,37 @@ final class FieldResolverTest extends TestCase
      *
      * @return void
      */
-    public function testFixedFieldParameterIsDistinguishedInTheMemo(): void
+    public function testFixedFieldsAreDistinguishedInTheMemo(): void
     {
-        ApiQuery::shouldReceive('getFields')->with('users')->andReturn(null);
+        $this->resolver->withFields(['name']);
 
-        $schema = new CompiledSchema([], []);
+        $plain = $this->resolver->getFields(UserResource::class);
 
-        $plain    = (new FieldResolver)->getFields($schema, 'users', ['name'], []);
-        $withUuid = (new FieldResolver)->getFields($schema, 'users', ['name'], ['uuid']);
+        Config::set('api-toolkit.resources.fixed_fields', ['uuid']);
 
         self::assertSame(['name'], $plain);
-        self::assertSame(['name', 'uuid'], $withUuid);
+        self::assertSame(['name', 'uuid'], $this->resolver->getFields(UserResource::class));
     }
 
     /**
-     * Test that getFields returns default fields when no API query fields are
-     * set.
+     * Test that getFields returns the defaults, then the fixed fields, when no
+     * fields are requested.
      *
      * @return void
      */
     public function testGetFieldsReturnsDefaultFieldsWhenNoQueryFields(): void
     {
+        Config::set('api-toolkit.resources.fixed_fields', ['_type']);
+
         ApiQuery::shouldReceive('getFields')
             ->with('users')
             ->andReturn(null);
 
-        $schema = new CompiledSchema([], []);
-
-        $result = $this->resolver->getFields($schema, 'users', ['name', 'email'], ['id']);
-
-        self::assertSame(['name', 'email', 'id'], $result);
+        self::assertSame(['id', 'name', 'email', '_type'], $this->resolver->getFields(UserResource::class));
     }
 
     /**
-     * Test that getFields returns API query fields when present.
+     * Test that getFields returns the requested fields when present.
      *
      * @return void
      */
@@ -164,32 +158,42 @@ final class FieldResolverTest extends TestCase
             ->with('users')
             ->andReturn(['name', 'status']);
 
-        $schema = new CompiledSchema([], []);
-
-        $result = $this->resolver->getFields($schema, 'users', ['name', 'email'], []);
-
-        self::assertSame(['name', 'status'], $result);
+        self::assertSame(['name', 'status'], $this->resolver->getFields(UserResource::class));
     }
 
     /**
-     * Test that getFields returns all field keys from the schema when
-     * all-fields mode is enabled.
+     * Test that all-fields mode selects every field and the aggregates.
      *
      * @return void
      */
-    public function testGetFieldsReturnsAllFieldKeysWhenAllMode(): void
+    public function testGetFieldsReturnsEveryFieldAndTheAggregatesInAllMode(): void
     {
         $this->resolver->withAll();
 
         ApiQuery::shouldReceive('getFields')
             ->with('users')
+            ->andReturn(['name']);
+
+        self::assertSame([...UserResource::getAllFields(), 'aggregates'], $this->resolver->getFields(UserResource::class));
+    }
+
+    /**
+     * Test that all-fields mode set after a first resolution is honoured.
+     *
+     * @return void
+     */
+    public function testWithAllAfterAResolutionIsHonoured(): void
+    {
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
             ->andReturn(null);
 
-        $schema = $this->createSchemaWithFieldKeys(['name', 'email', 'status', 'bio']);
+        $defaults = $this->resolver->getFields(UserResource::class);
 
-        $result = $this->resolver->getFields($schema, 'users', ['name'], []);
+        $this->resolver->withAll();
 
-        self::assertSame(['name', 'email', 'status', 'bio'], $result);
+        self::assertSame(['id', 'name', 'email'], $defaults);
+        self::assertSame([...UserResource::getAllFields(), 'aggregates'], $this->resolver->getFields(UserResource::class));
     }
 
     /**
@@ -203,31 +207,27 @@ final class FieldResolverTest extends TestCase
 
         ApiQuery::shouldReceive('getFields')
             ->with('users')
-            ->andReturn(null);
+            ->andReturn(['name', 'email', 'status']);
 
-        $schema = new CompiledSchema([], []);
-
-        $result = $this->resolver->getFields($schema, 'users', ['name', 'email', 'status'], []);
-
-        self::assertSame(['name', 'status'], $result);
+        self::assertSame(['name', 'status'], $this->resolver->getFields(UserResource::class));
     }
 
     /**
-     * Test that fixed fields are always included in the result.
+     * Test that the fixed fields are appended even to an excluded field.
      *
      * @return void
      */
     public function testGetFieldsIncludesFixedFieldsAlways(): void
     {
+        Config::set('api-toolkit.resources.fixed_fields', ['id', '_type', 'uuid']);
+
+        $this->resolver->withoutFields(['id']);
+
         ApiQuery::shouldReceive('getFields')
             ->with('users')
             ->andReturn(['name']);
 
-        $schema = new CompiledSchema([], []);
-
-        $result = $this->resolver->getFields($schema, 'users', [], ['id', '_type', 'uuid']);
-
-        self::assertSame(['name', 'id', '_type', 'uuid'], $result);
+        self::assertSame(['name', 'id', '_type', 'uuid'], $this->resolver->getFields(UserResource::class));
     }
 
     /**
@@ -237,125 +237,13 @@ final class FieldResolverTest extends TestCase
      */
     public function testGetFieldsDeduplicatesResult(): void
     {
+        Config::set('api-toolkit.resources.fixed_fields', ['id']);
+
         ApiQuery::shouldReceive('getFields')
             ->with('users')
             ->andReturn(['id', 'name']);
 
-        $schema = new CompiledSchema([], []);
-
-        $result = $this->resolver->getFields($schema, 'users', [], ['id']);
-
-        self::assertSame(['id', 'name'], $result);
-    }
-
-    /**
-     * Test that withFields overrides both default and query fields.
-     *
-     * @return void
-     */
-    public function testWithFieldsOverridesDefaultAndQueryFields(): void
-    {
-        $this->resolver->withFields(['bio', 'avatar']);
-
-        ApiQuery::shouldReceive('getFields')
-            ->never();
-
-        $schema = new CompiledSchema([], []);
-
-        $result = $this->resolver->getFields($schema, 'users', ['name', 'email'], []);
-
-        self::assertSame(['bio', 'avatar'], $result);
-    }
-
-    /**
-     * Test that shouldRespondWithAll returns true when the all flag is set.
-     *
-     * @return void
-     */
-    public function testShouldRespondWithAllReturnsTrueWhenAllFlagSet(): void
-    {
-        $this->resolver->withAll();
-
-        ApiQuery::shouldReceive('getFields')
-            ->with('users')
-            ->andReturn(null);
-
-        self::assertTrue($this->resolver->shouldRespondWithAll('users'));
-    }
-
-    /**
-     * Test that shouldRespondWithAll returns true when the API query contains
-     * the :all token.
-     *
-     * @return void
-     */
-    public function testShouldRespondWithAllReturnsTrueWhenQueryContainsAll(): void
-    {
-        ApiQuery::shouldReceive('getFields')
-            ->with('users')
-            ->andReturn([':all', 'name']);
-
-        self::assertTrue($this->resolver->shouldRespondWithAll('users'));
-    }
-
-    /**
-     * Test that shouldRespondWithAll returns false by default.
-     *
-     * @return void
-     */
-    public function testShouldRespondWithAllReturnsFalseByDefault(): void
-    {
-        ApiQuery::shouldReceive('getFields')
-            ->with('users')
-            ->andReturn(null);
-
-        self::assertFalse($this->resolver->shouldRespondWithAll('users'));
-    }
-
-    /**
-     * Provide the requests that include or omit the aggregates field.
-     *
-     * @return iterable<string, array{array<int, string>|null, array<int, string>, bool, bool, bool}>
-     */
-    public static function virtualFieldProvider(): iterable
-    {
-        yield 'requested' => [['name', 'aggregates'], [], false, false, true];
-        yield 'requested but excluded' => [['name', 'aggregates'], [], true, false, false];
-        yield 'in defaults' => [null, ['name', 'aggregates'], false, false, true];
-        yield 'in defaults but excluded' => [null, ['name', 'aggregates'], true, false, false];
-        yield 'in all-fields mode' => [null, [], false, true, true];
-        yield 'in all-fields mode but excluded' => [null, [], true, true, false];
-        yield 'not requested' => [['name'], [], false, false, false];
-        yield 'not in defaults' => [null, ['name'], false, false, false];
-        yield 'a retired token requested' => [['counts', 'sums', 'averages'], [], false, false, false];
-    }
-
-    /**
-     * Test which requests include the aggregates field.
-     *
-     * @param  array<int, string>|null  $requested
-     * @param  array<int, string>  $defaults
-     * @param  bool  $excluded
-     * @param  bool  $all
-     * @param  bool  $expected
-     * @return void
-     */
-    #[DataProvider('virtualFieldProvider')]
-    public function testShouldIncludeAggregatesField(?array $requested, array $defaults, bool $excluded, bool $all, bool $expected): void
-    {
-        if ($excluded) {
-            $this->resolver->withoutFields(['aggregates']);
-        }
-
-        if ($all) {
-            $this->resolver->withAll();
-        }
-
-        ApiQuery::shouldReceive('getFields')
-            ->with('users')
-            ->andReturn($requested);
-
-        self::assertSame($expected, $this->resolver->shouldIncludeAggregatesField('users', $defaults));
+        self::assertSame(['id', 'name'], $this->resolver->getFields(UserResource::class));
     }
 
     /**
@@ -368,41 +256,43 @@ final class FieldResolverTest extends TestCase
     {
         $this->resolver->withFields(['name', 'id', 'name', 'email']);
 
-        $schema = new CompiledSchema([], []);
-
-        $result = $this->resolver->getFields($schema, 'users', [], []);
-
-        self::assertSame(['name', 'id', 'email'], $result);
+        self::assertSame(['name', 'id', 'email'], $this->resolver->getFields(UserResource::class));
     }
 
     /**
-     * Create a CompiledSchema with the given field keys using stub definitions.
+     * Provide the selections and the fields each one resolves to.
      *
-     * @param  array<int, string>  $keys
-     * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
+     * A null expectation stands for every field and the aggregates.
+     *
+     * @return iterable<string, array{array<int, string>|null, array<int, string>|null, bool, array<int, string>|null}>
      */
-    private function createSchemaWithFieldKeys(array $keys): CompiledSchema
+    public static function effectiveFieldsProvider(): iterable
     {
+        yield 'defaults' => [null, null, false, ['id', 'name', 'email']];
+        yield 'requested' => [['name', 'aggregates'], null, false, ['name', 'aggregates']];
+        yield 'blank request' => [[''], null, false, ['']];
+        yield 'requested all' => [['name', ':all'], null, false, null];
+        yield 'all mode' => [['name'], null, true, null];
+        yield 'pinned' => [['name'], ['email', 'aggregates'], true, ['email', 'aggregates']];
+        yield 'pinned empty' => [[':all'], [], false, []];
+    }
 
-        $field = new CompiledFieldDefinition(
-            accessor: null,
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: [],
-            transformers: [],
-        );
+    /**
+     * Test which fields a resource selects before exclusions and fixed fields.
+     *
+     * @param  array<int, string>|null  $requested
+     * @param  array<int, string>|null  $pinned
+     * @param  bool  $all
+     * @param  array<int, string>|null  $expected
+     * @return void
+     */
+    #[DataProvider('effectiveFieldsProvider')]
+    public function testEffectiveFields(?array $requested, ?array $pinned, bool $all, ?array $expected): void
+    {
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn($requested);
 
-        $fields = [];
-
-        foreach ($keys as $key) {
-            $fields[$key] = $field;
-        }
-
-        return new CompiledSchema($fields, []);
+        self::assertSame($expected ?? [...UserResource::getAllFields(), 'aggregates'], FieldResolver::effectiveFields(UserResource::class, $pinned, $all));
     }
 }
