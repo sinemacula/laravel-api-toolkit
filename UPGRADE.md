@@ -44,7 +44,7 @@ The three composition methods are marked `@phpstan-pure`, so PHPStan (level 4 an
 
 ### Raised: Laravel 13.39 is now the floor
 
-`illuminate/*` now requires `^13.39`. Laravel 12 is no longer supported; stay on 1.x if you need it.
+The toolkit now requires `laravel/framework` `^13.39`. Laravel 12 is no longer supported; stay on 1.x if you need it.
 
 13.2 adds the `#[Table]` and `#[Fillable]` model attributes, which a model may use in place of the properties:
 
@@ -119,8 +119,7 @@ composer require sinemacula/laravel-sse
 ```
 
 Content-negotiated exports live in `sinemacula/laravel-resource-exporter`, which is no longer a dependency; require
-it if you export resources. `illuminate/notifications` is now optional and only needed for the notification audit
-log.
+it if you export resources.
 
 The toolkit now depends on `sinemacula/http-primitives-php`, which replaces the internal `HttpStatus` enum (see the
 next section).

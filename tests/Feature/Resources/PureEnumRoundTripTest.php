@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\DerivesTabularSchema;
@@ -45,6 +46,7 @@ use Tests\TestCase;
 #[CoversClass(PureEnum::class)]
 #[CoversClass(AttributeSetter::class)]
 #[CoversTrait(DerivesTabularSchema::class)]
+#[Group('exporter')]
 final class PureEnumRoundTripTest extends TestCase
 {
     use RegistersApiExceptionHandler;

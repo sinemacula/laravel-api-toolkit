@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Log;
 use Laravel\Octane\Contracts\OperationTerminated;
 use Orchestra\Testbench\Attributes\DefineEnvironment;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
@@ -113,6 +114,7 @@ final class LifecycleRegistrarTest extends TestCase
      *
      * @return void
      */
+    #[Group('octane')]
     public function testRemovedLifecycleSwitchesDoNotUnwireTheFlushListeners(): void
     {
         /** @var \Illuminate\Config\Repository $config */
@@ -135,6 +137,7 @@ final class LifecycleRegistrarTest extends TestCase
      *
      * @return void
      */
+    #[Group('octane')]
     public function testOctaneFlushListenerRegisteredWhenInterfacePresent(): void
     {
         unset($_SERVER['LARAVEL_OCTANE']);

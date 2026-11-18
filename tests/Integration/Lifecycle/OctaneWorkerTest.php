@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
@@ -46,6 +47,7 @@ use Tests\TestCase;
 #[CoversClass(CacheManager::class)]
 #[CoversClass(OctaneFlushListener::class)]
 #[CoversClass(WritePoolFlushSubscriber::class)]
+#[Group('octane')]
 final class OctaneWorkerTest extends TestCase
 {
     use RunsOctaneWorker;
