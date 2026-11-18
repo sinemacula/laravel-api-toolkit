@@ -29,7 +29,7 @@ final class EagerLoadApplier
      */
     public function apply(Builder $query, ResourceMetadataProvider $metadataProvider, ?string $resourceClass, ?string $resourceType, RelationTrashedGate $trashedGate): Builder
     {
-        if ($resourceClass === null || !is_subclass_of($resourceClass, ApiResourceInterface::class)) {
+        if ($resourceClass === null || $resourceType === null || !is_subclass_of($resourceClass, ApiResourceInterface::class)) {
             return $query;
         }
 

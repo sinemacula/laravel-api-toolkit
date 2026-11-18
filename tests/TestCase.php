@@ -183,14 +183,17 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
-     * Write the given map as the compiled resource map.
+     * Write the given map as the compiled resource catalogue, its resources the
+     * map's values.
      *
      * @param  array<class-string, class-string>  $map
      * @return string
      */
     protected function writeCompiledMap(array $map): string
     {
-        return $this->writeCompiledResources('<?php return ' . var_export($map, true) . ';');
+        $catalogue = ['bindings' => $map, 'resources' => array_values(array_unique($map))];
+
+        return $this->writeCompiledResources('<?php return ' . var_export($catalogue, true) . ';');
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Integration\Lifecycle;
 
 use Illuminate\Queue\Events\JobFailed;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
@@ -12,10 +13,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use Tests\Concerns\UsesDatabaseQueue;
 use Tests\Fixtures\Jobs\GenerationRecordingJob;
 use Tests\Fixtures\Jobs\ParsingJob;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
@@ -47,6 +50,8 @@ final class QueueAttemptFlushTest extends TestCase
 
         GenerationRecordingJob::reset();
         ParsingJob::$parser = null;
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
 
         $this->useDatabaseQueue();
 
@@ -104,7 +109,7 @@ final class QueueAttemptFlushTest extends TestCase
         $seen = [];
 
         Queue::failing(function (JobFailed $event) use (&$seen): void {
-            $seen[] = [ParsingJob::$parser?->getFields(), $this->flushes];
+            $seen[] = [ParsingJob::$parser?->getFields('users'), $this->flushes];
         });
 
         Queue::push(new ParsingJob($ending));
@@ -114,7 +119,7 @@ final class QueueAttemptFlushTest extends TestCase
         self::assertSame($fails ? [[['name', 'email'], 0]] : [], $seen);
         self::assertSame(1, $this->flushes);
         self::assertNotNull(ParsingJob::$parser);
-        self::assertNull(ParsingJob::$parser->getFields());
+        self::assertNull(ParsingJob::$parser->getFields('users'));
         self::assertSame($fails ? 1 : 0, DB::connection('queue_probe')->table('failed_jobs')->count());
     }
 

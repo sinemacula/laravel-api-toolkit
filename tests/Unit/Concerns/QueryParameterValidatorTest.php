@@ -55,10 +55,12 @@ final class QueryParameterValidatorTest extends TestCase
     public static function validParameterProvider(): iterable
     {
         yield 'no parameters' => [[]];
-        yield 'fields string' => [['fields' => 'name,email']];
         yield 'fields array of strings' => [['fields' => ['user' => 'name,email']]];
+        yield 'null fields leaf' => [['fields' => ['user' => null]]];
+        yield 'empty fields leaf' => [['fields' => ['user' => '']]];
         yield 'aggregates array of strings' => [['aggregates' => ['user' => 'posts_count,orders_sum_total']]];
-        yield 'aggregates string' => [['aggregates' => 'posts_count']];
+        yield 'null aggregates leaf' => [['aggregates' => ['user' => null]]];
+        yield 'empty aggregates leaf' => [['aggregates' => ['user' => '']]];
         yield 'valid json filters' => [['filters' => '{"status":"active"}']];
         yield 'order string' => [['order' => 'name:asc']];
         yield 'page of one' => [['page' => '1']];
@@ -97,7 +99,6 @@ final class QueryParameterValidatorTest extends TestCase
         yield 'non-numeric limit' => [['limit' => 'abc']];
         yield 'limit below one' => [['limit' => '0']];
         yield 'invalid json filters' => [['filters' => 'not-valid-json{']];
-        yield 'integer fields' => [['fields' => 123]];
         yield 'array order' => [['order' => ['name' => 'asc']]];
         yield 'array cursor' => [['cursor' => ['id' => 100]]];
         yield 'array search' => [['search' => ['smith']]];
@@ -120,6 +121,46 @@ final class QueryParameterValidatorTest extends TestCase
         $this->expectException(ValidationException::class);
 
         $this->validator->validate($parameters);
+    }
+
+    /**
+     * Provide selection parameters that are not keyed by resource type.
+     *
+     * @return iterable<string, array{string, mixed}>
+     */
+    public static function unkeyedSelectionProvider(): iterable
+    {
+        yield 'flat fields' => ['fields', 'name,email'];
+        yield 'integer fields' => ['fields', 123];
+        yield 'null fields' => ['fields', null];
+        yield 'empty fields' => ['fields', ''];
+        yield 'flat aggregates' => ['aggregates', 'posts_count'];
+        yield 'integer aggregates' => ['aggregates', 5];
+        yield 'null aggregates' => ['aggregates', null];
+        yield 'empty aggregates' => ['aggregates', ''];
+    }
+
+    /**
+     * Test that a selection parameter not keyed by resource type is refused on
+     * the parameter, naming the expected form.
+     *
+     * @param  string  $parameter
+     * @param  mixed  $value
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('unkeyedSelectionProvider')]
+    public function testUnkeyedSelectionIsRefusedOnTheParameter(string $parameter, mixed $value): void
+    {
+        $example = $parameter === 'fields' ? 'fields[users]=name' : 'aggregates[users]=posts_count';
+
+        try {
+            $this->validator->validate([$parameter => $value]);
+            self::fail('An unkeyed selection passed validation.');
+        } catch (ValidationException $exception) {
+            self::assertSame([$parameter => [sprintf('The %s parameter must be keyed by resource type, e.g. %s.', $parameter, $example)]], $exception->errors());
+        }
     }
 
     /**

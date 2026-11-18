@@ -149,7 +149,7 @@ final class MakeResourceCommandTest extends TestCase
         /** @var \SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery $discovery */
         $discovery = $this->app->make(ResourceDiscovery::class);
 
-        $map = $discovery->scan();
+        $map = $discovery->scan()['bindings'];
 
         self::assertSame([Post::class => $class], $map);
 
@@ -157,10 +157,12 @@ final class MakeResourceCommandTest extends TestCase
         $validator = $this->app->make(SchemaValidator::class);
         $validator->validate($map);
 
+        Config::set('api-toolkit.resources.resource_map', $map);
+
         $post = Post::query()->create(['user_id' => 1, 'title' => 'Title', 'body' => 'Body']);
 
         self::assertSame(['_type' => 'post', 'id' => $post->getKey()], $this->serialise($class, $post, []));
-        self::assertSame(['_type' => 'post', 'id' => $post->getKey()], $this->serialise($class, $post, ['fields' => ['post' => 'id,title']]));
+        self::assertSame(['_type' => 'post', 'id' => $post->getKey()], $this->serialise($class, $post, ['fields' => ['post' => 'id']]));
     }
 
     /**

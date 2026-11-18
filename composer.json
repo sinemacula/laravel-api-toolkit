@@ -41,6 +41,7 @@
         "mockery/mockery": "^1.6",
         "opis/json-schema": "^2.4",
         "orchestra/testbench": "^11.0",
+        "phpbench/phpbench": "^1.7",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpdoc-parser": "^2.3",
         "phpstan/phpstan": "^2.1",
@@ -62,10 +63,20 @@
     },
     "autoload-dev": {
         "psr-4": {
+            "Benchmarks\\": "benchmarks/",
             "Tests\\": "tests/"
         }
     },
     "scripts": {
+        "bench": [
+            "@php vendor/bin/phpbench run --config=phpbench.json --progress=plain --report=aggregate"
+        ],
+        "bench:ci": [
+            "@php vendor/bin/phpbench run --config=phpbench.json --progress=plain --report=aggregate --dump-file=build/phpbench.xml"
+        ],
+        "bench:smoke": [
+            "@php vendor/bin/phpbench run --config=phpbench.json --progress=plain --iterations=1 --revs=1"
+        ],
         "check": [
             "qlty check"
         ],
@@ -89,6 +100,9 @@
         ]
     },
     "scripts-descriptions": {
+        "bench": "Run the benchmark suite and report each subject.",
+        "bench:ci": "Run the benchmark suite and dump the results for CI.",
+        "bench:smoke": "Run every benchmark subject once to prove it still runs.",
         "check": "Run static analysis and lint checks via qlty.",
         "format": "Format codebase using qlty.",
         "smells": "Report code smells (duplication, complexity) via qlty.",

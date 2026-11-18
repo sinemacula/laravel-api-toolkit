@@ -65,8 +65,10 @@ use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
+use Tests\Fixtures\Discovery\Primary\ChildDiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
+use Tests\Fixtures\Discovery\Unbound\UnboundPostResource;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\CatalogueRow;
 use Tests\Fixtures\Models\Organization;
@@ -492,8 +494,15 @@ final class ApiServiceProviderTest extends TestCase
         $this->pendingArtisan('api-toolkit:resources:cache')->assertExitCode(0)->run();
 
         self::assertSame([
-            User::class => DiscoveredUserResource::class,
-            Post::class => DiscoveredPostResource::class,
+            'bindings' => [
+                User::class => DiscoveredUserResource::class,
+                Post::class => DiscoveredPostResource::class,
+            ],
+            'resources' => [
+                ChildDiscoveredUserResource::class,
+                DiscoveredUserResource::class,
+                DiscoveredPostResource::class,
+            ],
         ], require $path);
     }
 
@@ -621,7 +630,10 @@ final class ApiServiceProviderTest extends TestCase
 
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
-            User::class => UserResource::class,
+            User::class         => UserResource::class,
+            Post::class         => PostResource::class,
+            Tag::class          => TagResource::class,
+            Organization::class => OrganizationResource::class,
         ]);
 
         $provider = new ApiServiceProvider($app);
@@ -661,14 +673,19 @@ final class ApiServiceProviderTest extends TestCase
      */
     public static function sortableResourceMapProvider(): iterable
     {
-        yield 'one sortable' => [[User::class => UserResource::class], 1];
         yield 'one sortable beside three unsortable' => [[
             User::class         => UserResource::class,
             Post::class         => PostResource::class,
             Tag::class          => TagResource::class,
             Organization::class => OrganizationResource::class,
         ], 1];
-        yield 'two sortable' => [[User::class => UserResource::class, Article::class => ArticleResource::class], 2];
+        yield 'two sortable beside three unsortable' => [[
+            User::class         => UserResource::class,
+            Article::class      => ArticleResource::class,
+            Post::class         => PostResource::class,
+            Tag::class          => TagResource::class,
+            Organization::class => OrganizationResource::class,
+        ], 2];
     }
 
     /**
@@ -741,6 +758,29 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
+     * Test that boot validates a discovered resource no model binds, even with
+     * an empty map.
+     *
+     * @return void
+     */
+    public function testValidateSchemasCoversAnUnboundResourceAtBoot(): void
+    {
+        $app = $this->getApplication();
+
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Unbound']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+
+        $provider = new ApiServiceProvider($app);
+        $provider->register();
+
+        $this->expectException(InvalidSchemaException::class);
+        $this->expectExceptionMessage(sprintf('[%s] Field "tags": Relation "tags" renders %s', UnboundPostResource::class, TagResource::class));
+
+        $provider->boot();
+    }
+
+    /**
      * Test that a table that is not migrated does not fail boot, since boot
      * passes over a catalogue it cannot read.
      *
@@ -781,6 +821,26 @@ final class ApiServiceProviderTest extends TestCase
      */
     #[DataProvider('validationCommandArgvProvider')]
     public function testValidateSchemasIsLeftToTheValidationCommand(array $argv): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => BrokenResource::class,
+        ]);
+
+        $this->bootWithArgv($argv);
+
+        self::assertSame([User::class => BrokenResource::class], $this->getConfig()->get('api-toolkit.resources.resource_map'));
+    }
+
+    /**
+     * Test that the commands booting without the discovered resources leave
+     * schema validation to a full boot.
+     *
+     * @param  array<int, string>  $argv
+     * @return void
+     */
+    #[DataProvider('cacheBuildArgvProvider')]
+    public function testCacheBuildSkipsSchemaValidation(array $argv): void
     {
         $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
         $this->getConfig()->set('api-toolkit.resources.resource_map', [
@@ -1035,8 +1095,15 @@ final class ApiServiceProviderTest extends TestCase
         $this->pendingArtisan('optimize', ['--except' => 'config,events,routes,views'])->assertExitCode(0)->run();
 
         self::assertSame([
-            User::class => DiscoveredUserResource::class,
-            Post::class => DiscoveredPostResource::class,
+            'bindings' => [
+                User::class => DiscoveredUserResource::class,
+                Post::class => DiscoveredPostResource::class,
+            ],
+            'resources' => [
+                ChildDiscoveredUserResource::class,
+                DiscoveredUserResource::class,
+                DiscoveredPostResource::class,
+            ],
         ], require $path);
 
         $this->pendingArtisan('optimize:clear', ['--except' => 'config,cache,compiled,events,routes,views'])->assertExitCode(0)->run();
