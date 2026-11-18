@@ -264,7 +264,8 @@ GET /users?limit=25    // honoured as-is
 ```
 
 **Relation aggregates** - request declared aggregates per resource type by their keys. Requesting any aggregate replaces
-every default of that type, as `?fields` replaces `$default`, and the response renders them under the `aggregates` field:
+every default of that type, as `?fields` replaces `$default`. A type's aggregates apply wherever it renders, at the root
+or embedded, and render under its `aggregates` field when its field selection includes it:
 
 ```http
 GET /users?fields[users]=name,aggregates&aggregates[users]=posts_count,orders_sum_total,last_order_at
@@ -275,7 +276,7 @@ ApiQuery::getAggregates('users');      // ['posts_count', 'orders_sum_total', 'l
 ```
 
 An aggregate key the type does not declare is rejected with a 422 on `aggregates.{type}`, and `?aggregates[users]=`
-selects none.
+selects none. A resource embedded through a `MorphTo` relation or a `PolymorphicResource` loads no aggregates.
 
 ```json
 {
@@ -657,9 +658,9 @@ Two overrides cover what the catalogue cannot show:
 search relevance order, so a `sortable()` column named `relevance` cannot be ordered by; schema validation reports it.
 
 **Query cost caps** - `api-toolkit.query_cost` bounds the filter document's size and nesting, the keys and value-list
-items it dispatches, the sort keys and relation aggregates requested, and how deep a request pages. A request over a
-cap is rejected before any SQL is issued, with a `422` naming the parameter, the position within it, the cap, the
-limit and the value supplied. Set a cap to `0` to disable it.
+items it dispatches, the sort keys and relation aggregates requested across every resource type, and how deep a request
+pages. A request over a cap is rejected before any SQL is issued, with a `422` naming the parameter, the position within
+it, the cap, the limit and the value supplied. Set a cap to `0` to disable it.
 
 **Writes** - `persist($model, $attributes)` creates or updates the model from an array or collection of attributes.
 Each key is written through Eloquent's `setAttribute()`, so casts, both mutator styles and JSON paths such as
@@ -722,16 +723,21 @@ does not redirect it. Timestamps follow the model: none when it has timestamps d
 `CREATED_AT` and `UPDATED_AT` columns in its date format, and a timestamp you pass is kept. Rows are inserted in
 consecutive runs of one column set, so a row may leave out optional columns and they keep their database default.
 Each connection flushes its tables in the order they joined the buffer, and a table keeps its place while it holds rows,
-so defer a parent before the rows that reference it.
+so defer a parent before the rows that reference it. An `INSERT` carries at most `deferred_writes.chunk_size` rows and
+never more than 32766 bound values, so a wide table is written in smaller chunks.
 
 Reaching `deferred_writes.pool_limit` flushes automatically, but never on a connection with an open transaction: those
 rows wait for the next deferral outside a transaction or for the boundary flush, so rolling the transaction back does
 not undo them. A flush that does run inside an open transaction joins it: `flushWrites()` called there, or a boundary
-flush while an outer transaction is still open, such as a sync-queued job dispatched inside one.
+flush while an outer transaction is still open, such as a sync-queued job dispatched inside one. Each chunk then runs in
+its own savepoint, or each table with `deferred_writes.transactional`, so a failure rolls back only that chunk or table
+and the transaction stays usable. A deadlock is the exception: the database may already have rolled back the whole
+transaction.
 
 `api-toolkit.deferred_writes.on_failure` picks what happens when a flush fails:
 
-- `collect` (default) - failed records are kept for the next flush.
+- `collect` (default) - failed records are kept for the next flush. They do not count toward `pool_limit`, so they are
+  retried when their connection next flushes automatically, or at the boundary, rather than on every deferral.
 - `throw` - raises a `WritePoolFlushException`, for callers that flush explicitly.
 - `log` - failed records are dropped. Use it only for disposable writes such as telemetry.
 
