@@ -294,6 +294,24 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
+     * Test that the sparse-fieldset description names the type keys, the
+     * accepted values and what an unkeyed type returns.
+     *
+     * @return void
+     */
+    public function testFieldsDescriptionNamesTheTypeKeysValuesAndDefaultFields(): void
+    {
+        self::assertSame(
+            'Sparse fieldsets keyed by resource _type, e.g. fields[users]=id,name. Each value is a comma-separated '
+            . 'list of that schema\'s property names, with aggregates selecting its aggregates payload, or :all to '
+            . 'select every field. Unknown types and names are rejected. A type with no key selects its schema\'s '
+            . 'x-default-fields, unless a parent relation pins its fields. A selected property may still be left out; '
+            . 'only the required ones are always returned.',
+            $this->makeBuilder()->build()['Fields']['description'],
+        );
+    }
+
+    /**
      * Test that every deep-object parameter uses the exploded deepObject style.
      *
      * @return void
@@ -317,11 +335,6 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        self::assertSame(
-            'Sparse fieldsets: restrict the attributes returned per resource type, e.g. fields[users]=id,name. '
-            . 'Unknown resource types and names are rejected.',
-            $parameters['Fields']['description'],
-        );
         self::assertIsString($parameters['Search']['description']);
         self::assertStringContainsString('search=John Smith', $parameters['Search']['description']);
         self::assertIsString($parameters['Order']['description']);

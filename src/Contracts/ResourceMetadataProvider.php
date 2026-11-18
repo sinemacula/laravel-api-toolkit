@@ -31,6 +31,14 @@ interface ResourceMetadataProvider
     public function resolveFields(string $resourceClass): array;
 
     /**
+     * Get the fields added to every selection of the given resource class.
+     *
+     * @param  string  $resourceClass
+     * @return array<int, string>
+     */
+    public function getFixedFields(string $resourceClass): array;
+
+    /**
      * Get all non-metric field keys for the given resource class.
      *
      * @param  string  $resourceClass

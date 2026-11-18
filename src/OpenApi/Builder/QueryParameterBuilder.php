@@ -165,8 +165,11 @@ final readonly class QueryParameterBuilder
     {
         return $this->parameter(
             'fields',
-            'Sparse fieldsets: restrict the attributes returned per resource type, e.g. fields[users]=id,name. '
-            . 'Unknown resource types and names are rejected.',
+            'Sparse fieldsets keyed by resource _type, e.g. fields[users]=id,name. Each value is a comma-separated '
+            . 'list of that schema\'s property names, with aggregates selecting its aggregates payload, or :all to '
+            . 'select every field. Unknown types and names are rejected. A type with no key selects its schema\'s '
+            . 'x-default-fields, unless a parent relation pins its fields. A selected property may still be left out; '
+            . 'only the required ones are always returned.',
             ['type' => 'object', 'additionalProperties' => ['type' => 'string']],
             'deepObject',
         );
