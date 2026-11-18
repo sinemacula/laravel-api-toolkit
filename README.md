@@ -823,13 +823,14 @@ Every error renders as one envelope:
 
 `detail` is always present, empty when the code has no detail translation, and `title` is left out when none resolves.
 `meta` is the exception's own meta, always an object, and is left out when empty. With
-`api-toolkit.exceptions.include_debug_info` on (null follows `app.debug`), an error mapped from another exception adds
+`api-toolkit.exceptions.include_debug_info` on (null follows `app.debug`), an error with an underlying exception adds
 that exception's message, class, file, line and trace under `error.debug`, beside the meta rather than inside it.
 
 An `ApiException` declares the shape of its meta by implementing `DefinesErrorMeta`, and the exported document types
 `error.meta` for its code with it. A subclass inherits the declaration with the code:
 
 ```php
+use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DefinesErrorMeta;
 
 final class SlotTakenException extends ApiException implements DefinesErrorMeta
