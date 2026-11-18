@@ -6,7 +6,6 @@ namespace Tests\Unit\Services;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\LockKeyProvider;
 use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
@@ -17,7 +16,6 @@ use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
 use SineMacula\ApiToolkit\Services\Events\ServiceCompleted;
 use SineMacula\ApiToolkit\Services\Events\ServiceFailed;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
-use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceContext;
 use SineMacula\ApiToolkit\Services\ServiceResult;
@@ -455,27 +453,6 @@ final class ServiceTest extends TestCase
         Event::assertDispatched(
             ServiceCompleted::class,
             static fn (ServiceCompleted $event): bool => $event->correlationId === 'fixed-correlation',
-        );
-    }
-
-    /**
-     * Test that dispatch() reuses the context supplied via withContext().
-     *
-     * @return void
-     */
-    public function testDispatchReusesContextSuppliedByWithContext(): void
-    {
-        Queue::fake();
-
-        $context = ServiceContext::for(new StubActor, ServiceSource::HTTP, [], 'fixed-correlation');
-        $service = new OutputService(new ArrayInput([]));
-
-        $service->withContext($context)->dispatch();
-
-        Queue::assertPushed(
-            ServiceJob::class,
-            static fn (ServiceJob $job): bool => $job->context->correlationId === 'fixed-correlation'
-                && $job->context->source                                      === ServiceSource::HTTP,
         );
     }
 

@@ -1204,6 +1204,75 @@ final class PayloadTest extends TestCase
     }
 
     /**
+     * Test that declaring a sensitive parameter is resolved per class.
+     *
+     * @return void
+     */
+    public function testDeclaresSensitivePropertiesIsResolvedPerPayloadClass(): void
+    {
+        $unmarked = new class (password: 'plain') extends Payload {
+            /**
+             * Create a new instance with an unmarked password property.
+             *
+             * @param  string  $password
+             */
+            public function __construct(
+
+                /** The password; not marked sensitive. */
+                public readonly string $password = '',
+            ) {}
+        };
+
+        self::assertTrue(SensitiveInput::declaresSensitiveProperties());
+        self::assertFalse($unmarked::declaresSensitiveProperties());
+        self::assertTrue(SensitiveInput::declaresSensitiveProperties());
+    }
+
+    /**
+     * Test that a sensitive parameter promoted by a parent constructor or a
+     * trait is declared.
+     *
+     * @return void
+     */
+    public function testDeclaresSensitivePropertiesFromAParentOrTrait(): void
+    {
+        $inherited = new class (username: 'alice', password: 'super-secret') extends SensitiveBaseInput {};
+
+        $trait = new class (username: 'alice', password: 'super-secret') extends Payload {
+            use SensitiveCredentials;
+        };
+
+        self::assertTrue($inherited::declaresSensitiveProperties());
+        self::assertTrue($trait::declaresSensitiveProperties());
+    }
+
+    /**
+     * Test that a sensitive parameter promoted to a non-public property is
+     * declared, as the queue serialises it all the same.
+     *
+     * @return void
+     */
+    public function testDeclaresSensitivePropertiesForANonPublicProperty(): void
+    {
+        $input = new class (token: 'super-secret') extends Payload {
+            /**
+             * Create a new instance with a protected sensitive property.
+             *
+             * @param  string  $token
+             */
+            public function __construct(
+
+                /** The token; marked sensitive. */
+                #[\SensitiveParameter]
+                protected readonly string $token = '',
+            ) {}
+        };
+
+        self::assertSame([], $input->toArray());
+        self::assertTrue($input::declaresSensitiveProperties());
+    }
+
+    /**
      * Test that a snake_case body key hydrates its camelCase property.
      *
      * @return void

@@ -32,6 +32,9 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     /** @var array<class-string, array<string, string>> Body key per property name per class */
     private static array $bodyKeys = [];
 
+    /** @var array<class-string, bool> Whether each class promotes a sensitive parameter */
+    private static array $sensitiveClasses = [];
+
     /**
      * Validate the source against rules() and return a hydrated instance.
      *
@@ -147,6 +150,21 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     }
 
     /**
+     * Determine whether the payload promotes a #[\SensitiveParameter]
+     * parameter, which encrypts a queued service carrying it.
+     *
+     * @return bool
+     */
+    final public static function declaresSensitiveProperties(): bool
+    {
+        if (!isset(self::$sensitiveClasses[static::class])) {
+            self::$sensitiveClasses[static::class] = self::resolveSensitivity(static::class);
+        }
+
+        return self::$sensitiveClasses[static::class];
+    }
+
+    /**
      * Return the body key each property of a class maps to.
      *
      * @param  class-string<static>  $class
@@ -213,6 +231,23 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
         }
 
         return $names;
+    }
+
+    /**
+     * Reflect whether any promoted property of a class is marked sensitive.
+     *
+     * @param  class-string<static>  $class
+     * @return bool
+     */
+    private static function resolveSensitivity(string $class): bool
+    {
+        foreach ((new \ReflectionClass($class))->getProperties() as $property) {
+            if ($property->isPromoted() && self::isSensitive($property)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

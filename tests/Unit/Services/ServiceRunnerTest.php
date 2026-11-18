@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Services;
 
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -1195,6 +1196,122 @@ final class ServiceRunnerTest extends TestCase
         (new ServiceRunner)->run($service, ServiceContext::for(new StubActor));
 
         self::assertSame($outer, $service->currentContext());
+    }
+
+    /**
+     * Test that the pre-flight runs authorize() and validate() with the context
+     * bound, then restores the one it replaced.
+     *
+     * @return void
+     */
+    public function testPreflightBindsTheContextAndRestoresThePrevious(): void
+    {
+        $outer   = ServiceContext::for(new StubActor);
+        $context = ServiceContext::for(new StubActor);
+        $service = new ContextRecordingService(new ArrayInput([]));
+        $service->bindRunContext($outer);
+
+        (new ServiceRunner)->preflight($service, $context);
+
+        self::assertSame($context, $service->seen['authorize']);
+        self::assertSame($context, $service->seen['validate']);
+        self::assertArrayNotHasKey('handle', $service->seen);
+        self::assertSame($outer, $service->currentContext());
+    }
+
+    /**
+     * Test that the pre-flight skips authorize() for a SystemActor.
+     *
+     * @return void
+     */
+    public function testPreflightSkipsAuthorizationForASystemActor(): void
+    {
+        $service = new ContextRecordingService(new ArrayInput([]));
+
+        (new ServiceRunner)->preflight($service, ServiceContext::for(new SystemActor));
+
+        self::assertArrayNotHasKey('authorize', $service->seen);
+        self::assertArrayHasKey('validate', $service->seen);
+    }
+
+    /**
+     * Test that a refused pre-flight throws, unbinds the context, and runs no
+     * failure hook or event.
+     *
+     * @return void
+     */
+    public function testRefusedPreflightThrowsWithoutAFailureHookOrEvent(): void
+    {
+        Event::fake([ServiceFailed::class]);
+
+        $service = new AuthorizingService;
+
+        $this->assertThrows(
+            static fn () => (new ServiceRunner)->preflight($service, ServiceContext::for(new StubActor)),
+            AuthorizationException::class,
+        );
+
+        self::assertNull($service->bindRunContext(null));
+        Event::assertNotDispatched(ServiceFailed::class);
+    }
+
+    /**
+     * Test that the final failure reaches onFinalFailure() with the context
+     * bound, without resolving the other hooks.
+     *
+     * @return void
+     */
+    public function testFinalFailureRunsTheHookWithTheContextBound(): void
+    {
+        $context = ServiceContext::for(new StubActor);
+        $service = new ContextRecordingService(new ArrayInput([]));
+
+        (new ServiceRunner)->runFinalFailure($service, $context, new \RuntimeException('Gave up.'));
+
+        self::assertSame(['onFinalFailure' => $context], $service->seen);
+        self::assertNull($service->bindRunContext(null));
+    }
+
+    /**
+     * Test that an onFinalFailure() throw is reported rather than thrown.
+     *
+     * @return void
+     */
+    public function testFinalFailureThrowIsReported(): void
+    {
+        Exceptions::fake();
+
+        $service = new class (new ArrayInput([])) extends Service {
+            /**
+             * Complete the run.
+             *
+             * @return null
+             */
+            #[\Override]
+            protected function handle(): null
+            {
+                return null;
+            }
+
+            /**
+             * Throw from the final-failure hook.
+             *
+             * @param  \Throwable  $exception
+             * @return void
+             *
+             * @throws \RuntimeException
+             */
+            #[\Override]
+            protected function onFinalFailure(\Throwable $exception): void
+            {
+                throw new \RuntimeException('final-failure-error');
+            }
+        };
+
+        (new ServiceRunner)->runFinalFailure($service, ServiceContext::for(new StubActor), new \RuntimeException('Gave up.'));
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(static fn (\RuntimeException $e): bool => $e->getMessage() === 'final-failure-error');
     }
 
     /**
