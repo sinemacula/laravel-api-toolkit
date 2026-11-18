@@ -135,9 +135,9 @@ abstract class ApiRepository extends Repository
     /**
      * Persist the given attributes to the model.
      *
-     * Handles create and update; many-to-many relations sync after the save. A
-     * cacheable repository then invalidates its table, even when a sync fails
-     * after the save.
+     * Handles create and update; many-to-many relations sync after the save, in
+     * the same transaction. A cacheable repository then invalidates its table,
+     * even when the write fails.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>|\Illuminate\Support\Collection<string, mixed>  $attributes

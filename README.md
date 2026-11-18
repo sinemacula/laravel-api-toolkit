@@ -562,6 +562,8 @@ a `MorphTo` from a model or `null`, and a `BelongsToMany` or `MorphToMany` from 
 model is saved. A key naming any other relation throws an `InvalidArgumentException` before any key is assigned, and
 a key that is neither a column nor a mutator fails at save with the database's `QueryException`. A set mutator named
 like a relation takes precedence over it. `$fillable` and `$guarded` are not applied, so pass only validated input.
+The save and the syncs run in one transaction, so a sync that fails rolls the save back and leaves the model instance
+stale; discard it. A save cancelled by a `saving` listener syncs nothing and returns `false`.
 
 **Cacheable trait** - per-query caching for any `ApiRepository` subclass:
 
