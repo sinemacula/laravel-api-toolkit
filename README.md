@@ -916,13 +916,14 @@ operators have all been removed from the registry is documented as answering no 
 Every operation also lists the errors it can return, derived from the route: an unauthenticated request behind auth
 middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
 `AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the path
-has parameters, a validation failure when the operation accepts a request body, a refusal behind a rate limit, and an
-unhandled exception always. Each is documented as the exception map renders it: by default a `401`, `403`, `404`, `422`,
-`429` and `500`. The unhandled exception is looked up as a `Throwable`, so a `Throwable` key changes it and a narrower
-catch-all such as `RuntimeException` does not. A denial with a status of its own is documented only where the route
-already lists the error that status stands for, as a path with parameters does for `denyAsNotFound()`. Middleware is
-read as the router resolves it, so a guard or limit applied through a group counts and one removed with
-`withoutMiddleware()` does not.
+has parameters, a validation failure when the operation accepts a request body or the toolkit's query parameters, a
+refusal behind a rate limit, and an unhandled exception always. Each is documented as the exception map renders it: by
+default a `401`, `403`, `404`, `422`, `429` and `500`. A list operation also documents the query cost refusal under
+`422` while any query cost cap is enabled. The unhandled exception is looked up as a `Throwable`, so a `Throwable` key
+changes it and a narrower catch-all such as `RuntimeException` does not. A denial with a status of its own is documented
+only where the route already lists the error that status stands for, as a path with parameters does for
+`denyAsNotFound()`. Middleware is read as the router resolves it, so a guard or limit applied through a group counts and
+one removed with `withoutMiddleware()` does not.
 
 Each `ApiException` subclass named in the action's `@throws` tags is added under its status too; other throwables in
 those tags are ignored. Class names in `@throws` resolve as PHP would in the file declaring the action, so imported,

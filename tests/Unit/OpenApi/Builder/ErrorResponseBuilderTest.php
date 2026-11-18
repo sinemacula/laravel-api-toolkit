@@ -12,6 +12,7 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Exceptions\ServiceUnavailableException;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
@@ -61,13 +62,13 @@ final class ErrorResponseBuilderTest extends TestCase
     {
         $route = $this->router()->post('users/{user}', [PathPlainController::class, 'report'])->middleware(['auth', 'can:update-user', 'throttle:60,1']);
 
-        $responses = $this->build($route, acceptsBody: true);
+        $responses = $this->build($route, [ValidationException::class]);
 
         self::assertSame([401, 403, 404, 422, 429, 500], array_keys($responses));
         self::assertSame($this->response('Unauthenticated.', ['Error10101']), $responses[401]);
         self::assertSame($this->response('Forbidden.', ['Error10102']), $responses[403]);
         self::assertSame($this->response('The requested resource does not exist.', ['Error10103']), $responses[404]);
-        self::assertSame($this->response('The request payload failed validation.', ['Error10106']), $responses[422]);
+        self::assertSame($this->response('The request failed validation.', ['Error10106']), $responses[422]);
         self::assertSame($this->response('Too many requests.', ['Error10107'], self::RATE_LIMIT_HEADERS), $responses[429]);
         self::assertSame($this->response('An unexpected server error occurred.', ['Error10001']), $responses[500]);
     }
@@ -214,7 +215,7 @@ final class ErrorResponseBuilderTest extends TestCase
      */
     public function testThrownStatusOutsideTheBaselineTakesItsStatusPhrase(): void
     {
-        $responses = $this->build($this->router()->post('users', [PathFixtureController::class, 'store']), acceptsBody: true);
+        $responses = $this->build($this->router()->post('users', [PathFixtureController::class, 'store']), [ValidationException::class]);
 
         self::assertSame([403, 409, 422, 500], array_keys($responses));
         self::assertSame($this->response('Conflict.', ['Error10108']), $responses[409]);
@@ -233,7 +234,60 @@ final class ErrorResponseBuilderTest extends TestCase
             'Retry-After' => ['description' => 'The number of seconds to wait before retrying.', 'schema' => ['type' => 'integer']],
             'Refresh'     => ['description' => 'The number of seconds after which the client may reload.', 'schema' => ['type' => 'integer']],
         ]), $responses[503]);
-        self::assertSame($this->response('The request payload failed validation.', ['Error10106']), $responses[422]);
+        self::assertSame($this->response('The request failed validation.', ['Error10106']), $responses[422]);
+    }
+
+    /**
+     * Test that the query cost refusal is documented beside the validation
+     * failure, in input order.
+     *
+     * @return void
+     */
+    public function testQueryCostRefusalIsDocumentedBesideTheValidationFailure(): void
+    {
+        $route = $this->router()->get('users', [PathPlainController::class, 'index']);
+
+        self::assertSame($this->response('The request failed validation.', ['Error10201']), $this->build($route, [QueryTooExpensiveException::class])[422]);
+        self::assertSame(
+            $this->response('The request failed validation.', ['Error10106', 'Error10201']),
+            $this->build($route, [ValidationException::class, QueryTooExpensiveException::class])[422],
+        );
+    }
+
+    /**
+     * Test that an input exception the action also throws, or one passed twice,
+     * lists one example.
+     *
+     * @return void
+     */
+    public function testInputExceptionTheActionThrowsListsOneExample(): void
+    {
+        $route     = $this->router()->get('errors/{error}', [PathErrorController::class, 'show']);
+        $responses = $this->build($route, [ValidationException::class, QueryTooExpensiveException::class, ValidationException::class]);
+
+        self::assertSame($this->response('The request failed validation.', ['Error10106', 'Error10201']), $responses[422]);
+    }
+
+    /**
+     * Test that an input ApiException is documented as itself whatever the
+     * exception map holds.
+     *
+     * @return void
+     */
+    public function testInputApiExceptionIsDocumentedAsItself(): void
+    {
+        config()->set('api-toolkit.exceptions.map', [\Throwable::class => ServiceUnavailableException::class, ValidationException::class => BadRequestException::class]);
+
+        $route     = $this->router()->get('users', [PathPlainController::class, 'index']);
+        $responses = $this->build($route, [ValidationException::class, QueryTooExpensiveException::class]);
+
+        self::assertSame([400, 422, 503], array_keys($responses));
+        self::assertSame($this->response('Bad request.', ['Error10100']), $responses[400]);
+        self::assertSame($this->response('The request failed validation.', ['Error10201']), $responses[422]);
+        self::assertSame($this->response('Too many requests.', ['Error10107'], [
+            'retry-after'   => ['description' => 'The number of seconds until the quota resets.', 'schema' => ['type' => 'integer', 'minimum' => 1]],
+            'X-Quota-Reset' => ['schema' => ['type' => 'integer']],
+        ]), $this->build($route, [QuotaExceededException::class])[429]);
     }
 
     /**
@@ -322,7 +376,7 @@ final class ErrorResponseBuilderTest extends TestCase
     {
         config()->set('api-toolkit.exceptions.map', [ValidationException::class => BadRequestException::class]);
 
-        $responses = $this->build($this->router()->post('reports', [PathPlainController::class, 'report']), acceptsBody: true);
+        $responses = $this->build($this->router()->post('reports', [PathPlainController::class, 'report']), [ValidationException::class]);
 
         self::assertSame([400, 500], array_keys($responses));
         self::assertSame($this->response('Bad request.', ['Error10100']), $responses[400]);
@@ -433,15 +487,15 @@ final class ErrorResponseBuilderTest extends TestCase
      * Build the error responses of the given route.
      *
      * @param  \Illuminate\Routing\Route  $route
-     * @param  bool  $acceptsBody
+     * @param  list<class-string<\Throwable>>  $inputExceptions
      * @return array<int, array<string, mixed>>
      */
-    private function build(Route $route, bool $acceptsBody = false): array
+    private function build(Route $route, array $inputExceptions = []): array
     {
         /** @var class-string|null $controllerClass */
         $controllerClass = $route->getControllerClass();
 
-        return $this->builder()->build($controllerClass, $route->getActionMethod(), $route, $acceptsBody);
+        return $this->builder()->build($controllerClass, $route->getActionMethod(), $route, $inputExceptions);
     }
 
     /**

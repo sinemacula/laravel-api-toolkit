@@ -17,15 +17,19 @@ use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Exceptions\GoneException;
 use SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException;
+use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Concerns\RegistersApiExceptionHandler;
+use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ErrorParityController;
 use Tests\Fixtures\OpenApi\ParityRequestBodyController;
+use Tests\Fixtures\OpenApi\ParityUserController;
 use Tests\Fixtures\OpenApi\PathPlainController;
 use Tests\Fixtures\OpenApi\SlowDownException;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
@@ -66,6 +70,7 @@ final class OpenApiErrorExampleParityTest extends TestCase
         $this->registerApiExceptionHandler();
 
         config()->set('app.debug', false);
+        config()->set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
 
         Lang::addLines([
             'exceptions.20002.title'  => 'Slow Down',
@@ -80,6 +85,8 @@ final class OpenApiErrorExampleParityTest extends TestCase
         $router->post('articles', [ParityRequestBodyController::class, 'formRequest']);
         $router->get('limited', [PathPlainController::class, 'report'])->middleware('throttle:1,1');
         $router->get('fail', [ErrorParityController::class, 'fail']);
+        $router->get('members', [ParityUserController::class, 'index'])->middleware(ParseApiQuery::class);
+        $router->get('members/{user}', [ParityUserController::class, 'show'])->middleware([ParseApiQuery::class, SubstituteBindings::class]);
     }
 
     /**
@@ -112,6 +119,41 @@ final class OpenApiErrorExampleParityTest extends TestCase
     public function testFailingRequestAnswersAsDocumented(string $method, string $uri, string $path, int $status, array $forwarded = []): void
     {
         $this->assertAnswersAsDocumented($this->sendFailing($method, $uri), $method, $path, $status, $forwarded);
+    }
+
+    /**
+     * Provide a refused query per toolkit query parameter, with the error code
+     * it answers.
+     *
+     * @return iterable<string, array{0: string, 1: string, 2: int}>
+     */
+    public static function refusedQueryProvider(): iterable
+    {
+        yield 'undeclared filter key' => ['/members?filters=' . rawurlencode('{"nope":"x"}'), '/members', 10106];
+        yield 'undeclared order key' => ['/members?order=nope:desc', '/members', 10106];
+        yield 'refused trashed' => ['/members?trashed=with', '/members', 10106];
+        yield 'limit above the ceiling' => ['/members?limit=101', '/members', 10201];
+        yield 'page below one' => ['/members?page=0', '/members', 10106];
+        yield 'malformed cursor' => ['/members?cursor=malformed', '/members', 10106];
+        yield 'non-string fields member' => ['/members/999?fields[users][]=name', '/members/{user}', 10106];
+    }
+
+    /**
+     * Test that each refused query answers as its operation documents.
+     *
+     * @param  string  $uri
+     * @param  string  $path
+     * @param  int  $code
+     * @return void
+     */
+    #[DataProvider('refusedQueryProvider')]
+    public function testRefusedQueryAnswersAsDocumented(string $uri, string $path, int $code): void
+    {
+        $response = $this->getJson($uri);
+
+        $response->assertJsonPath('error.code', $code);
+
+        $this->assertAnswersAsDocumented($response, 'GET', $path, 422, []);
     }
 
     /**
@@ -209,17 +251,17 @@ final class OpenApiErrorExampleParityTest extends TestCase
         }
 
         $examples = $error['content']['application/json']['examples'] ?? [];
+        $code     = $response->json('error.code');
 
         self::assertIsArray($examples);
-        self::assertCount(1, $examples);
+        self::assertIsInt($code);
 
-        $reference = $examples[array_key_first($examples)]['$ref'] ?? null;
+        $name = sprintf('Error%d', $code);
 
-        self::assertIsString($reference);
-        self::assertStringStartsWith(self::EXAMPLE_PREFIX, $reference);
+        self::assertSame(['$ref' => self::EXAMPLE_PREFIX . $name], $examples[$name] ?? null, sprintf('The %d response documents no %s example.', $status, $name));
 
         self::assertSame(
-            $document['components']['examples'][substr($reference, strlen(self::EXAMPLE_PREFIX))]['value']['error'],
+            $document['components']['examples'][$name]['value']['error'],
             Arr::only((array) $response->json('error'), ['status', 'code', 'title', 'detail']),
         );
     }
