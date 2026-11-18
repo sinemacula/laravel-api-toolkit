@@ -11,6 +11,7 @@ use Illuminate\Pagination\Cursor;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
@@ -29,6 +30,7 @@ use Tests\Fixtures\Repositories\DummyRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Support\UnreachableCacheStore;
 use Tests\TestCase;
 
 /**
@@ -419,6 +421,88 @@ final class ApiRepositoryTest extends TestCase
         $this->expectExceptionMessage(sprintf('Attribute "posts" on %s is a HasMany relation, which persist() cannot write', User::class));
 
         $this->repository->persist($user, ['posts' => [1]]);
+    }
+
+    /**
+     * Test that persist invalidates the cache of a cacheable repository.
+     *
+     * @return void
+     */
+    public function testPersistInvalidatesTheCacheOfACacheableRepository(): void
+    {
+        Config::set('cache.default', 'array');
+
+        $tag = Tag::create(['name' => 'php']);
+
+        assert($this->app !== null);
+
+        $tags = $this->app->make(CacheableTagRepository::class);
+
+        $tags->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        self::assertTrue($tags->persist($tag, ['name' => 'laravel']));
+        self::assertSame(['laravel'], $tags->get()->pluck('name')->all()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that persist on a repository without a cache reports nothing.
+     *
+     * @return void
+     */
+    public function testPersistOnARepositoryWithoutACacheReportsNothing(): void
+    {
+        $user = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        Exceptions::fake();
+
+        self::assertTrue($this->repository->persist($user, ['name' => 'Bob']));
+
+        Exceptions::assertNothingReported();
+    }
+
+    /**
+     * Test that persist invalidates the cache when a sync fails after the save.
+     *
+     * @return void
+     */
+    public function testPersistInvalidatesTheCacheWhenASyncFailsAfterTheSave(): void
+    {
+        $tag = Tag::create(['name' => 'php']);
+
+        assert($this->app !== null);
+
+        $tags = $this->app->make(CacheableTagRepository::class);
+
+        $tags->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+        $persist = static fn (): bool => $tags->persist($tag, ['name' => 'laravel', 'posts' => 1.5]);
+
+        $this->assertThrows($persist, \InvalidArgumentException::class, 'must be given models or their keys');
+
+        self::assertSame(['laravel'], $tags->get()->pluck('name')->all()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that persist reports a failed cache flush and keeps the write.
+     *
+     * @return void
+     */
+    public function testPersistReportsAFailedCacheFlushAndKeepsTheWrite(): void
+    {
+        $tag = Tag::create(['name' => 'php']);
+
+        $this->useUnreachableCacheStore();
+
+        assert($this->app !== null);
+
+        $tags = $this->app->make(CacheableTagRepository::class);
+
+        Exceptions::fake();
+
+        self::assertTrue($tags->persist($tag, ['name' => 'laravel']));
+        self::assertSame('laravel', $tag->fresh()?->name);
+
+        Exceptions::assertReported(static fn (\RuntimeException $exception): bool => $exception->getMessage() === UnreachableCacheStore::MESSAGE);
     }
 
     /**

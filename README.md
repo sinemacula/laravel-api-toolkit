@@ -593,9 +593,9 @@ query with its `constrain()` closure and the related model's global scopes. `?tr
 that read the authenticated user are therefore cached per value. A read with a `MorphTo` include, a relation class other
 than the framework's own, an `afterQuery()` callback other than `chaperone()`'s, a callable `withDefault()` or eager
 loads nested more than 16 levels deep runs uncached. Scopes and constraints run once more per read to build the key, so
-they must be deterministic and free of side effects. `paginate()` is never cached. Writes invalidate the table.
-Eager-loaded rows are cached with their parent, so a write to a related table leaves them stale until the TTL. Call
-`withoutCache()` to bypass the cache for one read, or `flushCache()` to invalidate immediately.
+they must be deterministic and free of side effects. `paginate()` is never cached. Writes, `persist()` included,
+invalidate the table. Eager-loaded rows are cached with their parent, so a write to a related table leaves them stale
+until the TTL. Call `withoutCache()` to bypass the cache for one read, or `flushCache()` to invalidate immediately.
 
 With `$cacheReferenceTable = true`, the table is loaded once per global-scope variant and memoised in-process, and
 `get()` and `find()` are served from that snapshot. A read with criteria, repository scopes or a column list other than
@@ -1335,10 +1335,13 @@ there has empty `sideEffectErrors()`; errors from `afterCommit()` are reported a
 result. A `ServiceCompleted` or `ServiceFailed` listener exception is reported, never thrown.
 
 The lock is held for the rest of the caller's transaction, so `$lockExpiration` must cover it, and a second run with the
-same lock key inside it fails with `LockUnavailableException`. Queue follow-up work from `afterCommit()`, which runs
-once, after the attempt that commits, and never after a rollback. `dispatch()` from `handle()` pushes at once unless the
-queue connection sets `after_commit`, so the job can run for a write that never commits. Transactions interleaved on two
-connections are not supported: the deferred work attaches to the most recent open transaction on any connection.
+same lock key inside it fails with `LockUnavailableException`. On the `database` cache store on MySQL or PostgreSQL,
+give locks a `lock_connection` of their own: a lock row written on the caller's connection stays uncommitted, so a
+competing run blocks until the caller's transaction ends instead of failing with `LockUnavailableException`. Queue
+follow-up work from `afterCommit()`, which runs once, after the attempt that commits, and never after a rollback.
+`dispatch()` from `handle()` pushes at once unless the queue connection sets `after_commit`, so the job can run for a
+write that never commits. Transactions interleaved on two connections are not supported: the deferred work attaches to
+the most recent open transaction on any connection.
 
 #### Reading the Run Context
 
