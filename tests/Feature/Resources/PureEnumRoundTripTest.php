@@ -9,6 +9,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
@@ -45,6 +46,7 @@ use Tests\TestCase;
 #[CoversClass(PureEnum::class)]
 #[CoversClass(AttributeSetter::class)]
 #[CoversTrait(DerivesTabularSchema::class)]
+#[Group('exporter')]
 final class PureEnumRoundTripTest extends TestCase
 {
     use RegistersApiExceptionHandler;
