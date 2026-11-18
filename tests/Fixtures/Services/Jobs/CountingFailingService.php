@@ -8,11 +8,11 @@ use SineMacula\ApiToolkit\Services\Service;
 use Tests\Fixtures\Exceptions\ServiceExecutionException;
 
 /**
- * Fixture service that always fails and counts how often it ran.
+ * Fixture service that always fails and counts its runs and failure hooks.
  *
- * The queue bridge builds the service itself, so the run count is held in a
- * static property for ServiceJob tests to assert how often a worker attempted
- * the job.
+ * The queue bridge builds the service itself, so the counts are held in static
+ * properties for ServiceJob tests to assert how often a worker attempted the
+ * job.
  *
  * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Contracts\ServiceInput, never>
  *
@@ -27,6 +27,12 @@ final class CountingFailingService extends Service
     /** @var int The number of times the service has run */
     public static int $runs = 0;
 
+    /** @var int The number of times onFailure() has run */
+    public static int $failures = 0;
+
+    /** @var array<int, \Throwable> The exceptions onFinalFailure() received */
+    public static array $finalFailures = [];
+
     /**
      * Reset the run count between tests.
      *
@@ -34,7 +40,9 @@ final class CountingFailingService extends Service
      */
     public static function reset(): void
     {
-        self::$runs = 0;
+        self::$runs          = 0;
+        self::$failures      = 0;
+        self::$finalFailures = [];
     }
 
     /**
@@ -50,5 +58,29 @@ final class CountingFailingService extends Service
         self::$runs++;
 
         throw new ServiceExecutionException(self::MESSAGE);
+    }
+
+    /**
+     * Count the failed attempt.
+     *
+     * @param  \Throwable  $exception
+     * @return void
+     */
+    #[\Override]
+    protected function onFailure(\Throwable $exception): void
+    {
+        self::$failures++;
+    }
+
+    /**
+     * Record the exception the queue gave up on.
+     *
+     * @param  \Throwable  $exception
+     * @return void
+     */
+    #[\Override]
+    protected function onFinalFailure(\Throwable $exception): void
+    {
+        self::$finalFailures[] = $exception;
     }
 }

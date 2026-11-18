@@ -31,6 +31,7 @@ final readonly class ServiceContext
      * @param  string  $correlationId
      * @param  \SineMacula\ApiToolkit\Services\Enums\ServiceSource  $source
      * @param  array<string, mixed>  $metadata
+     * @param  string|null  $batchId
      */
     public function __construct(
 
@@ -45,6 +46,9 @@ final readonly class ServiceContext
 
         /** Captured ambient metadata supplied at the capture site */
         public array $metadata = [],
+
+        /** The batch a queued run belongs to; set only on the worker */
+        public ?string $batchId = null,
     ) {}
 
     /**

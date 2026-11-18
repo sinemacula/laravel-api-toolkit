@@ -7,11 +7,14 @@ namespace Tests\Unit\Http\Resources\Concerns;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Query\ApiQuerySnapshot;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\Exists;
 use SineMacula\ApiToolkit\Schema\Field;
@@ -23,6 +26,7 @@ use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -330,6 +334,42 @@ final class EagerLoadPlannerTest extends TestCase
         EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
         EagerLoadPlanner::clearCache();
         EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['organization']);
+    }
+
+    /**
+     * Test that a second parse selecting other child fields for the same root
+     * fields plans afresh, in either order.
+     *
+     * @return void
+     */
+    public function testChildFieldSelectionChangesTheMap(): void
+    {
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, PostResource::class, TagResource::class]);
+
+        self::assertSame(['posts', 'posts.tags'], $this->planPostsUnder('title,tags'));
+        self::assertSame(['posts'], $this->planPostsUnder('title'));
+        self::assertSame(['posts', 'posts.tags'], $this->planPostsUnder('title,tags'));
+    }
+
+    /**
+     * Test that a snapshot selecting other child fields for the same root
+     * fields plans afresh inside using(), and again once it returns.
+     *
+     * @return void
+     */
+    public function testUsingAndItsRestorePlanAfresh(): void
+    {
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, PostResource::class, TagResource::class]);
+
+        self::assertSame(['posts'], $this->planPostsUnder('title'));
+
+        $inside = ApiQuery::using(
+            new ApiQuerySnapshot(['fields' => ['posts' => 'title,tags']]),
+            static fn (): array => EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['posts']),
+        );
+
+        self::assertSame(['posts', 'posts.tags'], $inside);
+        self::assertSame(['posts'], EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['posts']));
     }
 
     /**
@@ -1168,5 +1208,19 @@ final class EagerLoadPlannerTest extends TestCase
         assert($relation instanceof EloquentRelation);
 
         return $relation;
+    }
+
+    /**
+     * Parse a request selecting the given post fields and plan the users' posts
+     * under it.
+     *
+     * @param  string  $postFields
+     * @return array<int|string, mixed>
+     */
+    private function planPostsUnder(string $postFields): array
+    {
+        ApiQuery::parse(Request::create('/users', 'GET', ['fields' => ['posts' => $postFields]]));
+
+        return EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['posts']);
     }
 }

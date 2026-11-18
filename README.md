@@ -577,6 +577,42 @@ if ($caller->isExternal()) {
 $users = $scoped->paginate();
 ```
 
+**Outside a request** - criteria apply only under a parsed query: the one `ParseApiQuery` parsed, or a snapshot given
+to `ApiQuery::using()`. Applied under none, as in a queued job, a console command or a route without the middleware,
+they throw a `LogicException` rather than read the unfiltered table, and so do criteria composed under one query and
+applied under another. Code with no client query runs under `ApiQuery::using(new ApiQuerySnapshot([]), ...)`.
+
+`ApiQuery::snapshot()` captures the `fields`, `aggregates`, `filters`, `search`, `order` and `trashed` the request
+carried, as sent. It never carries `page`, `limit`, `cursor` or `pagination`, so a replayed read is not cut to one
+page. A snapshot serialises with a job, and its `parameters` store as JSON for `new ApiQuerySnapshot($row->query)`.
+`ApiQuery::using()` validates the snapshot as it would a request, runs the callback under it and restores the previous
+query:
+
+```php
+ArchiveInvoices::make(new ArchiveInvoicesInput(ApiQuery::snapshot()))
+    ->withContext(ServiceContext::fromRequest($request, EloquentActor::for($request->user())))
+    ->dispatch();
+
+// ArchiveInvoices::handle()
+return ApiQuery::using($this->input->query->without('order', 'fields'), function (): int {
+    $archived = 0;
+
+    foreach ($this->invoices->withApiCriteria()->lazyById() as $invoice) {
+        $invoice->archive();
+        $archived++;
+    }
+
+    return $archived;
+});
+```
+
+- Read and render inside the callback. A `LazyCollection` keeps its filters after `using()` returns, but a resource
+  rendered later reads the restored query, and a resource resolves its fields once, so build it where it renders.
+- Work that changes which rows match iterates with `lazyById()` on a snapshot `without('order')`. Keyset iteration
+  after a client order skips rows, and so does offset `lazy()` as the set changes.
+- `allowsTrashed()` and request-based field guards see the worker's console request, which is not reconstructed, so a
+  carried `trashed` the worker's gate refuses fails the job.
+
 **Allowlist** - only schema fields declared `filterable()`, `sortable()`, or `traversable()` are accepted, and any
 other key is rejected with a validation error. There is no opt-out: a resource that declares nothing is queryable by
 nothing. Each filter is checked as a (column, operator) pair against the declared capability, before any operator
@@ -1353,10 +1389,63 @@ $user = $result->output();
 `runOrFail()` is `run()->throw()->output()`. Both use the context given through `withContext()` and fire the same
 lifecycle events.
 
-`dispatch()` queues the service, and the worker runs it with a `QUEUE` context. A failed run fails the job with the
-captured exception, so the worker retries it per `--tries` and `--backoff` and finally records it in the failed job
-store. Each attempt runs the whole lifecycle, firing `onFailure()` and `ServiceFailed` every time it fails. On the
-`sync` connection there is no worker to retry, so the failure is thrown to the dispatching code.
+`dispatch()` runs `authorize()` and `validate()`, then queues the service. A refusal throws from `dispatch()`, so an
+HTTP action answers `403` or `422` and nothing is queued. The worker runs the whole lifecycle again with a `QUEUE`
+context, since state can change before the job runs, so both hooks must be repeatable. At dispatch they see the context
+given through `withContext()`, or an `INTERNAL` one. `dispatch()` returns Laravel's `PendingDispatch`, so `onQueue()`,
+`onConnection()`, `delay()` and `afterCommit()` apply per call.
+
+A failed attempt fires `onFailure()` and `ServiceFailed` and fails the job with the captured exception, which the worker
+retries per `--tries` and `--backoff`. An `AuthorizationException` or `ValidationException` fails the job at once and is
+not retried. Once the queue gives up on the job, because its attempts ran out, a refusal failed it or its last attempt
+timed out, it calls `onFinalFailure()` with the exception. A timed-out attempt fires no other hook, as the worker kills
+itself mid-run. Laravel deletes the job first, so `onFinalFailure()` runs at most once and must be idempotent; `run()`
+and `runOrFail()` never call it. On the `sync` connection there is no worker to retry, so the failure is thrown to the
+dispatching code when it releases the returned `PendingDispatch`, at the end of the statement unless it is kept in a
+variable, or when the transaction commits for a job queued after commit.
+
+#### Queued Services
+
+Declare how a service is queued with Laravel's queue attributes and markers:
+
+```php
+#[Queue('reports')]
+#[Timeout(900)]
+#[Tries(1)]
+final class ExportLedger extends Service implements ShouldBeEncrypted
+{
+    // ...
+}
+```
+
+`#[Connection]`, `#[Queue]`, `#[Delay]`, `#[Tries]`, `#[Timeout]`, `#[Backoff]`, `#[MaxExceptions]`, `#[FailOnTimeout]`,
+`#[CountCrashesAsExceptions]` and `ShouldQueueAfterCommit` apply, and an undeclared setting keeps the worker's. The
+queue and connection come from the per-call `onQueue()` and `onConnection()`, then the service's attributes, then
+`Queue::route()` for the service class, a parent, an interface or a trait, then `Queue::route(ServiceJob::class)`, then
+the connection's default. Horizon and the failed job store list the job under the service's class.
+
+The job is encrypted when the service implements `ShouldBeEncrypted` or its input is a `Payload` with a
+`#[\SensitiveParameter]` parameter, so the secret is never stored in plain text in the queue or the failed job store.
+
+`toJob()` builds the job without the pre-flight, for `Bus::batch()`, `Bus::chain()` and `Bus::dispatchAfterResponse()`.
+A refusal fails its job, which cancels a batch that does not `allowFailures()`, and the batch's later jobs are skipped.
+During a batched run, `$this->context()->batchId` holds the batch id for `Bus::findBatch()`:
+
+```php
+Bus::batch([ExportLedger::make($january)->by($actor)->toJob(), ExportLedger::make($february)->by($actor)->toJob()])
+    ->name('ledger-export')
+    ->withOption('actor', $actor->actorIdentifier())
+    ->onQueue('reports')
+    ->dispatch();
+```
+
+Laravel decides three things the toolkit leaves as they are:
+
+- A batch pushes its jobs on its own `onQueue()` and `onConnection()`, so set a batched service's queue on the batch.
+- In a chain, including one inside a batch, each later service keeps its declared or routed queue and connection over
+  the chain's, so a worker must consume that queue.
+- A chain serialises its later services into the first job and encrypts only that job, so a sensitive service later in
+  a chain is encrypted in transit only when every job before it is.
 
 #### Transactions
 
@@ -1399,9 +1488,9 @@ final class ShipOrder extends Service
 ```
 
 For any other service, retry the call rather than the transaction: run `Service::make(...)->run()` again with fresh
-input, or `dispatch()` it and let the worker retry per `--tries`. Each worker attempt starts from the dispatch-time
-input rather than the previous attempt's models, but models nested in an `ArrayInput` or `Payload` are not re-fetched,
-so pass keys and keep external effects idempotent.
+input, or `dispatch()` it and let the worker retry per `--tries` or the service's `#[Tries]` and `#[Backoff]`. Each
+worker attempt starts from the dispatch-time input rather than the previous attempt's models, but models nested in an
+`ArrayInput` or `Payload` are not re-fetched, so pass keys and keep external effects idempotent.
 
 A service run inside a caller's transaction (another service, a `DB::transaction()` or a job that opens one) commits
 only a savepoint, so its lock, `afterCommit()` and `ServiceCompleted` wait for the outermost commit, and a rollback
@@ -1414,9 +1503,9 @@ same lock key inside it fails with `LockUnavailableException`. On the `database`
 give locks a `lock_connection` of their own: a lock row written on the caller's connection stays uncommitted, so a
 competing run blocks until the caller's transaction ends instead of failing with `LockUnavailableException`. Queue
 follow-up work from `afterCommit()`, which runs once, after the attempt that commits, and never after a rollback.
-`dispatch()` from `handle()` pushes at once unless the queue connection sets `after_commit`, so the job can run for a
-write that never commits. Transactions interleaved on two connections are not supported: the deferred work attaches to
-the most recent open transaction on any connection.
+`dispatch()` from `handle()` pushes at once unless the queue connection sets `after_commit` or the service implements
+`ShouldQueueAfterCommit`, so the job can run for a write that never commits. Transactions interleaved on two connections
+are not supported: the deferred work attaches to the most recent open transaction on any connection.
 
 #### Reading the Run Context
 

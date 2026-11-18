@@ -15,8 +15,6 @@ use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
-use SineMacula\ApiToolkit\Services\Jobs\ServiceJob;
-use SineMacula\ApiToolkit\Services\ServiceContext;
 use Tests\Concerns\UsesDatabaseQueue;
 use Tests\Fixtures\Jobs\DeferringJob;
 use Tests\Fixtures\Models\User;
@@ -180,7 +178,7 @@ final class QueueWorkerDeferredWriteTest extends TestCase
     #[DataProvider('workerModeProvider')]
     public function testQueuedServiceDeferringInsideItsTransactionPersistsEveryRun(\Closure $work): void
     {
-        Queue::push(new ServiceJob(DeferringService::class, new ArrayInput([]), ServiceContext::for(new StubActor)));
+        Queue::push(DeferringService::make(new ArrayInput([]))->by(new StubActor)->toJob());
 
         $work($this);
 
