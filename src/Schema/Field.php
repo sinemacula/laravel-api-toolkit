@@ -157,7 +157,9 @@ final class Field extends BaseDefinition
      */
     public static function can(string $ability, ?string $alias = null): self
     {
-        if (trim($ability) === '') {
+        $ability = trim($ability);
+
+        if ($ability === '') {
             throw new \InvalidArgumentException('An ability field must name an ability');
         }
 

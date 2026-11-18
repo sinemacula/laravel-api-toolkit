@@ -468,6 +468,27 @@ final class FieldTest extends TestCase
     }
 
     /**
+     * Test that the gate is asked the trimmed ability as written, not the
+     * snake-cased key.
+     *
+     * @return void
+     */
+    public function testCanAsksTheGateTheTrimmedAbilityAsWritten(): void
+    {
+        $definition = Field::can(' forceDelete ')->toArray()['can_force_delete'];
+        $compute    = $definition['compute'];
+        $openapi    = $definition['openapi'];
+
+        self::assertIsCallable($compute);
+        self::assertInstanceOf(OpenApiFieldSchema::class, $openapi);
+        self::assertSame('Whether the current user passes the "forceDelete" ability for this record.', $openapi->description);
+
+        $this->bindGate(null);
+
+        self::assertTrue($compute(new JsonResource($this->article()), $this->requestFor($this->user(self::OWNER))));
+    }
+
+    /**
      * Test that the flag is true for a request user the policy allows.
      *
      * @return void
