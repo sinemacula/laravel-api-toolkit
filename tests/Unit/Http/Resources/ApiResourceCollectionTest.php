@@ -10,6 +10,7 @@ use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\LazyCollection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -369,6 +370,7 @@ final class ApiResourceCollectionTest extends TestCase
     {
         yield 'array' => [static fn (array $users): array => $users];
         yield 'collection' => [static fn (array $users): mixed => collect($users)];
+        yield 'lazy collection' => [static fn (array $users): mixed => LazyCollection::make($users)];
         yield 'length-aware paginator' => [static fn (array $users): mixed => new LengthAwarePaginator($users, 3, 15)];
         yield 'cursor paginator' => [static fn (array $users): mixed => new CursorPaginator($users, 15)];
     }

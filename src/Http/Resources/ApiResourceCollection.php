@@ -98,7 +98,7 @@ final class ApiResourceCollection extends ToolkitCollection
 
         return parent::collectResource(match (true) {
             $resource instanceof AbstractPaginator, $resource instanceof AbstractCursorPaginator => $resource->through($wrap),
-            $resource instanceof Enumerable                                                      => $resource->map($wrap),
+            $resource instanceof Enumerable                                                      => $resource->collect()->map($wrap),
             is_array($resource)                                                                  => array_map($wrap, $resource),
             default                                                                              => $resource,
         });
