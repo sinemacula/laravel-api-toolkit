@@ -152,7 +152,8 @@ final readonly class PageOrder
     /**
      * Resolve the unordered group columns, or none if a group is an expression.
      *
-     * A group column is ordered whether the order names it bare or qualified.
+     * An order on the qualified name covers a bare group column, but not the
+     * reverse, since a bare order may name a select alias.
      *
      * @param  \Illuminate\Database\Query\Builder  $base
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -166,9 +167,9 @@ final readonly class PageOrder
             return [];
         }
 
-        $ordered = array_map($model->qualifyColumn(...), $this->columnsOf($base->orders ?? []));
+        $ordered = $this->columnsOf($base->orders ?? []);
 
-        return array_filter($groups, static fn (string $group): bool => !in_array($model->qualifyColumn($group), $ordered, true));
+        return array_filter($groups, static fn (string $group): bool => array_intersect([$group, $model->qualifyColumn($group)], $ordered) === []);
     }
 
     /**

@@ -195,16 +195,29 @@ final class PageOrderTest extends TestCase
     }
 
     /**
-     * Test that a group column ordered by its qualified name is not appended
-     * again.
+     * Test that a bare group column ordered by its qualified name is not
+     * appended again.
      *
      * @return void
      */
-    public function testGroupColumnOrderedByItsQualifiedNameIsNotAppendedAgain(): void
+    public function testBareGroupColumnOrderedByItsQualifiedNameIsNotAppendedAgain(): void
     {
-        $query = $this->users(static fn (QueryBuilder $query) => $query->select('status')->groupBy('status', 'users.name')->orderBy('users.status')->orderBy('name'));
+        $query = $this->users(static fn (QueryBuilder $query) => $query->select('status')->groupBy('status')->orderBy('users.status'));
 
-        self::assertSame([['users.status', 'asc'], ['name', 'asc']], $this->orders($this->pageOrder->complete($query)));
+        self::assertSame([['users.status', 'asc']], $this->orders($this->pageOrder->complete($query)));
+    }
+
+    /**
+     * Test that a qualified group column is appended under a bare order of the
+     * same name, which may be a select alias.
+     *
+     * @return void
+     */
+    public function testQualifiedGroupColumnIsAppendedUnderABareOrderOfTheSameName(): void
+    {
+        $query = $this->users(static fn (QueryBuilder $query) => $query->selectRaw('lower(users.name) as name')->groupBy('users.name')->orderBy('name'));
+
+        self::assertSame([['name', 'asc'], ['users.name', 'asc']], $this->orders($this->pageOrder->complete($query)));
     }
 
     /**

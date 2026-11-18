@@ -615,8 +615,10 @@ return ApiQuery::using($this->input->query->without('order', 'fields'), function
   carried `trashed` the worker's gate refuses fails the job.
 
 **Joins** - every column the criteria, `scopeById()` and `scopeByIds()` emit is qualified with its table: the model's at
-the root, the related model's inside a relation filter. A repository scope may therefore join. Select the base columns
-(`select('users.*')`) so joined columns do not overwrite attributes, and alias the joined table, never the base table:
+the root, the related model's inside a relation filter. A repository scope may therefore join. Scopes run after the
+criteria, so a joining scope selects the base columns only where the criteria selected none
+(`$query->getQuery()->columns ??= ['users.*']`): joined columns would otherwise overwrite attributes, and `select()`
+would discard the narrowed projection and any requested aggregates. Alias the joined table, never the base table:
 Eloquent's relation filters and `whereKey()` name the base table, so `from('users as u')` is unsupported.
 `scopeById()` and `scopeByIds()` match the model's key unless given a column.
 

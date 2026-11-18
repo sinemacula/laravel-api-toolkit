@@ -557,17 +557,21 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that scopeById scopes by a key not named id.
+     * Test that scopeById and scopeByIds scope by a key not named id.
      *
      * @return void
      */
-    public function testScopeByIdScopesByAKeyNotNamedId(): void
+    public function testScopeByIdAndScopeByIdsScopeByAKeyNotNamedId(): void
     {
         assert($this->app !== null);
 
         $repository = $this->app->make(CountryRepository::class);
 
-        self::assertSame('select * from "countries" where "countries"."code" in (?)', $repository->scopeById('GB')->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+        $one  = $repository->scopeById('GB')->toSql(); // @phpstan-ignore staticMethod.dynamicCall
+        $many = $repository->scopeByIds(['GB', 'FR'])->toSql(); // @phpstan-ignore staticMethod.dynamicCall
+
+        self::assertSame('select * from "countries" where "countries"."code" in (?)', $one);
+        self::assertSame('select * from "countries" where "countries"."code" in (?, ?)', $many);
     }
 
     /**
