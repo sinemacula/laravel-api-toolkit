@@ -1,9 +1,11 @@
 parameters:
     scanDirectories:
+        - %currentWorkingDirectory%/benchmarks
         - %currentWorkingDirectory%/src
         - %currentWorkingDirectory%/tests
 
     paths:
+        - benchmarks
         - src
         - tests
 

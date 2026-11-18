@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Integration\Resources;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\AggregateFunction;
@@ -20,6 +21,7 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AggregatingUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\SchemaCountingUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -139,6 +141,35 @@ final class ApiResourceIntegrationTest extends TestCase
 
         self::assertCount(2, $data);
         self::assertArrayHasKey('_type', $data[0]);
+    }
+
+    /**
+     * Test that rendering a 500-row page with a relation builds the schema
+     * once.
+     *
+     * @return void
+     */
+    public function testRenderingAPageBuildsTheSchemaOnce(): void
+    {
+        /** @var \Tests\Fixtures\Models\Organization $organization */
+        $organization = Organization::query()->firstOrFail();
+
+        DB::table('users')->insert(array_map(static fn (int $index): array => [
+            'name'            => 'User ' . $index,
+            'email'           => 'user' . $index . '@example.com',
+            'organization_id' => $organization->id,
+        ], range(1, 498)));
+
+        ApiQuery::parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb(), [
+            'fields' => [SchemaCountingUserResource::RESOURCE_TYPE => 'name,organization'],
+        ]));
+
+        SchemaCountingUserResource::$schemaCalls = 0;
+
+        $data = SchemaCountingUserResource::collection(User::with('organization')->get())->resolve();
+
+        self::assertCount(500, $data);
+        self::assertSame(1, SchemaCountingUserResource::$schemaCalls);
     }
 
     /**
