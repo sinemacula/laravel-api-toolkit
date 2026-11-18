@@ -61,7 +61,8 @@ final class ServiceRunner
     }
 
     /**
-     * Run authorize() and validate() alone, throwing a refusal to the caller.
+     * Run authorize() and validate() without the rest of the lifecycle,
+     * throwing a refusal to the caller.
      *
      * No run takes place, so no event fires and onFailure() is not called.
      *

@@ -23,6 +23,7 @@ use Tests\Fixtures\Services\Input\Concerns\DescribesInput;
 use Tests\Fixtures\Services\Input\Concerns\SensitiveCredentials;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\Fixtures\Services\Input\PlatformInput;
+use Tests\Fixtures\Services\Input\PrivateSecretBaseInput;
 use Tests\Fixtures\Services\Input\SensitiveBaseInput;
 use Tests\Fixtures\Services\Input\SensitiveInput;
 use Tests\TestCase;
@@ -1269,6 +1270,20 @@ final class PayloadTest extends TestCase
         };
 
         self::assertSame([], $input->toArray());
+        self::assertTrue($input::declaresSensitiveProperties());
+    }
+
+    /**
+     * Test that a sensitive parameter a parent promotes to a private property
+     * is declared, as the subclass carries it into the queue.
+     *
+     * @return void
+     */
+    public function testDeclaresSensitivePropertiesForAParentsPrivateProperty(): void
+    {
+        $input = new class (secret: 'super-secret') extends PrivateSecretBaseInput {};
+
+        self::assertSame('super-secret', $input->secret());
         self::assertTrue($input::declaresSensitiveProperties());
     }
 

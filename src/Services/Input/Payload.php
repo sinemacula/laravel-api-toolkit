@@ -234,16 +234,22 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     }
 
     /**
-     * Reflect whether any promoted property of a class is marked sensitive.
+     * Reflect whether any promoted property of a class or its parents is
+     * marked sensitive.
+     *
+     * A parent's private properties are serialised too but are not listed on
+     * the child, so each class in the hierarchy is read.
      *
      * @param  class-string<static>  $class
      * @return bool
      */
     private static function resolveSensitivity(string $class): bool
     {
-        foreach ((new \ReflectionClass($class))->getProperties() as $property) {
-            if ($property->isPromoted() && self::isSensitive($property)) {
-                return true;
+        for ($reflection = new \ReflectionClass($class); $reflection !== false; $reflection = $reflection->getParentClass()) {
+            foreach ($reflection->getProperties() as $property) {
+                if ($property->isPromoted() && self::isSensitive($property)) {
+                    return true;
+                }
             }
         }
 

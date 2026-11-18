@@ -1286,11 +1286,12 @@ given through `withContext()`, or an `INTERNAL` one. `dispatch()` returns Larave
 
 A failed attempt fires `onFailure()` and `ServiceFailed` and fails the job with the captured exception, which the worker
 retries per `--tries` and `--backoff`. An `AuthorizationException` or `ValidationException` fails the job at once and is
-not retried. When the queue fails the job, on its last attempt, a refusal or a timeout that ends it, it calls
-`onFinalFailure()` with the exception. A timed-out attempt calls no other hook, as the worker kills itself. Laravel
-deletes the job first, so the hook runs at most once and must be idempotent; `run()` and `runOrFail()` never call it. On
-the `sync` connection there is no worker to retry, so the failure is thrown to the dispatching code when it releases the
-returned `PendingDispatch`, at the end of the statement unless it is kept in a variable.
+not retried. Once the queue gives up on the job, because its attempts ran out, a refusal failed it or its last attempt
+timed out, it calls `onFinalFailure()` with the exception. A timed-out attempt fires no other hook, as the worker kills
+itself mid-run. Laravel deletes the job first, so `onFinalFailure()` runs at most once and must be idempotent; `run()`
+and `runOrFail()` never call it. On the `sync` connection there is no worker to retry, so the failure is thrown to the
+dispatching code when it releases the returned `PendingDispatch`, at the end of the statement unless it is kept in a
+variable, or when the transaction commits for a job queued after commit.
 
 #### Queued Services
 
@@ -1320,7 +1321,7 @@ A refusal fails its job, which cancels a batch that does not `allowFailures()`, 
 During a batched run, `$this->context()->batchId` holds the batch id for `Bus::findBatch()`:
 
 ```php
-Bus::batch([ExportLedger::make($january)->toJob(), ExportLedger::make($february)->toJob()])
+Bus::batch([ExportLedger::make($january)->by($actor)->toJob(), ExportLedger::make($february)->by($actor)->toJob()])
     ->name('ledger-export')
     ->withOption('actor', $actor->actorIdentifier())
     ->onQueue('reports')
@@ -1330,8 +1331,8 @@ Bus::batch([ExportLedger::make($january)->toJob(), ExportLedger::make($february)
 Laravel decides three things the toolkit leaves as they are:
 
 - A batch pushes its jobs on its own `onQueue()` and `onConnection()`, so set a batched service's queue on the batch.
-- In a chain, including one inside a batch, each later service keeps its declared queue and connection over the
-  chain's, so a worker must consume that queue.
+- In a chain, including one inside a batch, each later service keeps its declared or routed queue and connection over
+  the chain's, so a worker must consume that queue.
 - A chain serialises its later services into the first job and encrypts only that job, so a sensitive service later in
   a chain is encrypted in transit only when every job before it is.
 
