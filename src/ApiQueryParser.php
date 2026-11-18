@@ -133,9 +133,9 @@ class ApiQueryParser
      * Returns the current page set with the URL modifiers.
      *  - e.g. ?page=4.
      *
-     * @return int|null
+     * @return int
      */
-    public function getPage(): ?int
+    public function getPage(): int
     {
         $page = $this->getParameters('page');
 

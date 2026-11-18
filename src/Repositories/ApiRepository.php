@@ -115,7 +115,7 @@ abstract class ApiRepository extends Repository
 
             $cursor = ApiQuery::isCursorPaginated();
             $limit  = ApiQuery::getResolvedLimit();
-            $page   = ApiQuery::getPage() ?? 1;
+            $page   = ApiQuery::getPage();
 
             // Refused before composing, which can read the schema
             if (!$cursor) {

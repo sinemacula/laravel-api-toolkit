@@ -107,6 +107,22 @@ final class OffsetPaginatorTest extends TestCase
     }
 
     /**
+     * Test that the count drops the aggregate subselects the page projects.
+     *
+     * @return void
+     */
+    public function testCountDropsTheAggregateSubselects(): void
+    {
+        $this->seedUsers(4);
+
+        $statements = $this->recordStatements(fn () => $this->paginate(1, 2, static fn (BuilderContract $query) => $query->withCount('posts')));
+
+        self::assertStatementCount(2, $statements);
+        self::assertStringContainsString('posts', $statements[0]);
+        self::assertStringNotContainsString('posts', $statements[1]);
+    }
+
+    /**
      * Test that an empty page past the end takes the count as it is.
      *
      * @return void
@@ -377,6 +393,52 @@ final class OffsetPaginatorTest extends TestCase
     {
         if (!in_array(DB::connection()->getDriverName(), $engines, true)) {
             self::markTestSkipped('This engine refuses the having clause itself.');
+        }
+
+        $this->assertPagesAgree($shape, $rows);
+    }
+
+    /**
+     * Provide joins without a projection whose every column shapes the rows
+     * they page, and the rows they match.
+     *
+     * @return iterable<string, array{\Closure(\Illuminate\Contracts\Database\Eloquent\Builder): mixed, int}>
+     */
+    public static function unprojectedJoins(): iterable
+    {
+        yield 'distinct' => [
+            static fn (BuilderContract $query) => $query->getQuery()->distinct()->join('posts', 'posts.user_id', '=', 'users.id'),
+            8,
+        ];
+
+        yield 'union of grouped joins' => [
+            static function (BuilderContract $query): void {
+
+                self::groupedJoin($query);
+
+                $query->getQuery()->where('users.status', 'active')->union(
+                    User::query()->toBase()->join('posts', 'posts.user_id', '=', 'users.id')->where('users.status', '!=', 'active')->groupBy('users.id', 'posts.id'),
+                );
+            },
+            8,
+        ];
+    }
+
+    /**
+     * Test that a join without a projection keeps every column it pages by, on
+     * the engines that can count it.
+     *
+     * @param  \Closure(\Illuminate\Contracts\Database\Eloquent\Builder): mixed  $shape
+     * @param  int  $rows
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    #[DataProvider('unprojectedJoins')]
+    public function testUnprojectedJoinCountsTheRowsItsPagesShow(\Closure $shape, int $rows): void
+    {
+        if (DB::connection()->getDriverName() === 'mysql') {
+            self::markTestSkipped('MySQL refuses a derived table with duplicate column names.');
         }
 
         $this->assertPagesAgree($shape, $rows);

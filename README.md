@@ -286,14 +286,14 @@ selects none.
 ```
 
 **Pagination** - `?pagination=cursor` (or any `?cursor` token) selects cursor pagination; offset pagination is used
-otherwise. An offset page shorter than `limit` derives its total without a count. A full page counts at most the rows
-through the last page `query_cost.max_offset` allows: past that, `meta.total` is those rows, `meta.total_capped` is
-`true` and `Total-Count` is absent, so read further with cursor pagination. That bounds the rows the count admits, not
-the rows it examines; set `max_offset` to `0` for exact, unbounded totals. A capped page is a
-`CappedLengthAwarePaginator`, which a container binding of `LengthAwarePaginator` does not replace. A `simplePaginate()`
-result renders the cursor envelope. Offset pages do not support an ungrouped aggregate projection such as
-`selectRaw('max(id) as id')`, which is one row rather than a pageable set, or `distinct` over a join without an explicit
-projection, which MySQL refuses to count.
+otherwise. A non-empty offset page shorter than `limit`, or an empty first page, derives its total without a count.
+Any other page counts at most the rows through the last page `query_cost.max_offset` allows: past that, `meta.total` is
+those rows, `meta.total_capped` is `true` and `Total-Count` is absent, so read further with cursor pagination. That
+bounds the rows the count admits, not the rows it examines; set `max_offset` to `0` for exact, unbounded totals. A
+capped page is a `CappedLengthAwarePaginator`, which a container binding of `LengthAwarePaginator` does not replace. A
+`simplePaginate()` result renders the cursor envelope. Offset pages do not support an ungrouped aggregate projection
+such as `selectRaw('max(id) as id')`, which is one row rather than a pageable set, nor a `distinct` or union over a join
+without an explicit projection, which MySQL refuses to count.
 
 **Soft deletes** - `?trashed=with` or `?trashed=only`, read as a `TrashedState` from `ApiQuery::getTrashed()`. The
 criteria layer applies it only where the model uses `SoftDeletes` and the resource opts in by overriding

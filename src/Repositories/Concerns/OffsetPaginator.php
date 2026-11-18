@@ -132,7 +132,7 @@ final readonly class OffsetPaginator
      * Narrow the projection to a constant where it cannot change the rows.
      *
      * Grouped, distinct and union queries keep theirs, since it shapes the rows
-     * they return.
+     * they return; a union's must also match its other branches.
      *
      * @param  \Illuminate\Database\Query\Builder  $slice
      * @param  string  $wildcard
@@ -140,9 +140,13 @@ final readonly class OffsetPaginator
      */
     private function project(QueryBuilder $slice, string $wildcard): void
     {
+        if (!empty($slice->unions)) {
+            return;
+        }
+
         $grouped = !empty($slice->groups) || !empty($slice->havings);
 
-        if (!$grouped && $slice->distinct === false && empty($slice->unions)) {
+        if (!$grouped && $slice->distinct === false) {
             $slice->select(new Expression('1'));
         } elseif ($grouped && $slice->columns === null && !empty($slice->joins)) {
             $slice->select($wildcard);

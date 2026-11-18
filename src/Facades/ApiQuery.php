@@ -21,7 +21,7 @@ use SineMacula\ApiToolkit\Config\HttpSettings;
  * @method static int|null getLimit()
  * @method static int getResolvedLimit()
  * @method static bool isCursorPaginated()
- * @method static int|null getPage()
+ * @method static int getPage()
  * @method static string|null getCursor()
  * @method static \SineMacula\ApiToolkit\Enums\TrashedState getTrashed()
  * @method static void parse(\Illuminate\Http\Request $request)
