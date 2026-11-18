@@ -1400,7 +1400,7 @@ $user = $result->output();
 `runOrFail()` is `run()->throw()->output()`. Both use the context given through `withContext()` and fire the same
 lifecycle events.
 
-A queued `ServiceCompleted` or `ServiceFailed` listener receives each exception on the result as a
+A queued `ServiceCompleted` or `ServiceFailed` listener receives the result's exception and each side-effect error as a
 `SerializedException`, which keeps its message, code, file, line and previous chain and names its class through
 `originalClass()`, since an exception's trace and state, such as a validator, may not serialise.
 

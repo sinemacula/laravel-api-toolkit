@@ -40,6 +40,8 @@ final class SerializedException extends \RuntimeException
      * Serialise the exception's data, leaving out its trace.
      *
      * @return array{class: class-string<\Throwable>, message: string, code: int|string, file: string, line: int, previous: \Throwable|null}
+     *
+     * @SuppressWarnings("php:S100")
      */
     public function __serialize(): array
     {
@@ -58,6 +60,8 @@ final class SerializedException extends \RuntimeException
      *
      * @param  array{class: class-string<\Throwable>, message: string, code: int|string, file: string, line: int, previous: \Throwable|null}  $data
      * @return void
+     *
+     * @SuppressWarnings("php:S100")
      */
     public function __unserialize(array $data): void
     {

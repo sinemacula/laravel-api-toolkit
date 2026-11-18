@@ -46,6 +46,8 @@ final readonly class ServiceResult
      * queued listener receives it whatever the exception holds.
      *
      * @return array<string, mixed>
+     *
+     * @SuppressWarnings("php:S100")
      */
     public function __serialize(): array
     {

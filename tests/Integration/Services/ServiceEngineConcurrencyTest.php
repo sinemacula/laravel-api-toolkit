@@ -167,8 +167,8 @@ final class ServiceEngineConcurrencyTest extends TestCase
     }
 
     /**
-     * Build a body that updates the row while the competitor's transaction
-     * holds it, releasing it on the second attempt.
+     * Lock the row in the competitor's open transaction and build a body that
+     * updates it, committing the competitor on the second attempt.
      *
      * @return \Closure(): int
      */

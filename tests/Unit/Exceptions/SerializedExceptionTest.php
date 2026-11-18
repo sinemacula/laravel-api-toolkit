@@ -35,7 +35,7 @@ final class SerializedExceptionTest extends TestCase
 
     /**
      * Test that the stand-in keeps the string SQLSTATE code a PDO exception
-     * carries.
+     * carries, before and after serialisation.
      *
      * @return void
      */
@@ -46,7 +46,12 @@ final class SerializedExceptionTest extends TestCase
         try {
             $pdo->query('select * from missing');
         } catch (\PDOException $exception) {
-            $this->assertStandsFor($exception, SerializedException::from($exception));
+            $standIn  = SerializedException::from($exception);
+            $restored = unserialize(serialize($standIn));
+
+            $this->assertStandsFor($exception, $standIn);
+            self::assertInstanceOf(SerializedException::class, $restored);
+            $this->assertStandsFor($exception, $restored);
 
             return;
         }
@@ -56,18 +61,13 @@ final class SerializedExceptionTest extends TestCase
 
     /**
      * Test that a stand-in round-trips through serialisation when the exception
-     * it stands for holds state that cannot be serialised.
+     * it stands for cannot be serialised.
      *
      * @return void
      */
     public function testRoundTripsWhereTheExceptionCannotBeSerialised(): void
     {
-        $exception = new class ('unserialisable', 3, new \LogicException('inner')) extends \RuntimeException {
-            /** @var \Closure(): null State that cannot be serialised */
-            public \Closure $state;
-        };
-
-        $exception->state = static fn (): null => null;
+        $exception = new class ('unserialisable', 3, new \LogicException('inner')) extends \RuntimeException {};
 
         $restored = unserialize(serialize(SerializedException::from($exception)));
 
