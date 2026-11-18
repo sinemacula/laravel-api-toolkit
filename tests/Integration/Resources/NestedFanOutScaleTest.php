@@ -5,14 +5,18 @@ declare(strict_types = 1);
 namespace Tests\Integration\Resources;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\RelationWindow;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Support\UserGraphSeeder;
 use Tests\TestCase;
@@ -94,6 +98,8 @@ final class NestedFanOutScaleTest extends TestCase
     private function readPage(): string
     {
         assert($this->app !== null);
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [PostResource::class, TagResource::class, UserResource::class]);
 
         ApiQuery::parse(Request::create('/users', 'GET', [
             'limit'  => '100',
