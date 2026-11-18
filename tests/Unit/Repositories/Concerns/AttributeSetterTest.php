@@ -16,6 +16,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
+use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Country;
@@ -41,6 +42,8 @@ use Tests\TestCase;
 #[Group('database')]
 final class AttributeSetterTest extends TestCase
 {
+    use RecordsStatements;
+
     /** @var string */
     private const string ALICE_EMAIL = 'alice@example.com';
 
@@ -718,10 +721,10 @@ final class AttributeSetterTest extends TestCase
 
         $persist = fn (): bool => $this->attributeSetter->persist($user, ['name' => 'changed', 'nickname' => 'Al']);
 
-        // A savepoint keeps the test transaction usable after the error
-        $this->assertThrows(static fn (): mixed => DB::transaction($persist), QueryException::class, 'nickname');
+        // The savepoint rollback undoes any write, so no read could see one
+        $statements = $this->recordStatements(fn (): mixed => $this->assertThrows(static fn (): mixed => DB::transaction($persist), QueryException::class, 'nickname'));
 
-        self::assertSame('Alice', $user->fresh()?->name);
+        self::assertSame([], $statements);
     }
 
     /**
