@@ -73,6 +73,7 @@ final class CompiledAggregateDefinitionTest extends TestCase
         self::assertNull($definition->constraint);
         self::assertFalse($definition->isDefault);
         self::assertSame([], $definition->transformers);
+        self::assertSame([], $definition->callerGuards);
     }
 
     /**
@@ -93,5 +94,30 @@ final class CompiledAggregateDefinitionTest extends TestCase
         );
 
         self::assertSame('aggregate_revenue', $definition->attribute());
+    }
+
+    /**
+     * Test that the caller guards are stored apart from the row guards.
+     *
+     * @return void
+     */
+    public function testCallerGuardsAreStoredApartFromTheRowGuards(): void
+    {
+        $guard       = static fn (): bool => true;
+        $callerGuard = static fn (): bool => false;
+
+        $definition = new CompiledAggregateDefinition(
+            presentKey: 'posts_count',
+            relation: 'posts',
+            function: AggregateFunction::COUNT,
+            column: null,
+            constraint: null,
+            isDefault: false,
+            guards: [$guard],
+            callerGuards: [$callerGuard],
+        );
+
+        self::assertSame([$guard], $definition->guards);
+        self::assertSame([$callerGuard], $definition->callerGuards);
     }
 }

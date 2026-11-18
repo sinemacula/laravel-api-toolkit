@@ -6,6 +6,7 @@ namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
@@ -18,8 +19,10 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\FilterValueShape;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
+use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
@@ -1984,6 +1987,7 @@ final class FilterApplierTest extends TestCase
         $surface = new QuerySurface(
             SchemaCompiler::compile(PublicAuthorPostResource::class),
             new RelationTraversal(app(SchemaIntrospectionProvider::class), [User::class => UserResource::class]),
+            new CallerAdmission(Request::create('/'), new GuardEvaluator),
         );
 
         $query = $this->applier->apply((new Post)->newQuery(), ['user' => ['name' => 'Alice']], $this->operatorRegistry, $surface);
@@ -2274,6 +2278,7 @@ final class FilterApplierTest extends TestCase
         return new QuerySurface(
             new CompiledSchema([], [], $filterable, $sortable, $relations, [], $resources),
             new RelationTraversal(app(SchemaIntrospectionProvider::class), $resourceMap),
+            new CallerAdmission(Request::create('/'), new GuardEvaluator),
         );
     }
 
