@@ -23,12 +23,15 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Concerns\RegistersApiExceptionHandler;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ErrorParityController;
 use Tests\Fixtures\OpenApi\ParityRequestBodyController;
 use Tests\Fixtures\OpenApi\ParityUserController;
+use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathPlainController;
 use Tests\Fixtures\OpenApi\SlowDownException;
+use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -70,7 +73,7 @@ final class OpenApiErrorExampleParityTest extends TestCase
         $this->registerApiExceptionHandler();
 
         config()->set('app.debug', false);
-        config()->set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+        config()->set('api-toolkit.resources.resource_map', [User::class => UserResource::class, Article::class => ArticleResource::class]);
 
         Lang::addLines([
             'exceptions.20002.title'  => 'Slow Down',
@@ -83,6 +86,7 @@ final class OpenApiErrorExampleParityTest extends TestCase
         $router->get('report', [PathPlainController::class, 'index'])->middleware('can:view-report');
         $router->get('users/{user}', [ErrorParityController::class, 'show'])->middleware(SubstituteBindings::class);
         $router->post('articles', [ParityRequestBodyController::class, 'formRequest']);
+        $router->get('articles', [PathArticleController::class, 'index'])->middleware(ParseApiQuery::class);
         $router->get('limited', [PathPlainController::class, 'report'])->middleware('throttle:1,1');
         $router->get('fail', [ErrorParityController::class, 'fail']);
         $router->get('members', [ParityUserController::class, 'index'])->middleware(ParseApiQuery::class);
@@ -122,8 +126,8 @@ final class OpenApiErrorExampleParityTest extends TestCase
     }
 
     /**
-     * Provide a refused query per toolkit query parameter, with the error code
-     * it answers.
+     * Provide a refused query on a documented read, with the error code it
+     * answers.
      *
      * @return iterable<string, array{0: string, 1: string, 2: int}>
      */
@@ -131,7 +135,7 @@ final class OpenApiErrorExampleParityTest extends TestCase
     {
         yield 'undeclared filter key' => ['/members?filters=' . rawurlencode('{"nope":"x"}'), '/members', 10106];
         yield 'undeclared order key' => ['/members?order=nope:desc', '/members', 10106];
-        yield 'refused trashed' => ['/members?trashed=with', '/members', 10106];
+        yield 'refused trashed' => ['/articles?trashed=everything', '/articles', 10106];
         yield 'limit above the ceiling' => ['/members?limit=101', '/members', 10201];
         yield 'page below one' => ['/members?page=0', '/members', 10106];
         yield 'malformed cursor' => ['/members?cursor=malformed', '/members', 10106];

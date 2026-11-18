@@ -255,17 +255,20 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that an input exception the action also throws, or one passed twice,
-     * lists one example.
+     * Test that input exceptions follow the action's thrown examples, and one
+     * the action also throws, or one passed twice, lists one example.
      *
      * @return void
      */
-    public function testInputExceptionTheActionThrowsListsOneExample(): void
+    public function testInputExceptionsFollowTheThrownExamplesOnce(): void
     {
-        $route     = $this->router()->get('errors/{error}', [PathErrorController::class, 'show']);
-        $responses = $this->build($route, [ValidationException::class, QueryTooExpensiveException::class, ValidationException::class]);
+        $route = $this->router()->get('errors/{error}', [PathErrorController::class, 'show']);
 
-        self::assertSame($this->response('The request failed validation.', ['Error10106', 'Error10201']), $responses[422]);
+        self::assertSame($this->response('The request failed validation.', ['Error10106', 'Error10201']), $this->build($route, [QueryTooExpensiveException::class])[422]);
+        self::assertSame(
+            $this->response('The request failed validation.', ['Error10106', 'Error10201']),
+            $this->build($route, [ValidationException::class, QueryTooExpensiveException::class, ValidationException::class])[422],
+        );
     }
 
     /**

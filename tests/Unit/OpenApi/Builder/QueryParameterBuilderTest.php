@@ -627,7 +627,7 @@ final class QueryParameterBuilderTest extends TestCase
     {
         self::assertSame(
             [ValidationException::class, QueryTooExpensiveException::class],
-            $this->builderReporting([...$this->caps(0), $cap => 1])->exceptionsFor('index', Article::class),
+            $this->builderReporting([...$this->caps(-1), $cap => 1])->exceptionsFor('index'),
         );
     }
 
