@@ -27,6 +27,9 @@ final readonly class EnvelopeBuilder
     /** The component name of the reusable total-count response header */
     public const string TOTAL_COUNT_HEADER_NAME = 'Total-Count';
 
+    /** The component name of the reusable entity-tag response header */
+    public const string ETAG_HEADER_NAME = 'ETag';
+
     /** The path prefix under which schema components are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
 
@@ -54,6 +57,7 @@ final readonly class EnvelopeBuilder
     {
         return [
             self::TOTAL_COUNT_HEADER_NAME => $this->buildTotalCountHeader(),
+            self::ETAG_HEADER_NAME        => $this->buildEtagHeader(),
         ];
     }
 
@@ -234,6 +238,19 @@ final readonly class EnvelopeBuilder
         return [
             'description' => 'The total number of records across all pages of the length-aware collection.',
             'schema'      => ['type' => 'integer', 'minimum' => 0],
+        ];
+    }
+
+    /**
+     * Build the entity-tag header emitted on a versioned resource.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildEtagHeader(): array
+    {
+        return [
+            'description' => 'The weak entity tag of the stored resource, to send in If-Match on a write that must not overwrite a newer state.',
+            'schema'      => ['type' => 'string'],
         ];
     }
 

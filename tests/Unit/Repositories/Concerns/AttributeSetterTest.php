@@ -16,11 +16,13 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
+use Tests\Concerns\CreatesDocumentTables;
 use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Country;
 use Tests\Fixtures\Models\Device;
+use Tests\Fixtures\Models\Document;
 use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
@@ -42,7 +44,7 @@ use Tests\TestCase;
 #[Group('database')]
 final class AttributeSetterTest extends TestCase
 {
-    use RecordsStatements;
+    use CreatesDocumentTables, RecordsStatements;
 
     /** @var string */
     private const string ALICE_EMAIL = 'alice@example.com';
@@ -802,6 +804,138 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
+     * Test that a persist changing only relation membership advances the
+     * version once, with one update.
+     *
+     * @return void
+     */
+    public function testPersistChangingOnlyRelationsAdvancesTheVersionOnce(): void
+    {
+        $document = Document::create(['title' => 'Draft']);
+        $tag      = Tag::create(['name' => 'php']);
+        $marked   = [];
+
+        Document::updating(static function (Document $updating) use (&$marked): void {
+            $marked[] = $updating->isDirty('version');
+        });
+
+        self::assertTrue($this->attributeSetter->persist($document, ['tags' => [$tag->id]]));
+        self::assertSame([true], $marked);
+        self::assertSame(2, $this->storedVersion($document));
+        self::assertSame(2, $document->version);
+    }
+
+    /**
+     * Test that a persist leaving relation membership as it was does not
+     * advance the version.
+     *
+     * @return void
+     */
+    public function testPersistLeavingRelationsUnchangedKeepsTheVersion(): void
+    {
+        $document = Document::create(['title' => 'Draft']);
+        $tag      = Tag::create(['name' => 'php']);
+
+        $document->tags()->attach($tag->id);
+
+        self::assertTrue($this->attributeSetter->persist($document, ['tags' => [$tag->id]]));
+        self::assertSame(1, $this->storedVersion($document));
+    }
+
+    /**
+     * Test that a persist changing a column and relations advances the version
+     * once, and a create with relations starts it at 1.
+     *
+     * @return void
+     */
+    public function testPersistChangingColumnsAndRelationsAdvancesTheVersionOnce(): void
+    {
+        $tag      = Tag::create(['name' => 'php']);
+        $document = new Document;
+
+        self::assertTrue($this->attributeSetter->persist($document, ['title' => 'Draft', 'tags' => [$tag->id]]));
+        self::assertSame(1, $this->storedVersion($document));
+
+        self::assertTrue($this->attributeSetter->persist($document, ['title' => 'Revised', 'tags' => []]));
+        self::assertSame(2, $this->storedVersion($document));
+    }
+
+    /**
+     * Test that successive persists on one instance each advance the version.
+     *
+     * @return void
+     */
+    public function testSuccessivePersistsOnOneInstanceEachAdvanceTheVersion(): void
+    {
+        $document = Document::create(['title' => 'Draft']);
+        $tag      = Tag::create(['name' => 'php']);
+
+        $this->attributeSetter->persist($document, ['title' => 'Revised']);
+        $this->attributeSetter->persist($document, ['tags' => [$tag->id]]);
+
+        self::assertSame(3, $this->storedVersion($document));
+    }
+
+    /**
+     * Test that a sync whose related model touches the document advances the
+     * version once, not twice.
+     *
+     * @return void
+     */
+    public function testPersistDoesNotAdvanceAgainAfterAnInverseTouch(): void
+    {
+        $document = $this->travel(-1)->minutes(static fn (): Document => Document::create(['title' => 'Draft']));
+        $tag      = Tag::create(['name' => 'php']);
+        $marked   = [];
+
+        Document::updating(static function (Document $updating) use (&$marked): void {
+            $marked[] = $updating->isDirty('version');
+        });
+
+        self::assertTrue($this->attributeSetter->persist($document, ['touchingTags' => [$tag->id]]));
+        self::assertSame([false], $marked);
+        self::assertSame(2, $this->storedVersion($document));
+    }
+
+    /**
+     * Test that a refused save recording a relation change throws and rolls the
+     * relation change back.
+     *
+     * @return void
+     */
+    public function testRefusedVersionSaveRollsBackTheRelationChange(): void
+    {
+        $document = Document::create(['title' => 'Draft']);
+        $tag      = Tag::create(['name' => 'php']);
+
+        Document::updating(static fn (): bool => false);
+
+        try {
+            $this->attributeSetter->persist($document, ['tags' => [$tag->id]]);
+
+            self::fail('A refused version save must throw.');
+        } catch (\LogicException $exception) {
+            self::assertSame(Document::class . ' refused the save that records its relation change, so the change is rolled back.', $exception->getMessage());
+        }
+
+        self::assertSame(0, DB::table('document_tag')->count());
+        self::assertSame(1, $this->storedVersion($document));
+    }
+
+    /**
+     * Define the database migrations.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function defineDatabaseMigrations(): void
+    {
+        parent::defineDatabaseMigrations();
+
+        $this->createDocumentTables();
+    }
+
+    /**
      * Create the user the tests write to.
      *
      * @return \Tests\Fixtures\Models\User
@@ -889,5 +1023,20 @@ final class AttributeSetterTest extends TestCase
         $note->forceFill($attributes)->save();
 
         return $note;
+    }
+
+    /**
+     * Read the version stored for the given document.
+     *
+     * @param  \Tests\Fixtures\Models\Document  $document
+     * @return int
+     */
+    private function storedVersion(Document $document): int
+    {
+        $version = DB::table('documents')->where('id', $document->id)->value('version');
+
+        assert(is_numeric($version));
+
+        return (int) $version;
     }
 }
