@@ -948,9 +948,11 @@ to the `api` middleware group only). The maintenance middleware replaces Laravel
 global stack, after `HandleCors`, so maintenance responses still carry CORS headers (nothing is added if Laravel's has
 been removed). `throttle` is registered as the router's `throttle` alias.
 
-**Rate-limit keys** - each request is keyed by method, host, path and caller. Authenticated requests are keyed by
-user identifier; guests by client IP (`$request->ip()`), as Laravel's stock `ThrottleRequests` does, so one guest
-cannot exhaust the limit for every other guest.
+**Rate-limit keys** - `throttle:{max},{minutes}` keys each request by method, host, route and caller. The route is the
+matched URI pattern, so `/users/1` and `/users/2` draw on one `/users/{id}` budget and walking ids does not escape the
+limit. Authenticated requests are keyed by user identifier; guests by client IP (`$request->ip()`), as Laravel's stock
+`ThrottleRequests` does, so one guest cannot exhaust the limit for every other guest. A named limiter
+(`throttle:{name}`) uses the key its `Limit` defines.
 
 Behind a proxy, load balancer, CDN or NAT, many callers can share one IP and be throttled together. Configure
 Laravel's `TrustProxies` middleware so `$request->ip()` resolves the real client IP.
@@ -1018,6 +1020,12 @@ A resource schema requires only what every response carries: `_type`, and each f
 column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names
 none for that type and no parent relation pins them: the declared `$default` fields, then the fixed ones.
 
+A relation rendered through a child resource is typed from its Eloquent relation: a to-many relation as an array of the
+related schema, and a to-one relation as the related schema or `null`, since it renders `null` when the related row is
+absent. A to-one relation with a default model from `withDefault()` never does, so it is the related schema alone. A
+relation's `openapi()` declaration replaces the inferred schema and its `maxItems`, and a transformed relation without
+one is left undocumented; either still lists the relation in `_truncated` when it is cut.
+
 Every operation also lists the errors it can return, derived from the route: an unauthenticated request behind auth
 middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
 `AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the path
@@ -1030,14 +1038,16 @@ only where the route already lists the error that status stands for, as a path w
 `denyAsNotFound()`. Middleware is read as the router resolves it, so a guard or limit applied through a group counts and
 one removed with `withoutMiddleware()` does not.
 
-Each `ApiException` subclass named in the action's `@throws` tags is added under its status too; other throwables in
-those tags are ignored. Class names in `@throws` resolve as PHP would in the file declaring the action, so imported,
-aliased, same-namespace and fully qualified names all work, and a union such as `@throws A|B` names both. Each error
-code is documented once, as the `components.examples` entry `Error<code>` (such as `Error10107`) carrying the code's
-catalogue title and detail, and every error response references the examples of its exceptions. An exception without a
-`CODE` adds its status and headers but no example. The export fails when a documented exception's code is not in the
-error catalogue (add its namespace to `api-toolkit.openapi.exception_namespaces`), or when it shares a code with an
-exception answering another status.
+Each `ApiException` subclass named in the `@throws` tags of the action, or of the `handle()` (else `__invoke()`) of any
+middleware the route runs, read as the router resolves it, is added under its status too; other throwables in those tags
+are ignored. Global middleware is not read, and a middleware the container rebinds is read from the class the route
+names. Class names in `@throws` resolve as PHP would in the file declaring the method, so imported, aliased,
+same-namespace and fully qualified names all work, and a union such as `@throws A|B` names both. Each error code is
+documented once, as the `components.examples` entry `Error<code>` (such as `Error10107`) carrying the code's catalogue
+title and detail, and every error response references the examples of its exceptions. An exception without a `CODE` adds
+its status and headers but no example. The export fails when a documented exception's code is not in the error catalogue
+(add its namespace to `api-toolkit.openapi.exception_namespaces`), or when it shares a code with an exception answering
+another status.
 
 Each path parameter is typed from what the router enforces on its segment. A `where` constraint comes first:
 `whereUuid()` exports a `uuid`, `whereNumber()` a non-negative integer, `whereIn()` or a plain alternation such as
@@ -1120,10 +1130,10 @@ Document response headers with `#[ResponseHeader]`, repeated once per header:
 - On a controller class, it adds it to the success response of every action the controller handles; an action's own
   declaration wins.
 - On an `ApiException` subclass, it documents a header the exception may set, added to the error response of every
-  action whose `@throws` tags name it or whose route facts the handler answers with it. A route fact also documents the
-  headers of its built-in target, which the handler forwards whatever the configured target, so a remapped rate limit
-  keeps `Retry-After` and `X-RateLimit-*`. Subclasses inherit their parents' headers, and exceptions sharing a status
-  contribute every header they declare, the first declaration of a name winning.
+  action whose `@throws` tags, or those of its route middleware, name it, or whose route facts the handler answers with
+  it. A route fact also documents the headers of its built-in target, which the handler forwards whatever the configured
+  target, so a remapped rate limit keeps `Retry-After` and `X-RateLimit-*`. Subclasses inherit their parents' headers,
+  and exceptions sharing a status contribute every header they declare, the first declaration of a name winning.
 
 The schema defaults to a string and the description is optional. A header the export already emits, such as a
 collection's `Total-Count`, cannot be declared again: the export fails. The toolkit's `TooManyRequestsException`

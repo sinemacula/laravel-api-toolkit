@@ -6,9 +6,12 @@ namespace Tests\Feature\Middleware;
 
 use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Illuminate\Contracts\Foundation\MaintenanceMode;
+use Illuminate\Foundation\Http\MaintenanceModeBypassCookie;
+use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as FrameworkPreventRequestsDuringMaintenance;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -47,10 +50,12 @@ final class MaintenanceModeTest extends TestCase
         assert($this->app !== null);
         $this->app->instance(MaintenanceMode::class, new ArrayMaintenanceMode);
 
-        Config::set('api-toolkit.maintenance_mode.except', ['health']);
+        Config::set('api-toolkit.maintenance_mode.except', ['health', 'api/health/*']);
 
         Route::middleware(PreventRequestsDuringMaintenance::class)->get('/data', static fn (): array => ['ok' => true]);
         Route::middleware(PreventRequestsDuringMaintenance::class)->get('/health', static fn (): array => ['ok' => true]);
+        Route::middleware(PreventRequestsDuringMaintenance::class)->get('/api/health/live', static fn (): array => ['ok' => true]);
+        Route::middleware(PreventRequestsDuringMaintenance::class)->get('/status', static fn (): array => ['ok' => true]);
 
         // Guarded only by the global stack the swap placed the middleware in
         Route::get('/open', static fn (): array => ['ok' => true]);
@@ -200,6 +205,137 @@ final class MaintenanceModeTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('ok', true);
+    }
+
+    /**
+     * Test that a URI matching a wildcard bypass-list entry is served during
+     * maintenance mode.
+     *
+     * @return void
+     */
+    public function testWildcardExceptIsServedDuringMaintenance(): void
+    {
+        $this->duringMaintenance(fn () => $this->getJson('/api/health/live'))->assertOk();
+    }
+
+    /**
+     * Test that a URI excluded through the framework middleware is served
+     * during maintenance mode.
+     *
+     * @return void
+     */
+    public function testFrameworkLevelExceptIsHonoured(): void
+    {
+        $this->duringMaintenance(fn () => $this->getJson('/status'))->assertStatus(503);
+
+        FrameworkPreventRequestsDuringMaintenance::except(['status']);
+
+        try {
+            $this->duringMaintenance(fn () => $this->getJson('/status'))->assertOk();
+        } finally {
+            FrameworkPreventRequestsDuringMaintenance::flushState();
+        }
+    }
+
+    /**
+     * Test that a JSON client gets the maintenance envelope although the
+     * maintenance payload redirects and renders a template for other clients.
+     *
+     * @return void
+     */
+    public function testJsonClientGetsEnvelopeDespiteRedirectAndTemplate(): void
+    {
+        $payload = ['redirect' => '/elsewhere', 'template' => 'Down'];
+
+        $this->duringMaintenance(fn () => $this->get('/data'), $payload)->assertRedirect('/elsewhere');
+        $this->duringMaintenance(fn () => $this->get('/elsewhere'), $payload)->assertStatus(503)->assertContent('Down');
+
+        $response = $this->duringMaintenance(fn () => $this->getJson('/data'), $payload);
+
+        $response->assertStatus(503);
+        $response->assertJsonPath('error.code', 10200);
+    }
+
+    /**
+     * Test that visiting the maintenance secret issues a valid bypass cookie.
+     *
+     * @return void
+     */
+    public function testSecretPathIssuesBypassCookie(): void
+    {
+        $response = $this->duringMaintenance(fn () => $this->get('/abc'), ['secret' => 'abc']);
+
+        $response->assertRedirect('/');
+
+        $cookie = $response->getCookie('laravel_maintenance', false);
+
+        self::assertNotNull($cookie);
+        self::assertTrue(MaintenanceModeBypassCookie::isValid((string) $cookie->getValue(), 'abc'));
+    }
+
+    /**
+     * Test that a valid bypass cookie serves a guarded route during maintenance
+     * mode.
+     *
+     * @return void
+     */
+    public function testBypassCookieServesGuardedJsonRoute(): void
+    {
+        $cookie = MaintenanceModeBypassCookie::create('abc');
+
+        $response = $this->duringMaintenance(
+            fn () => $this->withCredentials()->withUnencryptedCookie('laravel_maintenance', (string) $cookie->getValue())->getJson('/data'),
+            ['secret' => 'abc'],
+        );
+
+        $response->assertOk();
+        $response->assertJsonPath('ok', true);
+    }
+
+    /**
+     * Test that a bypass cookie minted for another secret still gets the
+     * maintenance envelope.
+     *
+     * @return void
+     */
+    public function testForgedBypassCookieStillGetsMaintenanceEnvelope(): void
+    {
+        $cookie = MaintenanceModeBypassCookie::create('forged');
+
+        $response = $this->duringMaintenance(
+            fn () => $this->withCredentials()->withUnencryptedCookie('laravel_maintenance', (string) $cookie->getValue())->getJson('/data'),
+            ['secret' => 'abc'],
+        );
+
+        $response->assertStatus(503);
+        $response->assertJsonPath('error.code', 10200);
+    }
+
+    /**
+     * Provide application names with the maintenance detail each renders.
+     *
+     * @return iterable<string, array{string|null, string}>
+     */
+    public static function applicationNameProvider(): iterable
+    {
+        yield 'string name' => ['Acme', 'Acme is currently in maintenance mode, please try again a little later'];
+        yield 'missing name' => [null, 'The application is currently in maintenance mode, please try again a little later'];
+    }
+
+    /**
+     * Test that the maintenance detail names the application, or falls back to
+     * a generic subject when the name is not a string.
+     *
+     * @param  string|null  $name
+     * @param  string  $detail
+     * @return void
+     */
+    #[DataProvider('applicationNameProvider')]
+    public function testMaintenanceDetailNamesTheApplication(?string $name, string $detail): void
+    {
+        Config::set('app.name', $name);
+
+        $this->duringMaintenance(fn () => $this->getJson('/data'))->assertJsonPath('error.detail', $detail);
     }
 
     /**

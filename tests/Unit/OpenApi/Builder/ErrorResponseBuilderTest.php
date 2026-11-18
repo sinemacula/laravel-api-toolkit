@@ -5,7 +5,9 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi\Builder;
 
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use Illuminate\Validation\ValidationException;
@@ -23,6 +25,8 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
 use Tests\Fixtures\Controllers\ClassAuthorizedController;
 use Tests\Fixtures\Controllers\CustomActionController;
+use Tests\Fixtures\Middleware\EnforceQuota;
+use Tests\Fixtures\Middleware\RequireSubscription;
 use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathPlainController;
@@ -50,6 +54,11 @@ final class ErrorResponseBuilderTest extends TestCase
         'X-RateLimit-Limit'     => ['description' => 'The number of requests allowed in the current window.', 'schema' => ['type' => 'integer']],
         'X-RateLimit-Remaining' => ['description' => 'The number of requests left in the current window.', 'schema' => ['type' => 'integer']],
         'X-RateLimit-Reset'     => ['description' => 'The Unix timestamp at which the current window resets.', 'schema' => ['type' => 'integer']],
+    ];
+
+    /** @var array<string, array<string, mixed>> The headers the fixture PaymentRequiredException declares */
+    private const array PAYMENT_HEADERS = [
+        'X-Upgrade-Url' => ['description' => 'The page where the subscription can be renewed.', 'schema' => ['type' => 'string']],
     ];
 
     /**
@@ -367,6 +376,147 @@ final class ErrorResponseBuilderTest extends TestCase
         self::assertSame($this->response('Conflict.', [], [
             'X-Hold-Id' => ['description' => 'The identifier of the hold that blocked the release.', 'schema' => ['type' => 'string']],
         ]), $responses[409]);
+    }
+
+    /**
+     * Test that a route middleware's thrown ApiException is documented with its
+     * example and headers.
+     *
+     * @return void
+     */
+    public function testRouteMiddlewareThrowsAreDocumented(): void
+    {
+        $responses = $this->build($this->router()->get('reports', [PathPlainController::class, 'report'])->middleware(RequireSubscription::class));
+
+        self::assertSame([402, 500], array_keys($responses));
+        self::assertSame($this->response('Payment required.', ['Error20003'], self::PAYMENT_HEADERS), $responses[402]);
+    }
+
+    /**
+     * Test that middleware throws are read through a group and dropped with the
+     * middleware.
+     *
+     * @return void
+     */
+    public function testMiddlewareThrowsFollowTheResolvedMiddleware(): void
+    {
+        $this->router()->middlewareGroup('billing', [RequireSubscription::class . ':pro']);
+
+        $grouped  = $this->build($this->router()->get('reports', [PathPlainController::class, 'report'])->middleware('billing'));
+        $excluded = $this->build($this->router()->get('free', [PathPlainController::class, 'index'])->middleware('billing')->withoutMiddleware(RequireSubscription::class));
+
+        self::assertSame($this->response('Payment required.', ['Error20003'], self::PAYMENT_HEADERS), $grouped[402]);
+        self::assertSame([500], array_keys($excluded));
+    }
+
+    /**
+     * Test that a closure route documents its middleware throws.
+     *
+     * @return void
+     */
+    public function testClosureRouteDocumentsItsMiddlewareThrows(): void
+    {
+        $route = $this->router()->get('reports', static fn (): null => null)->middleware(RequireSubscription::class);
+
+        self::assertSame([402, 500], array_keys($this->build($route)));
+    }
+
+    /**
+     * Test that an invokable middleware's throws are documented.
+     *
+     * @return void
+     */
+    public function testInvokableMiddlewareThrowsAreDocumented(): void
+    {
+        $response = $this->build($this->router()->get('reports', [PathPlainController::class, 'report'])->middleware(EnforceQuota::class))[429];
+
+        self::assertSame($this->response('Too many requests.', ['Error10107'], [
+            'retry-after'   => ['description' => 'The number of seconds until the quota resets.', 'schema' => ['type' => 'integer', 'minimum' => 1]],
+            'X-Quota-Reset' => ['schema' => ['type' => 'integer']],
+        ]), $response);
+    }
+
+    /**
+     * Test that an exception the action and a middleware both name is
+     * documented as the action alone documents it.
+     *
+     * @return void
+     */
+    public function testExceptionNamedByActionAndMiddlewareIsDocumentedOnce(): void
+    {
+        $alone   = $this->build($this->router()->post('quota', [PathResponseHeaderController::class, 'quota']));
+        $guarded = $this->build($this->router()->post('quota', [PathResponseHeaderController::class, 'quota'])->middleware(EnforceQuota::class));
+
+        self::assertSame($alone, $guarded);
+    }
+
+    /**
+     * Test that the action's exception wins a header name over a middleware's
+     * on a shared status.
+     *
+     * @return void
+     */
+    public function testActionExceptionWinsAHeaderOverAMiddlewareOne(): void
+    {
+        $response = $this->build($this->router()->post('sign-in', [PathResponseHeaderController::class, 'signIn'])->middleware(EnforceQuota::class))[429];
+
+        self::assertSame($this->response('Too many requests.', ['Error10107'], [
+            'Retry-After'   => ['description' => 'The number of seconds to wait before retrying.', 'schema' => ['type' => 'integer']],
+            'X-Quota-Reset' => ['schema' => ['type' => 'integer']],
+        ]), $response);
+    }
+
+    /**
+     * Test that a middleware exception sharing the throttle status keeps the
+     * rate-limit headers the handler forwards.
+     *
+     * @return void
+     */
+    public function testMiddlewareExceptionBesideTheThrottleKeepsTheForwardedHeaders(): void
+    {
+        $response = $this->build($this->router()->get('reports', [PathPlainController::class, 'report'])->middleware([EnforceQuota::class, 'throttle:60,1']))[429];
+
+        self::assertIsArray($response['headers']);
+        self::assertSame(
+            ['retry-after', 'X-Quota-Reset', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+            array_keys($response['headers']),
+        );
+        self::assertSame('The number of seconds until the quota resets.', $response['headers']['retry-after']['description']);
+    }
+
+    /**
+     * Test that framework middleware adds nothing beyond the route facts.
+     *
+     * @return void
+     */
+    public function testFrameworkMiddlewareAddsNothingBeyondTheFacts(): void
+    {
+        $route = $this->router()->get('users/{user}', [PathPlainController::class, 'report'])
+            ->middleware(['auth', 'can:view,user', 'throttle:60,1', SubstituteBindings::class]);
+
+        $responses = $this->build($route);
+
+        self::assertSame([401, 403, 404, 429, 500], array_keys($responses));
+        self::assertSame($this->response('Unauthenticated.', ['Error10101']), $responses[401]);
+        self::assertSame($this->response('Forbidden.', ['Error10102']), $responses[403]);
+        self::assertSame($this->response('Too many requests.', ['Error10107'], self::RATE_LIMIT_HEADERS), $responses[429]);
+    }
+
+    /**
+     * Test that global middleware throws are not documented.
+     *
+     * @return void
+     */
+    public function testGlobalMiddlewareThrowsAreNotDocumented(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \Illuminate\Foundation\Http\Kernel $kernel */
+        $kernel = $this->app->make(Kernel::class);
+
+        $kernel->pushMiddleware(RequireSubscription::class);
+
+        self::assertSame([500], array_keys($this->build($this->router()->get('reports', [PathPlainController::class, 'report']))));
     }
 
     /**
