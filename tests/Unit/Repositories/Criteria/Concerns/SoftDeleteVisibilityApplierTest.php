@@ -10,11 +10,13 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Query\ApiQuerySnapshot;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\HeaderGatedArticleResource;
 use Tests\Fixtures\Resources\RestrictedArticleResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -166,6 +168,23 @@ final class SoftDeleteVisibilityApplierTest extends TestCase
         $this->applier->apply($query, ArticleResource::class, $this->request());
 
         self::assertStringContainsString('is not null', $this->sqlOf($query));
+    }
+
+    /**
+     * Test that a carried trashed value is refused under a gate closed to the
+     * request it replays in, rather than answered with live rows.
+     *
+     * @return void
+     */
+    public function testCarriedTrashedIsRefusedUnderAClosedGate(): void
+    {
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('The trashed parameter is not permitted for this resource.');
+
+        ApiQuery::using(
+            new ApiQuerySnapshot(['trashed' => 'only']),
+            fn (): mixed => $this->applier->apply(Article::query(), HeaderGatedArticleResource::class, $this->request()),
+        );
     }
 
     /**
