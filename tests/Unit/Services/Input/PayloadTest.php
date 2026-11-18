@@ -845,8 +845,8 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Provide values the integer, numeric or boolean rule accepts, with the
-     * property that casts them and the value it receives.
+     * Provide values the integer, numeric, boolean, accepted or declined rule
+     * accepts, with the property that casts them and the value it receives.
      *
      * @return iterable<string, array{string, mixed, bool|float|int}>
      */
@@ -861,6 +861,12 @@ final class PayloadTest extends TestCase
         yield 'bool from a zero string' => ['enabled', '0', false];
         yield 'bool from one' => ['enabled', 1, true];
         yield 'bool from zero' => ['enabled', 0, false];
+        yield 'bool from a true string' => ['enabled', 'true', true];
+        yield 'bool from a false string' => ['enabled', 'false', false];
+        yield 'bool from a yes string' => ['enabled', 'yes', true];
+        yield 'bool from a no string' => ['enabled', 'no', false];
+        yield 'bool from an on string' => ['enabled', 'on', true];
+        yield 'bool from an off string' => ['enabled', 'off', false];
     }
 
     /**
@@ -878,8 +884,8 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Provide values no integer, numeric or boolean rule accepts, with the
-     * property that would receive them.
+     * Provide values the rule matching each property's type does not accept,
+     * with the property that would receive them.
      *
      * @return iterable<string, array{string, mixed}>
      */
@@ -888,7 +894,7 @@ final class PayloadTest extends TestCase
         yield 'int from a decimal string' => ['count', '5.5'];
         yield 'int from a fractional float' => ['count', 5.5];
         yield 'float from a word' => ['ratio', 'half'];
-        yield 'bool from a word' => ['enabled', 'yes'];
+        yield 'bool from a capitalised word' => ['enabled', 'Yes'];
         yield 'bool from a decimal string' => ['enabled', '1.0'];
         yield 'bool from two' => ['enabled', 2];
     }

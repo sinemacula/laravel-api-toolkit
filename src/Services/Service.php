@@ -62,8 +62,8 @@ abstract class Service implements LockKeyProvider
     /**
      * Resolve a new service instance from the container with the given input.
      *
-     * The input is passed to the first constructor parameter typed to accept
-     * it, whatever its name.
+     * The input is passed to the first constructor parameter whose class or
+     * interface type accepts it, whatever its name.
      *
      * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $input
      * @return static
@@ -72,27 +72,21 @@ abstract class Service implements LockKeyProvider
      */
     public static function make(ServiceInput $input): static
     {
-        $class     = static::class;
-        $arguments = [];
+        $class = static::class;
 
         foreach ((new \ReflectionMethod($class, '__construct'))->getParameters() as $parameter) {
 
             $type = $parameter->getType();
 
             if ($type instanceof \ReflectionNamedType && is_a($input, $type->getName())) {
-                $arguments = [$parameter->getName() => $input];
-                break;
+                $instance = App::make($class, [$parameter->getName() => $input]);
+                assert($instance instanceof static);
+
+                return $instance;
             }
         }
 
-        $instance = App::make($class, $arguments);
-        assert($instance instanceof static);
-
-        if ($instance->input !== $input) {
-            throw new \LogicException(sprintf('%s was not constructed with the input given to make()', $instance::class));
-        }
-
-        return $instance;
+        throw new \LogicException(sprintf('%s::__construct() has no parameter that accepts %s', $class, $input::class));
     }
 
     /**

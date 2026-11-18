@@ -26,6 +26,9 @@ use SineMacula\ApiToolkit\Services\Input\Rules\Enum;
  */
 abstract class Payload implements DefinesInputSchema, ServiceInput
 {
+    /** @var array<int|string, bool> The values the boolean, accepted and declined rules accept */
+    private const array BOOLEANS = [1 => true, 'true' => true, 'yes' => true, 'on' => true, 0 => false, 'false' => false, 'no' => false, 'off' => false];
+
     /** @var array<class-string, list<string>> Summary property names per class */
     private static array $summaryProperties = [];
 
@@ -391,7 +394,8 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
 
     /**
      * Cast a value to an int, float or bool type only where the integer,
-     * numeric or boolean rule accepts it, leaving any other value unchanged.
+     * numeric, boolean, accepted or declined rule accepts it, leaving any other
+     * value unchanged.
      *
      * @param  string  $type
      * @param  mixed  $value
@@ -402,7 +406,7 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
         return match ($type) {
             'int'   => filter_var($value, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE) ?? $value,
             'float' => is_numeric($value) ? (float) $value : $value,
-            'bool'  => in_array($value, [0, 1, '0', '1'], true) ? (bool) $value : $value,
+            'bool'  => is_int($value) || is_string($value) ? self::BOOLEANS[$value] ?? $value : $value,
             default => $value,
         };
     }

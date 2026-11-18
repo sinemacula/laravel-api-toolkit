@@ -325,19 +325,22 @@ final class ServiceTest extends TestCase
     }
 
     /**
-     * Test that make() fails when the constructor cannot take the input.
+     * Test that make() fails before resolving a service whose constructor
+     * cannot take the input, rather than building one from the request.
      *
      * @return void
      */
     public function testMakeThrowsWhenTheConstructorCannotTakeTheInput(): void
     {
-        $service = new class extends Service {
+        $service = new class (new StorePayload(title: 'own')) extends Service {
             /**
-             * Construct the service with an input of its own.
+             * Construct the service with an input of another type.
+             *
+             * @param  \Tests\Fixtures\Input\StorePayload  $payload
              */
-            public function __construct()
+            public function __construct(StorePayload $payload)
             {
-                parent::__construct(new ArrayInput([]));
+                parent::__construct($payload);
             }
 
             /**
@@ -357,8 +360,23 @@ final class ServiceTest extends TestCase
 
             self::fail('Expected a LogicException for the input make() could not pass.');
         } catch (\LogicException $exception) {
-            self::assertSame(sprintf('%s was not constructed with the input given to make()', $service::class), $exception->getMessage());
+            self::assertSame(sprintf('%s::__construct() has no parameter that accepts %s', $service::class, ArrayInput::class), $exception->getMessage());
         }
+    }
+
+    /**
+     * Test that make() returns whatever the container binds for the service, so
+     * a test double stands in without being constructed.
+     *
+     * @return void
+     */
+    public function testMakeReturnsATestDoubleTheContainerBinds(): void
+    {
+        $double = (new \ReflectionClass(OutputService::class))->newInstanceWithoutConstructor();
+
+        app()->bind(OutputService::class, static fn (): OutputService => $double);
+
+        self::assertSame($double, OutputService::make(new ArrayInput([])));
     }
 
     /**
