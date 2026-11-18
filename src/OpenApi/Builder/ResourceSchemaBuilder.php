@@ -147,7 +147,7 @@ final readonly class ResourceSchemaBuilder
                 $limited[] = $fieldKey;
             }
 
-            $properties[$fieldKey] = $this->withQuerySurface($this->overrideRelationProperty($field) ?? $property, $field, $compiled);
+            $properties[$fieldKey] = $this->withQuerySurface($this->overrideProperty($field) ?? $property, $field, $compiled);
         }
 
         if ($compiled->getAggregateDefinitions() !== []) {
@@ -197,19 +197,16 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Resolve the schema a relation declares in place of its inferred one.
+     * Resolve the schema that replaces a field's inferred one, if any.
      *
-     * A transformer replaces the child, so an undeclared one is undocumented.
+     * A declaration wins, and a transformer changes the value, so an undeclared
+     * one is undocumented.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return array<string, mixed>|null
      */
-    private function overrideRelationProperty(CompiledFieldDefinition $field): ?array
+    private function overrideProperty(CompiledFieldDefinition $field): ?array
     {
-        if ($field->relation === null || $field->resource === null) {
-            return null;
-        }
-
         return match (true) {
             $field->openApi      !== null => $field->openApi->toArray(),
             $field->transformers !== []   => OpenApiFieldSchema::undocumented()->toArray(),
