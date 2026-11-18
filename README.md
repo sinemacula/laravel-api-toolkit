@@ -1399,6 +1399,10 @@ $user = $result->output();
 `runOrFail()` is `run()->throw()->output()`. Both use the context given through `withContext()` and fire the same
 lifecycle events.
 
+A queued `ServiceCompleted` or `ServiceFailed` listener receives each exception on the result as a
+`SerializedException`, which keeps its message, code, file, line and previous chain and names its class through
+`originalClass()`, since an exception's trace and state, such as a validator, may not serialise.
+
 `dispatch()` runs `authorize()` and `validate()`, then queues the service. A refusal throws from `dispatch()`, so an
 HTTP action answers `403` or `422` and nothing is queued. The worker runs the whole lifecycle again with a `QUEUE`
 context, since state can change before the job runs, so both hooks must be repeatable. At dispatch they see the context

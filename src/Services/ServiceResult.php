@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Services;
 
+use SineMacula\ApiToolkit\Exceptions\SerializedException;
 use SineMacula\ApiToolkit\Exceptions\ServiceFailedException;
 use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
 
@@ -39,6 +40,22 @@ final readonly class ServiceResult
         /** Side-effect errors from afterCommit processing */
         public array $sideEffectErrors = [],
     ) {}
+
+    /**
+     * Serialise the result with each exception as a SerializedException, so a
+     * queued listener receives it whatever the exception holds.
+     *
+     * @return array<string, mixed>
+     */
+    public function __serialize(): array
+    {
+        return [
+            'status'           => $this->status,
+            'output'           => $this->output,
+            'exception'        => $this->exception === null ? null : SerializedException::from($this->exception),
+            'sideEffectErrors' => array_map(SerializedException::from(...), $this->sideEffectErrors),
+        ];
+    }
 
     /**
      * Create a successful service result.
