@@ -43,7 +43,7 @@ trait DerivesTabularSchema
         $schema  = SchemaCompiler::compile($resourceClass);
         $columns = [];
 
-        foreach ($this->selectedFields($schema) as $key) {
+        foreach ($this->selectedFields() as $key) {
 
             $definition = $schema->getField($key);
 

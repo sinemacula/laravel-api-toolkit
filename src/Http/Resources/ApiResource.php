@@ -287,12 +287,11 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      * Resolve the fields selected for this resource, before the fixed fields
      * join them.
      *
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @return array<int, string>
      */
-    protected function selectedFields(CompiledSchema $schema): array
+    protected function selectedFields(): array
     {
-        return $this->fieldResolver->getFields($schema, static::getResourceType(), static::getDefaultFields(), []);
+        return $this->fieldResolver->getSelectedFields(static::class);
     }
 
     /**
