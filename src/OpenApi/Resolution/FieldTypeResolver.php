@@ -207,7 +207,8 @@ final readonly class FieldTypeResolver
     }
 
     /**
-     * Resolve the model cast declared for the given attribute.
+     * Resolve the cast Eloquent applies to the given attribute, reading an
+     * uncast date attribute, such as a timestamp, as a datetime cast.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $fieldKey
@@ -217,6 +218,10 @@ final readonly class FieldTypeResolver
     {
         $cast = $model->getCasts()[$fieldKey] ?? null;
 
-        return is_string($cast) ? $cast : null;
+        return match (true) {
+            is_string($cast)                              => $cast,
+            in_array($fieldKey, $model->getDates(), true) => 'datetime',
+            default                                       => null,
+        };
     }
 }
