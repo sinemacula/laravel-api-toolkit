@@ -59,6 +59,7 @@ final class WorkerGrowthTest extends TestCase
     /** @var array<int, string> Static arrays keyed by code alone, which live for the worker */
     private const array CODE_KEYED = [
         ApiResource::class . '::$default',
+        ApiResource::class . '::$fixed',
         FieldColumnMapper::class . '::$cache',
         Payload::class . '::$bodyKeys',
         Payload::class . '::$summaryProperties',

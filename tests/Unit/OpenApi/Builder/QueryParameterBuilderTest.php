@@ -290,6 +290,24 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
+     * Test that the sparse-fieldset description names the type keys, the
+     * accepted values and what an unkeyed type returns.
+     *
+     * @return void
+     */
+    public function testFieldsDescriptionNamesTheTypeKeysValuesAndDefaultFields(): void
+    {
+        self::assertSame(
+            'Sparse fieldsets: keyed by a resource\'s _type, a comma-separated list of the properties to return, e.g. '
+            . 'fields[users]=id,name. A value names properties of that resource\'s schema, including aggregates for its '
+            . 'aggregates payload, or is :all for every field. Unknown types and names are rejected. Fixed fields are '
+            . 'returned whatever is asked. A type with no key returns its schema\'s x-default-fields, unless a parent '
+            . 'relation pins its fields.',
+            $this->makeBuilder()->build()['Fields']['description'],
+        );
+    }
+
+    /**
      * Test that every deep-object parameter uses the exploded deepObject style.
      *
      * @return void

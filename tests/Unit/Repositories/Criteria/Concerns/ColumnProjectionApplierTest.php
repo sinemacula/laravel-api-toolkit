@@ -233,6 +233,33 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
+     * Test that the declared fixed fields join the narrowed select, and an
+     * undeclared one such as `_type` reads no column.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testDeclaredFixedFieldsJoinTheNarrowedSelect(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request);
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('users');
+        $provider->method('resolveFields')->willReturn(['name']);
+        $provider->method('getAllFields')->willReturn(['id', 'name', 'email', 'status']);
+        $provider->method('getFixedFields')->willReturn(['id', '_type', 'status']);
+        $provider->method('eagerLoadMapFor')->willReturn([]);
+
+        $query  = (new User)->newQuery();
+        $result = $this->makeApplier()->apply($query, $provider, UserResource::class, []);
+
+        self::assertSame(['name', 'id', 'status'], $result->getQuery()->columns);
+    }
+
+    /**
      * Test that a field the introspected table lacks falls back, logging it.
      *
      * @return void

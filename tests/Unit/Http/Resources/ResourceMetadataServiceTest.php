@@ -63,6 +63,16 @@ final class ResourceMetadataServiceTest extends TestCase
     }
 
     /**
+     * Test that getFixedFields delegates to the resource class static method.
+     *
+     * @return void
+     */
+    public function testGetFixedFieldsDelegatesToResourceClass(): void
+    {
+        self::assertSame(['id', '_type'], $this->service->getFixedFields(UserResource::class));
+    }
+
+    /**
      * Test that getAllFields delegates to the resource class static method.
      *
      * @return void
