@@ -1498,6 +1498,10 @@ API_TOOLKIT_NOTIFICATIONS_LOG_CHANNEL=notifications
 - PHP ^8.3
 - Laravel 13.39+
 - MySQL 8.4+, where the search layer is used
+- PostgreSQL 15+
+
+MariaDB is untested: it reports its own driver name, so search needs a driver registered for it, and a prefix or
+ignored index counts as backing a sort.
 
 ## Testing
 
