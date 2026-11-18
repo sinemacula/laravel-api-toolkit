@@ -63,18 +63,24 @@ A Payload enum value is checked with the other rules and fails with Laravel's `v
 
 `ApiQueryParser` sits behind the `ApiQuery` facade and is populated by the `ParseApiQuery` middleware, which the
 service provider pushes onto the global middleware stack unless `api-toolkit.parser.register_middleware` is `false`.
+Parameters are read from the query string only; a request body is never parsed.
 
 **Sparse fieldsets** - request only the fields you need for a resource type:
 
 ```http
-GET /users?fields[user]=id,name,email
+GET /users?fields[users]=id,name,email
 ```
 
 ```php
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 
-$fields = ApiQuery::getFields('user'); // ['id', 'name', 'email']
+$fields = ApiQuery::getFields('users'); // ['id', 'name', 'email']
 ```
+
+A type is the lower-cased `RESOURCE_TYPE` of a resource that is mapped or lives under `resources.paths`. Names are
+checked against the type they are keyed by, whatever the endpoint: an unknown type or an undeclared name is rejected
+with a 422 on `fields.{type}` naming each. `?fields=name`, with no type, is rejected too, and `?fields[users]=` returns
+the fixed fields only.
 
 **Filtering** - pass a URL-encoded JSON object of operator tokens:
 
@@ -244,16 +250,19 @@ GET /users?limit=25    // honoured as-is
 every default of that type, as `?fields` replaces `$default`, and the response renders them under the `aggregates` field:
 
 ```http
-GET /users?fields[user]=name,aggregates&aggregates[user]=posts_count,orders_sum_total,last_order_at
+GET /users?fields[users]=name,aggregates&aggregates[users]=posts_count,orders_sum_total,last_order_at
 ```
 
 ```php
-ApiQuery::getAggregates('user');       // ['posts_count', 'orders_sum_total', 'last_order_at']
+ApiQuery::getAggregates('users');      // ['posts_count', 'orders_sum_total', 'last_order_at']
 ```
+
+An aggregate key the type does not declare is rejected with a 422 on `aggregates.{type}`, and `?aggregates[users]=`
+selects none.
 
 ```json
 {
-    "_type": "user",
+    "_type": "users",
     "name": "Ada",
     "aggregates": {"posts_count": 3, "orders_sum_total": 120.5, "last_order_at": "2026-01-01T10:00:00.000000Z"}
 }
@@ -373,7 +382,8 @@ choose the roots, or to an empty array to disable discovery. An explicit `api-to
 always wins over a discovered binding: use it to pick the canonical resource when a model has more than one, or to
 bind a resource outside the scanned paths. When two discovered resources claim the same model and no explicit entry
 resolves it, the first in sorted file order wins and a warning is logged; with `validate_schemas` enabled the boot
-fails instead.
+fails instead. Every resource under the paths is recorded, bound or not, so its type can be selected and schema
+validation covers it; a relation that renders a resource outside both the map and the paths is a schema defect.
 
 Without a compiled map the scan runs on every boot, which is fine for development. In production run
 `php artisan optimize` (or `php artisan api-toolkit:resources:cache`) on every deploy. It compiles the map to

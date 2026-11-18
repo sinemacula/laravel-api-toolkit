@@ -8,6 +8,7 @@ use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
 use Laravel\Octane\Contracts\OperationTerminated;
 use Laravel\Octane\Events\RequestTerminated;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,6 +16,7 @@ use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
@@ -56,6 +58,8 @@ final class OctaneBoundaryFlushTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [SchemaCountingUserResource::class, OrganizationResource::class]);
 
         $this->octaneWasSet = isset($_SERVER['LARAVEL_OCTANE']);
     }

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use Tests\Fixtures\Models\Article;
@@ -61,6 +62,7 @@ final class CacheableEagerLoadConstraintTest extends TestCase
 
         Config::set('cache.default', 'array');
         Config::set('api-toolkit.resources.resource_map', [Article::class => ArticleResource::class]);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [ViewerOrganizationResource::class]);
 
         Route::middleware(ParseApiQuery::class)->get('/organizations', function (CacheableOrganizationRepository $repository): ApiResourceCollection {
 
