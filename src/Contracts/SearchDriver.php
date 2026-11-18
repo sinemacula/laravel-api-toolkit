@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\Contracts;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
@@ -82,4 +83,20 @@ interface SearchDriver
      * @return void
      */
     public function apply(Builder $query, array $columns, SearchTerm $term, SearchStrategy $strategy): void;
+
+    /**
+     * Order the query's rows by how closely they match the term, best first.
+     *
+     * Appends after the orders already on the query, never removes one or
+     * changes which rows match, and may add nothing. It ranks the columns the
+     * way apply() matches them.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  \SineMacula\ApiToolkit\Search\SearchPlan  $plan
+     * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
+     * @return void
+     */
+    public function rank(Builder $query, SearchPlan $plan, SearchTerm $term): void;
 }

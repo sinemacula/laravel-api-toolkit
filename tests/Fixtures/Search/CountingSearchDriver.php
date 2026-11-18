@@ -8,6 +8,7 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
@@ -24,6 +25,9 @@ final class CountingSearchDriver implements SearchDriver
 {
     /** @var int The number of times the index proof was asked for */
     public int $calls = 0;
+
+    /** @var int The number of times a ranking was asked for */
+    public int $ranks = 0;
 
     /** @var array<string, array<int, string>> The defects the next proof reports, keyed by column */
     public array $defects = [];
@@ -103,4 +107,18 @@ final class CountingSearchDriver implements SearchDriver
      */
     #[\Override]
     public function apply(Builder $query, array $columns, SearchTerm $term, SearchStrategy $strategy): void {}
+
+    /**
+     * Count the ranking asked for, adding no order.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  \SineMacula\ApiToolkit\Search\SearchPlan  $plan
+     * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
+     * @return void
+     */
+    #[\Override]
+    public function rank(Builder $query, SearchPlan $plan, SearchTerm $term): void
+    {
+        $this->ranks++;
+    }
 }

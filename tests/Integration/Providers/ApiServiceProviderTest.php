@@ -19,6 +19,7 @@ use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Queue\Events\JobAttempted;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobTimedOut;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Event;
@@ -60,16 +61,24 @@ use SineMacula\ApiToolkit\Validation\Rejection;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Concerns\LocalisesToolkitMessages;
+use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Invalid\AbstractAttributedResource;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\CatalogueRow;
+use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\BrokenResource;
 use Tests\Fixtures\Resources\CatalogueRowResource;
+use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -89,7 +98,7 @@ use Tests\TestCase;
 #[CoversClass(MorphMapRegistrar::class)]
 final class ApiServiceProviderTest extends TestCase
 {
-    use InteractsWithNonPublicMembers, LocalisesToolkitMessages;
+    use InteractsWithNonPublicMembers, LocalisesToolkitMessages, RecordsStatements;
 
     /**
      * Test that the package config is merged.
@@ -643,6 +652,70 @@ final class ApiServiceProviderTest extends TestCase
 
         // Smoke test only: boot completes with schema validation disabled
         self::assertFalse((bool) $this->getConfig()->get('api-toolkit.resources.validate_schemas'));
+    }
+
+    /**
+     * Provide resource maps with the number of them that declare a sort.
+     *
+     * @return iterable<string, array{0: array<class-string, class-string>, 1: int}>
+     */
+    public static function sortableResourceMapProvider(): iterable
+    {
+        yield 'one sortable' => [[User::class => UserResource::class], 1];
+        yield 'one sortable beside three unsortable' => [[
+            User::class         => UserResource::class,
+            Post::class         => PostResource::class,
+            Tag::class          => TagResource::class,
+            Organization::class => OrganizationResource::class,
+        ], 1];
+        yield 'two sortable' => [[User::class => UserResource::class, Article::class => ArticleResource::class], 2];
+    }
+
+    /**
+     * Test that a warm boot validates against cached metadata, reading only the
+     * index eligibility of each resource that declares a sort.
+     *
+     * @param  array<class-string, class-string>  $resourceMap
+     * @param  int  $sortable
+     * @return void
+     */
+    #[DataProvider('sortableResourceMapProvider')]
+    public function testWarmBootValidationReadsOnlyTheEligibilityOfEachSortableResource(array $resourceMap, int $sortable): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', true);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', $resourceMap);
+
+        $this->bootWithArgv(null);
+        $this->getApplication()->make(CacheManager::class)->flush();
+
+        $statements = $this->recordStatements(fn () => $this->bootWithArgv(null));
+
+        self::assertStatementCount($sortable, $statements);
+
+        foreach ($statements as $statement) {
+            self::assertMatchesRegularExpression('/pragma_index_list|information_schema\.statistics|pg_index/', $statement);
+        }
+    }
+
+    /**
+     * Test that a boot without validation runs no statements, even cold and
+     * with a compiled discovery map to merge.
+     *
+     * @return void
+     */
+    public function testBootWithoutValidationRunsNoStatements(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.validate_schemas', false);
+        $this->getConfig()->set('api-toolkit.resources.paths', [dirname(__DIR__, 2) . '/Fixtures/Discovery/Primary']);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+
+        $this->useIsolatedBootstrapPath();
+        $this->writeCompiledMap([Tag::class => TagResource::class]);
+
+        $statements = $this->recordStatements(fn () => $this->bootWithArgv(null));
+
+        self::assertStatementCount(0, $statements);
+        self::assertSame([User::class => UserResource::class, Tag::class => TagResource::class], $this->getConfig()->get('api-toolkit.resources.resource_map'));
     }
 
     /**
@@ -1412,6 +1485,8 @@ final class ApiServiceProviderTest extends TestCase
     {
         self::assertTrue($this->hasSubscriberListener(RequestHandled::class, WritePoolFlushSubscriber::class));
         self::assertTrue($this->hasSubscriberListener(CommandFinished::class, WritePoolFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(JobAttempted::class, WritePoolFlushSubscriber::class));
+        self::assertTrue($this->hasSubscriberListener(JobTimedOut::class, WritePoolFlushSubscriber::class));
     }
 
     /**

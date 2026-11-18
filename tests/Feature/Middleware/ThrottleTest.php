@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\CoversTrait;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Http\Middleware\Concerns\ThrottleRequestsTrait;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
+use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\TestCase;
 
@@ -26,7 +27,7 @@ use Tests\TestCase;
 #[CoversTrait(ThrottleRequestsTrait::class)]
 final class ThrottleTest extends TestCase
 {
-    use RegistersApiExceptionHandler;
+    use RecordsStatements, RegistersApiExceptionHandler;
 
     /**
      * Set up each test with a route limited to a single request.
@@ -59,6 +60,20 @@ final class ThrottleTest extends TestCase
         $response->assertJsonPath('error.status', 429);
         $response->assertJsonPath('error.code', 10107);
         $response->assertHeader('Retry-After');
+    }
+
+    /**
+     * Test that a throttled request is refused without touching the database.
+     *
+     * @return void
+     */
+    public function testThrottledRequestRunsNoStatements(): void
+    {
+        $this->getJson('/ping')->assertOk();
+
+        $statements = $this->recordStatements(fn () => $this->getJson('/ping')->assertStatus(429));
+
+        self::assertStatementCount(0, $statements);
     }
 
     /**

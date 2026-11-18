@@ -197,6 +197,29 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
+     * Test that a sortable column named after the relevance key is reported,
+     * while filtering by it is not.
+     *
+     * @return void
+     */
+    public function testReportsASortableColumnTheRelevanceKeyReserves(): void
+    {
+        $schema = new CompiledSchema(
+            fields: ['relevance' => $this->makeField(filterable: 'relevance', sortable: 'relevance')],
+        );
+
+        $errors = self::defects($this->rule(['id', 'relevance'])->validate(UserResource::class, User::class, $schema));
+
+        self::assertCount(1, $errors);
+        self::assertSame('relevance', $errors[0]->fieldKey);
+        self::assertSame(
+            'Field is declared sortable against "relevance", which the order parameter reserves for search relevance, '
+            . 'so the column cannot be ordered by',
+            $errors[0]->defect,
+        );
+    }
+
+    /**
      * Test that a filterable field on a missing column is reported.
      *
      * @return void

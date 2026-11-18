@@ -6,8 +6,10 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use SineMacula\ApiToolkit\Contracts\DeclaresValueShape;
 use SineMacula\ApiToolkit\Contracts\ExpandsValueList;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
+use SineMacula\ApiToolkit\Enums\FilterValueShape;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
@@ -18,7 +20,7 @@ use SineMacula\ApiToolkit\Validation\Rejection;
  *
  * The entries of a document AND together, and every key at every depth is
  * routed the same way. An entry that adds no condition is refused, as dropping
- * it would widen the result set.
+ * it would widen the result set, and so is a value its operator cannot take.
  *
  * @SuppressWarnings("php:S1448")
  *
@@ -50,6 +52,17 @@ final class FilterApplier
 
     /** @var \SineMacula\ApiToolkit\Query\QueryCostLimits */
     private QueryCostLimits $limits;
+
+    /**
+     * Create a new filter applier.
+     *
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard  $guard
+     */
+    public function __construct(
+
+        /** Checks each value against its operator's shape and its column's type */
+        private readonly FilterValueGuard $guard,
+    ) {}
 
     /**
      * Apply filters to the query.
@@ -192,7 +205,7 @@ final class FilterApplier
     private function applyColumn(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
         if (!is_array($value)) {
-            $this->applyEquality($query, $column, $value);
+            $this->applyEquality($query, $column, $value, $context);
             return;
         }
 
@@ -228,15 +241,20 @@ final class FilterApplier
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $column
      * @param  mixed  $value
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    private function applyEquality(Builder $query, string $column, mixed $value): void
+    private function applyEquality(Builder $query, string $column, mixed $value, FilterContext $context): void
     {
-        $this->querySurface->guardFilterOperator($column, self::OPERATOR_EQUAL, $query->getModel());
+        $model = $query->getModel();
 
-        $query->where($column, '=', PureEnumFilterValue::resolve($query->getModel(), $column, $value));
+        $this->querySurface->guardFilterOperator($column, self::OPERATOR_EQUAL, $model);
+
+        $value = $this->guard->resolve($model, $column, self::OPERATOR_EQUAL, FilterValueShape::SCALAR, $value, $context->path());
+
+        $query->where($column, '=', PureEnumFilterValue::resolve($model, $column, $value));
     }
 
     /**
@@ -266,11 +284,17 @@ final class FilterApplier
             throw Rejection::at($position, 'filters.not_condition', ['position' => $position]);
         }
 
-        $this->querySurface->guardFilterOperator($column, $token, $query->getModel());
+        $model = $query->getModel();
+
+        $this->querySurface->guardFilterOperator($column, $token, $model);
 
         $this->limits->enforce(QueryCostLimits::MAX_IN_ITEMS, $this->countValueItems($handler, $operand), 'filters', $context->pointerTo($token));
 
-        $handler->apply($query, $column, PureEnumFilterValue::resolve($query->getModel(), $column, $operand));
+        if ($handler instanceof DeclaresValueShape) {
+            $operand = $this->guard->resolve($model, $column, $token, $handler->valueShape(), $operand, $context->at($token)->path());
+        }
+
+        $handler->apply($query, $column, PureEnumFilterValue::resolve($model, $column, $operand));
     }
 
     /**

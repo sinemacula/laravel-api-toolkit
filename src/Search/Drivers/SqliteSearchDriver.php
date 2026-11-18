@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Search\ColumnCondition;
+use SineMacula\ApiToolkit\Search\RelevanceOrder;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
@@ -100,5 +102,21 @@ final class SqliteSearchDriver implements SearchDriver
             $query->orWhere(ColumnCondition::escapedPattern($qualified));
             $query->getQuery()->addBinding($term->pattern($strategy), 'where');
         }
+    }
+
+    /**
+     * Order the query's rows by how closely they match the term, best first.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  \SineMacula\ApiToolkit\Search\SearchPlan  $plan
+     * @param  \SineMacula\ApiToolkit\Search\SearchTerm  $term
+     * @return void
+     */
+    #[\Override]
+    public function rank(Builder $query, SearchPlan $plan, SearchTerm $term): void
+    {
+        (new RelevanceOrder)->apply($query, $plan, $term, 'like');
     }
 }

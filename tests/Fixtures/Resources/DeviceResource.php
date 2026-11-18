@@ -6,7 +6,9 @@ namespace Tests\Fixtures\Resources;
 
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\DerivesTabularSchema;
 use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\Exporter\Contracts\ProvidesTabularExport;
 
 /**
  * Fixture device resource.
@@ -14,8 +16,10 @@ use SineMacula\ApiToolkit\Schema\Field;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class DeviceResource extends ApiResource
+final class DeviceResource extends ApiResource implements ProvidesTabularExport
 {
+    use DerivesTabularSchema;
+
     /** @var string */
     public const string RESOURCE_TYPE = 'devices';
 

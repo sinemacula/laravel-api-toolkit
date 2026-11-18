@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace Tests\Integration\Exports;
 
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
@@ -16,6 +15,7 @@ use SineMacula\ApiToolkit\Http\Resources\ToolkitCollection;
 use SineMacula\ApiToolkit\Http\Resources\ToolkitResource;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Exporter\ExporterServiceProvider;
+use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\ExportableUserResource;
@@ -36,6 +36,8 @@ use Tests\TestCase;
 #[Group('exporter')]
 final class ExportEagerLoadRegressionTest extends TestCase
 {
+    use RecordsStatements;
+
     /**
      * Set up each test with seeded data and export routes.
      *
@@ -72,30 +74,18 @@ final class ExportEagerLoadRegressionTest extends TestCase
      */
     public function testCollectionExportDoesNotRequeryEagerLoadedRelations(): void
     {
-        // The callback is deferred, so the query log is reset between phases
+        // Only the stream is recorded, since it runs after the response
         $response = $this->get('/eager-export/users', ['Accept' => 'text/csv']);
 
         $response->assertOk();
 
-        DB::enableQueryLog();
-        DB::flushQueryLog();
+        $content = '';
 
-        $content = $response->streamedContent();
+        $statements = $this->recordStatements(static function () use ($response, &$content): void {
+            $content = $response->streamedContent();
+        });
 
-        $queries = DB::getQueryLog();
-
-        DB::disableQueryLog();
-
-        $queryCount   = count($queries);
-        $querySummary = implode('; ', array_column($queries, 'query'));
-
-        self::assertSame(
-            0,
-            $queryCount,
-            'Expected 0 queries during CSV collection export but observed '
-            . "{$queryCount}: {$querySummary}",
-        );
-
+        self::assertStatementCount(0, $statements);
         self::assertStringContainsString('Alice', $content);
         self::assertStringContainsString('Bob', $content);
     }
@@ -115,25 +105,13 @@ final class ExportEagerLoadRegressionTest extends TestCase
 
         $response->assertOk();
 
-        DB::enableQueryLog();
-        DB::flushQueryLog();
+        $content = '';
 
-        $content = $response->streamedContent();
+        $statements = $this->recordStatements(static function () use ($response, &$content): void {
+            $content = $response->streamedContent();
+        });
 
-        $queries = DB::getQueryLog();
-
-        DB::disableQueryLog();
-
-        $queryCount   = count($queries);
-        $querySummary = implode('; ', array_column($queries, 'query'));
-
-        self::assertSame(
-            0,
-            $queryCount,
-            'Expected 0 queries during CSV item export but observed '
-            . "{$queryCount}: {$querySummary}",
-        );
-
+        self::assertStatementCount(0, $statements);
         self::assertStringContainsString('Alice', $content);
     }
 

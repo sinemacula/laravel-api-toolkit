@@ -7,16 +7,12 @@ namespace Tests\Integration\OpenApi;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Foundation\Application;
 use Illuminate\Routing\Router;
-use Opis\JsonSchema\Errors\ErrorFormatter;
-use Opis\JsonSchema\Helper;
-use Opis\JsonSchema\Resolvers\SchemaResolver;
-use Opis\JsonSchema\ValidationResult;
-use Opis\JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Concerns\ValidatesOpenApiDocuments;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -41,11 +37,7 @@ use Tests\TestCase;
 #[CoversClass(OpenApiAssembler::class)]
 final class OpenApiSecurityExportTest extends TestCase
 {
-    /** @var string The identifier under which the OpenAPI 3.1 meta-schema is registered. */
-    private const string META_SCHEMA_ID = 'https://spec.openapis.org/oas/3.1/schema/2022-10-07';
-
-    /** @var string The identifier of the JSON Schema 2020-12 dialect document. */
-    private const string DIALECT_ID = 'https://json-schema.org/draft/2020-12/schema';
+    use ValidatesOpenApiDocuments;
 
     /**
      * Set up each test.
@@ -87,7 +79,7 @@ final class OpenApiSecurityExportTest extends TestCase
             $document['components']['securitySchemes']['bearerAuth'],
         );
 
-        $this->assertValid($document);
+        $this->assertValidDocument($document);
     }
 
     /**
@@ -113,7 +105,7 @@ final class OpenApiSecurityExportTest extends TestCase
             $document['components']['securitySchemes']['bearerAuth'],
         );
 
-        $this->assertValid($document);
+        $this->assertValidDocument($document);
     }
 
     /**
@@ -138,7 +130,7 @@ final class OpenApiSecurityExportTest extends TestCase
             $document['components']['securitySchemes']['cookieAuth'],
         );
 
-        $this->assertValid($document);
+        $this->assertValidDocument($document);
     }
 
     /**
@@ -168,7 +160,7 @@ final class OpenApiSecurityExportTest extends TestCase
             $document['components']['securitySchemes']['oauthBearer'],
         );
 
-        $this->assertValid($document);
+        $this->assertValidDocument($document);
     }
 
     /**
@@ -193,7 +185,7 @@ final class OpenApiSecurityExportTest extends TestCase
         self::assertSame(['type' => 'http', 'scheme' => 'bearer'], $schemes['bearerAuth']);
         self::assertSame(['type' => 'apiKey', 'in' => 'cookie', 'name' => $this->defaultCookie()], $schemes['cookieAuth']);
 
-        $this->assertValid($document);
+        $this->assertValidDocument($document);
     }
 
     /**
@@ -216,7 +208,7 @@ final class OpenApiSecurityExportTest extends TestCase
         self::assertIsArray($document['components']['securitySchemes']);
         self::assertSame(['bearerAuth'], array_keys($document['components']['securitySchemes']));
 
-        $this->assertValid($document);
+        $this->assertValidDocument($document);
     }
 
     /**
@@ -233,7 +225,7 @@ final class OpenApiSecurityExportTest extends TestCase
         self::assertIsArray($document['components']);
         self::assertArrayNotHasKey('securitySchemes', $document['components']);
 
-        $this->assertValid($document);
+        $this->assertValidDocument($document);
     }
 
     /**
@@ -278,22 +270,6 @@ final class OpenApiSecurityExportTest extends TestCase
     }
 
     /**
-     * Assert that a document validates against the OpenAPI 3.1 meta-schema.
-     *
-     * @param  array<string, mixed>  $document
-     * @return void
-     */
-    private function assertValid(array $document): void
-    {
-        $result = $this->validateAgainstMetaSchema($document);
-
-        self::assertTrue(
-            $result->isValid(),
-            'Emitted document is not valid OpenAPI 3.1: ' . $this->formatErrors($result),
-        );
-    }
-
-    /**
      * Run the export use case against the container-resolved graph.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\ExportResult
@@ -304,122 +280,6 @@ final class OpenApiSecurityExportTest extends TestCase
         $exporter = $this->makeApplication()->make(ExportOpenApiComponents::class);
 
         return $exporter->export();
-    }
-
-    /**
-     * Validate a document against the opis-adapted OpenAPI 3.1 meta-schema.
-     *
-     * @param  array<string, mixed>  $document
-     * @return \Opis\JsonSchema\ValidationResult
-     */
-    private function validateAgainstMetaSchema(array $document): ValidationResult
-    {
-        return $this->validator()->validate(Helper::toJSON($document), self::META_SCHEMA_ID);
-    }
-
-    /**
-     * Build a validator with the dialect and meta-schema registered.
-     *
-     * @return \Opis\JsonSchema\Validator
-     */
-    private function validator(): Validator
-    {
-        $validator = new Validator;
-        $resolver  = $validator->resolver();
-
-        assert($resolver instanceof SchemaResolver);
-
-        $resolver->registerRaw($this->dialectSchema(), self::DIALECT_ID);
-        $resolver->registerRaw($this->metaSchema(), self::META_SCHEMA_ID);
-
-        return $validator;
-    }
-
-    /**
-     * Load the OpenAPI 3.1 meta-schema with the opis compatibility transform.
-     *
-     * @return string
-     */
-    private function metaSchema(): string
-    {
-        /** @var array<string, mixed> $schema */
-        $schema = json_decode($this->fixture('openapi-3.1-schema.json'), true, 512, JSON_THROW_ON_ERROR);
-
-        $this->adaptForOpis($schema);
-
-        return json_encode($schema, JSON_THROW_ON_ERROR);
-    }
-
-    /**
-     * Load the JSON Schema 2020-12 dialect document.
-     *
-     * @return string
-     */
-    private function dialectSchema(): string
-    {
-        return $this->fixture('json-schema-2020-12.json');
-    }
-
-    /**
-     * Apply the two opis/json-schema compatibility transforms in place.
-     *
-     * Rewrites `$dynamicRef: "#meta"` to `$ref: "#/$defs/schema"` and relaxes
-     * `unevaluatedProperties: false` to `true`, working around opis gaps
-     * without weakening any validity constraint; see the fixtures README.
-     *
-     * @param  array<array-key, mixed>  $node
-     * @return void
-     */
-    private function adaptForOpis(array &$node): void
-    {
-        if (($node['$dynamicRef'] ?? null) === '#meta') {
-            unset($node['$dynamicRef']);
-            $node['$ref'] = '#/$defs/schema';
-        }
-
-        if (($node['unevaluatedProperties'] ?? null) === false) {
-            $node['unevaluatedProperties'] = true;
-        }
-
-        foreach ($node as &$value) {
-            if (!is_array($value)) {
-                continue;
-            }
-
-            $this->adaptForOpis($value);
-        }
-    }
-
-    /**
-     * Read a bundled fixture file by name.
-     *
-     * @param  string  $name
-     * @return string
-     */
-    private function fixture(string $name): string
-    {
-        $contents = file_get_contents(__DIR__ . '/../../Fixtures/OpenApi/' . $name);
-
-        assert(is_string($contents));
-
-        return $contents;
-    }
-
-    /**
-     * Format a validation result's errors for a failure message.
-     *
-     * @param  \Opis\JsonSchema\ValidationResult  $result
-     * @return string
-     */
-    private function formatErrors(ValidationResult $result): string
-    {
-        $error = $result->error();
-
-        if ($error === null) {
-            return '(no error)';
-        }
-
-        return json_encode((new ErrorFormatter)->format($error), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
     }
 
     /**

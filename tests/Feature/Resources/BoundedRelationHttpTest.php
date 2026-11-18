@@ -4,10 +4,8 @@ declare(strict_types = 1);
 
 namespace Tests\Feature\Resources;
 
-use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
@@ -17,9 +15,11 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\RelationWindow;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Schema\RelationLimit;
+use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Comment;
+use Tests\Fixtures\Models\Country;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -45,7 +45,7 @@ use Tests\TestCase;
 #[CoversClass(ValueResolver::class)]
 final class BoundedRelationHttpTest extends TestCase
 {
-    use RegistersApiExceptionHandler;
+    use RecordsStatements, RegistersApiExceptionHandler;
 
     /**
      * Set up the users index, user show and organizations routes.
@@ -96,14 +96,13 @@ final class BoundedRelationHttpTest extends TestCase
     {
         [$empty, $five, $six] = $this->seedUsers([0, 5, 6]);
 
-        $queries = $this->recordQueries();
+        $data = null;
 
-        $response = $this->getJson('/users?fields[bounded_users]=name,posts&fields[bounded_posts]=title');
-        $executed = $queries();
+        $statements = $this->recordStatements(function () use (&$data): void {
+            $data = $this->getJson('/users?fields[bounded_users]=name,posts&fields[bounded_posts]=title')->assertOk()->json('data');
+        });
 
-        $response->assertOk();
-
-        $users = array_column(self::rows($response->json('data')), null, 'id');
+        $users = array_column(self::rows($data), null, 'id');
 
         self::assertSame([], $users[$empty]['posts']);
         self::assertArrayNotHasKey('_truncated', $users[$empty]);
@@ -112,7 +111,7 @@ final class BoundedRelationHttpTest extends TestCase
         self::assertSame($this->postTitles($six, 5), array_column(self::rows($users[$six]['posts']), 'title'));
         self::assertSame(['posts'], $users[$six]['_truncated']);
 
-        $postQueries = array_values(array_filter($executed, static fn (string $sql): bool => str_contains($sql, 'posts')));
+        $postQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'posts')));
 
         self::assertCount(1, $postQueries);
         self::assertStringContainsString('laravel_row', $postQueries[0]);
@@ -128,17 +127,18 @@ final class BoundedRelationHttpTest extends TestCase
     {
         [$user] = $this->seedUsers([7]);
 
-        $queries = $this->recordQueries();
+        $data = null;
 
-        $response = $this->getJson('/users/' . $user . '?fields[bounded_users]=name,posts&fields[bounded_posts]=title');
-        $executed = $queries();
+        $statements = $this->recordStatements(function () use (&$data, $user): void {
+            $data = $this->getJson('/users/' . $user . '?fields[bounded_users]=name,posts&fields[bounded_posts]=title')->assertOk()->json('data');
+        });
 
-        $response->assertOk();
-        $response->assertJsonPath('data._truncated', ['posts']);
+        $record = self::record($data);
 
-        self::assertSame($this->postTitles($user, 5), array_column(self::rows($response->json('data.posts')), 'title'));
+        self::assertSame(['posts'], $record['_truncated']);
+        self::assertSame($this->postTitles($user, 5), array_column(self::rows($record['posts']), 'title'));
 
-        $postQueries = array_values(array_filter($executed, static fn (string $sql): bool => str_contains($sql, 'posts')));
+        $postQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'posts')));
 
         self::assertCount(1, $postQueries);
         self::assertStringContainsString('laravel_row', $postQueries[0]);
@@ -192,6 +192,44 @@ final class BoundedRelationHttpTest extends TestCase
             self::assertSame(['red', 'green'], array_column(self::rows($post['tags']), 'name'));
             self::assertSame(['tags'], $post['_truncated']);
         }
+    }
+
+    /**
+     * Test that a relation to a string-keyed model is bounded per parent in the
+     * related keys' lexical order.
+     *
+     * @return void
+     */
+    public function testStringKeyedRelationIsBoundedInKeyOrder(): void
+    {
+        [$user] = $this->seedUsers([2]);
+
+        foreach (['GB' => 'United Kingdom', 'FR' => 'France', 'DE' => 'Germany'] as $code => $name) {
+            Country::create(['code' => $code, 'name' => $name]);
+        }
+
+        Post::query()->where('user_id', $user)->get()->each(static function (Post $post): void {
+            $post->countries()->attach(['GB', 'FR', 'DE']);
+        });
+
+        $data = null;
+
+        $statements = $this->recordStatements(function () use (&$data): void {
+            $data = $this->getJson('/users?fields[bounded_users]=name,posts&fields[bounded_posts]=title,countries&fields[countries]=code')
+                ->assertOk()
+                ->assertJsonCount(2, 'data.0.posts')
+                ->json('data.0.posts');
+        });
+
+        foreach (self::rows($data) as $post) {
+            self::assertSame(['DE', 'FR'], array_column(self::rows($post['countries']), 'code'));
+            self::assertSame(['countries'], $post['_truncated']);
+        }
+
+        $countryQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'countries')));
+
+        self::assertCount(1, $countryQueries);
+        self::assertStringContainsString('laravel_row', $countryQueries[0]);
     }
 
     /**
@@ -389,23 +427,5 @@ final class BoundedRelationHttpTest extends TestCase
 
         /** @var array<string, mixed> */
         return $value;
-    }
-
-    /**
-     * Record the SQL of every query run from here on.
-     *
-     * @return \Closure(): array<int, string>
-     */
-    private function recordQueries(): \Closure
-    {
-        $queries = [];
-
-        DB::listen(static function (QueryExecuted $query) use (&$queries): void {
-            $queries[] = $query->sql;
-        });
-
-        return static function () use (&$queries): array {
-            return $queries;
-        };
     }
 }

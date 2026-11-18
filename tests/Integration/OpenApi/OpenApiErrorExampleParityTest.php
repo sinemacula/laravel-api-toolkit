@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\OpenApi;
 
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Routing\Router;
@@ -14,9 +15,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
+use SineMacula\ApiToolkit\Exceptions\GoneException;
+use SineMacula\ApiToolkit\Exceptions\InvalidExceptionMapException;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\OpenApi\ErrorParityController;
 use Tests\Fixtures\OpenApi\ParityRequestBodyController;
@@ -125,6 +129,44 @@ final class OpenApiErrorExampleParityTest extends TestCase
         $response->assertJsonPath('error.code', 20002);
 
         $this->assertAnswersAsDocumented($response, 'GET', '/limited', 429, self::THROTTLE_HEADERS);
+    }
+
+    /**
+     * Test that mapping the exception Laravel converts a missing model into is
+     * followed by both the response and the document.
+     *
+     * @return void
+     */
+    public function testConvertedTypeMappingIsFollowedByResponseAndDocument(): void
+    {
+        config()->set('api-toolkit.exceptions.map', [NotFoundHttpException::class => GoneException::class]);
+
+        $response = $this->sendFailing('GET', '/users/999');
+
+        $response->assertJsonPath('error.code', 10109);
+
+        $this->assertAnswersAsDocumented($response, 'GET', '/users/{user}', 410, []);
+    }
+
+    /**
+     * Test that mapping the missing model itself, which Laravel converts before
+     * rendering, is rejected rather than silently ignored.
+     *
+     * @return void
+     */
+    public function testMappingTheTypeLaravelConvertsIsRejected(): void
+    {
+        config()->set('api-toolkit.exceptions.map', [ModelNotFoundException::class => GoneException::class]);
+
+        $this->expectException(InvalidExceptionMapException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The api-toolkit.exceptions.map key [%s] never matches: Laravel converts it before rendering, so map the exception it becomes.',
+            ModelNotFoundException::class,
+        ));
+
+        assert($this->app !== null);
+
+        $this->app->make(ExportOpenApiComponents::class)->export();
     }
 
     /**

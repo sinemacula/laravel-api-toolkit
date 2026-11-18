@@ -7,6 +7,7 @@ namespace Tests\Integration\Search;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
 
 /**
@@ -18,6 +19,7 @@ use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
  * @internal
  */
 #[CoversClass(MySqlNgramSearchDriver::class)]
+#[Group('mysql')]
 final class MySqlNgramSearchTest extends EngineSearchTestCase
 {
     /**
