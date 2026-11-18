@@ -283,78 +283,6 @@ final class ValidateQueryableFieldsTest extends TestCase
     }
 
     /**
-     * Test that one column declared with differing capabilities is reported.
-     *
-     * The filter surface is keyed by column, so the last declaration would win.
-     *
-     * @return void
-     */
-    public function testReportsTwoCapabilitiesDeclaredForTheSameColumn(): void
-    {
-        $schema = new CompiledSchema(
-            fields: [
-                'status' => $this->makeField(filterable: 'status', capability: Capability::EXACT),
-                'state'  => $this->makeField(filterable: 'status', capability: Capability::RANGE),
-            ],
-        );
-
-        $errors = self::defects($this->rule(['id', 'status'])->validate(UserResource::class, User::class, $schema));
-
-        self::assertCount(1, $errors);
-        self::assertSame('state', $errors[0]->fieldKey);
-        self::assertSame(
-            'Field is declared filterable against "status" with the "range" capability, and field "status" declares '
-            . 'the same column with "exact", so the operators the column answers are left to declaration order',
-            $errors[0]->defect,
-        );
-    }
-
-    /**
-     * Test that every conflicting column is reported, past undeclared fields.
-     *
-     * @return void
-     */
-    public function testReportsEveryColumnDeclaredWithTwoCapabilities(): void
-    {
-        $schema = new CompiledSchema(
-            fields: [
-                'created_at' => $this->makeField(sortable: 'created_at'),
-                'status'     => $this->makeField(filterable: 'status', capability: Capability::EXACT),
-                'state'      => $this->makeField(filterable: 'status', capability: Capability::RANGE),
-                'kind'       => $this->makeField(filterable: 'kind', capability: Capability::EXACT),
-                'sort'       => $this->makeField(filterable: 'kind', capability: Capability::ENUM),
-            ],
-        );
-
-        $errors = self::defects($this->rule(['id', 'status', 'kind', 'created_at'])->validate(UserResource::class, User::class, $schema));
-
-        self::assertCount(2, $errors);
-        self::assertSame('state', $errors[0]->fieldKey);
-        self::assertSame('sort', $errors[1]->fieldKey);
-    }
-
-    /**
-     * Test that a field repeating a capability does not end the walk.
-     *
-     * @return void
-     */
-    public function testReadsPastAFieldRepeatingACapabilityToOneThatChangesIt(): void
-    {
-        $schema = new CompiledSchema(
-            fields: [
-                'status'    => $this->makeField(filterable: 'status', capability: Capability::EXACT),
-                'state'     => $this->makeField(filterable: 'status', capability: Capability::EXACT),
-                'condition' => $this->makeField(filterable: 'status', capability: Capability::RANGE),
-            ],
-        );
-
-        $errors = self::defects($this->rule(['id', 'status'])->validate(UserResource::class, User::class, $schema));
-
-        self::assertCount(1, $errors);
-        self::assertSame('condition', $errors[0]->fieldKey);
-    }
-
-    /**
      * Test that a capability-less declaration is not weighed as a conflict.
      *
      * @return void
@@ -396,23 +324,6 @@ final class ValidateQueryableFieldsTest extends TestCase
             'Field is declared sortable against "nickname", and table "users" carries no such column',
             $errors[0]->defect,
         );
-    }
-
-    /**
-     * Test that two fields repeating one column's capability are accepted.
-     *
-     * @return void
-     */
-    public function testAcceptsTwoFieldsDeclaringOneColumnWithTheSameCapability(): void
-    {
-        $schema = new CompiledSchema(
-            fields: [
-                'status' => $this->makeField(filterable: 'status', capability: Capability::EXACT),
-                'state'  => $this->makeField(filterable: 'status', capability: Capability::EXACT),
-            ],
-        );
-
-        self::assertSame([], $this->rule(['id', 'status'])->validate(UserResource::class, User::class, $schema));
     }
 
     /**

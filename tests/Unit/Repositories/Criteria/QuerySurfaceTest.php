@@ -4,17 +4,24 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria;
 
+use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
+use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\FilterableUserResource;
+use Tests\Fixtures\Resources\GuardedQueryablePostResource;
+use Tests\Fixtures\Resources\GuardedQueryableUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\PublicUserResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -166,7 +173,7 @@ final class QuerySurfaceTest extends TestCase
      */
     public function testUngovernedSurfaceRejectsEveryKey(): void
     {
-        $surface = new QuerySurface(null, $this->traversal([Post::class => PostResource::class]));
+        $surface = new QuerySurface(null, $this->traversal([Post::class => PostResource::class]), $this->admission());
 
         $this->assertRejects(fn () => $surface->guardFilter('title'), 'filters.title');
         $this->assertRejects(fn () => $surface->guardFilterOperator('title', '$eq'), 'filters.title');
@@ -270,6 +277,94 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
+     * Test that every key only caller-guarded fields declare is refused to a
+     * caller they hide the fields from, exactly as an undeclared key is.
+     *
+     * @return void
+     */
+    public function testRefusesCallerGuardedKeysAsUndeclaredToAHiddenCaller(): void
+    {
+        $surface = $this->governedBy(GuardedQueryableUserResource::class);
+
+        $this->assertRejectsWith(fn () => $surface->guardFilter('email'), $this->undeclared('filters', 'email'));
+        $this->assertRejectsWith(fn () => $surface->guardFilterOperator('email', '$eq'), $this->undeclared('filters', 'email'));
+        $this->assertRejectsWith(fn () => $surface->guardSort('email'), $this->undeclared('order', 'email'));
+        $this->assertRejectsWith(fn () => $surface->guardRelation('posts'), $this->undeclared('filters', 'posts'));
+
+        self::assertFalse($surface->isDeclaredRelation('posts'));
+
+        $this->assertPermits(fn () => $surface->guardFilterOperator('name', '$eq'), 'name');
+        $this->assertPermits(fn () => $surface->guardSort('name'), 'name');
+    }
+
+    /**
+     * Test that a caller the guards pass is admitted to every key they gate.
+     *
+     * @return void
+     */
+    public function testAdmitsCallerGuardedKeysForAPassingCaller(): void
+    {
+        $surface = $this->governedBy(GuardedQueryableUserResource::class, asAdmin: true);
+
+        $this->assertPermits(fn () => $surface->guardFilter('email'), 'email');
+        $this->assertPermits(fn () => $surface->guardFilterOperator('email', '$eq'), 'email');
+        $this->assertPermits(fn () => $surface->guardSort('email'), 'email');
+        $this->assertPermits(fn () => $surface->guardRelation('posts'), 'posts');
+
+        self::assertTrue($surface->isDeclaredRelation('posts'));
+    }
+
+    /**
+     * Test that a related level is gated by the related resource's caller
+     * guards.
+     *
+     * @return void
+     */
+    public function testGatesRelatedKeysByTheRelatedResourcesCallerGuards(): void
+    {
+        $guest = $this->governedBy(GuardedQueryablePostResource::class)->through('user', new User, false);
+        $admin = $this->governedBy(GuardedQueryablePostResource::class, asAdmin: true)->through('user', new User, false);
+
+        $this->assertRejectsWith(fn () => $guest->guardFilter('email'), $this->undeclared('filters', 'email'));
+        $this->assertPermits(fn () => $guest->guardFilter('name'), 'name');
+        $this->assertPermits(fn () => $admin->guardFilter('email'), 'email');
+    }
+
+    /**
+     * Test that each caller guard runs once per request, across the keys of
+     * every level that reads it.
+     *
+     * @return void
+     */
+    public function testRunsEachCallerGuardOncePerRequest(): void
+    {
+        $runs  = 0;
+        $guard = static function () use (&$runs): bool {
+
+            $runs++;
+
+            return true;
+        };
+
+        $schema = new CompiledSchema(
+            fields               : ['email' => new CompiledFieldDefinition(null, null, null, null, null, null, [], [], [], [], callerGuards: [$guard])],
+            filterableColumns    : ['email' => Capability::EXACT],
+            sortableColumns      : ['email'],
+            conditionalFilterKeys: ['email' => ['email']],
+            conditionalSortKeys  : ['email' => ['email']],
+        );
+
+        $surface = new QuerySurface($schema, $this->traversal([]), $this->admission());
+
+        $surface->guardFilter('email');
+        $surface->guardFilterOperator('email', '$eq');
+        $surface->guardSort('email');
+        $surface->guardSort('email');
+
+        self::assertSame(1, $runs);
+    }
+
+    /**
      * Build a query surface over the given declarations.
      *
      * @param  array<string, \SineMacula\ApiToolkit\Enums\Capability>  $filterable
@@ -281,7 +376,38 @@ final class QuerySurfaceTest extends TestCase
      */
     private function make(array $filterable = [], array $sortable = [], array $relations = [], array $resources = [], array $resourceMap = []): QuerySurface
     {
-        return new QuerySurface(new CompiledSchema([], [], $filterable, $sortable, $relations, [], $resources), $this->traversal($resourceMap));
+        return new QuerySurface(new CompiledSchema([], [], $filterable, $sortable, $relations, [], $resources), $this->traversal($resourceMap), $this->admission());
+    }
+
+    /**
+     * Build the caller admission for a guest, or for the seeded admin.
+     *
+     * @param  bool  $asAdmin
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission
+     */
+    private function admission(bool $asAdmin = false): CallerAdmission
+    {
+        $request = Request::create('/');
+
+        $request->setUserResolver(static fn (): ?User => $asAdmin ? new User(['email' => 'admin@example.com']) : null);
+
+        return new CallerAdmission($request, new GuardEvaluator);
+    }
+
+    /**
+     * Build the surface a resource governs for a guest, or for the admin.
+     *
+     * @param  class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>  $resource
+     * @param  bool  $asAdmin
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
+     */
+    private function governedBy(string $resource, bool $asAdmin = false): QuerySurface
+    {
+        return new QuerySurface(
+            SchemaCompiler::compile($resource),
+            $this->traversal([User::class => GuardedQueryableUserResource::class, Post::class => GuardedQueryablePostResource::class]),
+            $this->admission($asAdmin),
+        );
     }
 
     /**
@@ -293,6 +419,18 @@ final class QuerySurfaceTest extends TestCase
     private function traversal(array $resourceMap): RelationTraversal
     {
         return new RelationTraversal(app(SchemaIntrospectionProvider::class), $resourceMap);
+    }
+
+    /**
+     * Build the errors an undeclared key is refused with.
+     *
+     * @param  string  $parameter
+     * @param  string  $key
+     * @return array<string, array<int, string>>
+     */
+    private function undeclared(string $parameter, string $key): array
+    {
+        return [$parameter . '.' . $key => [sprintf('The "%s" key is not a permitted query parameter for this resource.', $key)]];
     }
 
     /**

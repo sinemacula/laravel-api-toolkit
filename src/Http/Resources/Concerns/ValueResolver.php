@@ -77,6 +77,10 @@ final class ValueResolver
     {
         $this->truncated = false;
 
+        if (!$this->guardEvaluator->passesCallerGuards($definition->callerGuards, $request)) {
+            return new MissingValue;
+        }
+
         if (!$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
             return new MissingValue;
         }
@@ -137,7 +141,11 @@ final class ValueResolver
 
             $raw = $attributes[$definition->attribute()] ?? null;
 
-            if (!$include || $raw === null || !$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
+            if (!$include || $raw === null || !$this->guardEvaluator->passesCallerGuards($definition->callerGuards, $request)) {
+                continue;
+            }
+
+            if (!$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
                 continue;
             }
 

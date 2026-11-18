@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Exceptions;
 
 /**
- * Thrown when a row-dependent guarded field is derived into a tabular export.
+ * Thrown when a field with a row guard is derived into a tabular export.
  *
  * A tabular export omits whole columns, not cells, so the guard would leak.
  *
@@ -24,10 +24,11 @@ final class PerItemGuardedFieldException extends \RuntimeException
     public static function forField(string $field, string $resourceType): self
     {
         return new self(sprintf(
-            'The "%s" field on the "%s" resource carries a guard that depends on the row, '
+            'The "%s" field on the "%s" resource carries a row guard, '
             . 'so it cannot be exported to a tabular format. A tabular export includes or '
-            . 'omits whole columns rather than individual cells, so a per-row guard cannot '
-            . 'be honoured without leaking the values it is meant to hide. Exclude the field '
+            . 'omits whole columns rather than individual cells, so a row guard cannot '
+            . 'be honoured without leaking the values it is meant to hide. Guard the field '
+            . 'with visibleTo() where visibility depends on the caller alone, exclude it '
             . 'from the export, or override tabular() and gate the column with the exporter\'s '
             . '->visible().',
             $field,

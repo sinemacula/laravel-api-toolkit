@@ -27,6 +27,7 @@ use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\DeclaredOpenApiUserResource;
 use Tests\Fixtures\Resources\FixedFieldsUserResource;
+use Tests\Fixtures\Resources\GuardedQueryableUserResource;
 use Tests\Fixtures\Resources\GuardedUserResource;
 use Tests\Fixtures\Resources\NullableFilterableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -567,15 +568,15 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a guarded scalar is undocumented and optional.
+     * Test that a guarded scalar is typed from its column but optional.
      *
      * @return void
      */
-    public function testGuardedScalarIsUndocumentedAndOptionalWhileSiblingIsRequired(): void
+    public function testGuardedScalarIsTypedFromItsColumnButOptional(): void
     {
         $schema = $this->makeBuilder([User::class => GuardedUserResource::class])->build()['GuardedUser'];
 
-        self::assertSame(['x-undocumented' => true], $schema['properties']['email']);
+        self::assertSame(['type' => 'string'], $schema['properties']['email']);
         self::assertIsIterable($schema['required']);
         self::assertContains('id', $schema['required']);
         self::assertNotContains('email', $schema['required']);
@@ -650,6 +651,52 @@ final class ResourceSchemaBuilderTest extends TestCase
             'capability' => 'enum',
             'operators'  => ['$eq', '$in', '$neq', '$null', '$notNull'],
         ], $properties['status']['x-query-surface']['filter']);
+    }
+
+    /**
+     * Test that a key only caller-guarded fields declare is marked conditional
+     * for the filter and the sort independently.
+     *
+     * @return void
+     */
+    public function testConditionalKeysAreMarkedPerFilterAndSort(): void
+    {
+        $schema = new CompiledSchema(
+            fields               : [
+                'email' => $this->queryableField(filterable: 'email', capability: Capability::EXACT, sortable: 'email'),
+                'name'  => $this->queryableField(filterable: 'name', capability: Capability::EXACT, sortable: 'name'),
+            ],
+            filterableColumns    : ['email' => Capability::EXACT, 'name' => Capability::EXACT],
+            sortableColumns      : ['email', 'name'],
+            conditionalFilterKeys: ['email' => ['email']],
+            conditionalSortKeys  : ['name' => ['name']],
+        );
+
+        $properties = $this->buildGhost($schema, ['$eq'])['properties'];
+
+        self::assertSame([
+            'filter' => ['key' => 'email', 'capability' => 'exact', 'operators' => ['$eq'], 'conditional' => true],
+            'sort'   => ['key' => 'email', 'indexed' => true],
+        ], $properties['email']['x-query-surface']);
+
+        self::assertSame([
+            'filter' => ['key' => 'name', 'capability' => 'exact', 'operators' => ['$eq']],
+            'sort'   => ['key' => 'name', 'indexed' => true, 'conditional' => true],
+        ], $properties['name']['x-query-surface']);
+    }
+
+    /**
+     * Test that a fixed field a caller guard may leave out is not required.
+     *
+     * @return void
+     */
+    public function testACallerGuardedFixedFieldIsNotRequired(): void
+    {
+        Config::set('api-toolkit.resources.fixed_fields', ['id', '_type', 'name', 'email']);
+
+        $schema = $this->makeBuilder([User::class => GuardedQueryableUserResource::class])->build()['GuardedQueryableUser'];
+
+        self::assertSame(['_type', 'id', 'name'], $schema['required']);
     }
 
     /**

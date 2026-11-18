@@ -83,10 +83,10 @@ Filters are expressed as a JSON object, then URL-encoded and passed as the
 operator, or a comparison operator, and its value depends on which it is.
 
 A resource declares which of its fields may be filtered and which of its
-relationships may be filtered through. A key it has not declared is rejected
-rather than ignored: the response is a `422` naming the key. A filter that was
-quietly dropped would widen the result set instead of narrowing it, and nothing
-in the response would say so.
+relationships may be filtered through. A key it has not declared, or hides from
+the caller, is rejected rather than ignored: the response is a `422` naming the
+key. A filter that was quietly dropped would widen the result set instead of
+narrowing it, and nothing in the response would say so.
 
 ### Comparison operators
 
@@ -394,7 +394,9 @@ Each part appears only where the resource declared it, so a property carrying no
 name to send in `filters` and `order`, which differs from the property name
 wherever a field is presented under an alias. A `sort` reporting `"indexed":
 false` also carries the reason the resource recorded for ordering by a column no
-index holds.
+index holds. A `filter` or `sort` reporting `"conditional": true` is open only
+to callers the resource shows the field to; any other caller is refused exactly
+as for an undeclared key.
 
 The relations a filter may descend through belong to the resource rather than to
 any one property, so the schema names them itself:
