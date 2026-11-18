@@ -840,7 +840,8 @@ The service provider registers the following middleware. Each can be disabled in
   is always `503`, so `--status` is ignored. Non-JSON requests that Laravel redirects (`--redirect`) or renders a
   template for (`--render`) are left alone.
 - **`json_pretty_print`** - pretty-printed JSON when the request carries `?pretty=true`.
-- **`throttle`** - API-friendly rate-limit responses; uses the Redis variant when Redis is the default cache store.
+- **`throttle`** - API-friendly rate-limit responses; uses the Redis variant when the default cache store uses the
+  `redis` driver.
 
 `json_pretty_print` takes `'scope' => 'global'` (default, pushed to the global stack) or `'scope' => 'api'` (appended
 to the `api` middleware group only). The maintenance middleware replaces Laravel's in its existing position in the

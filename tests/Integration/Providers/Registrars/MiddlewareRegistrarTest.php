@@ -11,10 +11,14 @@ use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Middleware\ValidatePostSize;
 use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Middleware\JsonPrettyPrint;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
+use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequests;
+use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 use SineMacula\ApiToolkit\Providers\Registrars\MiddlewareRegistrar;
 use Tests\TestCase;
 
@@ -67,6 +71,42 @@ final class MiddlewareRegistrarTest extends TestCase
         $router = $app->make(Router::class);
 
         self::assertArrayHasKey('throttle', $router->getMiddleware());
+    }
+
+    /**
+     * Provide default cache stores, with the throttle middleware each selects.
+     *
+     * @return iterable<string, array{string, string, class-string}>
+     */
+    public static function throttleStoreProvider(): iterable
+    {
+        yield 'redis driver under another name' => ['valkey', 'redis', ThrottleRequestsWithRedis::class];
+        yield 'another driver under the redis name' => ['redis', 'array', ThrottleRequests::class];
+    }
+
+    /**
+     * Test that the throttle alias follows the default cache store's driver,
+     * not its name.
+     *
+     * @param  string  $store
+     * @param  string  $driver
+     * @param  class-string  $expected
+     * @return void
+     */
+    #[DataProvider('throttleStoreProvider')]
+    public function testThrottleAliasFollowsTheDefaultStoreDriver(string $store, string $driver, string $expected): void
+    {
+        $app = $this->getApplication();
+
+        Config::set('cache.stores.' . $store, ['driver' => $driver]);
+        Config::set('cache.default', $store);
+
+        (new MiddlewareRegistrar($app))->register();
+
+        /** @var \Illuminate\Routing\Router $router */
+        $router = $app->make(Router::class);
+
+        self::assertSame($expected, $router->getMiddleware()['throttle']);
     }
 
     /**
