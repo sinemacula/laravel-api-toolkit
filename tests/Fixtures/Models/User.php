@@ -86,6 +86,8 @@ final class User extends Model implements AuthenticatableContract
      * Get the user's published posts.
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+     *
+     * @phpstan-ignore sineMaculaLaravel.modelBehaviour
      */
     public function publishedPosts(): HasMany
     {
@@ -100,6 +102,8 @@ final class User extends Model implements AuthenticatableContract
      * Get the user's posts, newest first.
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Post, $this>
+     *
+     * @phpstan-ignore sineMaculaLaravel.modelBehaviour
      */
     public function latestPosts(): HasMany
     {

@@ -66,9 +66,12 @@ final readonly class QuerySurfaceReader
             $surfaces[$resourceClass] = $this->readResource($resourceClass, $edges, $vocabulary);
 
             foreach ($edges as $edge) {
-                if ($edge->resource !== null) {
-                    $queue[] = [$edge->resource, $edge->model];
+
+                if ($edge->resource === null) {
+                    continue;
                 }
+
+                $queue[] = [$edge->resource, $edge->model];
             }
         }
 

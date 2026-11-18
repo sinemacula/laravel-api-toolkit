@@ -86,8 +86,8 @@ final class QuerySurfaceReaderTest extends TestCase
             {
                 return Field::set(
                     Field::scalar('id'),
-                    Relation::to('owner', PublicUserResource::class)->traversable(),
                     Relation::to('noteable', 'id', 'noteable_key')->traversable(),
+                    Relation::to('owner', PublicUserResource::class)->traversable(),
                     Relation::to('labels', \stdClass::class)->traversable(),
                     Relation::to('ghost', 'id', 'ghost_key')->traversable(),
                 );
@@ -97,8 +97,8 @@ final class QuerySurfaceReaderTest extends TestCase
         $surfaces = $this->reader()->read([Note::class => $notes::class], $this->vocabulary());
 
         self::assertEquals([
-            new QueryRelationDescriptor('owner', PublicUserResource::class),
             new QueryRelationDescriptor('noteable', polymorphic: true),
+            new QueryRelationDescriptor('owner', PublicUserResource::class),
             new QueryRelationDescriptor('labels'),
             new QueryRelationDescriptor('ghost'),
         ], $surfaces[0]->relations);
