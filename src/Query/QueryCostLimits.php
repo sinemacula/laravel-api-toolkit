@@ -4,13 +4,13 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Query;
 
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 
 /**
  * Configurable structural caps on the cost of an incoming API query.
  *
- * A cap of zero or less disables that dimension.
+ * A cap of zero disables that dimension.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -41,16 +41,16 @@ final readonly class QueryCostLimits
     /** @var string Bounds the page number a paginated request may start at */
     public const string MAX_OFFSET = 'max_offset';
 
-    /** @var array<string, int> The default for every cap, mirrored by the published config file */
-    public const array DEFAULTS = [
-        self::MAX_BYTES       => 8192,
-        self::MAX_PARSE_DEPTH => 16,
-        self::MAX_DEPTH       => 3,
-        self::MAX_NODES       => 100,
-        self::MAX_IN_ITEMS    => 500,
-        self::MAX_ORDER_KEYS  => 3,
-        self::MAX_AGGREGATES  => 5,
-        self::MAX_OFFSET      => 500000,
+    /** @var list<string> Every cap, in the order the config file lists them */
+    public const array NAMES = [
+        self::MAX_BYTES,
+        self::MAX_PARSE_DEPTH,
+        self::MAX_DEPTH,
+        self::MAX_NODES,
+        self::MAX_IN_ITEMS,
+        self::MAX_ORDER_KEYS,
+        self::MAX_AGGREGATES,
+        self::MAX_OFFSET,
     ];
 
     /**
@@ -68,23 +68,14 @@ final readonly class QueryCostLimits
     /**
      * Resolve every cap from configuration.
      *
-     * A null cap is disabled; an undeclared one falls back to its default.
-     *
      * @return self
      */
     public static function fromConfig(): self
     {
         $limits = [];
 
-        foreach (self::DEFAULTS as $cap => $default) {
-
-            $value = Config::get('api-toolkit.query_cost.' . $cap, $default);
-
-            $limits[$cap] = match (true) {
-                $value === null    => 0,
-                is_numeric($value) => (int) $value,
-                default            => $default,
-            };
+        foreach (self::NAMES as $cap) {
+            $limits[$cap] = QuerySettings::costCap($cap);
         }
 
         return new self($limits);

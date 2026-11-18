@@ -14,6 +14,7 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\MissingSearchDriverException;
 use SineMacula\ApiToolkit\Exceptions\UnservableSearchException;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
@@ -448,17 +449,18 @@ final class SearchApplierTest extends TestCase
     }
 
     /**
-     * Test that a waiver of the wrong shape is read as no waiver at all.
+     * Test that a waiver of the wrong shape fails rather than being read as no
+     * waiver at all.
      *
      * @return void
      */
-    public function testMalformedWaiverIsReadAsNoWaiver(): void
+    public function testMalformedWaiverFails(): void
     {
         Config::set('api-toolkit.search.unverified_connections', $this->connectionName());
 
         $this->registerDriver();
 
-        $this->expectException(UnservableSearchException::class);
+        $this->expectException(InvalidConfigurationException::class);
 
         $this->applier->apply(User::query(), $this->term(), SearchableFilterableUserResource::class);
     }

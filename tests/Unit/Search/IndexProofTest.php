@@ -22,6 +22,7 @@ use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Contracts\SearchDriver;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Search\IndexProof;
+use Tests\Concerns\AssertsRefusedSettings;
 use Tests\Fixtures\Search\CountingSearchDriver;
 use Tests\Fixtures\Search\PatternSearchDriver;
 use Tests\TestCase;
@@ -37,6 +38,11 @@ use Tests\TestCase;
 #[CoversClass(IndexProof::class)]
 final class IndexProofTest extends TestCase
 {
+    use AssertsRefusedSettings;
+
+    /** @var int The shipped seconds an answer is shared for */
+    private const int SHIPPED_TTL = 60;
+
     /** @var string The defect every refusing proof reports */
     private const string DEFECT = 'no index over the declared columns';
 
@@ -129,7 +135,7 @@ final class IndexProofTest extends TestCase
 
         $this->prove($driver);
         $this->crossBoundary();
-        $this->travel(IndexProof::DEFAULT_TTL - 1)->seconds();
+        $this->travel(self::SHIPPED_TTL - 1)->seconds();
         $this->prove($driver);
 
         self::assertSame(1, $driver->calls);
@@ -146,7 +152,7 @@ final class IndexProofTest extends TestCase
 
         $this->prove($driver);
         $this->crossBoundary();
-        $this->travel(IndexProof::DEFAULT_TTL + 1)->seconds();
+        $this->travel(self::SHIPPED_TTL + 1)->seconds();
         $this->prove($driver);
 
         self::assertSame(2, $driver->calls);
@@ -172,7 +178,7 @@ final class IndexProofTest extends TestCase
     #[DataProvider('tenSecondExpiries')]
     public function testAppliesTheConfiguredExpiry(int|string $ttl): void
     {
-        Config::set(IndexProof::TTL_KEY, $ttl);
+        Config::set('api-toolkit.search.index_proof_ttl', $ttl);
 
         $driver = new CountingSearchDriver;
 
@@ -385,7 +391,7 @@ final class IndexProofTest extends TestCase
      */
     public function testAnExpiryOfZeroSharesNothing(): void
     {
-        Config::set(IndexProof::TTL_KEY, 0);
+        Config::set('api-toolkit.search.index_proof_ttl', 0);
 
         $driver = new CountingSearchDriver;
 
@@ -408,7 +414,7 @@ final class IndexProofTest extends TestCase
      */
     public function testAnExpiryOfZeroNeverReachesTheStore(): void
     {
-        Config::set(IndexProof::TTL_KEY, 0);
+        Config::set('api-toolkit.search.index_proof_ttl', 0);
 
         $keys = [];
 
@@ -454,44 +460,38 @@ final class IndexProofTest extends TestCase
     }
 
     /**
-     * Provide configured expiries that are not a usable number of seconds.
+     * Provide configured expiries that are not a usable number of seconds, with
+     * how the message names each.
      *
-     * @return iterable<string, array{0: mixed}>
+     * @return iterable<string, array{0: mixed, 1: string}>
      */
     public static function unusableExpiries(): iterable
     {
-        yield 'negative' => [-5];
-        yield 'negative string' => ['-1'];
-        yield 'negative fraction' => ['-0.5'];
-        yield 'non-numeric' => ['soon'];
-        yield 'null' => [null];
+        yield 'negative' => [-5, '-5'];
+        yield 'negative string' => ['-1', '\'-1\''];
+        yield 'negative fraction' => ['-0.5', '\'-0.5\''];
+        yield 'non-numeric' => ['soon', '\'soon\''];
+        yield 'null' => [null, 'null'];
     }
 
     /**
-     * Test that an unusable configured expiry falls back to the default.
+     * Test that an unusable configured expiry fails before the catalogue is
+     * read.
      *
      * @param  mixed  $ttl
+     * @param  string  $given
      * @return void
      */
     #[DataProvider('unusableExpiries')]
-    public function testAnUnusableExpiryFallsBackToTheDefault(mixed $ttl): void
+    public function testAnUnusableExpiryFails(mixed $ttl, string $given): void
     {
-        Config::set(IndexProof::TTL_KEY, $ttl);
+        Config::set('api-toolkit.search.index_proof_ttl', $ttl);
 
         $driver = new CountingSearchDriver;
 
-        $this->prove($driver);
-        $this->crossBoundary();
-        $this->travel(IndexProof::DEFAULT_TTL - 1)->seconds();
-        $this->prove($driver);
+        $this->assertRefused(fn () => $this->prove($driver), sprintf('The api-toolkit.search.index_proof_ttl setting must be an integer of at least 0; [%s] given.', $given));
 
-        self::assertSame(1, $driver->calls);
-
-        $this->crossBoundary();
-        $this->travel(2)->seconds();
-        $this->prove($driver);
-
-        self::assertSame(2, $driver->calls);
+        self::assertSame(0, $driver->calls);
     }
 
     /**
@@ -528,7 +528,7 @@ final class IndexProofTest extends TestCase
      */
     public function testClearingTheMemoReadsTheConnectionAgainWhenNothingIsShared(): void
     {
-        Config::set(IndexProof::TTL_KEY, 0);
+        Config::set('api-toolkit.search.index_proof_ttl', 0);
 
         $driver = new CountingSearchDriver;
 

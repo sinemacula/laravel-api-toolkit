@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult;
@@ -1036,25 +1037,23 @@ final class WritePoolTest extends TestCase
     }
 
     /**
-     * Test that a flush invalidates the cache when the config key is absent.
+     * Test that a flush fails when the invalidation key is absent, rather than
+     * guessing whether to invalidate.
      *
      * @return void
      */
-    public function testFlushInvalidatesTheQueryCacheByDefaultWhenConfigKeyAbsent(): void
+    public function testFlushFailsWhenTheInvalidationKeyIsAbsent(): void
     {
-        Config::set('cache.default', 'array');
-
         $deferred = (array) Config::get('api-toolkit.deferred_writes');
         unset($deferred['invalidate_query_cache']);
         Config::set('api-toolkit.deferred_writes', $deferred);
 
-        $warm = $this->cacheStore('test_records');
-        $warm->put('stale-query-hash', collect(['stale']), 60);
-
         $this->pool->add('testing', 'test_records', ['name' => 'foo', 'value' => 'bar']);
-        $this->pool->flush();
 
-        self::assertNull($this->cacheStore('test_records')->fetch('stale-query-hash'));
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.deferred_writes.invalidate_query_cache setting is missing; add it from the published config.');
+
+        $this->pool->flush();
     }
 
     /**

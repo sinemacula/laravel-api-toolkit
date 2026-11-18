@@ -6,7 +6,7 @@ namespace SineMacula\ApiToolkit\Http\Middleware;
 
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as Middleware;
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\HttpSettings;
 use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -28,10 +28,7 @@ final class PreventRequestsDuringMaintenance extends Middleware
     {
         parent::__construct($app);
 
-        /** @var array<int, string> $except */
-        $except = Config::get('api-toolkit.maintenance_mode.except', []);
-
-        $this->except = $except;
+        $this->except = HttpSettings::maintenanceExcept();
     }
 
     /**

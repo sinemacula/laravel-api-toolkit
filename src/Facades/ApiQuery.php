@@ -4,8 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Facades;
 
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Facade;
+use SineMacula\ApiToolkit\Config\HttpSettings;
 
 /**
  * API query facade.
@@ -38,8 +38,6 @@ final class ApiQuery extends Facade
     #[\Override]
     protected static function getFacadeAccessor(): string
     {
-        $alias = Config::get('api-toolkit.parser.alias');
-
-        return is_string($alias) ? $alias : 'api.query';
+        return HttpSettings::parserAlias();
     }
 }

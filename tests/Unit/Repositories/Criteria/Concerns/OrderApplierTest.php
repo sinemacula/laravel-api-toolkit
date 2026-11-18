@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
@@ -133,17 +134,21 @@ final class OrderApplierTest extends TestCase
     }
 
     /**
-     * Test that the random keyword is disabled when the config is absent.
+     * Test that the random keyword fails when the config is absent rather than
+     * being read as disabled.
      *
      * @return void
      */
-    public function testApplyWithRandomOrderIsDisabledWhenTheConfigurationIsAbsent(): void
+    public function testApplyWithRandomOrderFailsWhenTheConfigurationIsAbsent(): void
     {
         Config::set('api-toolkit.repositories', []);
 
         $query = (new User)->newQuery();
 
-        $this->assertRejects(fn () => $this->applier->apply($query, ['random' => 'asc'], $this->surface()), 'random');
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.repositories.allow_random_order setting is missing; add it from the published config.');
+
+        $this->applier->apply($query, ['random' => 'asc'], $this->surface());
     }
 
     /**

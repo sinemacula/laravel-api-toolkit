@@ -7,6 +7,7 @@ namespace Tests\Unit\Query;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use Tests\TestCase;
@@ -35,7 +36,7 @@ final class QueryCostLimitsTest extends TestCase
      */
     public static function capProvider(): iterable
     {
-        foreach (array_keys(QueryCostLimits::DEFAULTS) as $cap) {
+        foreach (QueryCostLimits::NAMES as $cap) {
             yield $cap => [$cap];
         }
     }
@@ -131,21 +132,39 @@ final class QueryCostLimitsTest extends TestCase
     }
 
     /**
-     * Test that a negative cap disables enforcement.
+     * Provide caps that are neither null nor a whole number of at least 0, with
+     * how the message names each.
      *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     * @return iterable<string, array{mixed, string}>
      */
-    public function testNegativeCapDisablesEnforcement(): void
+    public static function invalidCapProvider(): iterable
     {
-        Config::set(self::CONFIG_PREFIX . QueryCostLimits::MAX_NODES, -1);
+        yield 'negative' => [-1, '-1'];
+        yield 'negative string, as the environment gives' => ['-1', '\'-1\''];
+        yield 'non-numeric' => ['unbounded', '\'unbounded\''];
+        yield 'fractional' => ['10.0', '\'10.0\''];
+        yield 'exponent' => ['1e3', '\'1e3\''];
+        yield 'suffixed' => ['8k', '\'8k\''];
+        yield 'empty string' => ['', '\'\''];
+    }
 
-        $limits = QueryCostLimits::fromConfig();
+    /**
+     * Test that an invalid cap fails rather than disabling the guard or
+     * restoring a default.
+     *
+     * @param  mixed  $value
+     * @param  string  $given
+     * @return void
+     */
+    #[DataProvider('invalidCapProvider')]
+    public function testInvalidCapFails(mixed $value, string $given): void
+    {
+        Config::set(self::CONFIG_PREFIX . QueryCostLimits::MAX_DEPTH, $value);
 
-        $limits->enforce(QueryCostLimits::MAX_NODES, 1, 'filters');
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage(sprintf('The api-toolkit.query_cost.max_depth setting must be an integer of at least 0, or null; [%s] given.', $given));
 
-        self::assertSame(-1, $limits->limit(QueryCostLimits::MAX_NODES));
+        QueryCostLimits::fromConfig();
     }
 
     /**
@@ -178,44 +197,31 @@ final class QueryCostLimitsTest extends TestCase
     }
 
     /**
-     * Test that a non-numeric cap falls back to the shipped default.
+     * Test that a missing cap fails rather than reading as disabled.
      *
      * @return void
      */
-    public function testNonNumericCapFallsBackToTheShippedDefault(): void
-    {
-        Config::set(self::CONFIG_PREFIX . QueryCostLimits::MAX_NODES, 'unbounded');
-
-        self::assertSame(
-            QueryCostLimits::DEFAULTS[QueryCostLimits::MAX_NODES],
-            QueryCostLimits::fromConfig()->limit(QueryCostLimits::MAX_NODES),
-        );
-    }
-
-    /**
-     * Test that a config file predating the caps still yields every default.
-     *
-     * @return void
-     */
-    public function testAbsentConfigYieldsEveryShippedDefault(): void
+    public function testMissingCapFails(): void
     {
         Config::set('api-toolkit.query_cost', []);
 
-        $limits = QueryCostLimits::fromConfig();
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.query_cost.max_bytes setting is missing; add it from the published config.');
 
-        foreach (QueryCostLimits::DEFAULTS as $cap => $default) {
-            self::assertSame($default, $limits->limit($cap));
-        }
+        QueryCostLimits::fromConfig();
     }
 
     /**
-     * Test that the shipped config file publishes exactly the class's fallback
-     * defaults.
+     * Test that the shipped config file sets every cap, in order, and nothing
+     * else.
      *
      * @return void
      */
-    public function testShippedConfigMatchesTheFallbackDefaults(): void
+    public function testShippedConfigSetsEveryCap(): void
     {
-        self::assertSame(QueryCostLimits::DEFAULTS, Config::get('api-toolkit.query_cost'));
+        $shipped = Config::get('api-toolkit.query_cost');
+
+        self::assertIsArray($shipped);
+        self::assertSame(QueryCostLimits::NAMES, array_keys($shipped));
     }
 }

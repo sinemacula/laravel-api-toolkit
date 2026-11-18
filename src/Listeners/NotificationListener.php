@@ -9,6 +9,7 @@ use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
+use SineMacula\ApiToolkit\Config\LifecycleSettings;
 
 /**
  * Notification event listener.
@@ -52,9 +53,7 @@ final class NotificationListener
      */
     private function log(string $level, string $message, Notification $notification, mixed $notifiable, string $channel): void
     {
-        $excludedClasses = config('api-toolkit.notifications.excluded_classes', []);
-
-        if (is_array($excludedClasses) && in_array($notification::class, $excludedClasses, true)) {
+        if (in_array($notification::class, LifecycleSettings::excludedNotifications(), true)) {
             return;
         }
 
@@ -65,19 +64,6 @@ final class NotificationListener
             'channel'         => $channel,
         ], static fn (mixed $value): bool => $value !== null);
 
-        Log::channel($this->resolveLogChannel())->log($level, $message, $payload);
-    }
-
-    /**
-     * Resolve the configured audit log channel, or null for the application's
-     * default channel.
-     *
-     * @return string|null
-     */
-    private function resolveLogChannel(): ?string
-    {
-        $channel = config('api-toolkit.notifications.log_channel');
-
-        return is_string($channel) && $channel !== '' ? $channel : null;
+        Log::channel(LifecycleSettings::notificationLogChannel())->log($level, $message, $payload);
     }
 }

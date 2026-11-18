@@ -9,6 +9,7 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\TestCase;
@@ -25,6 +26,12 @@ use Tests\TestCase;
 final class SearchTermTest extends TestCase
 {
     use LocalisesToolkitMessages;
+
+    /** @var int The shipped longest term */
+    private const int SHIPPED_MAX_LENGTH = 128;
+
+    /** @var int The shipped most words per term */
+    private const int SHIPPED_MAX_WORDS = 10;
 
     /** @var string The whole rejection message for a term carrying a word below the minimum length */
     private const string TOO_SHORT = 'Every word in the search term must be at least 3 characters.';
@@ -156,7 +163,7 @@ final class SearchTermTest extends TestCase
      */
     public function testTermAtTheMaximumLengthIsAccepted(): void
     {
-        $term = str_repeat('a', SearchTerm::MAX_LENGTH);
+        $term = str_repeat('a', self::SHIPPED_MAX_LENGTH);
 
         self::assertSame($term, SearchTerm::from($term)->value());
     }
@@ -168,7 +175,7 @@ final class SearchTermTest extends TestCase
      */
     public function testTermAboveTheMaximumLengthIsRejected(): void
     {
-        $this->assertRejects(str_repeat('a', SearchTerm::MAX_LENGTH + 1), self::TOO_LONG);
+        $this->assertRejects(str_repeat('a', self::SHIPPED_MAX_LENGTH + 1), self::TOO_LONG);
     }
 
     /**
@@ -180,7 +187,7 @@ final class SearchTermTest extends TestCase
      */
     public function testTermAtTheWordLimitIsAccepted(): void
     {
-        $term = implode(' ', array_fill(0, SearchTerm::MAX_WORDS, 'abc'));
+        $term = implode(' ', array_fill(0, self::SHIPPED_MAX_WORDS, 'abc'));
 
         self::assertSame($term, SearchTerm::from($term)->value());
     }
@@ -192,7 +199,7 @@ final class SearchTermTest extends TestCase
      */
     public function testTermAboveTheWordLimitIsRejected(): void
     {
-        $this->assertRejects(implode(' ', array_fill(0, SearchTerm::MAX_WORDS + 1, 'abc')), self::TOO_MANY_WORDS);
+        $this->assertRejects(implode(' ', array_fill(0, self::SHIPPED_MAX_WORDS + 1, 'abc')), self::TOO_MANY_WORDS);
     }
 
     /**
@@ -203,8 +210,8 @@ final class SearchTermTest extends TestCase
     public static function localisedRejectionProvider(): iterable
     {
         yield 'short word' => ['ab', 'Jedes Wort braucht mindestens 3 Zeichen.'];
-        yield 'too long' => [str_repeat('a', SearchTerm::MAX_LENGTH + 1), 'Höchstens 128 Zeichen.'];
-        yield 'too many words' => [implode(' ', array_fill(0, SearchTerm::MAX_WORDS + 1, 'abc')), 'Höchstens 10 Wörter.'];
+        yield 'too long' => [str_repeat('a', self::SHIPPED_MAX_LENGTH + 1), 'Höchstens 128 Zeichen.'];
+        yield 'too many words' => [implode(' ', array_fill(0, self::SHIPPED_MAX_WORDS + 1, 'abc')), 'Höchstens 10 Wörter.'];
     }
 
     /**
@@ -242,18 +249,6 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a configured minimum below the shipped floor is held at it.
-     *
-     * @return void
-     */
-    public function testConfiguredMinimumLengthBelowTheFloorIsHeldAtTheFloor(): void
-    {
-        Config::set('api-toolkit.search.min_word_length', 1);
-
-        $this->assertRejects('ab', self::TOO_SHORT);
-    }
-
-    /**
      * Test that a configured maximum length is enforced.
      *
      * @return void
@@ -284,32 +279,6 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that a fractional bound is truncated to a whole number.
-     *
-     * @return void
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
-    public function testFractionalBoundIsTruncatedToAWholeNumber(): void
-    {
-        Config::set('api-toolkit.search.min_word_length', '4.7');
-
-        self::assertSame('abcd', SearchTerm::from('abcd')->value());
-    }
-
-    /**
-     * Test that a non-numeric bound falls back to the shipped default.
-     *
-     * @return void
-     */
-    public function testNonNumericBoundFallsBackToTheShippedDefault(): void
-    {
-        Config::set('api-toolkit.search.max_length', 'unbounded');
-
-        $this->assertRejects(str_repeat('a', SearchTerm::MAX_LENGTH + 1), self::TOO_LONG);
-    }
-
-    /**
      * Test that the maximum length is reported as the configured value.
      *
      * @return void
@@ -319,18 +288,6 @@ final class SearchTermTest extends TestCase
         Config::set('api-toolkit.search.max_length', 64);
 
         self::assertSame(64, SearchTerm::maximumLength());
-    }
-
-    /**
-     * Test that the maximum length falls back to the shipped default.
-     *
-     * @return void
-     */
-    public function testMaximumLengthFallsBackToTheShippedDefault(): void
-    {
-        Config::set('api-toolkit.search.max_length', 'unbounded');
-
-        self::assertSame(SearchTerm::MAX_LENGTH, SearchTerm::maximumLength());
     }
 
     /**
@@ -346,18 +303,6 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the maximum word count falls back to the shipped default.
-     *
-     * @return void
-     */
-    public function testMaximumWordsFallsBackToTheShippedDefault(): void
-    {
-        Config::set('api-toolkit.search.max_words', 'unbounded');
-
-        self::assertSame(SearchTerm::MAX_WORDS, SearchTerm::maximumWords());
-    }
-
-    /**
      * Test that the minimum word length is reported as the configured value.
      *
      * @return void
@@ -370,27 +315,57 @@ final class SearchTermTest extends TestCase
     }
 
     /**
-     * Test that the reported minimum word length is held at the shipped floor.
+     * Provide invalid bounds, the reader of each and the message it fails with.
      *
-     * @return void
+     * @return iterable<string, array{0: string, 1: mixed, 2: \Closure(): int, 3: string}>
      */
-    public function testMinimumWordLengthIsHeldAtTheShippedFloor(): void
+    public static function invalidBoundProvider(): iterable
     {
-        Config::set('api-toolkit.search.min_word_length', 1);
-
-        self::assertSame(SearchTerm::MIN_WORD_LENGTH, SearchTerm::minimumWordLength());
+        yield 'word length below the floor' => [
+            'min_word_length',
+            2,
+            SearchTerm::minimumWordLength(...),
+            'The api-toolkit.search.min_word_length setting must be an integer of at least 3; [2] given.',
+        ];
+        yield 'fractional word length' => [
+            'min_word_length',
+            '4.7',
+            SearchTerm::minimumWordLength(...),
+            'The api-toolkit.search.min_word_length setting must be an integer of at least 3; [\'4.7\'] given.',
+        ];
+        yield 'non-numeric word length' => [
+            'min_word_length',
+            'short',
+            SearchTerm::minimumWordLength(...),
+            'The api-toolkit.search.min_word_length setting must be an integer of at least 3; [\'short\'] given.',
+        ];
+        yield 'non-numeric length' => [
+            'max_length',
+            'unbounded',
+            SearchTerm::maximumLength(...),
+            'The api-toolkit.search.max_length setting must be an integer of at least 1; [\'unbounded\'] given.',
+        ];
+        yield 'zero words' => ['max_words', 0, SearchTerm::maximumWords(...), 'The api-toolkit.search.max_words setting must be an integer of at least 1; [0] given.'];
     }
 
     /**
-     * Test that the minimum word length falls back to the shipped default.
+     * Test that an invalid bound fails rather than being defaulted or clamped.
      *
+     * @param  string  $key
+     * @param  mixed  $value
+     * @param  \Closure(): int  $read
+     * @param  string  $message
      * @return void
      */
-    public function testMinimumWordLengthFallsBackToTheShippedDefault(): void
+    #[DataProvider('invalidBoundProvider')]
+    public function testInvalidBoundFails(string $key, mixed $value, \Closure $read, string $message): void
     {
-        Config::set('api-toolkit.search.min_word_length', 'unbounded');
+        Config::set('api-toolkit.search.' . $key, $value);
 
-        self::assertSame(SearchTerm::MIN_WORD_LENGTH, SearchTerm::minimumWordLength());
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage($message);
+
+        $read();
     }
 
     /**

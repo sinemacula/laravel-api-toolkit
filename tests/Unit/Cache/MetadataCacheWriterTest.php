@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\MetadataCacheUnavailableException;
 use Tests\Fixtures\Support\UnreachableCacheStore;
 use Tests\TestCase;
@@ -749,14 +750,10 @@ final class MetadataCacheWriterTest extends TestCase
     {
         yield 'an integer' => [45, 45];
         yield 'a numeric string, as the environment gives' => ['45', 45];
-        yield 'a non-numeric string' => ['not-a-number', MetadataCacheWriter::DEFAULT_RETRY_AFTER];
-        yield 'a negative number' => [-5, MetadataCacheWriter::DEFAULT_RETRY_AFTER];
-        yield 'nothing' => [null, MetadataCacheWriter::DEFAULT_RETRY_AFTER];
     }
 
     /**
-     * Test that the configured retry window is read as whole seconds, falling
-     * back to the default when it is not a non-negative number.
+     * Test that the configured retry window is read as whole seconds.
      *
      * @param  mixed  $configured
      * @param  int  $expected
@@ -785,6 +782,38 @@ final class MetadataCacheWriterTest extends TestCase
         $writer->readMetadata('configured-window-key');
 
         Exceptions::assertReportedCount(2);
+    }
+
+    /**
+     * Provide retry windows that are not a whole number of seconds.
+     *
+     * @return iterable<string, array{mixed, string}>
+     */
+    public static function invalidRetryWindowProvider(): iterable
+    {
+        yield 'a non-numeric string' => ['not-a-number', '\'not-a-number\''];
+        yield 'a negative number' => [-5, '-5'];
+        yield 'nothing' => [null, 'null'];
+    }
+
+    /**
+     * Test that an invalid retry window fails rather than being defaulted.
+     *
+     * @param  mixed  $configured
+     * @param  string  $given
+     * @return void
+     */
+    #[DataProvider('invalidRetryWindowProvider')]
+    public function testAnInvalidRetryWindowFails(mixed $configured, string $given): void
+    {
+        Config::set('api-toolkit.cache.retry_after', $configured);
+
+        $this->useUnreachableCacheStore();
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage(sprintf('The api-toolkit.cache.retry_after setting must be an integer of at least 0; [%s] given.', $given));
+
+        $this->writer()->readMetadata('configured-window-key');
     }
 
     /**

@@ -10,6 +10,7 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\ApiQueryParser;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\Http\Enums\HttpMethod;
@@ -861,7 +862,7 @@ final class ApiQueryParserTest extends TestCase
      */
     public function testResolvedLimitFallsBackToTheConfiguredDefault(): void
     {
-        Config::set('api-toolkit.parser.defaults.limit', 25);
+        Config::set('api-toolkit.parser.defaults.limit', '25');
 
         $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb()));
 
@@ -873,37 +874,41 @@ final class ApiQueryParserTest extends TestCase
     }
 
     /**
-     * Provide the unusable configured defaults a page size may carry.
+     * Provide the unusable configured defaults a page size may carry, with how
+     * the message names each.
      *
-     * @return iterable<string, array{mixed}>
+     * @return iterable<string, array{mixed, string}>
      */
     public static function unusablePageSizeProvider(): iterable
     {
-        yield 'not numeric' => ['not-a-number'];
-        yield 'empty environment value' => [''];
-        yield 'zero' => [0];
-        yield 'negative' => [-10];
-        yield 'absent' => [null];
+        yield 'not numeric' => ['not-a-number', '\'not-a-number\''];
+        yield 'empty environment value' => ['', '\'\''];
+        yield 'zero' => [0, '0'];
+        yield 'negative' => [-10, '-10'];
+        yield 'absent' => [null, 'null'];
     }
 
     /**
-     * Test that an unusable configured page size resolves to a single row.
-     *
-     * Not the shipped default, so a misconfigured page size stays visible.
+     * Test that an unusable configured page size fails rather than serving a
+     * page of some other size.
      *
      * @param  mixed  $configured
+     * @param  string  $given
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     #[DataProvider('unusablePageSizeProvider')]
-    public function testUnusableConfiguredPageSizeResolvesToASingleRow(mixed $configured): void
+    public function testUnusableConfiguredPageSizeFails(mixed $configured, string $given): void
     {
         Config::set('api-toolkit.parser.defaults.limit', $configured);
 
         $this->parser->parse(Request::create(self::TEST_URL, HttpMethod::GET->getVerb()));
 
-        self::assertSame(1, $this->parser->getResolvedLimit());
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage(sprintf('The api-toolkit.parser.defaults.limit setting must be an integer of at least 1; [%s] given.', $given));
+
+        $this->parser->getResolvedLimit();
     }
 
     /**

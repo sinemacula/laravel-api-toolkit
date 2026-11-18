@@ -9,7 +9,9 @@ use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Attributes\ForModel;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use Tests\Concerns\AssertsRefusedSettings;
 use Tests\Fixtures\Discovery\Conflict\FirstUserResource;
 use Tests\Fixtures\Discovery\Conflict\SecondUserResource;
 use Tests\Fixtures\Discovery\Invalid\MissingModelResource;
@@ -37,6 +39,8 @@ use Tests\TestCase;
 #[CoversClass(ForModel::class)]
 final class ResourceDiscoveryTest extends TestCase
 {
+    use AssertsRefusedSettings;
+
     /**
      * Test that attributed resources are discovered recursively in sorted-file
      * order, ignoring classes without the attribute.
@@ -199,20 +203,103 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that a malformed paths value - not an array, or containing
-     * non-string entries - yields no discovery.
+     * Test that null paths scan the application's resource directory.
+     *
+     * The app path is redirected to an isolated temporary tree so the test is
+     * deterministic under parallel runs.
      *
      * @return void
      */
-    public function testMalformedPathsConfigurationYieldsNoDiscovery(): void
+    public function testNullPathsScanTheDefaultDirectory(): void
     {
-        Config::set('api-toolkit.resources.paths', 'not-an-array');
+        assert($this->app !== null);
 
-        self::assertSame([], $this->discovery()->discover());
+        Config::set('api-toolkit.resources.paths', null);
 
-        Config::set('api-toolkit.resources.paths', [123, null, ['nested']]);
+        $base = sys_get_temp_dir() . '/resource-discovery-default-' . uniqid((string) getmypid(), true);
 
-        self::assertSame([], $this->discovery()->discover());
+        mkdir($base . '/Http/Resources', 0o755, true);
+
+        $this->app->useAppPath($base);
+
+        $contents = file_get_contents($this->fixturePath('Primary') . '/DiscoveredUserResource.php');
+
+        assert($contents !== false);
+
+        $file = $base . '/Http/Resources/DiscoveredUserResource.php';
+
+        file_put_contents($file, $contents);
+
+        try {
+            self::assertSame([User::class => DiscoveredUserResource::class], $this->discovery()->scan()['bindings']);
+        } finally {
+            unlink($file);
+            rmdir($base . '/Http/Resources');
+            rmdir($base . '/Http');
+            rmdir($base);
+        }
+    }
+
+    /**
+     * Provide malformed paths settings, with the message each fails with.
+     *
+     * @return iterable<string, array{mixed, string}>
+     */
+    public static function malformedPathsProvider(): iterable
+    {
+        yield 'false' => [false, 'The api-toolkit.resources.paths setting must be a list of non-empty strings, or null; [false] given.'];
+        yield 'a single path' => ['not-an-array', 'The api-toolkit.resources.paths setting must be a list of non-empty strings, or null; [\'not-an-array\'] given.'];
+        yield 'a non-string entry' => [[123], 'The api-toolkit.resources.paths.0 setting must be a non-empty string; [123] given.'];
+    }
+
+    /**
+     * Test that a malformed paths setting fails rather than disabling
+     * discovery.
+     *
+     * @param  mixed  $paths
+     * @param  string  $message
+     * @return void
+     */
+    #[DataProvider('malformedPathsProvider')]
+    public function testMalformedPathsConfigurationFails(mixed $paths, string $message): void
+    {
+        Config::set('api-toolkit.resources.paths', $paths);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage($message);
+
+        $this->discovery()->scan();
+    }
+
+    /**
+     * Provide resource maps that are not an array.
+     *
+     * @return iterable<string, array{mixed, string}>
+     */
+    public static function malformedResourceMapProvider(): iterable
+    {
+        yield 'null' => [null, 'null'];
+        yield 'a string' => ['not-an-array', '\'not-an-array\''];
+    }
+
+    /**
+     * Test that a malformed resource map fails the merge rather than being
+     * replaced by the discovered bindings.
+     *
+     * @param  mixed  $map
+     * @param  string  $given
+     * @return void
+     */
+    #[DataProvider('malformedResourceMapProvider')]
+    public function testMergeRefusesAMalformedResourceMap(mixed $map, string $given): void
+    {
+        Config::set('api-toolkit.resources.paths', [$this->fixturePath('Primary')]);
+        Config::set('api-toolkit.resources.resource_map', $map);
+
+        $this->assertRefused(fn () => $this->discovery()->merge(), sprintf('The api-toolkit.resources.resource_map setting must be an array; [%s] given.', $given));
+
+        self::assertSame($map, Config::get('api-toolkit.resources.resource_map'));
+        self::assertNull(Config::get('api-toolkit.resources.discovered_bindings'));
     }
 
     /**
@@ -542,18 +629,13 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that a published config predating the paths key falls back to the
-     * default application resource directory.
-     *
-     * The app path is redirected to an isolated temporary tree so the test is
-     * deterministic under parallel runs.
+     * Test that a published config predating the paths key fails rather than
+     * scanning the default directory.
      *
      * @return void
      */
-    public function testMissingPathsKeyFallsBackToTheDefaultDirectory(): void
+    public function testMissingPathsKeyFails(): void
     {
-        assert($this->app !== null);
-
         $resources = Config::get('api-toolkit.resources');
 
         assert(is_array($resources));
@@ -562,30 +644,10 @@ final class ResourceDiscoveryTest extends TestCase
 
         Config::set('api-toolkit.resources', $resources);
 
-        $base = sys_get_temp_dir() . '/resource-discovery-fallback-' . uniqid((string) getmypid(), true);
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.resources.paths setting is missing; add it from the published config.');
 
-        mkdir($base . '/Http/Resources', 0o755, true);
-
-        $this->app->useAppPath($base);
-
-        $contents = file_get_contents($this->fixturePath('Primary') . '/DiscoveredUserResource.php');
-
-        assert($contents !== false);
-
-        $file = $base . '/Http/Resources/DiscoveredUserResource.php';
-
-        file_put_contents($file, $contents);
-
-        try {
-            self::assertSame([
-                User::class => DiscoveredUserResource::class,
-            ], $this->discovery()->discover());
-        } finally {
-            unlink($file);
-            rmdir($base . '/Http/Resources');
-            rmdir($base . '/Http');
-            rmdir($base);
-        }
+        $this->discovery()->scan();
     }
 
     /**

@@ -23,6 +23,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
@@ -397,12 +398,12 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that the subscriber reports rather than rethrows when
-     * rethrow_at_boundary is absent.
+     * Test that the subscriber fails when rethrow_at_boundary is absent, rather
+     * than guessing whether to rethrow.
      *
      * @return void
      */
-    public function testHandleFlushDoesNotRethrowWhenRethrowKeyAbsent(): void
+    public function testHandleFlushFailsWhenRethrowKeyAbsent(): void
     {
         $deferred = (array) Config::get('api-toolkit.deferred_writes');
         unset($deferred['rethrow_at_boundary']);
@@ -411,11 +412,10 @@ final class WritePoolFlushSubscriberTest extends TestCase
         Exceptions::fake();
         Event::fake([WritePoolFlushFailed::class]);
 
-        $this->subscriberFlushing($this->failingPool(FlushStrategy::THROW))->handleFlush();
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.deferred_writes.rethrow_at_boundary setting is missing; add it from the published config.');
 
-        Exceptions::assertReportedCount(1);
-        Exceptions::assertReported(WritePoolFlushException::class);
-        Event::assertDispatched(WritePoolFlushFailed::class);
+        $this->subscriberFlushing($this->failingPool(FlushStrategy::THROW))->handleFlush();
     }
 
     /**

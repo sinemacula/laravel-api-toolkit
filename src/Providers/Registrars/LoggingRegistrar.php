@@ -6,8 +6,8 @@ namespace SineMacula\ApiToolkit\Providers\Registrars;
 
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Notifications\Events\NotificationSent;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
+use SineMacula\ApiToolkit\Config\LifecycleSettings;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 
 /**
@@ -35,7 +35,7 @@ final class LoggingRegistrar
      */
     private function registerNotificationLogging(): void
     {
-        if (!Config::get('api-toolkit.notifications.enable_logging', true)) {
+        if (!LifecycleSettings::shouldLogNotifications()) {
             return;
         }
 

@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Docs;
 
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\OpenApiSettings;
 use SineMacula\ApiToolkit\OpenApi\Docs\Enums\DocKind;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\TagConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoutes;
@@ -20,8 +20,8 @@ use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoutes;
  */
 final readonly class TagList
 {
-    /** The message for a tag order that is not a list of distinct names */
-    private const string MALFORMED_MESSAGE = 'Unable to export the OpenAPI tags: api-toolkit.openapi.tags must be a list of distinct, non-empty tag names.';
+    /** The message for a tag order naming a tag twice */
+    private const string MALFORMED_MESSAGE = 'Unable to export the OpenAPI tags: api-toolkit.openapi.tags must name each tag once.';
 
     /** The message for a tag order naming a tag no audience uses */
     private const string UNUSED_MESSAGE = 'Unable to export the OpenAPI tags: api-toolkit.openapi.tags names [%s], which no audience uses.';
@@ -86,31 +86,13 @@ final readonly class TagList
      */
     private function configuredOrder(): array
     {
-        $order = Config::get('api-toolkit.openapi.tags') ?? [];
+        $order = OpenApiSettings::tags();
 
-        if (!$this->isTagList($order)) {
+        if (array_unique($order) !== $order) {
             throw new TagConfigurationException(self::MALFORMED_MESSAGE);
         }
 
         return $order;
-    }
-
-    /**
-     * Determine whether the value is a list of distinct, non-empty strings.
-     *
-     * @param  mixed  $order
-     * @return bool
-     *
-     * @phpstan-assert-if-true list<string> $order
-     */
-    private function isTagList(mixed $order): bool
-    {
-        if (!is_array($order) || !array_is_list($order)) {
-            return false;
-        }
-
-        return array_filter($order, static fn (mixed $tag): bool => is_string($tag) && $tag !== '') === $order
-            && array_unique($order)                                                                 === $order;
     }
 
     /**

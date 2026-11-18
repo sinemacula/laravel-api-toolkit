@@ -6,7 +6,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\OpenApiSettings;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\ApiToolkit\OpenApi\Attributes\Operation;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -73,7 +73,7 @@ final readonly class DocumentedRouteCollector
      */
     public function collect(array $audiences): DocumentedRoutes
     {
-        $idsEnabled = (bool) Config::get('api-toolkit.openapi.operation_ids', false);
+        $idsEnabled = OpenApiSettings::shouldExportOperationIds();
         $postures   = [];
         $byAudience = [];
 
@@ -128,7 +128,7 @@ final readonly class DocumentedRouteCollector
      * documentable or joins none.
      *
      * @param  \Illuminate\Routing\Route  $route
-     * @param  array<string, string>  $postures
+     * @param  array<string, \SineMacula\ApiToolkit\Enums\AudiencePosture>  $postures
      * @param  bool  $idsEnabled
      * @return array{route: \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute, audiences: non-empty-list<string>}|null
      */

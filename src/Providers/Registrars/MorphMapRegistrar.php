@@ -5,8 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Providers\Registrars;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 
 /**
  * Registers the resource-derived morph aliases.
@@ -28,12 +28,12 @@ final class MorphMapRegistrar
      */
     public function register(): void
     {
-        /** @var array<class-string<\Illuminate\Database\Eloquent\Model>, class-string>|null $map */
-        $map = Config::get('api-toolkit.resources.resource_map');
-
-        if (!Config::get('api-toolkit.resources.enable_dynamic_morph_mapping') || !is_array($map)) {
+        if (!ResourceSettings::shouldMapMorphTypes()) {
             return;
         }
+
+        /** @var array<class-string<\Illuminate\Database\Eloquent\Model>, class-string> $map */
+        $map = ResourceSettings::resourceMap();
 
         Relation::morphMap($this->derivedAliases($map, Relation::morphMap()));
     }
@@ -121,7 +121,7 @@ final class MorphMapRegistrar
             implode('], [', $resources),
         );
 
-        if (Config::get('api-toolkit.resources.validate_schemas') === true) {
+        if (ResourceSettings::shouldValidateSchemas()) {
             throw new \LogicException($message);
         }
 

@@ -4,8 +4,9 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
-use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
+use SineMacula\ApiToolkit\Config\QuerySettings;
+use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
@@ -55,11 +56,7 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
     #[\Override]
     public function getResourceMap(): array
     {
-        $configured = Config::get('api-toolkit.resources.resource_map');
-        $configured = is_array($configured) ? $configured : [];
-
-        /** @var array<class-string, class-string> $configured */
-        return $configured + $this->discovery->discover();
+        return ResourceSettings::bindings() + $this->discovery->discover();
     }
 
     /**
@@ -119,11 +116,11 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
         $limits = QueryCostLimits::fromConfig();
         $caps   = [];
 
-        foreach (array_keys(QueryCostLimits::DEFAULTS) as $cap) {
+        foreach (QueryCostLimits::NAMES as $cap) {
             $caps[$cap] = $limits->limit($cap);
         }
 
-        $caps[QueryParameterValidator::MAX_LIMIT] = QueryParameterValidator::pageSizeCeiling();
+        $caps[QueryParameterValidator::MAX_LIMIT] = QuerySettings::maxLimit();
 
         return $caps;
     }

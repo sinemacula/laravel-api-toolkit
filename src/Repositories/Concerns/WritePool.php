@@ -4,9 +4,9 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use SineMacula\ApiToolkit\Config\LifecycleSettings;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 
@@ -171,7 +171,7 @@ final class WritePool
      */
     private function invalidateFlushedTables(WritePoolFlushResult $result): void
     {
-        if (!Config::get('api-toolkit.deferred_writes.invalidate_query_cache', true)) {
+        if (!LifecycleSettings::shouldInvalidateQueryCache()) {
             return;
         }
 

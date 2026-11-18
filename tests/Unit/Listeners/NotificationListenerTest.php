@@ -15,6 +15,7 @@ use Monolog\Level;
 use Monolog\Logger as MonologLogger;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use Tests\TestCase;
 
@@ -297,18 +298,17 @@ final class NotificationListenerTest extends TestCase
     public static function unusableChannelProvider(): iterable
     {
         yield 'empty string' => [''];
-        yield 'false' => [false];
+        yield 'null' => [null];
     }
 
     /**
-     * Test that a blank or non-string configured channel falls back to the
-     * default channel.
+     * Test that a blank or null configured channel uses the default channel.
      *
      * @param  mixed  $channel
      * @return void
      */
     #[DataProvider('unusableChannelProvider')]
-    public function testBlankOrNonStringChannelFallsBackToTheDefaultChannel(mixed $channel): void
+    public function testBlankOrNullChannelUsesTheDefaultChannel(mixed $channel): void
     {
         $this->useCapturingChannels($channel);
 
@@ -318,6 +318,21 @@ final class NotificationListenerTest extends TestCase
 
         self::assertCount(1, $records);
         self::assertSame('Notification Sending', $records[0]->message);
+    }
+
+    /**
+     * Test that a channel that is not a string fails rather than falling back.
+     *
+     * @return void
+     */
+    public function testNonStringChannelFails(): void
+    {
+        $this->useCapturingChannels(false);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.notifications.log_channel setting must be a string, or null; [false] given.');
+
+        (new NotificationListener)->sending($this->createSendingEvent());
     }
 
     /**

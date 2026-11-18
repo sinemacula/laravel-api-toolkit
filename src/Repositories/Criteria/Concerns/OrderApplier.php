@@ -6,7 +6,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
@@ -186,6 +186,6 @@ final readonly class OrderApplier
             return false;
         }
 
-        return (bool) Config::get('api-toolkit.repositories.allow_random_order', false);
+        return QuerySettings::canOrderRandomly();
     }
 }

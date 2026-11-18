@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Cache;
 
 use Illuminate\Contracts\Container\Container;
-use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Config\HttpSettings;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
@@ -92,8 +92,7 @@ final readonly class CacheManager
      */
     private function resetQueryParser(): void
     {
-        $alias = Config::get('api-toolkit.parser.alias');
-        $alias = is_string($alias) ? $alias : 'api.query';
+        $alias = HttpSettings::parserAlias();
 
         if (!$this->container->bound($alias)) {
             return;

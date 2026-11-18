@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Services\Contracts\Actor;
 use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
 use SineMacula\ApiToolkit\Services\ServiceContext;
@@ -248,7 +249,7 @@ final class ServiceContextTest extends TestCase
      */
     public function testFromRequestHonoursACustomConfiguredHeader(): void
     {
-        Config::set(ServiceContext::CORRELATION_HEADER_KEY, 'X-Trace-Id');
+        Config::set('api-toolkit.services.correlation_header', 'X-Trace-Id');
 
         $request = $this->makeRequest([
             'HTTP_X_REQUEST_ID' => 'request-id',
@@ -259,17 +260,19 @@ final class ServiceContextTest extends TestCase
     }
 
     /**
-     * Test that fromRequest() falls back to X-Request-Id when unconfigured.
+     * Test that fromRequest() fails when the header setting is missing, rather
+     * than assuming X-Request-Id.
      *
      * @return void
      */
-    public function testFromRequestReadsXRequestIdWhenNoHeaderIsConfigured(): void
+    public function testFromRequestFailsWhenTheHeaderSettingIsMissing(): void
     {
         Config::set('api-toolkit.services', []);
 
-        $context = ServiceContext::fromRequest($this->makeRequest(['HTTP_X_REQUEST_ID' => 'req-42']), $this->makeActor());
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('The api-toolkit.services.correlation_header setting is missing; add it from the published config.');
 
-        self::assertSame('req-42', $context->correlationId);
+        ServiceContext::fromRequest($this->makeRequest(['HTTP_X_REQUEST_ID' => 'req-42']), $this->makeActor());
     }
 
     /**
@@ -292,7 +295,7 @@ final class ServiceContextTest extends TestCase
     #[DataProvider('disabledHeaderProvider')]
     public function testFromRequestGeneratesACorrelationIdWhenHeaderReadingIsDisabled(?string $header): void
     {
-        Config::set(ServiceContext::CORRELATION_HEADER_KEY, $header);
+        Config::set('api-toolkit.services.correlation_header', $header);
 
         $context = ServiceContext::fromRequest($this->makeRequest(['HTTP_X_REQUEST_ID' => 'req-42']), $this->makeActor());
 
@@ -339,7 +342,6 @@ final class ServiceContextTest extends TestCase
     {
         self::assertSame('ip', ServiceContext::METADATA_IP);
         self::assertSame('user_agent', ServiceContext::METADATA_USER_AGENT);
-        self::assertSame('api-toolkit.services.correlation_header', ServiceContext::CORRELATION_HEADER_KEY);
     }
 
     /**

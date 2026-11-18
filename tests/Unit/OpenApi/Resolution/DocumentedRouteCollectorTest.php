@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi\Resolution;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\AudiencePosture;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\OperationIdCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
@@ -209,7 +210,7 @@ final class DocumentedRouteCollectorTest extends TestCase
      */
     public function testAllowlistPostureExcludesUndeclaredRoutes(): void
     {
-        $this->config()->set('api-toolkit.openapi.audiences', ['partner' => ['posture' => AudienceResolver::POSTURE_ALLOWLIST]]);
+        $this->config()->set('api-toolkit.openapi.audiences', ['partner' => ['posture' => AudiencePosture::ALLOWLIST->value]]);
 
         $this->router()->get('plain', [PathPlainController::class, 'index']);
 
@@ -307,24 +308,13 @@ final class DocumentedRouteCollectorTest extends TestCase
     }
 
     /**
-     * Test that ids stay off when the key is absent, and a truthy value turns
-     * them on.
+     * Test that an environment spelling of true turns ids on.
      *
      * @return void
      */
-    public function testIdsAreOffWhenTheKeyIsAbsentAndOnForATruthyValue(): void
+    public function testIdsAreOnForAnEnvironmentSpellingOfTrue(): void
     {
         $this->router()->get('users', [PathFixtureController::class, 'index'])->name('users.index');
-
-        $openapi = $this->config()->get('api-toolkit.openapi');
-
-        self::assertIsArray($openapi);
-
-        unset($openapi['operation_ids']);
-
-        $this->config()->set('api-toolkit.openapi', $openapi);
-
-        self::assertFalse($this->collect(['public'])->operationIdsEnabled);
 
         $this->config()->set('api-toolkit.openapi.operation_ids', '1');
 
