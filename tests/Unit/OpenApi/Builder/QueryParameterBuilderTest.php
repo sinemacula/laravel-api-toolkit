@@ -4,11 +4,15 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Builder;
 
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
@@ -290,6 +294,24 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
+     * Test that the sparse-fieldset description names the type keys, the
+     * accepted values and what an unkeyed type returns.
+     *
+     * @return void
+     */
+    public function testFieldsDescriptionNamesTheTypeKeysValuesAndDefaultFields(): void
+    {
+        self::assertSame(
+            'Sparse fieldsets keyed by resource _type, e.g. fields[users]=id,name. Each value is a comma-separated '
+            . 'list of that schema\'s property names, with aggregates selecting its aggregates payload, or :all to '
+            . 'select every field. Unknown types and names are rejected. A type with no key selects its schema\'s '
+            . 'x-default-fields, unless a parent relation pins its fields. A selected property may still be left out; '
+            . 'only the required ones are always returned.',
+            $this->makeBuilder()->build()['Fields']['description'],
+        );
+    }
+
+    /**
      * Test that every deep-object parameter uses the exploded deepObject style.
      *
      * @return void
@@ -313,11 +335,6 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        self::assertSame(
-            'Sparse fieldsets: restrict the attributes returned per resource type, e.g. fields[users]=id,name. '
-            . 'Unknown resource types and names are rejected.',
-            $parameters['Fields']['description'],
-        );
         self::assertIsString($parameters['Search']['description']);
         self::assertStringContainsString('search=John Smith', $parameters['Search']['description']);
         self::assertIsString($parameters['Order']['description']);
@@ -600,6 +617,80 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
+     * Provide each query cost cap the catalogue reports.
+     *
+     * @return iterable<string, array{0: string}>
+     */
+    public static function capProvider(): iterable
+    {
+        foreach (self::capNames() as $cap) {
+            yield $cap => [$cap];
+        }
+    }
+
+    /**
+     * Test that an index raises the query cost refusal beside the validation
+     * failure while any one cap is enabled.
+     *
+     * @param  string  $cap
+     * @return void
+     */
+    #[DataProvider('capProvider')]
+    public function testIndexRaisesTheQueryCostRefusalWhileAnyCapIsEnabled(string $cap): void
+    {
+        self::assertSame(
+            [ValidationException::class, QueryTooExpensiveException::class],
+            $this->builderReporting([...$this->caps(-1), $cap => 1])->exceptionsFor('index'),
+        );
+    }
+
+    /**
+     * Test that an index raises only the validation failure while every cap is
+     * disabled.
+     *
+     * @return void
+     */
+    public function testIndexRaisesOnlyTheValidationFailureWhileEveryCapIsDisabled(): void
+    {
+        self::assertSame([ValidationException::class], $this->builderReporting($this->caps(0))->exceptionsFor('index'));
+        self::assertSame([ValidationException::class], $this->builderReporting($this->caps(-1))->exceptionsFor('index'));
+    }
+
+    /**
+     * Test that the actions taking no selection parameter raise only the
+     * validation failure.
+     *
+     * @return void
+     */
+    public function testActionsWithoutSelectionParametersRaiseOnlyTheValidationFailure(): void
+    {
+        $builder = $this->builderReporting($this->caps(1));
+
+        self::assertSame([ValidationException::class], $builder->exceptionsFor('show'));
+        self::assertSame([ValidationException::class], $builder->exceptionsFor('show', Article::class));
+        self::assertSame([ValidationException::class], $builder->exceptionsFor('store'));
+        self::assertSame([ValidationException::class], $builder->exceptionsFor('update'));
+    }
+
+    /**
+     * Test that an action raises an exception exactly when it references a
+     * parameter.
+     *
+     * @return void
+     */
+    public function testActionsRaiseExceptionsExactlyWhenTheyReferenceParameters(): void
+    {
+        $builder = $this->makeBuilder();
+
+        self::assertSame([], $builder->exceptionsFor('destroy'));
+        self::assertSame([], $builder->exceptionsFor('report'));
+
+        foreach (['index', 'show', 'store', 'update', 'destroy', 'report'] as $action) {
+            self::assertSame($builder->referencesFor($action) === [], $builder->exceptionsFor($action) === [], $action);
+        }
+    }
+
+    /**
      * Test that the documented longest term is the one the server enforces.
      *
      * @return void
@@ -669,6 +760,27 @@ final class QueryParameterBuilderTest extends TestCase
             static fn (array $reference): string => str_replace('#/components/parameters/', '', $reference['$ref']),
             $this->makeBuilder()->referencesFor($action, $modelClass),
         );
+    }
+
+    /**
+     * Report every query cost cap at the given value.
+     *
+     * @param  int  $value
+     * @return array<string, int>
+     */
+    private function caps(int $value): array
+    {
+        return array_fill_keys(self::capNames(), $value);
+    }
+
+    /**
+     * List the name of every query cost cap the catalogue reports.
+     *
+     * @return list<string>
+     */
+    private static function capNames(): array
+    {
+        return [...array_keys(QueryCostLimits::DEFAULTS), QueryParameterValidator::MAX_LIMIT];
     }
 
     /**

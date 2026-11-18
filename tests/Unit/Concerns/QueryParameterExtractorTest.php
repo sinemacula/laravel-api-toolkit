@@ -42,18 +42,57 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that extract keeps the trashed parameter exactly as sent, so the
-     * validator refuses anything but an exact state.
+     * Test that the parser reads exactly the toolkit's query parameters.
      *
      * @return void
      */
-    public function testExtractKeepsTheTrashedParameterAsSent(): void
+    public function testParametersListEveryParameterTheParserReads(): void
     {
-        $padded = $this->extractor->extract(['trashed' => ' WITH ']);
-        $listed = $this->extractor->extract(['trashed' => ['with']]);
+        self::assertSame(
+            ['page', 'limit', 'cursor', 'fields', 'aggregates', 'filters', 'search', 'order', 'trashed'],
+            QueryParameterExtractor::PARAMETERS,
+        );
+    }
 
-        self::assertSame(' WITH ', $padded['trashed']);
-        self::assertSame(['with'], $listed['trashed']);
+    /**
+     * Test that a parameter the parser does not read is never extracted.
+     *
+     * @return void
+     */
+    public function testExtractIgnoresParametersTheParserDoesNotRead(): void
+    {
+        $input = ['q' => 'x', 'pretty' => '1', 'pagination' => 'cursor', 'limit' => '5'];
+
+        self::assertSame(['limit' => '5'], $this->extractor->extract($input));
+    }
+
+    /**
+     * Provide trashed values of any shape.
+     *
+     * @return iterable<string, array{mixed}>
+     */
+    public static function trashedValueProvider(): iterable
+    {
+        yield 'padded' => [' WITH '];
+        yield 'list' => [['with']];
+        yield 'null' => [null];
+        yield 'integer' => [1];
+        yield 'boolean' => [true];
+    }
+
+    /**
+     * Test that extract keeps the trashed parameter exactly as sent, so the
+     * validator refuses anything but an exact state.
+     *
+     * @param  mixed  $trashed
+     * @return void
+     */
+    #[DataProvider('trashedValueProvider')]
+    public function testExtractKeepsTheTrashedParameterAsSent(mixed $trashed): void
+    {
+        $input = ['trashed' => $trashed];
+
+        self::assertSame(['trashed' => $trashed], $this->extractor->extract($input));
     }
 
     /**
@@ -63,7 +102,9 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractReturnsEmptyArrayWhenNoParametersSupplied(): void
     {
-        self::assertSame([], $this->extractor->extract([]));
+        $input = [];
+
+        self::assertSame([], $this->extractor->extract($input));
     }
 
     /**
@@ -116,8 +157,8 @@ final class QueryParameterExtractorTest extends TestCase
      */
     public function testExtractPassesCursorThroughUnchanged(): void
     {
-        $cursor = 'eyJpZCI6MTAwfQ==';
-        $input  = ['cursor' => $cursor];
+        $cursor  = 'eyJpZCI6MTAwfQ==';
+        $input = ['cursor' => $cursor];
 
         $parameters = $this->extractor->extract($input);
 
@@ -221,7 +262,7 @@ final class QueryParameterExtractorTest extends TestCase
     public function testExtractDecodesJsonFilters(): void
     {
         $filters = json_encode(['status' => 'active', 'role' => 'admin']);
-        $input   = ['filters' => $filters];
+        $input = ['filters' => $filters];
 
         $parameters = $this->extractor->extract($input);
 
@@ -249,7 +290,7 @@ final class QueryParameterExtractorTest extends TestCase
     public function testExtractRejectsFiltersNestedBeyondTheDecoderDepthLimit(): void
     {
         $filters = str_repeat('{"a":', 512) . '1' . str_repeat('}', 512);
-        $input   = ['filters' => $filters];
+        $input = ['filters' => $filters];
 
         $this->assertRejectsFilters($input);
     }
@@ -263,7 +304,7 @@ final class QueryParameterExtractorTest extends TestCase
     public function testExtractAcceptsFiltersNestedToTheDecoderDepthLimit(): void
     {
         $filters = str_repeat('{"a":', 511) . '1' . str_repeat('}', 511);
-        $input   = ['filters' => $filters];
+        $input = ['filters' => $filters];
 
         $parameters = $this->extractor->extract($input);
 
@@ -459,17 +500,36 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
-     * Test that a search parameter of the wrong shape is rejected.
+     * Provide search values that are not text.
      *
+     * @return iterable<string, array{mixed}>
+     */
+    public static function nonTextSearchProvider(): iterable
+    {
+        yield 'list' => [['smith']];
+        yield 'null' => [null];
+        yield 'integer' => [42];
+        yield 'boolean' => [true];
+    }
+
+    /**
+     * Test that a search parameter that is not text is read as an empty term
+     * and rejected.
+     *
+     * @param  mixed  $search
      * @return void
      */
-    public function testExtractRejectsANonStringSearchParameter(): void
+    #[DataProvider('nonTextSearchProvider')]
+    public function testExtractRejectsANonTextSearchParameter(mixed $search): void
     {
-        $input = ['search' => ['smith']];
+        $input = ['search' => $search];
 
-        $this->expectException(ValidationException::class);
-
-        $this->extractor->extract($input);
+        try {
+            $this->extractor->extract($input);
+            self::fail('Expected a ValidationException for the search parameter.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['search' => ['Every word in the search term must be at least 3 characters.']], $exception->errors());
+        }
     }
 
     /**

@@ -4,9 +4,11 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema\Validation;
 
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
+use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
@@ -23,10 +25,17 @@ final readonly class SchemaValidator
     /**
      * Create a new schema validator.
      *
+     * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $introspector
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaValidationRule  ...$rules
      */
-    public function __construct(SchemaValidationRule ...$rules)
-    {
+    public function __construct(
+
+        /** Resolves the relations a filter may descend through */
+        private SchemaIntrospectionProvider $introspector,
+
+        // The rules each resource is validated against
+        SchemaValidationRule ...$rules,
+    ) {
         $this->rules = $rules;
     }
 
@@ -51,11 +60,13 @@ final readonly class SchemaValidator
     }
 
     /**
-     * Run every rule over the resource map and every catalogued resource it
-     * does not bind, keeping what could not be verified apart from the defects.
+     * Run every rule over the resource map, every resource a filter reaches
+     * through it and every catalogued resource neither binds, keeping what
+     * could not be verified apart from the defects.
      *
-     * An unbound resource is validated with no model, so the rules reading the
-     * model's table skip it.
+     * A reached resource is validated once per model it serves. An unbound one
+     * is validated with no model, so the rules reading the model's table skip
+     * it.
      *
      * @param  array<class-string, class-string>  $resourceMap
      * @return \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationReport
@@ -64,12 +75,36 @@ final readonly class SchemaValidator
      */
     public function report(array $resourceMap): SchemaValidationReport
     {
-        $unbound  = array_diff(ResourceTypeIndex::all(), $resourceMap);
-        $findings = [];
+        $traversal = new RelationTraversal($this->introspector, $resourceMap);
+        $queue     = [];
+        $validated = [];
+        $findings  = [];
 
         foreach ($resourceMap as $modelClass => $resourceClass) {
-            array_push($findings, ...$this->check($resourceClass, $modelClass));
+            $queue[]                                       = [$resourceClass, $modelClass];
+            $validated[$resourceClass . '|' . $modelClass] = $resourceClass;
         }
+
+        while ($queue !== []) {
+
+            [$resourceClass, $modelClass] = array_shift($queue);
+
+            array_push($findings, ...$this->check($resourceClass, $modelClass));
+
+            foreach ($traversal->edges($resourceClass, $modelClass) as $edge) {
+
+                $pair = $edge->resource . '|' . $edge->model;
+
+                if ($edge->resource === null || isset($validated[$pair])) {
+                    continue;
+                }
+
+                $queue[]          = [$edge->resource, $edge->model];
+                $validated[$pair] = $edge->resource;
+            }
+        }
+
+        $unbound = array_diff(ResourceTypeIndex::all(), $validated);
 
         foreach ($unbound as $resourceClass) {
             array_push($findings, ...$this->check($resourceClass, null));
@@ -78,7 +113,7 @@ final readonly class SchemaValidator
         return new SchemaValidationReport(
             errors: array_values(array_filter($findings, static fn (object $finding): bool => $finding instanceof SchemaValidationError)),
             unverified: array_values(array_filter($findings, static fn (object $finding): bool => $finding instanceof UnverifiedDeclaration)),
-            resourceCount: count($resourceMap) + count($unbound),
+            resourceCount: count($validated) + count($unbound),
         );
     }
 

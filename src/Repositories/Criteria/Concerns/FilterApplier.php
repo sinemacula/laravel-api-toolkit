@@ -47,9 +47,6 @@ final class FilterApplier
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry */
     private OperatorRegistry $operatorRegistry;
 
-    /** @var \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface */
-    private QuerySurface $querySurface;
-
     /** @var \SineMacula\ApiToolkit\Query\QueryCostLimits */
     private QueryCostLimits $limits;
 
@@ -81,10 +78,9 @@ final class FilterApplier
     public function apply(Builder $query, ?array $filters, OperatorRegistry $operatorRegistry, QuerySurface $querySurface): Builder
     {
         $this->operatorRegistry = $operatorRegistry;
-        $this->querySurface     = $querySurface;
         $this->limits           = QueryCostLimits::fromConfig();
 
-        $this->applyDocument($query, $filters ?? [], FilterContext::root(new FilterCostBudget($this->limits)));
+        $this->applyDocument($query, $filters ?? [], FilterContext::root(new FilterCostBudget($this->limits)), $querySurface);
 
         return $query;
     }
@@ -97,12 +93,13 @@ final class FilterApplier
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  array<array-key, mixed>  $document
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    private function applyDocument(Builder $query, array $document, FilterContext $context): void
+    private function applyDocument(Builder $query, array $document, FilterContext $context, QuerySurface $surface): void
     {
         foreach ($document as $key => $value) {
 
@@ -112,7 +109,7 @@ final class FilterApplier
 
             $applied = count($query->getQuery()->wheres);
 
-            $this->applyEntry($query, $key, $value, $context);
+            $this->applyEntry($query, $key, $value, $context, $surface);
 
             $this->assertNarrowed($query, $applied, $context->at($key)->path());
         }
@@ -127,21 +124,22 @@ final class FilterApplier
      * @param  string  $key
      * @param  mixed  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Validation\Rejection
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    private function applyEntry(Builder $query, string $key, mixed $value, FilterContext $context): void
+    private function applyEntry(Builder $query, string $key, mixed $value, FilterContext $context, QuerySurface $surface): void
     {
         if (array_key_exists($key, $this->logicalOperatorMap)) {
-            $this->applyGroup($query, $key, $value, $context);
+            $this->applyGroup($query, $key, $value, $context, $surface);
             return;
         }
 
         if (array_key_exists($key, $this->relationalMethodMap)) {
-            $this->applyHasFilter($query, $key, $value, $context);
+            $this->applyHasFilter($query, $key, $value, $context, $surface);
             return;
         }
 
@@ -152,7 +150,7 @@ final class FilterApplier
             throw Rejection::at($position, 'filters.fieldless_condition', ['position' => $position]);
         }
 
-        $this->routePlainKey($query, $key, $value, $context);
+        $this->routePlainKey($query, $key, $value, $context, $surface);
     }
 
     /**
@@ -166,23 +164,22 @@ final class FilterApplier
      * @param  string  $key
      * @param  mixed  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    private function routePlainKey(Builder $query, string $key, mixed $value, FilterContext $context): void
+    private function routePlainKey(Builder $query, string $key, mixed $value, FilterContext $context, QuerySurface $surface): void
     {
-        $model = $query->getModel();
-
-        if ($this->querySurface->isDeclaredRelation($key, $model)) {
-            $this->applyRelation($query, 'whereHas', $key, $this->assertDocument($value, $context->at($key)->path()), $context);
+        if ($surface->isDeclaredRelation($key)) {
+            $this->applyRelation($query, 'whereHas', $key, $this->assertDocument($value, $context->at($key)->path()), $context, $surface);
             return;
         }
 
-        $this->querySurface->guardFilter($key, $model);
+        $surface->guardFilter($key);
 
-        $this->applyColumn($query, $key, $value, $context->at($key));
+        $this->applyColumn($query, $key, $value, $context->at($key), $surface);
     }
 
     /**
@@ -196,16 +193,17 @@ final class FilterApplier
      * @param  string  $column
      * @param  mixed  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Validation\Rejection
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    private function applyColumn(Builder $query, string $column, mixed $value, FilterContext $context): void
+    private function applyColumn(Builder $query, string $column, mixed $value, FilterContext $context, QuerySurface $surface): void
     {
         if (!is_array($value)) {
-            $this->applyEquality($query, $column, $value, $context);
+            $this->applyEquality($query, $column, $value, $context, $surface);
             return;
         }
 
@@ -225,7 +223,7 @@ final class FilterApplier
 
             $applied = count($query->getQuery()->wheres);
 
-            $this->applyCondition($query, $column, $token, $operand, $context);
+            $this->applyCondition($query, $column, $token, $operand, $context, $surface);
 
             $this->isolateCondition($query->getQuery(), $applied);
 
@@ -242,15 +240,16 @@ final class FilterApplier
      * @param  string  $column
      * @param  mixed  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    private function applyEquality(Builder $query, string $column, mixed $value, FilterContext $context): void
+    private function applyEquality(Builder $query, string $column, mixed $value, FilterContext $context, QuerySurface $surface): void
     {
         $model = $query->getModel();
 
-        $this->querySurface->guardFilterOperator($column, self::OPERATOR_EQUAL, $model);
+        $surface->guardFilterOperator($column, self::OPERATOR_EQUAL);
 
         $value = $this->guard->resolve($model, $column, self::OPERATOR_EQUAL, FilterValueShape::SCALAR, $value, $context->path());
 
@@ -267,13 +266,14 @@ final class FilterApplier
      * @param  string  $token
      * @param  mixed  $operand
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Validation\Rejection
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    private function applyCondition(Builder $query, string $column, string $token, mixed $operand, FilterContext $context): void
+    private function applyCondition(Builder $query, string $column, string $token, mixed $operand, FilterContext $context, QuerySurface $surface): void
     {
         $handler = in_array($token, self::STRUCTURAL_OPERATORS, true) ? null : $this->operatorRegistry->resolve($token);
 
@@ -286,7 +286,7 @@ final class FilterApplier
 
         $model = $query->getModel();
 
-        $this->querySurface->guardFilterOperator($column, $token, $model);
+        $surface->guardFilterOperator($column, $token);
 
         $this->limits->enforce(QueryCostLimits::MAX_IN_ITEMS, $this->countValueItems($handler, $operand), 'filters', $context->pointerTo($token));
 
@@ -326,13 +326,14 @@ final class FilterApplier
      * @param  string  $operator
      * @param  mixed  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Validation\Rejection
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    private function applyGroup(Builder $query, string $operator, mixed $value, FilterContext $context): void
+    private function applyGroup(Builder $query, string $operator, mixed $value, FilterContext $context, QuerySurface $surface): void
     {
         if (!is_array($value) || $value === [] || !array_is_list($value)) {
 
@@ -344,7 +345,7 @@ final class FilterApplier
         $nested  = $context->descend($operator);
         $boolean = $this->logicalOperatorMap[$operator];
 
-        $query->where(function (Builder $group) use ($value, $nested, $boolean): void {
+        $query->where(function (Builder $group) use ($value, $nested, $boolean, $surface): void {
             foreach ($value as $index => $document) {
 
                 $child = $nested->at((string) $index);
@@ -355,8 +356,8 @@ final class FilterApplier
 
                 $document = $this->assertDocument($document, $child->path());
 
-                $group->where(function (Builder $query) use ($document, $child): void {
-                    $this->applyDocument($query, $document, $child);
+                $group->where(function (Builder $query) use ($document, $child, $surface): void {
+                    $this->applyDocument($query, $document, $child, $surface);
                 }, boolean: $boolean);
             }
         });
@@ -371,12 +372,13 @@ final class FilterApplier
      * @param  string  $operator
      * @param  mixed  $value
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    private function applyHasFilter(Builder $query, string $operator, mixed $value, FilterContext $context): void
+    private function applyHasFilter(Builder $query, string $operator, mixed $value, FilterContext $context, QuerySurface $surface): void
     {
         $method = $this->relationalMethodMap[$operator];
         $scope  = $context->at($operator);
@@ -389,21 +391,24 @@ final class FilterApplier
 
                 $relation = $this->assertRelationName($filters, $scope->at((string) $relation)->path());
 
-                $this->querySurface->guardRelation($relation, $query->getModel());
+                $surface->guardRelation($relation);
 
                 $this->applyRelationalMethod($query, $method, $relation);
 
                 continue;
             }
 
-            $this->querySurface->guardRelation($relation, $query->getModel());
+            $surface->guardRelation($relation);
 
-            $this->applyRelation($query, $method, $relation, $this->assertDocument($filters, $scope->at($relation)->path()), $scope);
+            $this->applyRelation($query, $method, $relation, $this->assertDocument($filters, $scope->at($relation)->path()), $scope, $surface);
         }
     }
 
     /**
-     * Apply a relation body as a document on the related resource.
+     * Apply a relation body as a document on the resource governing it.
+     *
+     * Eloquent passes a MorphTo's concrete type, so a polymorphic body is
+     * governed per type.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
@@ -412,16 +417,17 @@ final class FilterApplier
      * @param  string  $relation
      * @param  array<array-key, mixed>  $document
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext  $context
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    private function applyRelation(Builder $query, string $method, string $relation, array $document, FilterContext $context): void
+    private function applyRelation(Builder $query, string $method, string $relation, array $document, FilterContext $context, QuerySurface $surface): void
     {
         $nested = $context->descend($relation);
 
-        $this->applyRelationalMethod($query, $method, $relation, function (Builder $query) use ($document, $nested): void {
-            $this->applyDocument($query, $document, $nested);
+        $this->applyRelationalMethod($query, $method, $relation, function (Builder $query, ?string $type = null) use ($document, $nested, $surface, $relation): void {
+            $this->applyDocument($query, $document, $nested, $surface->through($relation, $query->getModel(), $type !== null));
         });
     }
 
@@ -433,7 +439,7 @@ final class FilterApplier
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $method
      * @param  string  $relation
-     * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null  $callback
+     * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>, string|null=): void)|null  $callback
      * @return void
      */
     private function applyRelationalMethod(Builder $query, string $method, string $relation, ?\Closure $callback = null): void

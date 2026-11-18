@@ -63,7 +63,9 @@ A Payload enum value is checked with the other rules and fails with Laravel's `v
 
 `ApiQueryParser` sits behind the `ApiQuery` facade and is populated by the `ParseApiQuery` middleware, which the
 service provider pushes onto the global middleware stack unless `api-toolkit.parser.register_middleware` is `false`.
-Parameters are read from the query string only; a request body is never parsed.
+Parameters are read from the query string only; a request body is never parsed. Every key and value in `page`, `limit`,
+`cursor`, `fields`, `aggregates`, `filters`, `search`, `order` and `trashed` must be valid UTF-8, or the request is
+rejected with a 422 on that parameter.
 
 **Sparse fieldsets** - request only the fields you need for a resource type:
 
@@ -130,6 +132,14 @@ resource's own declarations, and compiles to `whereHas()`. `$has` and `$hasnt` t
 or relation names keyed to filter documents, and compile to `whereHas()` and `whereDoesntHave()`. Every condition in
 one relation document must hold for the same related row: `{"posts":{"a":1,"b":2}}` needs one post matching both,
 while `{"$and":[{"posts":{"a":1}},{"posts":{"b":2}}]}` may match different posts.
+
+The key is the Eloquent relation name, whatever alias the field renders under. The related level is governed by the
+resource the relation declares, so `Relation::to('author', PublicUserResource::class)->traversable()` accepts only what
+`PublicUserResource` filters, even where the related model's `resource_map` entry filters more. A relation declaring
+no resource falls back to that entry, and a `MorphTo` is governed by the entry of each concrete type, so a key is
+rejected unless every type stored in the table permits it. A level no resource governs rejects every key. A `MorphTo`
+with no type stored is never descended, so its nested keys go unchecked, `$has` matches nothing and `$hasnt` matches
+every row.
 
 A filter that cannot narrow the query is rejected with a 422 keyed by its position, such as `filters.$or.1.name`,
 rather than dropped: a group that is not a non-empty list, an empty group document, a condition with no column, a
@@ -342,7 +352,8 @@ non-numeric column, a minimum or maximum the related model would read back throu
 
 Only fields marked `filterable()` or `sortable()` can be queried, and `?search=` matches only fields marked
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. `$default` lists the fields
-returned when the client sends no `?fields`.
+returned when the client sends no `?fields`, and the static `$fixed` the fields added to every selection, after those
+in `resources.fixed_fields`. Schema validation rejects a default or fixed field the resource does not declare.
 
 **Schema lifetime** - `schema()` runs once per resource class per worker, and its result is shared by every request
 the worker serves, under Octane and on queue workers alike. It must not read or capture the request, the user, the
@@ -440,6 +451,22 @@ loaded collection, including one your own code loaded, is cut when it renders. A
 keeps every row and is cut only in the response. A collection your application loaded below the bound never carries
 `_truncated`, so its absence proves nothing about a relation you limited yourself.
 
+A constraint shapes the rendered rows only: filters, `$has`, `$hasnt` and aggregates never run it. A row predicate
+belongs in a relation method, which Eloquent applies everywhere:
+
+```php
+public function publishedPosts(): HasMany
+{
+    return $this->hasMany(Post::class)->where('published', true);
+}
+
+Relation::to('publishedPosts', PostResource::class)->alias('posts')->traversable(),
+```
+
+A relation loads once per path, so the schema compiler rejects a constrained relation any field makes `traversable()`,
+fields over one relation where any is constrained or they render different resources, and a relation name holding a
+dot. Fields over one relation may differ in `fields()`, and an accessor-only field may share any relation.
+
 **Field-set control** at instantiation:
 
 ```php
@@ -463,6 +490,9 @@ Validation checks that:
 - no declaration names a column configured as sensitive.
 - every `limit()` sits on a to-many relation rendered through a child resource, every field over one relation shares
   one limit, and no field is named `_truncated`.
+
+Every resource a filter reaches through a `traversable()` relation is validated too, once per related model, whether or
+not the resource map lists it.
 
 At boot, checks that read the connection are skipped where it cannot be read, such as a boot with no database or
 before migrations have run.
@@ -608,6 +638,9 @@ a `MorphTo` from a model or `null`, and a `BelongsToMany` or `MorphToMany` from 
 model is saved. A key naming any other relation throws an `InvalidArgumentException` before any key is assigned, and
 a key that is neither a column nor a mutator fails at save with the database's `QueryException`. A set mutator named
 like a relation takes precedence over it. `$fillable` and `$guarded` are not applied, so pass only validated input.
+The save and the syncs run in one transaction on the model's connection, so a sync that fails rolls the save back and
+leaves the model instance stale; discard it. A save that a `saving`, `creating` or `updating` listener cancels syncs
+nothing and returns `false`.
 
 **Cacheable trait** - per-query caching for any `ApiRepository` subclass:
 
@@ -658,6 +691,8 @@ Each row goes to its model's connection, resolved when the row is deferred, so a
 does not redirect it. Timestamps follow the model: none when it has timestamps disabled, otherwise its own
 `CREATED_AT` and `UPDATED_AT` columns in its date format, and a timestamp you pass is kept. Rows are inserted in
 consecutive runs of one column set, so a row may leave out optional columns and they keep their database default.
+Each connection flushes its tables in the order they joined the buffer, and a table keeps its place while it holds rows,
+so defer a parent before the rows that reference it.
 
 Reaching `deferred_writes.pool_limit` flushes automatically, but never on a connection with an open transaction: those
 rows wait for the next deferral outside a transaction or for the boundary flush, so rolling the transaction back does
@@ -746,6 +781,8 @@ Exceptions are mapped to `ApiException` subclasses and rendered as JSON error re
 
 On a precognitive request a `ValidationException` renders as Laravel's `{message, errors}` body, which Precognition
 clients read, rather than the error envelope.
+
+Malformed UTF-8 in an error body, such as a client's key echoed in a validation message, is rendered as U+FFFD.
 
 `api-toolkit.exceptions.map` renders an exception as an `ApiException` of your own:
 
@@ -886,7 +923,8 @@ The service provider registers the following middleware. Each can be disabled in
   is always `503`, so `--status` is ignored. Non-JSON requests that Laravel redirects (`--redirect`) or renders a
   template for (`--render`) are left alone.
 - **`json_pretty_print`** - pretty-printed JSON when the request carries `?pretty=true`.
-- **`throttle`** - API-friendly rate-limit responses; uses the Redis variant when Redis is the default cache store.
+- **`throttle`** - API-friendly rate-limit responses; uses the Redis variant when the default cache store uses the
+  `redis` driver.
 
 `json_pretty_print` takes `'scope' => 'global'` (default, pushed to the global stack) or `'scope' => 'api'` (appended
 to the `api` middleware group only). The maintenance middleware replaces Laravel's in its existing position in the
@@ -959,16 +997,21 @@ read from the same compiled schema the request-time checks use, and the operator
 document cannot offer a column the request would reject or an operator that is no longer registered. A column whose
 operators have all been removed from the registry is documented as answering no filter.
 
+A resource schema requires only what every response carries: `_type`, and each fixed field read straight from its
+column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names
+none for that type and no parent relation pins them: the declared `$default` fields, then the fixed ones.
+
 Every operation also lists the errors it can return, derived from the route: an unauthenticated request behind auth
 middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
 `AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the path
-has parameters, a validation failure when the operation accepts a request body, a refusal behind a rate limit, and an
-unhandled exception always. Each is documented as the exception map renders it: by default a `401`, `403`, `404`, `422`,
-`429` and `500`. The unhandled exception is looked up as a `Throwable`, so a `Throwable` key changes it and a narrower
-catch-all such as `RuntimeException` does not. A denial with a status of its own is documented only where the route
-already lists the error that status stands for, as a path with parameters does for `denyAsNotFound()`. Middleware is
-read as the router resolves it, so a guard or limit applied through a group counts and one removed with
-`withoutMiddleware()` does not.
+has parameters, a validation failure when the operation accepts a request body or the toolkit's query parameters, a
+refusal behind a rate limit, and an unhandled exception always. Each is documented as the exception map renders it: by
+default a `401`, `403`, `404`, `422`, `429` and `500`. A list operation also documents the query cost refusal under
+`422` while any query cost cap is enabled. The unhandled exception is looked up as a `Throwable`, so a `Throwable` key
+changes it and a narrower catch-all such as `RuntimeException` does not. A denial with a status of its own is documented
+only where the route already lists the error that status stands for, as a path with parameters does for
+`denyAsNotFound()`. Middleware is read as the router resolves it, so a guard or limit applied through a group counts and
+one removed with `withoutMiddleware()` does not.
 
 Each `ApiException` subclass named in the action's `@throws` tags is added under its status too; other throwables in
 those tags are ignored. Class names in `@throws` resolve as PHP would in the file declaring the action, so imported,
@@ -1108,8 +1151,9 @@ public function export(): JsonResponse {}
 `api-toolkit:docs:generate` writes the generated reference sections into the Markdown docs directory
 (`api-toolkit.openapi.docs_path`) that is assembled into the document's description: the error catalogue, the enum
 reference, and the query surface reference, which tables each resource's queryable columns alongside the request
-bounds. The surface reference is written per audience, under `audiences/<audience>/`, so it only reaches documents
-that already carry the resource's schema:
+bounds, and names the resource governing each traversable relation. The surface reference is written per audience,
+under `audiences/<audience>/`, so it only reaches documents that already carry the resource's schema, and the
+resources their filters reach through a relation that is not a `MorphTo`:
 
 ```bash
 php artisan api-toolkit:docs:generate
@@ -1239,7 +1283,9 @@ invalidation leaves at most one stale copy behind.
 
 A service is generic over its input and output. Declare both with `@extends Service<TInput, TOutput>` and
 `$this->input` is typed as `TInput` in every hook. The input is readonly, so a subclass with its own constructor
-passes it to `parent::__construct($input)` rather than redeclaring or assigning `$input`.
+passes it to `parent::__construct($input)` rather than redeclaring or assigning `$input`. `make()` resolves the service
+from the container and hands the input to the first constructor parameter whose class, interface or union type accepts
+it, whatever its name; a constructor that cannot take it throws a `LogicException`.
 
 ```php
 /**
@@ -1269,6 +1315,18 @@ public function signIn(SignInPayload $payload): UserResource
 }
 
 SignInPayload::from(['email' => 'a@example.com', 'password' => 'secret']);
+```
+
+Form, multipart and query string values arrive as strings, so an `int`, `float` or `bool` property is cast from any
+value the `integer`, `numeric`, `boolean`, `accepted` or `declined` rule accepts. A property its rules let be absent
+needs a default; without one, `from()` throws a `LogicException` naming it.
+
+`toArray()` of a payload built by `from()` returns only the validated fields the input sent, an explicit `null`
+included, so a partial update persists them without resetting the rest. A payload built with `new` includes its
+defaults:
+
+```php
+UpdateUserPayload::from(['email' => 'new@example.com'])->toArray(); // ['email' => 'new@example.com']
 ```
 
 `messages()` and `attributes()` customise the messages and field names, as on a FormRequest. A `status.enum` entry
@@ -1543,6 +1601,10 @@ API_TOOLKIT_NOTIFICATIONS_LOG_CHANNEL=notifications
 - PHP ^8.3
 - Laravel 13.39+
 - MySQL 8.4+, where the search layer is used
+- PostgreSQL 15+
+
+MariaDB is untested: it reports its own driver name, so search needs a driver registered for it, and a prefix or
+ignored index can count as backing a sort.
 
 ## Testing
 

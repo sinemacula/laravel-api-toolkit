@@ -10,10 +10,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
+use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Country;
@@ -36,8 +39,11 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(AttributeSetter::class)]
+#[Group('database')]
 final class AttributeSetterTest extends TestCase
 {
+    use RecordsStatements;
+
     /** @var string */
     private const string ALICE_EMAIL = 'alice@example.com';
 
@@ -351,7 +357,7 @@ final class AttributeSetterTest extends TestCase
         $note = $this->createNote(['options' => ['theme' => 'light', 'font' => 'serif']]);
 
         self::assertTrue($this->attributeSetter->persist($note, ['options->theme' => 'dark']));
-        self::assertSame(['theme' => 'dark', 'font' => 'serif'], $note->fresh()?->options);
+        self::assertEquals(['theme' => 'dark', 'font' => 'serif'], $note->fresh()?->options);
     }
 
     /**
@@ -614,7 +620,8 @@ final class AttributeSetterTest extends TestCase
     }
 
     /**
-     * Test that a BelongsToMany given neither models nor keys is refused.
+     * Test that a BelongsToMany given neither models nor keys is refused, and
+     * the save before it rolled back.
      *
      * @return void
      */
@@ -622,10 +629,15 @@ final class AttributeSetterTest extends TestCase
     {
         $post = $this->createPost();
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage(sprintf('Attribute "tags" on %s must be given models or their keys', Post::class));
+        try {
+            $this->attributeSetter->persist($post, ['title' => 'changed', 'tags' => 1.5]);
 
-        $this->attributeSetter->persist($post, ['tags' => 1.5]);
+            self::fail('A value that is neither models nor keys must be refused.');
+        } catch (\InvalidArgumentException $exception) {
+            self::assertSame(sprintf('Attribute "tags" on %s must be given models or their keys', Post::class), $exception->getMessage());
+        }
+
+        self::assertSame('T', $post->fresh()?->title);
     }
 
     /**
@@ -713,9 +725,12 @@ final class AttributeSetterTest extends TestCase
     {
         $user = $this->createAlice();
 
-        $this->assertThrows(fn (): bool => $this->attributeSetter->persist($user, ['name' => 'changed', 'nickname' => 'Al']), QueryException::class, 'nickname');
+        $persist = fn (): bool => $this->attributeSetter->persist($user, ['name' => 'changed', 'nickname' => 'Al']);
 
-        self::assertSame('Alice', $user->fresh()?->name);
+        // The savepoint rollback undoes any write, so no read could see one
+        $statements = $this->recordStatements(fn (): mixed => $this->assertThrows(static fn (): mixed => DB::transaction($persist), QueryException::class, 'nickname'));
+
+        self::assertSame([], $statements);
     }
 
     /**
@@ -731,6 +746,59 @@ final class AttributeSetterTest extends TestCase
 
         self::assertFalse($this->attributeSetter->persist($user, ['name' => 'Bob']));
         self::assertSame('Alice', $user->fresh()?->name);
+    }
+
+    /**
+     * Provide the many-to-many relations persist syncs, with their pivot table.
+     *
+     * @return iterable<string, array{class-string<\Tests\Fixtures\Models\Note|\Tests\Fixtures\Models\Post>, string, string}>
+     */
+    public static function syncedRelationProvider(): iterable
+    {
+        yield 'belongs to many' => [Post::class, 'tags', 'post_tag'];
+        yield 'morph to many' => [Note::class, 'labels', 'labelables'];
+    }
+
+    /**
+     * Test that a cancelled save on an existing model syncs nothing.
+     *
+     * @param  class-string<\Tests\Fixtures\Models\Note|\Tests\Fixtures\Models\Post>  $class
+     * @param  string  $relation
+     * @param  string  $pivot
+     * @return void
+     */
+    #[DataProvider('syncedRelationProvider')]
+    public function testPersistDoesNotSyncWhenTheSaveIsCancelled(string $class, string $relation, string $pivot): void
+    {
+        $model = $class === Post::class ? $this->createPost() : $this->createNote(['title' => 'T']);
+        $tag   = Tag::create(['name' => 'php']);
+
+        $class::saving(static fn (): bool => false);
+
+        self::assertFalse($this->attributeSetter->persist($model, ['title' => 'changed', $relation => [$tag->getKey()]]));
+        self::assertSame('T', $model->fresh()?->title);
+        self::assertSame(0, DB::table($pivot)->count());
+    }
+
+    /**
+     * Test that a cancelled create with a relation returns false and writes
+     * nothing.
+     *
+     * @param  class-string<\Tests\Fixtures\Models\Note|\Tests\Fixtures\Models\Post>  $class
+     * @param  string  $relation
+     * @param  string  $pivot
+     * @return void
+     */
+    #[DataProvider('syncedRelationProvider')]
+    public function testPersistReturnsFalseForACancelledCreateWithARelation(string $class, string $relation, string $pivot): void
+    {
+        $tag = Tag::create(['name' => 'php']);
+
+        $class::saving(static fn (): bool => false);
+
+        self::assertFalse($this->attributeSetter->persist(new $class, ['title' => 'T', $relation => [$tag->getKey()]]));
+        self::assertSame(0, $class::query()->count());
+        self::assertSame(0, DB::table($pivot)->count());
     }
 
     /**

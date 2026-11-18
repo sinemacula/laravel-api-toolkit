@@ -5,7 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
@@ -68,13 +70,50 @@ final readonly class QueryParameterBuilder
     /**
      * List the parameter references the given REST action accepts, in order.
      *
-     * Soft-delete visibility is offered only where the model soft deletes.
-     *
      * @param  string  $action
      * @param  class-string|null  $modelClass
      * @return array<int, array<string, string>>
      */
     public function referencesFor(string $action, ?string $modelClass = null): array
+    {
+        return array_map(
+            static fn (string $name): array => ['$ref' => self::PARAMETER_REF_PREFIX . $name],
+            $this->namesFor($action, $modelClass),
+        );
+    }
+
+    /**
+     * List the exceptions raised by the parameters the given REST action
+     * accepts.
+     *
+     * @param  string  $action
+     * @param  class-string|null  $modelClass
+     * @return list<class-string<\Throwable>>
+     */
+    public function exceptionsFor(string $action, ?string $modelClass = null): array
+    {
+        $names = $this->namesFor($action, $modelClass);
+
+        if ($names === []) {
+            return [];
+        }
+
+        return array_intersect($names, self::SELECTION_PARAMETERS) !== [] && $this->capsQueryCost()
+            ? [ValidationException::class, QueryTooExpensiveException::class]
+            : [ValidationException::class];
+    }
+
+    /**
+     * List the parameter component names the given REST action accepts, in
+     * order.
+     *
+     * Soft-delete visibility is offered only where the model soft deletes.
+     *
+     * @param  string  $action
+     * @param  class-string|null  $modelClass
+     * @return list<string>
+     */
+    private function namesFor(string $action, ?string $modelClass): array
     {
         $names = match ($action) {
             'index'           => [...self::SHAPING_PARAMETERS, ...self::SELECTION_PARAMETERS],
@@ -87,10 +126,19 @@ final readonly class QueryParameterBuilder
             $names[] = self::VISIBILITY_PARAMETER;
         }
 
-        return array_map(
-            static fn (string $name): array => ['$ref' => self::PARAMETER_REF_PREFIX . $name],
-            $names,
-        );
+        return $names;
+    }
+
+    /**
+     * Determine whether any query cost cap is enabled.
+     *
+     * A cap of zero or less is never enforced.
+     *
+     * @return bool
+     */
+    private function capsQueryCost(): bool
+    {
+        return array_filter($this->catalogue->getQueryLimits(), static fn (int $cap): bool => $cap > 0) !== [];
     }
 
     /**
@@ -117,8 +165,11 @@ final readonly class QueryParameterBuilder
     {
         return $this->parameter(
             'fields',
-            'Sparse fieldsets: restrict the attributes returned per resource type, e.g. fields[users]=id,name. '
-            . 'Unknown resource types and names are rejected.',
+            'Sparse fieldsets keyed by resource _type, e.g. fields[users]=id,name. Each value is a comma-separated '
+            . 'list of that schema\'s property names, with aggregates selecting its aggregates payload, or :all to '
+            . 'select every field. Unknown types and names are rejected. A type with no key selects its schema\'s '
+            . 'x-default-fields, unless a parent relation pins its fields. A selected property may still be left out; '
+            . 'only the required ones are always returned.',
             ['type' => 'object', 'additionalProperties' => ['type' => 'string']],
             'deepObject',
         );
