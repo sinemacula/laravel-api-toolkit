@@ -102,6 +102,41 @@ final class CompiledSchemaTest extends TestCase
     }
 
     /**
+     * Test that the selectable fields are the field keys and the type, with the
+     * aggregates object only where an aggregate is declared.
+     *
+     * @return void
+     */
+    public function testGetSelectableFieldsAddsTheAggregatesObjectOnlyWhereDeclared(): void
+    {
+        $field = new CompiledFieldDefinition(
+            accessor: null,
+            compute: null,
+            relation: null,
+            resource: null,
+            fields: null,
+            constraint: null,
+            extras: [],
+            needs: [],
+            guards: [],
+            transformers: [],
+        );
+
+        $aggregate = new CompiledAggregateDefinition(
+            presentKey: 'posts_count',
+            relation: 'posts',
+            function: AggregateFunction::COUNT,
+            column: null,
+            constraint: null,
+            isDefault: false,
+            guards: [],
+        );
+
+        self::assertSame(['id', 'name', '_type'], (new CompiledSchema(['id' => $field, 'name' => $field]))->getSelectableFields());
+        self::assertSame(['id', '_type', 'aggregates'], (new CompiledSchema(['id' => $field], ['posts_count' => $aggregate]))->getSelectableFields());
+    }
+
+    /**
      * Test that getAggregateDefinitions returns all aggregate definitions.
      *
      * @return void

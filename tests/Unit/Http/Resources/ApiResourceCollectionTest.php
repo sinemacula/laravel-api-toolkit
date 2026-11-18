@@ -9,11 +9,13 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ProvidesApiEnvelope;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
@@ -342,6 +344,8 @@ final class ApiResourceCollectionTest extends TestCase
         $request = Request::create('/', HttpMethod::GET->getVerb(), [
             'fields' => ['users' => 'id,name,organization'],
         ]);
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
 
         $parser->parse($request);
 

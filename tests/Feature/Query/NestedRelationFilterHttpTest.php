@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
@@ -142,6 +143,8 @@ final class NestedRelationFilterHttpTest extends TestCase
         $this->getJson('/published-users?filters=' . urlencode((string) $filters))
             ->assertOk()
             ->assertJsonPath('data.*.name', ['Bob']);
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [PublishedPostsUserResource::class, PostResource::class]);
 
         $this->getJson('/published-users?fields[published_posts_users]=name,posts&fields[posts]=title')
             ->assertOk()

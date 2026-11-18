@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\Http\Enums\HttpMethod;
@@ -18,6 +19,7 @@ use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\ConstrainedUserResource;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\TestCase;
 
 /**
@@ -53,6 +55,8 @@ final class ConstrainedRelationQueryBoundTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [ConstrainedUserResource::class, PostResource::class]);
 
         // Narrowing adds a metadata pass that would skew the query counts
         Config::set('api-toolkit.resources.narrow_columns', false);

@@ -4,11 +4,13 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Schema\Validation;
 
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -25,6 +27,7 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\SensitiveQueryableResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -263,6 +266,62 @@ final class SchemaValidatorTest extends TestCase
         self::assertSame([$organizationError, $postError], $report->errors);
         self::assertSame([$organizationClaim, $postClaim], $report->unverified);
         self::assertSame(2, $report->resourceCount);
+    }
+
+    /**
+     * Test that a catalogued resource the map does not bind is validated with
+     * no model, once, and counted.
+     *
+     * @return void
+     */
+    public function testUnboundCataloguedResourceIsValidatedWithoutAModel(): void
+    {
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [OrganizationResource::class, TagResource::class]);
+
+        $calls = [];
+        $rule  = self::createStub(SchemaValidationRule::class);
+
+        $rule->method('validate')
+            ->willReturnCallback(static function (string $resourceClass, ?string $modelClass) use (&$calls): array {
+                $calls[] = [$resourceClass, $modelClass];
+
+                return [];
+            });
+
+        $report = (new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule))->report([Organization::class => OrganizationResource::class]);
+
+        self::assertSame([[OrganizationResource::class, Organization::class], [TagResource::class, null]], $calls);
+        self::assertSame(2, $report->resourceCount);
+    }
+
+    /**
+     * Test that a catalogued resource a filter reaches is validated with the
+     * model it reaches, never again without one.
+     *
+     * @return void
+     */
+    public function testReachedCataloguedResourceIsValidatedOnlyWithItsModel(): void
+    {
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, PostResource::class]);
+
+        $calls = [];
+        $rule  = self::createStub(SchemaValidationRule::class);
+
+        $rule->method('validate')
+            ->willReturnCallback(static function (string $resourceClass, ?string $modelClass) use (&$calls): array {
+                $calls[] = [$resourceClass, $modelClass];
+
+                return [];
+            });
+
+        $report = (new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule))->report([User::class => UserResource::class]);
+
+        self::assertSame([
+            [UserResource::class, User::class],
+            [OrganizationResource::class, Organization::class],
+            [PostResource::class, Post::class],
+        ], $calls);
+        self::assertSame(3, $report->resourceCount);
     }
 
     /**

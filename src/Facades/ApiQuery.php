@@ -13,8 +13,8 @@ use Illuminate\Support\Facades\Facade;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
- * @method static array<int, string>|null getFields(?string $resource = null)
- * @method static array<int, string>|null getAggregates(?string $resource = null)
+ * @method static array<int, string>|null getFields(string $resource)
+ * @method static array<int, string>|null getAggregates(string $resource)
  * @method static array<string, mixed>|null getFilters()
  * @method static \SineMacula\ApiToolkit\Search\SearchTerm|null getSearch()
  * @method static array<string, 'asc'|'desc'> getOrder()

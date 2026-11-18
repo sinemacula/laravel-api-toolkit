@@ -9,7 +9,7 @@ use SineMacula\ApiToolkit\Search\SearchTerm;
 use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
- * Extracts and parses API query parameters from a request.
+ * Extracts and parses the API parameters in a request's query string.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Validation\Rejection;
 final class QueryParameterExtractor
 {
     /**
-     * Extract and parse all parameters from the request.
+     * Extract and parse all parameters from the request's query string.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return array<string, mixed>
@@ -29,8 +29,8 @@ final class QueryParameterExtractor
         $parameters = [];
 
         $parsers = [
-            'page'       => fn ($value) => trim($value),
-            'limit'      => fn ($value) => trim($value),
+            'page'       => fn ($value) => is_string($value) ? trim($value) : $value,
+            'limit'      => fn ($value) => is_string($value) ? trim($value) : $value,
             'cursor'     => fn ($value) => $value,
             'fields'     => fn ($value) => $this->parseFields($value),
             'aggregates' => fn ($value) => $this->parseAggregates($value),
@@ -41,11 +41,11 @@ final class QueryParameterExtractor
         ];
 
         foreach ($parsers as $key => $parser) {
-            if (!$request->has($key)) {
+            if (!$request->query->has($key)) {
                 continue;
             }
 
-            $parameters[$key] = $parser($request->input($key));
+            $parameters[$key] = $parser($request->query($key));
         }
 
         return $parameters;
@@ -54,10 +54,10 @@ final class QueryParameterExtractor
     /**
      * Extract the field parameters from the query string.
      *
-     * @param  array<string, string>|string  $query
-     * @return array<int, string>|array<string, array<int, string>>
+     * @param  array<array-key, string|null>  $query
+     * @return array<array-key, array<int, string>>
      */
-    private function parseFields(array|string $query): array
+    private function parseFields(array $query): array
     {
         return $this->parseCommaSeparatedValues($query);
     }
@@ -65,27 +65,26 @@ final class QueryParameterExtractor
     /**
      * Extract the aggregate parameters from the query string.
      *
-     * @param  array<string, string>|string  $query
-     * @return array<int, string>|array<string, array<int, string>>
+     * @param  array<array-key, string|null>  $query
+     * @return array<array-key, array<int, string>>
      */
-    private function parseAggregates(array|string $query): array
+    private function parseAggregates(array $query): array
     {
         return $this->parseCommaSeparatedValues($query);
     }
 
     /**
-     * Parse comma-separated values from query parameters.
+     * Parse the comma-separated values keyed by resource type.
      *
-     * @param  array<string, string>|string  $query
-     * @return array<int, string>|array<string, array<int, string>>
+     * A null value, which the empty-string middleware makes of an empty one,
+     * reads as empty either way.
+     *
+     * @param  array<array-key, string|null>  $query
+     * @return array<array-key, array<int, string>>
      */
-    private function parseCommaSeparatedValues(array|string $query): array
+    private function parseCommaSeparatedValues(array $query): array
     {
-        if (!is_array($query)) {
-            return $this->splitAndTrim($query);
-        }
-
-        return array_map(fn ($value) => $this->splitAndTrim($value), $query);
+        return array_map(fn (?string $value): array => $this->splitAndTrim($value ?? ''), $query);
     }
 
     /**

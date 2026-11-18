@@ -15,6 +15,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Schema\Introspection\CatalogueProbe;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateIndexBacking;
@@ -203,6 +204,29 @@ final class ValidateSchemasCommandTest extends TestCase
             ->expectsOutputToContain('No resources are registered in the resource map, so nothing was validated. Register or discover a resource, or pass --allow-empty.')
             ->doesntExpectOutputToContain('validated successfully')
             ->assertExitCode(1);
+    }
+
+    /**
+     * Test that a discovered resource no model binds is validated when the map
+     * is empty.
+     *
+     * @return void
+     */
+    public function testCommandValidatesAnUnboundResourceBesideAnEmptyMap(): void
+    {
+        $rule = self::createStub(SchemaValidationRule::class);
+
+        $rule->method('validate')
+            ->willReturn([]);
+
+        $this->getApplication()->instance(SchemaValidator::class, new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule));
+
+        $this->getConfig()->set('api-toolkit.resources.resource_map', []);
+        $this->getConfig()->set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
+
+        $this->runCommand()
+            ->expectsOutputToContain('All 1 resource schema(s) validated successfully.')
+            ->assertExitCode(0);
     }
 
     /**
