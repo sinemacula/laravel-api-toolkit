@@ -867,7 +867,8 @@ status for request-level error rates.
 - An exception implementing Symfony's `HttpExceptionInterface` is not reported when its status is a recognised client
   error (one the handler renders as a `4xx`) or `419`, even when it does not extend Symfony's `HttpException`. An
   unrecognised status such as `499` renders as a generic `500` and is reported.
-- `LockUnavailableException` (lock contention, rendered as `429`) is never reported, with or without `handles()`.
+- `LockUnavailableException` (lock contention, rendered as `429`) is never reported, with or without `handles()`. The
+  `429` carries no `Retry-After` or `X-RateLimit-*` header, since how long the holder keeps the lock is unknown.
 
 Other framework exceptions rendered as client errors, such as `ModelNotFoundException` (`404`) or
 `ValidationException` (`422`), are kept out of reports by Laravel's own don't-report list.
@@ -1424,6 +1425,10 @@ $user = $result->output();
 `runOrFail()` is `run()->throw()->output()`. Both use the context given through `withContext()` and fire the same
 lifecycle events.
 
+A queued `ServiceCompleted` or `ServiceFailed` listener receives the result's exception and each side-effect error as a
+`SerializedException`, which keeps its message, code, file, line and previous chain and names its class through
+`originalClass()`, since an exception's trace and state, such as a validator, may not serialise.
+
 `dispatch()` runs `authorize()` and `validate()`, then queues the service. A refusal throws from `dispatch()`, so an
 HTTP action answers `403` or `422` and nothing is queued. The worker runs the whole lifecycle again with a `QUEUE`
 context, since state can change before the job runs, so both hooks must be repeatable. At dispatch they see the context
@@ -1488,11 +1493,12 @@ Laravel decides three things the toolkit leaves as they are:
 `afterCommit()` runs once the outermost transaction has committed. The transaction runs once: a deadlock or other
 concurrency error rolls it back and fails the run, firing `onFailure()` and `ServiceFailed`.
 
-`$transactionAttempts` (default `1`) lets a top-level run retry a concurrency error. Each retry re-runs the concerns,
-`prepare()` and `handle()` in full, but the rollback resets only the database: a model saved by the failed attempt still
-looks saved, so the retry can skip its write and report success. A service nested in another transaction never retries;
-it fails with a `DeadlockException`. On a transactional service a value below `1` fails the run with a `LogicException`.
-A service that sets it above `1` must:
+`$transactionAttempts` (default `1`) lets a top-level run retry a concurrency error, such as a deadlock, a PostgreSQL
+serialization failure or a MySQL lock wait timeout. Each retry re-runs the concerns, `prepare()` and `handle()` in full,
+but the rollback resets only the database: a model saved by the failed attempt still looks saved, so the retry can skip
+its write and report success. A service nested in another transaction never retries; it fails with a
+`DeadlockException`. On a transactional service a value below `1` fails the run with a `LogicException`. A service that
+sets it above `1` must:
 
 1. Load every model it writes inside the transaction, in `prepare()` or `handle()`, from keys in the input
    (`Order::query()->lockForUpdate()->findOrFail($this->input->orderId)`). Never write a model carried by the input or
