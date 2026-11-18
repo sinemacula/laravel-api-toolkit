@@ -111,7 +111,7 @@ final readonly class PathBuilder
             foreach ($route->verbs as $verb) {
 
                 $conditional = in_array(strtoupper($verb), RequireIfMatch::METHODS, true);
-                $operation   = $resolved[(int) $conditional] ??= $this->resolveOperation($route, $conditional);
+                $operation   = $resolved[$conditional] ??= $this->resolveOperation($route, $conditional);
 
                 $built = ['tags' => [$route->tag]] + $this->documentation($route, $verb, $descriptions) + $operation;
                 $claim = $claims[$route->path][$verb] ?? null;

@@ -87,7 +87,7 @@ trait HasVersion
         $dirty = parent::getDirtyForUpdate();
 
         if ($dirty === []) {
-            return $dirty;
+            return [];
         }
 
         $column = $this->getVersionColumn();
@@ -107,14 +107,14 @@ trait HasVersion
      */
     private function nextVersion(): int
     {
-        $column = $this->getVersionColumn();
-        $stored = $this->getRawOriginal($column);
-        $stored = is_numeric($stored) ? (int) $stored : null;
+        $column   = $this->getVersionColumn();
+        $stored   = $this->getRawOriginal($column);
+        $versions = array_filter([is_numeric($stored) ? (int) $stored : null, $this->writtenVersion], is_int(...));
 
-        if ($stored === null && $this->writtenVersion === null) {
+        if ($versions === []) {
             throw new \LogicException(sprintf('%s cannot advance its [%s] version, as the stored version was not loaded or is null.', static::class, $column));
         }
 
-        return max($stored ?? 0, $this->writtenVersion ?? 0) + 1;
+        return max($versions) + 1;
     }
 }

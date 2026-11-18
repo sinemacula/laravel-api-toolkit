@@ -80,6 +80,23 @@ final class HasVersionTest extends TestCase
     }
 
     /**
+     * Test that a version a driver reads back as a numeric string advances like
+     * an integer.
+     *
+     * @return void
+     */
+    public function testUpdateAdvancesAVersionReadAsANumericString(): void
+    {
+        $document = $this->documentAtVersion(5);
+
+        $document->setRawAttributes(['version' => '5'] + $document->getAttributes(), true);
+        $document->title = 'Revised';
+        $document->save();
+
+        self::assertSame(6, $this->storedVersion($document));
+    }
+
+    /**
      * Test that a clean save neither advances the version nor runs a query.
      *
      * @return void
