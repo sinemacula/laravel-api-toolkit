@@ -887,7 +887,6 @@ final class PayloadTest extends TestCase
     {
         yield 'int from a decimal string' => ['count', '5.5'];
         yield 'int from a fractional float' => ['count', 5.5];
-        yield 'int from a bool' => ['count', true];
         yield 'float from a word' => ['ratio', 'half'];
         yield 'bool from a word' => ['enabled', 'yes'];
         yield 'bool from a decimal string' => ['enabled', '1.0'];

@@ -252,7 +252,7 @@ final class ServiceTest extends TestCase
     {
         $bound = null;
 
-        $this->app->bind(OutputService::class, static function (Container $app, array $parameters) use (&$bound): OutputService {
+        app()->bind(OutputService::class, static function (Container $app, array $parameters) use (&$bound): OutputService {
             return $bound = new OutputService(...$parameters);
         });
 
@@ -270,13 +270,58 @@ final class ServiceTest extends TestCase
      */
     public function testMakeHandsTheGivenInputToASubclassConstructor(): void
     {
-        $this->app->instance('request', Request::create('/', 'POST', ['title' => 'from-request']));
+        app()->instance('request', Request::create('/', 'POST', ['title' => 'from-request']));
 
         $input   = new StorePayload(title: 'given');
         $service = RenamedInputService::make($input);
 
         self::assertSame($input, $service->run()->output());
-        self::assertSame($this->app->make(Dispatcher::class), $service->events);
+        self::assertSame(app(Dispatcher::class), $service->events);
+    }
+
+    /**
+     * Test that make() hands the input to the first parameter that accepts it.
+     *
+     * @return void
+     */
+    public function testMakeHandsTheInputToTheFirstParameterThatAcceptsIt(): void
+    {
+        $service = new class (new ArrayInput([])) extends Service {
+            /**
+             * Construct the service with a second parameter that also accepts
+             * an input.
+             *
+             * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput  $primary
+             * @param  \SineMacula\ApiToolkit\Services\Contracts\ServiceInput|null  $secondary
+             */
+            public function __construct(
+
+                // The input, handed to the parent constructor.
+                ServiceInput $primary,
+
+                /** A second parameter that also accepts an input. */
+                public readonly ?ServiceInput $secondary = null,
+            ) {
+                parent::__construct($primary);
+            }
+
+            /**
+             * Return the input.
+             *
+             * @return \SineMacula\ApiToolkit\Services\Contracts\ServiceInput
+             */
+            #[\Override]
+            protected function handle(): mixed
+            {
+                return $this->input;
+            }
+        };
+
+        $input = new ArrayInput(['message' => 'first']);
+        $made  = $service::make($input);
+
+        self::assertSame($input, $made->run()->output());
+        self::assertNull($made->secondary);
     }
 
     /**

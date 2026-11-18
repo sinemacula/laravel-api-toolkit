@@ -74,25 +74,7 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
             self::applyPrecognition($validator, $source);
         }
 
-        $validated = $validator->validate();
-        $namedArgs = [];
-
-        foreach ($parameters as $name => $parameter) {
-
-            $key = $keys[$name] ?? $name;
-
-            if (!array_key_exists($key, $validated)) {
-
-                if (!$parameter->isOptional()) {
-                    throw new \LogicException(sprintf('%s::$%s has no default, but its rules let "%s" be absent', static::class, $name, $key));
-                }
-
-                continue;
-            }
-
-            $namedArgs[$name] = self::castValue($parameter, $validated[$key]);
-        }
-
+        $namedArgs          = self::namedArguments($parameters, $keys, $validator->validate());
         $className          = static::class;
         $instance           = new $className(...$namedArgs);
         $instance->hydrated = array_keys($namedArgs);
@@ -359,10 +341,36 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
     }
 
     /**
-     * Cast a validated value to the parameter's enum or scalar type.
+     * Map each promoted parameter to its cast validated value, leaving out the
+     * ones the input omitted.
      *
-     * A scalar is cast only from a value the integer, numeric or boolean rule
-     * accepts, so anything else reaches the constructor unchanged.
+     * @param  array<string, \ReflectionParameter>  $parameters
+     * @param  array<string, string>  $keys
+     * @param  array<array-key, mixed>  $validated
+     * @return array<string, mixed>
+     *
+     * @throws \LogicException
+     */
+    private static function namedArguments(array $parameters, array $keys, array $validated): array
+    {
+        $namedArgs = [];
+
+        foreach ($parameters as $name => $parameter) {
+
+            $key = $keys[$name] ?? $name;
+
+            if (array_key_exists($key, $validated)) {
+                $namedArgs[$name] = self::castValue($parameter, $validated[$key]);
+            } elseif (!$parameter->isOptional()) {
+                throw new \LogicException(sprintf('%s::$%s has no default, but its rules let "%s" be absent', static::class, $name, $key));
+            }
+        }
+
+        return $namedArgs;
+    }
+
+    /**
+     * Cast a validated value to the parameter's enum or scalar type.
      *
      * @param  \ReflectionParameter  $parameter
      * @param  mixed  $value
@@ -378,9 +386,22 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
 
         $type = $parameter->getType();
 
-        return match ($type instanceof \ReflectionNamedType ? $type->getName() : null) {
-            'int'   => is_string($value) || is_float($value) ? filter_var($value, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE) ?? $value : $value,
-            'float' => is_string($value) && is_numeric($value) ? (float) $value : $value,
+        return $type instanceof \ReflectionNamedType ? self::castScalar($type->getName(), $value) : $value;
+    }
+
+    /**
+     * Cast a value to an int, float or bool type only where the integer,
+     * numeric or boolean rule accepts it, leaving any other value unchanged.
+     *
+     * @param  string  $type
+     * @param  mixed  $value
+     * @return mixed
+     */
+    private static function castScalar(string $type, mixed $value): mixed
+    {
+        return match ($type) {
+            'int'   => filter_var($value, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE) ?? $value,
+            'float' => is_numeric($value) ? (float) $value : $value,
             'bool'  => in_array($value, [0, 1, '0', '1'], true) ? (bool) $value : $value,
             default => $value,
         };

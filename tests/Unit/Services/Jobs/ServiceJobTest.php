@@ -92,8 +92,8 @@ final class ServiceJobTest extends TestCase
     }
 
     /**
-     * Test that handle() runs a service that names its input differently on
-     * the dispatched input, not one built from the worker's request.
+     * Test that handle() runs a service that names its input differently on the
+     * dispatched input, not one built from the worker's request.
      *
      * @return void
      */

@@ -147,12 +147,12 @@ final class PayloadContainerResolutionTest extends TestCase
     {
         $user = User::query()->create(['name' => 'Original', 'email' => 'old@example.com']);
 
-        $response = $this->patchJson('/users/' . $user->getKey(), ['email' => 'new@example.com']);
+        $response = $this->patchJson('/users/' . $user->id, ['email' => 'new@example.com']);
 
         $response->assertStatus(200);
         $response->assertExactJson(['email' => 'new@example.com']);
 
-        $this->assertDatabaseHas('users', ['id' => $user->getKey(), 'name' => 'Original', 'email' => 'new@example.com']);
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Original', 'email' => 'new@example.com']);
     }
 
     /**

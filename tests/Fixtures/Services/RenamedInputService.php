@@ -30,6 +30,7 @@ final class RenamedInputService extends Service
         /** The dispatcher the container injects. */
         public readonly Dispatcher $events,
 
+        // The input, handed to the parent constructor.
         StorePayload $payload,
     ) {
         parent::__construct($payload);
