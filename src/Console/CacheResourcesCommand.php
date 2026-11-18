@@ -9,9 +9,9 @@ use Illuminate\Filesystem\Filesystem;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 
 /**
- * Artisan command to compile the attribute-discovered resource map.
+ * Artisan command to compile the discovered resource catalogue.
  *
- * Discovery serves the compiled map instead of scanning; run by optimize.
+ * Discovery serves the compiled catalogue instead of scanning; run by optimize.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -22,7 +22,7 @@ final class CacheResourcesCommand extends Command
     protected $signature = 'api-toolkit:resources:cache';
 
     /** @var string The console command description */
-    protected $description = 'Discover the attribute-bound API resources and compile the model to resource map';
+    protected $description = 'Discover the API resources and compile their catalogue and model bindings';
 
     /**
      * Execute the console command.

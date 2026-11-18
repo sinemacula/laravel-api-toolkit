@@ -11,6 +11,7 @@ use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
@@ -64,6 +65,13 @@ final class TrashedSearchVisibilityHttpTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [
+            TrashedSearchArticleResource::class,
+            TrashedSearchAuthorResource::class,
+            TrashedSearchClosedArticleResource::class,
+            TrashedSearchCommentResource::class,
+        ]);
 
         FieldColumnMapper::clearCache();
         SchemaCompiler::clearCache();

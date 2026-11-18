@@ -6,6 +6,7 @@
         <exclude name="SlevomatCodingStandard.TypeHints.DisallowMixedTypeHint"/>
     </rule>
 
+    <file>benchmarks</file>
     <file>src</file>
     <file>tests</file>
 

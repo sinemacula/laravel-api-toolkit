@@ -4,9 +4,11 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Schema\Validation;
 
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
@@ -14,6 +16,7 @@ use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -251,6 +254,32 @@ final class SchemaValidatorTest extends TestCase
 
         self::assertSame([$userError, $postError], $report->errors);
         self::assertSame([$userClaim, $postClaim], $report->unverified);
+        self::assertSame(2, $report->resourceCount);
+    }
+
+    /**
+     * Test that a catalogued resource the map does not bind is validated with
+     * no model, once, and counted.
+     *
+     * @return void
+     */
+    public function testUnboundCataloguedResourceIsValidatedWithoutAModel(): void
+    {
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, TagResource::class]);
+
+        $calls = [];
+        $rule  = self::createStub(SchemaValidationRule::class);
+
+        $rule->method('validate')
+            ->willReturnCallback(static function (string $resourceClass, ?string $modelClass) use (&$calls): array {
+                $calls[] = [$resourceClass, $modelClass];
+
+                return [];
+            });
+
+        $report = (new SchemaValidator($rule))->report([User::class => UserResource::class]);
+
+        self::assertSame([[UserResource::class, User::class], [TagResource::class, null]], $calls);
         self::assertSame(2, $report->resourceCount);
     }
 
