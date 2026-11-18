@@ -120,8 +120,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         $columns = $this->captureUserColumns('name,email,status,display_label');
 
         self::assertNotContains('*', $columns);
-        self::assertContains('name', $columns);
-        self::assertContains('email', $columns);
+        self::assertContains('users.name', $columns);
+        self::assertContains('users.email', $columns);
         self::assertLessThan(count($this->userColumns()), count($columns));
         self::assertSame($off, $this->serialiseUsers('name,email,status,display_label'));
     }
@@ -162,10 +162,10 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         $columns = $this->captureArticleColumns('title,slug,summary_excerpt', 'views:desc');
 
         self::assertNotContains('*', $columns);
-        self::assertContains('id', $columns);
-        self::assertContains('deleted_at', $columns);
-        self::assertContains('views', $columns);
-        self::assertContains('summary', $columns);
+        self::assertContains('articles.id', $columns);
+        self::assertContains('articles.deleted_at', $columns);
+        self::assertContains('articles.views', $columns);
+        self::assertContains('articles.summary', $columns);
         self::assertSame($scalarOff, $this->serialiseArticles('title,slug,summary_excerpt', 'views:desc'));
 
         self::assertSame(['*'], $this->captureArticleColumns('title,author', 'views:desc'));
@@ -188,7 +188,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         $columns = $this->captureArticleColumns('id,author_name', null);
 
         self::assertNotContains('*', $columns);
-        self::assertContains('user_id', $columns);
+        self::assertContains('articles.user_id', $columns);
         self::assertSame($off, $this->serialiseArticles('id,author_name', null));
     }
 
@@ -274,6 +274,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         self::assertNotContains('*', $onColumns);
         self::assertLessThan(count($offColumns), count($onColumns));
         self::assertLessThan($fullBytes, $narrowedBytes);
+        self::assertSame(array_map(static fn (string $column): string => substr($column, strlen('articles.')), $onColumns), array_keys($narrowedModel->getAttributes()));
         self::assertSame($offResponse, $onResponse);
     }
 
@@ -291,7 +292,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         $columns = $this->captureArticleColumns('title,slug', null);
 
         self::assertNotContains('*', $columns);
-        self::assertContains('title', $columns);
+        self::assertContains('articles.title', $columns);
 
         $first  = FieldColumnMapper::for(ArticleResource::class);
         $second = FieldColumnMapper::for(ArticleResource::class);
@@ -315,8 +316,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         $columns = $this->captureAliasedUserColumns('id,name,email');
 
         self::assertNotContains('*', $columns);
-        self::assertContains('email', $columns);
-        self::assertNotContains('email_address', $columns);
+        self::assertContains('users.email', $columns);
+        self::assertNotContains('users.email_address', $columns);
         self::assertSame($off, $this->serialiseAliasedUsers('id,name,email'));
         self::assertStringContainsString('alice@example.com', $this->serialiseAliasedUsers('id,name,email'));
     }
@@ -377,7 +378,9 @@ final class ColumnNarrowingIntegrationTest extends TestCase
 
         Config::set('api-toolkit.resources.narrow_columns', true);
 
-        self::assertSame(['id', 'title', 'slug'], $this->captureColumnsThrough(DeclaredSluggedTitleArticleResource::class, new SluggedTitleArticle, 'id,title'));
+        $columns = $this->captureColumnsThrough(DeclaredSluggedTitleArticleResource::class, new SluggedTitleArticle, 'id,title');
+
+        self::assertSame(['articles.id', 'articles.title', 'articles.slug'], $columns);
         self::assertSame($off, $this->serialiseThrough(DeclaredSluggedTitleArticleResource::class, new SluggedTitleArticle, 'id,title'));
     }
 

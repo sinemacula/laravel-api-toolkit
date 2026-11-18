@@ -42,6 +42,7 @@ use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Device;
 use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Post;
@@ -51,6 +52,7 @@ use Tests\Fixtures\Resources\DeviceResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\PublicAuthorPostResource;
 use Tests\Fixtures\Resources\PublicUserResource;
+use Tests\Fixtures\Resources\TrashedSearchArticleResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -167,7 +169,7 @@ final class FilterApplierTest extends TestCase
         $wheres = $result->getQuery()->wheres;
 
         self::assertNotEmpty($wheres);
-        self::assertSame('name', $wheres[0]['column']);
+        self::assertSame('users.name', $wheres[0]['column']);
         self::assertSame('Alice', $wheres[0]['value']);
         self::assertSame('and', $wheres[0]['boolean']);
     }
@@ -329,7 +331,7 @@ final class FilterApplierTest extends TestCase
 
         self::assertNotEmpty($wheres);
         self::assertSame('Null', $wheres[0]['type']);
-        self::assertSame('organization_id', $wheres[0]['column']);
+        self::assertSame('users.organization_id', $wheres[0]['column']);
     }
 
     /**
@@ -373,9 +375,9 @@ final class FilterApplierTest extends TestCase
     {
         $query = $this->applyFilters(['name' => 'Alice', 'context' => [self::OPERATOR_CONTAINS => 'php,rust']]);
 
-        $contains = 'exists (select 1 from json_each("context") where "json_each"."value" is ?)';
+        $contains = 'exists (select 1 from json_each("users"."context") where "json_each"."value" is ?)';
 
-        self::assertStringEndsWith('where "name" = ? and (' . $contains . ' or ' . $contains . ')', $query->toSql());
+        self::assertStringEndsWith('where "users"."name" = ? and (' . $contains . ' or ' . $contains . ')', $query->toSql());
         self::assertSame(['Alice', 'php', 'rust'], $query->getBindings());
     }
 
@@ -452,7 +454,7 @@ final class FilterApplierTest extends TestCase
         $subWheres = $this->relationWheres($subQuery);
 
         self::assertTrue(
-            $subWheres->contains(fn (array $where): bool => ($where['column'] ?? null) === 'title' && ($where['value'] ?? null) === 'test'),
+            $subWheres->contains(fn (array $where): bool => ($where['column'] ?? null) === 'posts.title' && ($where['value'] ?? null) === 'test'),
         );
     }
 
@@ -467,7 +469,7 @@ final class FilterApplierTest extends TestCase
     {
         $this->assertCompilesTo(
             ['$or' => [['name' => 'Alice'], ['email' => 'bob@example.com']]],
-            '(("name" = ?) or ("email" = ?))',
+            '(("users"."name" = ?) or ("users"."email" = ?))',
             ['Alice', 'bob@example.com'],
         );
     }
@@ -483,7 +485,7 @@ final class FilterApplierTest extends TestCase
     {
         $this->assertCompilesTo(
             ['$and' => [['name' => 'Alice'], ['email' => 'alice@example.com']]],
-            '(("name" = ?) and ("email" = ?))',
+            '(("users"."name" = ?) and ("users"."email" = ?))',
             ['Alice', 'alice@example.com'],
         );
     }
@@ -501,13 +503,13 @@ final class FilterApplierTest extends TestCase
 
         $this->assertCompilesTo(
             ['status' => 'active', '$or' => $group],
-            '"status" = ? and (("name" = ?) or ("email" = ?))',
+            '"users"."status" = ? and (("users"."name" = ?) or ("users"."email" = ?))',
             ['active', 'Alice', 'bob@example.com'],
         );
 
         $this->assertCompilesTo(
             ['$or' => $group, 'status' => 'active'],
-            '(("name" = ?) or ("email" = ?)) and "status" = ?',
+            '(("users"."name" = ?) or ("users"."email" = ?)) and "users"."status" = ?',
             ['Alice', 'bob@example.com', 'active'],
         );
     }
@@ -523,7 +525,7 @@ final class FilterApplierTest extends TestCase
     {
         $this->assertCompilesTo(
             ['$or' => [['name' => 'Alice', 'status' => 'active'], ['name' => 'Bob', 'status' => 'banned']]],
-            '(("name" = ? and "status" = ?) or ("name" = ? and "status" = ?))',
+            '(("users"."name" = ? and "users"."status" = ?) or ("users"."name" = ? and "users"."status" = ?))',
             ['Alice', 'active', 'Bob', 'banned'],
         );
     }
@@ -542,7 +544,7 @@ final class FilterApplierTest extends TestCase
                 ['$or' => [['name' => 'Alice'], ['name' => 'Bob']]],
                 ['$or' => [['status' => 'active'], ['email' => 'carol@example.com']]],
             ]],
-            '(((("name" = ?) or ("name" = ?))) and ((("status" = ?) or ("email" = ?))))',
+            '(((("users"."name" = ?) or ("users"."name" = ?))) and ((("users"."status" = ?) or ("users"."email" = ?))))',
             ['Alice', 'Bob', 'active', 'carol@example.com'],
         );
     }
@@ -558,7 +560,7 @@ final class FilterApplierTest extends TestCase
     {
         $this->assertCompilesTo(
             ['$or' => [['name' => 'Alice'], ['$and' => [['email' => 'bob@example.com'], ['status' => 'active']]]]],
-            '(("name" = ?) or ((("email" = ?) and ("status" = ?))))',
+            '(("users"."name" = ?) or ((("users"."email" = ?) and ("users"."status" = ?))))',
             ['Alice', 'bob@example.com', 'active'],
         );
     }
@@ -574,7 +576,7 @@ final class FilterApplierTest extends TestCase
     {
         $this->assertCompilesTo(
             ['$or' => [['id' => ['$gt' => 1, '$lt' => 5]], ['name' => 'Alice']]],
-            '(("id" > ? and "id" < ?) or ("name" = ?))',
+            '(("users"."id" > ? and "users"."id" < ?) or ("users"."name" = ?))',
             [1, 5, 'Alice'],
         );
     }
@@ -590,7 +592,7 @@ final class FilterApplierTest extends TestCase
     {
         $this->assertCompilesTo(
             ['posts' => ['title' => ['$eq' => 'test'], 'id' => 7]],
-            'exists (select * from "posts" where "users"."id" = "posts"."user_id" and "title" = ? and "id" = ?)',
+            'exists (select * from "posts" where "users"."id" = "posts"."user_id" and "posts"."title" = ? and "posts"."id" = ?)',
             ['test', 7],
         );
     }
@@ -606,7 +608,7 @@ final class FilterApplierTest extends TestCase
     {
         $this->assertCompilesTo(
             ['$or' => [['name' => 'Alice'], ['posts' => ['id' => 1]]]],
-            '(("name" = ?) or (exists (select * from "posts" where "users"."id" = "posts"."user_id" and "id" = ?)))',
+            '(("users"."name" = ?) or (exists (select * from "posts" where "users"."id" = "posts"."user_id" and "posts"."id" = ?)))',
             ['Alice', 1],
         );
     }
@@ -635,7 +637,8 @@ final class FilterApplierTest extends TestCase
     {
         $this->assertCompilesTo(
             ['posts' => ['user' => ['name' => 'Alice']]],
-            'exists (select * from "posts" where "users"."id" = "posts"."user_id" and exists (select * from "users" where "posts"."user_id" = "users"."id" and "name" = ?))',
+            'exists (select * from "posts" where "users"."id" = "posts"."user_id" and exists '
+            . '(select * from "users" where "posts"."user_id" = "users"."id" and "users"."name" = ?))',
             ['Alice'],
         );
     }
@@ -652,7 +655,7 @@ final class FilterApplierTest extends TestCase
     {
         $this->assertCompilesTo(
             ['posts' => ['$or' => [['title' => 'test'], ['id' => 1]], 'id' => 7]],
-            'exists (select * from "posts" where "users"."id" = "posts"."user_id" and (("title" = ?) or ("id" = ?)) and "id" = ?)',
+            'exists (select * from "posts" where "users"."id" = "posts"."user_id" and (("posts"."title" = ?) or ("posts"."id" = ?)) and "posts"."id" = ?)',
             ['test', 1, 7],
         );
     }
@@ -699,17 +702,17 @@ final class FilterApplierTest extends TestCase
             $query->orWhere($column, '=', $value);
         });
 
-        $this->assertCompilesTo(['name' => 'Alice', 'email' => ['$either' => 'b']], '"name" = ? and ("email" = ?)', ['Alice', 'b']);
+        $this->assertCompilesTo(['name' => 'Alice', 'email' => ['$either' => 'b']], '"users"."name" = ? and ("users"."email" = ?)', ['Alice', 'b']);
 
         $this->assertCompilesTo(
             ['posts' => ['title' => ['$either' => 'x']]],
-            'exists (select * from "posts" where "users"."id" = "posts"."user_id" and ("title" = ?))',
+            'exists (select * from "posts" where "users"."id" = "posts"."user_id" and ("posts"."title" = ?))',
             ['x'],
         );
 
         $this->assertCompilesTo(
             ['$hasnt' => ['posts' => ['id' => 1, 'title' => ['$either' => 'x']]]],
-            'not exists (select * from "posts" where "users"."id" = "posts"."user_id" and "id" = ? and ("title" = ?))',
+            'not exists (select * from "posts" where "users"."id" = "posts"."user_id" and "posts"."id" = ? and ("posts"."title" = ?))',
             [1, 'x'],
         );
     }
@@ -730,7 +733,7 @@ final class FilterApplierTest extends TestCase
 
         $this->assertCompilesTo(
             ['name' => 'Alice', 'email' => ['$neither' => 'b', '$in' => ['c']]],
-            '"name" = ? and (not "email" = ?) and "email" in (?)',
+            '"users"."name" = ? and (not "users"."email" = ?) and "users"."email" in (?)',
             ['Alice', 'b', 'c'],
         );
     }
@@ -748,7 +751,7 @@ final class FilterApplierTest extends TestCase
             $query->where($column, '=', $value)->whereNotNull($column);
         });
 
-        $this->assertCompilesTo(['name' => 'Alice', 'email' => ['$both' => 'b']], '"name" = ? and "email" = ? and "email" is not null', ['Alice', 'b']);
+        $this->assertCompilesTo(['name' => 'Alice', 'email' => ['$both' => 'b']], '"users"."name" = ? and "users"."email" = ? and "users"."email" is not null', ['Alice', 'b']);
     }
 
     /**
@@ -764,13 +767,13 @@ final class FilterApplierTest extends TestCase
 
         $this->assertCompilesTo(
             ['$or' => [['name' => 'Alice'], ['$has' => 'posts']]],
-            '(("name" = ?) or (exists ' . $exists . '))',
+            '(("users"."name" = ?) or (exists ' . $exists . '))',
             ['Alice'],
         );
 
         $this->assertCompilesTo(
             ['$or' => [['name' => 'Alice'], ['$hasnt' => ['posts']]]],
-            '(("name" = ?) or (not exists ' . $exists . '))',
+            '(("users"."name" = ?) or (not exists ' . $exists . '))',
             ['Alice'],
         );
     }
@@ -818,9 +821,88 @@ final class FilterApplierTest extends TestCase
     {
         $this->assertCompilesTo(
             ['$or' => [['organization_id' => ['$notNull' => true]], ['name' => 'Alice']]],
-            '(("organization_id" is not null) or ("name" = ?))',
+            '(("users"."organization_id" is not null) or ("users"."name" = ?))',
             ['Alice'],
         );
+    }
+
+    /**
+     * Provide a filter on each shipped operator and the clause it compiles to.
+     *
+     * @return iterable<string, array{array<string, mixed>, string}>
+     */
+    public static function shippedOperatorProvider(): iterable
+    {
+        yield 'shorthand' => [['name' => 'Alice'], '"users"."name" = ?'];
+        yield '$eq' => [['name' => ['$eq' => 'Alice']], '"users"."name" = ?'];
+        yield '$neq' => [['status' => ['$neq' => 'active']], '"users"."status" <> ?'];
+        yield '$gt' => [['id' => ['$gt' => 1]], '"users"."id" > ?'];
+        yield '$lt' => [['id' => ['$lt' => 1]], '"users"."id" < ?'];
+        yield '$ge' => [['id' => ['$ge' => 1]], '"users"."id" >= ?'];
+        yield '$le' => [['id' => ['$le' => 1]], '"users"."id" <= ?'];
+        yield '$in' => [['name' => ['$in' => ['Alice', 'Bob']]], '"users"."name" in (?, ?)'];
+        yield '$between' => [['id' => ['$between' => [1, 5]]], '"users"."id" between ? and ?'];
+        yield '$contains' => [['context' => [self::OPERATOR_CONTAINS => 'php']], 'exists (select 1 from json_each("users"."context") where "json_each"."value" is ?)'];
+        yield '$null' => [['organization_id' => ['$null' => true]], '"users"."organization_id" is null'];
+        yield '$notNull' => [['organization_id' => ['$notNull' => true]], '"users"."organization_id" is not null'];
+    }
+
+    /**
+     * Test that each shipped operator compiles its column qualified by the
+     * model's table.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $where
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('shippedOperatorProvider')]
+    public function testShippedOperatorCompilesTheQualifiedColumn(array $filters, string $where): void
+    {
+        self::assertSame('select * from "users" where ' . $where, $this->applyFilters($filters)->toSql());
+    }
+
+    /**
+     * Test that a custom operator receives the column qualified by the table of
+     * the query it constrains.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testCustomOperatorReceivesTheQualifiedColumn(): void
+    {
+        $columns = [];
+
+        $this->operatorRegistry->register('$record', static function (Builder $query, string $column, mixed $value) use (&$columns): void {
+            $columns[] = $column;
+
+            $query->where($column, '=', $value);
+        });
+
+        $this->applyFilters(['name' => ['$record' => 'Alice'], 'posts' => ['title' => ['$record' => 'Hello']]]);
+
+        self::assertSame(['users.name', 'posts.title'], $columns);
+    }
+
+    /**
+     * Test that a filter through a relation to the model's own table compiles
+     * its column on the alias Eloquent gives the related table.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testSelfRelationFilterCompilesOnTheRelatedTableAlias(): void
+    {
+        $surface = $this->declaredSurface(relations: ['siblingArticles'], resources: ['siblingArticles' => TrashedSearchArticleResource::class]);
+
+        $sql = $this->applier->apply((new Article)->newQuery(), ['siblingArticles' => ['views' => ['$gt' => 10]]], $this->operatorRegistry, $surface)->toSql();
+
+        $subquery = 'select \* from "articles" as "(laravel_reserved_\d+)" where "articles"\."user_id" = "\1"\."user_id" and "\1"\."views" > \?';
+
+        self::assertMatchesRegularExpression('/^select \* from "articles" where exists \(' . $subquery . '/', $sql);
     }
 
     /**
@@ -1040,7 +1122,7 @@ final class FilterApplierTest extends TestCase
         $wheres = $result->getQuery()->wheres;
 
         self::assertNotEmpty($wheres);
-        self::assertSame('name', $wheres[0]['column']);
+        self::assertSame('users.name', $wheres[0]['column']);
         self::assertSame('Alice', $wheres[0]['value']);
     }
 
@@ -1084,7 +1166,7 @@ final class FilterApplierTest extends TestCase
 
         $or = $this->applier->apply((new User)->newQuery(), $orFilters, $this->operatorRegistry, $surface);
 
-        self::assertSame('select * from "users" where (("name" = ?) or ("email" = ?))', $or->toSql());
+        self::assertSame('select * from "users" where (("users"."name" = ?) or ("users"."email" = ?))', $or->toSql());
     }
 
     /**
@@ -1906,7 +1988,7 @@ final class FilterApplierTest extends TestCase
 
         $query = $this->applier->apply((new Post)->newQuery(), ['user' => ['name' => 'Alice']], $this->operatorRegistry, $surface);
 
-        self::assertSame('select * from "posts" where exists (select * from "users" where "posts"."user_id" = "users"."id" and "name" = ?)', $query->toSql());
+        self::assertSame('select * from "posts" where exists (select * from "users" where "posts"."user_id" = "users"."id" and "users"."name" = ?)', $query->toSql());
 
         try {
             $this->applier->apply((new Post)->newQuery(), ['user' => ['email' => 'alice@example.com']], $this->operatorRegistry, $surface);

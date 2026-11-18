@@ -195,6 +195,19 @@ final class PageOrderTest extends TestCase
     }
 
     /**
+     * Test that a group column ordered by its qualified name is not appended
+     * again.
+     *
+     * @return void
+     */
+    public function testGroupColumnOrderedByItsQualifiedNameIsNotAppendedAgain(): void
+    {
+        $query = $this->users(static fn (QueryBuilder $query) => $query->select('status')->groupBy('status', 'users.name')->orderBy('users.status')->orderBy('name'));
+
+        self::assertSame([['users.status', 'asc'], ['name', 'asc']], $this->orders($this->pageOrder->complete($query)));
+    }
+
+    /**
      * Test that a distinct grouped query takes the group columns it selects.
      *
      * @return void
@@ -359,6 +372,7 @@ final class PageOrderTest extends TestCase
     {
         yield 'missing ordered column' => [[self::KEY => 1]];
         yield 'missing key' => [['name' => 'Ann']];
+        yield 'column the order does not name' => [['name' => 'Ann', self::KEY => 1, 'email' => 'ann@example.com']];
         yield 'null ordered column' => [['name' => null, self::KEY => 1]];
         yield 'array ordered column' => [['name' => ['Ann'], self::KEY => 1]];
         yield 'word on the integer key' => [['name' => 'Ann', self::KEY => 'abc']];
@@ -452,6 +466,18 @@ final class PageOrderTest extends TestCase
         self::assertInstanceOf(Cursor::class, $this->pageOrder->cursor($query, (new Cursor([self::KEY => 1]))->encode()));
 
         $this->assertCursorRejected(fn () => $this->pageOrder->cursor($query, (new Cursor(['id' => 1]))->encode()), self::MISMATCH);
+    }
+
+    /**
+     * Test that a column the order names twice is asked of the token once.
+     *
+     * @return void
+     */
+    public function testColumnOrderedTwiceIsAskedOfTheTokenOnce(): void
+    {
+        $query = $this->pageOrder->complete($this->users(static fn (QueryBuilder $query) => $query->orderBy('name')->orderBy('name', 'desc')));
+
+        self::assertInstanceOf(Cursor::class, $this->pageOrder->cursor($query, (new Cursor(['name' => 'Ann', self::KEY => 1]))->encode()));
     }
 
     /**

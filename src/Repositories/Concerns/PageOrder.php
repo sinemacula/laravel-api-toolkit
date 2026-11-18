@@ -60,8 +60,8 @@ final readonly class PageOrder
     /**
      * Decode the cursor token, refusing one the query's order cannot seek by.
      *
-     * Only the token's shape and each boundary's type are checked: it carries
-     * values, not provenance.
+     * Only the token's shape, its columns and each boundary's type are checked:
+     * it carries values, not provenance.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
@@ -84,9 +84,14 @@ final readonly class PageOrder
             throw Rejection::at('cursor', 'cursor.malformed');
         }
 
-        $model = $query->getModel();
+        $model   = $query->getModel();
+        $columns = array_unique($this->seekColumns($query->getQuery(), $model));
 
-        foreach ($this->seekColumns($query->getQuery(), $model) as $column) {
+        if (count($parameters) !== count($columns) + 1) {
+            throw Rejection::at('cursor', 'cursor.mismatch');
+        }
+
+        foreach ($columns as $column) {
 
             $boundary = $parameters[$column] ?? null;
 
@@ -114,7 +119,7 @@ final readonly class PageOrder
             return [];
         }
 
-        $columns = empty($base->groups) ? $this->keyTiebreaker($base, $model) : $this->groupTiebreakers($base);
+        $columns = empty($base->groups) ? $this->keyTiebreaker($base, $model) : $this->groupTiebreakers($base, $model);
 
         foreach ($columns as $column) {
             if (!$this->projects($base, $model, $column)) {
@@ -147,10 +152,13 @@ final readonly class PageOrder
     /**
      * Resolve the unordered group columns, or none if a group is an expression.
      *
+     * A group column is ordered whether the order names it bare or qualified.
+     *
      * @param  \Illuminate\Database\Query\Builder  $base
+     * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return array<int, string>
      */
-    private function groupTiebreakers(QueryBuilder $base): array
+    private function groupTiebreakers(QueryBuilder $base, Model $model): array
     {
         $groups = $base->groups ?? [];
 
@@ -158,7 +166,9 @@ final readonly class PageOrder
             return [];
         }
 
-        return array_diff($groups, $this->columnsOf($base->orders ?? []));
+        $ordered = array_map($model->qualifyColumn(...), $this->columnsOf($base->orders ?? []));
+
+        return array_filter($groups, static fn (string $group): bool => !in_array($model->qualifyColumn($group), $ordered, true));
     }
 
     /**

@@ -27,6 +27,7 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\CacheableTagRepository;
+use Tests\Fixtures\Repositories\CountryRepository;
 use Tests\Fixtures\Repositories\DummyRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\FilterableUserResource;
@@ -543,6 +544,45 @@ final class ApiRepositoryTest extends TestCase
         $result = $this->repository->scopeByIds($ids)->get(); // @phpstan-ignore staticMethod.dynamicCall
 
         self::assertCount(2, $result);
+    }
+
+    /**
+     * Test that scopeById scopes by the model key, qualified by its table.
+     *
+     * @return void
+     */
+    public function testScopeByIdScopesByTheQualifiedKey(): void
+    {
+        self::assertSame('select * from "users" where "users"."id" in (?)', $this->repository->scopeById(1)->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that scopeById scopes by a key not named id.
+     *
+     * @return void
+     */
+    public function testScopeByIdScopesByAKeyNotNamedId(): void
+    {
+        assert($this->app !== null);
+
+        $repository = $this->app->make(CountryRepository::class);
+
+        self::assertSame('select * from "countries" where "countries"."code" in (?)', $repository->scopeById('GB')->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that scopeByIds qualifies a given column and passes a qualified one
+     * through.
+     *
+     * @return void
+     */
+    public function testScopeByIdsQualifiesAGivenColumnAndPassesAQualifiedOneThrough(): void
+    {
+        $email = $this->repository->scopeByIds([self::ALICE_EMAIL], 'email')->toSql(); // @phpstan-ignore staticMethod.dynamicCall
+        $post  = $this->repository->scopeByIds([1], 'posts.id')->toSql(); // @phpstan-ignore staticMethod.dynamicCall
+
+        self::assertSame('select * from "users" where "users"."email" in (?)', $email);
+        self::assertSame('select * from "users" where "posts"."id" in (?)', $post);
     }
 
     /**
