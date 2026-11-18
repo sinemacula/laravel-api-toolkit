@@ -18,20 +18,27 @@ use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
+use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Article;
+use Tests\Fixtures\Models\AuthoredPost;
+use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Profile;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\AuthoredPostResource;
 use Tests\Fixtures\Resources\DeclaredOpenApiUserResource;
 use Tests\Fixtures\Resources\FixedFieldsUserResource;
 use Tests\Fixtures\Resources\GuardedUserResource;
+use Tests\Fixtures\Resources\NoteResource;
 use Tests\Fixtures\Resources\NullableFilterableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\ProfiledUserResource;
+use Tests\Fixtures\Resources\ProfileResource;
 use Tests\Fixtures\Resources\RestorableArticleResource;
 use Tests\Fixtures\Resources\SearchableUserResource;
 use Tests\Fixtures\Resources\TagResource;
@@ -217,18 +224,141 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a to-one relation emits a single reference.
+     * Test that a belongs-to relation admits its reference or null.
      *
      * @return void
      */
-    public function testToOneBelongsToRelationEmitsSingleReference(): void
+    public function testToOneBelongsToRelationAdmitsTheReferenceOrNull(): void
     {
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['User']['properties']['organization'];
 
-        self::assertSame(['$ref' => '#/components/schemas/Organization'], $property);
-        self::assertArrayNotHasKey('oneOf', $property);
-        self::assertArrayNotHasKey('x-cardinality', $property);
+        self::assertSame(['oneOf' => [['$ref' => '#/components/schemas/Organization'], ['type' => 'null']]], $property);
+    }
+
+    /**
+     * Test that a has-one, morph-one and has-one-through relation each admit
+     * their reference or null.
+     *
+     * @return void
+     */
+    public function testEveryToOneKindAdmitsTheReferenceOrNull(): void
+    {
+        $schemas = $this->makeBuilder($this->toOneResourceMap())->build();
+        $profile = ['oneOf' => [['$ref' => '#/components/schemas/Profile'], ['type' => 'null']]];
+
+        self::assertSame($profile, $schemas['ProfiledUser']['properties']['profile']);
+        self::assertSame($profile, $schemas['AuthoredPost']['properties']['author_profile']);
+        self::assertSame(['oneOf' => [['$ref' => '#/components/schemas/Note'], ['type' => 'null']]], $schemas['AuthoredPost']['properties']['pinned_note']);
+    }
+
+    /**
+     * Test that a to-one relation declaring a default model keeps the bare
+     * reference, since it never renders null.
+     *
+     * @return void
+     */
+    public function testToOneRelationWithADefaultModelKeepsTheBareReference(): void
+    {
+        $properties = $this->makeBuilder($this->toOneResourceMap())->build()['AuthoredPost']['properties'];
+
+        self::assertIsArray($properties);
+        self::assertSame(['$ref' => '#/components/schemas/ProfiledUser'], $properties['author']);
+        self::assertSame(['$ref' => '#/components/schemas/Profile'], $properties['profile']);
+    }
+
+    /**
+     * Test that a morph-to relation admits its target or null.
+     *
+     * @return void
+     */
+    public function testMorphToRelationAdmitsItsTargetOrNull(): void
+    {
+        $noteable   = $this->relationField(null, 'noteable');
+        $properties = $this->buildGhost(new CompiledSchema(['noteable' => $noteable], []), modelClass: Note::class)['properties'];
+
+        self::assertIsArray($properties);
+        self::assertSame(['oneOf' => [['type' => 'object', 'x-undocumented' => true], ['type' => 'null']]], $properties['noteable']);
+    }
+
+    /**
+     * Test that a callable default model keeps the bare target, while an empty
+     * attribute default, which Eloquent treats as none, admits null.
+     *
+     * @return void
+     */
+    public function testCallableDefaultKeepsTheBareTargetAndAnEmptyDefaultAdmitsNull(): void
+    {
+        $schema = new CompiledSchema([
+            'editor'   => $this->relationField(null, 'editor', UserResource::class),
+            'reviewer' => $this->relationField(null, 'reviewer', UserResource::class),
+        ], []);
+
+        $properties   = $this->buildGhost($schema, modelClass: AuthoredPost::class)['properties'];
+        $undocumented = ['type' => 'object', 'x-undocumented' => true];
+
+        self::assertIsArray($properties);
+        self::assertSame($undocumented, $properties['editor']);
+        self::assertSame(['oneOf' => [$undocumented, ['type' => 'null']]], $properties['reviewer']);
+    }
+
+    /**
+     * Test that a declared to-many relation drops the inferred bound but is
+     * still documented as truncatable.
+     *
+     * @return void
+     */
+    public function testDeclaredToManyRelationDropsItsBoundButKeepsItsTruncation(): void
+    {
+        $posts      = $this->relationField(5, openApi: new OpenApiFieldSchema(type: 'integer'));
+        $properties = $this->buildGhost(new CompiledSchema(['posts' => $posts], []))['properties'];
+
+        self::assertIsArray($properties);
+        self::assertSame(['type' => 'integer'], $properties['posts']);
+        self::assertSame(['posts'], $properties['_truncated']['items']['enum']);
+    }
+
+    /**
+     * Test that a relation's declared schema replaces the inferred one.
+     *
+     * @return void
+     */
+    public function testDeclaredRelationExportsItsDeclaration(): void
+    {
+        $properties = $this->makeBuilder($this->toOneResourceMap())->build()['ProfiledUser']['properties'];
+
+        self::assertIsArray($properties);
+        self::assertSame(['type' => ['string', 'null']], $properties['organization_name']);
+    }
+
+    /**
+     * Test that a transformed relation without a declaration is undocumented
+     * and unbounded, while its truncation is still documented.
+     *
+     * @return void
+     */
+    public function testTransformedRelationIsUndocumentedAndUnbounded(): void
+    {
+        $posts      = $this->relationField(5, transformers: [static fn ($resource, mixed $value): int => is_countable($value) ? count($value) : 0]);
+        $properties = $this->buildGhost(new CompiledSchema(['posts' => $posts], []))['properties'];
+
+        self::assertIsArray($properties);
+        self::assertSame(['x-undocumented' => true], $properties['posts']);
+        self::assertSame(['posts'], $properties['_truncated']['items']['enum']);
+    }
+
+    /**
+     * Test that a guard leaves a relation's inferred schema in place.
+     *
+     * @return void
+     */
+    public function testGuardedRelationKeepsItsInferredSchema(): void
+    {
+        $posts      = $this->relationField(5, guards: [static fn (): bool => false]);
+        $properties = $this->buildGhost(new CompiledSchema(['posts' => $posts], []))['properties'];
+
+        self::assertIsArray($properties);
+        self::assertSame(['type' => 'array', 'items' => ['type' => 'object', 'x-undocumented' => true], 'maxItems' => 5], $properties['posts']);
     }
 
     /**
@@ -480,7 +610,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $schemas  = $this->makeBuilder($this->fullResourceMap())->build();
         $property = $schemas['Post']['properties']['user'];
 
-        self::assertSame(['$ref' => '#/components/schemas/User'], $property);
+        self::assertSame(['$ref' => '#/components/schemas/User'], $property['oneOf'][0]);
     }
 
     /**
@@ -621,11 +751,11 @@ final class ResourceSchemaBuilderTest extends TestCase
      *
      * @return void
      */
-    public function testToOneEmitsSingleRefAndToManyEmitsArrayOfRefs(): void
+    public function testToOneEmitsANullableRefAndToManyEmitsArrayOfRefs(): void
     {
         $properties = $this->makeBuilder($this->fullResourceMap())->build()['User']['properties'];
 
-        self::assertSame(['$ref' => '#/components/schemas/Organization'], $properties['organization']);
+        self::assertSame(['oneOf' => [['$ref' => '#/components/schemas/Organization'], ['type' => 'null']]], $properties['organization']);
         self::assertSame([
             'type'     => 'array',
             'items'    => ['$ref' => '#/components/schemas/Post'],
@@ -819,7 +949,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     {
         $properties = $this->makeBuilder([User::class => UserResource::class])->build()['User']['properties'];
 
-        self::assertSame(['type' => 'object', 'x-undocumented' => true], $properties['organization']);
+        self::assertSame(['oneOf' => [['type' => 'object', 'x-undocumented' => true], ['type' => 'null']]], $properties['organization']);
         self::assertSame(
             ['type' => 'array', 'items' => ['type' => 'object', 'x-undocumented' => true], 'maxItems' => 25],
             $properties['posts'],
@@ -835,7 +965,7 @@ final class ResourceSchemaBuilderTest extends TestCase
     {
         $properties = $this->makeBuilder($this->fullResourceMap())->build()['User']['properties'];
 
-        self::assertSame(['$ref' => '#/components/schemas/Organization'], $properties['organization']);
+        self::assertSame(['$ref' => '#/components/schemas/Organization'], $properties['organization']['oneOf'][0]);
         self::assertSame(['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Post'], 'maxItems' => 25], $properties['posts']);
     }
 
@@ -956,7 +1086,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $properties = $this->buildGhost(new CompiledSchema(['organization' => $this->relationField(5, 'organization', OrganizationResource::class)], []))['properties'];
 
         self::assertIsArray($properties);
-        self::assertSame(['type' => 'object', 'x-undocumented' => true], $properties['organization']);
+        self::assertSame(['oneOf' => [['type' => 'object', 'x-undocumented' => true], ['type' => 'null']]], $properties['organization']);
         self::assertArrayNotHasKey('_truncated', $properties);
     }
 
@@ -1004,17 +1134,19 @@ final class ResourceSchemaBuilderTest extends TestCase
     /**
      * Build the schema of a synthetic resource compiled from the given schema.
      *
-     * The user model backs it so scalar properties resolve against a table.
+     * The user model backs it by default so scalar properties resolve against a
+     * table.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
      * @param  array<int, string>|null  $vocabulary
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
      * @return array<string, mixed>
      */
-    private function buildGhost(CompiledSchema $schema, ?array $vocabulary = null): array
+    private function buildGhost(CompiledSchema $schema, ?array $vocabulary = null, string $modelClass = User::class): array
     {
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
 
-        return $this->makeGhostBuilder([User::class => 'GhostResource'], $vocabulary)->build()['Ghost'];
+        return $this->makeGhostBuilder([$modelClass => 'GhostResource'], $vocabulary)->build()['Ghost'];
     }
 
     /**
@@ -1077,10 +1209,19 @@ final class ResourceSchemaBuilderTest extends TestCase
      * @param  int|null  $limit
      * @param  string  $relation
      * @param  string  $resource
+     * @param  array<int, callable(mixed, mixed): bool>  $guards
+     * @param  array<int, callable(mixed, mixed): mixed>  $transformers
+     * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema|null  $openApi
      * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
-    private function relationField(?int $limit, string $relation = 'posts', string $resource = PostResource::class): CompiledFieldDefinition
-    {
+    private function relationField(
+        ?int $limit,
+        string $relation = 'posts',
+        string $resource = PostResource::class,
+        array $guards = [],
+        array $transformers = [],
+        ?OpenApiFieldSchema $openApi = null,
+    ): CompiledFieldDefinition {
         return new CompiledFieldDefinition(
             accessor: null,
             compute: null,
@@ -1090,8 +1231,9 @@ final class ResourceSchemaBuilderTest extends TestCase
             constraint: null,
             extras: [],
             needs: [],
-            guards: [],
-            transformers: [],
+            guards: $guards,
+            transformers: $transformers,
+            openApi: $openApi,
             limit: $limit,
         );
     }
@@ -1168,6 +1310,22 @@ final class ResourceSchemaBuilderTest extends TestCase
             User::class         => UserResource::class,
             Post::class         => PostResource::class,
             Tag::class          => TagResource::class,
+            Organization::class => OrganizationResource::class,
+        ];
+    }
+
+    /**
+     * The resource map of the fixtures embedding each kind of to-one relation.
+     *
+     * @return array<class-string, class-string>
+     */
+    private function toOneResourceMap(): array
+    {
+        return [
+            User::class         => ProfiledUserResource::class,
+            AuthoredPost::class => AuthoredPostResource::class,
+            Profile::class      => ProfileResource::class,
+            Note::class         => NoteResource::class,
             Organization::class => OrganizationResource::class,
         ];
     }

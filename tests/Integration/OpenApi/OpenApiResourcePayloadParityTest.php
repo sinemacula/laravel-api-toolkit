@@ -15,12 +15,15 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\ValidatesOpenApiDocuments;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\Profile;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PinnedAuthorPostResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\ProfiledUserResource;
+use Tests\Fixtures\Resources\ProfileResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -150,6 +153,73 @@ final class OpenApiResourcePayloadParityTest extends TestCase
         $result = $this->validateAgainstExported($this->exportedDocument(), '/components/schemas/User', $author);
 
         self::assertTrue($result->isValid(), $this->formatErrors($result));
+    }
+
+    /**
+     * Test that to-one relations whose related rows are absent render null, and
+     * that the payload validates against the component.
+     *
+     * @return void
+     */
+    public function testAbsentToOneRelationsRenderNullAndValidate(): void
+    {
+        $user    = User::create(['name' => 'Bob', 'email' => 'bob@example.com', 'status' => 'active']);
+        $payload = $this->renderProfiledUser($user);
+
+        self::assertNull($payload['organization']);
+        self::assertNull($payload['profile']);
+        self::assertNull($payload['organization_name']);
+
+        $result = $this->validateAgainstExported($this->exportedDocument(), '/components/schemas/ProfiledUser', $payload);
+
+        self::assertTrue($result->isValid(), $this->formatErrors($result));
+    }
+
+    /**
+     * Test that populated to-one relations, and a relation transformed to a
+     * declared string, validate against the component.
+     *
+     * @return void
+     */
+    public function testPopulatedToOneRelationsValidateAgainstTheComponent(): void
+    {
+        $user = User::query()->firstOrFail();
+
+        Profile::create(['user_id' => $user->id, 'bio' => 'Mathematician']);
+
+        $payload  = $this->renderProfiledUser($user);
+        $document = $this->exportedDocument();
+        $result   = $this->validateAgainstExported($document, '/components/schemas/ProfiledUser', $payload);
+
+        self::assertSame('Acme', $payload['organization']['name']);
+        self::assertSame('Mathematician', $payload['profile']['bio']);
+        self::assertSame('Acme', $payload['organization_name']);
+        self::assertTrue($result->isValid(), $this->formatErrors($result));
+        $this->assertValidDocument($document);
+    }
+
+    /**
+     * Render a user through the resource embedding its to-one relations, with
+     * that resource documented in place of the user resource.
+     *
+     * @param  \Tests\Fixtures\Models\User  $user
+     * @return array<string, mixed>
+     */
+    private function renderProfiledUser(User $user): array
+    {
+        config()->set('api-toolkit.resources.resource_map', [
+            User::class         => ProfiledUserResource::class,
+            Organization::class => OrganizationResource::class,
+            Profile::class      => ProfileResource::class,
+        ]);
+
+        Route::middleware(ParseApiQuery::class)->get(
+            'profiled-users/{user}',
+            static fn (string $user): ApiResource => new ProfiledUserResource(User::query()->findOrFail($user), true),
+        );
+
+        /** @var array<string, mixed> */
+        return $this->getJson('/profiled-users/' . $user->id)->assertOk()->json('data');
     }
 
     /**
