@@ -18,7 +18,7 @@ namespace SineMacula\ApiToolkit\Concerns;
  */
 trait HasVersion
 {
-    /** @var int|null The version this instance last wrote */
+    /** @var int|null The version written since the original state last synced */
     private ?int $writtenVersion = null;
 
     /**
@@ -44,6 +44,20 @@ trait HasVersion
     public function markVersionChanged(): void
     {
         $this->attributes[$this->getVersionColumn()] = $this->nextVersion();
+    }
+
+    /**
+     * Sync the original state, which then holds any version this instance
+     * wrote.
+     *
+     * @return static
+     */
+    #[\Override]
+    public function syncOriginal(): static
+    {
+        $this->writtenVersion = null;
+
+        return parent::syncOriginal();
     }
 
     /**
@@ -84,8 +98,8 @@ trait HasVersion
     }
 
     /**
-     * Compute the version after the stored one, or after the one this instance
-     * wrote when its original state still lags behind it.
+     * Compute the version after the one this instance wrote since it last
+     * synced, else after the stored one.
      *
      * @return int
      *
@@ -95,12 +109,12 @@ trait HasVersion
     {
         $column = $this->getVersionColumn();
         $stored = $this->getRawOriginal($column);
-        $stored = is_numeric($stored) ? (int) $stored : $this->writtenVersion;
+        $stored = $this->writtenVersion ?? (is_numeric($stored) ? (int) $stored : null);
 
         if ($stored === null) {
             throw new \LogicException(sprintf('%s cannot advance its [%s] version, as the stored version was not loaded or is null.', static::class, $column));
         }
 
-        return max($stored, $this->writtenVersion ?? 0) + 1;
+        return $stored + 1;
     }
 }

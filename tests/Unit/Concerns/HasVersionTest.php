@@ -228,6 +228,24 @@ final class HasVersionTest extends TestCase
     }
 
     /**
+     * Test that a model reloaded without its version refuses to save, even
+     * after it wrote a version of its own.
+     *
+     * @return void
+     */
+    public function testUpdateAfterReloadingWithoutTheVersionThrows(): void
+    {
+        $document = Document::create(['title' => 'Draft']);
+
+        $document->setRawAttributes(['id' => $document->id, 'title' => 'Draft'], true);
+        $document->title = 'Blind';
+
+        $this->expectExceptionObject(new \LogicException(Document::class . ' cannot advance its [version] version, as the stored version was not loaded or is null.'));
+
+        $document->save();
+    }
+
+    /**
      * Test that a model naming its own version column advances that column.
      *
      * @return void
