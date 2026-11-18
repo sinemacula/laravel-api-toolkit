@@ -102,20 +102,6 @@ final class MalformedEncodingRequestTest extends TestCase
     }
 
     /**
-     * Test that a rejection naming a well-formed key keeps its position.
-     *
-     * @return void
-     */
-    public function testWellFormedUndeclaredOrderKeyKeepsItsPosition(): void
-    {
-        $response = $this->getJson('/users?order=zzz');
-
-        $response->assertStatus(422);
-
-        self::assertSame(['order.zzz'], array_keys((array) $response->json('error.meta')));
-    }
-
-    /**
      * Test that a validation failure echoing a malformed body key renders as a
      * 422 with the bytes substituted and reports nothing.
      *

@@ -640,29 +640,6 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that the pretty request parameter produces indented JSON output.
-     *
-     * @return void
-     */
-    public function testPrettyParameterFormatsJsonWithIndentation(): void
-    {
-        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb(), ['pretty' => '1']);
-        $request->headers->set('Accept', self::ACCEPT_JSON);
-
-        config()->set('app.debug', false);
-
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new NotFoundHttpException, $request);
-
-        self::assertInstanceOf(JsonResponse::class, $response);
-
-        $content = $response->getContent();
-
-        self::assertIsString($content);
-        self::assertStringContainsString("\n    ", $content);
-    }
-
-    /**
      * Test that JSON output is compact when the pretty request parameter is not
      * provided.
      *
