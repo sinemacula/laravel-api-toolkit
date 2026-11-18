@@ -43,7 +43,7 @@ final class ResourceMetadataService implements ResourceMetadataProvider
     }
 
     /**
-     * Get the fields every response of the given resource class includes.
+     * Get the fields added to every selection of the given resource class.
      *
      * @param  string  $resourceClass
      * @return array<int, string>

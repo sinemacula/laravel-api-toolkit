@@ -46,9 +46,10 @@ There are three ways to define the fields returned:
 | Default fields     | Omit `fields[user]`                  |
 | Explicit list      | `?fields[user]=first_name,last_name` |
 
-Omitting a type returns the fields its schema lists in `x-default-fields`. A
-response carries only the fields selected, so only the properties a schema marks
-`required` are present whatever is asked.
+Omitting a type selects the fields its schema lists in `x-default-fields`,
+unless the relation embedding it pins its fields. A selected field may still be
+left out of a record; only the properties a schema marks `required` are always
+present.
 
 Fields can be selected on related resources in the same request by keying each
 type separately:

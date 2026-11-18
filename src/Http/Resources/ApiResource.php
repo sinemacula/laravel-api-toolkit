@@ -36,7 +36,7 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     /** @var array<int, string> Default fields to include if no specific fields are requested */
     protected static array $default = [];
 
-    /** @var array<int, string> Fields every response includes, after the configured fixed fields */
+    /** @var array<int, string> Fields added to every selection, after the configured fixed fields */
     protected static array $fixed = [];
 
     /** @var \SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver */
@@ -190,8 +190,8 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     }
 
     /**
-     * Get the fields every response includes: the configured fixed fields, then
-     * the resource's own.
+     * Get the fields added to every selection: the configured fixed fields,
+     * then the resource's own.
      *
      * @return array<int, string>
      */

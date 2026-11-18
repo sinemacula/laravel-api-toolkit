@@ -8,6 +8,7 @@ use Illuminate\Foundation\Application;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
+use Tests\Fixtures\Resources\FixedFieldsUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -69,7 +70,10 @@ final class ResourceMetadataServiceTest extends TestCase
      */
     public function testGetFixedFieldsDelegatesToResourceClass(): void
     {
-        self::assertSame(['id', '_type'], $this->service->getFixedFields(UserResource::class));
+        self::assertSame(
+            FixedFieldsUserResource::getFixedFields(),
+            $this->service->getFixedFields(FixedFieldsUserResource::class),
+        );
     }
 
     /**

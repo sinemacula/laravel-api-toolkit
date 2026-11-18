@@ -298,11 +298,11 @@ final class QueryParameterBuilderTest extends TestCase
     public function testFieldsDescriptionNamesTheTypeKeysValuesAndDefaultFields(): void
     {
         self::assertSame(
-            'Sparse fieldsets: keyed by a resource\'s _type, a comma-separated list of the properties to return, e.g. '
-            . 'fields[users]=id,name. A value names properties of that resource\'s schema, including aggregates for its '
-            . 'aggregates payload, or is :all for every field. Unknown types and names are rejected. Fixed fields are '
-            . 'returned whatever is asked. A type with no key returns its schema\'s x-default-fields, unless a parent '
-            . 'relation pins its fields.',
+            'Sparse fieldsets keyed by resource _type, e.g. fields[users]=id,name. Each value is a comma-separated '
+            . 'list of that schema\'s property names, with aggregates selecting its aggregates payload, or :all to '
+            . 'select every field. Unknown types and names are rejected. A type with no key selects its schema\'s '
+            . 'x-default-fields, unless a parent relation pins its fields. A selected property may still be left out; '
+            . 'only the required ones are always returned.',
             $this->makeBuilder()->build()['Fields']['description'],
         );
     }

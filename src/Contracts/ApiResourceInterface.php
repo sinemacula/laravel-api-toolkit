@@ -33,7 +33,7 @@ interface ApiResourceInterface
     public static function getDefaultFields(): array;
 
     /**
-     * Get the fields every response includes, whatever is selected.
+     * Get the fields added to every selection.
      *
      * @return array<int, string>
      */
