@@ -31,7 +31,7 @@ final class RequireSubscription
     public function handle(Request $request, \Closure $next): mixed
     {
         if (!$request->headers->has(self::HEADER)) {
-            throw new PaymentRequiredException;
+            throw new PaymentRequiredException(null, ['X-Upgrade-Url' => 'https://example.com/billing']);
         }
 
         return $next($request);

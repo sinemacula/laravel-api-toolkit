@@ -884,6 +884,50 @@ Exceptions are mapped to `ApiException` subclasses and rendered as JSON error re
 - `'json_when_expected'` - JSON only when the request expects it (Laravel's `expectsJson()`, e.g.
   `Accept: application/json`).
 
+Every error renders as one envelope:
+
+```json
+{
+  "error": {
+    "status": 422,
+    "code": 10106,
+    "title": "Invalid Input",
+    "detail": "The information supplied was invalid",
+    "meta": {"email": ["The email field must be a valid email address."]}
+  }
+}
+```
+
+`detail` is always present, empty when the code has no detail translation, and `title` is left out when none resolves.
+`meta` is the exception's own meta, always an object, and is left out when empty. With
+`api-toolkit.exceptions.include_debug_info` on (null follows `app.debug`), an error with an underlying exception adds
+that exception's message, class, file, line and trace under `error.debug`, beside the meta rather than inside it.
+
+An `ApiException` declares the shape of its meta by implementing `DefinesErrorMeta`, and the exported document types
+`error.meta` for its code with it. A subclass inherits the declaration with the code:
+
+```php
+use SineMacula\ApiToolkit\Exceptions\ApiException;
+use SineMacula\ApiToolkit\OpenApi\Contracts\DefinesErrorMeta;
+
+final class SlotTakenException extends ApiException implements DefinesErrorMeta
+{
+    public const ErrorCodeInterface CODE = AppErrorCode::SLOT_TAKEN;
+
+    public const HttpStatus HTTP_STATUS = HttpStatus::CONFLICT;
+
+    public static function metaSchema(): array
+    {
+        return [
+            'type'                 => 'object',
+            'properties'           => ['next_free' => ['type' => 'string', 'format' => 'date-time']],
+            'required'             => ['next_free'],
+            'additionalProperties' => false,
+        ];
+    }
+}
+```
+
 On a precognitive request a `ValidationException` renders as Laravel's `{message, errors}` body, which Precognition
 clients read, rather than the error envelope.
 
@@ -1154,10 +1198,14 @@ are ignored. Global middleware is not read, nor is `RequireIfMatch`, which is do
 middleware the container rebinds is read from the class the route names. Class names in `@throws` resolve as PHP would
 in the file declaring the method, so imported, aliased, same-namespace and fully qualified names all work, and a union
 such as `@throws A|B` names both. Each error code is documented once, as the `components.examples` entry `Error<code>`
-(such as `Error10107`) carrying the code's catalogue title and detail, and every error response references the examples
-of its exceptions. An exception without a `CODE` adds its status and headers but no example. The export fails when a
-documented exception's code is not in the error catalogue (add its namespace to
-`api-toolkit.openapi.exception_namespaces`), or when it shares a code with an exception answering another status.
+(such as `Error10107`) carrying the code's catalogue title and detail, and as the `components.schemas` envelope
+`Error<code>`, which pins `error.code` and types `error.meta` as the code's exception declares it, else as an open
+object. `InvalidInputException` declares its field errors and `QueryTooExpensiveException` the limit it exceeded. Every
+error response references the examples of its exceptions, and its schema is the envelope of its code, or a `oneOf` of
+the envelopes where the status carries several codes. The export fails when a documented exception has no `CODE`, which
+the handler cannot render, when its code is not in the error catalogue (add its namespace to
+`api-toolkit.openapi.exception_namespaces`), or when it shares a code with an exception answering another status or
+declaring another meta.
 
 Each path parameter is typed from what the router enforces on its segment. A `where` constraint comes first:
 `whereUuid()` exports a `uuid`, `whereNumber()` a non-negative integer, `whereIn()` or a plain alternation such as

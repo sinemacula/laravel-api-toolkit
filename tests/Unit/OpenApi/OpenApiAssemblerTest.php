@@ -79,6 +79,7 @@ use Tests\Fixtures\OpenApi\UserNamedShape;
 use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\DocumentResource;
 use Tests\Fixtures\Resources\EnvelopeNamedResource;
+use Tests\Fixtures\Resources\ErrorNamedResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -295,11 +296,12 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that reachable resource schemas appear beside the error envelope.
+     * Test that reachable resource schemas appear beside the envelope of each
+     * referenced error code, and no shared error envelope.
      *
      * @return void
      */
-    public function testResourceAndEnvelopeSchemasArePresent(): void
+    public function testResourceAndErrorEnvelopeSchemasArePresent(): void
     {
         $this->registerUserRoutes();
 
@@ -308,7 +310,8 @@ final class OpenApiAssemblerTest extends TestCase
         self::assertIsArray($schemas);
         self::assertArrayHasKey('User', $schemas);
         self::assertArrayHasKey('Organization', $schemas);
-        self::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
+        self::assertArrayHasKey('Error10001', $schemas);
+        self::assertArrayNotHasKey('ErrorEnvelope', $schemas);
     }
 
     /**
@@ -557,16 +560,35 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the error envelope is kept even without any paths.
+     * Test that a document without paths carries no error envelope.
      *
      * @return void
      */
-    public function testSharedErrorEnvelopeSurvivesWithoutPaths(): void
+    public function testDocumentWithoutPathsCarriesNoErrorEnvelope(): void
     {
         $schemas = $this->assembleEmptyAudience()['components']['schemas'];
 
         self::assertIsArray($schemas);
-        self::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
+        self::assertSame([], preg_grep('/^Error/', array_map(strval(...), array_keys($schemas))));
+    }
+
+    /**
+     * Test that a resource named like an error envelope collides only once a
+     * path references its code.
+     *
+     * @return void
+     */
+    public function testResourceNamedLikeAnErrorEnvelopeCollidesOnceItsCodeIsReferenced(): void
+    {
+        $this->router()->get('users/{user}', [PathFixtureController::class, 'show']);
+
+        $this->makeAssembler([Organization::class => ErrorNamedResource::class])->assemble();
+
+        $this->router()->post('users', [PathRequestBodyController::class, 'formRequest']);
+
+        $this->expectCollision('Error10106', ErrorNamedResource::class, ErrorResponseBuilder::class);
+
+        $this->makeAssembler([Organization::class => ErrorNamedResource::class])->assemble();
     }
 
     /**
