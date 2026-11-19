@@ -1,13 +1,13 @@
 ---
 id: 0003
 title: Validate emitted documents with opis/json-schema against a bundled 3.1 meta-schema
-status: Accepted
+status: Superseded
 date: 2026-06-13
 ---
 
 # ADR 0003: Validate emitted documents with opis/json-schema against a bundled 3.1 meta-schema
 
-**Status:** Accepted
+**Status:** Superseded by ADR 0004
 **Date:** 2026-06-13
 
 ## Context
@@ -70,3 +70,4 @@ the feature's core premise - a silent shape regression would defeat the purpose.
 ## References
 
 - Related: ADR 0002 (hand-roll the OpenAPI 3.1 document builder)
+- Superseded by: ADR 0004 (validate examples at export with opis/json-schema)

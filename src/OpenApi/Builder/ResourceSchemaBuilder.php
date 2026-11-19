@@ -36,6 +36,9 @@ final readonly class ResourceSchemaBuilder
     /** The property an API resource's schema pins to its resource type */
     public const string TYPE_PROPERTY = '_type';
 
+    /** The schema extension describing the named scopes a filter may invoke */
+    public const string SCOPES_KEY = 'x-scopes';
+
     /** The property a resource's relation aggregates are rendered under */
     private const string AGGREGATES_PROPERTY = 'aggregates';
 
@@ -60,6 +63,7 @@ final readonly class ResourceSchemaBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver  $resolver
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $introspector
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ScopeSchemaBuilder  $scopes
      */
     public function __construct(
 
@@ -71,6 +75,9 @@ final readonly class ResourceSchemaBuilder
 
         /** The provider used to resolve relation cardinality. */
         private SchemaIntrospectionProvider $introspector,
+
+        /** The builder describing each resource's named scopes. */
+        private ScopeSchemaBuilder $scopes,
     ) {}
 
     /**
@@ -140,7 +147,9 @@ final readonly class ResourceSchemaBuilder
                 $limited[] = $fieldKey;
             }
 
-            $properties[$fieldKey] = $this->withQuerySurface($this->overrideProperty($field) ?? $property, $field, $compiled);
+            $schema = $this->overrideProperty($field) ?? $property;
+
+            $properties[$fieldKey] = $this->withQuerySurface($field->openApi?->annotate($schema) ?? $schema, $field, $compiled);
         }
 
         if ($compiled->getAggregateDefinitions() !== []) {
@@ -152,7 +161,7 @@ final readonly class ResourceSchemaBuilder
         }
 
         if (!is_a($resourceClass, ApiResourceInterface::class, true)) {
-            return $this->wrapObjectSchema($properties, [], $compiled->getTraversableRelations());
+            return $this->wrapObjectSchema($properties, [], $compiled);
         }
 
         $fixed    = $resourceClass::getFixedFields();
@@ -162,7 +171,7 @@ final readonly class ResourceSchemaBuilder
         $properties = [self::TYPE_PROPERTY => $this->buildTypeProperty($resourceClass)] + $properties;
 
         return [
-            ...$this->wrapObjectSchema($properties, [self::TYPE_PROPERTY, ...$required], $compiled->getTraversableRelations()),
+            ...$this->wrapObjectSchema($properties, [self::TYPE_PROPERTY, ...$required], $compiled),
             self::DEFAULT_FIELDS_KEY => array_values(array_unique($defaults)),
         ];
     }
@@ -183,7 +192,7 @@ final readonly class ResourceSchemaBuilder
         }
 
         if (!is_subclass_of($modelClass, Model::class)) {
-            return ($field->openApi ?? OpenApiFieldSchema::undocumented())->toArray();
+            return OpenApiFieldSchema::undocumented()->toArray();
         }
 
         return $this->resolver->resolve($fieldKey, $field, $modelClass)->toArray();
@@ -192,19 +201,21 @@ final readonly class ResourceSchemaBuilder
     /**
      * Resolve the schema that replaces a field's inferred one, if any.
      *
-     * A declaration wins, and a transformer changes the value, so an undeclared
-     * one is undocumented.
+     * A declared shape wins, and a transformer changes the value, so an
+     * undeclared one is undocumented.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return array<string, mixed>|null
      */
     private function overrideProperty(CompiledFieldDefinition $field): ?array
     {
-        return match (true) {
-            $field->openApi      !== null => $field->openApi->toArray(),
-            $field->transformers !== []   => OpenApiFieldSchema::undocumented()->toArray(),
-            default                       => null,
-        };
+        $declared = $field->openApi;
+
+        if ($declared !== null && !$declared->annotatesOnly()) {
+            return $declared->toArray();
+        }
+
+        return $field->transformers === [] ? null : OpenApiFieldSchema::undocumented()->toArray();
     }
 
     /**
@@ -318,7 +329,8 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Build the aggregates property, keyed by each aggregate's present key.
+     * Build the aggregates property, keyed by each aggregate's present key, and
+     * the order key of each sortable one.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
      * @param  class-string  $modelClass
@@ -327,9 +339,20 @@ final readonly class ResourceSchemaBuilder
     private function buildAggregatesProperty(CompiledSchema $compiled, string $modelClass): array
     {
         $properties = [];
+        $sortable   = $compiled->getSortableMetrics();
 
         foreach ($compiled->getAggregateDefinitions() as $presentKey => $definition) {
-            $properties[$presentKey] = $this->resolver->resolveAggregate($definition, $modelClass);
+
+            $property = $this->resolver->resolveAggregate($definition, $modelClass);
+            $key      = CompiledSchema::AGGREGATE_SORT_PREFIX . $presentKey;
+
+            if (isset($sortable[$key])) {
+                $conditional = $definition->callerGuards === [] ? [] : ['conditional' => true];
+
+                $property[self::QUERY_SURFACE_KEY] = ['sort' => ['key' => $key, 'indexed' => false, 'reason' => $definition->unindexedReason, ...$conditional]];
+            }
+
+            $properties[$presentKey] = $property;
         }
 
         return ['type' => 'object', 'properties' => $properties];
@@ -347,16 +370,18 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Wrap a property map, its required keys and traversable relations into an
-     * object schema.
+     * Wrap a property map and its required keys into an object schema, with the
+     * relations and scopes a filter may use.
      *
      * @param  array<string, array<string, mixed>>  $properties
      * @param  array<int, string>  $required
-     * @param  array<int, string>  $relations
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
      * @return array<string, mixed>
      */
-    private function wrapObjectSchema(array $properties, array $required, array $relations): array
+    private function wrapObjectSchema(array $properties, array $required, CompiledSchema $compiled): array
     {
+        $relations = $compiled->getTraversableRelations();
+
         $schema = [
             'type'       => 'object',
             'properties' => $properties,
@@ -368,6 +393,10 @@ final readonly class ResourceSchemaBuilder
 
         if ($relations !== []) {
             $schema[self::TRAVERSABLE_RELATIONS_KEY] = $relations;
+        }
+
+        if ($compiled->getScopes() !== []) {
+            $schema[self::SCOPES_KEY] = $this->scopes->build($compiled);
         }
 
         return $schema;
@@ -449,7 +478,8 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Describe what an order may ask of the field's column.
+     * Describe what an order may ask of the field's column, or of the columns
+     * of the resource a sortable relation renders.
      *
      * `indexed` is the resource's claim (no exemption recorded), not a database
      * reading.
@@ -460,6 +490,12 @@ final readonly class ResourceSchemaBuilder
      */
     private function sortSurface(CompiledFieldDefinition $field, CompiledSchema $compiled): ?array
     {
+        if ($field->relation !== null && $field->sortThroughReason !== null) {
+            $conditional = $compiled->isConditionalSortRelation($field->relation) ? ['conditional' => true] : [];
+
+            return ['prefix' => $field->relation, 'indexed' => false, 'reason' => $field->sortThroughReason, ...$conditional];
+        }
+
         if ($field->sortable === null || !in_array($field->sortable, $compiled->getSortableColumns(), true)) {
             return null;
         }

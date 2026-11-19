@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Schema\AggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Schema\Scope;
 
 /**
  * Refuses raw schema definitions the compiled definitions cannot carry.
@@ -37,6 +38,9 @@ final class RawSchemaValidator
     /** @var string The characters an aggregate key may hold, so it survives the relation alias and the SQL alias */
     private const string AGGREGATE_KEY_PATTERN = '/^[\w\p{M}]+$/Du';
 
+    /** @var string The grammar of a PHP parameter name, which a scope argument binds to */
+    private const string ARGUMENT_PATTERN = '/\A[A-Za-z_][A-Za-z0-9_]*\z/';
+
     /** @var int The longest identifier PostgreSQL keeps before truncating it */
     private const int MAX_ATTRIBUTE_BYTES = 63;
 
@@ -62,9 +66,11 @@ final class RawSchemaValidator
             $defects = [
                 ...self::collectDefects($definition),
                 ...self::collectGuardDefects($definition),
+                ...self::collectSortDefects($definition),
                 ...self::collectCapabilityDefects($key, $definition, $capabilities),
                 ...self::collectAggregateDefects($key, $definition, $aggregates),
                 ...self::collectRelationDefects($key, $definition, $relations, $traversed),
+                ...self::collectScopeDefects($key, $definition),
             ];
 
             foreach ($defects as $defect) {
@@ -139,7 +145,9 @@ final class RawSchemaValidator
 
         foreach (self::QUERY_DECLARATIONS as $declaration) {
 
-            if (!$rowGuarded || !is_string($definition[$declaration] ?? null)) {
+            $marker = $definition[$declaration] ?? null;
+
+            if (!$rowGuarded || (!is_string($marker) && $marker !== true)) {
                 continue;
             }
 
@@ -149,6 +157,60 @@ final class RawSchemaValidator
 
         if (self::carries($definition, 'caller_guards') && is_string($definition['searchable'] ?? null)) {
             $defects[] = 'A field with a caller guard may not be searchable, as a search matches the same columns for every caller';
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Collect the defects in a relation or aggregate declared sortable.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return list<string>
+     */
+    private static function collectSortDefects(array $definition): array
+    {
+        $metric   = self::aggregateFunction($definition) !== null;
+        $relation = $metric ? null : SchemaCompiler::resolveFieldRelation($definition);
+
+        if (($definition['sortable'] ?? null) !== true || (!$metric && $relation === null)) {
+            return [];
+        }
+
+        $reason  = $definition['unindexed'] ?? null;
+        $defects = $relation === null ? [] : self::collectSortableRelationDefects($relation, $definition);
+
+        if (!is_string($reason) || trim($reason) === '') {
+            array_unshift($defects, 'A sortable relation or aggregate must carry the reason its order is unindexed');
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Collect the defects in a sortable relation.
+     *
+     * The order reruns no relation constraint, and the aggregate order keys
+     * would shadow a relation named after their prefix.
+     *
+     * @param  string  $relation
+     * @param  array<string, mixed>  $definition
+     * @return list<string>
+     */
+    private static function collectSortableRelationDefects(string $relation, array $definition): array
+    {
+        $defects = [];
+
+        if (!is_string($definition['resource'] ?? null)) {
+            $defects[] = 'A sortable relation must render a child resource, whose sortable columns it orders by';
+        }
+
+        if (isset($definition['constraint'])) {
+            $defects[] = 'A sortable relation may not be constrained, as its order would read the rows the constraint hides';
+        }
+
+        if ($relation === self::AGGREGATES_KEY) {
+            $defects[] = sprintf('A sortable relation may not be named "%s", which prefixes the aggregate order keys', self::AGGREGATES_KEY);
         }
 
         return $defects;
@@ -298,6 +360,39 @@ final class RawSchemaValidator
             }
 
             $defects[] = sprintf('Relation "%s" names a nested path; declare each segment as a relation of its own resource', $name);
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Collect the scope arguments that cannot bind to a parameter by name.
+     *
+     * @param  string  $key
+     * @param  array<string, mixed>  $definition
+     * @return list<string>
+     */
+    private static function collectScopeDefects(string $key, array $definition): array
+    {
+        if (!str_starts_with($key, Scope::KEY_PREFIX)) {
+            return [];
+        }
+
+        $parameters = $definition['parameters'] ?? [];
+
+        if (!is_array($parameters)) {
+            return ['Scope parameters must be an array of validation rules keyed by argument'];
+        }
+
+        $defects = [];
+
+        foreach (Scope::argumentsOf($parameters) as $argument) {
+
+            if (preg_match(self::ARGUMENT_PATTERN, $argument) === 1) {
+                continue;
+            }
+
+            $defects[] = sprintf('Scope argument "%s" must be a PHP identifier, as it binds to the scope parameter of that name', $argument);
         }
 
         return $defects;

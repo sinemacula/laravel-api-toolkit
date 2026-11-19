@@ -5,8 +5,10 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
 use Illuminate\Database\Eloquent\Model;
+use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledScopeDefinition;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Validation\Rejection;
@@ -108,18 +110,26 @@ final readonly class QuerySurface
     }
 
     /**
-     * Guard a sort column.
+     * Guard an order key, resolving what it orders by.
      *
-     * @param  string  $column
-     * @return void
+     * A root column wins, then an aggregate key, then a relation and a column
+     * of the resource governing it, one hop deep.
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * @param  string  $key
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\SortTarget
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
-    public function guardSort(string $column): void
+    public function guardSort(string $key): SortTarget
     {
-        $declared = in_array($column, $this->schema?->getSortableColumns() ?? [], true);
+        $target = $this->sortsByColumn($key) ? SortTarget::column($key) : ($this->aggregateTarget($key) ?? $this->relationTarget($key));
 
-        $this->guard($declared && $this->admits($this->schema->getConditionalSortKeys(), $column), 'order', $column);
+        if ($target === null) {
+            throw Rejection::at('order.' . $key, 'query.undeclared_key', ['key' => $key]);
+        }
+
+        return $target;
     }
 
     /**
@@ -150,6 +160,20 @@ final readonly class QuerySurface
     }
 
     /**
+     * Resolve the named scope the caller may invoke at this level, or null when
+     * it is undeclared or hidden from the caller.
+     *
+     * @param  string  $name
+     * @return \SineMacula\ApiToolkit\Schema\CompiledScopeDefinition|null
+     */
+    public function scopeFor(string $name): ?CompiledScopeDefinition
+    {
+        $scope = $this->schema?->getScopes()[$name] ?? null;
+
+        return $scope !== null && $this->admission->admitsScope($scope) ? $scope : null;
+    }
+
+    /**
      * Resolve the column's filter capability, or null when the caller may not
      * filter by it.
      *
@@ -161,6 +185,61 @@ final readonly class QuerySurface
         $capability = $this->schema?->getFilterableColumns()[$column] ?? null;
 
         return $capability !== null && $this->admits($this->schema->getConditionalFilterKeys(), $column) ? $capability : null;
+    }
+
+    /**
+     * Determine whether the column is a sortable root column the caller may
+     * order by.
+     *
+     * @param  string  $column
+     * @return bool
+     */
+    private function sortsByColumn(string $column): bool
+    {
+        return in_array($column, $this->schema?->getSortableColumns() ?? [], true)
+            && $this->admits($this->schema->getConditionalSortKeys(), $column);
+    }
+
+    /**
+     * Resolve the sortable aggregate the key names, if the caller may see it.
+     *
+     * @param  string  $key
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\SortTarget|null
+     */
+    private function aggregateTarget(string $key): ?SortTarget
+    {
+        $aggregate = $this->schema?->getSortableMetrics()[$key] ?? null;
+
+        return $aggregate !== null && $this->admission->admitsAggregate($aggregate) ? SortTarget::aggregate($aggregate) : null;
+    }
+
+    /**
+     * Resolve the sortable relation and child column the key names, if the
+     * caller may see both.
+     *
+     * @param  string  $key
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\SortTarget|null
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
+     */
+    private function relationTarget(string $key): ?SortTarget
+    {
+        if ($this->schema === null) {
+            return null;
+        }
+
+        [$relation, $column] = array_pad(explode('.', $key, 2), 2, '');
+
+        $declarers = $this->schema->getSortableRelations()[$relation] ?? [];
+        $resource  = $this->schema->getTraversableResource($relation) ?? '';
+
+        if ($declarers === [] || !is_subclass_of($resource, ApiResourceInterface::class) || !$this->admission->admits($this->schema, $declarers)) {
+            return null;
+        }
+
+        $child = new self(SchemaCompiler::compile($resource), $this->traversal, $this->admission, $this->operators);
+
+        return $child->sortsByColumn($column) ? SortTarget::related($relation, $column) : null;
     }
 
     /**

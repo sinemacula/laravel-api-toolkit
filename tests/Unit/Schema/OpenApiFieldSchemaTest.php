@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 
@@ -31,7 +32,7 @@ final class OpenApiFieldSchemaTest extends TestCase
             format     : 'email',
             nullable   : true,
             enum       : ['a', 'b'],
-            example    : 'a',
+            examples   : ['a'],
             description: 'An example field',
             undocumented: false,
         );
@@ -40,7 +41,7 @@ final class OpenApiFieldSchemaTest extends TestCase
         self::assertSame('email', $schema->format);
         self::assertTrue($schema->nullable);
         self::assertSame(['a', 'b'], $schema->enum);
-        self::assertSame('a', $schema->example);
+        self::assertSame(['a'], $schema->examples);
         self::assertSame('An example field', $schema->description);
         self::assertFalse($schema->undocumented);
     }
@@ -157,7 +158,7 @@ final class OpenApiFieldSchemaTest extends TestCase
 
         self::assertArrayNotHasKey('format', $fragment);
         self::assertArrayNotHasKey('enum', $fragment);
-        self::assertArrayNotHasKey('example', $fragment);
+        self::assertArrayNotHasKey('examples', $fragment);
         self::assertArrayNotHasKey('description', $fragment);
     }
 
@@ -187,18 +188,114 @@ final class OpenApiFieldSchemaTest extends TestCase
     }
 
     /**
-     * Test that an example value is included in the fragment.
+     * Test that declared examples are exported under the examples keyword.
      *
      * @return void
      */
-    public function testExampleIsIncluded(): void
+    public function testExamplesAreExportedUnderTheExamplesKeyword(): void
     {
-        $schema = new OpenApiFieldSchema(type: 'integer', example: 42);
+        $schema = new OpenApiFieldSchema(type: 'integer', examples: [42]);
 
         self::assertSame([
-            'type'    => 'integer',
-            'example' => 42,
+            'type'     => 'integer',
+            'examples' => [42],
         ], $schema->toArray());
+    }
+
+    /**
+     * Test that a declared null example is exported rather than dropped.
+     *
+     * @return void
+     */
+    public function testNullExampleIsExported(): void
+    {
+        $schema = new OpenApiFieldSchema(type: 'string', nullable: true, examples: [null]);
+
+        self::assertSame(['type' => ['string', 'null'], 'examples' => [null]], $schema->toArray());
+    }
+
+    /**
+     * Test that a reference carries its examples and description beside it.
+     *
+     * @return void
+     */
+    public function testReferenceCarriesItsAnnotations(): void
+    {
+        $schema = new OpenApiFieldSchema(nullable: true, examples: ['active'], description: 'The status.', ref: '#/components/schemas/UserStatus');
+
+        self::assertSame([
+            'anyOf'       => [['$ref' => '#/components/schemas/UserStatus'], ['type' => 'null']],
+            'examples'    => ['active'],
+            'description' => 'The status.',
+        ], $schema->toArray());
+    }
+
+    /**
+     * Test that an undocumented field carries its examples.
+     *
+     * @return void
+     */
+    public function testUndocumentedFieldCarriesItsExamples(): void
+    {
+        $schema = new OpenApiFieldSchema(examples: [['a' => 1]], undocumented: true);
+
+        self::assertSame(['x-undocumented' => true, 'examples' => [['a' => 1]]], $schema->toArray());
+    }
+
+    /**
+     * Provide schemas with and without a declared shape.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Schema\OpenApiFieldSchema, bool}>
+     */
+    public static function annotationProvider(): iterable
+    {
+        yield 'examples and description' => [new OpenApiFieldSchema(examples: [1], description: 'A count.'), true];
+        yield 'type' => [new OpenApiFieldSchema(type: 'integer'), false];
+        yield 'format' => [new OpenApiFieldSchema(format: 'uuid'), false];
+        yield 'enum' => [new OpenApiFieldSchema(enum: ['a']), false];
+        yield 'nullable' => [new OpenApiFieldSchema(nullable: true), false];
+        yield 'reference' => [OpenApiFieldSchema::reference('#/components/schemas/UserStatus'), false];
+        yield 'undocumented' => [OpenApiFieldSchema::undocumented(), false];
+    }
+
+    /**
+     * Test that only a schema declaring no type, format, enum, nullability,
+     * reference or undocumented flag annotates only.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema  $schema
+     * @param  bool  $annotatesOnly
+     * @return void
+     */
+    #[DataProvider('annotationProvider')]
+    public function testAnnotatesOnlyWithoutAShape(OpenApiFieldSchema $schema, bool $annotatesOnly): void
+    {
+        self::assertSame($annotatesOnly, $schema->annotatesOnly());
+    }
+
+    /**
+     * Test that annotating lays the examples and description over a schema.
+     *
+     * @return void
+     */
+    public function testAnnotateLaysExamplesAndDescriptionOverASchema(): void
+    {
+        $schema = new OpenApiFieldSchema(examples: ['gold'], description: 'The tier.');
+
+        self::assertSame(
+            ['type' => 'string', 'description' => 'The tier.', 'examples' => ['gold']],
+            $schema->annotate(['type' => 'string', 'description' => 'Inferred.']),
+        );
+    }
+
+    /**
+     * Test that annotating without examples or a description leaves a schema as
+     * it is.
+     *
+     * @return void
+     */
+    public function testAnnotateWithoutAnnotationsLeavesTheSchema(): void
+    {
+        self::assertSame(['type' => 'string'], (new OpenApiFieldSchema)->annotate(['type' => 'string']));
     }
 
     /**
@@ -258,7 +355,7 @@ final class OpenApiFieldSchemaTest extends TestCase
             format      : 'email',
             nullable    : true,
             enum        : ['a@example.com'],
-            example     : 'a@example.com',
+            examples    : ['a@example.com'],
             description : 'The address.',
             undocumented: true,
             ref         : '#/components/schemas/Address',
@@ -272,7 +369,7 @@ final class OpenApiFieldSchemaTest extends TestCase
         self::assertSame('string', $copy->type);
         self::assertSame('email', $copy->format);
         self::assertSame(['a@example.com'], $copy->enum);
-        self::assertSame('a@example.com', $copy->example);
+        self::assertSame(['a@example.com'], $copy->examples);
         self::assertSame('The address.', $copy->description);
         self::assertTrue($copy->undocumented);
         self::assertSame('#/components/schemas/Address', $copy->ref);

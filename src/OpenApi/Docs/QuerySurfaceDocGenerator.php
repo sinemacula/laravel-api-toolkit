@@ -8,6 +8,7 @@ use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QueryScopeDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
@@ -40,8 +41,8 @@ final readonly class QuerySurfaceDocGenerator
     /** The fixed note saying what an index-backed order claims and how pages stay whole. */
     private const string ORDERS = 'An order reads as Index-backed where the resource recorded no exemption for it; the index itself is proven by '
         . 'schema validation, which reads the catalogue behind the model where a connection can be inspected. Every page is ordered by '
-        . 'the key last, in the last direction, so tied rows never repeat or go missing; a cursor-paginated read refuses random order '
-        . 'and any column that admits null.';
+        . 'the key last, in the last direction, so tied rows never repeat or go missing; a cursor-paginated read refuses random order, '
+        . 'an aggregate or relation key, and any column that admits null.';
 
     /** The fixed note saying what the relevance order ranks by and needs. */
     private const string RELEVANCE = '`order=relevance` ranks rows by how closely they match `search`: the whole value, then the start, then the '
@@ -50,6 +51,10 @@ final readonly class QuerySurfaceDocGenerator
     /** The fixed note saying who may use a conditional key. */
     private const string CONDITIONAL = 'A filter or order marked conditional is open only to callers the resource shows the field to; any other caller '
         . 'is refused as for an undeclared key.';
+
+    /** The fixed note saying what a scope is and how a filter invokes it. */
+    private const string SCOPES = 'A scope is a predicate the server defines, invoked by name through `$scope` in `filters`, alone or with '
+        . 'an object of the arguments its table lists; a scope marked conditional is open only to callers the resource allows.';
 
     /** The suffix marking a filter or order only some callers may use. */
     private const string CONDITIONAL_SUFFIX = ' (conditional)';
@@ -109,6 +114,10 @@ final readonly class QuerySurfaceDocGenerator
     public function generate(array $surfaces, array $limits, array $bounds): string
     {
         $lines = [self::BANNER, '', '# Query Surface Reference', '', self::INTRO, '', self::KEYS, self::ALIASES, '', self::ORDERS, '', self::RELEVANCE, '', self::CONDITIONAL];
+
+        if (array_filter($surfaces, static fn (QuerySurfaceDescriptor $surface): bool => $surface->scopes !== []) !== []) {
+            $lines = [...$lines, '', self::SCOPES];
+        }
 
         $lines = array_merge(
             $lines,
@@ -265,8 +274,8 @@ final readonly class QuerySurfaceDocGenerator
     }
 
     /**
-     * Render one resource as a subsection heading, its column table, and the
-     * relations a filter may descend through.
+     * Render one resource as a subsection heading, its column and scope tables,
+     * its own page size bounds, and the relations a filter may descend through.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor  $surface
      * @param  string  $level
@@ -274,10 +283,67 @@ final readonly class QuerySurfaceDocGenerator
      */
     private function resourceSection(QuerySurfaceDescriptor $surface, string $level): array
     {
-        $lines = ['', $level . ' ' . SchemaComponentName::fromResource($surface->resource), ''];
-        $lines = array_merge($lines, $this->columnTable($surface->columns));
+        $lines = ['', $level . ' ' . SchemaComponentName::fromResource($surface->resource)];
+
+        if ($surface->columns !== [] || $surface->scopes === []) {
+            $lines = [...$lines, '', ...$this->columnTable($surface->columns)];
+        }
+
+        if ($surface->scopes !== []) {
+            $lines = [...$lines, '', ...$this->scopeTable($surface->scopes)];
+        }
+
+        if ($surface->pageSize !== null) {
+            $lines = array_merge($lines, ['', sprintf('Pagination: at most %d per page; default page size %d.', $surface->pageSize->ceiling, $surface->pageSize->default)]);
+        }
 
         return array_merge($lines, ['', $this->relationsLine($surface->relations)]);
+    }
+
+    /**
+     * Render a resource's named scopes as a table.
+     *
+     * @param  list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryScopeDescriptor>  $scopes
+     * @return list<string>
+     */
+    private function scopeTable(array $scopes): array
+    {
+        $lines = [
+            '| Scope | Arguments | Description |',
+            '| --- | --- | --- |',
+        ];
+
+        foreach ($scopes as $scope) {
+            $lines[] = sprintf(
+                '| %s | %s | %s |',
+                $this->code($scope->name) . ($scope->conditional ? self::CONDITIONAL_SUFFIX : ''),
+                $this->arguments($scope),
+                $scope->description === null ? self::NO_VALUE : $this->escape($scope->description),
+            );
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Render the arguments a scope takes, marking each one it requires.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QueryScopeDescriptor  $scope
+     * @return string
+     */
+    private function arguments(QueryScopeDescriptor $scope): string
+    {
+        if ($scope->arguments === []) {
+            return self::NO_VALUE;
+        }
+
+        $arguments = [];
+
+        foreach ($scope->arguments as $argument => $required) {
+            $arguments[] = $this->code($argument) . ($required ? ' (required)' : '');
+        }
+
+        return implode(', ', $arguments);
     }
 
     /**

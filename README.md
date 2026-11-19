@@ -113,7 +113,7 @@ Each built-in operator takes a value of one shape:
 | `$in`                      | a list, empty allowed | equal to any item; an empty list matches none  |
 | `$between`                 | `[low, high]`         | from low to high inclusive                     |
 | `$null`, `$notNull`        | `true`                | missing, or holding, a value                   |
-| `$contains`                | any JSON              | whose JSON document contains it                |
+| `$contains`                | one value or a list   | whose JSON array holds it, or every item       |
 
 `null` is never a value: a missing value is matched by `{"name":{"$null":true}}`, so `{"name":null}` is refused. Every
 value is also checked against the column's type, read from the schema catalogue. An integer column takes an integer, a
@@ -123,6 +123,11 @@ A date-time with an offset is converted to the application timezone, so a timest
 back as it is. A column cast to an enum takes only its cases' values, or a pure enum's lowercase names. A value outside
 its shape or its column's type is rejected with a 422 at its position, naming the form expected. Where the catalogue
 cannot be read, only the shape is checked.
+
+`$contains` matches an element of a JSON array, or a whole scalar document, of the same JSON type, so `1` matches
+neither `"1"` nor `true`. Its list must not be empty, and its items are not checked against the column's type. A string
+is never decoded as JSON; a comma-separated string matches any of its items, each a string. On MySQL an item also
+matches an element of a nested array.
 
 The entries of a filter document AND together, at every depth. `$and` and `$or` take a non-empty list of filter
 documents, each grouped on its own and joined by AND or OR:
@@ -153,6 +158,52 @@ rather than dropped: a group that is not a non-empty list, an empty group docume
 column given an empty object, a list, or a key that is not a registered condition, and any entry that adds no
 condition, such as an empty `$has` list.
 
+**Named scopes** - a resource can let clients invoke its model's local scopes, a `scopeUpcoming()` or `#[Scope]`
+method, by name:
+
+```php
+use SineMacula\ApiToolkit\Schema\Scope;
+
+Field::set(
+    Field::scalar('visibility')->filterable(Capability::EXACT),
+    Scope::of('upcoming')->description('Events that have not started yet.'),
+    Scope::of('near')->parameters([
+        'lat' => ['required', 'numeric', 'between:-90,90'],
+        'lng' => ['required', 'numeric', 'between:-180,180'],
+        'km'  => ['required', 'integer', 'between:1,50'],
+    ])->description('Events within km kilometres of the point.'),
+    Scope::of('ownedByCaller', 'mine')->visibleTo(fn (?Request $request): bool => $request?->user() !== null),
+);
+```
+
+```json
+{"visibility":"public","$scope":"upcoming"}
+{"$scope":{"near":{"lat":51.5,"lng":-0.12,"km":5},"upcoming":{}}}
+{"$or":[{"$scope":"mine"},{"visibility":"public"}]}
+{"sessions":{"$scope":"upcoming"}}
+```
+
+`$scope` takes a name, a list of names, or names keyed to objects of arguments, `{}` for none. Scopes AND with the
+rest of their document, compose inside `$and` and `$or`, and in a relation body or under `$has` resolve against the
+related resource's scopes. Each scope counts toward `max_nodes`. `visibleTo()` hides a scope from a caller, to whom it
+answers as undeclared.
+
+`parameters()` takes rules keyed as in a form request. The validated arguments reach the method as named arguments, so
+the method's parameter names are the contract and key order does not matter. Values arrive as decoded JSON under PHP's
+coercive typing, so the rules must admit only what the parameter types accept. An undeclared argument, a failed rule,
+a required parameter a rule left unfilled, a `null` for a parameter refusing it and a `ValidationException` the scope
+throws are each a 422 keyed under the scope, such as `filters.$or.1.$scope.near.km`. `api-toolkit:validate-schemas`
+checks every declaration against its method.
+
+A scope may only add where clauses, and one adding none matches every row. A scope that returns another builder,
+eager loads, removes a global scope (`withTrashed()` included), or changes the query's columns, table, joins, orders,
+groups, limits, unions or lock throws a `LogicException`. Eloquent drops an order inside the scope's own nested
+`where()` closure, a global scope it registers and an `afterQuery()` callback unseen, so they are unsupported. Trashed
+rows stay with `?trashed`.
+
+Declarations and their rule objects are compiled once per worker, so they must not depend on the request and must
+validate repeatedly. What a scope reads about the caller or the clock is read when it runs, on a queue worker too.
+
 **Free-text search** - match a term against the fields a resource declares `searchable()`:
 
 ```http
@@ -168,6 +219,11 @@ The minimum word length is three characters. Configuration can raise it, and ref
 MySQL matches nothing once a word is shorter than the n-gram token size, and PostgreSQL answers by reading the whole
 table. The minimum applies to each word, because a short word is dropped from a MySQL full-text phrase but kept by a
 PostgreSQL pattern match, so the two engines would return different rows.
+
+Each engine still compares text by its own rules. MySQL folds case and accents through the column's collation, and
+matches a multi-word term's words in order whatever whitespace separates them. PostgreSQL folds case but not accents,
+and SQLite folds only ASCII case. An `EXACT` match compares with `=`, so it ignores case only under a case-insensitive
+collation, such as MySQL's default.
 
 Drivers ship for MySQL, PostgreSQL and SQLite, registered under the driver name each connection reports. On MySQL the
 proof also checks that the planner can use the index, which the catalogue only reports from 8.0; on older versions
@@ -255,7 +311,43 @@ any column the cached column catalogue reports as nullable, such as the `created
 declare the column `NOT NULL` to cursor-page by it. Offset pagination sorts by either. Columns a repository scope
 orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, does not carry a value for every
 ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column cannot hold is rejected
-with a `422` on `cursor`; restart from the first page.
+with a `422` on `cursor`; restart from the first page. A cursor carries each ordered column as the row stores it, not as
+the model casts it, so a microsecond timestamp, an enum or a value object seeks from exactly where its page ended. A
+model whose table has no column for its key is offset-paged without the appended key, and refused cursor pagination with
+a `422` on `pagination` unless the read is grouped and ordered.
+
+Filters and sorts compare by each column's collation, and each engine places NULLs its own way; the toolkit normalises
+neither. With default settings, MySQL matches `{"name":"alice"}` to `Alice` and sorts `anna`, `Ben`, `cara`;
+PostgreSQL matches case exactly and sorts by the database locale (`anna`, `Ben`, `cara` under `en_US.UTF-8`); SQLite
+matches and sorts byte by byte (`Ben`, `anna`, `cara`). An ascending sort puts NULLs first on MySQL and SQLite and last
+on PostgreSQL, and a descending sort the reverse.
+
+**Sorting by aggregates and relations** - an aggregate or a to-one relation declared `sortable()` can order a read.
+No index serves an order by a correlated subquery, so the declaration takes the reason the order may run unindexed:
+
+```php
+Count::of('posts')->sortable('Leaderboard; the active filter bounds the set'),
+Sum::of('orders', 'total', 'spend')->sortable('Admin list of a few thousand accounts'),
+Relation::to('customer', CustomerResource::class)->sortable('Back-office order list'),
+```
+
+```http
+GET /users?order=aggregates.posts_count:desc
+GET /orders?order=customer.name
+```
+
+An aggregate is ordered by `aggregates.{key}`, the path its value renders under, whether or not the request selects
+it. A relation is ordered by `{relation}.{column}`: the Eloquent relation name and a `sortable()` column of the
+resource the relation renders, one hop deep. Only a `BelongsTo`, or a `HasOne`, `MorphOne` or `HasOneThrough` declared
+with `latestOfMany()` or `ofMany()`, may be sortable, so the order always reads the row the response renders; schema
+validation reports any other. A sortable relation renders a resource, takes no `constrain()` and no row guard, and
+caller guards on the relation, the column or the aggregate hide the key as they hide the field.
+
+The order reads the stored value before transformers, runs the aggregate's constraint, the related model's global scopes
+and the request's `trashed` state, and counts once against `max_order_keys`. A relation key orders a row with no related
+row, or one a `withDefault()` relation fills in, as `NULL`, and an aggregate key orders an empty sum, average, minimum
+or maximum as `NULL` and an empty count as `0`; the engine places `NULL` first ascending on MySQL and SQLite and last on
+PostgreSQL. These keys cannot order a cursor-paginated read, which is refused with a `422` on `order.{key}`.
 
 **Page-size ceiling** - a `?limit` above `api-toolkit.parser.max_limit` (default 100) is rejected with a `422` naming
 the ceiling and the requested size, not reduced to the ceiling. Set the ceiling to `0` to disable it:
@@ -264,6 +356,20 @@ the ceiling and the requested size, not reduced to the ceiling. Set the ceiling 
 GET /users?limit=200   // 422, the ceiling is 100
 GET /users?limit=25    // honoured as-is
 ```
+
+A resource whose rows are expensive can lower the ceiling for itself. Its pages default to the lower of
+`parser.defaults.limit` and its ceiling, and the exported `limit` parameter and query surface docs state both:
+
+```php
+public static function maxLimit(): ?int
+{
+    return 25;
+}
+```
+
+It can only lower the configured ceiling: a value above it changes nothing, it applies alone while the configured
+ceiling is `0`, and a value below 1 throws a `LogicException`. `paginate()` and `withApiCriteria()` refuse a `limit`
+over it with the same `422`, for the resource the repository resolves, including one named with `usingResource()`.
 
 **Relation aggregates** - request declared aggregates per resource type by their keys. Requesting any aggregate replaces
 every default of that type, as `?fields` replaces `$default`. A type's aggregates apply wherever it renders, at the root
@@ -559,8 +665,8 @@ skips schema validation while this command runs, so the command reports everythi
 
 Filters and sorts never read the index catalogue while they are served; only validation checks their index backing. Two
 schema reads do sit on the request path, both cached in the shared store: search reads its index proof, and one read of
-the table's column definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks and
-a cursor-paginated sort's refusal of a nullable key.
+the table's column definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks, a
+paginated read's search for the key column and a cursor-paginated sort's refusal of a nullable key.
 
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
@@ -712,6 +818,8 @@ Two overrides cover what the catalogue cannot show:
 - `indexed('users_lower_name_index')` names the index behind the column, such as an expression or partial index. The
   name must exist on the table; what it covers is not checked.
 - `unindexed('the table is bounded at a few hundred rows')` records a deliberate exemption. The reason is required.
+
+A sortable aggregate or relation is never index-backed, so its `sortable()` carries the exemption's reason itself.
 
 **Random ordering** - `?order=random` is disabled by default. Enable it with
 `api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_REPOSITORIES_ALLOW_RANDOM_ORDER=true`); while disabled,
@@ -892,7 +1000,7 @@ class AppServiceProvider extends ServiceProvider
 
 An operator is a class implementing `SineMacula\ApiToolkit\Contracts\FilterOperator`, or a closure with the same
 signature, `apply(Builder $query, string $column, mixed $value): void`. A token is `$` followed by a letter, then
-letters, digits or underscores, and may not be `$and`, `$or`, `$has` or `$hasnt`. `register()` throws
+letters, digits or underscores, and may not be `$and`, `$or`, `$has`, `$hasnt` or `$scope`. `register()` throws
 `InvalidArgumentException` for any other token, or one already taken. `$column` arrives qualified by its table, such as
 `users.name`; use it as given, or take `Str::afterLast($column, '.')` where the public name is needed.
 
@@ -1236,10 +1344,11 @@ Each resource becomes a component schema, and each documented route an operation
 action honours. Every queryable property carries an `x-query-surface` extension naming the key to send, the filter
 capability and the operators it answers, whether an index backs its sort (with the recorded reason where none does), its
 search strategy, and `conditional` on a filter or sort only some callers may use. The relations a filter may descend
-through are listed on the schema itself. All of this is read from the same compiled schema the request-time checks use,
-and each column's operators from the tokens the bound registry admits on its capability, so the document cannot offer a
-column or an operator the request would reject. A column whose capability admits no registered token is documented as
-answering no filter.
+through are listed on the schema itself, and its named scopes under `x-scopes`, each with its description, the JSON
+Schema of its arguments and `conditional` where only some callers may invoke it. All of this is read from the same
+compiled schema the request-time checks use, and each column's operators from the tokens the bound registry admits on
+its capability, so the document cannot offer a column or an operator the request would reject. A column whose capability
+admits no registered token is documented as answering no filter.
 
 A resource schema requires only what every response carries: `_type`, and each fixed field read straight from its
 column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names
@@ -1250,7 +1359,8 @@ else by the column type. Date casts and the model's timestamps are a `date-time`
 other date-time or time column the driver's string. A value with no fixed shape is marked `x-undocumented`: an `array`,
 `json`, `collection` or `object` cast, a cast class other than an enum, `AsStringable` or `AsUri`, and an uncast
 decimal, binary or JSON column. On PostgreSQL before PHP 8.4, a float column is a string, as the driver returns it.
-Declare the field's `openapi()` schema to document any of these.
+Declare the field's `openapi()` schema to document any of these. A declaration naming no type, format, enum or
+nullability, such as `->openapi()->example('Ada')`, keeps the inferred schema and adds its example and description.
 
 A relation rendered through a child resource is typed from its Eloquent relation: a to-many relation as an array of the
 related schema, and a to-one relation as the related schema or `null`, since it renders `null` when the related row is
@@ -1312,7 +1422,8 @@ field narrowed by `only()` or `except()`, which lists its accepted values inline
 A request field's presence rules shape its object's schema:
 
 - A `confirmed` field documents its confirmation field (`<field>_confirmation`, or the one `confirmed:` names), required
-  always when the field is required and through `dependentRequired` when it is optional.
+  always when the field is required and through `dependentRequired` when it is optional. The confirmation field names
+  the field it repeats in `x-confirms`, unless it confirms several.
 - `required_with`, `required_with_all`, `required_without` and `required_without_all` are expressed with
   `dependentRequired`, `if`/`then` and `anyOf`. They reference only fields declared in the same object or array item:
   any other name is left out, and a `_all` rule naming one is dropped.
@@ -1322,15 +1433,16 @@ A request field's presence rules shape its object's schema:
 A route outside the resource pipeline documents its success body with `#[ResponseSchema]` on the action. Name a
 registered resource to reference its component, or a class implementing `DefinesSchema` to export the JSON Schema its
 `schema()` returns as a component named after the class, or after its `#[SchemaName]`. The class is defined once and
-referenced wherever it is named. `collection: true` wraps the shape in the collection envelope. Name several classes to
-document a response that may be any one of them, exported as a `oneOf` of their references under `data` (or under each
-item of a collection). Give each member an object schema (`type` exactly `object`) with a required property holding its
-own string `const`, such as a `status`. When every member pins the same property to a distinct value, the `oneOf`
-carries a `discriminator` mapping each value to its member. Resources pin `_type`, so a union of resources with distinct
-types is discriminated on it. If any named class is neither a registered resource nor a `DefinesSchema`, the body is
-left undocumented. `#[SchemaName]` on a resource, enum or `DefinesSchema` sets its component name, and two classes
-deriving one name fail the export. An enum named as a shape fails the export when a registered resource's field or a
-documented request rule also uses the enum.
+referenced wherever it is named. `collection: true` documents a collection of the shape: a length-aware page with its
+`Total-Count` header, a cursor page or an unpaginated list. Name several classes to document a response that may be any
+one of them, exported as a `oneOf` of their references under `data` (or under each item of a collection). Give each
+member an object schema (`type` exactly `object`) with a required property holding its own string `const`, such as a
+`status`. When every member pins the same property to a distinct value, the `oneOf` carries a `discriminator` mapping
+each value to its member. Resources pin `_type`, so a union of resources with distinct types is discriminated on it. If
+any named class is neither a registered resource nor a `DefinesSchema`, the body is left undocumented. `#[SchemaName]`
+on a resource, enum or `DefinesSchema` sets its component name, and two classes deriving one name fail the export. An
+enum named as a shape fails the export when a registered resource's field or a documented request rule also uses the
+enum.
 
 On a resource controller's `index`, `show`, `store`, `update` or `destroy`, declaring the controller's own resource
 (as a collection on `index`, a single item elsewhere) changes nothing: the action keeps its full resource
@@ -1428,6 +1540,52 @@ resources their filters reach through a relation that is not a `MorphTo`:
 ```bash
 php artisan api-toolkit:docs:generate
 ```
+
+#### Examples
+
+Every JSON request body and success body carries generated examples. A value comes from the schema node's `examples`,
+`const`, `enum`, `format` and `type`, within its bounds; nothing is random or guessed from a field name. A request
+example sends every field that can be sent, so its presence rules hold, and a confirmation repeats the field it
+confirms. A response example holds each resource's required and default fields. A body that may take several shapes,
+such as an index's two pagination shapes or a `#[ResponseSchema]` naming several classes, carries one example per
+shape, named by its title or component. A multipart body takes none.
+
+Give a value where the exporter finds none, such as for a field with a `regex` rule, or where a realistic one reads
+better. The structure around it stays generated:
+
+- `->openapi()->example()` on a resource field, exported under `examples`.
+- `fieldExamples()` on a rules source implementing `DefinesFieldExamples`, keyed by rules key. A value at a container
+  key, such as `items`, is used as that whole subtree. A key naming no field, or a prohibited one, fails the export.
+- An `examples` keyword anywhere in a `DefinesSchema`'s `schema()`.
+
+```php
+use SineMacula\ApiToolkit\OpenApi\Contracts\DefinesFieldExamples;
+use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
+
+final class RedeemVoucher implements DefinesFieldExamples, DefinesInputSchema
+{
+    public static function rules(): array
+    {
+        return [
+            'code'        => ['required', 'string', 'regex:/^[A-Z]{3}-[0-9]{4}$/'],
+            'items'       => ['required', 'array'],
+            'items.*.sku' => ['required', 'string'],
+        ];
+    }
+
+    public static function fieldExamples(): array
+    {
+        return ['code' => 'ABC-1234', 'items' => [['sku' => 'TEE-M'], ['sku' => 'CAP-L']]];
+    }
+}
+```
+
+Every example the document carries, generated, declared or an error example, is validated against the schema beside it,
+offline. A mismatch fails the export, naming the example and where it fails, and so does a required field the exporter
+finds no value for. A body needing an undocumented field, such as an uncast column exported without a database, gets no
+example, and the export command warns, naming the operation and the field; a wholly undocumented body gets none
+silently. A `date_format` field is a `date` or `date-time` only when every format it lists renders that form, and its
+example is rendered in its own format.
 
 #### Operation Ids, Summaries and Descriptions
 

@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ScopeSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
@@ -53,6 +54,7 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Concerns\CreatesDocumentTables;
 use Tests\Concerns\ValidatesOpenApiDocuments;
@@ -1080,7 +1082,12 @@ final class OpenApiAssemblerTest extends TestCase
         );
 
         return new OpenApiAssembler(
-            new ResourceSchemaBuilder($catalogue, $this->resolver($enums), $this->app->make(SchemaIntrospector::class)),
+            new ResourceSchemaBuilder(
+                $catalogue,
+                $this->resolver($enums),
+                $this->app->make(SchemaIntrospector::class),
+                new ScopeSchemaBuilder(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
+            ),
             new QueryParameterBuilder($catalogue),
             $errors,
             new PathBuilder(
@@ -1190,6 +1197,7 @@ final class OpenApiAssemblerTest extends TestCase
         );
         $catalogue->method('getStructuralOperators')->willReturn(['$and', '$or']);
         $catalogue->method('getErrorCatalogue')->willReturn($this->app->make(ErrorCatalogueReader::class)->read());
+        $catalogue->method('getPageSize')->willReturn(new PageSize(0, 50));
 
         return $catalogue;
     }

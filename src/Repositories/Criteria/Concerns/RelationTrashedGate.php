@@ -109,6 +109,26 @@ final readonly class RelationTrashedGate
     }
 
     /**
+     * Build an aggregate constraint running any existing one, then the gated
+     * scope.
+     *
+     * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null  $constraint
+     * @param  \SineMacula\ApiToolkit\Enums\TrashedState  $state
+     * @return \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void
+     */
+    public function gatedConstraint(?\Closure $constraint, TrashedState $state): \Closure
+    {
+        return function (Builder $query) use ($constraint, $state): void {
+
+            if ($constraint !== null) {
+                $constraint($query);
+            }
+
+            $this->constrain($query, $state);
+        };
+    }
+
+    /**
      * Normalise a raw eager-load entry into a path and optional constraint.
      *
      * @param  int|string  $key
@@ -149,26 +169,6 @@ final readonly class RelationTrashedGate
         }
 
         return $decorated;
-    }
-
-    /**
-     * Build an aggregate constraint running any existing one, then the gated
-     * scope.
-     *
-     * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null  $constraint
-     * @param  \SineMacula\ApiToolkit\Enums\TrashedState  $state
-     * @return \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void
-     */
-    private function gatedConstraint(?\Closure $constraint, TrashedState $state): \Closure
-    {
-        return function (Builder $query) use ($constraint, $state): void {
-
-            if ($constraint !== null) {
-                $constraint($query);
-            }
-
-            $this->constrain($query, $state);
-        };
     }
 
     /**

@@ -75,11 +75,8 @@ final class ApiResourceIntegrationTest extends TestCase
         $resource = new UserResource($user);
         $data     = $resource->resolve();
 
-        self::assertArrayHasKey('_type', $data);
+        self::assertSame(['_type', 'id', 'email', 'name'], array_keys($data));
         self::assertSame('users', $data['_type']);
-        self::assertArrayHasKey('id', $data);
-        self::assertArrayHasKey('name', $data);
-        self::assertArrayHasKey('email', $data);
     }
 
     /**
@@ -99,10 +96,7 @@ final class ApiResourceIntegrationTest extends TestCase
         $resource = new UserResource($user);
         $data     = $resource->resolve();
 
-        self::assertArrayHasKey('name', $data);
-        self::assertArrayHasKey('status', $data);
-        self::assertArrayHasKey('id', $data);
-        self::assertArrayHasKey('_type', $data);
+        self::assertSame(['_type', 'id', 'name', 'status'], array_keys($data));
     }
 
     /**

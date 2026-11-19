@@ -7,10 +7,13 @@ namespace Tests\Unit\Repositories\Criteria;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledScopeDefinition;
 
 /**
  * Tests for the per-request admission to caller-guarded query keys.
@@ -98,6 +101,59 @@ final class CallerAdmissionTest extends TestCase
         (new CallerAdmission($request, new GuardEvaluator))->admits($schema, ['email']);
 
         self::assertSame([[$request]], $received);
+    }
+
+    /**
+     * Test that a scope is admitted only when every caller guard it carries
+     * passes, each asked once per request about the request.
+     *
+     * @return void
+     */
+    public function testAdmitsAScopeWhoseCallerGuardsAllPassOncePerRequest(): void
+    {
+        $request  = Request::create('/');
+        $received = [];
+        $guard    = static function (mixed ...$arguments) use (&$received): bool {
+
+            $received[] = $arguments;
+
+            return true;
+        };
+
+        $admitted  = new CompiledScopeDefinition('mine', 'ownedByCaller', callerGuards: [$guard]);
+        $refused   = new CompiledScopeDefinition('staff', 'staff', callerGuards: [$guard, static fn (): bool => false]);
+        $admission = new CallerAdmission($request, new GuardEvaluator);
+
+        self::assertTrue($admission->admitsScope($admitted));
+        self::assertTrue($admission->admitsScope($admitted));
+        self::assertFalse($admission->admitsScope($refused));
+        self::assertTrue($admission->admitsScope(new CompiledScopeDefinition('upcoming', 'upcoming')));
+        self::assertSame([[$request], [$request]], $received);
+    }
+
+    /**
+     * Test that an aggregate is admitted only when every caller guard it
+     * carries passes.
+     *
+     * @return void
+     */
+    public function testAdmitsAnAggregateOnlyWhenItsCallerGuardsPass(): void
+    {
+        $admission = new CallerAdmission(Request::create('/'), new GuardEvaluator);
+        $aggregate = static fn (array $guards): CompiledAggregateDefinition => new CompiledAggregateDefinition(
+            presentKey  : 'posts_count',
+            relation    : 'posts',
+            function    : AggregateFunction::COUNT,
+            column      : null,
+            constraint  : null,
+            isDefault   : false,
+            guards      : [],
+            callerGuards: $guards,
+        );
+
+        self::assertTrue($admission->admitsAggregate($aggregate([])));
+        self::assertTrue($admission->admitsAggregate($aggregate([static fn (): bool => true])));
+        self::assertFalse($admission->admitsAggregate($aggregate([static fn (): bool => true, static fn (): bool => false])));
     }
 
     /**

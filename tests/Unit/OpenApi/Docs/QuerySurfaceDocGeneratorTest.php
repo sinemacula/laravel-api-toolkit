@@ -14,14 +14,17 @@ use SineMacula\ApiToolkit\OpenApi\Docs\ModuleSectionGrouper;
 use SineMacula\ApiToolkit\OpenApi\Docs\QuerySurfaceDocGenerator;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QueryScopeDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\MappedModuleResolver;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\PublicUserResource;
+use Tests\Fixtures\Resources\SortableUserResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -93,7 +96,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
 
         self::assertStringContainsString(
             'Every page is ordered by the key last, in the last direction, so tied rows never repeat or go missing; a cursor-paginated '
-            . 'read refuses random order and any column that admits null.',
+            . 'read refuses random order, an aggregate or relation key, and any column that admits null.',
             $markdown,
         );
     }
@@ -351,6 +354,26 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
+     * Test that a sortable aggregate and each column a sortable relation reads
+     * are tabled as unindexed orders with the declared reason.
+     *
+     * @return void
+     */
+    public function testAggregateAndRelationOrderKeysAreTabledAsUnindexed(): void
+    {
+        $surfaces = (new QuerySurfaceReader(app(SchemaIntrospectionProvider::class)))->read([User::class => SortableUserResource::class], app(OperatorRegistry::class));
+        $markdown = $this->combinedGenerator()->generate($surfaces, [], []);
+
+        self::assertStringContainsString(
+            "| `aggregates.posts_count` | `aggregates.posts_count` | - | - | Unindexed: Leaderboard over a few hundred authors | - |\n"
+            . "| `aggregates.published_posts` | `aggregates.published_posts` | - | - | Unindexed: Leaderboard over a few hundred authors | - |\n"
+            . "| `aggregates.article_views` | `aggregates.article_views` | - | - | Unindexed: Admin list of a few hundred authors | - |\n"
+            . '| `latestArticle.views` | `latestArticle.views` | - | - | Unindexed: Admin list of a few hundred authors | - |',
+            $markdown,
+        );
+    }
+
+    /**
      * Test that a conditional filter and a conditional order are each marked in
      * their own cell, and a note says who may use them.
      *
@@ -469,6 +492,51 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
     }
 
     /**
+     * Test that a resource's scopes are tabled with their arguments, required
+     * ones marked, and the scope note is printed once any resource has one.
+     *
+     * @return void
+     */
+    public function testScopesAreTabledWithTheirArgumentsAndNoted(): void
+    {
+        $scopes = [
+            new QueryScopeDescriptor('near', 'Within km | of the point.', ['lat' => true, 'km' => false]),
+            new QueryScopeDescriptor('mine', conditional: true),
+        ];
+
+        $column   = new QueryColumnDescriptor(property: 'name', column: 'name', capability: Capability::EXACT, operators: ['$eq']);
+        $markdown = $this->combinedGenerator()->generate([new QuerySurfaceDescriptor(UserResource::class, [$column], [], $scopes)], [], []);
+
+        self::assertStringContainsString(
+            "| --- | --- | --- | --- | --- | --- |\n| `name` | `name` | `exact` | `\$eq` | - | - |\n\n| Scope | Arguments | Description |\n| --- | --- | --- |\n"
+            . "| `near` | `lat` (required), `km` | Within km \\| of the point. |\n| `mine` (conditional) | - | - |\n\nTraversable relations: none.\n",
+            $markdown,
+        );
+        self::assertStringContainsString(
+            "undeclared key.\n\nA scope is a predicate the server defines, invoked by name through `\$scope` in `filters`, alone or with "
+            . "an object of the arguments its table lists; a scope marked conditional is open only to callers the resource allows.\n\n## Request Limits",
+            $markdown,
+        );
+    }
+
+    /**
+     * Test that a resource answering scopes alone tables them without saying it
+     * answers nothing, and no scope note is printed where none is declared.
+     *
+     * @return void
+     */
+    public function testAResourceAnsweringScopesAloneIsNotSaidToAnswerNothing(): void
+    {
+        $scoped = $this->combinedGenerator()->generate([new QuerySurfaceDescriptor(UserResource::class, [], [], [new QueryScopeDescriptor('upcoming')])], [], []);
+        $plain  = $this->combinedGenerator()->generate([$this->surface(UserResource::class, [])], [], []);
+
+        self::assertStringContainsString("\n## User\n\n| Scope | Arguments | Description |\n", $scoped);
+        self::assertStringNotContainsString('answers no filter', $scoped);
+        self::assertStringNotContainsString('A scope is a predicate', $plain);
+        self::assertStringNotContainsString('| Scope |', $plain);
+    }
+
+    /**
      * Test that traversable relations are named, or their absence stated.
      *
      * @return void
@@ -486,6 +554,24 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
 
         self::assertStringContainsString("\n\nTraversable relations: `author` (PublicUser), `noteable` (per type), `tags` (no nested filters).\n", $named);
         self::assertStringContainsString("\n\nTraversable relations: none.\n", $none);
+    }
+
+    /**
+     * Test that a resource's own page size bounds are rendered after its column
+     * table, and only for a resource that carries them.
+     *
+     * @return void
+     */
+    public function testOwnPageSizeIsRenderedOnlyForTheResourceCarryingIt(): void
+    {
+        $lowered   = $this->combinedGenerator()->generate([new QuerySurfaceDescriptor(UserResource::class, [], pageSize: new PageSize(25, 20))], [], []);
+        $inherited = $this->combinedGenerator()->generate([$this->surface(UserResource::class, [])], [], []);
+
+        self::assertStringContainsString(
+            "\nThis resource answers no filter, order, or search.\n\nPagination: at most 25 per page; default page size 20.\n\nTraversable relations: none.\n",
+            $lowered,
+        );
+        self::assertStringNotContainsString('Pagination:', $inherited);
     }
 
     /**

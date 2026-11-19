@@ -41,6 +41,7 @@ use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Comment;
 use Tests\Fixtures\Models\Device;
+use Tests\Fixtures\Models\Gathering;
 use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
@@ -48,6 +49,7 @@ use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\CommentResource;
 use Tests\Fixtures\Resources\DeepTraversalPostResource;
 use Tests\Fixtures\Resources\DeviceResource;
+use Tests\Fixtures\Resources\GatheringResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\PublicAuthorPostResource;
 use Tests\Fixtures\Resources\PublicUserResource;
@@ -73,6 +75,10 @@ final class FilterApplierTest extends TestCase
 
     /** @var string */
     private const string OPERATOR_CONTAINS = '$contains';
+
+    /** @var string The SQLite clause matching a string element of the context document */
+    private const string CONTAINS_STRING = 'exists (select 1 from json_each("users"."context") where json_type("users"."context") <> ?'
+        . ' and "json_each"."type" = ? and "json_each"."value" = ?)';
 
     /** @var string */
     private const string BETWEEN_BOUNDS = 'The $between condition on "id" must be a list of two values, [low, high].';
@@ -344,17 +350,18 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that $contains with an array uses whereJsonContains.
+     * Test that a $contains list adds one clause per item, joined by AND.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithContainsArrayUsesWhereJsonContains(): void
+    public function testApplyWithContainsListRequiresEveryItem(): void
     {
-        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => ['php']]]);
+        $query = $this->applyFilters(['name' => 'Alice', 'context' => [self::OPERATOR_CONTAINS => ['php', 'rust']]]);
 
-        self::assertNotEmpty($result->getQuery()->wheres);
+        self::assertStringEndsWith('where "users"."name" = ? and ' . self::CONTAINS_STRING . ' and ' . self::CONTAINS_STRING, $query->toSql());
+        self::assertSame(['Alice', 'object', 'text', 'php', 'object', 'text', 'rust'], $query->getBindings());
     }
 
     /**
@@ -368,24 +375,8 @@ final class FilterApplierTest extends TestCase
     {
         $query = $this->applyFilters(['name' => 'Alice', 'context' => [self::OPERATOR_CONTAINS => 'php,rust']]);
 
-        $contains = 'exists (select 1 from json_each("users"."context") where "json_each"."value" is ?)';
-
-        self::assertStringEndsWith('where "users"."name" = ? and (' . $contains . ' or ' . $contains . ')', $query->toSql());
-        self::assertSame(['Alice', 'php', 'rust'], $query->getBindings());
-    }
-
-    /**
-     * Test that $contains with a plain string uses whereJsonContains.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testApplyWithContainsPlainStringUsesWhereJsonContains(): void
-    {
-        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => 'php']]);
-
-        self::assertNotEmpty($result->getQuery()->wheres);
+        self::assertStringEndsWith('where "users"."name" = ? and (' . self::CONTAINS_STRING . ' or ' . self::CONTAINS_STRING . ')', $query->toSql());
+        self::assertSame(['Alice', 'object', 'text', 'php', 'object', 'text', 'rust'], $query->getBindings());
     }
 
     /**
@@ -875,7 +866,7 @@ final class FilterApplierTest extends TestCase
         yield '$le' => [['id' => ['$le' => 1]], '"users"."id" <= ?'];
         yield '$in' => [['name' => ['$in' => ['Alice', 'Bob']]], '"users"."name" in (?, ?)'];
         yield '$between' => [['id' => ['$between' => [1, 5]]], '"users"."id" between ? and ?'];
-        yield '$contains' => [['context' => [self::OPERATOR_CONTAINS => 'php']], 'exists (select 1 from json_each("users"."context") where "json_each"."value" is ?)'];
+        yield '$contains' => [['context' => [self::OPERATOR_CONTAINS => 'php']], self::CONTAINS_STRING];
         yield '$null' => [['organization_id' => ['$null' => true]], '"users"."organization_id" is null'];
         yield '$notNull' => [['organization_id' => ['$notNull' => true]], '"users"."organization_id" is not null'];
     }
@@ -1252,7 +1243,7 @@ final class FilterApplierTest extends TestCase
         self::assertIsArray($logical);
         self::assertIsArray($relational);
 
-        $dispatched = array_merge(array_keys($logical), array_keys($relational));
+        $dispatched = [...array_keys($logical), ...array_keys($relational), '$scope'];
 
         sort($dispatched);
         $declared = FilterApplier::STRUCTURAL_OPERATORS;
@@ -2306,6 +2297,118 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Test that a scope inside $or attaches by OR, its predicates grouped.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAScopeInsideOrAttachesByOrWithItsPredicatesGrouped(): void
+    {
+        $query = $this->applyToGatherings(['$or' => [['visibility' => 'private'], ['$scope' => ['near' => ['lat' => 51.5, 'lng' => -0.5, 'km' => 1]]]]]);
+
+        self::assertSame(
+            'select * from "gatherings" where (("gatherings"."visibility" = ?) or (("latitude" between ? and ? and "longitude" between ? and ?)))'
+            . ' and "gatherings"."deleted_at" is null',
+            $query->toSql(),
+        );
+        self::assertSame(['private', 51.5 - 1 / 111, 51.5 + 1 / 111, -0.5 - 1 / 111, -0.5 + 1 / 111], $query->getBindings());
+    }
+
+    /**
+     * Test that a scope in a relation body or under $has resolves against the
+     * resource declared over the relation.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAScopeUnderARelationResolvesAgainstTheRelatedResource(): void
+    {
+        $this->freezeTime();
+
+        foreach ([['sessions' => ['$scope' => 'past']], ['$has' => ['sessions' => ['$scope' => 'past']]]] as $filters) {
+
+            $query = $this->applyToGatherings($filters);
+
+            // The self-join alias counts every self-join the process has built
+            self::assertSame(
+                'select * from "gatherings" where exists (select * from "gatherings" as "self" where "gatherings"."id" = "self"."parent_id" '
+                . 'and ("starts_at" <= ?) and "self"."deleted_at" is null) and "gatherings"."deleted_at" is null',
+                preg_replace('/laravel_reserved_\d+/', 'self', $query->toSql()),
+            );
+            self::assertEquals([now()], $query->getBindings());
+        }
+    }
+
+    /**
+     * Provide documents invoking scopes wrongly at each level, each with the
+     * key and message of the refusal.
+     *
+     * @return iterable<string, array{array<string, mixed>, string, string}>
+     */
+    public static function misplacedScopeProvider(): iterable
+    {
+        yield 'undeclared at the root' => [['$scope' => 'cancelled'], 'filters.$scope.cancelled', 'The "cancelled" scope is not declared for this resource.'];
+
+        yield 'undeclared under $or' => [
+            ['$or' => [['visibility' => 'public'], ['$scope' => 'cancelled']]],
+            'filters.$or.1.$scope.cancelled',
+            'The "cancelled" scope is not declared for this resource.',
+        ];
+
+        yield 'declared only by the parent in a relation body' => [
+            ['sessions' => ['$scope' => 'upcoming']],
+            'filters.sessions.$scope.upcoming',
+            'The "upcoming" scope is not declared for this resource.',
+        ];
+
+        yield 'misshapen under $or' => [
+            ['$or' => [['visibility' => 'public'], ['$scope' => 5]]],
+            'filters.$or.1.$scope',
+            'The filters.$or.1.$scope filter must name a scope, list scope names, or map scope names to objects of arguments.',
+        ];
+
+        yield 'an undeclared argument under $or' => [
+            ['$or' => [['visibility' => 'public'], ['$scope' => ['near' => ['lat' => 1, 'lng' => 1, 'km' => 1, 'unit' => 'mi']]]]],
+            'filters.$or.1.$scope.near.unit',
+            'The "unit" argument is not declared by the "near" scope.',
+        ];
+
+        yield 'a failing argument under $or' => [
+            ['$or' => [['visibility' => 'public'], ['$scope' => ['near' => ['lat' => 1, 'lng' => 1, 'km' => 51]]]]],
+            'filters.$or.1.$scope.near.km',
+            'The km field must be between 1 and 50.',
+        ];
+
+        yield 'a hidden scope for a guest' => [['$scope' => 'mine'], 'filters.$scope.mine', 'The "mine" scope is not declared for this resource.'];
+    }
+
+    /**
+     * Test that a scope refusal is keyed by its full position in the document.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $position
+     * @param  string  $message
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('misplacedScopeProvider')]
+    public function testAScopeRefusalIsKeyedByItsFullPosition(array $filters, string $position, string $message): void
+    {
+        try {
+            $this->applyToGatherings($filters);
+
+            self::fail('The filter document must be refused at ' . $position . '.');
+        } catch (ValidationException $exception) {
+            self::assertSame([$position => [$message]], $exception->errors());
+        }
+    }
+
+    /**
      * Assert that the filters are rejected on cost with the given details.
      *
      * @param  array<string, mixed>  $filters
@@ -2435,6 +2538,27 @@ final class FilterApplierTest extends TestCase
         $note->title = $title;
 
         $note->noteable()->associate($noteable)->save();
+    }
+
+    /**
+     * Apply the filters to the gatherings, governed by the gathering resource.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\Gathering>
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function applyToGatherings(array $filters): Builder
+    {
+        $surface = new QuerySurface(
+            SchemaCompiler::compile(GatheringResource::class),
+            new RelationTraversal(app(SchemaIntrospectionProvider::class), []),
+            new CallerAdmission(Request::create('/'), new GuardEvaluator),
+            $this->operatorRegistry,
+        );
+
+        return $this->applier->apply(Gathering::query(), $filters, $this->operatorRegistry, $surface);
     }
 
     /**

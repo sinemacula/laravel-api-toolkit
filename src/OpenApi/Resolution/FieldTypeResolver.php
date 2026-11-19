@@ -44,6 +44,9 @@ final readonly class FieldTypeResolver
      * Resolve one field's emitted schema by precedence: declared, flagged when
      * opaque, then inferred.
      *
+     * A declaration that only annotates keeps the inferred schema; the caller
+     * lays its annotations over the emitted property.
+     *
      * @param  string  $fieldKey
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
@@ -51,7 +54,7 @@ final readonly class FieldTypeResolver
      */
     public function resolve(string $fieldKey, CompiledFieldDefinition $field, string $modelClass): OpenApiFieldSchema
     {
-        if ($field->openApi !== null) {
+        if ($field->openApi !== null && !$field->openApi->annotatesOnly()) {
             return $field->openApi;
         }
 
@@ -67,7 +70,8 @@ final readonly class FieldTypeResolver
      * flagged when transformed, then inferred from its function.
      *
      * A minimum or maximum takes the related column's type, and is null over
-     * zero related rows.
+     * zero related rows. A declaration that only annotates is laid over the
+     * inferred schema.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $definition
      * @param  class-string  $modelClass
@@ -75,25 +79,20 @@ final readonly class FieldTypeResolver
      */
     public function resolveAggregate(CompiledAggregateDefinition $definition, string $modelClass): array
     {
-        if ($definition->openApi !== null) {
-            return $definition->openApi->toArray();
+        $declared = $definition->openApi;
+
+        if ($declared !== null && !$declared->annotatesOnly()) {
+            return $declared->toArray();
         }
 
-        if ($definition->transformers !== []) {
-            return OpenApiFieldSchema::undocumented()->toArray();
-        }
+        $schema = $this->inferAggregate($definition, $modelClass);
 
-        return match ($definition->function) {
-            AggregateFunction::COUNT                       => ['type' => 'integer', 'minimum' => 0],
-            AggregateFunction::EXISTS                      => ['type' => 'boolean'],
-            AggregateFunction::SUM, AggregateFunction::AVG => ['type' => ['number', 'null']],
-            AggregateFunction::MIN, AggregateFunction::MAX => $this->resolveExtreme($definition, $modelClass)->toArray(),
-        };
+        return $declared?->annotate($schema) ?? $schema;
     }
 
     /**
-     * Resolve a column's schema, reusing the declaration of a field that emits
-     * the column unchanged.
+     * Resolve a column's schema, reusing the declared shape of a field that
+     * emits the column unchanged.
      *
      * A guard only hides the value, so a guarded field's declaration is reused;
      * a model accessor changes it, so an accessed column's declaration is not.
@@ -105,11 +104,33 @@ final readonly class FieldTypeResolver
      */
     public function resolveColumn(string $column, string $modelClass, ?CompiledFieldDefinition $field = null): OpenApiFieldSchema
     {
-        if ($field?->openApi !== null && $this->emitsColumn($field, $column, $modelClass)) {
+        if ($field?->openApi !== null && !$field->openApi->annotatesOnly() && $this->emitsColumn($field, $column, $modelClass)) {
             return $field->openApi;
         }
 
         return $this->inferScalar($column, $modelClass);
+    }
+
+    /**
+     * Infer an undeclared aggregate's schema, flagged when transformed, else
+     * from its function.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $definition
+     * @param  class-string  $modelClass
+     * @return array<string, mixed>
+     */
+    private function inferAggregate(CompiledAggregateDefinition $definition, string $modelClass): array
+    {
+        if ($definition->transformers !== []) {
+            return OpenApiFieldSchema::undocumented()->toArray();
+        }
+
+        return match ($definition->function) {
+            AggregateFunction::COUNT                       => ['type' => 'integer', 'minimum' => 0],
+            AggregateFunction::EXISTS                      => ['type' => 'boolean'],
+            AggregateFunction::SUM, AggregateFunction::AVG => ['type' => ['number', 'null']],
+            AggregateFunction::MIN, AggregateFunction::MAX => $this->resolveExtreme($definition, $modelClass)->toArray(),
+        };
     }
 
     /**

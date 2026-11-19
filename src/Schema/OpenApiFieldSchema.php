@@ -19,7 +19,7 @@ final readonly class OpenApiFieldSchema
      * @param  string|null  $format
      * @param  bool  $nullable
      * @param  array<int, scalar>|null  $enum
-     * @param  mixed  $example
+     * @param  list<mixed>|null  $examples
      * @param  string|null  $description
      * @param  bool  $undocumented
      * @param  string|null  $ref
@@ -38,8 +38,8 @@ final readonly class OpenApiFieldSchema
         /** Enumerated set of permitted scalar values */
         public ?array $enum = null,
 
-        /** Example value for documentation */
-        public mixed $example = null,
+        /** Example values for documentation */
+        public ?array $examples = null,
 
         /** Human-readable description of the field */
         public ?string $description = null,
@@ -85,11 +85,35 @@ final readonly class OpenApiFieldSchema
             type        : $this->type,
             format      : $this->format,
             enum        : $this->enum,
-            example     : $this->example,
+            examples    : $this->examples,
             description : $this->description,
             undocumented: $this->undocumented,
             ref         : $this->ref,
         );
+    }
+
+    /**
+     * Determine whether this schema only annotates a field, declaring no shape,
+     * so the field keeps the schema inferred for it.
+     *
+     * @return bool
+     */
+    public function annotatesOnly(): bool
+    {
+        return [$this->type, $this->format, $this->enum, $this->ref] === [null, null, null, null]
+            && !$this->nullable
+            && !$this->undocumented;
+    }
+
+    /**
+     * Lay this schema's examples and description over a schema fragment.
+     *
+     * @param  array<string, mixed>  $schema
+     * @return array<string, mixed>
+     */
+    public function annotate(array $schema): array
+    {
+        return [...$schema, ...$this->annotations()];
     }
 
     /**
@@ -100,21 +124,29 @@ final readonly class OpenApiFieldSchema
     public function toArray(): array
     {
         if ($this->ref !== null) {
-            return $this->referenceSchema();
+            return $this->annotate($this->referenceSchema());
         }
 
         if ($this->undocumented) {
-            return array_filter([
-                'x-undocumented' => true,
-                'description'    => $this->description,
-            ], static fn ($value) => $value !== null);
+            return $this->annotate(['x-undocumented' => true]);
         }
 
+        return $this->annotate(array_filter([
+            'type'   => $this->resolveType(),
+            'format' => $this->format,
+            'enum'   => $this->enum,
+        ], static fn ($value) => $value !== null));
+    }
+
+    /**
+     * Collect the declared examples and description.
+     *
+     * @return array<string, mixed>
+     */
+    private function annotations(): array
+    {
         return array_filter([
-            'type'        => $this->resolveType(),
-            'format'      => $this->format,
-            'enum'        => $this->enum,
-            'example'     => $this->example,
+            'examples'    => $this->examples,
             'description' => $this->description,
         ], static fn ($value) => $value !== null);
     }

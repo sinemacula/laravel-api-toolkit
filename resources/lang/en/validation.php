@@ -33,11 +33,18 @@ return [
         'fieldless_condition'  => 'The :position condition must be given under a field.',
         'no_effect'            => 'The :position filter adds no condition, so it would match every row.',
         'relation_names'       => 'The :position filter must name a relation.',
+        'scope_shape'          => 'The :position filter must name a scope, list scope names, or map scope names to objects of arguments.',
+        'scope_arguments'      => 'The ":scope" scope takes its arguments as an object keyed by argument name.',
+        'undeclared_scope'     => 'The ":scope" scope is not declared for this resource.',
+        'undeclared_argument'  => 'The ":argument" argument is not declared by the ":scope" scope.',
+        'missing_argument'     => 'The ":argument" argument is required by the ":scope" scope.',
+        'null_argument'        => 'The ":argument" argument of the ":scope" scope cannot be null.',
         'value_null'           => 'The :operator condition on ":column" cannot be null; $null matches a missing value and $notNull a present one.',
         'value_scalar'         => 'The :operator condition on ":column" must be a single value.',
         'value_list'           => 'The :operator condition on ":column" must be a list of values.',
         'value_bounds'         => 'The :operator condition on ":column" must be a list of two values, [low, high].',
         'value_presence'       => 'The :operator condition on ":column" takes only true; $null matches a missing value and $notNull a present one.',
+        'value_elements'       => 'The :operator condition on ":column" must be a single value or a non-empty list of values.',
         'value_type'           => 'The :operator condition on ":column" must be :expected.',
         'item_type'            => 'Item :index of the :operator condition on ":column" must be :expected.',
         'expected'             => [
@@ -61,6 +68,7 @@ return [
         'repeated_key'           => 'The ":key" key may appear in the order only once.',
         'random_cursor'          => 'Random order cannot be paged by cursor; use offset pagination.',
         'nullable_cursor'        => 'The ":key" key admits null, so it cannot order a cursor-paginated read; use offset pagination.',
+        'aggregate_cursor'       => 'The ":key" key cannot order a cursor-paginated read; use offset pagination.',
         'relevance_needs_search' => 'The relevance order ranks search matches, so it needs a search term.',
         'relevance_cursor'       => 'Relevance order cannot be paged by cursor; use offset pagination.',
         'relevance_direction'    => 'The relevance key accepts asc only.',
@@ -69,6 +77,7 @@ return [
     'cursor' => [
         'malformed' => 'The cursor could not be read; restart from the first page.',
         'mismatch'  => 'The cursor does not match the requested order; restart from the first page.',
+        'keyless'   => 'This collection has no key to page by cursor; use offset pagination.',
     ],
 
     'search' => [

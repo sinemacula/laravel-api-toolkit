@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Schema\Average;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledScopeDefinition;
 use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Exists;
 use SineMacula\ApiToolkit\Schema\Field;
@@ -23,6 +24,7 @@ use SineMacula\ApiToolkit\Schema\Min;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Schema\Scope;
 use SineMacula\ApiToolkit\Schema\Sum;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
@@ -154,6 +156,65 @@ final class SchemaCompilerTest extends TestCase
         self::assertSame(self::STUB_ORGANIZATION_RESOURCE, $compiled->getTraversableResource('organization'));
         self::assertNull($compiled->getTraversableResource('profile'));
         self::assertNull($compiled->getTraversableResource('posts'));
+    }
+
+    /**
+     * Test that sortable aggregates are keyed by order key, and that a sortable
+     * relation is recorded with its declaring field and resource while staying
+     * off the sortable columns.
+     *
+     * @return void
+     */
+    public function testCompileRecordsSortableAggregatesAndRelationsApartFromColumns(): void
+    {
+        $compiled = SchemaCompiler::compile($this->createStubResourceClass(Field::set(
+            Field::scalar('name')->sortable(),
+            Count::of('posts')->sortable('Leaderboard'),
+            Sum::of('orders', 'total', 'spend')->sortable('Accounts list'),
+            Average::of('posts', 'id'),
+            Relation::to('organization', TagResource::class, 'employer')->sortable('Back-office list'),
+        )));
+
+        self::assertSame(['aggregates.posts_count', 'aggregates.spend'], array_keys($compiled->getSortableMetrics()));
+        self::assertSame('Accounts list', $compiled->getSortableMetrics()['aggregates.spend']->unindexedReason);
+        self::assertSame(['organization' => ['employer']], $compiled->getSortableRelations());
+        self::assertSame(['name'], $compiled->getSortableColumns());
+        self::assertSame(TagResource::class, $compiled->getTraversableResource('organization'));
+
+        $employer = $compiled->getField('employer');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $employer);
+        self::assertSame('Back-office list', $employer->sortThroughReason);
+        self::assertNull($employer->unindexedReason);
+    }
+
+    /**
+     * Test that a sort reason only counts beside the sortable marker of a
+     * relation, and that a field's index exemption is not taken for one.
+     *
+     * @return void
+     */
+    public function testCompileReadsASortReasonOnlyBesideTheSortableMarkerOfARelation(): void
+    {
+        $compiled = SchemaCompiler::compile($this->createStubResourceClass([
+            'name'         => ['sortable' => 'name', 'unindexed' => 'Small table'],
+            'email'        => ['sortable' => true, 'unindexed' => 'Orphaned'],
+            'organization' => ['relation' => 'organization', 'resource' => self::STUB_ORGANIZATION_RESOURCE, 'unindexed' => 'Unmarked'],
+        ]));
+
+        $name         = $compiled->getField('name');
+        $email        = $compiled->getField('email');
+        $organization = $compiled->getField('organization');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $name);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $email);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $organization);
+        self::assertSame('Small table', $name->unindexedReason);
+        self::assertNull($name->sortThroughReason);
+        self::assertSame('Orphaned', $email->unindexedReason);
+        self::assertNull($email->sortThroughReason);
+        self::assertNull($organization->sortThroughReason);
+        self::assertSame([], $compiled->getSortableRelations());
     }
 
     /**
@@ -470,6 +531,32 @@ final class SchemaCompilerTest extends TestCase
         self::assertSame('posts', $count->presentKey);
         self::assertSame('posts', $count->relation);
         self::assertTrue($count->isDefault);
+    }
+
+    /**
+     * Test that scopes compile to scope definitions keyed by client name and
+     * stay out of the field map.
+     *
+     * @return void
+     */
+    public function testCompileKeysScopeDefinitionsByClientNameApartFromTheFields(): void
+    {
+        $guard = static fn (): bool => true;
+        $rules = ['lat' => 'required|numeric', 'ids.*' => 'integer'];
+
+        $schema = SchemaCompiler::compile($this->createStubResourceClass(Field::set(
+            Field::scalar('name'),
+            Scope::of('ownedByCaller', 'mine')->visibleTo($guard),
+            Scope::of('near')->parameters($rules)->description('Near the point.'),
+            ['__scope__:legacy' => []],
+        )));
+
+        self::assertSame(['name'], $schema->getFieldKeys());
+        self::assertEquals([
+            'mine'   => new CompiledScopeDefinition('mine', 'ownedByCaller', callerGuards: [$guard]),
+            'near'   => new CompiledScopeDefinition('near', 'near', $rules, ['lat', 'ids'], 'Near the point.'),
+            'legacy' => new CompiledScopeDefinition('legacy', 'legacy'),
+        ], $schema->getScopes());
     }
 
     /**

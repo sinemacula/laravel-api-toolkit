@@ -77,6 +77,28 @@ final class SchemaObjectNormaliserTest extends TestCase
     }
 
     /**
+     * Test that a scope's argument schema is normalised as a schema, while the
+     * rest of the scopes extension is left as is.
+     *
+     * @return void
+     */
+    public function testAScopesArgumentSchemaIsNormalisedAsASchema(): void
+    {
+        $document = ['components' => ['schemas' => ['A' => ['x-scopes' => [
+            'near'     => ['description' => 'Near.', 'parameters' => ['type' => 'object', 'properties' => ['lat' => []], 'additionalProperties' => false]],
+            'upcoming' => ['parameters' => []],
+            'legacy'   => ['parameters' => 'none'],
+            'bare'     => [],
+        ]]]]];
+
+        self::assertSame(
+            '{"components":{"schemas":{"A":{"x-scopes":{"near":{"description":"Near.","parameters":{"type":"object","properties":{"lat":{}},'
+            . '"additionalProperties":false}},"upcoming":{"parameters":{}},"legacy":{"parameters":"none"},"bare":[]}}}}}',
+            $this->encode($document),
+        );
+    }
+
+    /**
      * Test that a map keyed by consecutive integers encodes as an object.
      *
      * @return void

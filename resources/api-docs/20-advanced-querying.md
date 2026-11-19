@@ -80,7 +80,8 @@ records from their own endpoint to page through them.
 
 Filters are expressed as a JSON object, then URL-encoded and passed as the
 `filters` parameter. Each key is a field name, a relationship, a logical
-operator, or a comparison operator, and its value depends on which it is.
+operator, a comparison operator, or `$scope`, and its value depends on which it
+is.
 
 A resource declares which of its fields may be filtered and which of its
 relationships may be filtered through. A key it has not declared, or hides from
@@ -164,6 +165,29 @@ nested filter the related records must satisfy:
   }
 }
 ```
+
+### Named scopes
+
+A resource can offer named scopes: conditions the server defines, such as
+events that have not started yet or places near a point. `$scope` takes a scope
+name, a list of names, or names mapped to an object of arguments, `{}` for
+none:
+
+```json
+{
+  "status": "published",
+  "$scope": {
+    "near": {"lat": 51.5, "lng": -0.12, "km": 5},
+    "upcoming": {}
+  }
+}
+```
+
+Each scope narrows the result like any other key, inside `$or` and under a
+relationship too, where the related resource's scopes apply. Each resource
+schema lists its scopes and the arguments they take in `x-scopes`. A scope the
+resource does not offer the caller, an argument it does not declare, and an
+argument that fails its rules are each rejected with a `422` naming it.
 
 ### Building a filter
 
@@ -357,6 +381,23 @@ direction but `asc`, and may be followed by other keys to break ties:
 ?search=smith&order=relevance,name
 ```
 
+Where the resource declares it, a read can also be ordered by an aggregate, by
+the path its value renders under, or by a column of a related record, by the
+relation and the column:
+
+```text
+?order=aggregates.posts_count:desc
+```
+
+```text
+?order=organization.name
+```
+
+A record with no related record to sort by, or whose sum, average, minimum or
+maximum has no value, sorts as empty: first in ascending order on MySQL and
+SQLite, last on PostgreSQL. A count of nothing sorts as zero. Neither key can
+order a cursor-paginated read.
+
 ## Limiting and paging
 
 On paginated endpoints, `limit` sets the page size and `page` selects the page.
@@ -401,7 +442,9 @@ wherever a field is presented under an alias. A `sort` reporting `"indexed":
 false` also carries the reason the resource recorded for ordering by a column no
 index holds. A `filter` or `sort` reporting `"conditional": true` is open only
 to callers the resource shows the field to; any other caller is refused exactly
-as for an undeclared key.
+as for an undeclared key. The `sort` of a property holding a related record
+names a `prefix` in place of a `key`: order by the prefix, a dot, and a sortable
+key of that record's schema.
 
 The relations a filter may descend through belong to the resource rather than to
 any one property, so the schema names them itself:

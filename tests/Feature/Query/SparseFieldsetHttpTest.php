@@ -76,11 +76,12 @@ final class SparseFieldsetHttpTest extends TestCase
     }
 
     /**
-     * Test that the `:all` token expands to every declared non-metric field.
+     * Test that the `:all` token renders every declared field and the default
+     * aggregates, and nothing else.
      *
      * @return void
      */
-    public function testAllTokenExpandsToEveryDeclaredField(): void
+    public function testAllTokenRendersEveryDeclaredFieldAndTheDefaultAggregates(): void
     {
         $response = $this->getJson('/users?' . http_build_query([
             'fields' => ['users' => ':all'],
@@ -88,17 +89,29 @@ final class SparseFieldsetHttpTest extends TestCase
 
         $response->assertOk();
 
-        /** @var array<string, mixed> $record */
-        $record = $response->json('data.0');
+        self::assertSame([
+            '_type',
+            'id',
+            'aggregates',
+            'display_label',
+            'email',
+            'full_label',
+            'name',
+            'organization',
+            'organization_id',
+            'posts',
+            'profile_bio',
+            'status',
+            'created_at',
+            'updated_at',
+        ], array_keys((array) $response->json('data.0')));
 
-        foreach (['id', '_type', 'name', 'email', 'status', 'created_at', 'updated_at', 'full_label', 'display_label'] as $field) {
-            self::assertArrayHasKey($field, $record);
-        }
+        self::assertSame(['posts_count', 'posts_sum_id'], array_keys((array) $response->json('data.0.aggregates')));
     }
 
     /**
-     * Test that the default field set, without aggregate buckets, applies when
-     * fields is omitted.
+     * Test that the default field set, with the fixed fields and without the
+     * aggregates, applies when fields is omitted.
      *
      * @return void
      */
@@ -108,16 +121,7 @@ final class SparseFieldsetHttpTest extends TestCase
 
         $response->assertOk();
 
-        /** @var array<string, mixed> $record */
-        $record = $response->json('data.0');
-
-        foreach (['id', '_type', 'name', 'email'] as $field) {
-            self::assertArrayHasKey($field, $record);
-        }
-
-        foreach (['status', 'created_at', 'updated_at', 'full_label', 'display_label', 'organization', 'posts', 'aggregates'] as $field) {
-            self::assertArrayNotHasKey($field, $record);
-        }
+        self::assertSame(['_type', 'id', 'email', 'name'], array_keys((array) $response->json('data.0')));
     }
 
     /**
