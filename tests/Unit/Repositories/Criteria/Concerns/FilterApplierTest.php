@@ -74,6 +74,10 @@ final class FilterApplierTest extends TestCase
     /** @var string */
     private const string OPERATOR_CONTAINS = '$contains';
 
+    /** @var string The SQLite clause matching a string element of the context document */
+    private const string CONTAINS_STRING = 'exists (select 1 from json_each("users"."context") where json_type("users"."context") <> ?'
+        . ' and "json_each"."type" = ? and "json_each"."value" = ?)';
+
     /** @var string */
     private const string BETWEEN_BOUNDS = 'The $between condition on "id" must be a list of two values, [low, high].';
 
@@ -344,17 +348,18 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that $contains with an array uses whereJsonContains.
+     * Test that a $contains list adds one clause per item, joined by AND.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithContainsArrayUsesWhereJsonContains(): void
+    public function testApplyWithContainsListRequiresEveryItem(): void
     {
-        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => ['php']]]);
+        $query = $this->applyFilters(['name' => 'Alice', 'context' => [self::OPERATOR_CONTAINS => ['php', 'rust']]]);
 
-        self::assertNotEmpty($result->getQuery()->wheres);
+        self::assertStringEndsWith('where "users"."name" = ? and ' . self::CONTAINS_STRING . ' and ' . self::CONTAINS_STRING, $query->toSql());
+        self::assertSame(['Alice', 'object', 'text', 'php', 'object', 'text', 'rust'], $query->getBindings());
     }
 
     /**
@@ -368,24 +373,8 @@ final class FilterApplierTest extends TestCase
     {
         $query = $this->applyFilters(['name' => 'Alice', 'context' => [self::OPERATOR_CONTAINS => 'php,rust']]);
 
-        $contains = 'exists (select 1 from json_each("users"."context") where "json_each"."value" is ?)';
-
-        self::assertStringEndsWith('where "users"."name" = ? and (' . $contains . ' or ' . $contains . ')', $query->toSql());
-        self::assertSame(['Alice', 'php', 'rust'], $query->getBindings());
-    }
-
-    /**
-     * Test that $contains with a plain string uses whereJsonContains.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testApplyWithContainsPlainStringUsesWhereJsonContains(): void
-    {
-        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => 'php']]);
-
-        self::assertNotEmpty($result->getQuery()->wheres);
+        self::assertStringEndsWith('where "users"."name" = ? and (' . self::CONTAINS_STRING . ' or ' . self::CONTAINS_STRING . ')', $query->toSql());
+        self::assertSame(['Alice', 'object', 'text', 'php', 'object', 'text', 'rust'], $query->getBindings());
     }
 
     /**
@@ -875,7 +864,7 @@ final class FilterApplierTest extends TestCase
         yield '$le' => [['id' => ['$le' => 1]], '"users"."id" <= ?'];
         yield '$in' => [['name' => ['$in' => ['Alice', 'Bob']]], '"users"."name" in (?, ?)'];
         yield '$between' => [['id' => ['$between' => [1, 5]]], '"users"."id" between ? and ?'];
-        yield '$contains' => [['context' => [self::OPERATOR_CONTAINS => 'php']], 'exists (select 1 from json_each("users"."context") where "json_each"."value" is ?)'];
+        yield '$contains' => [['context' => [self::OPERATOR_CONTAINS => 'php']], self::CONTAINS_STRING];
         yield '$null' => [['organization_id' => ['$null' => true]], '"users"."organization_id" is null'];
         yield '$notNull' => [['organization_id' => ['$notNull' => true]], '"users"."organization_id" is not null'];
     }
