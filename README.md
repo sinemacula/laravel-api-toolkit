@@ -247,7 +247,8 @@ the last direction when the order does not already include it, so rows tied on t
 missing between pages. The appended key needs no `sortable()` declaration and does not count against `max_order_keys`. A
 grouped read takes its group columns instead; a read grouped by an expression, filtered by `having` without groups,
 `distinct` on columns, or `distinct` without selecting the columns it would take gets nothing appended and needs a
-unique order of its own.
+unique order of its own. A `sortable()` field names a column of the model's table, so a select alias a repository scope
+adds cannot be ordered by.
 
 A cursor can only seek by a column that holds a value in every row, so a cursor-paginated read rejects `random` and
 any column the cached column catalogue reports as nullable, such as the `created_at` that `timestamps()` creates;
@@ -373,7 +374,9 @@ Only fields marked `filterable()` or `sortable()` can be queried, and `?search=`
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. A column declared filterable with
 two capabilities fails to compile. `$default` lists the fields returned when the client sends no `?fields`, and the
 static `$fixed` the fields added to every selection, after those in `resources.fixed_fields`. Schema validation rejects
-a default or fixed field the resource does not declare.
+a default or fixed field the resource does not declare. A tabular export has a column for each selected field, in the
+order selected: the requested fields, every field for `:all`, or the defaults. Relations are left out and fixed fields
+are not added.
 
 **Guards** - `guard(fn ($resource, $request) => ...)` is a row guard and `visibleTo(fn ($request) => ...)` a caller
 guard; either hides the field, aggregate or relation when it returns exactly `false`. A query cannot honour a row guard
@@ -382,7 +385,7 @@ without revealing what it hides, so a row-guarded field that is `filterable()`, 
 admits; any other caller is refused with the same 422 as an undeclared key, and the OpenAPI export marks the key
 `conditional`. A search matches the same columns for every caller, so a caller-guarded field may not be `searchable()`.
 A column everyone may query but only some may see is declared queryable on an unguarded field as well. A tabular export
-refuses a row-guarded field with `PerItemGuardedFieldException` and drops a caller-guarded column it hides.
+refuses a selected row-guarded field with `PerItemGuardedFieldException` and drops a caller-guarded column it hides.
 
 **Schema lifetime** - `schema()` runs once per resource class per worker, and its result is shared by every request
 the worker serves, under Octane and on queue workers alike. It must not read or capture the request, the user, the
@@ -634,6 +637,14 @@ return ApiQuery::using($this->input->query->without('order', 'fields'), function
 - `allowsTrashed()` and field guards see the worker's console request, which is not reconstructed, so a carried
   `trashed` the worker's gate refuses, or a carried key a caller guard hides, fails the job.
 
+**Joins** - every column the criteria, `scopeById()` and `scopeByIds()` emit is qualified with its table: the model's at
+the root, the related model's inside a relation filter. A repository scope may therefore join. Scopes run after the
+criteria, so a joining scope selects the base columns only where the criteria selected none
+(`$query->getQuery()->columns ??= ['users.*']`): joined columns would otherwise overwrite attributes, and `select()`
+would discard the narrowed projection and any requested aggregates. Alias the joined table, never the base table:
+Eloquent's relation filters and `whereKey()` name the base table, so `from('users as u')` is unsupported.
+`scopeById()` and `scopeByIds()` match the model's key unless given a column.
+
 **Allowlist** - only schema fields declared `filterable()`, `sortable()`, or `traversable()` are accepted, and any
 other key is rejected with a validation error. There is no opt-out: a resource that declares nothing is queryable by
 nothing. Each filter is checked as a (column, operator) pair against the declared capability, before any operator
@@ -780,7 +791,8 @@ class AppServiceProvider extends ServiceProvider
 An operator is a class implementing `SineMacula\ApiToolkit\Contracts\FilterOperator`, or a closure with the same
 signature, `apply(Builder $query, string $column, mixed $value): void`. A token is `$` followed by a letter, then
 letters, digits or underscores, and may not be `$and`, `$or`, `$has` or `$hasnt`. `register()` throws
-`InvalidArgumentException` for any other token, or one already taken.
+`InvalidArgumentException` for any other token, or one already taken. `$column` arrives qualified by its table, such as
+`users.name`; use it as given, or take `Str::afterLast($column, '.')` where the public name is needed.
 
 A token is answered only on columns declaring one of the capabilities it was registered with, so `$starts` above is
 refused with a `422` on an `EXACT` or `OPAQUE` column. The shipped tokens are registered with the defaults in
@@ -946,8 +958,8 @@ callback.
 ### Controllers and Authorization
 
 `SineMacula\ApiToolkit\Http\Routing\Controller` provides the response helpers: `respondWithData()` wraps an array in
-`data`, and `respondWithItem()` and `respondWithCollection()` render a resource or a collection. Each takes an optional
-`HttpStatus` and headers.
+`data`, and `respondWithItem()` and `respondWithCollection()` render a resource or a collection, or the export the
+request negotiates. Each takes an optional `HttpStatus` and headers, which an export carries too.
 
 `AuthorizedController` extends it with resource authorization. Declare the model with `#[AuthorizesResource]`:
 

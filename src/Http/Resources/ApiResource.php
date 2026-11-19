@@ -284,6 +284,17 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     }
 
     /**
+     * Resolve the fields selected for this resource, before the fixed fields
+     * join them.
+     *
+     * @return array<int, string>
+     */
+    protected function selectedFields(): array
+    {
+        return $this->fieldResolver->getSelectedFields(static::class);
+    }
+
+    /**
      * Create a new resource collection instance.
      *
      * @param  mixed  $resource

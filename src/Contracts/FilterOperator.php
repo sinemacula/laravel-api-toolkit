@@ -10,7 +10,8 @@ use Illuminate\Database\Eloquent\Builder;
  * Filter operator handler contract.
  *
  * A handler adds AND-joined predicates for one column, and throws a validation
- * exception for an operand it refuses. One that adds nothing is refused.
+ * exception for an operand it refuses. One that adds nothing is refused. The
+ * column arrives qualified by its table, to be used as given.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

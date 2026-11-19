@@ -100,7 +100,7 @@ final readonly class OrderApplier
                 $this->guardCursorKey($column, $query->getModel());
             }
 
-            $query->getQuery()->orderBy($column, $direction);
+            $query->getQuery()->orderBy($query->qualifyColumn($column), $direction);
         }
 
         return $query;
