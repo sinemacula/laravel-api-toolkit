@@ -24,6 +24,9 @@ final readonly class ResponseExample
     /** The message for a status outside the success range */
     private const string STATUS_MESSAGE = 'A response example must name a success status, [%d] given; error examples come from the exceptions an action throws';
 
+    /** The message for a name exported as a list index rather than a map key */
+    private const string INTEGER_NAME_MESSAGE = 'A response example name must not be an integer, [%s] given';
+
     /** The message for a file that is not a relative path to a visible .json file */
     private const string FILE_MESSAGE = 'A response example file must be a relative path to a visible .json file inside the examples directory, [%s] given';
 
@@ -53,6 +56,10 @@ final readonly class ResponseExample
 
         if ($name === '') {
             throw new \InvalidArgumentException('A response example must have a name');
+        }
+
+        if ((string) (int) $name === $name) {
+            throw new \InvalidArgumentException(sprintf(self::INTEGER_NAME_MESSAGE, $name));
         }
 
         if (!self::isRelativeJsonPath($file)) {

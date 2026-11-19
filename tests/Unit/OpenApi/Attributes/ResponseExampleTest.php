@@ -81,6 +81,20 @@ final class ResponseExampleTest extends TestCase
     }
 
     /**
+     * Test that an integer name, which would export the examples as a list, is
+     * refused.
+     *
+     * @return void
+     */
+    public function testRefusesAnIntegerName(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('A response example name must not be an integer, [0] given');
+
+        new ResponseExample(HttpStatus::OK, '0', 'signed-in.json');
+    }
+
+    /**
      * Provide files that are not a relative path to a visible .json file.
      *
      * @return iterable<string, array{string}>
@@ -95,6 +109,7 @@ final class ResponseExampleTest extends TestCase
         yield 'hidden file' => ['auth/.signed-in.json'];
         yield 'hidden directory' => ['.drafts/signed-in.json'];
         yield 'not json' => ['auth/signed-in.yaml'];
+        yield 'json not last' => ['auth/signed-in.json.bak'];
         yield 'empty' => [''];
     }
 

@@ -138,8 +138,7 @@ final readonly class ExampleValidator
 
         foreach ($schema as $keyword => $value) {
 
-            // A schema map keyed like a list is normalised to an object.
-            $value = $value instanceof \stdClass ? (array) $value : $value;
+            $value = self::members($value);
 
             if (!is_array($value)) {
                 continue;
@@ -172,11 +171,25 @@ final readonly class ExampleValidator
     {
         foreach ($schemas as $key => $schema) {
 
+            $schema = self::members($schema);
+
             if (!is_array($schema)) {
                 continue;
             }
 
             yield from $this->examplesIn($schema, SchemaDocument::append($pointer, $key));
         }
+    }
+
+    /**
+     * Read an object as the array of its members, such as a list-keyed schema
+     * map the document writes as an object, leaving any other value as is.
+     *
+     * @param  mixed  $value
+     * @return mixed
+     */
+    private static function members(mixed $value): mixed
+    {
+        return $value instanceof \stdClass ? (array) $value : $value;
     }
 }
