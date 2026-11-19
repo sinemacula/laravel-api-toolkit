@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria;
 
 use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
-use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
@@ -31,10 +31,12 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Profile;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\BulkArticleResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\LogResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -697,13 +699,14 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that eager loads are added from the resource schema.
+     * Test that the requested relation is eager loaded from the resource
+     * schema, and nothing else.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyEagerLoadingAddsEagerLoadsFromResource(): void
+    public function testApplyEagerLoadsTheRequestedRelation(): void
     {
         Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
 
@@ -716,9 +719,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $eagerLoads = $query->getEagerLoads();
-
-        self::assertNotEmpty($eagerLoads);
+        self::assertSame(['organization'], array_keys($query->getEagerLoads()));
     }
 
     /**
@@ -767,13 +768,13 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that eager loading uses getAllFields when ':all' is requested.
+     * Test that the ':all' token eager loads every declared relation.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyEagerLoadingUsesGetAllFieldsWhenAllRequested(): void
+    public function testApplyEagerLoadsEveryDeclaredRelationUnderTheAllToken(): void
     {
         Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
 
@@ -786,8 +787,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        self::assertNotNull($query->getQuery());
-        self::assertInstanceOf(Builder::class, $query);
+        self::assertEqualsCanonicalizing(['organization', 'posts', 'profile'], array_keys($query->getEagerLoads()));
     }
 
     /**
@@ -1357,6 +1357,172 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
+     * Test that filters-only criteria apply the search, the filters and the
+     * trashed scope of a request that also orders, limits, eager loads and
+     * selects aggregates, and nothing else.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testFiltersOnlyAppliesTheRowSelectionAlone(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, BulkArticleResource::class]);
+
+        $this->parseRequest(new Request([
+            'filters'    => json_encode(['status' => [self::OPERATOR_EQUAL => 'published']]),
+            'search'     => 'launch',
+            'trashed'    => 'with',
+            'order'      => 'views:desc',
+            'limit'      => '5',
+            'fields'     => ['bulk_articles' => 'title,author,aggregates'],
+            'aggregates' => ['bulk_articles' => 'author_comments_count,author_comments_sum_id'],
+        ]));
+
+        $full = $this->searchableCriteria(BulkArticleResource::class)->apply(new Article);
+
+        self::assertNotNull($full->getQuery()->orders);
+        self::assertSame(5, $full->getQuery()->limit);
+        self::assertNotNull($full->getQuery()->columns);
+        self::assertNotEmpty($full->getEagerLoads());
+
+        $query = $this->searchableCriteria(BulkArticleResource::class, true)->apply(new Article);
+
+        self::assertSame(['Nested', 'Nested'], array_column($query->getQuery()->wheres, 'type'));
+        self::assertSame(['%launch%', 'published'], $query->getQuery()->getBindings());
+        self::assertSame([SoftDeletingScope::class], $query->removedScopes());
+        self::assertNull($query->getQuery()->orders);
+        self::assertNull($query->getQuery()->limit);
+        self::assertNull($query->getQuery()->columns);
+        self::assertSame([], $query->getEagerLoads());
+    }
+
+    /**
+     * Provide requests carrying parameters filters-only criteria neither apply
+     * nor check.
+     *
+     * @return iterable<string, array{array<string, mixed>}>
+     */
+    public static function unappliedParameterProvider(): iterable
+    {
+        yield 'order over the order-key cap' => [['order' => 'name,email']];
+        yield 'undeclared order key' => [['order' => 'organization_id']];
+        yield 'aggregates over the aggregate cap' => [['aggregates' => ['users' => 'posts_count,posts_sum_id']]];
+        yield 'page past the offset cap' => [['limit' => '5', 'page' => '4']];
+    }
+
+    /**
+     * Test that filters-only criteria neither apply nor refuse the order,
+     * limit, page and aggregate parameters.
+     *
+     * @param  array<string, mixed>  $parameters
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('unappliedParameterProvider')]
+    public function testFiltersOnlyLeavesTheUnappliedParametersUnchecked(array $parameters): void
+    {
+        Config::set('api-toolkit.query_cost.max_order_keys', 1);
+        Config::set('api-toolkit.query_cost.max_aggregates', 1);
+        Config::set('api-toolkit.query_cost.max_offset', 10);
+
+        $this->parseRequest(new Request($parameters));
+
+        $query = $this->filtersOnlyCriteria(UserResource::class)->apply(new User);
+
+        self::assertSame('select * from "users"', $this->sqlOf($query));
+    }
+
+    /**
+     * Test that filters-only criteria refuse to apply when no API query is
+     * parsed, rather than select every row.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testFiltersOnlyRefusesAnUnparsedQuery(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage(self::UNPARSED);
+
+        $this->filtersOnlyCriteria(UserResource::class)->apply(new User);
+    }
+
+    /**
+     * Test that filters-only criteria refuse an undeclared filter key.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testFiltersOnlyRefusesAnUndeclaredFilterKey(): void
+    {
+        $this->parseRequest(new Request(['filters' => json_encode(['nonexistent_column' => 'value'])]));
+
+        try {
+            $this->filtersOnlyCriteria(UserResource::class)->apply(new User);
+            self::fail('Expected a ValidationException for an undeclared filter key.');
+        } catch (ValidationException $exception) {
+            self::assertSame(
+                ['filters.nonexistent_column' => ['The "nonexistent_column" key is not a permitted query parameter for this resource.']],
+                $exception->errors(),
+            );
+        }
+    }
+
+    /**
+     * Test that filters-only criteria enforce the filter node budget.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testFiltersOnlyEnforcesTheFilterNodeBudget(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 1);
+
+        $this->parseRequest(new Request(['filters' => json_encode(['name' => 'Alice', 'email' => 'alice@example.com'])]));
+
+        try {
+            $this->filtersOnlyCriteria(UserResource::class)->apply(new User);
+            self::fail('Expected a rejection for a node beyond the node cap.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame([
+                'parameter' => 'filters',
+                'pointer'   => '/email',
+                'reason'    => QueryCostLimits::MAX_NODES,
+                'limit'     => 1,
+                'actual'    => 2,
+            ], $exception->getCustomMeta());
+        }
+    }
+
+    /**
+     * Test that a root $or applied by filters-only criteria cannot escape a
+     * constraint the caller applied.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testFiltersOnlyRootOrCannotEscapeACallerAppliedConstraint(): void
+    {
+        $this->parseRequest(new Request([
+            'filters' => json_encode(['$or' => [['name' => 'Alice'], ['email' => 'charlie@example.com']]]),
+        ]));
+
+        $query = $this->filtersOnlyCriteria(FilterableUserResource::class)->apply(User::query()->where('status', 'active'));
+
+        self::assertSame(
+            'select * from "users" where "status" = ? and ((("users"."name" = ?) or ("users"."email" = ?)))',
+            $this->sqlOf($query),
+        );
+    }
+
+    /**
      * Resolve the where clauses nested inside the grouped filter expression.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
@@ -1374,9 +1540,11 @@ final class ApiCriteriaTest extends TestCase
     /**
      * Build a criteria bound to a resource declaring a search surface.
      *
+     * @param  string  $resourceClass
+     * @param  bool  $filtersOnly
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
      */
-    private function searchableCriteria(): ApiCriteria
+    private function searchableCriteria(string $resourceClass = SearchableFilterableUserResource::class, bool $filtersOnly = false): ApiCriteria
     {
         assert($this->app !== null);
 
@@ -1387,9 +1555,25 @@ final class ApiCriteriaTest extends TestCase
         Config::set('api-toolkit.search.unverified_connections', [$connection->getName()]);
 
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
-        $criteria = $this->app->make(ApiCriteria::class);
+        $criteria = $this->app->make(ApiCriteria::class, ['filtersOnly' => $filtersOnly]);
 
-        return $criteria->usingResource(SearchableFilterableUserResource::class);
+        return $criteria->usingResource($resourceClass);
+    }
+
+    /**
+     * Build a filters-only criteria bound to the given resource.
+     *
+     * @param  string  $resourceClass
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
+     */
+    private function filtersOnlyCriteria(string $resourceClass): ApiCriteria
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class, ['filtersOnly' => true]);
+
+        return $criteria->usingResource($resourceClass);
     }
 
     /**

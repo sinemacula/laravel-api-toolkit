@@ -90,6 +90,35 @@ final class CollectionEagerLoadRegressionTest extends TestCase
     }
 
     /**
+     * Test that the ':all' token loads every declared relation with a query
+     * count that does not grow with the rows.
+     *
+     * @return void
+     */
+    public function testAllTokenQueryCountIsConstantRegardlessOfRowCount(): void
+    {
+        $this->parseUserQuery(':all');
+
+        $small = $this->fetchAndSerialise();
+
+        /** @var \Tests\Fixtures\Models\Organization $organization */
+        $organization = Organization::query()->firstOrFail();
+
+        $this->seedUsers(45, $organization->id, 5);
+
+        $large = $this->fetchAndSerialise();
+
+        // The base query, then one for each of the three relations
+        self::assertStatementCount(4, $small['statements']);
+        self::assertStatementCount(4, $large['statements']);
+
+        self::assertSame('Acme Corp', $large['first']['organization']['name']);
+        self::assertIsArray($large['first']['posts']);
+        self::assertCount(2, $large['first']['posts']);
+        self::assertArrayHasKey('profile_bio', $large['first']);
+    }
+
+    /**
      * Test that aggregates fold into the base query regardless of row count.
      *
      * @return void

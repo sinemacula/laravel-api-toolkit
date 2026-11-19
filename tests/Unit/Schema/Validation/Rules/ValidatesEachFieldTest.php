@@ -23,11 +23,11 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 final class ValidatesEachFieldTest extends TestCase
 {
     /**
-     * Test that each non-null field is checked and errors kept in field order.
+     * Test that each field is checked and errors kept in field order.
      *
      * @return void
      */
-    public function testRunsCheckFieldForEachNonNullFieldAndAccumulates(): void
+    public function testRunsCheckFieldForEachFieldAndAccumulates(): void
     {
         $schema = new CompiledSchema(
             fields: ['first' => $this->field(), 'second' => $this->field()],
@@ -38,45 +38,6 @@ final class ValidatesEachFieldTest extends TestCase
         self::assertCount(2, $errors);
         self::assertSame('first', $errors[0]->fieldKey);
         self::assertSame('second', $errors[1]->fieldKey);
-    }
-
-    /**
-     * Test that a null field definition is skipped without invoking checkField.
-     *
-     * @return void
-     *
-     * @throws \ReflectionException
-     */
-    public function testNullFieldIsSkipped(): void
-    {
-        $reflection = new \ReflectionClass(CompiledSchema::class);
-        $schema     = $reflection->newInstanceWithoutConstructor();
-
-        $reflection->getProperty('fields')->setValue($schema, ['ghost' => null]);
-        $reflection->getProperty('aggregates')->setValue($schema, []);
-
-        self::assertSame([], $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema));
-    }
-
-    /**
-     * Test that a null field does not halt iteration.
-     *
-     * @return void
-     *
-     * @throws \ReflectionException
-     */
-    public function testContinuesPastNullField(): void
-    {
-        $reflection = new \ReflectionClass(CompiledSchema::class);
-        $schema     = $reflection->newInstanceWithoutConstructor();
-
-        $reflection->getProperty('fields')->setValue($schema, ['ghost' => null, 'name' => $this->field()]);
-        $reflection->getProperty('aggregates')->setValue($schema, []);
-
-        $errors = $this->makeRule()->validate('App\Http\Resources\UserResource', null, $schema);
-
-        self::assertCount(1, $errors);
-        self::assertSame('name', $errors[0]->fieldKey);
     }
 
     /**

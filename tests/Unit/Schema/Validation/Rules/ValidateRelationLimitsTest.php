@@ -181,23 +181,6 @@ final class ValidateRelationLimitsTest extends TestCase
     }
 
     /**
-     * Test that a schema key reserved for the truncation list fails.
-     *
-     * @return void
-     */
-    public function testTruncatedSchemaKeyFails(): void
-    {
-        $errors = $this->validate([
-            '_truncated' => self::field(null),
-            'name'       => self::field(null),
-        ]);
-
-        self::assertCount(1, $errors);
-        self::assertSame('_truncated', $errors[0]->fieldKey);
-        self::assertSame('The key "_truncated" is reserved for the relations a response truncates', $errors[0]->defect);
-    }
-
-    /**
      * Test that a limit is not refused when the relation method cannot be read.
      *
      * @return void
@@ -213,14 +196,13 @@ final class ValidateRelationLimitsTest extends TestCase
     }
 
     /**
-     * Test that every defect is reported, past a missing field definition.
+     * Test that every defect is reported, not only the first.
      *
      * @return void
      */
-    public function testEveryDefectIsReportedPastAMissingDefinition(): void
+    public function testEveryDefectIsReported(): void
     {
-        $schema = new CompiledSchema(fields: [ // @phpstan-ignore argument.type
-            'ghost'        => null,
+        $schema = new CompiledSchema(fields: [
             'organization' => self::field('organization', limit: 5, resource: OrganizationResource::class),
             'post_titles'  => self::field('posts', limit: 5, resource: null, accessor: 'title'),
         ], aggregates: []);

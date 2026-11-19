@@ -14,9 +14,6 @@ use SineMacula\ApiToolkit\Config\LifecycleSettings;
  */
 enum CacheKeys: string
 {
-    // Store the columns associated with each model, per schema identity
-    case MODEL_SCHEMA_COLUMNS = 'model-schema-columns:%s:%s';
-
     // Store the per-column type/nullability definitions, per schema identity
     case MODEL_SCHEMA_COLUMN_DEFINITIONS = 'model-schema-column-definitions:%s:%s';
 

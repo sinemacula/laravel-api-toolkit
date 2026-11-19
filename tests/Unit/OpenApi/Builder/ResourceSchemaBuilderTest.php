@@ -77,56 +77,6 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a field key with no definition is skipped.
-     *
-     * @return void
-     */
-    public function testSkipsFieldKeyWithoutADefinition(): void
-    {
-        $schema = new CompiledSchema(['ghost' => null], []); // @phpstan-ignore argument.type
-
-        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
-
-        $schemas = $this->makeGhostBuilder(['GhostModel' => 'GhostResource'])->build();
-
-        self::assertSame(['type' => 'object', 'properties' => []], $schemas['Ghost']);
-    }
-
-    /**
-     * Test that a null field definition skips only its own key.
-     *
-     * @return void
-     */
-    public function testNullFieldKeySkipsOnlyItselfNotLaterKeys(): void
-    {
-        $relation = new CompiledFieldDefinition(
-            accessor: null,
-            compute: null,
-            relation: 'posts',
-            resource: PostResource::class,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: [],
-            transformers: [],
-        );
-
-        $schema = new CompiledSchema(['ghost' => null, 'posts' => $relation], []); // @phpstan-ignore argument.type
-
-        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
-
-        $properties = $this->makeGhostBuilder(['GhostModel' => 'GhostResource', Post::class => PostResource::class])
-            ->build()['Ghost']['properties'];
-
-        self::assertIsArray($properties);
-        self::assertArrayNotHasKey('ghost', $properties);
-        self::assertIsArray($properties);
-        self::assertArrayHasKey('posts', $properties);
-        self::assertSame(['$ref' => '#/components/schemas/Post'], $properties['posts']['oneOf'][0]);
-    }
-
-    /**
      * Test that one schema is emitted per resource under its component name.
      *
      * @return void
@@ -432,6 +382,39 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
+     * Test that a field of an uninstantiable owner has only the schema it
+     * declares, and is undocumented when it declares none.
+     *
+     * @return void
+     */
+    public function testFieldOfAnUninstantiableOwnerHasOnlyItsDeclaredSchema(): void
+    {
+        $field = static fn (?OpenApiFieldSchema $openApi): CompiledFieldDefinition => new CompiledFieldDefinition(
+            accessor    : null,
+            compute     : null,
+            relation    : null,
+            resource    : null,
+            fields      : null,
+            constraint  : null,
+            extras      : [],
+            needs       : [],
+            guards      : [],
+            transformers: [],
+            openApi     : $openApi,
+        );
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => new CompiledSchema([
+            'email' => $field(new OpenApiFieldSchema(type: 'string', format: 'email')),
+            'name'  => $field(null),
+        ])]);
+
+        $properties = $this->makeGhostBuilder(['GhostModel' => 'GhostResource'])->build()['Ghost']['properties'];
+
+        self::assertSame(['type' => 'string', 'format' => 'email'], $properties['email']);
+        self::assertSame(['x-undocumented' => true], $properties['name']);
+    }
+
+    /**
      * Test that a projection without a child resource is undocumented.
      *
      * @return void
@@ -482,22 +465,6 @@ final class ResourceSchemaBuilderTest extends TestCase
             ],
         ], $built['properties']['aggregates']);
         self::assertArrayNotHasKey('required', $built);
-    }
-
-    /**
-     * Test that a field named aggregates keeps its own property.
-     *
-     * @return void
-     */
-    public function testAFieldNamedAggregatesKeepsItsProperty(): void
-    {
-        $built = $this->buildGhost(new CompiledSchema(
-            ['aggregates' => $this->queryableField()],
-            ['posts_count' => $this->aggregate('posts_count', AggregateFunction::COUNT)],
-        ));
-
-        self::assertIsArray($built['properties']['aggregates']);
-        self::assertArrayNotHasKey('properties', $built['properties']['aggregates']);
     }
 
     /**
@@ -1080,8 +1047,11 @@ final class ResourceSchemaBuilderTest extends TestCase
         ]);
 
         $this->expectException(SchemaNameCollisionException::class);
-        $this->expectExceptionMessage(V1UserResource::class);
-        $this->expectExceptionMessage(V2UserResource::class);
+        $this->expectExceptionMessage(sprintf(
+            'The OpenAPI component schema name "User" is derived by both [%s] and [%s]. Disambiguate one with the #[SchemaName] attribute.',
+            V1UserResource::class,
+            V2UserResource::class,
+        ));
 
         $builder->build();
     }

@@ -22,6 +22,7 @@ final class MirroredLayoutTest extends TestCase
     private const array UNMIRRORED = [
         'Exceptions/ConcreteExceptionsTest.php',
         'MirroredLayoutTest.php',
+        'NameMappedTestsTest.php',
     ];
 
     /**

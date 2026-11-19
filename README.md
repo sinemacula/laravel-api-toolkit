@@ -309,9 +309,10 @@ without an explicit projection, which MySQL refuses to count.
 **Soft deletes** - `?trashed=with` or `?trashed=only`, read as a `TrashedState` from `ApiQuery::getTrashed()`. The
 criteria layer applies it only where the model uses `SoftDeletes` and the resource opts in by overriding
 `allowsTrashed()`; anywhere else the request is refused with a 422 on `trashed`, as is any value other than `with` or
-`only`, so a client never mistakes live records for the ones it asked for. On a read through the criteria, an included
-relation follows the state where its own resource opts in and otherwise stays live; a read that applies no criteria,
-such as implicit route-model binding, only checks the value.
+`only`, so a client never mistakes live records for the ones it asked for. On a read through the criteria, a relation
+follows the state where its own resource opts in and otherwise stays live, wherever it is included, aggregated or
+filtered on (`$has` and `$hasnt` too). A read that applies no criteria, such as implicit route-model binding, only
+checks the value.
 
 ### Schema-Driven ApiResource
 
@@ -341,6 +342,7 @@ class UserResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
+            Field::scalar('id'),
             Field::scalar('name')->filterable(Capability::EXACT)->sortable()->searchable(SearchStrategy::SUBSTRING),
             Field::scalar('email')->filterable(Capability::EXACT)->searchable(SearchStrategy::SUBSTRING),
             Field::timestamp('created_at')->sortable(),
@@ -353,6 +355,11 @@ class UserResource extends ApiResource
             Exists::of('messages', 'has_unread_messages')->constrain(fn ($query) => $query->whereNull('read_at')),
         );
     }
+
+    public function getFullName(): string
+    {
+        return "{$this->first_name} {$this->last_name}";
+    }
 }
 ```
 
@@ -364,26 +371,29 @@ exported schema. The key defaults to Laravel's own attribute name and `as()` or 
 |-----------------------------------|-------------------------|---------------------------------------|
 | `Count::of('posts')`              | `posts_count`           | integer, `0` without related rows     |
 | `Exists::of('posts')`             | `posts_exists`          | boolean, `false` without related rows |
-| `Sum::of('orders', 'total')`      | `orders_sum_total`      | number                                |
-| `Average::of('orders', 'total')`  | `orders_avg_total`      | number                                |
-| `Min::of('variants', 'price')`    | `variants_min_price`    | the column's value                    |
-| `Max::of('orders', 'created_at')` | `orders_max_created_at` | the column's value                    |
+| `Sum::of('orders', 'total')`      | `orders_sum_total`      | number or `null`                      |
+| `Average::of('orders', 'total')`  | `orders_avg_total`      | number or `null`                      |
+| `Min::of('variants', 'price')`    | `variants_min_price`    | the column's value or `null`          |
+| `Max::of('orders', 'created_at')` | `orders_max_created_at` | the column's value or `null`          |
 
 `constrain()` narrows the related rows, `default()` includes the aggregate when the request names none, and `guard()`,
-`visibleTo()` and `transform()` work as on fields. A minimum or maximum is read the way the related model reads that
-column, so a timestamp renders as ISO 8601 and a cast enum as its value. Sum, average, minimum and maximum over zero
-related rows are omitted. `api-toolkit:schemas:validate` rejects an aggregate over a sensitive or missing column, a sum
-or average over a non-numeric column, a minimum or maximum the related model would read back through an accessor or a
-non-scalar cast, a `MorphTo` relation, and an `aggregate_<key>` attribute the owner model already uses as a column, cast
-or setter.
+`visibleTo()`, `transform()` and `openapi()` work as on fields. Sum, average, minimum and maximum are `null` over zero
+related rows. A sum or average is a JSON number on every engine, so a decimal column sums with float precision. A
+minimum or maximum is read the way the related model reads that column, so a timestamp renders as
+`2026-01-01T10:00:00.000000Z`, a `decimal:2` cast as an exact string such as `"12.50"` and a cast enum as its value. A
+key that reads as an integer, such as `12`, fails to compile. `api-toolkit:validate-schemas` rejects an aggregate over a
+sensitive or missing column, a sum or average over a non-numeric column, a minimum or maximum the related model would
+read back through an accessor or a non-scalar cast, a `MorphTo` relation, and an `aggregate_<key>` attribute the owner
+model already uses as a column, cast or setter.
 
 Only fields marked `filterable()` or `sortable()` can be queried, and `?search=` matches only fields marked
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. A column declared filterable with
-two capabilities fails to compile. `$default` lists the fields returned when the client sends no `?fields`, and the
-static `$fixed` the fields added to every selection, after those in `resources.fixed_fields`. Schema validation rejects
-a default or fixed field the resource does not declare. A tabular export has a column for each selected field, in the
-order selected: the requested fields, every field for `:all`, or the defaults. Relations are left out and fixed fields
-are not added.
+two capabilities fails to compile, as does a field named `_type` or `_truncated`, or one named `aggregates` beside a
+declared aggregate, since the response writes those keys itself. `$default` lists the fields returned when the client
+sends no `?fields`, and the static `$fixed` the fields added to every selection, after those in
+`resources.fixed_fields`. Schema validation rejects a default or fixed field the resource does not declare. A tabular
+export has a column for each selected field, in the order selected: the requested fields, every field for `:all`, or the
+defaults. Relations are left out and fixed fields are not added.
 
 **Guards** - `guard(fn ($resource, $request) => ...)` is a row guard and `visibleTo(fn ($request) => ...)` a caller
 guard; either hides the field, aggregate or relation when it returns exactly `false`. A query cannot honour a row guard
@@ -536,8 +546,8 @@ Validation checks that:
 - an ordered index leads with every `sortable()` column, unless the field carries `indexed()` or `unindexed()`.
 - an index on the connection serves every `searchable()` declaration in the shape its strategy needs.
 - no declaration names a column configured as sensitive.
-- every `limit()` sits on a to-many relation rendered through a child resource, every field over one relation shares
-  one limit, and no field is named `_truncated`.
+- every `limit()` sits on a to-many relation rendered through a child resource, and every field over one relation
+  shares one limit.
 
 Every resource a filter reaches through a `traversable()` relation is validated too, once per related model, whether or
 not the resource map lists it.
@@ -553,10 +563,10 @@ neither flag lets a defect pass. A searchable declaration on a connection listed
 `api-toolkit.search.unverified_connections` is not reported, since that listing already waives its index proof. Boot
 skips schema validation while this command runs, so the command reports everything itself.
 
-The index catalogue is read only during validation, never while a filter or sort is served. Three schema reads do sit
-on the request path, all cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads
-the table's column listing, search reads its index proof, and filters and paginated reads read the column definitions to
-type filter values, find the key column and, by cursor, refuse a nullable key.
+Filters and sorts never read the index catalogue while they are served; only validation checks their index backing. Two
+schema reads do sit on the request path, both cached in the shared store: search reads its index proof, and one read of
+the table's column definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks, a
+paginated read's search for the key column and a cursor-paginated sort's refusal of a nullable key.
 
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
@@ -589,8 +599,9 @@ class UserRepository extends ApiRepository
 }
 ```
 
-`withApiCriteria()` applies the request's filters, sorts, eager loads and limit. It returns a copy and leaves the
-repository it was called on untouched, so run the read through the returned value:
+`withApiCriteria()` applies the request's filters, sorts, eager loads and limit, and narrows the select to the
+requested fields. It returns a copy and leaves the repository it was called on untouched, so run the read through the
+returned value:
 
 ```php
 $users = $repository->withApiCriteria()->paginate();
@@ -607,6 +618,28 @@ if ($caller->isExternal()) {
 
 $users = $scoped->paginate();
 ```
+
+**Working on the filtered set** - `withApiFilters()` applies only the request's `filters`, `search` and `trashed`, under
+the same allowlist and filter cost budget. `order`, `limit`, `fields` and `aggregates` are not applied, and only the
+query parser checks them, so a bulk action sent the list screen's query string acts on every matching row. Persistent
+criteria, repository scopes, global scopes and a model's `$with` still apply, and the last of `withApiCriteria()` and
+`withApiFilters()` called on a handle wins. A terminal operation consumes the composition, so start each from its own
+call:
+
+```php
+$orders->withApiFilters()->update(['archived_at' => now()]);
+
+foreach ($orders->withApiFilters()->lazyById() as $order) {
+    $order->notifyCustomer();
+}
+
+$totals = $orders->withApiFilters()->query()->toBase()
+    ->selectRaw('status, count(*) as total')
+    ->groupBy('status')
+    ->pluck('total', 'status');
+```
+
+Through `paginate()`, `limit` is still the page size; render pages through `withApiCriteria()`.
 
 **Outside a request** - criteria apply only under a parsed query: the one `ParseApiQuery` parsed, or a snapshot given
 to `ApiQuery::using()`. Applied under none, as in a queued job, a console command or a route without the middleware,
@@ -625,10 +658,10 @@ ArchiveInvoices::make(new ArchiveInvoicesInput(ApiQuery::snapshot()))
     ->dispatch();
 
 // ArchiveInvoices::handle()
-return ApiQuery::using($this->input->query->without('order', 'fields'), function (): int {
+return ApiQuery::using($this->input->query, function (): int {
     $archived = 0;
 
-    foreach ($this->invoices->withApiCriteria()->lazyById() as $invoice) {
+    foreach ($this->invoices->withApiFilters()->lazyById() as $invoice) {
         $invoice->archive();
         $archived++;
     }
@@ -639,8 +672,8 @@ return ApiQuery::using($this->input->query->without('order', 'fields'), function
 
 - Read and render inside the callback. A `LazyCollection` keeps its filters after `using()` returns, but a resource
   rendered later reads the restored query, and a resource resolves its fields once, so build it where it renders.
-- Work that changes which rows match iterates with `lazyById()` on a snapshot `without('order')`. Keyset iteration
-  after a client order skips rows, and so does offset `lazy()` as the set changes.
+- Work that changes which rows match iterates with `withApiFilters()->lazyById()`, which ignores the client's order.
+  Keyset iteration after a client order skips rows, and so does offset `lazy()` as the set changes.
 - `allowsTrashed()` and field guards see the worker's console request, which is not reconstructed, so a carried
   `trashed` the worker's gate refuses, or a carried key a caller guard hides, fails the job.
 
@@ -756,8 +789,10 @@ rows wait for the next deferral outside a transaction or for the boundary flush,
 not undo them. A flush that does run inside an open transaction joins it: `flushWrites()` called there, or a boundary
 flush while an outer transaction is still open, such as a sync-queued job dispatched inside one. Each chunk then runs in
 its own savepoint, or each table with `deferred_writes.transactional`, so a failure rolls back only that chunk or table
-and the transaction stays usable. A deadlock is the exception: the database may already have rolled back the whole
-transaction.
+and the transaction stays usable. A deadlock or a lost connection ends the transaction instead, whatever `on_failure`
+says: the flush rethrows the error as is, so `DB::transaction()` retries a deadlock, and drops every row buffered for
+that connection. The retried closure defers its own rows again; rows deferred before the transaction opened are lost
+with it.
 
 `api-toolkit.deferred_writes.on_failure` picks what happens when a flush fails:
 
@@ -812,10 +847,10 @@ $this->orders->persist($order, $this->input->attributes);
 `findForUpdate()` reads the row afresh under `lockForUpdate()`. A missing or scoped-out row is a `404` before the
 precondition is checked, and an `If-Match` naming neither the current tag nor `*` throws `PreconditionFailedException`
 (`412`, code `10114`), which rolls the transaction back. A malformed `If-Match` matches nothing. It throws a
-`LogicException` outside a transaction on the model's connection, or on a handle carrying `withApiCriteria()`.
-`ServiceContext::fromRequest()` captures the field, so a queued run compares on the worker, where a `412` fails the job
-without a retry. A request without the field writes unconditionally: add `RequireIfMatch` to a route group to answer a
-`PUT`, `PATCH` or `DELETE` without it with a `428` (code `10115`), while other methods pass.
+`LogicException` outside a transaction on the model's connection, or on a handle carrying `withApiCriteria()` or
+`withApiFilters()`. `ServiceContext::fromRequest()` captures the field, so a queued run compares on the worker, where a
+`412` fails the job without a retry. A request without the field writes unconditionally: add `RequireIfMatch` to a route
+group to answer a `PUT`, `PATCH` or `DELETE` without it with a `428` (code `10115`), while other methods pass.
 
 Tags compare weakly on both sides, where RFC 9110 compares `If-Match` strongly: the toolkit's tags are weak, and proxies
 such as nginx weaken a strong tag they compress. A `412` carries no tag, so the client re-reads before retrying. The
@@ -1420,16 +1455,16 @@ audience uses fails the export, as does a tag file that matches no tag, under th
 
 ### Metadata Invalidation
 
-Schema metadata (column listings and definitions, index catalogues, relation lookups and the
-model-to-resource map) is cached in the application's cache store and shared by every process. The Octane and queue
+Schema metadata (column definitions, index catalogues, relation lookups and the model-to-resource
+map) is cached in the application's cache store and shared by every process. The Octane and queue
 boundary flushes reset only each worker's per-operation state, so a schema or mapping change needs the shared entries
 retired explicitly. Every metadata key is stored under a generation held in the same store; replacing the generation
-makes every earlier entry unreachable in every process at once. A column listing that reads empty, as it does before
-its table exists, is never stored.
+makes every earlier entry unreachable in every process at once. Column definitions that read empty, as they do before
+their table exists, are never stored.
 
 Under Octane the boundary is the end of every request, task and tick; on a queue worker it is the end of every job
 attempt, including one that fails or is released for a retry. It drops the memoised generation, the per-operation
-index proofs, the in-memory column listings, column definitions and index catalogues, the field and eager-load memos
+index proofs, the in-memory column definitions and index catalogues, the field and eager-load memos
 and the query parser's state. The compiled schemas, search plans, field-to-column maps and cast reflections come from
 code alone, so they live for the worker and are rebuilt only when it restarts; reload Octane and queue workers on
 every deploy. An application that runs its own reset can call `CacheManager::flush()`; a second reset is harmless.
