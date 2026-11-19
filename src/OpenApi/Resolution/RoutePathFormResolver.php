@@ -13,7 +13,7 @@ use Illuminate\Routing\Route;
  * each with its separator, so a form omits a tail of that run and every other
  * parameter is required in every form.
  *
- * @phpstan-type Token array{'text', string}|array{'variable', string, string, string}
+ * @phpstan-type Token array{'text', string}|array{0: 'variable', 1: string, 2: string, 3: string, 4?: bool, 5?: bool}
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

@@ -63,10 +63,10 @@ final readonly class DocumentedRoute
         /** Whether the action declares its operationId through #[Operation]. */
         public bool $operationIdDeclared,
 
-        /** The path template of the route's shortest form. */
+        /** The path of the operation whose id descriptions fall back to. */
         public string $primaryPath,
 
-        /** The shortest form's first-verb operationId, which descriptions fall back to. */
+        /** The first-verb operationId descriptions fall back to. */
         public ?string $primaryOperationId,
     ) {}
 

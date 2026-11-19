@@ -42,7 +42,7 @@ final readonly class OperationIds
      */
     public static function derive(Route $route, ?string $controllerClass, string $action, array $verbs, RoutePathForm $form, ?string $declared): array
     {
-        $base = $declared ?? self::routeName($route) ?? ($controllerClass === null ? null : self::controllerId($controllerClass, $action));
+        $base = self::base($route, $controllerClass, $action, $declared);
         $base = $base === null ? null : implode('.', [$base, ...$form->optional]);
         $ids  = [];
 
@@ -55,6 +55,21 @@ final readonly class OperationIds
         }
 
         return $ids;
+    }
+
+    /**
+     * Derive the base id every path form of the route shares, or null when the
+     * ids are taken from the method and path.
+     *
+     * @param  \Illuminate\Routing\Route  $route
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @param  string|null  $declared
+     * @return string|null
+     */
+    public static function base(Route $route, ?string $controllerClass, string $action, ?string $declared): ?string
+    {
+        return $declared ?? self::routeName($route) ?? ($controllerClass === null ? null : self::controllerId($controllerClass, $action));
     }
 
     /**

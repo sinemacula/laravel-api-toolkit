@@ -1162,9 +1162,9 @@ write `[0-9]` or `whereNumber()` to export the constraint.
 
 A route with optional parameters exports a path for each URL it matches, every parameter in it required:
 `reports/{period?}` exports `/reports` and `/reports/{period}`. As the router matches it, only the trailing run of
-optional parameters can be left out, so `{locale?}/reports` exports `/{locale}/reports` alone. A shorter path documents
-a missing record only when the route's domain has parameters or a route default fills one it leaves out, and is left to
-any other route exporting it under the same method.
+optional parameters can be left out, so `{locale?}/reports` exports `/{locale}/reports` alone. A shorter path without
+parameters documents a missing record only when the route's domain has parameters or a route default fills one it leaves
+out. Any shorter path is left to another route exporting it under the same method.
 
 Every enum the document references, through a model cast, a request field validated by `Rule::enum()` or `PureEnum`, or
 a string-backed enum bound to a route parameter, becomes one named component listing its values under `enum`: the
@@ -1324,10 +1324,11 @@ public function update(UpdateUserRequest $request): JsonResponse {}
 An operation's description is read from `<docs_path>/operations/<id>.md`, and `audiences/<name>/operations/<id>.md`
 replaces it for that audience; an empty file blanks it. A later method without its own file takes the first method's, so
 `users.update.md` describes both methods unless `users.update.patch.md` exists. Every path of a route with optional
-parameters falls back the same way to its shortest path's first method. Filenames are matched byte for byte, so ids
-differing only in case cannot share a case-insensitive filesystem. Files and directories whose names start with `.` are
-ignored. Every export checks the files of every audience, and fails on an operation file while ids are off, on one
-matching no exported operation, and on one under the directory of an audience that is not configured.
+parameters falls back the same way to its shortest path's first method, unless its ids are taken from the method and
+path. Filenames are matched byte for byte, so ids differing only in case cannot share a case-insensitive filesystem.
+Files and directories whose names start with `.` are ignored. Every export checks the files of every audience, and fails
+on an operation file while ids are off, on one matching no exported operation, and on one under the directory of an
+audience that is not configured.
 
 #### Tags
 

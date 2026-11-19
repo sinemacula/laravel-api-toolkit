@@ -252,6 +252,20 @@ final class OperationIdsTest extends TestCase
     }
 
     /**
+     * Test that the base id shared by every path form is the declared id, else
+     * the route name, else the controller id, and null for an unnamed closure.
+     *
+     * @return void
+     */
+    public function testBaseIsNullOnlyForIdsTakenFromTheMethodAndPath(): void
+    {
+        self::assertSame('reports.latest', OperationIds::base($this->route('reports.show'), PathPlainController::class, 'report', 'reports.latest'));
+        self::assertSame('reports.show', OperationIds::base($this->route('reports.show'), PathPlainController::class, 'report', null));
+        self::assertSame('path-plain.report', OperationIds::base($this->route(), PathPlainController::class, 'report', null));
+        self::assertNull(OperationIds::base($this->route(), null, \Closure::class, null));
+    }
+
+    /**
      * Build a route, optionally named.
      *
      * @param  string|null  $name

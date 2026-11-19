@@ -162,7 +162,8 @@ final readonly class DocumentedRouteCollector
      * Resolve the resource, tag and summary of a documentable route once, and
      * document each of its path forms, shortest first.
      *
-     * Every form falls back to the shortest form's first-verb operationId.
+     * Every form falls back to the shortest form's first-verb operationId, or
+     * to its own when the ids are taken from the method and path.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @param  class-string|null  $controllerClass
@@ -177,12 +178,13 @@ final readonly class DocumentedRouteCollector
         $operation = $this->operationOf($controllerClass, $action);
         $tag       = $this->tags->resolve($controllerClass, $action, $route, $resource['schema'] ?? null);
         $forms     = (new RoutePathFormResolver)->resolve($route);
+        $shared    = OperationIds::base($route, $controllerClass, $action, $operation?->id) !== null;
         $ids       = array_map(
             static fn (RoutePathForm $form): array => $idsEnabled ? OperationIds::derive($route, $controllerClass, $action, $verbs, $form, $operation?->id) : [],
             $forms,
         );
 
-        return array_map(static fn (RoutePathForm $form, array $formIds): DocumentedRoute => new DocumentedRoute(
+        return array_map(static fn (RoutePathForm $form, array $formIds, int $index): DocumentedRoute => new DocumentedRoute(
             $route,
             $controllerClass,
             $action,
@@ -193,9 +195,9 @@ final readonly class DocumentedRouteCollector
             $formIds,
             $operation?->summary,
             $operation?->id !== null,
-            $forms[0]->path,
-            $ids[0][$verbs[0]] ?? null,
-        ), $forms, $ids);
+            $forms[$shared ? 0 : $index]->path,
+            $ids[$shared ? 0 : $index][$verbs[0]] ?? null,
+        ), $forms, $ids, array_keys($forms));
     }
 
     /**

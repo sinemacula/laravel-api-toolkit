@@ -190,8 +190,8 @@ final class ErrorResponseBuilderTest extends TestCase
 
     /**
      * Test that a path form omitting an optional parameter infers a 404 only
-     * when the request still binds a parameter, through its domain or a
-     * default.
+     * when the request still binds a parameter, through its path, its domain or
+     * a default.
      *
      * @return void
      */
@@ -200,6 +200,7 @@ final class ErrorResponseBuilderTest extends TestCase
         $route = fn (string $uri): Route => $this->router()->get($uri, [PathPlainController::class, 'report']);
 
         self::assertSame([500], array_keys($this->build($route('reports/{period?}'), shortest: true)));
+        self::assertSame([404, 500], array_keys($this->build($route('{locale}/reports/{period?}'), shortest: true)));
         self::assertSame([404, 500], array_keys($this->build($route('reports/{period?}'))));
         self::assertSame([404, 500], array_keys($this->build($route('users/{user?}')->defaults('user', 1), shortest: true)));
         self::assertSame([500], array_keys($this->build($route('users/{user?}')->defaults('user', null), shortest: true)));

@@ -140,22 +140,43 @@ final class DocumentedRouteCollectorTest extends TestCase
     }
 
     /**
-     * Test that every path form falls back to the method-and-path id of the
-     * shortest form.
+     * Test that each path form of an unnamed closure falls back to its own
+     * method-and-path id, which names that form alone.
      *
      * @return void
      */
-    public function testFormsOfAnUnnamedClosureShareTheShortestFormsPathId(): void
+    public function testFormsOfAnUnnamedClosureFallBackToTheirOwnPathIds(): void
     {
         $this->config()->set('api-toolkit.openapi.operation_ids', true);
 
-        $this->router()->get('reports/{period?}', static fn (): null => null);
+        $this->router()->match(['GET', 'POST'], 'reports/{period?}', static fn (): null => null);
 
         [$bare, $full] = $this->collect(['public'])->in('public');
 
-        self::assertSame(['get' => 'get.reports'], $bare->operationIds);
-        self::assertSame(['get' => 'get.reports.period'], $full->operationIds);
-        self::assertSame('get.reports', $full->primaryOperationId);
+        self::assertSame(['get' => 'get.reports', 'post' => 'post.reports'], $bare->operationIds);
+        self::assertSame(['get' => 'get.reports.period', 'post' => 'post.reports.period'], $full->operationIds);
+        self::assertSame(['/reports', 'get.reports'], [$bare->primaryPath, $bare->primaryOperationId]);
+        self::assertSame(['/reports/{period}', 'get.reports.period'], [$full->primaryPath, $full->primaryOperationId]);
+    }
+
+    /**
+     * Test that an unnamed closure on the path a shorter form also matches
+     * keeps its method-and-path id without a collision.
+     *
+     * @return void
+     */
+    public function testUnnamedClosureOnAShorterFormsPathKeepsItsPathId(): void
+    {
+        $this->config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->router()->get('reports', static fn (): null => null);
+        $this->router()->get('reports/{period?}', static fn (): null => null);
+
+        $operations = $this->collect(['public'])->operations('public');
+
+        self::assertSame(['get' => 'get.reports'], $operations['/reports']['get']->operationIds);
+        self::assertSame('reports', $operations['/reports']['get']->route->uri());
+        self::assertSame(['get' => 'get.reports.period'], $operations['/reports/{period}']['get']->operationIds);
     }
 
     /**
