@@ -57,7 +57,7 @@ final class ColumnNarrowerTest extends TestCase
      */
     public function testNarrowsWhenAllFieldsMapped(): void
     {
-        $map = FieldColumnMap::make(['name' => ['first_name', 'last_name']], ['email']);
+        $map = FieldColumnMap::make(['name' => ['first_name', 'last_name']], ['email'], ['name', 'email']);
 
         $decision = $this->narrower->decide($map, ['name', 'email'], ['id'], $this->plainModel(), self::REAL_COLUMNS);
 
@@ -73,7 +73,7 @@ final class ColumnNarrowerTest extends TestCase
      */
     public function testFallsBackOnFirstUnmappedField(): void
     {
-        $map = FieldColumnMap::make([], []);
+        $map = FieldColumnMap::make([], [], ['name']);
 
         $decision = $this->narrower->decide($map, ['name'], ['id'], $this->plainModel(), self::REAL_COLUMNS);
 
@@ -89,7 +89,7 @@ final class ColumnNarrowerTest extends TestCase
      */
     public function testFallsBackReasonIsFirstUnmappedInOrder(): void
     {
-        $map = FieldColumnMap::make([], []);
+        $map = FieldColumnMap::make([], [], ['alpha', 'beta']);
 
         $decision = $this->narrower->decide($map, ['alpha', 'beta'], ['id'], $this->plainModel(), self::REAL_COLUMNS);
 
@@ -105,7 +105,7 @@ final class ColumnNarrowerTest extends TestCase
      */
     public function testNarrowedColumnsUnionDedupesNeededAndSafetySet(): void
     {
-        $map = FieldColumnMap::make(['name' => ['first_name', 'id']], []);
+        $map = FieldColumnMap::make(['name' => ['first_name', 'id']], [], ['name']);
 
         $decision = $this->narrower->decide($map, ['name'], ['id', 'deleted_at'], $this->plainModel(), self::REAL_COLUMNS);
 
@@ -120,7 +120,7 @@ final class ColumnNarrowerTest extends TestCase
      */
     public function testEmptyResolvedFieldsNarrowsToSafetySetOnly(): void
     {
-        $map = FieldColumnMap::make([], []);
+        $map = FieldColumnMap::make([], [], []);
 
         $decision = $this->narrower->decide($map, [], ['id', 'deleted_at'], $this->plainModel(), self::REAL_COLUMNS);
 
@@ -136,7 +136,7 @@ final class ColumnNarrowerTest extends TestCase
      */
     public function testMappedFieldWithEmptyColumnsDoesNotForceFallback(): void
     {
-        $map = FieldColumnMap::make(['virtual' => []], []);
+        $map = FieldColumnMap::make(['virtual' => []], [], ['virtual']);
 
         $decision = $this->narrower->decide($map, ['virtual'], ['id'], $this->plainModel(), self::REAL_COLUMNS);
 
@@ -152,12 +152,47 @@ final class ColumnNarrowerTest extends TestCase
      */
     public function testNarrowDeduplicatesAndReindexesColumns(): void
     {
-        $map = FieldColumnMap::make(['a' => ['id', 'title'], 'b' => ['title', 'slug']], []);
+        $map = FieldColumnMap::make(['a' => ['id', 'title'], 'b' => ['title', 'slug']], [], ['a', 'b']);
 
         $decision = $this->narrower->decide($map, ['a', 'b'], ['id'], $this->plainModel(), self::REAL_COLUMNS);
 
         self::assertTrue($decision->shouldNarrow());
         self::assertSame(['id', 'title', 'slug'], $decision->columns());
+    }
+
+    /**
+     * Test that a name the schema does not declare reads no column, since the
+     * resource renders nothing for it.
+     *
+     * @return void
+     */
+    public function testSkipsANameTheSchemaDoesNotDeclare(): void
+    {
+        $map = FieldColumnMap::make([], ['email'], ['email']);
+
+        $decision = $this->narrower->decide($map, ['_type', 'email', 'unknown'], ['id'], $this->plainModel(), self::REAL_COLUMNS);
+
+        self::assertTrue($decision->shouldNarrow());
+        self::assertSame(['email', 'id'], $decision->columns());
+    }
+
+    /**
+     * Test that the aggregates payload narrows only while it reads no column,
+     * and otherwise falls back naming it.
+     *
+     * @return void
+     */
+    public function testAggregatesPayloadNarrowsOnlyWhileItReadsNoColumn(): void
+    {
+        $free    = FieldColumnMap::make(['aggregates' => []], ['email'], ['email', 'aggregates']);
+        $guarded = FieldColumnMap::make([], ['email'], ['email', 'aggregates']);
+
+        $narrowed = $this->narrower->decide($free, ['email', 'aggregates'], ['id'], $this->plainModel(), self::REAL_COLUMNS);
+        $fallback = $this->narrower->decide($guarded, ['email', 'aggregates'], ['id'], $this->plainModel(), self::REAL_COLUMNS);
+
+        self::assertSame(['email', 'id'], $narrowed->columns());
+        self::assertFalse($fallback->shouldNarrow());
+        self::assertSame('aggregates', $fallback->reason());
     }
 
     /**
@@ -167,7 +202,7 @@ final class ColumnNarrowerTest extends TestCase
      */
     public function testFallsBackForAnInferredKeyMissingFromTheTable(): void
     {
-        $map = FieldColumnMap::make([], ['id', 'headline']);
+        $map = FieldColumnMap::make([], ['id', 'headline'], ['id', 'headline']);
 
         $decision = $this->narrower->decide($map, ['id', 'headline'], ['id'], $this->plainModel(), self::REAL_COLUMNS);
 
@@ -182,7 +217,7 @@ final class ColumnNarrowerTest extends TestCase
      */
     public function testFallsBackForADeclaredColumnMissingFromTheTable(): void
     {
-        $map = FieldColumnMap::make(['full_name' => ['first_name', 'surname']], ['id']);
+        $map = FieldColumnMap::make(['full_name' => ['first_name', 'surname']], ['id'], ['id', 'full_name']);
 
         $decision = $this->narrower->decide($map, ['id', 'full_name'], ['id'], $this->plainModel(), self::REAL_COLUMNS);
 
@@ -197,7 +232,7 @@ final class ColumnNarrowerTest extends TestCase
      */
     public function testFallsBackForAnEmptyColumnListing(): void
     {
-        $map = FieldColumnMap::make([], ['id']);
+        $map = FieldColumnMap::make([], ['id'], ['id']);
 
         $decision = $this->narrower->decide($map, ['id'], [], $this->plainModel(), []);
 
@@ -212,7 +247,7 @@ final class ColumnNarrowerTest extends TestCase
      */
     public function testFallsBackForAnInferredColumnWithAnAttributeAccessor(): void
     {
-        $decision = $this->narrower->decide(FieldColumnMap::make([], ['id', 'title']), ['id', 'title'], ['id'], new SluggedTitleArticle, self::REAL_COLUMNS);
+        $decision = $this->narrower->decide(FieldColumnMap::make([], ['id', 'title'], ['id', 'title']), ['id', 'title'], ['id'], new SluggedTitleArticle, self::REAL_COLUMNS);
 
         self::assertFalse($decision->shouldNarrow());
         self::assertSame('title', $decision->reason());
@@ -241,7 +276,7 @@ final class ColumnNarrowerTest extends TestCase
             }
         };
 
-        $decision = $this->narrower->decide(FieldColumnMap::make([], ['title']), ['title'], ['id'], $model, self::REAL_COLUMNS);
+        $decision = $this->narrower->decide(FieldColumnMap::make([], ['title'], ['title']), ['title'], ['id'], $model, self::REAL_COLUMNS);
 
         self::assertFalse($decision->shouldNarrow());
         self::assertSame('title', $decision->reason());
@@ -259,7 +294,7 @@ final class ColumnNarrowerTest extends TestCase
             public ?string $title = null;
         };
 
-        $decision = $this->narrower->decide(FieldColumnMap::make([], ['id', 'title']), ['id', 'title'], ['id'], $model, self::REAL_COLUMNS);
+        $decision = $this->narrower->decide(FieldColumnMap::make([], ['id', 'title'], ['id', 'title']), ['id', 'title'], ['id'], $model, self::REAL_COLUMNS);
 
         self::assertFalse($decision->shouldNarrow());
         self::assertSame('title', $decision->reason());
@@ -273,7 +308,7 @@ final class ColumnNarrowerTest extends TestCase
      */
     public function testNarrowsForAnInferredColumnNamedLikeAProtectedProperty(): void
     {
-        $decision = $this->narrower->decide(FieldColumnMap::make([], ['visible']), ['visible'], ['id'], $this->plainModel(), ['id', 'visible']);
+        $decision = $this->narrower->decide(FieldColumnMap::make([], ['visible'], ['visible']), ['visible'], ['id'], $this->plainModel(), ['id', 'visible']);
 
         self::assertTrue($decision->shouldNarrow());
         self::assertSame(['visible', 'id'], $decision->columns());
@@ -292,7 +327,7 @@ final class ColumnNarrowerTest extends TestCase
             public static string $title = 'static';
         };
 
-        $decision = $this->narrower->decide(FieldColumnMap::make([], ['title']), ['title'], ['id'], $model, self::REAL_COLUMNS);
+        $decision = $this->narrower->decide(FieldColumnMap::make([], ['title'], ['title']), ['title'], ['id'], $model, self::REAL_COLUMNS);
 
         self::assertTrue($decision->shouldNarrow());
         self::assertSame(['title', 'id'], $decision->columns());
@@ -317,7 +352,7 @@ final class ColumnNarrowerTest extends TestCase
             }
         };
 
-        $decision = $this->narrower->decide(FieldColumnMap::make([], ['title']), ['title'], ['id'], $model, self::REAL_COLUMNS);
+        $decision = $this->narrower->decide(FieldColumnMap::make([], ['title'], ['title']), ['title'], ['id'], $model, self::REAL_COLUMNS);
 
         self::assertTrue($decision->shouldNarrow());
         self::assertSame(['title', 'id'], $decision->columns());
@@ -330,7 +365,7 @@ final class ColumnNarrowerTest extends TestCase
      */
     public function testNarrowsADeclaredFieldOverAnAccessorToItsDeclaredColumns(): void
     {
-        $decision = $this->narrower->decide(FieldColumnMap::make(['title' => ['title', 'slug']], []), ['title'], ['id'], new SluggedTitleArticle, self::REAL_COLUMNS);
+        $decision = $this->narrower->decide(FieldColumnMap::make(['title' => ['title', 'slug']], [], ['title']), ['title'], ['id'], new SluggedTitleArticle, self::REAL_COLUMNS);
 
         self::assertTrue($decision->shouldNarrow());
         self::assertSame(['title', 'slug', 'id'], $decision->columns());
@@ -359,7 +394,7 @@ final class ColumnNarrowerTest extends TestCase
     #[DataProvider('untrustedCastProvider')]
     public function testFallsBackForAnInferredColumnWithAnUnprovenCast(string $cast): void
     {
-        $decision = $this->narrower->decide(FieldColumnMap::make([], ['id', 'title']), ['id', 'title'], ['id'], $this->modelCasting($cast), self::REAL_COLUMNS);
+        $decision = $this->narrower->decide(FieldColumnMap::make([], ['id', 'title'], ['id', 'title']), ['id', 'title'], ['id'], $this->modelCasting($cast), self::REAL_COLUMNS);
 
         self::assertFalse($decision->shouldNarrow());
         self::assertSame('title', $decision->reason());
@@ -391,7 +426,7 @@ final class ColumnNarrowerTest extends TestCase
     #[DataProvider('trustedCastProvider')]
     public function testNarrowsForAnInferredColumnWithATrustedCast(string $cast): void
     {
-        $decision = $this->narrower->decide(FieldColumnMap::make([], ['title']), ['title'], ['id'], $this->modelCasting($cast), self::REAL_COLUMNS);
+        $decision = $this->narrower->decide(FieldColumnMap::make([], ['title'], ['title']), ['title'], ['id'], $this->modelCasting($cast), self::REAL_COLUMNS);
 
         self::assertTrue($decision->shouldNarrow());
         self::assertSame(['title', 'id'], $decision->columns());
@@ -406,7 +441,7 @@ final class ColumnNarrowerTest extends TestCase
     {
         $model = $this->modelCasting(SluggedTitleCast::class);
 
-        $decision = $this->narrower->decide(FieldColumnMap::make([], ['slug']), ['slug'], ['id'], $model, self::REAL_COLUMNS);
+        $decision = $this->narrower->decide(FieldColumnMap::make([], ['slug'], ['slug']), ['slug'], ['id'], $model, self::REAL_COLUMNS);
 
         self::assertTrue($decision->shouldNarrow());
         self::assertSame(['slug', 'id'], $decision->columns());

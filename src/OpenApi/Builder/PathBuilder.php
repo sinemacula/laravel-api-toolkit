@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
-use Illuminate\Routing\Route;
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Contracts\Versioned;
 use SineMacula\ApiToolkit\Exceptions\PreconditionRequiredException;
@@ -88,7 +87,8 @@ final readonly class PathBuilder
      *
      * A later route claiming a path and verb replaces the earlier operation,
      * unless both answer on a domain through one controller action and build
-     * the same operation apart from its servers, which then lists both.
+     * the same operation apart from its servers, which then lists both. A form
+     * omitting optional parameters may join an operation, never replace it.
      *
      * @param  list<\SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute>  $routes
      * @param  array<string, string>  $descriptions
@@ -110,17 +110,21 @@ final readonly class PathBuilder
 
             foreach ($route->verbs as $verb) {
 
+                $path        = $route->form->path;
+                $claim       = $claims[$path][$verb] ?? null;
                 $conditional = in_array(strtoupper($verb), RequireIfMatch::METHODS, true);
                 $operation   = $resolved[$conditional] ??= $this->resolveOperation($route, $conditional);
 
                 $built = ['tags' => [$route->tag]] + $this->documentation($route, $verb, $descriptions) + $operation;
-                $claim = $claims[$route->path][$verb] ?? null;
-                $hosts = $claim !== null && $this->joins($claim, $route, $built)
-                    ? [...$claim[2], ...array_filter($domain, static fn (array $server): bool => !in_array($server, $claim[2], true))]
-                    : $domain;
 
-                $claims[$route->path][$verb] = [$route, $built, $hosts];
-                $paths[$route->path][$verb]  = $hosts === [] ? $built : $built + ['servers' => $hosts];
+                if (!$this->takesOver($claim, $route, $built)) {
+                    continue;
+                }
+
+                $hosts = $this->hostsOf($claim, $route, $built, $domain);
+
+                $claims[$path][$verb] = [$route, $built, $hosts];
+                $paths[$path][$verb]  = $hosts === [] ? $built : $built + ['servers' => $hosts];
             }
         }
 
@@ -145,6 +149,40 @@ final readonly class PathBuilder
         }
 
         return $this->domainServers->build($route, $this->pathParameters->hostVariables($route->route), $servers, $audience);
+    }
+
+    /**
+     * Determine whether the route's operation takes the path and verb from the
+     * earlier claim: a form omitting optional parameters only joins it.
+     *
+     * @param  array{\SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute, array<string, mixed>, list<array<string, mixed>>}|null  $claim
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
+     * @param  array<string, mixed>  $operation
+     * @return bool
+     */
+    private function takesOver(?array $claim, DocumentedRoute $route, array $operation): bool
+    {
+        return $claim === null || $route->form->full || $this->joins($claim, $route, $operation);
+    }
+
+    /**
+     * Resolve the servers of the route's operation: the earlier claim's on its
+     * path and verb followed by the route's own when the route joins it, else
+     * the route's own.
+     *
+     * @param  array{\SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute, array<string, mixed>, list<array<string, mixed>>}|null  $claim
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
+     * @param  array<string, mixed>  $operation
+     * @param  list<array<string, mixed>>  $domain
+     * @return list<array<string, mixed>>
+     */
+    private function hostsOf(?array $claim, DocumentedRoute $route, array $operation, array $domain): array
+    {
+        if ($claim === null || !$this->joins($claim, $route, $operation)) {
+            return $domain;
+        }
+
+        return [...$claim[2], ...array_filter($domain, static fn (array $server): bool => !in_array($server, $claim[2], true))];
     }
 
     /**
@@ -185,7 +223,7 @@ final readonly class PathBuilder
      * under the verb.
      *
      * A verb without its own description falls back to its route's primary
-     * operationId.
+     * operationId, which every form of the route shares.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
      * @param  string  $verb
@@ -196,7 +234,7 @@ final readonly class PathBuilder
     {
         $documentation = [];
         $id            = $route->operationIds[$verb] ?? null;
-        $key           = $id !== null && array_key_exists($id, $descriptions) ? $id : $route->primaryOperationId();
+        $key           = $id !== null && array_key_exists($id, $descriptions) ? $id : $route->primaryOperationId;
         $description   = $descriptions[$key ?? ''] ?? '';
 
         if ($route->summary !== null) {
@@ -247,9 +285,9 @@ final readonly class PathBuilder
 
         $inputExceptions = [...$bodyExceptions, ...$queryExceptions, ...$this->preconditionExceptions($route, $conditional)];
 
-        $responses += $this->errors->build($controllerClass, $action, $route->route, $inputExceptions);
+        $responses += $this->errors->build($controllerClass, $action, $route->route, $route->form, $inputExceptions);
 
-        return $this->assembleOperation($responses, $route->route, $requestBody, $queryParameters, $conditional ? $this->ifMatchParameters($responses) : []);
+        return $this->assembleOperation($responses, $route, $requestBody, $queryParameters, $conditional ? $this->ifMatchParameters($responses) : []);
     }
 
     /**
@@ -309,16 +347,16 @@ final readonly class PathBuilder
      * Assemble the operation object shared by every verb of the route.
      *
      * @param  array<int|string, mixed>  $responses
-     * @param  \Illuminate\Routing\Route  $route
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
      * @param  array<string, mixed>  $requestBody
      * @param  array<int, array<string, mixed>>  $queryParameters
      * @param  array<int, array<string, mixed>>  $headerParameters
      * @return array<string, mixed>
      */
-    private function assembleOperation(array $responses, Route $route, array $requestBody = [], array $queryParameters = [], array $headerParameters = []): array
+    private function assembleOperation(array $responses, DocumentedRoute $route, array $requestBody, array $queryParameters, array $headerParameters): array
     {
         $operation  = [];
-        $parameters = array_merge($this->pathParameters->build($route), $queryParameters, $headerParameters);
+        $parameters = array_merge($this->pathParameters->build($route->route, $route->form->parameters), $queryParameters, $headerParameters);
 
         if ($parameters !== []) {
             $operation['parameters'] = $parameters;
@@ -329,7 +367,7 @@ final readonly class PathBuilder
         }
 
         $operation['responses'] = $responses;
-        $operation['security']  = $this->security->securityFor($route);
+        $operation['security']  = $this->security->securityFor($route->route);
 
         return $operation;
     }

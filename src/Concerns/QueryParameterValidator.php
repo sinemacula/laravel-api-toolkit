@@ -38,6 +38,7 @@ final class QueryParameterValidator
         'cursor'       => 'string',
         'search'       => 'string',
         'trashed'      => 'filled|in:with,only',
+        'pagination'   => 'nullable|in:cursor',
     ];
 
     /**

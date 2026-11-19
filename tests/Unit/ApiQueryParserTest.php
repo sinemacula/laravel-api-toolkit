@@ -831,7 +831,7 @@ final class ApiQueryParserTest extends TestCase
         yield 'pagination names cursor' => [['pagination' => 'cursor'], true];
         yield 'a cursor token is carried' => [['cursor' => 'eyJpZCI6MX0'], true];
         yield 'an empty cursor is still a cursor read' => [['cursor' => ''], true];
-        yield 'pagination names something else' => [['pagination' => 'page'], false];
+        yield 'an empty pagination mode is not one' => [['pagination' => ''], false];
         yield 'neither is present' => [[], false];
         yield 'a page number alone is not one' => [['page' => '500'], false];
     }

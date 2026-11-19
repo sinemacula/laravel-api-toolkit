@@ -55,7 +55,8 @@ final readonly class RelationTraversal
     }
 
     /**
-     * Resolve each traversable relation of a resource served for a model.
+     * Resolve each traversable or sortable relation of a resource served for a
+     * model.
      *
      * A relation the model does not define is skipped, and a class that is no
      * model has none.
@@ -76,7 +77,7 @@ final readonly class RelationTraversal
         $model  = new $modelClass;
         $edges  = [];
 
-        foreach ($schema->getTraversableRelations() as $name) {
+        foreach (array_unique([...$schema->getTraversableRelations(), ...array_keys($schema->getSortableRelations())]) as $name) {
 
             $relation = $this->introspector->resolveRelation($name, $model);
 

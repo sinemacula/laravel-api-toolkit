@@ -5,6 +5,8 @@ declare(strict_types = 1);
 namespace Tests\Unit\Schema;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
@@ -140,20 +142,101 @@ final class FieldColumnMapperTest extends TestCase
     }
 
     /**
-     * Test that a relation field is unmapped as it contributes no base columns.
+     * Test that a relation rendered by a child resource or a string accessor
+     * reads only the related models, so it maps to no column of its own.
      *
      * @return void
      */
-    public function testRelationFieldIsUnmapped(): void
+    public function testRelationReadingOnlyTheRelatedMapsToNoColumns(): void
     {
         $schema = $this->makeSchema([
-            'organization' => $this->makeDefinition(relation: 'organization'),
+            'posts'       => $this->makeDefinition(relation: 'posts'),
+            'profile_bio' => $this->makeDefinition(accessor: 'bio', relation: 'profile'),
         ]);
 
         $map = FieldColumnMapper::build($schema);
 
-        self::assertFalse($map->isMapped('organization'));
-        self::assertNull($map->columnsFor('organization'));
+        self::assertSame([], $map->columnsFor('posts'));
+        self::assertSame([], $map->columnsFor('profile_bio'));
+        self::assertFalse($map->isInferred('posts'));
+    }
+
+    /**
+     * Test that a relation whose accessor, compute, guard or transformer
+     * receives the resource is unmapped.
+     *
+     * @return void
+     */
+    public function testRelationReceivingTheResourceIsUnmapped(): void
+    {
+        $schema = $this->makeSchema([
+            'callable'    => $this->makeDefinition(accessor: static fn (): null => null, relation: 'posts'),
+            'computed'    => $this->makeDefinition(compute: 'getPosts', relation: 'posts'),
+            'guarded'     => $this->makeDefinition(relation: 'posts', guards: [static fn (): bool => true]),
+            'transformed' => $this->makeDefinition(relation: 'posts', transformers: [static fn (mixed $value): mixed => $value]),
+        ]);
+
+        $map = FieldColumnMapper::build($schema);
+
+        foreach (['callable', 'computed', 'guarded', 'transformed'] as $field) {
+            self::assertFalse($map->isMapped($field), $field);
+        }
+    }
+
+    /**
+     * Test that a relation declaring needs() reads the declared columns.
+     *
+     * @return void
+     */
+    public function testRelationWithNeedsMapsToItsDeclaredColumns(): void
+    {
+        $schema = $this->makeSchema([
+            'organization' => $this->makeDefinition(relation: 'organization', needs: ['organization_id'], guards: [static fn (): bool => true]),
+        ]);
+
+        self::assertSame(['organization_id'], FieldColumnMapper::build($schema)->columnsFor('organization'));
+    }
+
+    /**
+     * Test that the map declares every field key and, only where the schema
+     * declares an aggregate, the aggregates payload.
+     *
+     * @return void
+     */
+    public function testDeclaresTheFieldKeysAndTheAggregatesPayload(): void
+    {
+        $fields = ['name' => $this->makeDefinition()];
+
+        $without = FieldColumnMapper::build($this->makeSchema($fields));
+        $with    = FieldColumnMapper::build($this->makeSchema($fields, ['posts_count' => $this->makeAggregate()]));
+
+        self::assertTrue($without->declares('name'));
+        self::assertFalse($without->declares('aggregates'));
+        self::assertFalse($without->isMapped('aggregates'));
+        self::assertFalse($without->declares('_type'));
+        self::assertTrue($with->declares('name'));
+        self::assertTrue($with->declares('aggregates'));
+        self::assertSame([], $with->columnsFor('aggregates'));
+    }
+
+    /**
+     * Test that the aggregates payload is unmapped once any aggregate carries a
+     * guard or transformer, since either receives the resource.
+     *
+     * @return void
+     */
+    public function testAggregatesPayloadIsUnmappedWhenAnAggregateReceivesTheResource(): void
+    {
+        $guarded     = $this->makeAggregate(guards: [static fn (): bool => true]);
+        $transformed = $this->makeAggregate(transformers: [static fn (mixed $resource, mixed $value): mixed => $value]);
+
+        foreach ([$guarded, $transformed] as $aggregate) {
+
+            $map = FieldColumnMapper::build($this->makeSchema([], ['plain' => $this->makeAggregate(), 'opaque' => $aggregate]));
+
+            self::assertTrue($map->declares('aggregates'));
+            self::assertFalse($map->isMapped('aggregates'));
+        }
     }
 
     /**
@@ -245,14 +328,27 @@ final class FieldColumnMapperTest extends TestCase
     }
 
     /**
-     * Build a compiled schema from the given field definitions.
+     * Build a compiled schema from the given field and aggregate definitions.
      *
      * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition>  $fields
+     * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition>  $aggregates
      * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
      */
-    private function makeSchema(array $fields): CompiledSchema
+    private function makeSchema(array $fields, array $aggregates = []): CompiledSchema
     {
-        return new CompiledSchema($fields, []);
+        return new CompiledSchema($fields, $aggregates);
+    }
+
+    /**
+     * Build a compiled count aggregate with the given guards and transformers.
+     *
+     * @param  array<int, callable(mixed, mixed): bool>  $guards
+     * @param  array<int, callable(mixed, mixed): mixed>  $transformers
+     * @return \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition
+     */
+    private function makeAggregate(array $guards = [], array $transformers = []): CompiledAggregateDefinition
+    {
+        return new CompiledAggregateDefinition('posts_count', 'posts', AggregateFunction::COUNT, null, null, true, $guards, $transformers);
     }
 
     /**

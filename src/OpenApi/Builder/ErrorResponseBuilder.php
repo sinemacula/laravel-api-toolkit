@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Http\Routing\Attributes\CustomAuthorization;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathForm;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
 use SineMacula\Http\Enums\HttpStatus;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -35,6 +36,10 @@ final readonly class ErrorResponseBuilder
 {
     /** The reference format of each per-code error-envelope schema */
     private const string ENVELOPE_SCHEMA_REF = '#/components/schemas/' . ErrorExampleBuilder::NAME_FORMAT;
+
+    /** The description of every envelope's detail */
+    private const string DETAIL_DESCRIPTION = 'Explains this occurrence: the code\'s catalogue text, or the detail the error was raised with, '
+        . 'such as a policy denial\'s message.';
 
     /** The media type every error response body is served under */
     private const string MEDIA_TYPE = SuccessResponseBuilder::MEDIA_TYPE;
@@ -77,21 +82,23 @@ final readonly class ErrorResponseBuilder
     ) {}
 
     /**
-     * Build the error responses for the action, keyed by HTTP status.
+     * Build the error responses for the action on the route's path form, keyed
+     * by HTTP status.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
      * @param  \Illuminate\Routing\Route  $route
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathForm  $form
      * @param  list<class-string<\Throwable>>  $inputExceptions
      * @return array<int, array<string, mixed>>
      *
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ErrorCatalogueMismatchException
      */
-    public function build(?string $controllerClass, string $action, Route $route, array $inputExceptions): array
+    public function build(?string $controllerClass, string $action, Route $route, RoutePathForm $form, array $inputExceptions): array
     {
         $errors = [];
 
-        foreach ($this->sources($controllerClass, $action, $route, $inputExceptions) as [$exception, $headers]) {
+        foreach ($this->sources($controllerClass, $action, $route, $form, $inputExceptions) as [$exception, $headers]) {
 
             $status = $exception::getHttpStatusCode();
 
@@ -128,10 +135,11 @@ final readonly class ErrorResponseBuilder
      * @param  class-string|null  $controllerClass
      * @param  string  $action
      * @param  \Illuminate\Routing\Route  $route
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathForm  $form
      * @param  list<class-string<\Throwable>>  $inputExceptions
      * @return list<array{0: class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>, 1: array<string, array<string, mixed>>}>
      */
-    private function sources(?string $controllerClass, string $action, Route $route, array $inputExceptions): array
+    private function sources(?string $controllerClass, string $action, Route $route, RoutePathForm $form, array $inputExceptions): array
     {
         $sources = [];
 
@@ -141,7 +149,7 @@ final readonly class ErrorResponseBuilder
 
         $defaults = ExceptionMap::defaults();
 
-        foreach ($this->receivedExceptions($controllerClass, $action, $route, $inputExceptions) as $received) {
+        foreach ($this->receivedExceptions($controllerClass, $action, $route, $form, $inputExceptions) as $received) {
 
             if (is_a($received, ApiException::class, true)) {
                 $sources[] = [$received, $this->headers->forException($received)];
@@ -186,21 +194,42 @@ final readonly class ErrorResponseBuilder
      * @param  class-string|null  $controllerClass
      * @param  string  $action
      * @param  \Illuminate\Routing\Route  $route
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathForm  $form
      * @param  list<class-string<\Throwable>>  $inputExceptions
      * @return list<class-string<\Throwable>>
      */
-    private function receivedExceptions(?string $controllerClass, string $action, Route $route, array $inputExceptions): array
+    private function receivedExceptions(?string $controllerClass, string $action, Route $route, RoutePathForm $form, array $inputExceptions): array
     {
         $facts = [
             AuthenticationException::class   => $this->middleware->authenticates($route),
             AccessDeniedHttpException::class => $this->middleware->authorizes($route) || $this->declaresCustomAuthorization($controllerClass, $action),
-            NotFoundHttpException::class     => $route->parameterNames() !== [],
+            NotFoundHttpException::class     => $this->bindsParameters($route, $form),
             ...array_fill_keys($inputExceptions, true),
             ThrottleRequestsException::class => $this->middleware->throttles($route),
             \Throwable::class                => true,
         ];
 
         return array_keys(array_filter($facts));
+    }
+
+    /**
+     * Determine whether a request to the path form binds a route parameter,
+     * which an implicit binding can answer with a 404.
+     *
+     * A form without parameters omits every optional one, which the router
+     * still binds when the route gives it a default.
+     *
+     * @param  \Illuminate\Routing\Route  $route
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathForm  $form
+     * @return bool
+     */
+    private function bindsParameters(Route $route, RoutePathForm $form): bool
+    {
+        $defaults = array_intersect_key($route->defaults, $route->getOptionalParameterNames());
+
+        return $form->parameters !== []
+            || str_contains((string) $route->getDomain(), '{')
+            || array_filter($defaults, static fn (mixed $default): bool => $default !== null) !== [];
     }
 
     /**
@@ -250,7 +279,7 @@ final readonly class ErrorResponseBuilder
                         'status' => ['type' => 'integer'],
                         'code'   => ['type' => 'integer', 'const' => $descriptor->code],
                         'title'  => ['type' => 'string'],
-                        'detail' => ['type' => 'string'],
+                        'detail' => ['type' => 'string', 'description' => self::DETAIL_DESCRIPTION],
                         'meta'   => $descriptor->meta ?? ['type' => 'object', 'additionalProperties' => true],
                     ],
                     'required' => ['status', 'code', 'detail'],

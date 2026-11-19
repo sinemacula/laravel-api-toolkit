@@ -8,16 +8,19 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
+use Tests\Fixtures\Contracts\RelationSignatures;
+use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
+use Tests\TestCase;
 
 /**
  * Tests for the ValidateRelationMethods validation rule.
@@ -728,5 +731,95 @@ final class ValidateRelationMethodsTest extends TestCase
         $errors = $rule->validate(UserResource::class, User::class, $schema);
 
         self::assertSame([], $errors);
+    }
+
+    /**
+     * Provide sortable relations that render more than one row, or none the
+     * order can name.
+     *
+     * @return iterable<string, array{class-string<\Illuminate\Database\Eloquent\Model>, string}>
+     */
+    public static function unsortableRelationProvider(): iterable
+    {
+        yield 'has many' => [User::class, 'posts'];
+        yield 'plain has one' => [User::class, 'profile'];
+        yield 'morph to' => [Note::class, 'noteable'];
+    }
+
+    /**
+     * Test that a sortable relation must render the single row its order reads.
+     *
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
+     * @param  string  $relation
+     * @return void
+     */
+    #[DataProvider('unsortableRelationProvider')]
+    public function testReportsASortableRelationThatRendersNoSingleRow(string $model, string $relation): void
+    {
+        $errors = (new ValidateRelationMethods)->validate(UserResource::class, $model, $this->sortableRelation($relation));
+
+        self::assertCount(1, $errors);
+        self::assertSame($relation, $errors[0]->fieldKey);
+        self::assertSame(
+            sprintf('Relation "%s" is sortable, so it must be a BelongsTo, or a HasOne, MorphOne or HasOneThrough declared with latestOfMany() or ofMany()', $relation),
+            $errors[0]->defect,
+        );
+    }
+
+    /**
+     * Test that a sortable relation the model does not define is reported as
+     * missing, before its kind is read.
+     *
+     * @return void
+     */
+    public function testReportsASortableRelationTheModelDoesNotDefineAsMissing(): void
+    {
+        $errors = (new ValidateRelationMethods)->validate(UserResource::class, User::class, $this->sortableRelation('ghost'));
+
+        self::assertCount(1, $errors);
+        self::assertSame(sprintf('Relation method "ghost" does not exist on model "%s"', User::class), $errors[0]->defect);
+    }
+
+    /**
+     * Test that a sortable belongs-to and a sortable one-of-many relation pass,
+     * as do an unsortable plain has-one and a relation on a class that is no
+     * model.
+     *
+     * @return void
+     */
+    public function testPassesSortableRelationsThatRenderASingleRow(): void
+    {
+        $rule = new ValidateRelationMethods;
+
+        self::assertSame([], $rule->validate(UserResource::class, User::class, $this->sortableRelation('organization')));
+        self::assertSame([], $rule->validate(UserResource::class, User::class, $this->sortableRelation('latestArticle')));
+        self::assertSame([], $rule->validate(UserResource::class, User::class, $this->sortableRelation('profile', null)));
+        self::assertSame([], $rule->validate(UserResource::class, RelationSignatures::class, $this->sortableRelation('profile')));
+    }
+
+    /**
+     * Build a schema declaring one relation, sortable when a reason is given.
+     *
+     * @param  string  $relation
+     * @param  string|null  $reason
+     * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
+     */
+    private function sortableRelation(string $relation, ?string $reason = 'Back-office list'): CompiledSchema
+    {
+        return new CompiledSchema([
+            $relation => new CompiledFieldDefinition(
+                accessor         : null,
+                compute          : null,
+                relation         : $relation,
+                resource         : OrganizationResource::class,
+                fields           : null,
+                constraint       : null,
+                extras           : [],
+                needs            : [],
+                guards           : [],
+                transformers     : [],
+                sortThroughReason: $reason,
+            ),
+        ]);
     }
 }
