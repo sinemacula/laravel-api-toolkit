@@ -162,11 +162,18 @@ final readonly class EnvelopeBuilder
         return [
             'type'       => 'object',
             'properties' => [
-                'total'    => ['type' => 'integer'],
+                'total' => [
+                    'type'        => 'integer',
+                    'description' => 'The records the query matches, or only those offset pagination can reach when the total is capped.',
+                ],
+                'total_capped' => [
+                    'type'        => 'boolean',
+                    'description' => 'Whether more records match than the total reports; read past it with cursor pagination.',
+                ],
                 'count'    => ['type' => 'integer'],
                 'continue' => ['type' => 'boolean'],
             ],
-            'required' => ['total', 'count', 'continue'],
+            'required' => ['total', 'total_capped', 'count', 'continue'],
         ];
     }
 
@@ -232,7 +239,7 @@ final readonly class EnvelopeBuilder
     private function buildTotalCountHeader(): array
     {
         return [
-            'description' => 'The total number of records across all pages of the length-aware collection.',
+            'description' => 'The total number of records across all pages of the length-aware collection, absent when the total is capped.',
             'schema'      => ['type' => 'integer', 'minimum' => 0],
         ];
     }
