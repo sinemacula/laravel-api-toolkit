@@ -27,7 +27,7 @@ use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
-use Tests\Fixtures\Resources\PagedUserResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -377,7 +377,7 @@ final class ConfigMetadataCatalogueTest extends TestCase
      */
     public function testGetPageSizeReturnsTheResourceBoundsOrTheConfiguredOnes(): void
     {
-        self::assertEquals(new PageSize(2, 2), $this->makeCatalogue()->getPageSize(PagedUserResource::class));
+        self::assertEquals(new PageSize(2, 2), $this->makeCatalogue()->getPageSize(CappedPageUserResource::class));
         self::assertEquals(new PageSize(100, 50), $this->makeCatalogue()->getPageSize(null));
     }
 

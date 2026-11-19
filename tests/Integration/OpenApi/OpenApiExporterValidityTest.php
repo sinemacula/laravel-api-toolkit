@@ -61,8 +61,8 @@ use Tests\Fixtures\OpenApi\PathTagInternalController;
 use Tests\Fixtures\OpenApi\PaymentRequiredException;
 use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
-use Tests\Fixtures\Resources\PagedUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -424,7 +424,7 @@ final class OpenApiExporterValidityTest extends TestCase
      */
     public function testIndexOverALoweredResourceExportsAValidInlineLimit(): void
     {
-        $this->getConfig()->set('api-toolkit.resources.resource_map.' . User::class, PagedUserResource::class);
+        $this->getConfig()->set('api-toolkit.resources.resource_map.' . User::class, CappedPageUserResource::class);
 
         $this->registerUserRoutes();
 

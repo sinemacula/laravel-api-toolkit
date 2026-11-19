@@ -37,9 +37,9 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Profile;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BulkArticleResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\LogResource;
-use Tests\Fixtures\Resources\PagedUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\ProfileResource;
 use Tests\Fixtures\Resources\SearchableFilterableUserResource;
@@ -1628,7 +1628,7 @@ final class ApiCriteriaTest extends TestCase
         /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
         $criteria = $this->app->make(ApiCriteria::class);
 
-        return $criteria->usingResource(PagedUserResource::class);
+        return $criteria->usingResource(CappedPageUserResource::class);
     }
 
     /**

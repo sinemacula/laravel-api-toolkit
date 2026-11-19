@@ -45,8 +45,8 @@ use Tests\Fixtures\Repositories\DeferrableModelRepository;
 use Tests\Fixtures\Repositories\DocumentRepository;
 use Tests\Fixtures\Repositories\DummyRepository;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
-use Tests\Fixtures\Resources\PagedUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Support\UnreachableCacheStore;
 use Tests\TestCase;
@@ -477,7 +477,7 @@ final class ApiRepositoryTest extends TestCase
 
         $this->parseRequest(new Request($mode));
 
-        $page = $this->repository->usingResource(PagedUserResource::class)->paginate();
+        $page = $this->repository->usingResource(CappedPageUserResource::class)->paginate();
 
         self::assertTrue($page instanceof Paginator || $page instanceof CursorPaginator);
         self::assertSame(2, $page->perPage());
@@ -498,7 +498,7 @@ final class ApiRepositoryTest extends TestCase
     {
         $this->seedThreeUsers();
 
-        $repository = $this->repository->usingResource(PagedUserResource::class);
+        $repository = $this->repository->usingResource(CappedPageUserResource::class);
 
         $this->parseRequest(new Request(['limit' => '2', ...$mode]));
 
@@ -527,7 +527,7 @@ final class ApiRepositoryTest extends TestCase
      */
     public function testPaginateHoldsThePageSizeToTheResolvedResource(): void
     {
-        Config::set('api-toolkit.resources.resource_map.' . User::class, PagedUserResource::class);
+        Config::set('api-toolkit.resources.resource_map.' . User::class, CappedPageUserResource::class);
 
         $this->seedThreeUsers();
 
@@ -556,7 +556,7 @@ final class ApiRepositoryTest extends TestCase
 
         $this->seedThreeUsers();
 
-        $repository = $this->repository->usingResource(PagedUserResource::class);
+        $repository = $this->repository->usingResource(CappedPageUserResource::class);
 
         $this->parseRequest(new Request(['page' => '3']));
 

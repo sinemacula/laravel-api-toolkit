@@ -17,7 +17,7 @@ use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
-use Tests\Fixtures\Resources\PagedUserResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\UserResource;
 
 /**
@@ -613,7 +613,7 @@ final class QueryParameterBuilderTest extends TestCase
     public function testIndexOverALoweredResourceInlinesItsLimit(): void
     {
         $builder    = $this->makeBuilder();
-        $references = $builder->referencesFor('index', User::class, PagedUserResource::class);
+        $references = $builder->referencesFor('index', User::class, CappedPageUserResource::class);
 
         self::assertSame(
             [...$builder->build()['Limit'], 'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 2, 'default' => 2]],
@@ -637,7 +637,7 @@ final class QueryParameterBuilderTest extends TestCase
         $builder = $this->makeBuilder();
 
         self::assertSame($builder->referencesFor('index', User::class), $builder->referencesFor('index', User::class, UserResource::class));
-        self::assertSame($builder->referencesFor('show', User::class), $builder->referencesFor('show', User::class, PagedUserResource::class));
+        self::assertSame($builder->referencesFor('show', User::class), $builder->referencesFor('show', User::class, CappedPageUserResource::class));
     }
 
     /**
@@ -702,7 +702,7 @@ final class QueryParameterBuilderTest extends TestCase
     {
         self::assertSame(
             [ValidationException::class, QueryTooExpensiveException::class],
-            $this->builderReporting($this->caps(0))->exceptionsFor('index', User::class, PagedUserResource::class),
+            $this->builderReporting($this->caps(0))->exceptionsFor('index', User::class, CappedPageUserResource::class),
         );
 
         self::assertSame(
@@ -873,7 +873,7 @@ final class QueryParameterBuilderTest extends TestCase
         $catalogue->method('getStructuralOperators')->willReturn(self::STRUCTURAL_OPERATORS);
         $catalogue->method('getQueryLimits')->willReturn($limits);
         $catalogue->method('getPageSize')->willReturnCallback(
-            static fn (?string $resource): PageSize => $resource === PagedUserResource::class ? new PageSize(2, 2) : $configured,
+            static fn (?string $resource): PageSize => $resource === CappedPageUserResource::class ? new PageSize(2, 2) : $configured,
         );
         $catalogue->method('getSearchBounds')->willReturn([
             SearchTerm::MIN_WORD_LENGTH_KEY => 3,

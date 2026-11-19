@@ -28,9 +28,9 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\AggregatingUserResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
-use Tests\Fixtures\Resources\PagedUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -103,9 +103,9 @@ final class QueryCostRejectionTest extends TestCase
 
         Route::middleware(ParseApiQuery::class)->get('/paged-users', function (UserRepository $repository): ApiResourceCollection {
 
-            $users = $repository->usingResource(PagedUserResource::class)->withApiCriteria()->paginate();
+            $users = $repository->usingResource(CappedPageUserResource::class)->withApiCriteria()->paginate();
 
-            return new ApiResourceCollection($users, PagedUserResource::class);
+            return new ApiResourceCollection($users, CappedPageUserResource::class);
         });
 
         User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);

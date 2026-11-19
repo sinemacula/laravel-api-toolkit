@@ -14,10 +14,10 @@ use SineMacula\ApiToolkit\Schema\Field;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class PagedUserResource extends ApiResource
+final class CappedPageUserResource extends ApiResource
 {
     /** @var string */
-    public const string RESOURCE_TYPE = 'paged_users';
+    public const string RESOURCE_TYPE = 'capped_page_users';
 
     /** @var array<int, string> */
     protected static array $default = ['id', 'name'];

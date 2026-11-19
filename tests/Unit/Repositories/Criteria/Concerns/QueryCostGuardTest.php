@@ -14,8 +14,8 @@ use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
-use Tests\Fixtures\Resources\PagedUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Resources\V1\UserResource as VersionedUserResource;
 use Tests\TestCase;
@@ -172,7 +172,7 @@ final class QueryCostGuardTest extends TestCase
             'aggregates' => [self::RESOURCE_TYPE => 'posts_count,posts_sum_id'],
         ]);
 
-        $this->assertRejectedForCost('limit', 'max_limit', 2, 3, PagedUserResource::class);
+        $this->assertRejectedForCost('limit', 'max_limit', 2, 3, CappedPageUserResource::class);
     }
 
     /**
@@ -184,7 +184,7 @@ final class QueryCostGuardTest extends TestCase
     {
         $this->parseQuery(['limit' => '3', 'pagination' => 'cursor']);
 
-        $this->assertRejectedForCost('limit', 'max_limit', 2, 3, PagedUserResource::class);
+        $this->assertRejectedForCost('limit', 'max_limit', 2, 3, CappedPageUserResource::class);
     }
 
     /**
@@ -199,10 +199,10 @@ final class QueryCostGuardTest extends TestCase
         $this->expectNotToPerformAssertions();
 
         $this->parseQuery(['limit' => '2']);
-        $this->guard->guard(PageSize::for(PagedUserResource::class));
+        $this->guard->guard(PageSize::for(CappedPageUserResource::class));
 
         $this->parseQuery([]);
-        $this->guard->guard(PageSize::for(PagedUserResource::class));
+        $this->guard->guard(PageSize::for(CappedPageUserResource::class));
     }
 
     /**

@@ -25,8 +25,8 @@ use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AliasedQueryableUserResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
-use Tests\Fixtures\Resources\PagedUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\PublicUserResource;
 use Tests\Fixtures\Resources\SharedColumnMarkerResource;
@@ -75,7 +75,7 @@ final class QuerySurfaceReaderTest extends TestCase
      */
     public function testOnlyAResourceWithItsOwnPageSizeCarriesIt(): void
     {
-        self::assertEquals(new PageSize(2, 2), $this->surface(PagedUserResource::class)->pageSize);
+        self::assertEquals(new PageSize(2, 2), $this->surface(CappedPageUserResource::class)->pageSize);
         self::assertNull($this->surface(UserResource::class)->pageSize);
     }
 

@@ -78,8 +78,8 @@ use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\DocumentResource;
-use Tests\Fixtures\Resources\PagedUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -536,7 +536,7 @@ final class PathBuilderTest extends TestCase
      */
     public function testIndexOverALoweredResourceExportsItsOwnLimit(): void
     {
-        $this->resourceMap[User::class] = PagedUserResource::class;
+        $this->resourceMap[User::class] = CappedPageUserResource::class;
 
         $this->registerRestRoutes();
 
@@ -571,7 +571,7 @@ final class PathBuilderTest extends TestCase
         config()->set('api-toolkit.query_cost', array_fill_keys(QueryCostLimits::NAMES, null));
         config()->set('api-toolkit.parser.max_limit', null);
 
-        $this->resourceMap[User::class] = PagedUserResource::class;
+        $this->resourceMap[User::class] = CappedPageUserResource::class;
 
         $this->registerRestRoutes();
 
