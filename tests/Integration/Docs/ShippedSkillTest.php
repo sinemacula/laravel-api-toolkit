@@ -80,7 +80,7 @@ final class ShippedSkillTest extends TestCase
     #[DataProvider('skills')]
     public function testEveryNamedCommandIsRegistered(string $skill): void
     {
-        $commands = self::captures('/php artisan ([a-z][a-z:-]*[a-z])/', self::body($skill));
+        $commands = self::captures('/php artisan ([\w:-]+)/', self::body($skill));
 
         self::assertNotEmpty($commands);
         self::assertSame([], array_values(array_diff($commands, array_keys(Artisan::all()))));
@@ -96,7 +96,7 @@ final class ShippedSkillTest extends TestCase
     public function testEveryNamedClassExists(string $skill): void
     {
         $body    = self::body($skill);
-        $classes = [...self::captures('/^use (SineMacula\\\[\w\\\]+);$/m', $body), ...self::captures('/`\\\?(SineMacula\\\[\w\\\]+)`/', $body)];
+        $classes = [...self::captures('/^use ((?!App\\\)[\w\\\]+);$/m', $body), ...self::captures('/`\\\?(SineMacula\\\[\w\\\]+)`/', $body)];
 
         self::assertNotEmpty($classes);
         self::assertSame([], array_values(array_filter(

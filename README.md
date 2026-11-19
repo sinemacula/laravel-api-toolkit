@@ -22,7 +22,7 @@ composer require sinemacula/laravel-api-toolkit
 
 The package ships a skill holding its authoring rules, at `resources/boost/skills/laravel-api-toolkit/SKILL.md`. With
 Laravel Boost, `php artisan boost:install` offers it and `php artisan boost:update` refreshes the installed copy after a
-toolkit upgrade; Boost reads skills from direct dependencies only. Without Boost, copy
+toolkit upgrade; Boost reads package skills from direct dependencies only. Without Boost, copy
 `vendor/sinemacula/laravel-api-toolkit/resources/boost/skills/laravel-api-toolkit` into the skills directory your
 tooling reads, and copy it again after each upgrade.
 
