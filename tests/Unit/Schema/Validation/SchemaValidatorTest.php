@@ -84,8 +84,6 @@ final class SchemaValidatorTest extends TestCase
         $validator = new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule);
 
         $validator->validate([Organization::class => OrganizationResource::class]);
-
-        self::assertTrue(true);
     }
 
     /**
@@ -156,8 +154,6 @@ final class SchemaValidatorTest extends TestCase
         $validator = new SchemaValidator(app(SchemaIntrospectionProvider::class), $rule);
 
         $validator->validate([]);
-
-        self::assertTrue(true);
     }
 
     /**
@@ -185,8 +181,6 @@ final class SchemaValidatorTest extends TestCase
             Organization::class => OrganizationResource::class,
             Post::class         => PostResource::class,
         ]);
-
-        self::assertTrue(true);
     }
 
     /**
@@ -198,9 +192,9 @@ final class SchemaValidatorTest extends TestCase
     {
         $validator = new SchemaValidator(app(SchemaIntrospectionProvider::class));
 
-        $validator->validate([Organization::class => OrganizationResource::class]);
+        $this->expectNotToPerformAssertions();
 
-        self::assertTrue(true);
+        $validator->validate([Organization::class => OrganizationResource::class]);
     }
 
     /**

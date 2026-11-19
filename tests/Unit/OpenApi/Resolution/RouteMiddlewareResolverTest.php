@@ -12,6 +12,7 @@ use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\EnsureActionIsAuthorized;
+use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use Tests\Fixtures\Controllers\CustomActionController;
@@ -48,6 +49,7 @@ final class RouteMiddlewareResolverTest extends TestCase
         self::assertFalse($resolver->authenticates($route));
         self::assertFalse($resolver->authorizes($route));
         self::assertFalse($resolver->throttles($route));
+        self::assertFalse($resolver->requiresIfMatch($route));
     }
 
     /**
@@ -164,6 +166,17 @@ final class RouteMiddlewareResolverTest extends TestCase
         self::assertTrue($this->resolver()->throttles($this->route(ThrottleRequests::class)));
         self::assertTrue($this->resolver()->throttles($this->route(ThrottleRequestsWithRedis::class . ':api')));
         self::assertFalse($this->resolver()->throttles($this->route('auth')));
+    }
+
+    /**
+     * Test that requiring If-Match is recognised.
+     *
+     * @return void
+     */
+    public function testRequiringIfMatchIsRecognised(): void
+    {
+        self::assertTrue($this->resolver()->requiresIfMatch($this->route(RequireIfMatch::class)));
+        self::assertFalse($this->resolver()->requiresIfMatch($this->route('throttle:60,1')));
     }
 
     /**

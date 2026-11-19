@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Config\LifecycleSettings;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 
 /**
@@ -145,7 +146,7 @@ final class WritePool
 
     /**
      * Flush the buffered records of the given connections and invalidate the
-     * per-query cache for the tables the flush persisted.
+     * per-query cache for the tables the flush targeted.
      *
      * @param  array<int, string>  $connections
      * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
@@ -158,31 +159,31 @@ final class WritePool
         try {
             $result = $this->executeFlush($strategy, $this->targets($connections));
         } catch (WritePoolFlushException $exception) {
-            $this->invalidateFlushedTables($exception->flushResult());
+            $this->invalidateFlushedTables($exception->flushResult()->flushedTables());
 
             throw $exception;
         } finally {
             $this->added = array_diff_key($this->added, array_flip($connections));
         }
 
-        $this->invalidateFlushedTables($result);
+        $this->invalidateFlushedTables($result->flushedTables());
 
         return $result;
     }
 
     /**
-     * Invalidate the per-query cache for the tables a flush persisted.
+     * Invalidate the per-query cache for a flush's target tables.
      *
-     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushResult  $result
+     * @param  array<int, string>  $tables
      * @return void
      */
-    private function invalidateFlushedTables(WritePoolFlushResult $result): void
+    private function invalidateFlushedTables(array $tables): void
     {
         if (!LifecycleSettings::shouldInvalidateQueryCache()) {
             return;
         }
 
-        (new DeferredWriteCacheInvalidator)->invalidate($result->flushedTables());
+        (new DeferredWriteCacheInvalidator)->invalidate($tables);
     }
 
     /**
@@ -223,16 +224,34 @@ final class WritePool
             $chunks  = (new DeferredWriteChunker($this->chunkSize))->chunk($this->buffer[$connection][$table]);
             $context = new WritePoolFlushContext($strategy, $connection, $table, $chunks, $targets, $targetIndex);
 
-            $this->flushTarget($context, $accumulator);
+            if ($this->transactional) {
+                $this->flushTargetTransactionally($context, $accumulator);
+            } else {
+                $this->flushChunks($context, $accumulator);
+            }
         }
 
+        $this->settle($strategy, $targets, $accumulator);
+
+        return $accumulator->toResult($strategy, $this->tableNames($targets));
+    }
+
+    /**
+     * Remove the given flushed targets' records from the buffer, keeping the
+     * failed records a collecting flush retains.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
+     * @param  list<array{string, string}>  $targets
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
+     * @return void
+     */
+    private function settle(FlushStrategy $strategy, array $targets, WritePoolFlushAccumulator $accumulator): void
+    {
         $retained = $strategy === FlushStrategy::COLLECT ? $accumulator->failedRecords() : [];
 
         foreach ($targets as [$connection, $table]) {
             $this->replace($connection, $table, $retained[$connection][$table] ?? []);
         }
-
-        return $accumulator->toResult($strategy, $this->tableNames($targets));
     }
 
     /**
@@ -273,26 +292,6 @@ final class WritePool
     }
 
     /**
-     * Flush a single target's chunks, optionally inside a transaction.
-     *
-     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
-     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
-     */
-    private function flushTarget(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator): void
-    {
-        if (!$this->transactional) {
-            $this->flushChunks($context, $accumulator);
-
-            return;
-        }
-
-        $this->flushTargetTransactionally($context, $accumulator);
-    }
-
-    /**
      * Flush a target's chunks all-or-nothing inside a transaction on the
      * target's connection.
      *
@@ -304,8 +303,11 @@ final class WritePool
      */
     private function flushTargetTransactionally(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator): void
     {
+        $depth = 0;
+
         try {
             $connection = DB::connection($context->connection());
+            $depth      = $connection->transactionLevel();
 
             $connection->transaction(function () use ($connection, $context): void {
 
@@ -318,6 +320,7 @@ final class WritePool
                 $accumulator->recordSuccess($chunk);
             }
         } catch (\Throwable $exception) {
+            $this->rethrowIfTheTransactionEnded($context, $accumulator, $depth, $exception);
             $this->handleTargetRollback($context, $accumulator, $exception);
         }
     }
@@ -370,18 +373,55 @@ final class WritePool
     {
         foreach ($context->chunks() as $chunkIndex => $chunk) {
 
+            $depth = 0;
+
             try {
                 $connection = DB::connection($context->connection());
+                $depth      = $connection->transactionLevel();
                 $insert     = fn (): bool => $connection->table($context->table())->insert($chunk);
 
                 // A failed statement aborts an enclosing PostgreSQL transaction
-                $connection->transactionLevel() > 0 ? $connection->transaction($insert) : $insert();
+                $depth > 0 ? $connection->transaction($insert) : $insert();
 
                 $accumulator->recordSuccess($chunk);
             } catch (\Throwable $exception) { // @phpstan-ignore catch.neverThrown
+                $this->rethrowIfTheTransactionEnded($context, $accumulator, $depth, $exception);
                 $this->handleChunkFailure($context->withChunkIndex($chunkIndex), $accumulator, $chunk, $exception);
             }
         }
+    }
+
+    /**
+     * Rethrow a failure that ended the caller's transaction, dropping every
+     * record buffered for the connection, since a retry defers its own again.
+     *
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
+     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
+     * @param  int  $depth
+     * @param  \Throwable  $exception
+     * @return void
+     *
+     * @throws \PDOException
+     * @throws \ErrorException
+     */
+    private function rethrowIfTheTransactionEnded(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator, int $depth, \Throwable $exception): void
+    {
+        if ($depth === 0 || !(new DeferredWriteTransactionDetector)->endsTransaction($exception)) {
+            return;
+        }
+
+        $this->settle($context->strategy(), array_slice($context->targets(), 0, $context->targetIndex()), $accumulator);
+
+        unset($this->buffer[$context->connection()]);
+
+        try {
+            $this->invalidateFlushedTables($this->tableNames($context->targets()));
+        } catch (\Throwable $failure) { // @phpstan-ignore catch.neverThrown
+            // A cache failure must not replace the error the caller retries on
+            FailureReporter::report($failure, 'Deferred write cache invalidation failed');
+        }
+
+        throw $exception;
     }
 
     /**
@@ -404,7 +444,8 @@ final class WritePool
 
         if ($context->strategy() === FlushStrategy::THROW) {
             // Per-chunk mirror of handleTargetRollback()'s whole-target retain
-            $retained = $this->retainUnprocessedRecords($context, $chunk);
+            $unprocessed = array_slice($context->chunks(), (int) $context->chunkIndex() + 1);
+            $retained    = $this->retainBuffer($context, array_merge($chunk, ...$unprocessed));
 
             throw new WritePoolFlushException($accumulator->toThrowResult($retained, $this->tableNames($context->targets())), $exception);
         }
@@ -433,23 +474,6 @@ final class WritePool
             'error'      => $exception->getMessage(),
             'exception'  => $exception,
         ]);
-    }
-
-    /**
-     * Retain the failed chunk and all unprocessed records in the buffer.
-     *
-     * The context must carry the chunk index (see withChunkIndex()).
-     *
-     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
-     * @param  list<array<string, mixed>>  $chunk
-     * @return int
-     */
-    private function retainUnprocessedRecords(WritePoolFlushContext $context, array $chunk): int
-    {
-        $chunkIndex      = (int) $context->chunkIndex();
-        $remainingChunks = array_slice($context->chunks(), $chunkIndex + 1);
-
-        return $this->retainBuffer($context, array_merge($chunk, ...$remainingChunks));
     }
 
     /**

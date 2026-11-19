@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\Services;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use SineMacula\ApiToolkit\Config\HttpSettings;
+use SineMacula\ApiToolkit\Http\Concurrency\IfMatch;
 use SineMacula\ApiToolkit\Services\Contracts\Actor;
 use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
 
@@ -23,6 +24,9 @@ final readonly class ServiceContext
 
     /** @var string The metadata key fromRequest() stores the client user agent under */
     public const string METADATA_USER_AGENT = 'user_agent';
+
+    /** @var string The metadata key fromRequest() stores the raw If-Match field under */
+    public const string METADATA_IF_MATCH = 'if_match';
 
     /**
      * Constructor.
@@ -91,6 +95,7 @@ final readonly class ServiceContext
             metadata: [
                 self::METADATA_IP         => $request->ip(),
                 self::METADATA_USER_AGENT => $request->userAgent(),
+                self::METADATA_IF_MATCH   => IfMatch::headerValue($request),
                 ...$metadata,
             ],
             correlationId: self::correlationIdFrom($request),

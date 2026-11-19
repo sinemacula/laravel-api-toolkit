@@ -9,6 +9,7 @@ use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Schema\AggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
+use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
@@ -26,6 +27,12 @@ final class RawSchemaValidator
 
     /** @var list<string> The declarations that put a field on the query surface */
     private const array QUERY_DECLARATIONS = ['filterable', 'sortable', 'searchable', 'traversable'];
+
+    /** @var array<string, string> The keys a rendered resource writes itself, mapped to what each carries */
+    private const array RESERVED_KEYS = ['_type' => 'the resource type', RelationLimit::TRUNCATED_KEY => 'the relations a response truncates'];
+
+    /** @var string The key the aggregates payload renders under, reserved where an aggregate is declared */
+    private const string AGGREGATES_KEY = 'aggregates';
 
     /** @var string The characters an aggregate key may hold, so it survives the relation alias and the SQL alias */
     private const string AGGREGATE_KEY_PATTERN = '/^[\w\p{M}]+$/Du';
@@ -69,7 +76,12 @@ final class RawSchemaValidator
             }
         }
 
-        foreach (self::collectSharedRelationDefects($relations, $traversed) as [$key, $defect]) {
+        $pairs = [
+            ...self::collectReservedKeyDefects($rawSchema, $aggregates !== []),
+            ...self::collectSharedRelationDefects($relations, $traversed),
+        ];
+
+        foreach ($pairs as [$key, $defect]) {
             $errors[] = new SchemaValidationError(
                 resourceClass: $resourceClass,
                 fieldKey: $key,
@@ -201,6 +213,10 @@ final class RawSchemaValidator
             $defects[] = sprintf('Aggregate key "%s" may hold only letters, digits and underscores', $present);
         }
 
+        if ((string) (int) $present === $present) {
+            $defects[] = sprintf('Aggregate key "%s" reads as an integer, which can turn the aggregates object into a JSON list', $present);
+        }
+
         if (isset($aggregates[$present])) {
             $defects[] = sprintf('Aggregate key "%s" is already declared by "%s"', $present, $aggregates[$present]);
         } else {
@@ -211,6 +227,36 @@ final class RawSchemaValidator
 
         if (strlen($attribute) > self::MAX_ATTRIBUTE_BYTES) {
             $defects[] = sprintf('Aggregate attribute "%s" is longer than %d bytes, which PostgreSQL truncates', $attribute, self::MAX_ATTRIBUTE_BYTES);
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Collect the key and defect of each field that a rendered resource would
+     * overwrite.
+     *
+     * @param  array<string, array<string, mixed>>  $rawSchema
+     * @param  bool  $aggregated
+     * @return list<array{string, string}>
+     */
+    private static function collectReservedKeyDefects(array $rawSchema, bool $aggregated): array
+    {
+        $reserved = self::RESERVED_KEYS;
+
+        if ($aggregated) {
+            $reserved[self::AGGREGATES_KEY] = 'the relation aggregates the resource declares';
+        }
+
+        $defects = [];
+
+        foreach ($reserved as $key => $purpose) {
+
+            if (!isset($rawSchema[$key]) || self::aggregateFunction($rawSchema[$key]) !== null) {
+                continue;
+            }
+
+            $defects[] = [$key, sprintf('The key "%s" is reserved for %s', $key, $purpose)];
         }
 
         return $defects;

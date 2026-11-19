@@ -1280,8 +1280,9 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that each function reads its raw value with its own cast, and that
-     * an aggregate over zero related rows loaded as null is omitted.
+     * Test that each function reads its raw value with its own cast, that a
+     * column aggregate loaded as null renders null, and that one never loaded
+     * is left out.
      *
      * @return void
      */
@@ -1314,7 +1315,45 @@ final class ValueResolverTest extends TestCase
             'has_posts'    => true,
             'posts_sum_id' => 15.0,
             'posts_avg_id' => 7.0,
+            'posts_max_id' => null,
         ], $this->resolver->resolveAggregatesPayload(new JsonResource($owner), $schema, 'users', null));
+    }
+
+    /**
+     * Test that a count or existence check loaded as null is left out, since
+     * neither documents a null.
+     *
+     * @return void
+     */
+    public function testResolveAggregatesPayloadLeavesOutANullCountOrExistenceCheck(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('users')->andReturn(null);
+
+        $owner  = (new User)->setRawAttributes(['aggregate_posts_count' => null, 'aggregate_posts_exists' => null]);
+        $schema = $this->aggregateSchema(
+            $this->aggregate('posts_count', AggregateFunction::COUNT),
+            $this->aggregate('posts_exists', AggregateFunction::EXISTS),
+        );
+
+        self::assertSame([], $this->resolver->resolveAggregatesPayload($owner, $schema, 'users', null));
+    }
+
+    /**
+     * Test that a transformer receives a column aggregate's null, as a field
+     * transformer receives a null field.
+     *
+     * @return void
+     */
+    public function testResolveAggregatesPayloadPassesANullToItsTransformers(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('users')->andReturn(null);
+
+        $owner  = (new User)->setRawAttributes(['aggregate_posts_sum_id' => null]);
+        $schema = $this->aggregateSchema($this->aggregate('posts_sum_id', AggregateFunction::SUM, 'id', transformers: [
+            static fn (mixed $resource, mixed $value): string => get_debug_type($value),
+        ]));
+
+        self::assertSame(['posts_sum_id' => 'null'], $this->resolver->resolveAggregatesPayload($owner, $schema, 'users', null));
     }
 
     /**
@@ -1371,7 +1410,7 @@ final class ValueResolverTest extends TestCase
 
     /**
      * Test that the value is read raw, never through an owner accessor named
-     * like the loaded attribute.
+     * like the loaded attribute, which supplies nothing when it is not loaded.
      *
      * @return void
      */
@@ -1393,9 +1432,11 @@ final class ValueResolverTest extends TestCase
             }
         };
 
-        $owner->setRawAttributes(['aggregate_posts_count' => '3']);
-
         $schema = $this->aggregateSchema($this->aggregate('posts_count', AggregateFunction::COUNT));
+
+        self::assertSame([], $this->resolver->resolveAggregatesPayload($owner, $schema, 'users', null));
+
+        $owner->setRawAttributes(['aggregate_posts_count' => '3']);
 
         self::assertSame(['posts_count' => 3], $this->resolver->resolveAggregatesPayload($owner, $schema, 'users', null));
     }
@@ -1474,6 +1515,25 @@ final class ValueResolverTest extends TestCase
         );
 
         self::assertSame(['lines_min_status' => 'BANNED', 'lines_count' => 21], $this->resolver->resolveAggregatesPayload($owner, $schema, 'owners', null));
+    }
+
+    /**
+     * Test that a guard hides a minimum before the related cast reads it, so a
+     * value the cast refuses never surfaces.
+     *
+     * @return void
+     */
+    public function testResolveAggregatesPayloadGuardsAMinimumBeforeReadingIt(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('owners')->andReturn(null);
+
+        $owner  = (new AggregateOwner)->setRawAttributes(['aggregate_hidden_status' => 'bogus', 'aggregate_withheld_status' => 'bogus']);
+        $schema = $this->aggregateSchema(
+            $this->aggregate('hidden_status', AggregateFunction::MIN, 'status', 'lines', guards: [static fn (): bool => false]),
+            $this->aggregate('withheld_status', AggregateFunction::MAX, 'status', 'lines', callerGuards: [static fn (): bool => false]),
+        );
+
+        self::assertSame([], $this->resolver->resolveAggregatesPayload($owner, $schema, 'owners', null));
     }
 
     /**

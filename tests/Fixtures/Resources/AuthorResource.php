@@ -5,16 +5,17 @@ declare(strict_types = 1);
 namespace Tests\Fixtures\Resources;
 
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
 
 /**
  * Fixture author resource.
  *
- * Maps the User model and eager-loads two soft-deleting child relations through
- * distinct resources - one that opts in to trashed visibility and one that does
- * not - so a single request can prove the cascade is gated independently per
- * relation.
+ * Maps the User model and eager-loads and counts two soft-deleting child
+ * relations through distinct resources - one that opts in to trashed visibility
+ * and one that does not - so a single request can prove the cascade is gated
+ * independently per relation.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -40,6 +41,8 @@ final class AuthorResource extends ApiResource
             Field::scalar('name'),
             Relation::to('articles', ArticleResource::class),
             Relation::to('comments', CommentResource::class),
+            Count::of('articles')->default(),
+            Count::of('comments')->default(),
         );
     }
 }
