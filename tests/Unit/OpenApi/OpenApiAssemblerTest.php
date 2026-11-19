@@ -53,6 +53,7 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Concerns\CreatesDocumentTables;
 use Tests\Concerns\ValidatesOpenApiDocuments;
@@ -557,6 +558,26 @@ final class OpenApiAssemblerTest extends TestCase
         self::assertIsArray($schemes);
         self::assertArrayHasKey('bearerAuth', $schemes);
         self::assertArrayHasKey('cookieAuth', $schemes);
+    }
+
+    /**
+     * Test that a configured scheme with a numeric name is defined under that
+     * name, although PHP keys the requirement naming it by integer.
+     *
+     * @return void
+     */
+    public function testNumericSchemeNameIsDefined(): void
+    {
+        $this->config()->set('auth.guards.partner', ['driver' => 'partner']);
+        $this->config()->set('api-toolkit.openapi.security.drivers', [
+            'partner' => ['name' => '2024', 'definition' => ['type' => 'apiKey', 'in' => 'header', 'name' => 'X-Partner']],
+        ]);
+
+        $this->router()->get('reports', [PathFixtureController::class, 'index'])->middleware('auth:partner');
+
+        $schemes = $this->assemble()['components']['securitySchemes'];
+
+        self::assertSame(['2024' => ['type' => 'apiKey', 'in' => 'header', 'name' => 'X-Partner']], $schemes);
     }
 
     /**
@@ -1170,6 +1191,7 @@ final class OpenApiAssemblerTest extends TestCase
         );
         $catalogue->method('getStructuralOperators')->willReturn(['$and', '$or']);
         $catalogue->method('getErrorCatalogue')->willReturn($this->app->make(ErrorCatalogueReader::class)->read());
+        $catalogue->method('getPageSize')->willReturn(new PageSize(0, 50));
 
         return $catalogue;
     }

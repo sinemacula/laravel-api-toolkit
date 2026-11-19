@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
+use SineMacula\ApiToolkit\Schema\Concerns\DeclaresUnindexedSort;
+
 /**
  * Relation schema helper for nested resource fields.
  *
@@ -12,6 +14,8 @@ namespace SineMacula\ApiToolkit\Schema;
  */
 final class Relation extends BaseDefinition
 {
+    use DeclaresUnindexedSort;
+
     /** @var class-string|null Child ApiResource class */
     private ?string $resource = null;
 
@@ -168,6 +172,7 @@ final class Relation extends BaseDefinition
                 'fields'      => $this->fields,
                 'constraint'  => $this->constraint,
                 'limit'       => $this->limit,
+                ...$this->sortAttributes(),
                 ...$this->commonAttributes(),
             ], static fn ($value) => $value !== null),
         ];

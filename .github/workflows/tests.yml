@@ -49,6 +49,9 @@ jobs:
             -   name: PHPUnit
                 run: composer test:coverage
 
+            -   name: Assert the line coverage floor
+                run: .github/scripts/assert-line-coverage.sh clover.xml 100
+
             -   name: Benchmark smoke
                 run: composer bench:smoke
 

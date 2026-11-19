@@ -151,7 +151,14 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         self::assertStringStartsWith('select users.id, users.name, (select count(*) from posts', $sql);
         self::assertSame(1, $aggregates['Alice']['posts_count']);
         self::assertTrue($aggregates['Alice']['has_published_posts']);
-        self::assertSame(['posts_count' => 0, 'has_published_posts' => false], $aggregates['Bob']);
+        self::assertSame([
+            'posts_count'          => 0,
+            'has_published_posts'  => false,
+            'posts_sum_id'         => null,
+            'posts_avg_id'         => null,
+            'posts_min_created_at' => null,
+            'last_posted_at'       => null,
+        ], $aggregates['Bob']);
     }
 
     /**
@@ -196,7 +203,9 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         self::assertContains('articles.summary', $columns);
         self::assertSame($scalarOff, $this->serialiseArticles('title,slug,summary_excerpt', 'views:desc'));
 
-        self::assertSame(['*'], $this->captureArticleColumns('title,author', 'views:desc'));
+        $relationColumns = ['articles.title', 'articles.id', 'articles.deleted_at', 'articles.user_id', 'articles.views'];
+
+        self::assertSame($relationColumns, $this->captureArticleColumns('title,author', 'views:desc'));
         self::assertSame($relationOff, $this->serialiseArticles('title,author', 'views:desc'));
     }
 

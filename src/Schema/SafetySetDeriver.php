@@ -5,6 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOneOrMany;
+use Illuminate\Support\Str;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Contracts\Versioned;
 
@@ -28,14 +30,18 @@ final readonly class SafetySetDeriver
     ) {}
 
     /**
-     * Derive the per-model safety-set columns for a narrowed query.
+     * Derive the per-model safety-set columns for a narrowed query, or fall
+     * back naming the eager-loaded relation whose keys cannot be proven.
+     *
+     * A relation with an inverse sets the parent on its results after their
+     * nested loads, replacing those with the narrowed parent.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array<int, string>  $eagerLoadedRelations
+     * @param  array<int|string, mixed>  $eagerLoads
      * @param  array<int, string>  $orderColumns
-     * @return array<int, string>
+     * @return \SineMacula\ApiToolkit\Schema\NarrowingDecision
      */
-    public function derive(Model $model, array $eagerLoadedRelations, array $orderColumns): array
+    public function derive(Model $model, array $eagerLoads, array $orderColumns): NarrowingDecision
     {
         $columns = [$model->getKeyName()];
 
@@ -49,34 +55,46 @@ final readonly class SafetySetDeriver
             $columns[] = $model->getVersionColumn();
         }
 
-        $columns = array_merge($columns, $this->relationParentKeys($model, $eagerLoadedRelations));
-        $columns = array_merge($columns, $orderColumns);
+        foreach ($this->relationNames($eagerLoads) as $name) {
 
-        return $this->intersectWithRealColumns($model, $columns);
+            $relation = $this->schemaIntrospector->resolveRelation($name, $model);
+            $keys     = $relation === null ? null : $this->schemaIntrospector->parentKeysFor($relation);
+
+            if ($keys === null || ($relation instanceof HasOneOrMany && $relation->getInverseRelationship() !== null)) {
+                return NarrowingDecision::fallback($name);
+            }
+
+            $columns = [...$columns, ...$keys];
+        }
+
+        return NarrowingDecision::narrow($this->intersectWithRealColumns($model, [...$columns, ...$orderColumns]));
     }
 
     /**
-     * Collect the parent-side keys of the resolvable eager-loaded relations.
+     * Extract the model's own relation names from an eager-load map.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  array<int, string>  $relationKeys
+     * Scoped relations are keyed by path; plain ones are list values, and a
+     * `relation:columns` entry names its relation before the colon.
+     *
+     * @param  array<int|string, mixed>  $eagerLoads
      * @return array<int, string>
      */
-    private function relationParentKeys(Model $model, array $relationKeys): array
+    private function relationNames(array $eagerLoads): array
     {
-        $keys = [];
+        $names = [];
 
-        foreach ($relationKeys as $relationKey) {
-            $relation = $this->schemaIntrospector->resolveRelation($relationKey, $model);
+        foreach ($eagerLoads as $key => $value) {
 
-            if ($relation === null) {
+            $path = is_string($key) ? $key : $value;
+
+            if (!is_string($path)) {
                 continue;
             }
 
-            $keys = array_merge($keys, $this->schemaIntrospector->parentKeysFor($relation));
+            $names[] = Str::before(Str::before($path, '.'), ':');
         }
 
-        return $keys;
+        return array_unique($names);
     }
 
     /**

@@ -19,12 +19,14 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\FilterValueShape;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
+use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\InOperator;
@@ -37,10 +39,13 @@ use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Article;
+use Tests\Fixtures\Models\Comment;
 use Tests\Fixtures\Models\Device;
 use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\CommentResource;
 use Tests\Fixtures\Resources\DeepTraversalPostResource;
 use Tests\Fixtures\Resources\DeviceResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -68,6 +73,10 @@ final class FilterApplierTest extends TestCase
 
     /** @var string */
     private const string OPERATOR_CONTAINS = '$contains';
+
+    /** @var string The SQLite clause matching a string element of the context document */
+    private const string CONTAINS_STRING = 'exists (select 1 from json_each("users"."context") where json_type("users"."context") <> ?'
+        . ' and "json_each"."type" = ? and "json_each"."value" = ?)';
 
     /** @var string */
     private const string BETWEEN_BOUNDS = 'The $between condition on "id" must be a list of two values, [low, high].';
@@ -108,7 +117,12 @@ final class FilterApplierTest extends TestCase
 
         $this->operatorRegistry = $this->app->make(OperatorRegistry::class);
 
-        $this->applier = new FilterApplier(new FilterValueGuard(new ColumnLiteral($this->app->make(SchemaIntrospectionProvider::class))));
+        $introspector = $this->app->make(SchemaIntrospectionProvider::class);
+
+        $this->applier = new FilterApplier(
+            new FilterValueGuard(new ColumnLiteral($introspector)),
+            new RelationTrashedGate($introspector, Request::create('/'), [Article::class => ArticleResource::class, Comment::class => CommentResource::class]),
+        );
     }
 
     /**
@@ -334,17 +348,18 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that $contains with an array uses whereJsonContains.
+     * Test that a $contains list adds one clause per item, joined by AND.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithContainsArrayUsesWhereJsonContains(): void
+    public function testApplyWithContainsListRequiresEveryItem(): void
     {
-        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => ['php']]]);
+        $query = $this->applyFilters(['name' => 'Alice', 'context' => [self::OPERATOR_CONTAINS => ['php', 'rust']]]);
 
-        self::assertNotEmpty($result->getQuery()->wheres);
+        self::assertStringEndsWith('where "users"."name" = ? and ' . self::CONTAINS_STRING . ' and ' . self::CONTAINS_STRING, $query->toSql());
+        self::assertSame(['Alice', 'object', 'text', 'php', 'object', 'text', 'rust'], $query->getBindings());
     }
 
     /**
@@ -358,24 +373,8 @@ final class FilterApplierTest extends TestCase
     {
         $query = $this->applyFilters(['name' => 'Alice', 'context' => [self::OPERATOR_CONTAINS => 'php,rust']]);
 
-        $contains = 'exists (select 1 from json_each("users"."context") where "json_each"."value" is ?)';
-
-        self::assertStringEndsWith('where "users"."name" = ? and (' . $contains . ' or ' . $contains . ')', $query->toSql());
-        self::assertSame(['Alice', 'php', 'rust'], $query->getBindings());
-    }
-
-    /**
-     * Test that $contains with a plain string uses whereJsonContains.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testApplyWithContainsPlainStringUsesWhereJsonContains(): void
-    {
-        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => 'php']]);
-
-        self::assertNotEmpty($result->getQuery()->wheres);
+        self::assertStringEndsWith('where "users"."name" = ? and (' . self::CONTAINS_STRING . ' or ' . self::CONTAINS_STRING . ')', $query->toSql());
+        self::assertSame(['Alice', 'object', 'text', 'php', 'object', 'text', 'rust'], $query->getBindings());
     }
 
     /**
@@ -656,6 +655,54 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Provide relation filters under each trashed state with the clause each
+     * compiles to.
+     *
+     * @return iterable<string, array{string, array<string, mixed>, string}>
+     */
+    public static function trashedRelationFilterProvider(): iterable
+    {
+        $articles = '(select * from "articles" where "users"."id" = "articles"."user_id"';
+        $comments = '(select * from "comments" where "users"."id" = "comments"."user_id"';
+
+        yield 'relation document, live only' => ['', ['articles' => []], 'exists ' . $articles . ' and "articles"."deleted_at" is null)'];
+        yield 'relation document, with trashed' => ['with', ['articles' => []], 'exists ' . $articles . ')'];
+        yield 'relation document, only trashed' => ['only', ['articles' => []], 'exists ' . $articles . ' and "articles"."deleted_at" is not null)'];
+        yield 'existence, with trashed' => ['with', ['$has' => ['articles']], 'exists ' . $articles . ')'];
+        yield 'absence, only trashed' => ['only', ['$hasnt' => ['articles']], 'not exists ' . $articles . ' and "articles"."deleted_at" is not null)'];
+        yield 'absence, live only' => ['', ['$hasnt' => ['articles']], 'not exists ' . $articles . ' and "articles"."deleted_at" is null)'];
+        yield 'closed relation, with trashed' => ['with', ['$has' => ['comments']], 'exists ' . $comments . ' and "comments"."deleted_at" is null)'];
+        yield 'closed relation document, only trashed' => ['only', ['comments' => []], 'exists ' . $comments . ' and "comments"."deleted_at" is null)'];
+    }
+
+    /**
+     * Test that a relation subquery sees trashed rows only where the relation
+     * opts in, under the requested state.
+     *
+     * @param  string  $trashed
+     * @param  array<string, mixed>  $filters
+     * @param  string  $where
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('trashedRelationFilterProvider')]
+    public function testRelationSubqueryFollowsTheTrashedStateWhereTheRelationOptsIn(string $trashed, array $filters, string $where): void
+    {
+        ApiQuery::parse(Request::create('/', 'GET', $trashed === '' ? [] : ['trashed' => $trashed]));
+
+        $surface = $this->declaredSurface(
+            relations  : ['articles', 'comments'],
+            resourceMap: [Article::class => ArticleResource::class, Comment::class => CommentResource::class],
+        );
+
+        $query = $this->applier->apply((new User)->newQuery(), $filters, $this->operatorRegistry, $surface);
+
+        self::assertSame('select * from "users" where ' . $where, $query->toSql());
+    }
+
+    /**
      * Test that a custom operator adding no clause is refused, beside another
      * condition and inside a relation.
      *
@@ -817,7 +864,7 @@ final class FilterApplierTest extends TestCase
         yield '$le' => [['id' => ['$le' => 1]], '"users"."id" <= ?'];
         yield '$in' => [['name' => ['$in' => ['Alice', 'Bob']]], '"users"."name" in (?, ?)'];
         yield '$between' => [['id' => ['$between' => [1, 5]]], '"users"."id" between ? and ?'];
-        yield '$contains' => [['context' => [self::OPERATOR_CONTAINS => 'php']], 'exists (select 1 from json_each("users"."context") where "json_each"."value" is ?)'];
+        yield '$contains' => [['context' => [self::OPERATOR_CONTAINS => 'php']], self::CONTAINS_STRING];
         yield '$null' => [['organization_id' => ['$null' => true]], '"users"."organization_id" is null'];
         yield '$notNull' => [['organization_id' => ['$notNull' => true]], '"users"."organization_id" is not null'];
     }

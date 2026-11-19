@@ -132,13 +132,7 @@ final readonly class ResourceSchemaBuilder
         $properties = [];
         $limited    = [];
 
-        foreach ($compiled->getFieldKeys() as $fieldKey) {
-            $field = $compiled->getField($fieldKey);
-
-            if ($field === null) {
-                continue;
-            }
-
+        foreach ($compiled->getFields() as $fieldKey => $field) {
             $property = $this->buildFieldProperty($fieldKey, $field, $modelClass, $built);
 
             // Capping precedes transforming, so overrides still truncate
@@ -150,7 +144,7 @@ final readonly class ResourceSchemaBuilder
         }
 
         if ($compiled->getAggregateDefinitions() !== []) {
-            $properties[self::AGGREGATES_PROPERTY] ??= $this->buildAggregatesProperty($compiled, $modelClass);
+            $properties[self::AGGREGATES_PROPERTY] = $this->buildAggregatesProperty($compiled, $modelClass);
         }
 
         if ($limited !== []) {
@@ -324,7 +318,8 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Build the aggregates property, keyed by each aggregate's present key.
+     * Build the aggregates property, keyed by each aggregate's present key, and
+     * the order key of each sortable one.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
      * @param  class-string  $modelClass
@@ -333,9 +328,20 @@ final readonly class ResourceSchemaBuilder
     private function buildAggregatesProperty(CompiledSchema $compiled, string $modelClass): array
     {
         $properties = [];
+        $sortable   = $compiled->getSortableMetrics();
 
         foreach ($compiled->getAggregateDefinitions() as $presentKey => $definition) {
-            $properties[$presentKey] = $this->resolver->resolveAggregate($definition, $modelClass);
+
+            $property = $this->resolver->resolveAggregate($definition, $modelClass);
+            $key      = CompiledSchema::AGGREGATE_SORT_PREFIX . $presentKey;
+
+            if (isset($sortable[$key])) {
+                $conditional = $definition->callerGuards === [] ? [] : ['conditional' => true];
+
+                $property[self::QUERY_SURFACE_KEY] = ['sort' => ['key' => $key, 'indexed' => false, 'reason' => $definition->unindexedReason, ...$conditional]];
+            }
+
+            $properties[$presentKey] = $property;
         }
 
         return ['type' => 'object', 'properties' => $properties];
@@ -455,7 +461,8 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Describe what an order may ask of the field's column.
+     * Describe what an order may ask of the field's column, or of the columns
+     * of the resource a sortable relation renders.
      *
      * `indexed` is the resource's claim (no exemption recorded), not a database
      * reading.
@@ -466,6 +473,12 @@ final readonly class ResourceSchemaBuilder
      */
     private function sortSurface(CompiledFieldDefinition $field, CompiledSchema $compiled): ?array
     {
+        if ($field->relation !== null && $field->sortThroughReason !== null) {
+            $conditional = $compiled->isConditionalSortRelation($field->relation) ? ['conditional' => true] : [];
+
+            return ['prefix' => $field->relation, 'indexed' => false, 'reason' => $field->sortThroughReason, ...$conditional];
+        }
+
         if ($field->sortable === null || !in_array($field->sortable, $compiled->getSortableColumns(), true)) {
             return null;
         }

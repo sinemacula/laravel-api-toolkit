@@ -159,6 +159,30 @@ final class DocsDirectoryTest extends TestCase
     }
 
     /**
+     * Test that a directory that cannot be listed holds no Markdown files.
+     *
+     * @return void
+     */
+    public function testUnlistableDirectoryHoldsNoMarkdownFiles(): void
+    {
+        $locked = $this->writeDocsDirectory(['locked/a.md' => 'A.']) . '/locked';
+
+        chmod($locked, 0o000);
+
+        try {
+
+            if (is_readable($locked)) {
+                self::markTestSkipped('The user running the suite can list any directory.');
+            }
+
+            self::assertSame([], (new DocsDirectory)->markdownIn($locked));
+
+        } finally {
+            chmod($locked, 0o755);
+        }
+    }
+
+    /**
      * Get the config repository instance.
      *
      * @return \Illuminate\Contracts\Config\Repository

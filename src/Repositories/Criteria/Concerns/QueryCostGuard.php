@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 
 /**
@@ -17,14 +18,18 @@ use SineMacula\ApiToolkit\Query\QueryCostLimits;
 final class QueryCostGuard
 {
     /**
-     * Reject the request when it exceeds one of the flat caps.
+     * Reject the request when its page size exceeds the given ceiling or it
+     * exceeds one of the flat caps.
      *
+     * @param  \SineMacula\ApiToolkit\Query\PageSize  $pageSize
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function guard(): void
+    public function guard(PageSize $pageSize): void
     {
+        $pageSize->resolve(ApiQuery::getLimit());
+
         $limits = QueryCostLimits::fromConfig();
 
         $limits->enforce(QueryCostLimits::MAX_ORDER_KEYS, count(ApiQuery::getOrder()), 'order');
@@ -32,8 +37,9 @@ final class QueryCostGuard
     }
 
     /**
-     * Count the relation aggregates the request asks for across every resource
-     * type, rendered or not.
+     * Count the distinct relation aggregates the request asks for across every
+     * resource type, rendered or not, since a repeated or empty name loads
+     * nothing more.
      *
      * The parser refuses a type no catalogued resource carries, so the
      * catalogue names every type requested.
@@ -44,6 +50,6 @@ final class QueryCostGuard
     {
         $types = array_unique(array_map(static fn (string $resource): string => $resource::getResourceType(), ResourceTypeIndex::all()));
 
-        return array_sum(array_map(static fn (string $type): int => count(ApiQuery::getAggregates($type) ?? []), $types));
+        return array_sum(array_map(static fn (string $type): int => count(array_diff(array_unique(ApiQuery::getAggregates($type) ?? []), [''])), $types));
     }
 }

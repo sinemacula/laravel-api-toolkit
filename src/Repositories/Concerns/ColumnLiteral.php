@@ -106,8 +106,8 @@ final readonly class ColumnLiteral
     /**
      * Determine whether the value is a cursor boundary the column compares.
      *
-     * The paginator writes a date cast as a date-time without a zone, which a
-     * date column compares as its day.
+     * A date cast is stored as a date-time without a zone where dates are kept
+     * as text, which a date column compares as its day.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $column

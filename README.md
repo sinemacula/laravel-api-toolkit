@@ -113,7 +113,7 @@ Each built-in operator takes a value of one shape:
 | `$in`                      | a list, empty allowed | equal to any item; an empty list matches none  |
 | `$between`                 | `[low, high]`         | from low to high inclusive                     |
 | `$null`, `$notNull`        | `true`                | missing, or holding, a value                   |
-| `$contains`                | any JSON              | whose JSON document contains it                |
+| `$contains`                | one value or a list   | whose JSON array holds it, or every item       |
 
 `null` is never a value: a missing value is matched by `{"name":{"$null":true}}`, so `{"name":null}` is refused. Every
 value is also checked against the column's type, read from the schema catalogue. An integer column takes an integer, a
@@ -123,6 +123,11 @@ A date-time with an offset is converted to the application timezone, so a timest
 back as it is. A column cast to an enum takes only its cases' values, or a pure enum's lowercase names. A value outside
 its shape or its column's type is rejected with a 422 at its position, naming the form expected. Where the catalogue
 cannot be read, only the shape is checked.
+
+`$contains` matches an element of a JSON array, or a whole scalar document, of the same JSON type, so `1` matches
+neither `"1"` nor `true`. Its list must not be empty, and its items are not checked against the column's type. A string
+is never decoded as JSON; a comma-separated string matches any of its items, each a string. On MySQL an item also
+matches an element of a nested array.
 
 The entries of a filter document AND together, at every depth. `$and` and `$or` take a non-empty list of filter
 documents, each grouped on its own and joined by AND or OR:
@@ -246,20 +251,57 @@ all. It is unsupported beside a repository scope that adds `distinct`, `group by
 GET /users?order=last_name,first_name:desc
 ```
 
-A direction is `asc` (the default) or `desc`, in any case; anything else, including an empty suffix, is rejected with
-a `422` on `order.{column}` rather than ignored. `paginate()` appends the model key in the last direction when the
-order does not already include it, so rows tied on the requested columns never repeat or go missing between pages. The
-appended key needs no `sortable()` declaration and does not count against `max_order_keys`. A grouped read takes its
-group columns instead; a read grouped by an expression, filtered by `having` without groups, `distinct` on columns, or
-`distinct` without selecting the columns it would take gets nothing appended and needs a unique order of its own. A
-`sortable()` field names a column of the model's table, so a select alias a repository scope adds cannot be ordered by.
+A direction is `asc` (the default) or `desc`, in any case; anything else, including an empty suffix, is rejected with a
+`422` on `order.{column}` rather than ignored, as is a column ordered by twice. `paginate()` appends the model key in
+the last direction when the order does not already include it, so rows tied on the requested columns never repeat or go
+missing between pages. The appended key needs no `sortable()` declaration and does not count against `max_order_keys`. A
+grouped read takes its group columns instead; a read grouped by an expression, filtered by `having` without groups,
+`distinct` on columns, or `distinct` without selecting the columns it would take gets nothing appended and needs a
+unique order of its own. A `sortable()` field names a column of the model's table, so a select alias a repository scope
+adds cannot be ordered by.
 
 A cursor can only seek by a column that holds a value in every row, so a cursor-paginated read rejects `random` and
 any column the cached column catalogue reports as nullable, such as the `created_at` that `timestamps()` creates;
 declare the column `NOT NULL` to cursor-page by it. Offset pagination sorts by either. Columns a repository scope
 orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, does not carry a value for every
 ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column cannot hold is rejected
-with a `422` on `cursor`; restart from the first page.
+with a `422` on `cursor`; restart from the first page. A cursor carries each ordered column as the row stores it, not as
+the model casts it, so a microsecond timestamp, an enum or a value object seeks from exactly where its page ended. A
+model whose table has no column for its key is offset-paged without the appended key, and refused cursor pagination with
+a `422` on `pagination` unless the read is grouped and ordered.
+
+Filters and sorts compare by each column's collation, and each engine places NULLs its own way; the toolkit normalises
+neither. With default settings, MySQL matches `{"name":"alice"}` to `Alice` and sorts `anna`, `Ben`, `cara`;
+PostgreSQL matches case exactly and sorts by the database locale (`anna`, `Ben`, `cara` under `en_US.UTF-8`); SQLite
+matches and sorts byte by byte (`Ben`, `anna`, `cara`). An ascending sort puts NULLs first on MySQL and SQLite and last
+on PostgreSQL, and a descending sort the reverse.
+
+**Sorting by aggregates and relations** - an aggregate or a to-one relation declared `sortable()` can order a read.
+No index serves an order by a correlated subquery, so the declaration takes the reason the order may run unindexed:
+
+```php
+Count::of('posts')->sortable('Leaderboard; the active filter bounds the set'),
+Sum::of('orders', 'total', 'spend')->sortable('Admin list of a few thousand accounts'),
+Relation::to('customer', CustomerResource::class)->sortable('Back-office order list'),
+```
+
+```http
+GET /users?order=aggregates.posts_count:desc
+GET /orders?order=customer.name
+```
+
+An aggregate is ordered by `aggregates.{key}`, the path its value renders under, whether or not the request selects
+it. A relation is ordered by `{relation}.{column}`: the Eloquent relation name and a `sortable()` column of the
+resource the relation renders, one hop deep. Only a `BelongsTo`, or a `HasOne`, `MorphOne` or `HasOneThrough` declared
+with `latestOfMany()` or `ofMany()`, may be sortable, so the order always reads the row the response renders; schema
+validation reports any other. A sortable relation renders a resource, takes no `constrain()` and no row guard, and
+caller guards on the relation, the column or the aggregate hide the key as they hide the field.
+
+The order reads the stored value before transformers, runs the aggregate's constraint, the related model's global scopes
+and the request's `trashed` state, and counts once against `max_order_keys`. A relation key orders a row with no related
+row, or one a `withDefault()` relation fills in, as `NULL`, and an aggregate key orders an empty sum, average, minimum
+or maximum as `NULL` and an empty count as `0`; the engine places `NULL` first ascending on MySQL and SQLite and last on
+PostgreSQL. These keys cannot order a cursor-paginated read, which is refused with a `422` on `order.{key}`.
 
 **Page-size ceiling** - a `?limit` above `api-toolkit.parser.max_limit` (default 100) is rejected with a `422` naming
 the ceiling and the requested size, not reduced to the ceiling. Set the ceiling to `0` to disable it:
@@ -268,6 +310,20 @@ the ceiling and the requested size, not reduced to the ceiling. Set the ceiling 
 GET /users?limit=200   // 422, the ceiling is 100
 GET /users?limit=25    // honoured as-is
 ```
+
+A resource whose rows are expensive can lower the ceiling for itself. Its pages default to the lower of
+`parser.defaults.limit` and its ceiling, and the exported `limit` parameter and query surface docs state both:
+
+```php
+public static function maxLimit(): ?int
+{
+    return 25;
+}
+```
+
+It can only lower the configured ceiling: a value above it changes nothing, it applies alone while the configured
+ceiling is `0`, and a value below 1 throws a `LogicException`. `paginate()` and `withApiCriteria()` refuse a `limit`
+over it with the same `422`, for the resource the repository resolves, including one named with `usingResource()`.
 
 **Relation aggregates** - request declared aggregates per resource type by their keys. Requesting any aggregate replaces
 every default of that type, as `?fields` replaces `$default`. A type's aggregates apply wherever it renders, at the root
@@ -292,22 +348,24 @@ selects none. A resource embedded through a `MorphTo` relation or a `Polymorphic
 }
 ```
 
-**Pagination** - `?pagination=cursor` (or any `?cursor` token) selects cursor pagination; offset pagination is used
-otherwise. A non-empty offset page shorter than `limit`, or an empty first page, derives its total without a count.
-Any other page counts at most the rows through the last page `query_cost.max_offset` allows: past that, `meta.total` is
-those rows, `meta.total_capped` is `true` and `Total-Count` is absent, so read further with cursor pagination. That
-bounds the rows the count admits, not the rows it examines; set `max_offset` to `0` for exact, unbounded totals. A
-capped page is a `CappedLengthAwarePaginator`, which a container binding of `LengthAwarePaginator` does not replace. A
-`simplePaginate()` result renders the cursor envelope. Offset pages do not support an ungrouped aggregate projection
-such as `selectRaw('max(id) as id')`, which is one row rather than a pageable set, nor a `distinct` or union over a join
-without an explicit projection, which MySQL refuses to count.
+**Pagination** - `?pagination=cursor` (or any `?cursor` token) selects cursor pagination, and offset pagination is used
+otherwise. An empty `pagination` reads as absent; any other value is rejected with a `422`. A non-empty offset page
+shorter than `limit`, or an empty first page, derives its total without a count. Any other page counts at most the rows
+through the last page `query_cost.max_offset` allows: past that, `meta.total` is those rows, `meta.total_capped` is
+`true` and `Total-Count` is absent, so read further with cursor pagination. That bounds the rows the count admits, not
+the rows it examines; set `max_offset` to `0` for exact, unbounded totals. A capped page is a
+`CappedLengthAwarePaginator`, which a container binding of `LengthAwarePaginator` does not replace. A `simplePaginate()`
+result renders the cursor envelope. Offset pages do not support an ungrouped aggregate projection such as
+`selectRaw('max(id) as id')`, which is one row rather than a pageable set, nor a `distinct` or union over a join without
+an explicit projection, which MySQL refuses to count.
 
 **Soft deletes** - `?trashed=with` or `?trashed=only`, read as a `TrashedState` from `ApiQuery::getTrashed()`. The
 criteria layer applies it only where the model uses `SoftDeletes` and the resource opts in by overriding
 `allowsTrashed()`; anywhere else the request is refused with a 422 on `trashed`, as is any value other than `with` or
-`only`, so a client never mistakes live records for the ones it asked for. On a read through the criteria, an included
-relation follows the state where its own resource opts in and otherwise stays live; a read that applies no criteria,
-such as implicit route-model binding, only checks the value.
+`only`, so a client never mistakes live records for the ones it asked for. On a read through the criteria, a relation
+follows the state where its own resource opts in and otherwise stays live, wherever it is included, aggregated or
+filtered on (`$has` and `$hasnt` too). A read that applies no criteria, such as implicit route-model binding, only
+checks the value.
 
 ### Schema-Driven ApiResource
 
@@ -337,6 +395,7 @@ class UserResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
+            Field::scalar('id'),
             Field::scalar('name')->filterable(Capability::EXACT)->sortable()->searchable(SearchStrategy::SUBSTRING),
             Field::scalar('email')->filterable(Capability::EXACT)->searchable(SearchStrategy::SUBSTRING),
             Field::timestamp('created_at')->sortable(),
@@ -349,6 +408,11 @@ class UserResource extends ApiResource
             Exists::of('messages', 'has_unread_messages')->constrain(fn ($query) => $query->whereNull('read_at')),
         );
     }
+
+    public function getFullName(): string
+    {
+        return "{$this->first_name} {$this->last_name}";
+    }
 }
 ```
 
@@ -360,26 +424,29 @@ exported schema. The key defaults to Laravel's own attribute name and `as()` or 
 |-----------------------------------|-------------------------|---------------------------------------|
 | `Count::of('posts')`              | `posts_count`           | integer, `0` without related rows     |
 | `Exists::of('posts')`             | `posts_exists`          | boolean, `false` without related rows |
-| `Sum::of('orders', 'total')`      | `orders_sum_total`      | number                                |
-| `Average::of('orders', 'total')`  | `orders_avg_total`      | number                                |
-| `Min::of('variants', 'price')`    | `variants_min_price`    | the column's value                    |
-| `Max::of('orders', 'created_at')` | `orders_max_created_at` | the column's value                    |
+| `Sum::of('orders', 'total')`      | `orders_sum_total`      | number or `null`                      |
+| `Average::of('orders', 'total')`  | `orders_avg_total`      | number or `null`                      |
+| `Min::of('variants', 'price')`    | `variants_min_price`    | the column's value or `null`          |
+| `Max::of('orders', 'created_at')` | `orders_max_created_at` | the column's value or `null`          |
 
 `constrain()` narrows the related rows, `default()` includes the aggregate when the request names none, and `guard()`,
-`visibleTo()` and `transform()` work as on fields. A minimum or maximum is read the way the related model reads that
-column, so a timestamp renders as ISO 8601 and a cast enum as its value. Sum, average, minimum and maximum over zero
-related rows are omitted. `api-toolkit:schemas:validate` rejects an aggregate over a sensitive or missing column, a sum
-or average over a non-numeric column, a minimum or maximum the related model would read back through an accessor or a
-non-scalar cast, a `MorphTo` relation, and an `aggregate_<key>` attribute the owner model already uses as a column, cast
-or setter.
+`visibleTo()`, `transform()` and `openapi()` work as on fields. Sum, average, minimum and maximum are `null` over zero
+related rows. A sum or average is a JSON number on every engine, so a decimal column sums with float precision. A
+minimum or maximum is read the way the related model reads that column, so a timestamp renders as
+`2026-01-01T10:00:00.000000Z`, a `decimal:2` cast as an exact string such as `"12.50"` and a cast enum as its value. A
+key that reads as an integer, such as `12`, fails to compile. `api-toolkit:validate-schemas` rejects an aggregate over a
+sensitive or missing column, a sum or average over a non-numeric column, a minimum or maximum the related model would
+read back through an accessor or a non-scalar cast, a `MorphTo` relation, and an `aggregate_<key>` attribute the owner
+model already uses as a column, cast or setter.
 
 Only fields marked `filterable()` or `sortable()` can be queried, and `?search=` matches only fields marked
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. A column declared filterable with
-two capabilities fails to compile. `$default` lists the fields returned when the client sends no `?fields`, and the
-static `$fixed` the fields added to every selection, after those in `resources.fixed_fields`. Schema validation rejects
-a default or fixed field the resource does not declare. A tabular export has a column for each selected field, in the
-order selected: the requested fields, every field for `:all`, or the defaults. Relations are left out and fixed fields
-are not added.
+two capabilities fails to compile, as does a field named `_type` or `_truncated`, or one named `aggregates` beside a
+declared aggregate, since the response writes those keys itself. `$default` lists the fields returned when the client
+sends no `?fields`, and the static `$fixed` the fields added to every selection, after those in
+`resources.fixed_fields`. Schema validation rejects a default or fixed field the resource does not declare. A tabular
+export has a column for each selected field, in the order selected: the requested fields, every field for `:all`, or the
+defaults. Relations are left out and fixed fields are not added.
 
 **Guards** - `guard(fn ($resource, $request) => ...)` is a row guard and `visibleTo(fn ($request) => ...)` a caller
 guard; either hides the field, aggregate or relation when it returns exactly `false`. A query cannot honour a row guard
@@ -479,7 +546,8 @@ $with = UserResource::eagerLoadMapFor(UserResource::resolveFields());
 **Relation constraints and limits** - `constrain()` receives the relation itself, as a Laravel `with()` closure does, so
 `where()`, local scopes, `latest()` and pivot clauses such as `wherePivot()` all apply. A constraint may filter and
 order the relation but never bound it: a `limit()`, `take()` or `skip()` inside it that changes the relation's bound
-throws a `LogicException`. Bound a to-many relation with `limit()` instead:
+throws a `LogicException`, as does a `chaperone()` inside it while columns are narrowed; declare that on the relation
+method. Bound a to-many relation with `limit()` instead:
 
 ```php
 Relation::to('posts', PostResource::class)->limit(5)->constrain(fn ($query) => $query->latest()),
@@ -532,8 +600,8 @@ Validation checks that:
 - an ordered index leads with every `sortable()` column, unless the field carries `indexed()` or `unindexed()`.
 - an index on the connection serves every `searchable()` declaration in the shape its strategy needs.
 - no declaration names a column configured as sensitive.
-- every `limit()` sits on a to-many relation rendered through a child resource, every field over one relation shares
-  one limit, and no field is named `_truncated`.
+- every `limit()` sits on a to-many relation rendered through a child resource, and every field over one relation
+  shares one limit.
 
 Every resource a filter reaches through a `traversable()` relation is validated too, once per related model, whether or
 not the resource map lists it.
@@ -549,10 +617,10 @@ neither flag lets a defect pass. A searchable declaration on a connection listed
 `api-toolkit.search.unverified_connections` is not reported, since that listing already waives its index proof. Boot
 skips schema validation while this command runs, so the command reports everything itself.
 
-The index catalogue is read only during validation, never while a filter or sort is served. Three schema reads do sit
-on the request path, all cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads
-the table's column listing, search reads its index proof, and a cursor-paginated sort reads the column definitions to
-refuse a nullable key.
+Filters and sorts never read the index catalogue while they are served; only validation checks their index backing. Two
+schema reads do sit on the request path, both cached in the shared store: search reads its index proof, and one read of
+the table's column definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks, a
+paginated read's search for the key column and a cursor-paginated sort's refusal of a nullable key.
 
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
@@ -562,6 +630,15 @@ that column and the model reads it without an accessor, a public instance proper
 consult other attributes; Eloquent's built-in cast types, enums that do not name their own caster, and the casts under
 `Illuminate\Database\Eloquent\Casts` qualify. Any other field, such as one over an accessor or custom cast, or a
 computed, row-guarded or transformed field, leaves the select unnarrowed until it declares `needs()`.
+
+A relation field rendered by a child resource or a string accessor reads only its parent-side key, so it narrows with
+its parent. Each relation a repository read embeds selects the columns its child resource renders, plus its key, its
+soft-delete column and the keys it and the relations beneath it match on; a child field it cannot prove leaves that
+relation unnarrowed, as at the root. A relation stays unnarrowed when anything else may read its models: a field above
+it that leaves its own level unnarrowed, such as a compute without `needs()` or a scalar over a model accessor, a raw or
+accessor rendering of it, or an `extras()` path through it. A `MorphTo`, an unrecognised relation class and any graph
+holding a `chaperone()` relation are never narrowed, and a select a constraint or repository chose is kept. A
+`withDefault()` callback, model accessor or cast that reads an attribute the child does not render reads it as missing.
 
 An incomplete `needs()` returns wrong data rather than failing. Call
 `Model::preventAccessingMissingAttributes(! app()->isProduction())` in a service provider to catch it outside
@@ -585,8 +662,9 @@ class UserRepository extends ApiRepository
 }
 ```
 
-`withApiCriteria()` applies the request's filters, sorts, eager loads and limit. It returns a copy and leaves the
-repository it was called on untouched, so run the read through the returned value:
+`withApiCriteria()` applies the request's filters, sorts, eager loads and limit, and narrows the select to the
+requested fields. It returns a copy and leaves the repository it was called on untouched, so run the read through the
+returned value:
 
 ```php
 $users = $repository->withApiCriteria()->paginate();
@@ -603,6 +681,28 @@ if ($caller->isExternal()) {
 
 $users = $scoped->paginate();
 ```
+
+**Working on the filtered set** - `withApiFilters()` applies only the request's `filters`, `search` and `trashed`, under
+the same allowlist and filter cost budget. `order`, `limit`, `fields` and `aggregates` are not applied, and only the
+query parser checks them, so a bulk action sent the list screen's query string acts on every matching row. Persistent
+criteria, repository scopes, global scopes and a model's `$with` still apply, and the last of `withApiCriteria()` and
+`withApiFilters()` called on a handle wins. A terminal operation consumes the composition, so start each from its own
+call:
+
+```php
+$orders->withApiFilters()->update(['archived_at' => now()]);
+
+foreach ($orders->withApiFilters()->lazyById() as $order) {
+    $order->notifyCustomer();
+}
+
+$totals = $orders->withApiFilters()->query()->toBase()
+    ->selectRaw('status, count(*) as total')
+    ->groupBy('status')
+    ->pluck('total', 'status');
+```
+
+Through `paginate()`, `limit` is still the page size; render pages through `withApiCriteria()`.
 
 **Outside a request** - criteria apply only under a parsed query: the one `ParseApiQuery` parsed, or a snapshot given
 to `ApiQuery::using()`. Applied under none, as in a queued job, a console command or a route without the middleware,
@@ -621,10 +721,10 @@ ArchiveInvoices::make(new ArchiveInvoicesInput(ApiQuery::snapshot()))
     ->dispatch();
 
 // ArchiveInvoices::handle()
-return ApiQuery::using($this->input->query->without('order', 'fields'), function (): int {
+return ApiQuery::using($this->input->query, function (): int {
     $archived = 0;
 
-    foreach ($this->invoices->withApiCriteria()->lazyById() as $invoice) {
+    foreach ($this->invoices->withApiFilters()->lazyById() as $invoice) {
         $invoice->archive();
         $archived++;
     }
@@ -635,8 +735,8 @@ return ApiQuery::using($this->input->query->without('order', 'fields'), function
 
 - Read and render inside the callback. A `LazyCollection` keeps its filters after `using()` returns, but a resource
   rendered later reads the restored query, and a resource resolves its fields once, so build it where it renders.
-- Work that changes which rows match iterates with `lazyById()` on a snapshot `without('order')`. Keyset iteration
-  after a client order skips rows, and so does offset `lazy()` as the set changes.
+- Work that changes which rows match iterates with `withApiFilters()->lazyById()`, which ignores the client's order.
+  Keyset iteration after a client order skips rows, and so does offset `lazy()` as the set changes.
 - `allowsTrashed()` and field guards see the worker's console request, which is not reconstructed, so a carried
   `trashed` the worker's gate refuses, or a carried key a caller guard hides, fails the job.
 
@@ -672,6 +772,8 @@ Two overrides cover what the catalogue cannot show:
 - `indexed('users_lower_name_index')` names the index behind the column, such as an expression or partial index. The
   name must exist on the table; what it covers is not checked.
 - `unindexed('the table is bounded at a few hundred rows')` records a deliberate exemption. The reason is required.
+
+A sortable aggregate or relation is never index-backed, so its `sortable()` carries the exemption's reason itself.
 
 **Random ordering** - `?order=random` is disabled by default. Enable it with
 `api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_REPOSITORIES_ALLOW_RANDOM_ORDER=true`); while disabled,
@@ -752,8 +854,10 @@ rows wait for the next deferral outside a transaction or for the boundary flush,
 not undo them. A flush that does run inside an open transaction joins it: `flushWrites()` called there, or a boundary
 flush while an outer transaction is still open, such as a sync-queued job dispatched inside one. Each chunk then runs in
 its own savepoint, or each table with `deferred_writes.transactional`, so a failure rolls back only that chunk or table
-and the transaction stays usable. A deadlock is the exception: the database may already have rolled back the whole
-transaction.
+and the transaction stays usable. A deadlock or a lost connection ends the transaction instead, whatever `on_failure`
+says: the flush rethrows the error as is, so `DB::transaction()` retries a deadlock, and drops every row buffered for
+that connection. The retried closure defers its own rows again; rows deferred before the transaction opened are lost
+with it.
 
 `api-toolkit.deferred_writes.on_failure` picks what happens when a flush fails:
 
@@ -808,10 +912,10 @@ $this->orders->persist($order, $this->input->attributes);
 `findForUpdate()` reads the row afresh under `lockForUpdate()`. A missing or scoped-out row is a `404` before the
 precondition is checked, and an `If-Match` naming neither the current tag nor `*` throws `PreconditionFailedException`
 (`412`, code `10114`), which rolls the transaction back. A malformed `If-Match` matches nothing. It throws a
-`LogicException` outside a transaction on the model's connection, or on a handle carrying `withApiCriteria()`.
-`ServiceContext::fromRequest()` captures the field, so a queued run compares on the worker, where a `412` fails the job
-without a retry. A request without the field writes unconditionally: add `RequireIfMatch` to a route group to answer a
-`PUT`, `PATCH` or `DELETE` without it with a `428` (code `10115`), while other methods pass.
+`LogicException` outside a transaction on the model's connection, or on a handle carrying `withApiCriteria()` or
+`withApiFilters()`. `ServiceContext::fromRequest()` captures the field, so a queued run compares on the worker, where a
+`412` fails the job without a retry. A request without the field writes unconditionally: add `RequireIfMatch` to a route
+group to answer a `PUT`, `PATCH` or `DELETE` without it with a `428` (code `10115`), while other methods pass.
 
 Tags compare weakly on both sides, where RFC 9110 compares `If-Match` strongly: the toolkit's tags are weak, and proxies
 such as nginx weaken a strong tag they compress. A `412` carries no tag, so the client re-reads before retrying. The
@@ -919,6 +1023,23 @@ Every error renders as one envelope:
 `meta` is the exception's own meta, always an object, and is left out when empty. With
 `api-toolkit.exceptions.include_debug_info` on (null follows `app.debug`), an error with an underlying exception adds
 that exception's message, class, file, line and trace under `error.debug`, beside the meta rather than inside it.
+
+`detail` is the code's catalogue text unless the exception is raised with its own, which the application translates:
+
+```php
+throw new ConflictException(detail: __('invitations.already_invited'));
+```
+
+A policy denial's message and code are client-facing. `Response::deny('Your trial has ended.', 'TRIAL_EXPIRED')` renders
+`403` with that `detail` and `meta.reason` `TRIAL_EXPIRED`; an int code is carried as an int and a backed enum as its
+value. A denial without a message keeps the catalogue detail, a `denyWithStatus()` denial keeps a known status, and one
+rendered as a server error carries neither. `denyAsNotFound()` answers exactly as a missing record, while
+`denyAsNotFound('...')` gives up that concealment for its message. `abort()` text is never the detail: throw an
+`ApiException` with `detail:` instead.
+
+A `ValidationException` raised with a standard client-error status other than `422`, such as `->status(429)`, renders
+with that status as `HTTP_ERROR` (`10113`), its field errors in `meta`. Any other status renders `422`, and an
+`api-toolkit.exceptions.map` target for `ValidationException` keeps its own status.
 
 An `ApiException` declares the shape of its meta by implementing `DefinesErrorMeta`, and the exported document types
 `error.meta` for its code with it. A subclass inherits the declaration with the code:
@@ -1199,7 +1320,7 @@ one is left undocumented; either still lists the relation in `_truncated` when i
 Every operation also lists the errors it can return, derived from the route: an unauthenticated request behind auth
 middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
 `AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the route
-has parameters, a validation failure when the operation accepts a request body or the toolkit's query parameters, a
+binds a parameter, a validation failure when the operation accepts a request body or the toolkit's query parameters, a
 refusal behind a rate limit, a missing `If-Match` on a `PUT`, `PATCH` or `DELETE` behind `RequireIfMatch`, and an
 unhandled exception always. Each is documented as the exception map renders it: by default a `401`, `403`, `404`, `422`,
 `428`, `429` and `500`. A list operation also documents the query cost refusal under `422` while any query cost cap is
@@ -1235,6 +1356,12 @@ field that emits that column unchanged, with no model accessor, takes precedence
 enum leaves the parameter a string. A constraint outside the syntax PHP and JavaScript read alike is not exported, so
 the binding types the parameter, or it stays a string: `\d`, `\w` and an unescaped `.` match more characters in PHP, so
 write `[0-9]` or `whereNumber()` to export the constraint.
+
+A route with optional parameters exports a path for each URL it matches, every parameter in it required:
+`reports/{period?}` exports `/reports` and `/reports/{period}`. As the router matches it, only the trailing run of
+optional parameters can be left out, so `{locale?}/reports` exports `/{locale}/reports` alone. A shorter path without
+parameters documents a missing record only when the route's domain has parameters or a route default fills one it leaves
+out. Any shorter path is left to another route exporting it under the same method.
 
 Every enum the document references, through a model cast, a request field validated by `Rule::enum()` or `PureEnum`, or
 a string-backed enum bound to a route parameter, becomes one named component listing its values under `enum`: the
@@ -1377,7 +1504,10 @@ of:
 A route with several methods keeps the id on its first method and appends each later method to it, in the order the
 route declares them: a `PUT|PATCH` route named `users.update` exports `users.update` and `users.update.patch`, so
 reordering a `match()` changes its ids. An id taken from the method and path already starts with its method, and is not
-suffixed. Ids must be unique across every audience; two operations claiming one id fail the export, naming both.
+suffixed. The paths of a route with optional parameters share its id: the shortest keeps it and each longer path appends
+the optional parameters it adds, ahead of any method, so a `GET|POST` route named `reports.show` on `reports/{period?}`
+exports `reports.show`, `reports.show.post`, `reports.show.period` and `reports.show.period.post`. Ids must be unique
+across every audience; two operations claiming one id fail the export, naming both.
 
 `#[Operation]` declares an action's `id`, its `summary`, or both. The summary is exported whether or not ids are on:
 
@@ -1390,10 +1520,12 @@ public function update(UpdateUserRequest $request): JsonResponse {}
 
 An operation's description is read from `<docs_path>/operations/<id>.md`, and `audiences/<name>/operations/<id>.md`
 replaces it for that audience; an empty file blanks it. A later method without its own file takes the first method's, so
-`users.update.md` describes both methods unless `users.update.patch.md` exists. Filenames are matched byte for byte, so
-ids differing only in case cannot share a case-insensitive filesystem. Files and directories whose names start with `.`
-are ignored. Every export checks the files of every audience, and fails on an operation file while ids are off, on one
-matching no exported operation, and on one under the directory of an audience that is not configured.
+`users.update.md` describes both methods unless `users.update.patch.md` exists. Every path of a route with optional
+parameters falls back the same way to its shortest path's first method, unless its ids are taken from the method and
+path. Filenames are matched byte for byte, so ids differing only in case cannot share a case-insensitive filesystem.
+Files and directories whose names start with `.` are ignored. Every export checks the files of every audience, and fails
+on an operation file while ids are off, on one matching no exported operation, and on one under the directory of an
+audience that is not configured.
 
 #### Tags
 
@@ -1416,16 +1548,16 @@ audience uses fails the export, as does a tag file that matches no tag, under th
 
 ### Metadata Invalidation
 
-Schema metadata (column listings and definitions, index catalogues, relation lookups and the
-model-to-resource map) is cached in the application's cache store and shared by every process. The Octane and queue
+Schema metadata (column definitions, index catalogues, relation lookups and the model-to-resource
+map) is cached in the application's cache store and shared by every process. The Octane and queue
 boundary flushes reset only each worker's per-operation state, so a schema or mapping change needs the shared entries
 retired explicitly. Every metadata key is stored under a generation held in the same store; replacing the generation
-makes every earlier entry unreachable in every process at once. A column listing that reads empty, as it does before
-its table exists, is never stored.
+makes every earlier entry unreachable in every process at once. Column definitions that read empty, as they do before
+their table exists, are never stored.
 
 Under Octane the boundary is the end of every request, task and tick; on a queue worker it is the end of every job
 attempt, including one that fails or is released for a retry. It drops the memoised generation, the per-operation
-index proofs, the in-memory column listings, column definitions and index catalogues, the field and eager-load memos
+index proofs, the in-memory column definitions and index catalogues, the field and eager-load memos
 and the query parser's state. The compiled schemas, search plans, field-to-column maps and cast reflections come from
 code alone, so they live for the worker and are rebuilt only when it restarts; reload Octane and queue workers on
 every deploy. An application that runs its own reset can call `CacheManager::flush()`; a second reset is harmless.

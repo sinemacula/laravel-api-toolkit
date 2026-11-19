@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -12,10 +13,15 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationColumnNarrower;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -66,7 +72,7 @@ final class EagerLoadApplierTest extends TestCase
         $provider->expects(self::never())->method('eagerLoadMapFor');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, null, 'users', $this->gate());
+        $result = $this->applier->apply($query, $provider, null, 'users', $this->gate(), $this->narrower());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -87,7 +93,7 @@ final class EagerLoadApplierTest extends TestCase
         $provider->expects(self::never())->method('eagerLoadMapFor');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, null, $this->gate());
+        $result = $this->applier->apply($query, $provider, UserResource::class, null, $this->gate(), $this->narrower());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -107,7 +113,7 @@ final class EagerLoadApplierTest extends TestCase
         $provider->expects(self::never())->method('eagerLoadMapFor');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, \stdClass::class, 'users', $this->gate());
+        $result = $this->applier->apply($query, $provider, \stdClass::class, 'users', $this->gate(), $this->narrower());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -137,7 +143,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query = (new User)->newQuery();
-        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
+        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
     }
 
     /**
@@ -165,7 +171,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query = (new User)->newQuery();
-        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
+        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
     }
 
     /**
@@ -202,7 +208,7 @@ final class EagerLoadApplierTest extends TestCase
             ->method('eagerLoadAggregatesFor');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, $resource::class, 'fieldless_users', $this->gate());
+        $result = $this->applier->apply($query, $provider, $resource::class, 'fieldless_users', $this->gate(), $this->narrower());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -229,7 +235,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
 
         self::assertArrayHasKey('organization', $result->getEagerLoads());
     }
@@ -256,7 +262,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -295,7 +301,7 @@ final class EagerLoadApplierTest extends TestCase
             ]);
 
         $query = (new User)->newQuery();
-        $sql   = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate())->toSql();
+        $sql   = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower())->toSql();
 
         self::assertStringContainsString('count(*)', $sql);
         self::assertStringContainsString('"aggregate_posts_count"', $sql);
@@ -331,7 +337,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
 
         self::assertEmpty($result->getQuery()->columns ?? []);
     }
@@ -357,9 +363,53 @@ final class EagerLoadApplierTest extends TestCase
             ->method('eagerLoadAggregatesFor');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate());
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
 
         self::assertNull($result->getQuery()->columns);
+    }
+
+    /**
+     * Test that only the entries the eager loader accepts are loaded.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testApplyLoadsOnlyTheEntriesTheEagerLoaderAccepts(): void
+    {
+        $this->parseRequest(new Request(['fields' => ['users' => 'id,name']]));
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider->method('eagerLoadMapFor')->willReturn(['organization', 'profile' => 42, 'posts' => null]);
+
+        $query = $this->applier->apply((new User)->newQuery(), $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
+
+        self::assertSame(['organization'], array_keys($query->getEagerLoads()));
+    }
+
+    /**
+     * Test that an embedded relation selects only the columns its child
+     * resource renders, with its keys.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testApplyNarrowsAnEmbeddedRelationToItsRenderedColumns(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [PostResource::class, TagResource::class, UserResource::class]);
+
+        $this->parseRequest(new Request(['fields' => ['users' => 'name,posts', 'posts' => 'title']]));
+
+        $query = $this->applier->apply((new User)->newQuery(), new ResourceMetadataService, UserResource::class, 'users', $this->gate(), $this->narrower());
+
+        $constraint = $query->getEagerLoads()['posts'];
+        $relation   = Relation::noConstraints(static fn (): Relation => (new User)->posts());
+
+        $constraint($relation);
+
+        self::assertSame(['posts.title', 'posts.id', 'posts.user_id'], $relation->getQuery()->getQuery()->columns);
     }
 
     /**
@@ -393,5 +443,19 @@ final class EagerLoadApplierTest extends TestCase
             new Request,
             [],
         );
+    }
+
+    /**
+     * Build a relation column narrower for the applier under test.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationColumnNarrower
+     */
+    private function narrower(): RelationColumnNarrower
+    {
+        assert($this->app !== null);
+
+        $introspector = $this->app->make(SchemaIntrospectionProvider::class);
+
+        return new RelationColumnNarrower(new SafetySetDeriver($introspector), $introspector);
     }
 }

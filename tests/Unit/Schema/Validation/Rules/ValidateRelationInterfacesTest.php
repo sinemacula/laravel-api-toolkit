@@ -119,32 +119,6 @@ final class ValidateRelationInterfacesTest extends TestCase
     }
 
     /**
-     * Test that null field definitions are skipped without errors.
-     *
-     * @return void
-     */
-    public function testSkipsNullFieldDefinitions(): void
-    {
-        $reflection = new \ReflectionClass(CompiledSchema::class);
-        $schema     = $reflection->newInstanceWithoutConstructor();
-
-        $reflection->getProperty('fields')->setValue($schema, [
-            'ghost' => null,
-            'bad'   => $this->makeField(\stdClass::class),
-        ]);
-        $reflection->getProperty('aggregates')->setValue($schema, []);
-
-        $rule   = new ValidateRelationInterfaces;
-        $errors = [];
-
-        $warnings = $this->captureWarnings(fn () => $rule->validate('App\Http\Resources\UserResource', null, $schema), $errors);
-
-        self::assertSame([], $warnings);
-        self::assertCount(1, $errors);
-        self::assertSame('bad', $errors[0]->fieldKey);
-    }
-
-    /**
      * Test that validation continues past non-existent classes.
      *
      * @return void
@@ -206,32 +180,6 @@ final class ValidateRelationInterfacesTest extends TestCase
         self::assertCount(2, $errors);
         self::assertSame('first', $errors[0]->fieldKey);
         self::assertSame('second', $errors[1]->fieldKey);
-    }
-
-    /**
-     * Run the given callback while capturing any raised PHP warnings.
-     *
-     * @param  callable(): array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>  $callback
-     * @param  array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>  $errors
-     * @return array<int, string>
-     */
-    private function captureWarnings(callable $callback, array &$errors): array
-    {
-        $warnings = [];
-
-        set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
-            $warnings[] = $message;
-
-            return true;
-        });
-
-        try {
-            $errors = $callback();
-        } finally {
-            restore_error_handler();
-        }
-
-        return $warnings;
     }
 
     /**
