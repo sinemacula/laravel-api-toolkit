@@ -206,7 +206,9 @@ return [
 
             // Extra or replacement driver mappings, keyed by auth driver name,
             // each with a scheme `name` and an OpenAPI security scheme
-            // `definition`. Built in: jwt, basic, sanctum, token, session
+            // `definition`. Built in: jwt, basic, sanctum, token, session. A
+            // mapping keeping a built-in name replaces its definition, and
+            // mappings sharing a name must share its definition
             'drivers' => [],
 
         ],
