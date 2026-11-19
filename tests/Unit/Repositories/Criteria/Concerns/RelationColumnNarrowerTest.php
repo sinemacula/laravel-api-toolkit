@@ -270,24 +270,27 @@ final class RelationColumnNarrowerTest extends TestCase
 
     /**
      * Test that a field its level cannot prove, which may read any loaded
-     * relation, leaves every relation beneath that level full, while a compute
-     * declaring its columns does not.
+     * relation, leaves every relation beneath that level full, while a sibling
+     * level and a compute declaring its columns still narrow.
      *
      * @return void
      */
     public function testAnUnprovenFieldLeavesEveryRelationBeneathItsLevelFull(): void
     {
         $author   = new ChildProjection(UserResource::class, ['name'], false);
-        $articles = ['articles' => new ChildProjection(ArticleResource::class, ['title', 'headline', 'author'], false), 'articles.author' => $author];
+        $articles = new ChildProjection(ArticleResource::class, ['title', 'headline', 'author'], false);
+        $nested   = ['articles' => $articles, 'articles.author' => $author, 'posts' => $this->posts()];
+        $computed = ['posts' => $this->posts(), 'posts.user' => $author];
 
         $accessor = $this->narrower()->decorate(['author'], new Article, ArticleResource::class, ['title', 'headline'], ['author' => $author]);
-        $nested   = $this->narrower()->decorate(['articles', 'articles.author'], new User, UserResource::class, ['name', 'articles'], $articles);
-        $compute  = $this->narrower()->decorate(['posts'], new User, UserResource::class, ['name', 'full_label'], ['posts' => $this->posts()]);
+        $beneath  = $this->narrower()->decorate(['articles', 'articles.author', 'posts'], new User, UserResource::class, ['name', 'articles', 'posts'], $nested);
+        $compute  = $this->narrower()->decorate(['posts', 'posts.user'], new User, UserResource::class, ['name', 'full_label'], $computed);
         $declared = $this->narrower()->decorate(['author'], new Article, ArticleResource::class, ['title', 'summary_excerpt'], ['author' => $author]);
 
         self::assertSame(['author'], $accessor);
-        self::assertSame(['articles', 'articles.author'], $nested);
-        self::assertSame(['posts'], $compute);
+        self::assertSame([0 => 'articles', 1 => 'articles.author'], array_filter($beneath, is_string(...)));
+        self::assertInstanceOf(\Closure::class, $beneath['posts'] ?? null);
+        self::assertSame(['posts', 'posts.user'], $compute);
         self::assertInstanceOf(\Closure::class, $declared['author'] ?? null);
     }
 
