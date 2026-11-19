@@ -11,7 +11,9 @@ use Illuminate\Support\Facades\Request;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Exceptions\FailureReporter;
+use SineMacula\ApiToolkit\Exceptions\PreconditionFailedException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Concurrency\IfMatch;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Concerns\OffsetPaginator;
@@ -34,6 +36,12 @@ abstract class ApiRepository extends Repository
 {
     use ResolvesResource;
 
+    /** The message for a locked read composed with request criteria */
+    private const string CRITERIA_MESSAGE = '%s::findForUpdate() cannot apply request criteria; call it on a handle without withApiCriteria() or withApiFilters().';
+
+    /** The message for a locked read outside a transaction on its connection */
+    private const string UNLOCKED_MESSAGE = '%s::findForUpdate() must run inside a transaction on the [%s] connection, or its lock is released at once.';
+
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter */
     private AttributeSetter $attributeSetter;
 
@@ -46,7 +54,8 @@ abstract class ApiRepository extends Repository
     /**
      * Set a custom resource class to be used.
      *
-     * Mutates this handle, so call it before withApiCriteria() copies it.
+     * Mutates this handle, so call it before withApiCriteria() or
+     * withApiFilters() copies it.
      *
      * @param  string|null  $resourceClass
      * @return $this
@@ -89,13 +98,24 @@ abstract class ApiRepository extends Repository
      */
     public function withApiCriteria(): static
     {
-        $criteria = $this->app->make(ApiCriteria::class); // @phpstan-ignore possiblyImpure.methodCall
+        return $this->withCriteria($this->makeApiCriteria(false)); // @phpstan-ignore argument.type
+    }
 
-        if ($this->customResourceClass) {
-            $criteria->usingResource($this->customResourceClass); // @phpstan-ignore possiblyImpure.methodCall
-        }
-
-        return $this->withCriteria($criteria); // @phpstan-ignore argument.type
+    /**
+     * Compose only the request's filters, search and trashed into the next
+     * query, for work on the whole filtered set.
+     *
+     * The order, limit, fields and aggregates are neither applied nor checked.
+     * Returns a copy, as withApiCriteria() does, and the last of the two called
+     * on a handle wins.
+     *
+     * @return static
+     *
+     * @phpstan-pure
+     */
+    public function withApiFilters(): static
+    {
+        return $this->withCriteria($this->makeApiCriteria(true)); // @phpstan-ignore argument.type
     }
 
     /**
@@ -156,6 +176,7 @@ abstract class ApiRepository extends Repository
      * @return bool
      *
      * @throws \InvalidArgumentException
+     * @throws \LogicException
      * @throws \ValueError
      */
     public function persist(Model $model, array|Collection $attributes): bool
@@ -167,6 +188,47 @@ abstract class ApiRepository extends Repository
         } finally {
             $this->invalidateCache();
         }
+    }
+
+    /**
+     * Find the model by its key under a row lock, refusing it when it fails the
+     * given If-Match precondition.
+     *
+     * Reads the stored row afresh, so call it inside the transaction that
+     * writes the model. Request criteria never select a row for writing.
+     *
+     * @param  int|string  $id
+     * @param  \SineMacula\ApiToolkit\Http\Concurrency\IfMatch|null  $ifMatch
+     * @return \Illuminate\Database\Eloquent\Model
+     *
+     * @throws \LogicException
+     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
+     * @throws \SineMacula\ApiToolkit\Exceptions\PreconditionFailedException
+     * @throws \Throwable
+     */
+    public function findForUpdate(int|string $id, ?IfMatch $ifMatch = null): Model
+    {
+        if ($this->getCriteria()->contains(static fn (mixed $criteria): bool => $criteria instanceof ApiCriteria)) {
+            throw new \LogicException(sprintf(self::CRITERIA_MESSAGE, static::class));
+        }
+
+        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
+        $query      = $this->query();
+        $connection = $query->getModel()->getConnection();
+
+        if ($connection->transactionLevel() === 0) {
+            throw new \LogicException(sprintf(self::UNLOCKED_MESSAGE, static::class, $connection->getName()));
+        }
+
+        $query->getQuery()->lockForUpdate();
+
+        $model = $query->findOrFail($id);
+
+        if ($ifMatch !== null && !$ifMatch->matches($model)) {
+            throw new PreconditionFailedException;
+        }
+
+        return $model;
     }
 
     /**
@@ -223,6 +285,25 @@ abstract class ApiRepository extends Repository
     protected function metadataCacheWriter(): MetadataCacheWriter
     {
         return $this->app->make(MetadataCacheWriter::class);
+    }
+
+    /**
+     * Make the API criteria for this handle's resource.
+     *
+     * @param  bool  $filtersOnly
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
+     *
+     * @phpstan-pure
+     */
+    private function makeApiCriteria(bool $filtersOnly): ApiCriteria
+    {
+        $criteria = $this->app->make(ApiCriteria::class, ['filtersOnly' => $filtersOnly]); // @phpstan-ignore possiblyImpure.methodCall
+
+        if ($this->customResourceClass) {
+            $criteria->usingResource($this->customResourceClass); // @phpstan-ignore possiblyImpure.methodCall
+        }
+
+        return $criteria;
     }
 
     /**

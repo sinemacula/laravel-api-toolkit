@@ -28,6 +28,9 @@ use Tests\Fixtures\Enums\UserStatus;
 #[CoversClass(EnumSchemaBuilder::class)]
 final class EnumSchemaBuilderTest extends TestCase
 {
+    /** @var string The message naming a component name and both its sources */
+    private const string COLLISION_MESSAGE = 'The OpenAPI component schema name "%s" is derived by both [%s] and [%s]. Disambiguate one with the #[SchemaName] attribute.';
+
     /**
      * Test that a string-backed enum emits a string component of its values.
      *
@@ -110,8 +113,7 @@ final class EnumSchemaBuilderTest extends TestCase
     public function testTwoEnumsSharingABasenameThrow(): void
     {
         $this->expectException(SchemaNameCollisionException::class);
-        $this->expectExceptionMessage(Tier::class);
-        $this->expectExceptionMessage(RankingTier::class);
+        $this->expectExceptionMessage(sprintf(self::COLLISION_MESSAGE, 'Tier', Tier::class, RankingTier::class));
 
         (new EnumSchemaBuilder)->build([Tier::class, RankingTier::class]);
     }
@@ -137,8 +139,7 @@ final class EnumSchemaBuilderTest extends TestCase
     public function testEnumCollidingWithAReservedResourceNameThrows(): void
     {
         $this->expectException(SchemaNameCollisionException::class);
-        $this->expectExceptionMessage('App\UserStatusResource');
-        $this->expectExceptionMessage(UserStatus::class);
+        $this->expectExceptionMessage(sprintf(self::COLLISION_MESSAGE, 'UserStatus', 'App\UserStatusResource', UserStatus::class));
 
         (new EnumSchemaBuilder)->build([UserStatus::class], ['UserStatus' => 'App\UserStatusResource']);
     }
