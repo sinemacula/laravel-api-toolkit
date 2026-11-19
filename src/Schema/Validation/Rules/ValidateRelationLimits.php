@@ -36,17 +36,14 @@ final class ValidateRelationLimits implements SchemaValidationRule
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
     {
-        $errors = in_array(RelationLimit::TRUNCATED_KEY, $schema->getFieldKeys(), true)
-            ? [$this->error($resourceClass, RelationLimit::TRUNCATED_KEY, sprintf('The key "%s" is reserved for the relations a response truncates', RelationLimit::TRUNCATED_KEY))]
-            : [];
+        $errors = [];
 
         /** @var array<string, int> $limits */
         $limits = [];
 
-        foreach ($schema->getFieldKeys() as $key) {
+        foreach ($schema->getFields() as $key => $field) {
 
-            $field  = $schema->getField($key);
-            $defect = $field?->relation === null ? null : $this->describeFieldDefect($field, $field->relation, $modelClass, $limits);
+            $defect = $field->relation === null ? null : $this->describeFieldDefect($field, $field->relation, $modelClass, $limits);
 
             if ($defect === null) {
                 continue;

@@ -132,13 +132,7 @@ final readonly class ResourceSchemaBuilder
         $properties = [];
         $limited    = [];
 
-        foreach ($compiled->getFieldKeys() as $fieldKey) {
-            $field = $compiled->getField($fieldKey);
-
-            if ($field === null) {
-                continue;
-            }
-
+        foreach ($compiled->getFields() as $fieldKey => $field) {
             $property = $this->buildFieldProperty($fieldKey, $field, $modelClass, $built);
 
             // Capping precedes transforming, so overrides still truncate
@@ -150,7 +144,7 @@ final readonly class ResourceSchemaBuilder
         }
 
         if ($compiled->getAggregateDefinitions() !== []) {
-            $properties[self::AGGREGATES_PROPERTY] ??= $this->buildAggregatesProperty($compiled, $modelClass);
+            $properties[self::AGGREGATES_PROPERTY] = $this->buildAggregatesProperty($compiled, $modelClass);
         }
 
         if ($limited !== []) {

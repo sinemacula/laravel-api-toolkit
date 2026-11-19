@@ -116,28 +116,6 @@ final class ValidateAccessorsTest extends TestCase
     }
 
     /**
-     * Test that null field definitions are skipped without errors.
-     *
-     * @return void
-     */
-    public function testSkipsNullFieldDefinitions(): void
-    {
-        $schema = $this->createSchemaWithRawFields([
-            'ghost' => null,
-            'bad'   => $this->makeField(''),
-        ]);
-
-        $rule   = new ValidateAccessors;
-        $errors = [];
-
-        $warnings = $this->captureWarnings(fn () => $rule->validate('App\Http\Resources\UserResource', null, $schema), $errors);
-
-        self::assertSame([], $warnings);
-        self::assertCount(1, $errors);
-        self::assertSame('bad', $errors[0]->fieldKey);
-    }
-
-    /**
      * Test that validation continues past fields with null accessors.
      *
      * @return void
@@ -272,48 +250,5 @@ final class ValidateAccessorsTest extends TestCase
             guards: [],
             transformers: [],
         );
-    }
-
-    /**
-     * Run the given callback while capturing any raised PHP warnings.
-     *
-     * @param  callable(): array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>  $callback
-     * @param  array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>  $errors
-     * @return array<int, string>
-     */
-    private function captureWarnings(callable $callback, array &$errors): array
-    {
-        $warnings = [];
-
-        set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
-            $warnings[] = $message;
-
-            return true;
-        });
-
-        try {
-            $errors = $callback();
-        } finally {
-            restore_error_handler();
-        }
-
-        return $warnings;
-    }
-
-    /**
-     * Create a CompiledSchema with raw fields set through reflection.
-     *
-     * @param  array<string, mixed>  $fields
-     * @return \SineMacula\ApiToolkit\Schema\CompiledSchema
-     */
-    private function createSchemaWithRawFields(array $fields): CompiledSchema
-    {
-        $reflection = new \ReflectionClass(CompiledSchema::class);
-        $schema     = $reflection->newInstanceWithoutConstructor();
-
-        $reflection->getProperty('fields')->setValue($schema, $fields);
-        $reflection->getProperty('aggregates')->setValue($schema, []);
-
-        return $schema;
     }
 }

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -29,6 +30,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $status
  * @property int $views
  * @property \Tests\Fixtures\Models\User|null $author
+ * @property \Illuminate\Database\Eloquent\Collection<int, \Tests\Fixtures\Models\Tag> $tags
  * @property \Illuminate\Database\Eloquent\Collection<int, \Tests\Fixtures\Models\Article> $siblingArticles
  * @property \Illuminate\Database\Eloquent\Collection<int, \Tests\Fixtures\Models\Comment> $authorComments
  *
@@ -54,6 +56,16 @@ final class Article extends Model
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * Get the article's tags.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Tests\Fixtures\Models\Tag, $this>
+     */
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class);
     }
 
     /**

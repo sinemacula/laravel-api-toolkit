@@ -29,6 +29,7 @@ use SineMacula\Repositories\Contracts\CriteriaInterface;
 use Tests\Concerns\CreatesDeferredWriteTargets;
 use Tests\Concerns\CreatesDocumentTables;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\AuditEntry;
 use Tests\Fixtures\Models\Document;
@@ -61,7 +62,7 @@ use Tests\TestCase;
 #[Group('database')]
 final class ApiRepositoryTest extends TestCase
 {
-    use CreatesDeferredWriteTargets, CreatesDocumentTables, InteractsWithNonPublicMembers;
+    use CreatesDeferredWriteTargets, CreatesDocumentTables, InteractsWithNonPublicMembers, RecordsStatements;
 
     /** @var string */
     private const string ALICE_EMAIL = 'alice@example.com';
@@ -70,7 +71,7 @@ final class ApiRepositoryTest extends TestCase
     private const string BOB_EMAIL = 'bob@example.com';
 
     /** @var string The refusal of a locked read composed with request criteria */
-    private const string CRITERIA_MESSAGE = '%s::findForUpdate() cannot apply request criteria; call it on a handle without withApiCriteria().';
+    private const string CRITERIA_MESSAGE = '%s::findForUpdate() cannot apply request criteria; call it on a handle without withApiCriteria() or withApiFilters().';
 
     /** @var string The refusal of a locked read outside a transaction */
     private const string UNLOCKED_MESSAGE = '%s::findForUpdate() must run inside a transaction on the [%s] connection, or its lock is released at once.';
@@ -111,6 +112,83 @@ final class ApiRepositoryTest extends TestCase
         self::assertFalse(
             $this->repository->getCriteria()->contains(fn ($c) => $c instanceof ApiCriteria),
         );
+
+        self::assertFalse($this->getProperty($this->apiCriteriaOf($result), 'filtersOnly'));
+    }
+
+    /**
+     * Test that withApiFilters composes filters-only criteria into a copy,
+     * leaving the original.
+     *
+     * @return void
+     */
+    public function testWithApiFiltersComposesFiltersOnlyCriteriaIntoACopy(): void
+    {
+        $result = $this->repository->withApiFilters();
+
+        self::assertNotSame($this->repository, $result);
+        self::assertTrue($this->getProperty($this->apiCriteriaOf($result), 'filtersOnly'));
+
+        self::assertFalse(
+            $this->repository->getCriteria()->contains(fn ($c) => $c instanceof ApiCriteria),
+        );
+    }
+
+    /**
+     * Test that the last of withApiCriteria and withApiFilters called on a
+     * handle leaves the only API criteria.
+     *
+     * @return void
+     */
+    public function testTheLastApiCompositionReplacesTheOther(): void
+    {
+        $filtered = $this->repository->withApiCriteria()->withApiFilters();
+
+        self::assertCount(1, $filtered->getCriteria());
+        self::assertTrue($this->getProperty($this->apiCriteriaOf($filtered), 'filtersOnly'));
+
+        $paged = $this->repository->withApiFilters()->withApiCriteria();
+
+        self::assertCount(1, $paged->getCriteria());
+        self::assertFalse($this->getProperty($this->apiCriteriaOf($paged), 'filtersOnly'));
+    }
+
+    /**
+     * Test that withApiFilters carries an already-set resource over, and that
+     * naming one afterwards reaches the criteria.
+     *
+     * @return void
+     */
+    public function testWithApiFiltersCarriesTheNamedResource(): void
+    {
+        $after = $this->repository->withApiFilters()->usingResource(FilterableUserResource::class);
+
+        self::assertSame(FilterableUserResource::class, $this->getProperty($this->apiCriteriaOf($after), 'customResourceClass'));
+
+        $before = $this->repository->usingResource(UserResource::class)->withApiFilters();
+
+        self::assertSame(UserResource::class, $this->getProperty($this->apiCriteriaOf($before), 'customResourceClass'));
+    }
+
+    /**
+     * Test that a filters-only page past the offset cap is still refused.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testWithApiFiltersPagePastTheOffsetCapIsRefused(): void
+    {
+        Config::set('api-toolkit.query_cost.max_offset', 10);
+
+        $this->parseRequest(new Request(['limit' => '5', 'page' => '4']));
+
+        try {
+            $this->repository->usingResource(UserResource::class)->withApiFilters()->paginate();
+            self::fail('Expected the page to be refused.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame(['parameter' => 'page', 'pointer' => '', 'reason' => 'max_offset', 'limit' => 3, 'actual' => 4], $exception->getCustomMeta());
+        }
     }
 
     /**
@@ -868,11 +946,12 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that a repository with Cacheable serves cached data on later reads.
+     * Test that a repository with Cacheable serves a repeated read from the
+     * cache without querying.
      *
      * @return void
      */
-    public function testApiRepositorySubclassWithCacheableTraitReturnsCachedData(): void
+    public function testApiRepositorySubclassWithCacheableTraitServesARepeatedReadFromTheCache(): void
     {
         Config::set('cache.default', 'array');
 
@@ -884,11 +963,15 @@ final class ApiRepositoryTest extends TestCase
         $repository = $this->app->make(CacheableTagRepository::class);
 
         $firstRead  = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
-        $secondRead = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+        $secondRead = null;
 
-        self::assertCount(2, $firstRead);
-        self::assertCount(2, $secondRead);
-        self::assertTrue($repository->getCacheStatus()->isPopulated());
+        $statements = $this->recordStatements(static function () use ($repository, &$secondRead): void {
+            $secondRead = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+        });
+
+        self::assertStatementCount(0, $statements);
+        self::assertSame(['php', 'laravel'], $firstRead->pluck('name')->all());
+        self::assertEquals($firstRead, $secondRead);
     }
 
     /**
@@ -978,6 +1061,20 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
+     * Test that findForUpdate() refuses to apply the request's filters.
+     *
+     * @return void
+     */
+    public function testFindForUpdateRefusesRequestFilters(): void
+    {
+        $document = Document::create(['title' => 'Draft']);
+
+        $this->expectExceptionObject(new \LogicException(sprintf(self::CRITERIA_MESSAGE, DocumentRepository::class)));
+
+        $this->documents()->withApiFilters()->findForUpdate($document->id);
+    }
+
+    /**
      * Test that findForUpdate() refuses to lock outside a transaction on the
      * model's own connection.
      *
@@ -1005,6 +1102,21 @@ final class ApiRepositoryTest extends TestCase
         parent::defineDatabaseMigrations();
 
         $this->createDocumentTables();
+    }
+
+    /**
+     * Resolve the API criteria the given handle carries.
+     *
+     * @param  \Tests\Fixtures\Repositories\UserRepository  $repository
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
+     */
+    private function apiCriteriaOf(UserRepository $repository): ApiCriteria
+    {
+        $criteria = $repository->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
+
+        self::assertInstanceOf(ApiCriteria::class, $criteria);
+
+        return $criteria;
     }
 
     /**

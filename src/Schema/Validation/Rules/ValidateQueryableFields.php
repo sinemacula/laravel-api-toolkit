@@ -108,11 +108,9 @@ final readonly class ValidateQueryableFields implements SchemaValidationRule
     {
         $declared = [];
 
-        foreach ($schema->getFieldKeys() as $key) {
+        foreach ($schema->getFields() as $key => $field) {
 
-            $field = $schema->getField($key);
-
-            if ($field === null || ($field->filterable === null && $field->sortable === null)) {
+            if ($field->filterable === null && $field->sortable === null) {
                 continue;
             }
 
