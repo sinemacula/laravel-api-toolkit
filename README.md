@@ -259,6 +259,12 @@ the model casts it, so a microsecond timestamp, an enum or a value object seeks 
 model whose table has no column for its key is offset-paged without the appended key and refused cursor pagination with
 a `422` on `pagination`.
 
+Filters and sorts compare by each column's collation, and each engine places NULLs its own way; the toolkit normalises
+neither. With default settings, MySQL matches `{"name":"alice"}` to `Alice` and sorts `anna`, `Ben`, `cara`;
+PostgreSQL matches case exactly and sorts by the database locale (`anna`, `Ben`, `cara` under `en_US.UTF-8`); SQLite
+matches and sorts byte by byte (`Ben`, `anna`, `cara`). An ascending sort puts NULLs first on MySQL and SQLite and last
+on PostgreSQL, and a descending sort the reverse.
+
 **Page-size ceiling** - a `?limit` above `api-toolkit.parser.max_limit` (default 100) is rejected with a `422` naming
 the ceiling and the requested size, not reduced to the ceiling. Set the ceiling to `0` to disable it:
 
