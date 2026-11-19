@@ -301,7 +301,7 @@ final class GlobalScopeIsolationHttpTest extends TestCase
             [
                 '_type'      => 'tenant_users',
                 'id'         => $this->users['bob'],
-                'aggregates' => ['posts_count' => 0, 'posts_exists' => false],
+                'aggregates' => ['posts_count' => 0, 'posts_exists' => false, 'posts_sum_words' => null],
                 'name'       => 'bob',
                 'posts'      => [],
             ],

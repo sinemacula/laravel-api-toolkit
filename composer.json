@@ -18,6 +18,7 @@
     ],
     "require": {
         "php": "^8.3",
+        "ext-pdo": "*",
         "laravel/framework": "^13.39",
         "sinemacula/http-primitives-php": "^2.0",
         "sinemacula/laravel-repositories": "^3.2.3"

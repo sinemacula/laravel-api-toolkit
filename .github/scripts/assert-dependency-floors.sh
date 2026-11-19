@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-requirements=$(jq -r '.require | to_entries[] | select(.key != "php") | "\(.key)\t\(.value)"' composer.json)
+requirements=$(jq -r '.require | to_entries[] | select(.key != "php" and (.key | startswith("ext-") | not)) | "\(.key)\t\(.value)"' composer.json)
 fail=0
 
 while IFS=$'\t' read -r name constraint; do

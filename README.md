@@ -246,7 +246,8 @@ a `422` on `order.{column}` rather than ignored. `paginate()` appends the model 
 order does not already include it, so rows tied on the requested columns never repeat or go missing between pages. The
 appended key needs no `sortable()` declaration and does not count against `max_order_keys`. A grouped read takes its
 group columns instead; a read grouped by an expression, filtered by `having` without groups, `distinct` on columns, or
-`distinct` without selecting the columns it would take gets nothing appended and needs a unique order of its own.
+`distinct` without selecting the columns it would take gets nothing appended and needs a unique order of its own. A
+`sortable()` field names a column of the model's table, so a select alias a repository scope adds cannot be ordered by.
 
 A cursor can only seek by a column that holds a value in every row, so a cursor-paginated read rejects `random` and
 any column the cached column catalogue reports as nullable, such as the `created_at` that `timestamps()` creates;
@@ -299,9 +300,10 @@ without an explicit projection, which MySQL refuses to count.
 **Soft deletes** - `?trashed=with` or `?trashed=only`, read as a `TrashedState` from `ApiQuery::getTrashed()`. The
 criteria layer applies it only where the model uses `SoftDeletes` and the resource opts in by overriding
 `allowsTrashed()`; anywhere else the request is refused with a 422 on `trashed`, as is any value other than `with` or
-`only`, so a client never mistakes live records for the ones it asked for. On a read through the criteria, an included
-relation follows the state where its own resource opts in and otherwise stays live; a read that applies no criteria,
-such as implicit route-model binding, only checks the value.
+`only`, so a client never mistakes live records for the ones it asked for. On a read through the criteria, a relation
+follows the state where its own resource opts in and otherwise stays live, wherever it is included, aggregated or
+filtered on (`$has` and `$hasnt` too). A read that applies no criteria, such as implicit route-model binding, only
+checks the value.
 
 ### Schema-Driven ApiResource
 
@@ -360,24 +362,29 @@ exported schema. The key defaults to Laravel's own attribute name and `as()` or 
 |-----------------------------------|-------------------------|---------------------------------------|
 | `Count::of('posts')`              | `posts_count`           | integer, `0` without related rows     |
 | `Exists::of('posts')`             | `posts_exists`          | boolean, `false` without related rows |
-| `Sum::of('orders', 'total')`      | `orders_sum_total`      | number                                |
-| `Average::of('orders', 'total')`  | `orders_avg_total`      | number                                |
-| `Min::of('variants', 'price')`    | `variants_min_price`    | the column's value                    |
-| `Max::of('orders', 'created_at')` | `orders_max_created_at` | the column's value                    |
+| `Sum::of('orders', 'total')`      | `orders_sum_total`      | number or `null`                      |
+| `Average::of('orders', 'total')`  | `orders_avg_total`      | number or `null`                      |
+| `Min::of('variants', 'price')`    | `variants_min_price`    | the column's value or `null`          |
+| `Max::of('orders', 'created_at')` | `orders_max_created_at` | the column's value or `null`          |
 
 `constrain()` narrows the related rows, `default()` includes the aggregate when the request names none, and `guard()`,
-`visibleTo()` and `transform()` work as on fields. A minimum or maximum is read the way the related model reads that
-column, so a timestamp renders as ISO 8601 and a cast enum as its value. Sum, average, minimum and maximum over zero
-related rows are omitted. `api-toolkit:validate-schemas` rejects an aggregate over a sensitive or missing column, a sum
-or average over a non-numeric column, a minimum or maximum the related model would read back through an accessor or a
-non-scalar cast, a `MorphTo` relation, and an `aggregate_<key>` attribute the owner model already uses as a column, cast
-or setter.
+`visibleTo()`, `transform()` and `openapi()` work as on fields. Sum, average, minimum and maximum are `null` over zero
+related rows. A sum or average is a JSON number on every engine, so a decimal column sums with float precision. A
+minimum or maximum is read the way the related model reads that column, so a timestamp renders as
+`2026-01-01T10:00:00.000000Z`, a `decimal:2` cast as an exact string such as `"12.50"` and a cast enum as its value. A
+key that reads as an integer, such as `12`, fails to compile. `api-toolkit:validate-schemas` rejects an aggregate over a
+sensitive or missing column, a sum or average over a non-numeric column, a minimum or maximum the related model would
+read back through an accessor or a non-scalar cast, a `MorphTo` relation, and an `aggregate_<key>` attribute the owner
+model already uses as a column, cast or setter.
 
 Only fields marked `filterable()` or `sortable()` can be queried, and `?search=` matches only fields marked
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. A column declared filterable with
-two capabilities fails to compile. `$default` lists the fields returned when the client sends no `?fields`, and the
-static `$fixed` the fields added to every selection, after those in `resources.fixed_fields`. Schema validation rejects
-a default or fixed field the resource does not declare.
+two capabilities fails to compile, as does a field named `_type` or `_truncated`, or one named `aggregates` beside a
+declared aggregate, since the response writes those keys itself. `$default` lists the fields returned when the client
+sends no `?fields`, and the static `$fixed` the fields added to every selection, after those in
+`resources.fixed_fields`. Schema validation rejects a default or fixed field the resource does not declare. A tabular
+export has a column for each selected field, in the order selected: the requested fields, every field for `:all`, or the
+defaults. Relations are left out and fixed fields are not added.
 
 **Guards** - `guard(fn ($resource, $request) => ...)` is a row guard and `visibleTo(fn ($request) => ...)` a caller
 guard; either hides the field, aggregate or relation when it returns exactly `false`. A query cannot honour a row guard
@@ -386,7 +393,7 @@ without revealing what it hides, so a row-guarded field that is `filterable()`, 
 admits; any other caller is refused with the same 422 as an undeclared key, and the OpenAPI export marks the key
 `conditional`. A search matches the same columns for every caller, so a caller-guarded field may not be `searchable()`.
 A column everyone may query but only some may see is declared queryable on an unguarded field as well. A tabular export
-refuses a row-guarded field with `PerItemGuardedFieldException` and drops a caller-guarded column it hides.
+refuses a selected row-guarded field with `PerItemGuardedFieldException` and drops a caller-guarded column it hides.
 
 **Schema lifetime** - `schema()` runs once per resource class per worker, and its result is shared by every request
 the worker serves, under Octane and on queue workers alike. It must not read or capture the request, the user, the
@@ -530,8 +537,8 @@ Validation checks that:
 - an ordered index leads with every `sortable()` column, unless the field carries `indexed()` or `unindexed()`.
 - an index on the connection serves every `searchable()` declaration in the shape its strategy needs.
 - no declaration names a column configured as sensitive.
-- every `limit()` sits on a to-many relation rendered through a child resource, every field over one relation shares
-  one limit, and no field is named `_truncated`.
+- every `limit()` sits on a to-many relation rendered through a child resource, and every field over one relation
+  shares one limit.
 
 Every resource a filter reaches through a `traversable()` relation is validated too, once per related model, whether or
 not the resource map lists it.
@@ -638,6 +645,14 @@ return ApiQuery::using($this->input->query->without('order', 'fields'), function
 - `allowsTrashed()` and field guards see the worker's console request, which is not reconstructed, so a carried
   `trashed` the worker's gate refuses, or a carried key a caller guard hides, fails the job.
 
+**Joins** - every column the criteria, `scopeById()` and `scopeByIds()` emit is qualified with its table: the model's at
+the root, the related model's inside a relation filter. A repository scope may therefore join. Scopes run after the
+criteria, so a joining scope selects the base columns only where the criteria selected none
+(`$query->getQuery()->columns ??= ['users.*']`): joined columns would otherwise overwrite attributes, and `select()`
+would discard the narrowed projection and any requested aggregates. Alias the joined table, never the base table:
+Eloquent's relation filters and `whereKey()` name the base table, so `from('users as u')` is unsupported.
+`scopeById()` and `scopeByIds()` match the model's key unless given a column.
+
 **Allowlist** - only schema fields declared `filterable()`, `sortable()`, or `traversable()` are accepted, and any
 other key is rejected with a validation error. There is no opt-out: a resource that declares nothing is queryable by
 nothing. Each filter is checked as a (column, operator) pair against the declared capability, before any operator
@@ -742,8 +757,10 @@ rows wait for the next deferral outside a transaction or for the boundary flush,
 not undo them. A flush that does run inside an open transaction joins it: `flushWrites()` called there, or a boundary
 flush while an outer transaction is still open, such as a sync-queued job dispatched inside one. Each chunk then runs in
 its own savepoint, or each table with `deferred_writes.transactional`, so a failure rolls back only that chunk or table
-and the transaction stays usable. A deadlock is the exception: the database may already have rolled back the whole
-transaction.
+and the transaction stays usable. A deadlock or a lost connection ends the transaction instead, whatever `on_failure`
+says: the flush rethrows the error as is, so `DB::transaction()` retries a deadlock, and drops every row buffered for
+that connection. The retried closure defers its own rows again; rows deferred before the transaction opened are lost
+with it.
 
 `api-toolkit.deferred_writes.on_failure` picks what happens when a flush fails:
 
@@ -759,6 +776,63 @@ the event is still dispatched.
 `WritePool` is a scoped singleton, so after a deferred write `app(WritePool::class)->lastAutoFlushResult()` returns the
 outcome of the most recent automatic flush (`null` if none has run). Under `collect` and `log` this is the only
 in-process signal that an auto-flush failed.
+
+#### Concurrency
+
+A versioned model lets a write refuse to overwrite a state its client never read. Implement `Versioned` with the
+`HasVersion` trait and add the column:
+
+```php
+use SineMacula\ApiToolkit\Concerns\HasVersion;
+use SineMacula\ApiToolkit\Contracts\Versioned;
+
+class Order extends Model implements Versioned
+{
+    use HasVersion;
+}
+
+// Migration
+$table->unsignedBigInteger('version')->default(1);
+```
+
+Every insert stores `1` and every update stores the stored version plus one, quiet saves included; a clean save writes
+nothing. `const VERSION = 'revision'` names another column. Saving a changed model loaded without its version throws a
+`LogicException`. `persist()` advances the version once when only many-to-many relations change. A model can implement
+`Versioned` itself to version by another column, but `updated_at` holds whole seconds, so two writes in one second share
+a version.
+
+A single-item `ToolkitResource` of a versioned model answers with a weak `ETag`, kept on narrowed `?fields` reads;
+collections and nested resources carry none. A write reads its row with `findForUpdate()` inside the transaction that
+writes it, passing the request's `If-Match`:
+
+```php
+// handle() of a service
+$order = $this->orders->findForUpdate($this->input->id, IfMatch::fromContext($this->context()));
+
+$this->orders->persist($order, $this->input->attributes);
+```
+
+`findForUpdate()` reads the row afresh under `lockForUpdate()`. A missing or scoped-out row is a `404` before the
+precondition is checked, and an `If-Match` naming neither the current tag nor `*` throws `PreconditionFailedException`
+(`412`, code `10114`), which rolls the transaction back. A malformed `If-Match` matches nothing. It throws a
+`LogicException` outside a transaction on the model's connection, or on a handle carrying `withApiCriteria()`.
+`ServiceContext::fromRequest()` captures the field, so a queued run compares on the worker, where a `412` fails the job
+without a retry. A request without the field writes unconditionally: add `RequireIfMatch` to a route group to answer a
+`PUT`, `PATCH` or `DELETE` without it with a `428` (code `10115`), while other methods pass.
+
+Tags compare weakly on both sides, where RFC 9110 compares `If-Match` strongly: the toolkit's tags are weak, and proxies
+such as nginx weaken a strong tag they compress. A `412` carries no tag, so the client re-reads before retrying. The
+toolkit never answers `304`, and `cache.headers:etag` on these routes hashes the body, so it can answer `304` for a
+changed `?include`.
+
+These writes do not advance the version: `Model::query()->update()`, `upsert()`, `increment()` and `decrement()`, a soft
+`delete()`, `DB::table()`, `Relation::touch()`, and `attach()`, `detach()` or child saves outside `persist()`. Follow
+them with `markVersionChanged()` and a save. On SQLite `lockForUpdate()` compiles to nothing, and the database write
+lock turns a race into a busy error.
+
+The export documents the `ETag` on the show, store and update responses of a versioned resource, a required `If-Match`
+on the `PUT`, `PATCH` and `DELETE` operations behind `RequireIfMatch`, and an optional one where such an operation
+documents a `412`.
 
 ### Filter-Operator Registry
 
@@ -784,7 +858,8 @@ class AppServiceProvider extends ServiceProvider
 An operator is a class implementing `SineMacula\ApiToolkit\Contracts\FilterOperator`, or a closure with the same
 signature, `apply(Builder $query, string $column, mixed $value): void`. A token is `$` followed by a letter, then
 letters, digits or underscores, and may not be `$and`, `$or`, `$has` or `$hasnt`. `register()` throws
-`InvalidArgumentException` for any other token, or one already taken.
+`InvalidArgumentException` for any other token, or one already taken. `$column` arrives qualified by its table, such as
+`users.name`; use it as given, or take `Str::afterLast($column, '.')` where the public name is needed.
 
 A token is answered only on columns declaring one of the capabilities it was registered with, so `$starts` above is
 refused with a `422` on an `EXACT` or `OPAQUE` column. The shipped tokens are registered with the defaults in
@@ -950,8 +1025,8 @@ callback.
 ### Controllers and Authorization
 
 `SineMacula\ApiToolkit\Http\Routing\Controller` provides the response helpers: `respondWithData()` wraps an array in
-`data`, and `respondWithItem()` and `respondWithCollection()` render a resource or a collection. Each takes an optional
-`HttpStatus` and headers.
+`data`, and `respondWithItem()` and `respondWithCollection()` render a resource or a collection, or the export the
+request negotiates. Each takes an optional `HttpStatus` and headers, which an export carries too.
 
 `AuthorizedController` extends it with resource authorization. Declare the model with `#[AuthorizesResource]`:
 
@@ -1132,27 +1207,29 @@ Every operation also lists the errors it can return, derived from the route: an 
 middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
 `AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the route
 has parameters, a validation failure when the operation accepts a request body or the toolkit's query parameters, a
-refusal behind a rate limit, and an unhandled exception always. Each is documented as the exception map renders it: by
-default a `401`, `403`, `404`, `422`, `429` and `500`. A list operation also documents the query cost refusal under
-`422` while any query cost cap is enabled. The unhandled exception is looked up as a `Throwable`, so a `Throwable` key
-changes it and a narrower catch-all such as `RuntimeException` does not. A denial with a status of its own is documented
-only where the route already lists the error that status stands for, as a path with parameters does for
-`denyAsNotFound()`. Middleware is read as the router resolves it, so a guard or limit applied through a group counts and
-one removed with `withoutMiddleware()` does not.
+refusal behind a rate limit, a missing `If-Match` on a `PUT`, `PATCH` or `DELETE` behind `RequireIfMatch`, and an
+unhandled exception always. Each is documented as the exception map renders it: by default a `401`, `403`, `404`, `422`,
+`428`, `429` and `500`. A list operation also documents the query cost refusal under `422` while any query cost cap is
+enabled. The unhandled exception is looked up as a `Throwable`, so a `Throwable` key changes it and a narrower catch-all
+such as `RuntimeException` does not. A denial with a status of its own is documented only where the route already lists
+the error that status stands for, as a path with parameters does for `denyAsNotFound()`. Middleware is read as the
+router resolves it, so a guard or limit applied through a group counts and one removed with `withoutMiddleware()` does
+not.
 
 Each `ApiException` subclass named in the `@throws` tags of the action, or of the `handle()` (else `__invoke()`) of any
 middleware the route runs, read as the router resolves it, is added under its status too; other throwables in those tags
-are ignored. Global middleware is not read, and a middleware the container rebinds is read from the class the route
-names. Class names in `@throws` resolve as PHP would in the file declaring the method, so imported, aliased,
-same-namespace and fully qualified names all work, and a union such as `@throws A|B` names both. Each error code is
-documented once, as the `components.examples` entry `Error<code>` (such as `Error10107`) carrying the code's catalogue
-title and detail, and as the `components.schemas` envelope `Error<code>`, which pins `error.code` and types `error.meta`
-as the code's exception declares it, else as an open object. `InvalidInputException` declares its field errors and
-`QueryTooExpensiveException` the limit it exceeded. Every error response references the examples of its exceptions, and
-its schema is the envelope of its code, or a `oneOf` of the envelopes where the status carries several codes. The export
-fails when a documented exception has no `CODE`, which the handler cannot render, when its code is not in the error
-catalogue (add its namespace to `api-toolkit.openapi.exception_namespaces`), or when it shares a code with an exception
-answering another status or declaring another meta.
+are ignored. Global middleware is not read, nor is `RequireIfMatch`, which is documented from its route fact, and a
+middleware the container rebinds is read from the class the route names. Class names in `@throws` resolve as PHP would
+in the file declaring the method, so imported, aliased, same-namespace and fully qualified names all work, and a union
+such as `@throws A|B` names both. Each error code is documented once, as the `components.examples` entry `Error<code>`
+(such as `Error10107`) carrying the code's catalogue title and detail, and as the `components.schemas` envelope
+`Error<code>`, which pins `error.code` and types `error.meta` as the code's exception declares it, else as an open
+object. `InvalidInputException` declares its field errors and `QueryTooExpensiveException` the limit it exceeded. Every
+error response references the examples of its exceptions, and its schema is the envelope of its code, or a `oneOf` of
+the envelopes where the status carries several codes. The export fails when a documented exception has no `CODE`, which
+the handler cannot render, when its code is not in the error catalogue (add its namespace to
+`api-toolkit.openapi.exception_namespaces`), or when it shares a code with an exception answering another status or
+declaring another meta.
 
 Each path parameter is typed from what the router enforces on its segment. A `where` constraint comes first:
 `whereUuid()` exports a `uuid`, `whereNumber()` a non-negative integer, `whereIn()` or a plain alternation such as
@@ -1515,13 +1592,14 @@ given through `withContext()`, or an `INTERNAL` one. `dispatch()` returns Larave
 `onConnection()`, `delay()` and `afterCommit()` apply per call.
 
 A failed attempt fires `onFailure()` and `ServiceFailed` and fails the job with the captured exception, which the worker
-retries per `--tries` and `--backoff`. An `AuthorizationException` or `ValidationException` fails the job at once and is
-not retried. Once the queue gives up on the job, because its attempts ran out, a refusal failed it or its last attempt
-timed out, it calls `onFinalFailure()` with the exception. A timed-out attempt fires no other hook, as the worker kills
-itself mid-run. Laravel deletes the job first, so `onFinalFailure()` runs at most once and must be idempotent; `run()`
-and `runOrFail()` never call it. On the `sync` connection there is no worker to retry, so the failure is thrown to the
-dispatching code when it releases the returned `PendingDispatch`, at the end of the statement unless it is kept in a
-variable, or when the transaction commits for a job queued after commit.
+retries per `--tries` and `--backoff`. An `AuthorizationException`, `ValidationException` or
+`PreconditionFailedException` fails the job at once and is not retried. Once the queue gives up on the job, because its
+attempts ran out, a refusal failed it or its last attempt timed out, it calls `onFinalFailure()` with the exception. A
+timed-out attempt fires no other hook, as the worker kills itself mid-run. Laravel deletes the job first, so
+`onFinalFailure()` runs at most once and must be idempotent; `run()` and `runOrFail()` never call it. On the `sync`
+connection there is no worker to retry, so the failure is thrown to the dispatching code when it releases the returned
+`PendingDispatch`, at the end of the statement unless it is kept in a variable, or when the transaction commits for a
+job queued after commit.
 
 #### Queued Services
 

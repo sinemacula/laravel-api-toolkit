@@ -11,10 +11,11 @@ use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
+use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
 
 /**
- * Reads the middleware classes of a route and its authentication, authorization
- * and throttling facts.
+ * Reads the middleware classes of a route and its authentication,
+ * authorization, throttling and If-Match facts.
  *
  * Middleware is resolved as the router dispatches it, so groups, aliases and
  * exclusions apply.
@@ -24,6 +25,9 @@ use Illuminate\Support\Facades\Config;
  */
 final readonly class RouteMiddlewareResolver
 {
+    /** The middleware documented from its route fact, not from its throws tags */
+    public const array FACT_MIDDLEWARE = [RequireIfMatch::class];
+
     /** The default guard assumed when none is configured */
     private const string DEFAULT_GUARD_FALLBACK = 'web';
 
@@ -111,6 +115,17 @@ final readonly class RouteMiddlewareResolver
     public function throttles(Route $route): bool
     {
         return $this->parametersOf($route, ThrottleRequests::class) !== [];
+    }
+
+    /**
+     * Determine whether the route requires an If-Match field on its writes.
+     *
+     * @param  \Illuminate\Routing\Route  $route
+     * @return bool
+     */
+    public function requiresIfMatch(Route $route): bool
+    {
+        return $this->parametersOf($route, RequireIfMatch::class) !== [];
     }
 
     /**
