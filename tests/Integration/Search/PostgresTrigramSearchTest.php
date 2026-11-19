@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
+use Tests\Fixtures\Resources\SearchableFilterableUserResource;
 
 /**
  * Search integration suite for the PostgreSQL driver.
@@ -22,6 +23,30 @@ use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
 #[Group('pgsql')]
 final class PostgresTrigramSearchTest extends EngineSearchTestCase
 {
+    /**
+     * Test that validation and the request-time proof refuse every trigram
+     * declaration once the extension is gone.
+     *
+     * @return void
+     */
+    public function testTheDeclarationIsRefusedWithoutTheTrigramExtension(): void
+    {
+        DB::statement('drop extension pg_trgm cascade');
+
+        try {
+            self::assertFalse($this->serves());
+
+            $this->assertValidationRefuses(
+                SearchableFilterableUserResource::class,
+                'The "substring" strategy is served by the pg_trgm extension, and that extension is not installed on this connection',
+            );
+        } finally {
+            DB::statement('create extension pg_trgm');
+            $this->createAnywhereMatchIndex();
+            $this->createPrefixMatchIndex();
+        }
+    }
+
     /**
      * Assert that the engine can answer the query from an index.
      *
@@ -58,6 +83,49 @@ final class PostgresTrigramSearchTest extends EngineSearchTestCase
     }
 
     /**
+     * Return the rows the anywhere-match finds for "ann smith".
+     *
+     * The pattern matches the term's characters, whitespace included.
+     *
+     * @return array<int, string>
+     */
+    #[\Override]
+    protected function multiWordMatches(): array
+    {
+        return ['Ann Smith', 'ANN SMITH'];
+    }
+
+    /**
+     * Return, keyed by term, the rows each accented or upper-case term finds.
+     *
+     * The case-insensitive operator folds every letter's case but no accent.
+     *
+     * @return array<string, array<int, string>>
+     */
+    #[\Override]
+    protected function foldedMatches(): array
+    {
+        return [
+            'élise' => ['Élise Müller'],
+            'ÉLISE' => ['Élise Müller'],
+            'ELISE' => ['Elise Martin'],
+        ];
+    }
+
+    /**
+     * Return the rows an equality match finds for "smith" beside "Smith".
+     *
+     * The column's deterministic collation compares case.
+     *
+     * @return array<int, string>
+     */
+    #[\Override]
+    protected function caseFoldedEqualityMatches(): array
+    {
+        return [];
+    }
+
+    /**
      * Drop the index serving the anywhere-match on the searched columns.
      *
      * @return void
@@ -88,6 +156,32 @@ final class PostgresTrigramSearchTest extends EngineSearchTestCase
     protected function anywhereMatchDefect(): string
     {
         return 'Column "name" is declared searchable with the "substring" strategy, which needs a trigram index over that column on table "users"';
+    }
+
+    /**
+     * Replace the trigram index with a partial one, which an unqualified match
+     * cannot use.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function makeAnywhereMatchIndexUnusable(): void
+    {
+        $this->dropAnywhereMatchIndex();
+
+        DB::statement('create index users_name_trgm on users using gin (name gin_trgm_ops) where name is not null');
+    }
+
+    /**
+     * Restore the unqualified trigram index.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function makeAnywhereMatchIndexUsable(): void
+    {
+        $this->dropAnywhereMatchIndex();
+        $this->createAnywhereMatchIndex();
     }
 
     /**

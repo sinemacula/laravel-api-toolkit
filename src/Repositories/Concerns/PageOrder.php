@@ -112,6 +112,58 @@ final readonly class PageOrder
     }
 
     /**
+     * Bound the leading order column at the cursor, so the read seeks from it.
+     *
+     * The bound is implied by the seek predicate, but PostgreSQL reads that
+     * predicate's disjunction from the start of the index rather than as a
+     * range.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  \Illuminate\Pagination\Cursor|null  $cursor
+     * @return \Illuminate\Database\Eloquent\Builder<TModel>
+     */
+    public function seek(Builder $query, ?Cursor $cursor): Builder
+    {
+        $base   = $query->getQuery();
+        $column = $this->boundableColumn($base, $query->getModel());
+
+        if ($cursor === null || $column === null) {
+            return $query;
+        }
+
+        $forward = (($base->orders[0]['direction'] ?? null) === 'asc') === $cursor->pointsToNextItems();
+
+        $base->where($column, $forward ? '>=' : '<=', $cursor->parameter($column));
+
+        return $query;
+    }
+
+    /**
+     * Resolve the leading order column a seek gains from bounding, or null.
+     *
+     * A lone ordered column already seeks by range. Only a column of the
+     * queried table is bound, since an alias is not a column a where clause can
+     * name.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $base
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return string|null
+     */
+    private function boundableColumn(QueryBuilder $base, Model $model): ?string
+    {
+        $orders = $base->orders        ?? [];
+        $column = $orders[0]['column'] ?? null;
+
+        if (count($orders) < 2 || !empty($base->unions) || !is_string($column)) {
+            return null;
+        }
+
+        return str_starts_with($column, $model->getTable() . '.') ? $column : null;
+    }
+
+    /**
      * Refuse a cursor over a table without its key column, which only a grouped
      * and ordered read can seek without.
      *

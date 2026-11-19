@@ -174,6 +174,11 @@ MySQL matches nothing once a word is shorter than the n-gram token size, and Pos
 table. The minimum applies to each word, because a short word is dropped from a MySQL full-text phrase but kept by a
 PostgreSQL pattern match, so the two engines would return different rows.
 
+Each engine still compares text by its own rules. MySQL folds case and accents through the column's collation, and
+matches a multi-word term's words in order whatever whitespace separates them. PostgreSQL folds case but not accents,
+and SQLite folds only ASCII case. An `EXACT` match compares with `=`, so it ignores case only under a case-insensitive
+collation, such as MySQL's default.
+
 Drivers ship for MySQL, PostgreSQL and SQLite, registered under the driver name each connection reports. On MySQL the
 proof also checks that the planner can use the index, which the catalogue only reports from 8.0; on older versions
 that check is skipped. MariaDB reports its own driver name and has no n-gram parser, so a search on a MariaDB
