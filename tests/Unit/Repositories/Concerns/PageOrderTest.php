@@ -522,6 +522,8 @@ final class PageOrderTest extends TestCase
      * Test that a cursor bounds the leading order column at its boundary, on
      * the side the read moves towards.
      *
+     * The key runs the other way, so only the leading direction decides.
+     *
      * @param  'asc'|'desc'  $direction
      * @param  bool  $next
      * @param  string  $operator
@@ -530,7 +532,7 @@ final class PageOrderTest extends TestCase
     #[DataProvider('seekBoundProvider')]
     public function testCursorBoundsTheLeadingColumnOnTheSideTheReadMovesTowards(string $direction, bool $next, string $operator): void
     {
-        $query = $this->users(static fn (QueryBuilder $query) => $query->orderBy('users.name', $direction)->orderBy(self::KEY, $direction));
+        $query = $this->users(static fn (QueryBuilder $query) => $query->orderBy('users.name', $direction)->orderBy(self::KEY, $direction === 'asc' ? 'desc' : 'asc'));
 
         $this->pageOrder->seek($query, new Cursor(['users.name' => 'Ann', self::KEY => 3], $next));
 
