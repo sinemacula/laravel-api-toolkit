@@ -648,11 +648,11 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that every error example is referenced, resolves, and validates
-     * against the exported error envelope.
+     * against the exported envelope of its code.
      *
      * @return void
      */
-    public function testErrorExamplesAreReferencedAndValidateAgainstTheEnvelope(): void
+    public function testErrorExamplesAreReferencedAndValidateAgainstTheirEnvelopes(): void
     {
         $this->registerUserRoutes();
         $this->router()->post('sign-in', [PathRouteFactsController::class, 'signIn'])->middleware(['auth', 'throttle:60,1']);
@@ -683,9 +683,9 @@ final class OpenApiExporterValidityTest extends TestCase
 
             /** @var array<string, mixed> $value */
             $value  = $example['value'];
-            $result = $this->validateAgainstExported($document, '/components/schemas/ErrorEnvelope', $value);
+            $result = $this->validateAgainstExported($document, '/components/schemas/' . $name, $value);
 
-            self::assertTrue($result->isValid(), sprintf('The %s example must validate against the ErrorEnvelope schema: %s', $name, $this->formatErrors($result)));
+            self::assertTrue($result->isValid(), sprintf('The %1$s example must validate against the %1$s schema: %2$s', $name, $this->formatErrors($result)));
         }
 
         $this->assertReferencesResolve($document);
@@ -1433,7 +1433,8 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that shared pagination and error schemas survive audience filtering.
+     * Test that the shared pagination schemas and the referenced error
+     * envelopes survive audience filtering.
      *
      * @return void
      */
@@ -1445,7 +1446,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         self::assertIsArray($schemas);
 
-        foreach (['PaginationMeta', 'PaginationLinks', 'CursorPaginationMeta', 'CursorPaginationLinks', 'ErrorEnvelope'] as $name) {
+        foreach (['PaginationMeta', 'PaginationLinks', 'CursorPaginationMeta', 'CursorPaginationLinks', 'Error10001'] as $name) {
             self::assertArrayHasKey($name, $schemas);
         }
 
@@ -1603,13 +1604,35 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $notFound = $paths['/users/{user}']['get']['responses']['404']['content']['application/json'];
 
-        self::assertSame('#/components/schemas/ErrorEnvelope', $notFound['schema']['$ref']);
+        self::assertSame('#/components/schemas/Error10103', $notFound['schema']['$ref']);
         self::assertSame(['Error10103' => ['$ref' => '#/components/examples/Error10103']], $notFound['examples']);
 
         $conflict = $paths['/users']['post']['responses']['409']['content']['application/json'];
 
-        self::assertSame('#/components/schemas/ErrorEnvelope', $conflict['schema']['$ref']);
+        self::assertSame('#/components/schemas/Error10108', $conflict['schema']['$ref']);
         self::assertSame(['Error10108' => ['$ref' => '#/components/examples/Error10108']], $conflict['examples']);
+    }
+
+    /**
+     * Test that a status carrying two codes is a oneOf of their envelopes and
+     * the document stays valid.
+     *
+     * @return void
+     */
+    public function testStatusCarryingTwoCodesIsAOneOfAndStaysValid(): void
+    {
+        $this->registerUserRoutes();
+
+        $document = $this->export()->document;
+
+        self::assertSame(
+            ['oneOf' => [['$ref' => '#/components/schemas/Error10106'], ['$ref' => '#/components/schemas/Error10201']]],
+            $document['paths']['/users']['get']['responses']['422']['content']['application/json']['schema'],
+        );
+        self::assertSame(10201, $document['components']['schemas']['Error10201']['properties']['error']['properties']['code']['const']);
+
+        $this->assertValidDocument($document);
+        $this->assertReferencesResolve($document);
     }
 
     /**

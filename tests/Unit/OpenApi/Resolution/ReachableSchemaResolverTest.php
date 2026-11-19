@@ -68,13 +68,13 @@ final class ReachableSchemaResolverTest extends TestCase
     public function testAlwaysKeepSchemasAreRetained(): void
     {
         $schemas = [
-            'User'          => ['type' => 'object'],
-            'ErrorEnvelope' => ['type' => 'object'],
+            'User'           => ['type' => 'object'],
+            'PaginationMeta' => ['type' => 'object'],
         ];
 
-        $result = (new ReachableSchemaResolver)->reachable($schemas, [], ['ErrorEnvelope']);
+        $result = (new ReachableSchemaResolver)->reachable($schemas, [], ['PaginationMeta']);
 
-        self::assertArrayHasKey('ErrorEnvelope', $result);
+        self::assertArrayHasKey('PaginationMeta', $result);
         self::assertArrayNotHasKey('User', $result);
     }
 
