@@ -113,7 +113,7 @@ Each built-in operator takes a value of one shape:
 | `$in`                      | a list, empty allowed | equal to any item; an empty list matches none  |
 | `$between`                 | `[low, high]`         | from low to high inclusive                     |
 | `$null`, `$notNull`        | `true`                | missing, or holding, a value                   |
-| `$contains`                | any JSON              | whose JSON document contains it                |
+| `$contains`                | one value or a list   | whose JSON array holds it, or every item       |
 
 `null` is never a value: a missing value is matched by `{"name":{"$null":true}}`, so `{"name":null}` is refused. Every
 value is also checked against the column's type, read from the schema catalogue. An integer column takes an integer, a
@@ -123,6 +123,10 @@ A date-time with an offset is converted to the application timezone, so a timest
 back as it is. A column cast to an enum takes only its cases' values, or a pure enum's lowercase names. A value outside
 its shape or its column's type is rejected with a 422 at its position, naming the form expected. Where the catalogue
 cannot be read, only the shape is checked.
+
+`$contains` matches an element of a JSON array, or a whole scalar document, of the same JSON type, so `1` matches
+neither `"1"` nor `true`. Its list must not be empty, and its items are not checked against the column's type. A string
+is never decoded as JSON; a comma-separated string matches any of its items, each a string.
 
 The entries of a filter document AND together, at every depth. `$and` and `$or` take a non-empty list of filter
 documents, each grouped on its own and joined by AND or OR:

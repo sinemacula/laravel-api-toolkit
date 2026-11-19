@@ -38,6 +38,7 @@ return [
         'value_list'           => 'The :operator condition on ":column" must be a list of values.',
         'value_bounds'         => 'The :operator condition on ":column" must be a list of two values, [low, high].',
         'value_presence'       => 'The :operator condition on ":column" takes only true; $null matches a missing value and $notNull a present one.',
+        'value_elements'       => 'The :operator condition on ":column" must be a single value or a non-empty list of values.',
         'value_type'           => 'The :operator condition on ":column" must be :expected.',
         'item_type'            => 'Item :index of the :operator condition on ":column" must be :expected.',
         'expected'             => [

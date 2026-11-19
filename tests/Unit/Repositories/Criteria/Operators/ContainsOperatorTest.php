@@ -4,11 +4,18 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria\Operators;
 
+use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\Query\Grammars\MySqlGrammar;
+use Illuminate\Database\Query\Grammars\PostgresGrammar;
+use Illuminate\Database\Query\Grammars\SQLiteGrammar;
+use Illuminate\Database\Query\Processors\Processor;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Enums\FilterValueShape;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
-use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Models\Log;
 use Tests\TestCase;
 
 /**
@@ -17,329 +24,129 @@ use Tests\TestCase;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
- * @SuppressWarnings("php:S1448")
- *
  * @internal
  */
 #[CoversClass(ContainsOperator::class)]
 final class ContainsOperatorTest extends TestCase
 {
-    /** @var string */
-    private const string TYPE_JSON_CONTAINS = 'JsonContains';
+    /** @var string The qualified JSON column every clause reads */
+    private const string COLUMN = 'logs.context';
 
-    /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator */
-    private ContainsOperator $operator;
+    /** @var string The SQLite clause matching one element of the document */
+    private const string SQLITE_ELEMENT = 'exists (select 1 from json_each("logs"."context") where json_type("logs"."context") <> ? and %s)';
+
+    /** @var string The SQLite predicate matching a string element */
+    private const string SQLITE_STRING = '"json_each"."type" = ? and "json_each"."value" = ?';
+
+    /** @var string The MySQL clause matching one element of the document */
+    private const string MYSQL_ELEMENT = 'json_contains(`logs`.`context`, ?)';
+
+    /** @var string The PostgreSQL clause matching one element of the document */
+    private const string PGSQL_ELEMENT = '("logs"."context")::jsonb @> ?';
 
     /**
-     * Set up the test environment.
+     * Test that the operator accepts JSON elements.
      *
      * @return void
      */
-    #[\Override]
-    protected function setUp(): void
+    public function testOperatorAcceptsJsonElements(): void
     {
-        parent::setUp();
-
-        $this->operator = new ContainsOperator;
+        self::assertSame(FilterValueShape::ELEMENTS, (new ContainsOperator)->valueShape());
     }
 
     /**
-     * Test that apply with an array value uses whereJsonContains.
+     * Provide values with the clause and bindings each compiles to on each
+     * engine.
      *
-     * @return void
+     * @return iterable<string, array{class-string<\Illuminate\Database\Query\Grammars\Grammar>, array<int, scalar>|scalar, string, array<int, mixed>}>
      */
-    public function testApplyWithArrayUsesWhereJsonContains(): void
+    public static function compiledClauseProvider(): iterable
     {
-        $query = (new User)->newQuery();
+        $string  = sprintf(self::SQLITE_ELEMENT, self::SQLITE_STRING);
+        $number  = sprintf(self::SQLITE_ELEMENT, '"json_each"."type" in (?, ?) and json_each.value = cast(? as numeric)');
+        $boolean = sprintf(self::SQLITE_ELEMENT, '"json_each"."type" = ?');
 
-        $this->operator->apply($query, 'tags', ['Alice']);
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertNotEmpty($wheres);
-        self::assertCount(1, $wheres);
-        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
-        self::assertSame('tags', $wheres[0]['column']);
-        self::assertSame(['Alice'], $wheres[0]['value']);
-        self::assertSame('and', $wheres[0]['boolean']);
+        yield 'SQLite string' => [SQLiteGrammar::class, 'php', $string, ['object', 'text', 'php']];
+        yield 'SQLite integer' => [SQLiteGrammar::class, 1, $number, ['object', 'integer', 'real', 1]];
+        yield 'SQLite float' => [SQLiteGrammar::class, 1.5, $number, ['object', 'integer', 'real', 1.5]];
+        yield 'SQLite true' => [SQLiteGrammar::class, true, $boolean, ['object', 'true']];
+        yield 'SQLite false' => [SQLiteGrammar::class, false, $boolean, ['object', 'false']];
+        yield 'SQLite list' => [SQLiteGrammar::class, ['php', 2], $string . ' and ' . $number, ['object', 'text', 'php', 'object', 'integer', 'real', 2]];
+        yield 'SQLite JSON-encoded string' => [SQLiteGrammar::class, '["php"]', $string, ['object', 'text', '["php"]']];
+        yield 'MySQL string' => [MySqlGrammar::class, 'php', self::MYSQL_ELEMENT, ['"php"']];
+        yield 'MySQL list' => [MySqlGrammar::class, ['php', true], self::MYSQL_ELEMENT . ' and ' . self::MYSQL_ELEMENT, ['"php"', 'true']];
+        yield 'PostgreSQL string' => [PostgresGrammar::class, 'php', self::PGSQL_ELEMENT, ['"php"']];
+        yield 'PostgreSQL list' => [PostgresGrammar::class, ['php', 2], self::PGSQL_ELEMENT . ' and ' . self::PGSQL_ELEMENT, ['"php"', '2']];
     }
 
     /**
-     * Test that apply with an object value uses whereJsonContains.
+     * Test that every item compiles to its own clause matching an element of
+     * the same JSON type.
      *
+     * @param  class-string<\Illuminate\Database\Query\Grammars\Grammar>  $grammar
+     * @param  array<int, bool|float|int|string>|bool|float|int|string  $value
+     * @param  string  $where
+     * @param  array<int, mixed>  $bindings
      * @return void
      */
-    public function testApplyWithObjectUsesWhereJsonContains(): void
+    #[DataProvider('compiledClauseProvider')]
+    public function testEveryItemCompilesToAClauseMatchingAnElementOfItsType(string $grammar, array|bool|float|int|string $value, string $where, array $bindings): void
     {
-        $query = (new User)->newQuery();
-        $value = (object) ['key' => 'value'];
+        $query = $this->logsQuery($grammar);
 
-        $this->operator->apply($query, 'tags', $value);
+        (new ContainsOperator)->apply($query, self::COLUMN, $value);
 
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertCount(1, $wheres);
-        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
-        self::assertSame('tags', $wheres[0]['column']);
-        self::assertSame($value, $wheres[0]['value']);
+        self::assertStringEndsWith(' where ' . $where, $query->toSql());
+        self::assertSame($bindings, $query->getBindings());
     }
 
     /**
-     * Test that a comma-separated string creates multiple conditions.
+     * Test that a comma-separated string matches any of its trimmed items,
+     * grouped apart from an earlier clause.
      *
      * @return void
      */
-    public function testApplyWithCommaSeparatedStringCreatesMultipleConditions(): void
+    public function testCommaSeparatedStringMatchesAnyOfItsItemsInOneGroup(): void
     {
-        $query = (new User)->newQuery();
+        $query = $this->logsQuery(MySqlGrammar::class);
 
-        $this->operator->apply($query, 'tags', 'Alice,Bob');
+        $query->where('level', 'info');
 
-        $wheres = $query->getQuery()->wheres;
+        (new ContainsOperator)->apply($query, self::COLUMN, ' php , , rust ');
 
-        self::assertNotEmpty($wheres);
-        self::assertCount(1, $wheres);
-        self::assertSame('Nested', $wheres[0]['type']);
-
-        $nested = $wheres[0]['query']->wheres;
-
-        self::assertCount(2, $nested);
-        self::assertSame(self::TYPE_JSON_CONTAINS, $nested[0]['type']);
-        self::assertSame('Alice', $nested[0]['value']);
-        self::assertSame('and', $nested[0]['boolean']);
-        self::assertSame(self::TYPE_JSON_CONTAINS, $nested[1]['type']);
-        self::assertSame('Bob', $nested[1]['value']);
-        self::assertSame('or', $nested[1]['boolean']);
+        self::assertStringEndsWith(' where `level` = ? and (' . self::MYSQL_ELEMENT . ' or ' . self::MYSQL_ELEMENT . ')', $query->toSql());
+        self::assertSame(['info', '"php"', '"rust"'], $query->getBindings());
     }
 
     /**
-     * Test that a comma-separated string is trimmed and empty items dropped.
+     * Test that a comma-separated string matches any of its items on SQLite.
      *
      * @return void
      */
-    public function testApplyWithCommaSeparatedStringTrimsAndDropsEmptyItems(): void
+    public function testCommaSeparatedStringMatchesAnyOfItsItemsOnSqlite(): void
     {
-        $query = (new User)->newQuery();
+        $query = $this->logsQuery(SQLiteGrammar::class);
 
-        $this->operator->apply($query, 'tags', ' Alice , , Bob ');
+        (new ContainsOperator)->apply($query, self::COLUMN, 'php,rust');
 
-        $wheres = $query->getQuery()->wheres;
+        $string = sprintf(self::SQLITE_ELEMENT, self::SQLITE_STRING);
 
-        self::assertCount(1, $wheres);
-        self::assertSame('Nested', $wheres[0]['type']);
-
-        $values = array_column($wheres[0]['query']->wheres, 'value');
-
-        self::assertSame(['Alice', 'Bob'], $values);
+        self::assertStringEndsWith(' where (' . $string . ' or ' . $string . ')', $query->toSql());
+        self::assertSame(['object', 'text', 'php', 'object', 'text', 'rust'], $query->getBindings());
     }
 
     /**
-     * Test that apply with a string containing only commas adds no constraints.
+     * Test that a string of only delimiters adds no clause.
      *
      * @return void
      */
-    public function testApplyWithOnlyCommasAddsNoConstraints(): void
+    public function testStringOfOnlyDelimitersAddsNoClause(): void
     {
-        $query = (new User)->newQuery();
+        $query = $this->logsQuery(MySqlGrammar::class);
 
-        $this->operator->apply($query, 'tags', ',,');
+        (new ContainsOperator)->apply($query, self::COLUMN, ' , ,');
 
         self::assertSame([], $query->getQuery()->wheres);
-    }
-
-    /**
-     * Test that apply with a plain string uses whereJsonContains.
-     *
-     * @return void
-     */
-    public function testApplyWithPlainStringUsesWhereJsonContains(): void
-    {
-        $query = (new User)->newQuery();
-
-        $this->operator->apply($query, 'tags', 'Alice');
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertNotEmpty($wheres);
-        self::assertCount(1, $wheres);
-        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
-        self::assertSame('tags', $wheres[0]['column']);
-        self::assertSame('Alice', $wheres[0]['value']);
-    }
-
-    /**
-     * Test that apply with a valid JSON string uses whereJsonContains.
-     *
-     * @return void
-     */
-    public function testApplyWithValidJsonStringUsesWhereJsonContains(): void
-    {
-        $query = (new User)->newQuery();
-
-        $this->operator->apply($query, 'tags', '["a"]');
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertNotEmpty($wheres);
-        self::assertCount(1, $wheres);
-        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
-        self::assertSame('["a"]', $wheres[0]['value']);
-    }
-
-    /**
-     * Test that a valid JSON string containing commas is not split.
-     *
-     * @return void
-     */
-    public function testApplyWithJsonStringContainingCommaIsNotSplit(): void
-    {
-        $query = (new User)->newQuery();
-
-        $this->operator->apply($query, 'tags', '["a","b"]');
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertCount(1, $wheres);
-        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
-        self::assertSame('["a","b"]', $wheres[0]['value']);
-    }
-
-    /**
-     * Test that apply with a null value is handled gracefully.
-     *
-     * @return void
-     */
-    public function testApplyWithNullValueIsHandledGracefully(): void
-    {
-        $query = (new User)->newQuery();
-
-        $this->operator->apply($query, 'tags', null);
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertCount(1, $wheres);
-        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
-    }
-
-    /**
-     * Test that a grammar rejection of the JSON-contains clause propagates.
-     *
-     * @return void
-     */
-    public function testApplyPropagatesWhenTheGrammarRejectsTheJsonContainsConstraint(): void
-    {
-        $base = \Mockery::mock(QueryBuilder::class);
-        $base->shouldReceive('whereJsonContains')
-            ->once()
-            ->andThrow(new \RuntimeException('grammar rejects json-contains'));
-
-        $query = \Mockery::mock(Builder::class);
-        $query->shouldReceive('getQuery')->andReturn($base);
-
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('grammar rejects json-contains');
-
-        $this->operator->apply($query, 'tags', null);
-    }
-
-    /**
-     * Test that a non-string scalar takes the defensive containment path.
-     *
-     * @return void
-     */
-    public function testApplyWithIntegerValueUsesWhereJsonContains(): void
-    {
-        $query = (new User)->newQuery();
-
-        $this->operator->apply($query, 'tags', 123);
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertCount(1, $wheres);
-        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[0]['type']);
-        self::assertSame('tags', $wheres[0]['column']);
-        self::assertSame(123, $wheres[0]['value']);
-    }
-
-    /**
-     * Test that a grammar rejection of an array payload propagates.
-     *
-     * @return void
-     */
-    public function testApplyWithArrayThatTheGrammarRejectsPropagatesTheException(): void
-    {
-        $base = \Mockery::mock(QueryBuilder::class);
-        $base->shouldReceive('whereJsonContains')
-            ->andThrow(new \RuntimeException('grammar rejects json-contains'));
-
-        $query = \Mockery::mock(Builder::class);
-        $query->shouldReceive('getQuery')->andReturn($base);
-
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('grammar rejects json-contains');
-
-        $this->operator->apply($query, 'tags', ['Alice']);
-    }
-
-    /**
-     * Test that comma-split conditions are grouped inside one nested where.
-     *
-     * @return void
-     */
-    public function testApplyWithCommaSeparatedStringGroupsConditionsInSingleNestedWhere(): void
-    {
-        $query = (new User)->newQuery();
-
-        $query->where('name', 'Alice');
-
-        $this->operator->apply($query, 'tags', 'php,laravel');
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertCount(2, $wheres);
-        self::assertSame('Nested', $wheres[1]['type']);
-        self::assertInstanceOf(Builder::class, $query);
-    }
-
-    /**
-     * Test that a direct $contains joins an earlier clause with AND.
-     *
-     * @return void
-     */
-    public function testApplyJoinsAnEarlierClauseWithAnd(): void
-    {
-        $query = (new User)->newQuery();
-
-        $query->where('name', 'Alice');
-
-        $this->operator->apply($query, 'tags', ['php']);
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertCount(2, $wheres);
-        self::assertSame(self::TYPE_JSON_CONTAINS, $wheres[1]['type']);
-        self::assertSame('and', $wheres[1]['boolean']);
-    }
-
-    /**
-     * Test that a comma-separated $contains group joins an earlier clause with
-     * AND.
-     *
-     * @return void
-     */
-    public function testApplyCommaSeparatedJoinsAnEarlierClauseWithAnd(): void
-    {
-        $query = (new User)->newQuery();
-
-        $query->where('name', 'Alice');
-
-        $this->operator->apply($query, 'tags', 'php,laravel');
-
-        $wheres = $query->getQuery()->wheres;
-
-        self::assertCount(2, $wheres);
-        self::assertSame('Nested', $wheres[1]['type']);
-        self::assertSame('and', $wheres[1]['boolean']);
     }
 
     /**
@@ -349,23 +156,41 @@ final class ContainsOperatorTest extends TestCase
      */
     public function testCommaSeparatedValueReportsItsExpandedItemCount(): void
     {
-        self::assertSame(2, $this->operator->countValueItems('Alice,Bob'));
-        self::assertSame(3, $this->operator->countValueItems('a,b,c'));
-        self::assertSame(2, $this->operator->countValueItems(' Alice , , Bob '));
-        self::assertSame(0, $this->operator->countValueItems(',,'));
+        $operator = new ContainsOperator;
+
+        self::assertSame(2, $operator->countValueItems('Alice,Bob'));
+        self::assertSame(3, $operator->countValueItems('a,b,c'));
+        self::assertSame(2, $operator->countValueItems(' Alice , , Bob '));
+        self::assertSame(2, $operator->countValueItems('["a","b"]'));
+        self::assertSame(0, $operator->countValueItems(',,'));
     }
 
     /**
-     * Test that a single containment clause reports one item.
+     * Test that a value applied without splitting reports one item.
      *
      * @return void
      */
-    public function testValueAppliedAsASingleClauseReportsOneItem(): void
+    public function testValueAppliedWithoutSplittingReportsOneItem(): void
     {
-        self::assertSame(1, $this->operator->countValueItems('Alice'));
-        self::assertSame(1, $this->operator->countValueItems('["a","b"]'));
-        self::assertSame(1, $this->operator->countValueItems(['Alice', 'Bob']));
-        self::assertSame(1, $this->operator->countValueItems(null));
-        self::assertSame(1, $this->operator->countValueItems(123));
+        $operator = new ContainsOperator;
+
+        self::assertSame(1, $operator->countValueItems('Alice'));
+        self::assertSame(1, $operator->countValueItems('["a"]'));
+        self::assertSame(1, $operator->countValueItems(123));
+    }
+
+    /**
+     * Build a logs query compiled by the given grammar.
+     *
+     * @param  class-string<\Illuminate\Database\Query\Grammars\Grammar>  $grammar
+     * @return \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\Log>
+     */
+    private function logsQuery(string $grammar): Builder
+    {
+        $connection = self::createStub(Connection::class);
+
+        $connection->method('getTablePrefix')->willReturn('');
+
+        return (new Builder(new QueryBuilder($connection, new $grammar($connection), new Processor)))->setModel(new Log);
     }
 }

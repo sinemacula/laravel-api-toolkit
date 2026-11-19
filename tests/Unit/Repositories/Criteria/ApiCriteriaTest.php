@@ -1029,21 +1029,27 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that $contains with a null value is handled without error.
+     * Test that $contains with a null value is refused.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testContainsWithNullValueIsHandledGracefully(): void
+    public function testContainsWithNullValueIsRefused(): void
     {
+        $message = 'The $contains condition on "context" cannot be null; $null matches a missing value and $notNull a present one.';
+
         $this->parseRequest(new Request([
             'filters' => json_encode(['context' => [self::OPERATOR_CONTAINS => null]]),
         ]));
 
-        $query = $this->documentCriteria()->apply(new Log);
+        try {
+            $this->documentCriteria()->apply(new Log);
 
-        self::assertIsArray($query->getQuery()->wheres);
+            self::fail('A null $contains must be refused.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['filters.context.$contains' => [$message]], $exception->errors());
+        }
     }
 
     /**

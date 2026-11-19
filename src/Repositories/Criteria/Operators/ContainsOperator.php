@@ -5,19 +5,37 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Operators;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\Query\Expression;
+use Illuminate\Database\Query\Grammars\SQLiteGrammar;
+use SineMacula\ApiToolkit\Contracts\DeclaresValueShape;
 use SineMacula\ApiToolkit\Contracts\ExpandsValueList;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
+use SineMacula\ApiToolkit\Enums\FilterValueShape;
 
 /**
  * Filter operator handler for the $contains (JSON containment) token.
  *
- * An inexpressible clause throws, as dropping it would widen the result set.
+ * Each item matches an element of an array document, or the whole of a scalar
+ * document, of the same JSON type. A list matches when every item does, a
+ * comma-separated string when any of its items does.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ContainsOperator implements ExpandsValueList, FilterOperator
+final class ContainsOperator implements DeclaresValueShape, ExpandsValueList, FilterOperator
 {
+    /**
+     * Return the shape of the value the operator accepts.
+     *
+     * @return \SineMacula\ApiToolkit\Enums\FilterValueShape
+     */
+    #[\Override]
+    public function valueShape(): FilterValueShape
+    {
+        return FilterValueShape::ELEMENTS;
+    }
+
     /**
      * Apply the JSON containment constraint to the query builder.
      *
@@ -33,12 +51,23 @@ final class ContainsOperator implements ExpandsValueList, FilterOperator
     {
         $items = $this->listItems($value);
 
-        if ($items !== null) {
-            $this->applyCommaSeparated($query, $column, $items);
+        if ($items === null) {
+
+            /** @var array<int, bool|float|int|string> $elements */
+            $elements = (array) $value;
+
+            foreach ($elements as $item) {
+                $this->whereContains($query->getQuery(), $column, $item, 'and');
+            }
+
             return;
         }
 
-        $query->getQuery()->whereJsonContains($column, $value);
+        $query->getQuery()->where(function (QueryBuilder $group) use ($column, $items): void {
+            foreach ($items as $item) {
+                $this->whereContains($group, $column, $item, 'or');
+            }
+        });
     }
 
     /**
@@ -63,7 +92,7 @@ final class ContainsOperator implements ExpandsValueList, FilterOperator
      */
     private function listItems(mixed $value): ?array
     {
-        if ($this->isJsonContainable($value) || !is_string($value) || !str_contains($value, ',')) {
+        if (!is_string($value) || !str_contains($value, ',')) {
             return null;
         }
 
@@ -71,59 +100,37 @@ final class ContainsOperator implements ExpandsValueList, FilterOperator
     }
 
     /**
-     * Determine whether the value can be passed straight to whereJsonContains.
+     * Constrain the document to contain the item, joined by the given boolean.
      *
-     * @param  mixed  $value
-     * @return bool
-     */
-    private function isJsonContainable(mixed $value): bool
-    {
-        if (is_array($value) || is_object($value)) {
-            return true;
-        }
-
-        return is_string($value) && json_validate($value);
-    }
-
-    /**
-     * Apply the split items as a grouped JSON containment constraint.
+     * SQLite's own clause compares the bare SQL value of every member, so it
+     * cannot tell true from 1 or an object's values from an array's elements.
      *
-     * @template TModel of \Illuminate\Database\Eloquent\Model
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  \Illuminate\Database\Query\Builder  $query
      * @param  string  $column
-     * @param  array<int, string>  $items
+     * @param  bool|float|int|string  $item
+     * @param  string  $boolean
      * @return void
      */
-    private function applyCommaSeparated(Builder $query, string $column, array $items): void
+    private function whereContains(QueryBuilder $query, string $column, bool|float|int|string $item, string $boolean): void
     {
-        if (empty($items)) {
+        if (!$query->getGrammar() instanceof SQLiteGrammar) {
+            $query->whereJsonContains($column, $item, $boolean);
             return;
         }
 
-        $query->where(function (Builder $query) use ($column, $items): void {
-            $this->applyJsonContainsGroup($query, $column, $items);
-        });
-    }
+        $document = $query->getGrammar()->wrap($column);
 
-    /**
-     * Apply each item as an OR-combined JSON containment within the group.
-     *
-     * @template TModel of \Illuminate\Database\Eloquent\Model
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
-     * @param  string  $column
-     * @param  array<int, string>  $items
-     * @return void
-     */
-    private function applyJsonContainsGroup(Builder $query, string $column, array $items): void
-    {
-        foreach ($items as $index => $item) {
-            if ($index === 0) {
-                $query->getQuery()->whereJsonContains($column, $item);
-            } else {
-                $query->getQuery()->orWhereJsonContains($column, $item);
-            }
-        }
+        $query->whereExists(static function (QueryBuilder $elements) use ($document, $item): void {
+
+            $elements->selectRaw('1')
+                ->from(new Expression("json_each({$document})")) // @phpstan-ignore argument.type
+                ->where(new Expression("json_type({$document})"), '<>', 'object'); // @phpstan-ignore argument.type
+
+            match (true) {
+                is_bool($item)   => $elements->where('json_each.type', $item ? 'true' : 'false'),
+                is_string($item) => $elements->where('json_each.type', 'text')->where('json_each.value', $item),
+                default          => $elements->whereIn('json_each.type', ['integer', 'real'])->whereRaw('json_each.value = cast(? as numeric)', [$item]),
+            };
+        }, $boolean);
     }
 }

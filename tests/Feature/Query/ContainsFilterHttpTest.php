@@ -4,15 +4,16 @@ declare(strict_types = 1);
 
 namespace Tests\Feature\Query;
 
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\Log;
@@ -23,9 +24,6 @@ use Tests\TestCase;
 /**
  * Feature tests for JSON containment filtering over real HTTP requests.
  *
- * SQLite's grammar rejects the JSON-containment clause, so these run only on
- * MySQL and PostgreSQL.
- *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -33,14 +31,17 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiQueryParser::class)]
 #[CoversClass(FilterApplier::class)]
+#[CoversClass(FilterValueGuard::class)]
 #[CoversClass(ContainsOperator::class)]
 final class ContainsFilterHttpTest extends TestCase
 {
     use RegistersApiExceptionHandler;
 
+    /** @var string The position every condition is refused at */
+    private const string POSITION = 'filters.context.$contains';
+
     /**
-     * Set up a logs route and seed rows whose context is a top-level JSON
-     * array.
+     * Set up a logs route and seed rows whose context covers each JSON shape.
      *
      * @return void
      */
@@ -58,93 +59,104 @@ final class ContainsFilterHttpTest extends TestCase
             return new ApiResourceCollection($logs, LogResource::class);
         });
 
-        Log::create(['level' => 'info', 'message' => 'first', 'context' => ['php', 'laravel']]);
-        Log::create(['level' => 'info', 'message' => 'second', 'context' => ['rust']]);
-        Log::create(['level' => 'info', 'message' => 'third', 'context' => ['go']]);
+        Log::create(['level' => 'info', 'message' => 'pair', 'context' => ['php', 'laravel']]);
+        Log::create(['level' => 'info', 'message' => 'php', 'context' => ['php']]);
+        Log::create(['level' => 'info', 'message' => 'rust', 'context' => ['rust']]);
+        Log::create(['level' => 'info', 'message' => 'numbers', 'context' => [1, 2]]);
+        Log::create(['level' => 'info', 'message' => 'flag', 'context' => [true]]);
+        Log::create(['level' => 'info', 'message' => 'object', 'context' => ['role' => 'admin']]);
     }
 
     /**
-     * Test that an array payload resolves via a JSON containment constraint.
+     * Provide payloads with the messages of the rows each matches.
      *
+     * @return iterable<string, array{mixed, array<int, string>}>
+     */
+    public static function matchingPayloadProvider(): iterable
+    {
+        yield 'single-item list' => [['php'], ['pair', 'php']];
+        yield 'list held whole by one row' => [['php', 'laravel'], ['pair']];
+        yield 'list held whole by no row' => [['php', 'rust'], []];
+        yield 'string' => ['rust', ['rust']];
+        yield 'value of an object member' => ['admin', []];
+        yield 'comma-separated string' => ['laravel,rust', ['pair', 'rust']];
+        yield 'JSON-encoded list' => ['["php"]', []];
+        yield 'JSON-encoded object' => ['{"role":"admin"}', []];
+        yield 'integer' => [1, ['numbers']];
+        yield 'integer list' => [[1, 2], ['numbers']];
+        yield 'float equal to an integer' => [2.0, ['numbers']];
+        yield 'digit string' => ['1', []];
+        yield 'numeric comma-separated string' => ['1,2', []];
+        yield 'true' => [true, ['flag']];
+        yield 'false' => [false, []];
+    }
+
+    /**
+     * Test that a payload matches the same rows on every engine.
+     *
+     * @param  mixed  $payload
+     * @param  array<int, string>  $messages
      * @return void
      */
+    #[DataProvider('matchingPayloadProvider')]
     #[Group('mysql')]
     #[Group('pgsql')]
-    public function testArrayPayloadResolvesViaJsonContainment(): void
+    public function testPayloadMatchesTheSameRowsOnEveryEngine(mixed $payload, array $messages): void
     {
-        $this->skipOnSqlite();
-
-        $response = $this->queryFilters(['context' => ['$contains' => ['php']]]);
-
-        $response->assertJsonCount(1, 'data');
-        $response->assertJsonPath('meta.total', 1);
-        $response->assertJsonPath('data.0.message', 'first');
-    }
-
-    /**
-     * Test that a comma-separated string resolves to the union of containment
-     * matches.
-     *
-     * @return void
-     */
-    #[Group('mysql')]
-    #[Group('pgsql')]
-    public function testCommaSeparatedStringResolvesToTheUnion(): void
-    {
-        $this->skipOnSqlite();
-
-        $response = $this->queryFilters(['context' => ['$contains' => 'php,rust']]);
-
-        $messages = array_column((array) $response->json('data'), 'message');
-
-        $response->assertJsonPath('meta.total', 2);
-        self::assertEqualsCanonicalizing(['first', 'second'], $messages);
-    }
-
-    /**
-     * Test that a scalar payload resolves via a JSON containment constraint.
-     *
-     * @return void
-     */
-    #[Group('mysql')]
-    #[Group('pgsql')]
-    public function testScalarPayloadResolvesViaJsonContainment(): void
-    {
-        $this->skipOnSqlite();
-
-        $response = $this->queryFilters(['context' => ['$contains' => 'go']]);
-
-        $response->assertJsonCount(1, 'data');
-        $response->assertJsonPath('data.0.message', 'third');
-    }
-
-    /**
-     * Issue a filtered request against the logs route and return the response.
-     *
-     * @param  array<string, mixed>  $filters
-     * @return \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>
-     */
-    private function queryFilters(array $filters): TestResponse
-    {
-        $response = $this->getJson('/logs?filters=' . urlencode((string) json_encode($filters)));
+        $response = $this->queryContains($payload);
 
         $response->assertOk();
 
-        return $response;
+        self::assertEqualsCanonicalizing($messages, array_column((array) $response->json('data'), 'message'));
     }
 
     /**
-     * Skip the current test on SQLite, whose grammar rejects the
-     * JSON-containment clause.
+     * Provide payloads outside the operator's shape with the message each is
+     * refused with.
      *
+     * @return iterable<string, array{mixed, string}>
+     */
+    public static function refusedPayloadProvider(): iterable
+    {
+        $elements = 'The $contains condition on "context" must be a single value or a non-empty list of values.';
+
+        yield 'object' => [['role' => 'admin'], $elements];
+        yield 'empty list' => [[], $elements];
+        yield 'null' => [null, 'The $contains condition on "context" cannot be null; $null matches a missing value and $notNull a present one.'];
+        yield 'nested list' => [[['php']], 'Item 0 of the $contains condition on "context" must be a single value other than null.'];
+        yield 'NUL character' => ["php\0", 'The $contains condition on "context" must be free of NUL characters.'];
+        yield 'only delimiters' => [',,', 'The filters.context.$contains filter adds no condition, so it would match every row.'];
+    }
+
+    /**
+     * Test that a payload outside the operator's shape is refused at the
+     * condition on every engine.
+     *
+     * @param  mixed  $payload
+     * @param  string  $message
      * @return void
      */
-    private function skipOnSqlite(): void
+    #[DataProvider('refusedPayloadProvider')]
+    #[Group('mysql')]
+    #[Group('pgsql')]
+    public function testPayloadOutsideTheShapeIsRefusedAtTheCondition(mixed $payload, string $message): void
     {
-        if (DB::connection()->getDriverName() !== 'sqlite') {
-            return;
-        }
+        $response = $this->queryContains($payload);
 
-        self::markTestSkipped('JSON containment is unsupported on the SQLite driver.');
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.meta', [self::POSITION => [$message]]);
+    }
+
+    /**
+     * Issue a request filtering the logs' context by the payload.
+     *
+     * @param  mixed  $payload
+     * @return \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>
+     */
+    private function queryContains(mixed $payload): TestResponse
+    {
+        $filters = (string) json_encode(['context' => ['$contains' => $payload]], JSON_PRESERVE_ZERO_FRACTION);
+
+        return $this->getJson('/logs?filters=' . urlencode($filters));
     }
 }
