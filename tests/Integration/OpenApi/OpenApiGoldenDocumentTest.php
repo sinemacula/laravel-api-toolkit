@@ -126,13 +126,13 @@ final class OpenApiGoldenDocumentTest extends TestCase
     {
         foreach ($this->exportDocuments() as $audience => $document) {
 
-            $result  = $this->validateJson($document);
-            $decoded = json_decode($document, true, 512, JSON_THROW_ON_ERROR);
+            $result = $this->validateJson($document);
 
             self::assertTrue($result->isValid(), sprintf('The [%s] export is not valid OpenAPI 3.1: %s', $audience, $this->formatErrors($result)));
-            self::assertIsArray($decoded);
 
             /** @var array<string, mixed> $decoded */
+            $decoded = json_decode($document, true, 512, JSON_THROW_ON_ERROR);
+
             $this->assertReferencesResolve($decoded);
 
             $golden = self::GOLDEN . '/' . $audience . '.json';

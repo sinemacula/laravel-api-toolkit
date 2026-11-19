@@ -92,7 +92,7 @@ final class OpenApiRequestBodyParityTest extends TestCase
         $this->document = $this->export();
         $this->author   = ActorUser::create(['name' => 'Alice', 'email' => 'alice@example.com']);
 
-        // The routed user already holds the documented email, so only the rule's ignore() accepts it
+        // The routed user holds the documented email; only ignore() admits it
         $profile = $this->examplesOf('PUT', '/users/{user}');
         $user    = User::create(['name' => 'Bob', 'email' => reset($profile)['email'] ?? null]);
         $article = Article::create(['user_id' => $this->author->id, 'title' => 'Title', 'slug' => 'existing', 'body' => 'Body', 'summary' => 'Summary']);
