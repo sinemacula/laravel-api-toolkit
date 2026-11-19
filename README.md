@@ -825,7 +825,7 @@ class AppServiceProvider extends ServiceProvider
 
 An operator is a class implementing `SineMacula\ApiToolkit\Contracts\FilterOperator`, or a closure with the same
 signature, `apply(Builder $query, string $column, mixed $value): void`. A token is `$` followed by a letter, then
-letters, digits or underscores, and may not be `$and`, `$or`, `$has` or `$hasnt`. `register()` throws
+letters, digits or underscores, and may not be `$and`, `$or`, `$has`, `$hasnt` or `$scope`. `register()` throws
 `InvalidArgumentException` for any other token, or one already taken.
 
 A token is answered only on columns declaring one of the capabilities it was registered with, so `$starts` above is

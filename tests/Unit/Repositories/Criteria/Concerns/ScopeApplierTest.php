@@ -84,7 +84,8 @@ final class ScopeApplierTest extends TestCase
     }
 
     /**
-     * Test that a scope's own OR stays inside its group.
+     * Test that a scope's own OR stays inside its group, beside an AND and as a
+     * branch of $or.
      *
      * @return void
      *
@@ -93,16 +94,25 @@ final class ScopeApplierTest extends TestCase
      */
     public function testAScopesOwnOrStaysInsideItsGroup(): void
     {
+        $named = ['named' => ['first' => 'Launch', 'second' => 'Retro']];
+
         $this->assertCompilesTo(
-            ['visibility' => 'public', '$scope' => ['named' => ['first' => 'Launch', 'second' => 'Retro']]],
+            ['visibility' => 'public', '$scope' => $named],
             '"visibility" = ? and (("name" = ? or "name" = ?))',
+            ['public', 'Launch', 'Retro'],
+        );
+
+        $this->assertCompilesTo(
+            ['$or' => [['visibility' => 'public'], ['$scope' => $named]]],
+            '(("visibility" = ?) or ((("name" = ? or "name" = ?))))',
             ['public', 'Launch', 'Retro'],
         );
     }
 
     /**
-     * Test that arguments bind to parameters by name whatever their order, on a
-     * prefixed scope and on a protected attribute scope a trait declares.
+     * Test that arguments bind to parameters by name whatever the order of the
+     * request or the rules, on a prefixed scope and on a protected attribute
+     * scope a trait declares.
      *
      * @return void
      *
@@ -111,12 +121,18 @@ final class ScopeApplierTest extends TestCase
      */
     public function testArgumentsBindToParametersByNameWhateverTheirOrder(): void
     {
-        $this->assertCompilesTo(['$scope' => ['named' => ['second' => 'Retro', 'first' => 'Launch']]], '(("name" = ? or "name" = ?))', ['Launch', 'Retro']);
+        $this->assertCompilesTo(
+            ['$scope' => ['named' => ['first' => 'Launch', 'second' => 'Retro']]],
+            '(("name" = ? or "name" = ?))',
+            ['Launch', 'Retro'],
+            ['named' => ['second' => 'required|string', 'first' => 'required|string']],
+        );
 
         $this->assertCompilesTo(
             ['$scope' => ['startingBetween' => ['until' => '2026-12-31', 'from' => '2026-01-01']]],
             '("starts_at" between ? and ?)',
             ['2026-01-01', '2026-12-31'],
+            ['startingBetween' => ['until' => 'required|date', 'from' => 'required|date']],
         );
     }
 

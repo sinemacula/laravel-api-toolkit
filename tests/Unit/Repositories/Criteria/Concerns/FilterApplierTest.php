@@ -2168,14 +2168,14 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a scope inside $or attaches by OR and keeps its own OR grouped.
+     * Test that a scope inside $or attaches by OR, its predicates grouped.
      *
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testAScopeInsideOrAttachesByOrAndKeepsItsOwnOrGrouped(): void
+    public function testAScopeInsideOrAttachesByOrWithItsPredicatesGrouped(): void
     {
         $query = $this->applyToGatherings(['$or' => [['visibility' => 'private'], ['$scope' => ['near' => ['lat' => 51.5, 'lng' => -0.5, 'km' => 1]]]]]);
 
