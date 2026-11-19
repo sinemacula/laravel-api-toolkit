@@ -91,6 +91,19 @@ final readonly class ResponseSchemaResolver
     }
 
     /**
+     * Determine whether the action's #[ResponseSchema] directive declares a
+     * collection.
+     *
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @return bool
+     */
+    public function declaresCollection(?string $controllerClass, string $action): bool
+    {
+        return $this->directive($controllerClass, $action)?->collection === true;
+    }
+
+    /**
      * Resolve the success-body schema declared by the action.
      *
      * @param  class-string|null  $controllerClass
@@ -112,7 +125,7 @@ final readonly class ResponseSchemaResolver
         }
 
         return $directive->collection
-            ? $this->envelope->collectionEnvelopeFor($data)
+            ? $this->envelope->anyCollectionEnvelopeFor($data)
             : $this->envelope->singleEnvelopeFor($data);
     }
 

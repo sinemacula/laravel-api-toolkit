@@ -867,7 +867,7 @@ final class PathBuilderTest extends TestCase
         $schema = $this->build()['/collection']['get']['responses']['200']['content']['application/json']['schema'];
 
         self::assertSame(
-            (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
+            (new EnvelopeBuilder)->anyCollectionEnvelopeFor(['$ref' => '#/components/schemas/User']),
             $schema,
         );
     }
@@ -901,11 +901,9 @@ final class PathBuilderTest extends TestCase
         $schema = $this->build()['/widgets']['get']['responses']['200']['content']['application/json']['schema'];
 
         self::assertSame(
-            (new EnvelopeBuilder)->collectionEnvelope(self::WIDGET_REF),
+            (new EnvelopeBuilder)->anyCollectionEnvelopeFor(['$ref' => self::WIDGET_REF]),
             $schema,
         );
-        self::assertSame(['$ref' => self::WIDGET_REF], $schema['properties']['data']['items']);
-        self::assertSame(['data', 'meta', 'links'], $schema['required']);
     }
 
     /**
@@ -1012,7 +1010,8 @@ final class PathBuilderTest extends TestCase
         self::assertSame([206, 403, 500], array_keys($paths['/users']['get']['responses']));
         self::assertSame([
             'description' => 'Partial Content.',
-            'content'     => ['application/json' => ['schema' => $envelope->collectionEnvelope(self::WIDGET_REF)]],
+            'headers'     => $envelope->collectionHeaders(),
+            'content'     => ['application/json' => ['schema' => $envelope->anyCollectionEnvelopeFor(['$ref' => self::WIDGET_REF])]],
         ], $paths['/users']['get']['responses'][206]);
         self::assertIsArray($paths['/users/{user}']['delete']['responses']);
         self::assertSame([200, 403, 404, 500], array_keys($paths['/users/{user}']['delete']['responses']));
@@ -1134,7 +1133,8 @@ final class PathBuilderTest extends TestCase
         self::assertArrayNotHasKey('parameters', $store);
         self::assertSame([
             'description' => 'The request succeeded and a resource was created.',
-            'content'     => ['application/json' => ['schema' => $envelope->collectionEnvelope('#/components/schemas/User')]],
+            'headers'     => $envelope->collectionHeaders(),
+            'content'     => ['application/json' => ['schema' => $envelope->anyCollectionEnvelopeFor(['$ref' => '#/components/schemas/User'])]],
         ], $store['responses'][201]);
         self::assertSame([], $this->referencedParameterNames($update));
         self::assertSame([

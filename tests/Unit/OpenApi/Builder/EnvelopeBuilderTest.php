@@ -224,6 +224,45 @@ final class EnvelopeBuilderTest extends TestCase
     }
 
     /**
+     * Test that a collection's headers reference the shared total-count header.
+     *
+     * @return void
+     */
+    public function testCollectionHeadersReferenceTheTotalCountHeader(): void
+    {
+        self::assertSame(
+            ['Total-Count' => ['$ref' => '#/components/headers/Total-Count']],
+            (new EnvelopeBuilder)->collectionHeaders(),
+        );
+    }
+
+    /**
+     * Test that the envelope of a collection of any pagination offers the
+     * length-aware page, the cursor page and the unpaginated list.
+     *
+     * @return void
+     */
+    public function testAnyCollectionEnvelopeOffersEveryPaginationAndTheList(): void
+    {
+        $builder = new EnvelopeBuilder;
+        $items   = ['$ref' => '#/components/schemas/User'];
+
+        self::assertSame([
+            'anyOf' => [
+                $builder->collectionEnvelope('#/components/schemas/User'),
+                $builder->cursorCollectionEnvelope('#/components/schemas/User'),
+                [
+                    'type'       => 'object',
+                    'properties' => [
+                        'data' => ['type' => 'array', 'items' => $items],
+                    ],
+                    'required' => ['data'],
+                ],
+            ],
+        ], $builder->anyCollectionEnvelopeFor($items));
+    }
+
+    /**
      * The expected nullable uri-formatted string schema fragment.
      *
      * @return array<string, mixed>
