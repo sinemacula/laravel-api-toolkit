@@ -12,6 +12,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -1914,6 +1915,42 @@ final class WritePoolTest extends TestCase
         self::assertSame(['a'], DB::table('test_records')->pluck('name')->all());
         self::assertSame(1, $pool->count());
         self::assertNull($this->cacheStore('test_records')->fetch('stale-query-hash'));
+    }
+
+    /**
+     * Test that a cache failure invalidating the flushed tables is reported and
+     * does not replace the error that ended the transaction.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testACacheFailureDoesNotReplaceTheErrorThatEndedTheTransaction(): void
+    {
+        Config::set('api-toolkit.deferred_writes.invalidate_query_cache', true);
+        Config::set('repositories.cache.store', 'missing');
+
+        Exceptions::fake();
+
+        $deadlock = new QueryException('audit', 'insert', [], new \PDOException(self::DEADLOCK));
+
+        $this->useAuditTestTables();
+        $this->failInsert(1, $deadlock);
+
+        $pool = new WritePool(chunkSize: 500, poolLimit: 10000);
+
+        try {
+            DB::connection('audit')->transaction(function () use ($pool): void {
+                $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
+                $pool->flush();
+            });
+
+            self::fail('Expected the deadlock to be rethrown');
+        } catch (DeadlockException $exception) {
+            self::assertSame($deadlock, $exception->getPrevious());
+        }
+
+        Exceptions::assertReported(fn (\InvalidArgumentException $e): bool => $e->getMessage() === 'Cache store [missing] is not defined.');
     }
 
     /**

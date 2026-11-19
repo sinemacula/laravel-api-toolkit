@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Config\LifecycleSettings;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
+use SineMacula\ApiToolkit\Repositories\Concerns\DeferredWriteTransactionDetector;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 
 /**
@@ -45,11 +46,14 @@ final readonly class WritePoolFlushSubscriber
      * The pool is resolved from the current container, which under Octane is
      * the request's sandbox. Every queue job attempt is flushed, including a
      * released or timed-out one. A flush exception is re-thrown only when
-     * rethrow_at_boundary is enabled.
+     * rethrow_at_boundary is enabled; an error that ended a transaction the
+     * flush joined always is, so the transaction can be retried.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
+     * @throws \PDOException
+     * @throws \ErrorException
      */
     public function handleFlush(): void
     {
@@ -60,6 +64,10 @@ final readonly class WritePoolFlushSubscriber
 
             return;
         } catch (\Throwable $e) {
+            if ((new DeferredWriteTransactionDetector)->endsTransaction($e)) {
+                throw $e;
+            }
+
             FailureReporter::report($e, 'WritePool flush subscriber failed');
 
             return;

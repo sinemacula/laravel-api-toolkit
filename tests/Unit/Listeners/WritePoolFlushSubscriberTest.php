@@ -29,6 +29,7 @@ use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
+use Tests\Concerns\CreatesDeferredWriteTargets;
 use Tests\Concerns\SwapsExceptionHandler;
 use Tests\TestCase;
 
@@ -43,7 +44,7 @@ use Tests\TestCase;
 #[CoversClass(WritePoolFlushSubscriber::class)]
 final class WritePoolFlushSubscriberTest extends TestCase
 {
-    use SwapsExceptionHandler;
+    use CreatesDeferredWriteTargets, SwapsExceptionHandler;
 
     /**
      * Set up the test environment.
@@ -443,6 +444,44 @@ final class WritePoolFlushSubscriberTest extends TestCase
         self::assertInstanceOf(QueryException::class, $thrown->getPrevious());
         Exceptions::assertNothingReported();
         Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult === $thrown->flushResult());
+    }
+
+    /**
+     * Test that a deadlock ending a transaction the boundary flush joined is
+     * rethrown unreported, so the transaction's retry writes the row once.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testHandleFlushRethrowsADeadlockEndingTheTransactionItJoinedUnreported(): void
+    {
+        $this->useAuditConnection();
+
+        Exceptions::fake();
+
+        $inserts = 0;
+
+        DB::connection('audit')->beforeExecuting(static function (string $query) use (&$inserts): void {
+            if (str_starts_with($query, 'insert') && ++$inserts === 1) {
+                throw new QueryException('audit', $query, [], new \PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock'));
+            }
+        });
+
+        $pool       = new WritePool(500, 10000);
+        $subscriber = $this->subscriberFlushing($pool);
+        $attempts   = 0;
+
+        DB::connection('audit')->transaction(static function () use ($pool, $subscriber, &$attempts): void {
+            $attempts++;
+
+            $pool->add('audit', 'audit_entries', ['action' => 'joined']);
+            $subscriber->handleFlush();
+        }, 2);
+
+        self::assertSame(2, $attempts);
+        self::assertSame(['joined'], DB::connection('audit')->table('audit_entries')->pluck('action')->all());
+        Exceptions::assertNothingReported();
     }
 
     /**

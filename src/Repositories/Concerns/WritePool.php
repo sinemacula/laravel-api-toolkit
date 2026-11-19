@@ -4,12 +4,11 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
-use Illuminate\Database\DeadlockException;
-use Illuminate\Database\DetectsLostConnections;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Config\LifecycleSettings;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
+use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
 
 /**
@@ -21,8 +20,6 @@ use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
  */
 final class WritePool
 {
-    use DetectsLostConnections;
-
     /** @var array<string, array<string, list<array<string, mixed>>>> Records buffered by connection, then table */
     private array $buffer = [];
 
@@ -159,19 +156,23 @@ final class WritePool
      */
     private function flushConnections(array $connections, FlushStrategy $strategy): WritePoolFlushResult
     {
-        $targets = $this->targets($connections);
-
         try {
-            return $this->executeFlush($strategy, $targets);
+            $result = $this->executeFlush($strategy, $this->targets($connections));
+        } catch (WritePoolFlushException $exception) {
+            $this->invalidateFlushedTables($exception->flushResult()->flushedTables());
+
+            throw $exception;
         } finally {
             $this->added = array_diff_key($this->added, array_flip($connections));
-
-            $this->invalidateFlushedTables($this->tableNames($targets));
         }
+
+        $this->invalidateFlushedTables($result->flushedTables());
+
+        return $result;
     }
 
     /**
-     * Invalidate the per-query cache for the tables a flush persisted.
+     * Invalidate the per-query cache for a flush's target tables.
      *
      * @param  array<int, string>  $tables
      * @return void
@@ -421,18 +422,20 @@ final class WritePool
      */
     private function rethrowIfTheTransactionEnded(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator, int $depth, \Throwable $exception): void
     {
-        // A dropped connection can surface as a PHP warning instead
-        if ($depth === 0 || !($exception instanceof \PDOException || $exception instanceof \ErrorException)) {
-            return;
-        }
-
-        if (!$exception instanceof DeadlockException && !$this->causedByLostConnection($exception)) {
+        if ($depth === 0 || !(new DeferredWriteTransactionDetector)->endsTransaction($exception)) {
             return;
         }
 
         $this->settle($context->strategy(), array_slice($context->targets(), 0, $context->targetIndex()), $accumulator);
 
         unset($this->buffer[$context->connection()]);
+
+        try {
+            $this->invalidateFlushedTables($this->tableNames($context->targets()));
+        } catch (\Throwable $failure) { // @phpstan-ignore catch.neverThrown
+            // A cache failure must not replace the error the caller retries on
+            FailureReporter::report($failure, 'Deferred write cache invalidation failed');
+        }
 
         throw $exception;
     }
