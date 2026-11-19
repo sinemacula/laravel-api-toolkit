@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use SineMacula\ApiToolkit\Http\Routing\Attributes\AuthorizesResource;
 use SineMacula\ApiToolkit\Http\Routing\AuthorizedController;
 use SineMacula\Http\Enums\HttpStatus;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Tests\Fixtures\Input\ArticleStorePayload;
 use Tests\Fixtures\Input\ArticleUpdatePayload;
 use Tests\Fixtures\Models\Article;
@@ -40,11 +41,11 @@ final class ArticleController extends AuthorizedController
     /**
      * List the articles the query selects, a page at a time.
      *
-     * @return \Illuminate\Http\JsonResponse
+     * @return \Symfony\Component\HttpFoundation\Response
      *
      * @throws \Throwable
      */
-    public function index(): JsonResponse
+    public function index(): HttpResponse
     {
         return $this->respondWithCollection(TaggedArticleResource::collection($this->articles->withApiCriteria()->paginate()));
     }
@@ -54,9 +55,9 @@ final class ArticleController extends AuthorizedController
      * the column defaults the insert applied.
      *
      * @param  \Tests\Fixtures\Input\ArticleStorePayload  $payload
-     * @return \Illuminate\Http\JsonResponse
+     * @return \Symfony\Component\HttpFoundation\Response
      */
-    public function store(ArticleStorePayload $payload): JsonResponse
+    public function store(ArticleStorePayload $payload): HttpResponse
     {
         $article = new Article;
 
@@ -71,9 +72,9 @@ final class ArticleController extends AuthorizedController
      * Show the given article.
      *
      * @param  \Tests\Fixtures\Models\Article  $article
-     * @return \Illuminate\Http\JsonResponse
+     * @return \Symfony\Component\HttpFoundation\Response
      */
-    public function show(Article $article): JsonResponse
+    public function show(Article $article): HttpResponse
     {
         return $this->respondWithItem(new TaggedArticleResource($article, loadMissing: true));
     }
@@ -83,9 +84,9 @@ final class ArticleController extends AuthorizedController
      *
      * @param  \Tests\Fixtures\Input\ArticleUpdatePayload  $payload
      * @param  \Tests\Fixtures\Models\Article  $article
-     * @return \Illuminate\Http\JsonResponse
+     * @return \Symfony\Component\HttpFoundation\Response
      */
-    public function update(ArticleUpdatePayload $payload, Article $article): JsonResponse
+    public function update(ArticleUpdatePayload $payload, Article $article): HttpResponse
     {
         $this->articles->persist($article, $payload->toArray());
 
