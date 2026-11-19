@@ -946,7 +946,7 @@ Exceptions are mapped to `ApiException` subclasses and rendered as JSON error re
 Every `ApiException` implements Symfony's `HttpExceptionInterface`, so one left to Laravel's renderer keeps its status
 and headers, such as a maintenance `503` with its `Retry-After`.
 
-Every error renders as one envelope:
+Every error the toolkit renders shares one envelope:
 
 ```json
 {
