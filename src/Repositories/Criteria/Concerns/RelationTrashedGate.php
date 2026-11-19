@@ -264,12 +264,13 @@ final readonly class RelationTrashedGate
 
         $builder->withTrashed(); // @phpstan-ignore method.notFound
 
-        if ($state === TrashedState::ONLY) {
-
-            // Its own scope, so no OR or relation merge can strip it
-            $builder->withGlobalScope(self::class, static function (Builder $query): void {
-                $query->whereNotNull($query->getModel()->getQualifiedDeletedAtColumn()); // @phpstan-ignore method.notFound
-            });
+        if ($state !== TrashedState::ONLY) {
+            return;
         }
+
+        // Its own scope, so no OR or relation merge can strip it
+        $builder->withGlobalScope(self::class, static function (Builder $query): void {
+            $query->whereNotNull($query->getModel()->getQualifiedDeletedAtColumn()); // @phpstan-ignore method.notFound
+        });
     }
 }
