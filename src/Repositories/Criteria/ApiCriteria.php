@@ -87,6 +87,7 @@ final class ApiCriteria implements CriteriaInterface
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $operatorRegistry
      * @param  \SineMacula\ApiToolkit\Search\SearchDriverRegistry  $searchDriverRegistry
      * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $metadataCacheWriter
+     * @param  bool  $filtersOnly
      * @return void
      */
     public function __construct(
@@ -108,6 +109,9 @@ final class ApiCriteria implements CriteriaInterface
 
         /** Writes resolved resource metadata to the persistent cache */
         private readonly MetadataCacheWriter $metadataCacheWriter,
+
+        /** Whether to apply only the filters, search and trashed */
+        private readonly bool $filtersOnly = false,
     ) {
         $this->relationTrashedGate         = new RelationTrashedGate($this->schemaIntrospector, $this->request, ResourceSettings::resourceMap());
         $this->filterApplier               = new FilterApplier(new FilterValueGuard(new ColumnLiteral($this->schemaIntrospector)), $this->relationTrashedGate);
@@ -123,6 +127,9 @@ final class ApiCriteria implements CriteriaInterface
 
     /**
      * Apply the criteria to the given model.
+     *
+     * In filters-only mode the order, limit, fields and aggregates are neither
+     * applied nor checked.
      *
      * @param  \Illuminate\Contracts\Database\Eloquent\Builder|\Illuminate\Database\Eloquent\Model  $model
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
@@ -141,17 +148,16 @@ final class ApiCriteria implements CriteriaInterface
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
         $query = $model instanceof Model ? $model::query() : $model;
 
+        if ($this->filtersOnly) {
+            return $this->applyRowSelection($query, $this->buildQuerySurface($query->getModel()));
+        }
+
         $resourceType = $this->getResourceType($query->getModel());
 
         $this->queryCostGuard->guard();
 
         $surface = $this->buildQuerySurface($query->getModel());
-
-        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
-        $query = $this->softDeleteVisibilityApplier->apply($query, $this->resolveResource($query->getModel()), $this->request);
-
-        $query = $this->searchApplier->apply($query, $this->getSearch(), $this->resolveResource($query->getModel()));
-        $query = $this->applyGroupedFilters($query, $surface);
+        $query   = $this->applyRowSelection($query, $surface);
 
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
         $query = $this->limitApplier->apply($query, $this->getLimit());
@@ -202,6 +208,29 @@ final class ApiCriteria implements CriteriaInterface
         if ($this->queryToken !== $token) {
             throw new \LogicException('API criteria were composed under a different API query: compose and apply them inside the same request or ApiQuery::using() call.');
         }
+    }
+
+    /**
+     * Apply the row predicates: soft-delete visibility, search and the grouped
+     * filters.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
+     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\MissingSearchDriverException
+     * @throws \SineMacula\ApiToolkit\Exceptions\UnservableSearchException
+     */
+    private function applyRowSelection(EloquentBuilder $query, QuerySurface $surface): EloquentBuilder
+    {
+        $resource = $this->resolveResource($query->getModel());
+
+        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
+        $query = $this->softDeleteVisibilityApplier->apply($query, $resource, $this->request);
+        $query = $this->searchApplier->apply($query, $this->getSearch(), $resource);
+
+        return $this->applyGroupedFilters($query, $surface);
     }
 
     /**

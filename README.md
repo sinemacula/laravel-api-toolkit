@@ -575,10 +575,10 @@ neither flag lets a defect pass. A searchable declaration on a connection listed
 `api-toolkit.search.unverified_connections` is not reported, since that listing already waives its index proof. Boot
 skips schema validation while this command runs, so the command reports everything itself.
 
-The index catalogue is read only during validation, never while a filter or sort is served. Three schema reads do sit
-on the request path, all cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads
-the table's column listing, search reads its index proof, and a cursor-paginated sort reads the column definitions to
-refuse a nullable key.
+Filters and sorts never read the index catalogue while they are served; only validation checks their index backing. Two
+schema reads do sit on the request path, both cached in the shared store: search reads its index proof, and one read of
+the table's column definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks and
+a cursor-paginated sort's refusal of a nullable key.
 
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
@@ -611,8 +611,9 @@ class UserRepository extends ApiRepository
 }
 ```
 
-`withApiCriteria()` applies the request's filters, sorts, eager loads and limit. It returns a copy and leaves the
-repository it was called on untouched, so run the read through the returned value:
+`withApiCriteria()` applies the request's filters, sorts, eager loads and limit, and narrows the select to the
+requested fields. It returns a copy and leaves the repository it was called on untouched, so run the read through the
+returned value:
 
 ```php
 $users = $repository->withApiCriteria()->paginate();
@@ -629,6 +630,28 @@ if ($caller->isExternal()) {
 
 $users = $scoped->paginate();
 ```
+
+**Working on the filtered set** - `withApiFilters()` applies only the request's `filters`, `search` and `trashed`, under
+the same allowlist and filter cost budget. `order`, `limit`, `fields` and `aggregates` are not applied, and only the
+query parser checks them, so a bulk action sent the list screen's query string acts on every matching row. Persistent
+criteria, repository scopes, global scopes and a model's `$with` still apply, and the last of `withApiCriteria()` and
+`withApiFilters()` called on a handle wins. A terminal operation consumes the composition, so start each from its own
+call:
+
+```php
+$orders->withApiFilters()->update(['archived_at' => now()]);
+
+foreach ($orders->withApiFilters()->lazyById() as $order) {
+    $order->notifyCustomer();
+}
+
+$totals = $orders->withApiFilters()->query()->toBase()
+    ->selectRaw('status, count(*) as total')
+    ->groupBy('status')
+    ->pluck('total', 'status');
+```
+
+Through `paginate()`, `limit` is still the page size; render pages through `withApiCriteria()`.
 
 **Outside a request** - criteria apply only under a parsed query: the one `ParseApiQuery` parsed, or a snapshot given
 to `ApiQuery::using()`. Applied under none, as in a queued job, a console command or a route without the middleware,
@@ -647,10 +670,10 @@ ArchiveInvoices::make(new ArchiveInvoicesInput(ApiQuery::snapshot()))
     ->dispatch();
 
 // ArchiveInvoices::handle()
-return ApiQuery::using($this->input->query->without('order', 'fields'), function (): int {
+return ApiQuery::using($this->input->query, function (): int {
     $archived = 0;
 
-    foreach ($this->invoices->withApiCriteria()->lazyById() as $invoice) {
+    foreach ($this->invoices->withApiFilters()->lazyById() as $invoice) {
         $invoice->archive();
         $archived++;
     }
@@ -661,8 +684,8 @@ return ApiQuery::using($this->input->query->without('order', 'fields'), function
 
 - Read and render inside the callback. A `LazyCollection` keeps its filters after `using()` returns, but a resource
   rendered later reads the restored query, and a resource resolves its fields once, so build it where it renders.
-- Work that changes which rows match iterates with `lazyById()` on a snapshot `without('order')`. Keyset iteration
-  after a client order skips rows, and so does offset `lazy()` as the set changes.
+- Work that changes which rows match iterates with `withApiFilters()->lazyById()`, which ignores the client's order.
+  Keyset iteration after a client order skips rows, and so does offset `lazy()` as the set changes.
 - `allowsTrashed()` and field guards see the worker's console request, which is not reconstructed, so a carried
   `trashed` the worker's gate refuses, or a carried key a caller guard hides, fails the job.
 
@@ -838,10 +861,10 @@ $this->orders->persist($order, $this->input->attributes);
 `findForUpdate()` reads the row afresh under `lockForUpdate()`. A missing or scoped-out row is a `404` before the
 precondition is checked, and an `If-Match` naming neither the current tag nor `*` throws `PreconditionFailedException`
 (`412`, code `10114`), which rolls the transaction back. A malformed `If-Match` matches nothing. It throws a
-`LogicException` outside a transaction on the model's connection, or on a handle carrying `withApiCriteria()`.
-`ServiceContext::fromRequest()` captures the field, so a queued run compares on the worker, where a `412` fails the job
-without a retry. A request without the field writes unconditionally: add `RequireIfMatch` to a route group to answer a
-`PUT`, `PATCH` or `DELETE` without it with a `428` (code `10115`), while other methods pass.
+`LogicException` outside a transaction on the model's connection, or on a handle carrying `withApiCriteria()` or
+`withApiFilters()`. `ServiceContext::fromRequest()` captures the field, so a queued run compares on the worker, where a
+`412` fails the job without a retry. A request without the field writes unconditionally: add `RequireIfMatch` to a route
+group to answer a `PUT`, `PATCH` or `DELETE` without it with a `428` (code `10115`), while other methods pass.
 
 Tags compare weakly on both sides, where RFC 9110 compares `If-Match` strongly: the toolkit's tags are weak, and proxies
 such as nginx weaken a strong tag they compress. A `412` carries no tag, so the client re-reads before retrying. The
@@ -1446,16 +1469,16 @@ audience uses fails the export, as does a tag file that matches no tag, under th
 
 ### Metadata Invalidation
 
-Schema metadata (column listings and definitions, index catalogues, relation lookups and the
-model-to-resource map) is cached in the application's cache store and shared by every process. The Octane and queue
+Schema metadata (column definitions, index catalogues, relation lookups and the model-to-resource
+map) is cached in the application's cache store and shared by every process. The Octane and queue
 boundary flushes reset only each worker's per-operation state, so a schema or mapping change needs the shared entries
 retired explicitly. Every metadata key is stored under a generation held in the same store; replacing the generation
-makes every earlier entry unreachable in every process at once. A column listing that reads empty, as it does before
-its table exists, is never stored.
+makes every earlier entry unreachable in every process at once. Column definitions that read empty, as they do before
+their table exists, are never stored.
 
 Under Octane the boundary is the end of every request, task and tick; on a queue worker it is the end of every job
 attempt, including one that fails or is released for a retry. It drops the memoised generation, the per-operation
-index proofs, the in-memory column listings, column definitions and index catalogues, the field and eager-load memos
+index proofs, the in-memory column definitions and index catalogues, the field and eager-load memos
 and the query parser's state. The compiled schemas, search plans, field-to-column maps and cast reflections come from
 code alone, so they live for the worker and are rebuilt only when it restarts; reload Octane and queue workers on
 every deploy. An application that runs its own reset can call `CacheManager::flush()`; a second reset is harmless.
