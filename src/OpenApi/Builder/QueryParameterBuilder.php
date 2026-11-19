@@ -314,7 +314,7 @@ final readonly class QueryParameterBuilder
     {
         return $this->parameter(
             'pagination',
-            'Pagination mode: set to cursor to switch from the default length-aware pagination to cursor pagination. Any other value is rejected.',
+            'Pagination mode: set to cursor to switch from the default length-aware pagination to cursor pagination. Any other non-empty value is rejected.',
             ['type' => 'string', 'enum' => ['cursor']],
         );
     }

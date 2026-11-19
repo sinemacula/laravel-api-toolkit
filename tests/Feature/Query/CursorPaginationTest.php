@@ -117,6 +117,7 @@ final class CursorPaginationTest extends TestCase
     {
         yield 'misspelt' => ['pagination=curser'];
         yield 'list' => ['pagination[]=cursor'];
+        yield 'malformed' => ['pagination=%FF'];
     }
 
     /**

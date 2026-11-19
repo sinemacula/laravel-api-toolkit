@@ -272,10 +272,10 @@ final class QueryParameterBuilderTest extends TestCase
         $pagination = $this->makeBuilder()->build()['Pagination'];
 
         self::assertSame(['type' => 'string', 'enum' => ['cursor']], $pagination['schema']);
-        self::assertIsString($pagination['description']);
-        self::assertStringContainsString('length-aware', $pagination['description']);
-        self::assertIsString($pagination['description']);
-        self::assertStringContainsString('cursor', $pagination['description']);
+        self::assertSame(
+            'Pagination mode: set to cursor to switch from the default length-aware pagination to cursor pagination. Any other non-empty value is rejected.',
+            $pagination['description'],
+        );
     }
 
     /**
