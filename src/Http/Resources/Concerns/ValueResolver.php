@@ -129,27 +129,30 @@ final class ValueResolver
         }
 
         /** @var array<string, mixed> $attributes */
-        $attributes = $owner->getAttributes();
-        $requested  = (array) ApiQuery::getAggregates($resourceType);
-        $result     = [];
+        $attributes  = $owner->getAttributes();
+        $definitions = $schema->getAggregateDefinitions();
+        $requested   = (array) ApiQuery::getAggregates($resourceType);
+        $result      = [];
 
-        foreach ($schema->getAggregateDefinitions() as $presentKey => $definition) {
+        $selected = $requested !== []
+            ? array_intersect_key($definitions, array_flip($requested))
+            : array_filter($definitions, static fn (CompiledAggregateDefinition $definition): bool => $definition->isDefault);
 
-            $include = $requested !== []
-                ? in_array($presentKey, $requested, true)
-                : $definition->isDefault;
+        foreach ($selected as $presentKey => $definition) {
 
-            $raw = $attributes[$definition->attribute()] ?? null;
+            $attribute = $definition->attribute();
+            $renders   = array_key_exists($attribute, $attributes)
+                && ($attributes[$attribute] !== null || $definition->function->requiresColumn());
 
-            if (!$include || $raw === null || !$this->guardEvaluator->passesCallerGuards($definition->callerGuards, $request)) {
+            if (
+                !$renders
+                || !$this->guardEvaluator->passesCallerGuards($definition->callerGuards, $request)
+                || !$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)
+            ) {
                 continue;
             }
 
-            if (!$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
-                continue;
-            }
-
-            $result[$presentKey] = $this->applyTransformers($definition->transformers, $resource, $this->readAggregate($owner, $definition, $raw));
+            $result[$presentKey] = $this->applyTransformers($definition->transformers, $resource, $this->readAggregate($owner, $definition, $attributes[$attribute]));
         }
 
         return $result;
@@ -424,6 +427,10 @@ final class ValueResolver
      */
     private function readAggregate(object $owner, CompiledAggregateDefinition $definition, mixed $raw): mixed
     {
+        if ($raw === null) {
+            return null;
+        }
+
         return match ($definition->function) {
             AggregateFunction::COUNT                       => (int) $raw, // @phpstan-ignore cast.int
             AggregateFunction::EXISTS                      => (bool) $raw,

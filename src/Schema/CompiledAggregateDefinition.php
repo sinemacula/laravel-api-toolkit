@@ -29,6 +29,8 @@ final readonly class CompiledAggregateDefinition
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
      * @param  array<int, callable(mixed): bool>  $callerGuards
+     * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema|null  $openApi
+     * @param  string|null  $unindexedReason
      */
     public function __construct(
 
@@ -58,6 +60,12 @@ final readonly class CompiledAggregateDefinition
 
         /** Caller guard closures that control visibility */
         public array $callerGuards = [],
+
+        /** Declared OpenAPI contract for this aggregate; read by the exporter */
+        public ?OpenApiFieldSchema $openApi = null,
+
+        /** Why the aggregate's order may run unindexed; null when not sortable */
+        public ?string $unindexedReason = null,
     ) {}
 
     /**

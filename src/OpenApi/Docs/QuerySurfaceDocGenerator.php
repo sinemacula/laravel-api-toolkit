@@ -40,8 +40,8 @@ final readonly class QuerySurfaceDocGenerator
     /** The fixed note saying what an index-backed order claims and how pages stay whole. */
     private const string ORDERS = 'An order reads as Index-backed where the resource recorded no exemption for it; the index itself is proven by '
         . 'schema validation, which reads the catalogue behind the model where a connection can be inspected. Every page is ordered by '
-        . 'the key last, in the last direction, so tied rows never repeat or go missing; a cursor-paginated read refuses random order '
-        . 'and any column that admits null.';
+        . 'the key last, in the last direction, so tied rows never repeat or go missing; a cursor-paginated read refuses random order, '
+        . 'an aggregate or relation key, and any column that admits null.';
 
     /** The fixed note saying what the relevance order ranks by and needs. */
     private const string RELEVANCE = '`order=relevance` ranks rows by how closely they match `search`: the whole value, then the start, then the '
@@ -265,8 +265,8 @@ final readonly class QuerySurfaceDocGenerator
     }
 
     /**
-     * Render one resource as a subsection heading, its column table, and the
-     * relations a filter may descend through.
+     * Render one resource as a subsection heading, its column table, its own
+     * page size bounds, and the relations a filter may descend through.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor  $surface
      * @param  string  $level
@@ -276,6 +276,10 @@ final readonly class QuerySurfaceDocGenerator
     {
         $lines = ['', $level . ' ' . SchemaComponentName::fromResource($surface->resource), ''];
         $lines = array_merge($lines, $this->columnTable($surface->columns));
+
+        if ($surface->pageSize !== null) {
+            $lines = array_merge($lines, ['', sprintf('Pagination: at most %d per page; default page size %d.', $surface->pageSize->ceiling, $surface->pageSize->default)]);
+        }
 
         return array_merge($lines, ['', $this->relationsLine($surface->relations)]);
     }

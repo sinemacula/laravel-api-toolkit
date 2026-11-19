@@ -11,9 +11,11 @@ use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Schema\BaseDefinition;
 use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
+use SineMacula\ApiToolkit\Schema\Sum;
 use SineMacula\ApiToolkit\Schema\Validation\RawSchemaValidator;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 use Tests\Fixtures\Resources\BoundedPostResource;
@@ -212,6 +214,105 @@ final class RawSchemaValidatorTest extends TestCase
     }
 
     /**
+     * Test that a key PHP stores as an integer is rejected, since it can turn
+     * the payload into a JSON list, while a digit string PHP keeps passes.
+     *
+     * @return void
+     */
+    public function testRejectsAKeyThatReadsAsAnInteger(): void
+    {
+        $errors = $this->collectErrors([
+            ...Field::set(Count::of('posts', '0'), Sum::of('posts', 'id', '12'), Count::of('posts', '01'), Count::of('posts', '+1')),
+            '__aggregate__:3'   => ['metric' => 'count', 'relation' => 'posts'],
+            '__aggregate__:-3'  => ['metric' => 'count', 'relation' => 'posts'],
+            '__aggregate__:1.0' => ['metric' => 'count', 'relation' => 'posts'],
+        ]);
+
+        $integer = 'Aggregate key "%s" reads as an integer, which can turn the aggregates object into a JSON list';
+        $word    = 'Aggregate key "%s" may hold only letters, digits and underscores';
+
+        self::assertSame([
+            [self::RESOURCE, '__aggregate__:0', sprintf($integer, '0')],
+            [self::RESOURCE, '__aggregate__:12', sprintf($integer, '12')],
+            [self::RESOURCE, '__aggregate__:+1', sprintf($word, '+1')],
+            [self::RESOURCE, '__aggregate__:3', sprintf($integer, '3')],
+            [self::RESOURCE, '__aggregate__:-3', sprintf($word, '-3')],
+            [self::RESOURCE, '__aggregate__:-3', sprintf($integer, '-3')],
+            [self::RESOURCE, '__aggregate__:1.0', sprintf($word, '1.0')],
+        ], $errors);
+    }
+
+    /**
+     * Provide each schema declaring a field under a key the response writes
+     * itself, with that key and its defect.
+     *
+     * @return iterable<string, array{array<string, array<string, mixed>>, string, string}>
+     */
+    public static function reservedKeyProvider(): iterable
+    {
+        $aggregate = ['__aggregate__:posts_count' => ['metric' => 'count', 'relation' => 'posts']];
+
+        yield 'the type' => [['_type' => ['accessor' => 'kind']], '_type', 'The key "_type" is reserved for the resource type'];
+        yield 'the truncated relations' => [['_truncated' => ['accessor' => 'cut']], '_truncated', 'The key "_truncated" is reserved for the relations a response truncates'];
+        yield 'the aggregates beside an aggregate' => [
+            ['aggregates' => ['accessor' => 'totals'], ...$aggregate],
+            'aggregates',
+            'The key "aggregates" is reserved for the relation aggregates the resource declares',
+        ];
+        yield 'the aggregates as an unrecognised metric' => [
+            [...$aggregate, 'aggregates' => ['metric' => 'median']],
+            'aggregates',
+            'The key "aggregates" is reserved for the relation aggregates the resource declares',
+        ];
+    }
+
+    /**
+     * Test that a field under a key the rendered resource writes itself is
+     * rejected, as the response would silently overwrite it.
+     *
+     * @param  array<string, array<string, mixed>>  $schema
+     * @param  string  $key
+     * @param  string  $defect
+     * @return void
+     */
+    #[DataProvider('reservedKeyProvider')]
+    public function testRefusesAFieldUnderAKeyTheResponseWrites(array $schema, string $key, string $defect): void
+    {
+        self::assertSame([[self::RESOURCE, $key, $defect]], $this->collectErrors($schema));
+    }
+
+    /**
+     * Test that every reserved key one schema declares is reported.
+     *
+     * @return void
+     */
+    public function testRefusesEveryReservedKeyOfOneSchema(): void
+    {
+        $errors = $this->collectErrors([
+            '_type'                     => ['accessor' => 'kind'],
+            'aggregates'                => ['accessor' => 'totals'],
+            '_truncated'                => ['accessor' => 'cut'],
+            '__aggregate__:posts_count' => ['metric' => 'count', 'relation' => 'posts'],
+        ]);
+
+        self::assertSame(['_type', '_truncated', 'aggregates'], array_column($errors, 1));
+    }
+
+    /**
+     * Test that a field keyed aggregates passes where no aggregate is declared,
+     * an unrecognised metric included, as does an aggregate under that key.
+     *
+     * @return void
+     */
+    public function testAcceptsAnAggregatesKeyThePayloadNeverWrites(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        RawSchemaValidator::assertValid(['aggregates' => ['accessor' => 'totals'], 'score' => ['metric' => 'median']], self::RESOURCE);
+        RawSchemaValidator::assertValid(['aggregates' => ['metric' => 'count', 'relation' => 'posts']], self::RESOURCE);
+    }
+
+    /**
      * Test that guards or transformers declared as anything other than a list
      * are reported, while the other list is still checked.
      *
@@ -260,12 +361,14 @@ final class RawSchemaValidatorTest extends TestCase
     /**
      * Provide one query declaration of each kind.
      *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Schema\Field|\SineMacula\ApiToolkit\Schema\Relation, string}>
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Schema\BaseDefinition, string}>
      */
     public static function rowGuardedQueryDeclarations(): iterable
     {
         yield 'filterable' => [Field::scalar('salary')->filterable(Capability::RANGE), 'filterable'];
         yield 'sortable' => [Field::scalar('salary')->sortable(), 'sortable'];
+        yield 'sortable aggregate' => [Count::of('posts')->sortable('Leaderboard'), 'sortable'];
+        yield 'sortable relation' => [Relation::to('organization', OrganizationResource::class)->sortable('Back-office list'), 'sortable'];
         yield 'searchable' => [Field::scalar('email')->searchable(SearchStrategy::SUBSTRING), 'searchable'];
         yield 'traversable' => [Relation::to('posts', PostResource::class)->traversable(), 'traversable'];
     }
@@ -274,12 +377,12 @@ final class RawSchemaValidatorTest extends TestCase
      * Test that a row guard refuses each declaration that would let a query
      * reach the values it hides.
      *
-     * @param  \SineMacula\ApiToolkit\Schema\Field|\SineMacula\ApiToolkit\Schema\Relation  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\BaseDefinition  $definition
      * @param  string  $declaration
      * @return void
      */
     #[DataProvider('rowGuardedQueryDeclarations')]
-    public function testRefusesARowGuardedFieldOnTheQuerySurface(Field|Relation $definition, string $declaration): void
+    public function testRefusesARowGuardedFieldOnTheQuerySurface(BaseDefinition $definition, string $declaration): void
     {
         $errors = $this->collectErrors(Field::set($definition->guard(static fn (): bool => true)));
 
@@ -302,6 +405,18 @@ final class RawSchemaValidatorTest extends TestCase
             [self::RESOURCE, 'email', sprintf(self::ROW_GUARDED, 'sortable')],
             [self::RESOURCE, 'email', sprintf(self::ROW_GUARDED, 'searchable')],
         ], $errors);
+    }
+
+    /**
+     * Test that a row guard leaves alone a query marker that declares nothing.
+     *
+     * @return void
+     */
+    public function testAcceptsARowGuardedFieldWhoseQueryMarkerDeclaresNothing(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        RawSchemaValidator::assertValid(['salary' => ['guards' => [static fn (): bool => true], 'sortable' => false]], self::RESOURCE);
     }
 
     /**
@@ -610,6 +725,91 @@ final class RawSchemaValidatorTest extends TestCase
             [self::RESOURCE, 'posts', self::sharedRelation('"posts", "bounded_posts"', 'posts')],
             [self::RESOURCE, 'comments', self::sharedRelation('"comments", "open_comments"', 'comments')],
         ], $errors);
+    }
+
+    /**
+     * Provide raw sortable aggregates and relations carrying no usable reason.
+     *
+     * @return iterable<string, array{array<string, mixed>}>
+     */
+    public static function reasonlessSortProvider(): iterable
+    {
+        yield 'aggregate without a reason' => [['metric' => 'count', 'relation' => 'posts', 'sortable' => true]];
+        yield 'aggregate with a blank reason' => [['metric' => 'count', 'relation' => 'posts', 'sortable' => true, 'unindexed' => ' ']];
+        yield 'relation with a non-string reason' => [['relation' => 'posts', 'resource' => PostResource::class, 'sortable' => true, 'unindexed' => true]];
+    }
+
+    /**
+     * Test that a raw sortable aggregate or relation must carry a reason.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return void
+     */
+    #[DataProvider('reasonlessSortProvider')]
+    public function testRefusesASortableAggregateOrRelationWithoutAReason(array $definition): void
+    {
+        self::assertSame(
+            [[self::RESOURCE, 'posts', 'A sortable relation or aggregate must carry the reason its order is unindexed']],
+            $this->collectErrors(['posts' => $definition]),
+        );
+    }
+
+    /**
+     * Test that a sortable relation must render a resource, run no constraint
+     * and not take the aggregate key prefix as its name.
+     *
+     * @return void
+     */
+    public function testRefusesASortableRelationItsOrderCannotHonour(): void
+    {
+        $errors = $this->collectErrors(Field::set(
+            Relation::to('organization', static fn (): null => null)->sortable('Back-office list'),
+            Relation::to('posts', PostResource::class)->constrain(self::constraint())->sortable('Back-office list'),
+            Relation::to('aggregates', OrganizationResource::class, 'grouped')->sortable('Back-office list'),
+        ));
+
+        self::assertSame([
+            [self::RESOURCE, 'organization', 'A sortable relation must render a child resource, whose sortable columns it orders by'],
+            [self::RESOURCE, 'posts', 'A sortable relation may not be constrained, as its order would read the rows the constraint hides'],
+            [self::RESOURCE, 'grouped', 'A sortable relation may not be named "aggregates", which prefixes the aggregate order keys'],
+        ], $errors);
+    }
+
+    /**
+     * Test that every defect of one sortable relation is reported.
+     *
+     * @return void
+     */
+    public function testReportsEveryDefectOfOneSortableRelation(): void
+    {
+        $errors = $this->collectErrors(['aggregates' => ['relation' => 'aggregates', 'constraint' => self::constraint(), 'sortable' => true]]);
+
+        self::assertSame([
+            [self::RESOURCE, 'aggregates', 'A sortable relation or aggregate must carry the reason its order is unindexed'],
+            [self::RESOURCE, 'aggregates', 'A sortable relation must render a child resource, whose sortable columns it orders by'],
+            [self::RESOURCE, 'aggregates', 'A sortable relation may not be constrained, as its order would read the rows the constraint hides'],
+            [self::RESOURCE, 'aggregates', 'A sortable relation may not be named "aggregates", which prefixes the aggregate order keys'],
+        ], $errors);
+    }
+
+    /**
+     * Test that a constrained sortable aggregate and a sortable relation over a
+     * resource are accepted, and that a sortable marker on a plain field is
+     * left to the column rules.
+     *
+     * @return void
+     */
+    public function testAcceptsSortableAggregatesAndRelationsItsOrderCanHonour(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        RawSchemaValidator::assertValid([
+            ...Field::set(
+                Count::of('posts')->constrain(self::constraint())->sortable('Leaderboard'),
+                Relation::to('organization', OrganizationResource::class)->sortable('Back-office list'),
+            ),
+            'flag' => ['sortable' => true],
+        ], self::RESOURCE);
     }
 
     /**

@@ -123,8 +123,9 @@ the query is built, so a rejected request reads nothing.
 
 ### Logical operators
 
-Two logical operators combine conditions: `$and` and `$or`. When multiple
-fields are supplied without a wrapper, they are combined with `$and` by default.
+Two logical operators combine a list of conditions: `$and` and `$or`. When
+multiple fields are supplied without a wrapper, they are combined with `$and` by
+default.
 
 ### Relationship filters
 
@@ -200,18 +201,22 @@ takes a two-element range, and `$in` takes an array:
 ```
 
 Multiple fields are combined with `$and` by default. To combine with `$or`
-instead, wrap the conditions:
+instead, list the conditions:
 
 ```json
 {
-  "$or": {
-    "first_name": {
-      "$in": ["Ben", "John"]
+  "$or": [
+    {
+      "first_name": {
+        "$in": ["Ben", "John"]
+      }
     },
-    "last_name": {
-      "$eq": "Smith"
+    {
+      "last_name": {
+        "$eq": "Smith"
+      }
     }
-  }
+  ]
 }
 ```
 
@@ -352,6 +357,23 @@ direction but `asc`, and may be followed by other keys to break ties:
 ?search=smith&order=relevance,name
 ```
 
+Where the resource declares it, a read can also be ordered by an aggregate, by
+the path its value renders under, or by a column of a related record, by the
+relation and the column:
+
+```text
+?order=aggregates.posts_count:desc
+```
+
+```text
+?order=organization.name
+```
+
+A record with no related record to sort by, or whose sum, average, minimum or
+maximum has no value, sorts as empty: first in ascending order on MySQL and
+SQLite, last on PostgreSQL. A count of nothing sorts as zero. Neither key can
+order a cursor-paginated read.
+
 ## Limiting and paging
 
 On paginated endpoints, `limit` sets the page size and `page` selects the page.
@@ -396,7 +418,9 @@ wherever a field is presented under an alias. A `sort` reporting `"indexed":
 false` also carries the reason the resource recorded for ordering by a column no
 index holds. A `filter` or `sort` reporting `"conditional": true` is open only
 to callers the resource shows the field to; any other caller is refused exactly
-as for an undeclared key.
+as for an undeclared key. The `sort` of a property holding a related record
+names a `prefix` in place of a `key`: order by the prefix, a dot, and a sortable
+key of that record's schema.
 
 The relations a filter may descend through belong to the resource rather than to
 any one property, so the schema names them itself:

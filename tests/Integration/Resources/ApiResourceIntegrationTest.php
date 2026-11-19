@@ -15,7 +15,9 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationColumnNarrower;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Organization;
@@ -211,7 +213,8 @@ final class ApiResourceIntegrationTest extends TestCase
 
     /**
      * Test that every function resolves identically through withAggregate() on
-     * the query and through loadAggregate() on a loaded model.
+     * the query and through loadAggregate() on a loaded model, a column
+     * aggregate over zero related rows encoding as null.
      *
      * @return void
      */
@@ -248,8 +251,10 @@ final class ApiResourceIntegrationTest extends TestCase
         self::assertSame('2026-01-01 08:00:00', $aggregates['posts_min_created_at']->format('Y-m-d H:i:s'));
         self::assertSame('2026-03-01 09:30:00', $aggregates['last_posted_at']->format('Y-m-d H:i:s'));
 
-        // Bob has no posts, so only the count and the existence check render
-        self::assertSame(['posts_count' => 0, 'has_published_posts' => false], $queryPath[1]['aggregates']);
+        self::assertSame(
+            '{"posts_count":0,"has_published_posts":false,"posts_sum_id":null,"posts_avg_id":null,"posts_min_created_at":null,"last_posted_at":null}',
+            json_encode($loadPath[1]['aggregates']),
+        );
     }
 
     /**
@@ -308,10 +313,12 @@ final class ApiResourceIntegrationTest extends TestCase
     {
         assert($this->app !== null);
 
-        $gate  = new RelationTrashedGate($this->app->make(SchemaIntrospectionProvider::class), new Request, []);
-        $query = User::query();
+        $introspector = $this->app->make(SchemaIntrospectionProvider::class);
+        $gate         = new RelationTrashedGate($introspector, new Request, []);
+        $narrower     = new RelationColumnNarrower(new SafetySetDeriver($introspector), $introspector);
+        $query        = User::query();
 
-        (new EagerLoadApplier)->apply($query, new ResourceMetadataService, AggregatingUserResource::class, AggregatingUserResource::getResourceType(), $gate);
+        (new EagerLoadApplier)->apply($query, new ResourceMetadataService, AggregatingUserResource::class, AggregatingUserResource::getResourceType(), $gate, $narrower);
 
         return $query->get()->sortBy('id')->values()->all();
     }

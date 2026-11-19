@@ -86,15 +86,13 @@ final readonly class ValidateNeedsColumns implements SchemaValidationRule
     {
         $declared = [];
 
-        foreach ($schema->getFieldKeys() as $key) {
+        foreach ($schema->getFields() as $key => $field) {
 
-            $needs = $schema->getField($key)->needs ?? [];
-
-            if ($needs === []) {
+            if ($field->needs === []) {
                 continue;
             }
 
-            $declared[$key] = $needs;
+            $declared[$key] = $field->needs;
         }
 
         return $declared;

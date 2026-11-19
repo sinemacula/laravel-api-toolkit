@@ -9,6 +9,7 @@ use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
 /**
@@ -26,8 +27,11 @@ final readonly class QueryParameterBuilder
     /** The component names shaping the representation of a serialised resource */
     private const array SHAPING_PARAMETERS = ['Fields', 'Aggregates'];
 
+    /** The component name of the page size, inlined for a resource with its own */
+    private const string LIMIT_PARAMETER = 'Limit';
+
     /** The component names selecting, ordering, and paging a collection */
-    private const array SELECTION_PARAMETERS = ['Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'];
+    private const array SELECTION_PARAMETERS = ['Filters', 'Search', 'Order', self::LIMIT_PARAMETER, 'Page', 'Cursor', 'Pagination'];
 
     /** The component name widening the soft-delete scope a read is served from */
     private const string VISIBILITY_PARAMETER = 'Trashed';
@@ -58,7 +62,7 @@ final readonly class QueryParameterBuilder
             'Filters'    => $this->buildFiltersParameter(),
             'Search'     => $this->buildSearchParameter(),
             'Order'      => $this->buildOrderParameter(),
-            'Limit'      => $this->buildLimitParameter(),
+            'Limit'      => $this->buildLimitParameter($this->catalogue->getPageSize(null)),
             'Page'       => $this->buildPageParameter(),
             'Cursor'     => $this->buildCursorParameter(),
             'Pagination' => $this->buildPaginationParameter(),
@@ -68,16 +72,26 @@ final readonly class QueryParameterBuilder
     }
 
     /**
-     * List the parameter references the given REST action accepts, in order.
+     * List the parameters the given REST action accepts, in order.
+     *
+     * A resource whose page size bounds differ from the configured ones gets
+     * its own limit parameter inline, since the shared components are not
+     * pruned per audience.
      *
      * @param  string  $action
      * @param  class-string|null  $modelClass
-     * @return array<int, array<string, string>>
+     * @param  string|null  $resourceClass
+     * @return list<array<string, mixed>>
      */
-    public function referencesFor(string $action, ?string $modelClass = null): array
+    public function referencesFor(string $action, ?string $modelClass = null, ?string $resourceClass = null): array
     {
+        $pageSize = $this->catalogue->getPageSize($resourceClass);
+        $inline   = $pageSize->differsFrom($this->catalogue->getPageSize(null));
+
         return array_map(
-            static fn (string $name): array => ['$ref' => self::PARAMETER_REF_PREFIX . $name],
+            fn (string $name): array => $inline && $name === self::LIMIT_PARAMETER
+                ? $this->buildLimitParameter($pageSize)
+                : ['$ref' => self::PARAMETER_REF_PREFIX . $name],
             $this->namesFor($action, $modelClass),
         );
     }
@@ -88,9 +102,10 @@ final readonly class QueryParameterBuilder
      *
      * @param  string  $action
      * @param  class-string|null  $modelClass
+     * @param  string|null  $resourceClass
      * @return list<class-string<\Throwable>>
      */
-    public function exceptionsFor(string $action, ?string $modelClass = null): array
+    public function exceptionsFor(string $action, ?string $modelClass = null, ?string $resourceClass = null): array
     {
         $names = $this->namesFor($action, $modelClass);
 
@@ -98,7 +113,7 @@ final readonly class QueryParameterBuilder
             return [];
         }
 
-        return array_intersect($names, self::SELECTION_PARAMETERS) !== [] && $this->capsQueryCost()
+        return array_intersect($names, self::SELECTION_PARAMETERS) !== [] && $this->capsQueryCost($resourceClass)
             ? [ValidationException::class, QueryTooExpensiveException::class]
             : [ValidationException::class];
     }
@@ -130,15 +145,19 @@ final readonly class QueryParameterBuilder
     }
 
     /**
-     * Determine whether any query cost cap is enabled.
+     * Determine whether any query cost cap, or the resource's page size
+     * ceiling, is enabled.
      *
      * A cap of zero or less is never enforced.
      *
+     * @param  string|null  $resourceClass
      * @return bool
      */
-    private function capsQueryCost(): bool
+    private function capsQueryCost(?string $resourceClass): bool
     {
-        return array_filter($this->catalogue->getQueryLimits(), static fn (int $cap): bool => $cap > 0) !== [];
+        $caps = [...$this->catalogue->getQueryLimits(), QueryParameterValidator::MAX_LIMIT => $this->catalogue->getPageSize($resourceClass)->ceiling];
+
+        return array_filter($caps, static fn (int $cap): bool => $cap > 0) !== [];
     }
 
     /**
@@ -244,27 +263,32 @@ final readonly class QueryParameterBuilder
         return $this->parameter(
             'order',
             'Ordering: a comma-separated list of fields, each optionally suffixed with :asc or :desc in any case, e.g. order=name,created_at:desc. '
-            . 'Any other direction is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
+            . 'Any other direction, or a repeated field, is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
             . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read. order=relevance ranks rows by how '
             . 'closely they match search: the whole value, then the start, then the start of a word, then anywhere; it needs search and offset '
-            . 'pagination.',
+            . 'pagination. A sortable aggregate orders by aggregates.<key>, e.g. order=aggregates.posts_count:desc, and a sortable to-one '
+            . 'relation by a sortable column of the resource it renders, e.g. order=customer.name; neither can order a cursor-paginated read, '
+            . 'and a NULL value sorts where the database places NULL.',
             ['type' => 'string'],
         );
     }
 
     /**
-     * Build the page-size limit parameter, publishing any configured ceiling.
+     * Build the page-size limit parameter, publishing any ceiling and the size
+     * an omitted limit is served at.
      *
+     * @param  \SineMacula\ApiToolkit\Query\PageSize  $pageSize
      * @return array<string, mixed>
      */
-    private function buildLimitParameter(): array
+    private function buildLimitParameter(PageSize $pageSize): array
     {
-        $ceiling = $this->catalogue->getQueryLimits()[QueryParameterValidator::MAX_LIMIT] ?? 0;
-        $schema  = ['type' => 'integer', 'minimum' => 1];
+        $schema = ['type' => 'integer', 'minimum' => 1];
 
-        if ($ceiling > 0) {
-            $schema['maximum'] = $ceiling;
+        if ($pageSize->ceiling > 0) {
+            $schema['maximum'] = $pageSize->ceiling;
         }
+
+        $schema['default'] = $pageSize->default;
 
         return $this->parameter(
             'limit',
@@ -314,7 +338,7 @@ final readonly class QueryParameterBuilder
     {
         return $this->parameter(
             'pagination',
-            'Pagination mode: set to cursor to switch from the default length-aware pagination to cursor pagination.',
+            'Pagination mode: set to cursor to switch from the default length-aware pagination to cursor pagination. Any other non-empty value is rejected.',
             ['type' => 'string', 'enum' => ['cursor']],
         );
     }

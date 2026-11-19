@@ -14,9 +14,11 @@ use SineMacula\ApiToolkit\Enums\TrashedState;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 
 /**
- * Cascades soft-delete visibility to eager-loaded relations.
+ * Cascades soft-delete visibility to relation loads, aggregates and filters.
  *
  * Gated per relation, so one relation's opt-in never opens another.
+ *
+ * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -68,11 +70,70 @@ final readonly class RelationTrashedGate
     }
 
     /**
+     * Decorate aggregate entries so each subquery applies its gated scope.
+     *
+     * @param  list<AggregateLoad>  $entries
+     * @param  \SineMacula\ApiToolkit\Enums\TrashedState  $state
+     * @return list<AggregateLoad>
+     */
+    public function decorateAggregates(array $entries, TrashedState $state): array
+    {
+        if ($state === TrashedState::NONE) {
+            return $entries;
+        }
+
+        return array_map(function (array $entry) use ($state): array {
+
+            $constraints = is_array($entry['relation']) ? $entry['relation'] : [$entry['relation'] => null];
+
+            $entry['relation'] = array_map(fn (?\Closure $constraint): \Closure => $this->gatedConstraint($constraint, $state), $constraints);
+
+            return $entry;
+        }, $entries);
+    }
+
+    /**
+     * Apply the gated scope to a relation subquery over its related model.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  \SineMacula\ApiToolkit\Enums\TrashedState  $state
+     * @return void
+     */
+    public function constrain(Builder $query, TrashedState $state): void
+    {
+        if ($state === TrashedState::NONE || !$this->isGateOpen($query->getModel())) {
+            return;
+        }
+
+        $this->applyScope($query, $state);
+    }
+
+    /**
+     * Build an aggregate constraint running any existing one, then the gated
+     * scope.
+     *
+     * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void)|null  $constraint
+     * @param  \SineMacula\ApiToolkit\Enums\TrashedState  $state
+     * @return \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>): void
+     */
+    public function gatedConstraint(?\Closure $constraint, TrashedState $state): \Closure
+    {
+        return function (Builder $query) use ($constraint, $state): void {
+
+            if ($constraint !== null) {
+                $constraint($query);
+            }
+
+            $this->constrain($query, $state);
+        };
+    }
+
+    /**
      * Normalise a raw eager-load entry into a path and optional constraint.
      *
      * @param  int|string  $key
      * @param  mixed  $value
-     * @return array{0: string, 1: (\Closure(mixed): void)|null}
+     * @return array{0: string, 1: (\Closure(mixed, mixed=): void)|null}
      */
     private function normaliseEntry(int|string $key, mixed $value): array
     {
@@ -86,9 +147,12 @@ final readonly class RelationTrashedGate
     /**
      * Resolve the gate for a single relation and add the resulting entry.
      *
+     * A constrained relation is always wrapped, so the aggregates it loads are
+     * gated even where the relation itself stays live.
+     *
      * @param  array<int|string, mixed>  $decorated
      * @param  string  $path
-     * @param  (\Closure(mixed): void)|null  $constraint
+     * @param  (\Closure(mixed, mixed=): void)|null  $constraint
      * @param  \Illuminate\Database\Eloquent\Model  $root
      * @param  \SineMacula\ApiToolkit\Enums\TrashedState  $state
      * @return array<int|string, mixed>
@@ -96,30 +160,12 @@ final readonly class RelationTrashedGate
     private function addEntry(array $decorated, string $path, ?\Closure $constraint, Model $root, TrashedState $state): array
     {
         $leaf = $this->resolveLeaf($root, $path);
+        $open = $leaf !== null && $this->isGateOpen($leaf);
 
-        if ($leaf === null || !$this->isGateOpen($leaf)) {
-            return $this->appendDefault($decorated, $path, $constraint);
-        }
-
-        $decorated[$path] = $this->scopeClosure($constraint, $state);
-
-        return $decorated;
-    }
-
-    /**
-     * Append a relation with its default live-only scope.
-     *
-     * @param  array<int|string, mixed>  $decorated
-     * @param  string  $path
-     * @param  (\Closure(mixed): void)|null  $constraint
-     * @return array<int|string, mixed>
-     */
-    private function appendDefault(array $decorated, string $path, ?\Closure $constraint): array
-    {
-        if ($constraint === null) {
+        if (!$open && $constraint === null) {
             $decorated[] = $path;
         } else {
-            $decorated[$path] = $constraint;
+            $decorated[$path] = $this->scopeClosure($constraint, $state, $open);
         }
 
         return $decorated;
@@ -172,18 +218,29 @@ final readonly class RelationTrashedGate
     }
 
     /**
-     * Build a closure applying the gated scope after any existing constraint.
+     * Build a closure running any existing constraint, then the gated scope.
      *
-     * @param  (\Closure(mixed): void)|null  $existing
+     * The existing constraint is handed the aggregate decorator, which the
+     * planner's closures apply to the aggregates they load.
+     *
+     * @param  (\Closure(mixed, mixed=): void)|null  $existing
      * @param  \SineMacula\ApiToolkit\Enums\TrashedState  $state
+     * @param  bool  $open
      * @return \Closure(mixed): void
      */
-    private function scopeClosure(?\Closure $existing, TrashedState $state): \Closure
+    private function scopeClosure(?\Closure $existing, TrashedState $state, bool $open): \Closure
     {
-        return function ($query) use ($existing, $state): void {
+        return function ($query) use ($existing, $state, $open): void {
 
             if ($existing !== null) {
-                $existing($query);
+                $existing($query, function (array $entries) use ($state): array {
+                    /** @var list<AggregateLoad> $entries */
+                    return $this->decorateAggregates($entries, $state);
+                });
+            }
+
+            if (!$open) {
+                return;
             }
 
             $this->applyScope($query, $state);
@@ -205,12 +262,15 @@ final readonly class RelationTrashedGate
             return;
         }
 
-        if ($state === TrashedState::ONLY) {
-            $builder->onlyTrashed(); // @phpstan-ignore method.notFound
+        $builder->withTrashed(); // @phpstan-ignore method.notFound
 
+        if ($state !== TrashedState::ONLY) {
             return;
         }
 
-        $builder->withTrashed(); // @phpstan-ignore method.notFound
+        // Its own scope, so no OR or relation merge can strip it
+        $builder->withGlobalScope(self::class, static function (Builder $query): void {
+            $query->whereNotNull($query->getModel()->getQualifiedDeletedAtColumn()); // @phpstan-ignore method.notFound
+        });
     }
 }

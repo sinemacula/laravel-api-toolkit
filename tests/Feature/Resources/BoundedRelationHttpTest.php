@@ -6,6 +6,7 @@ namespace Tests\Feature\Resources;
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -16,6 +17,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\RelationWindow;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Schema\RelationLimit;
 use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
@@ -26,8 +28,10 @@ use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Repositories\ArticleRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\BoundedArticleResource;
 use Tests\Fixtures\Resources\BoundedOrganizationResource;
 use Tests\Fixtures\Resources\BoundedPostResource;
 use Tests\Fixtures\Resources\BoundedUserResource;
@@ -47,6 +51,7 @@ use Tests\TestCase;
 #[CoversClass(ApiResource::class)]
 #[CoversClass(EagerLoadPlanner::class)]
 #[CoversClass(RelationLimit::class)]
+#[CoversClass(RelationTrashedGate::class)]
 #[CoversClass(RelationWindow::class)]
 #[CoversClass(ValueResolver::class)]
 final class BoundedRelationHttpTest extends TestCase
@@ -54,7 +59,7 @@ final class BoundedRelationHttpTest extends TestCase
     use RecordsStatements, RegistersApiExceptionHandler;
 
     /**
-     * Set up the users index, user show and organizations routes.
+     * Set up the users index, user show, articles and organizations routes.
      *
      * @return void
      */
@@ -65,6 +70,7 @@ final class BoundedRelationHttpTest extends TestCase
 
         Config::set(ResourceDiscovery::RESOURCES_KEY, [
             ArticleResource::class,
+            BoundedArticleResource::class,
             BoundedOrganizationResource::class,
             BoundedPostResource::class,
             BoundedUserResource::class,
@@ -89,6 +95,13 @@ final class BoundedRelationHttpTest extends TestCase
             $user = User::query()->findOrFail($id);
 
             return new BoundedUserResource($user, loadMissing: true);
+        });
+
+        Route::middleware(ParseApiQuery::class)->get('/articles', function (ArticleRepository $repository): ApiResourceCollection {
+
+            $articles = $repository->usingResource(BoundedArticleResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($articles, BoundedArticleResource::class);
         });
 
         Route::middleware(ParseApiQuery::class)->get('/organizations', function (): ApiResourceCollection {
@@ -127,7 +140,7 @@ final class BoundedRelationHttpTest extends TestCase
         self::assertSame($this->postTitles($six, 5), array_column(self::rows($users[$six]['posts']), 'title'));
         self::assertSame(['posts'], $users[$six]['_truncated']);
 
-        $postQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'posts')));
+        $postQueries = self::statementsFrom($statements, 'posts');
 
         self::assertCount(1, $postQueries);
         self::assertStringContainsString('laravel_row', $postQueries[0]);
@@ -154,7 +167,7 @@ final class BoundedRelationHttpTest extends TestCase
         self::assertSame(['posts'], $record['_truncated']);
         self::assertSame($this->postTitles($user, 5), array_column(self::rows($record['posts']), 'title'));
 
-        $postQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'posts')));
+        $postQueries = self::statementsFrom($statements, 'posts');
 
         self::assertCount(1, $postQueries);
         self::assertStringContainsString('laravel_row', $postQueries[0]);
@@ -280,7 +293,7 @@ final class BoundedRelationHttpTest extends TestCase
             self::assertSame(['countries'], $post['_truncated']);
         }
 
-        $countryQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'countries')));
+        $countryQueries = self::statementsFrom($statements, 'countries');
 
         self::assertCount(1, $countryQueries);
         self::assertStringContainsString('laravel_row', $countryQueries[0]);
@@ -381,6 +394,52 @@ final class BoundedRelationHttpTest extends TestCase
     }
 
     /**
+     * Provide each trashed state with the root count, the sibling slugs inside
+     * the bound and whether the bound cuts them.
+     *
+     * @return iterable<string, array{string, int, array<int, string>, bool}>
+     */
+    public static function trashedBoundProvider(): iterable
+    {
+        yield 'live only' => ['', 2, ['first', 'second'], false];
+        yield 'with trashed' => ['&trashed=with', 3, ['removed', 'first'], true];
+        yield 'only trashed' => ['&trashed=only', 1, ['removed'], false];
+    }
+
+    /**
+     * Test that a relation opted in to trashed rows counts them inside its
+     * bound under each state of a trashed-widened root.
+     *
+     * @param  string  $trashed
+     * @param  int  $roots
+     * @param  array<int, string>  $slugs
+     * @param  bool  $truncated
+     * @return void
+     */
+    #[DataProvider('trashedBoundProvider')]
+    public function testTrashedRowsCountInsideTheBoundOfAnOptedInRelation(string $trashed, int $roots, array $slugs, bool $truncated): void
+    {
+        $author = User::create(['name' => 'Author', 'email' => 'author@example.com']);
+
+        $removed = $this->seedArticle($author->id, 'removed');
+        $this->seedArticle($author->id, 'first');
+        $this->seedArticle($author->id, 'second');
+
+        $removed->delete();
+
+        $response = $this->getJson('/articles?fields[articles]=slug' . $trashed);
+
+        $response->assertOk();
+        $response->assertJsonCount($roots, 'data');
+
+        foreach (self::rows($response->json('data')) as $article) {
+
+            self::assertSame($slugs, array_column(self::rows($article['siblingArticles']), 'slug'));
+            self::assertSame($truncated ? ['siblingArticles'] : null, $article['_truncated'] ?? null);
+        }
+    }
+
+    /**
      * Seed one user per count, writing that many posts each, interleaved so a
      * page-wide bound would starve the later users.
      *
@@ -452,6 +511,20 @@ final class BoundedRelationHttpTest extends TestCase
             'body'    => 'Body',
             'summary' => 'Summary',
         ]);
+    }
+
+    /**
+     * Return the statements that select from the given table.
+     *
+     * @param  array<int, string>  $statements
+     * @param  string  $table
+     * @return list<string>
+     */
+    private static function statementsFrom(array $statements, string $table): array
+    {
+        $from = 'from ' . DB::connection()->getQueryGrammar()->wrapTable($table);
+
+        return array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, $from)));
     }
 
     /**

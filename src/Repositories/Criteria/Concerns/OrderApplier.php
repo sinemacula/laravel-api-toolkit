@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\Repositories\Criteria\SortTarget;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use SineMacula\ApiToolkit\Validation\Rejection;
 
@@ -17,8 +18,8 @@ use SineMacula\ApiToolkit\Validation\Rejection;
  * Applies ordering to an Eloquent query builder.
  *
  * Random ordering sorts the whole table, so it is opt-in via configuration. A
- * cursor cannot seek past a random, relevance or nullable key, so each is
- * refused there.
+ * cursor cannot seek past a random, relevance, aggregate or nullable key, so
+ * each is refused there.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -36,6 +37,7 @@ final readonly class OrderApplier
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $schemaIntrospector
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier  $searchApplier
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationAggregateOrder  $aggregateOrder
      * @return void
      */
     public function __construct(
@@ -45,6 +47,9 @@ final readonly class OrderApplier
 
         /** Ranks the search matches the relevance key orders by */
         private SearchApplier $searchApplier,
+
+        /** Orders by the relation aggregates an order key names */
+        private RelationAggregateOrder $aggregateOrder,
     ) {}
 
     /**
@@ -71,6 +76,8 @@ final readonly class OrderApplier
      * @return \Illuminate\Database\Eloquent\Builder<TModel>
      *
      * @throws \Illuminate\Validation\ValidationException
+     * @throws \LogicException
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      * @throws \SineMacula\ApiToolkit\Exceptions\MissingSearchDriverException
      */
     public function apply(Builder $query, array $order, QuerySurface $querySurface, ?SearchTerm $term = null, ?string $resourceClass = null): Builder
@@ -94,16 +101,40 @@ final readonly class OrderApplier
                 continue;
             }
 
-            $querySurface->guardSort($column);
+            $target = $querySurface->guardSort($column);
 
             if ($cursorPaginated) {
-                $this->guardCursorKey($column, $query->getModel());
+                $this->guardCursorKey($column, $target, $query->getModel());
             }
 
-            $query->getQuery()->orderBy($query->qualifyColumn($column), $direction);
+            $this->applyTarget($query, $target, $direction, $resourceClass);
         }
 
         return $query;
+    }
+
+    /**
+     * Order the query by what one admitted key resolved to.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\SortTarget  $target
+     * @param  'asc'|'desc'  $direction
+     * @param  string|null  $resourceClass
+     * @return void
+     *
+     * @throws \LogicException
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
+     */
+    private function applyTarget(Builder $query, SortTarget $target, string $direction, ?string $resourceClass): void
+    {
+        if ($target->isAggregate()) {
+            $this->aggregateOrder->apply($query, $target, $direction, $resourceClass ?? $query->getModel()::class);
+            return;
+        }
+
+        $query->getQuery()->orderBy($query->qualifyColumn($target->column), $direction);
     }
 
     /**
@@ -154,19 +185,26 @@ final readonly class OrderApplier
     }
 
     /**
-     * Refuse a cursor key the catalogue reports as admitting null.
+     * Refuse a cursor key that is an aggregate, or a column the catalogue
+     * reports as admitting null.
      *
-     * A seek past a null boundary drops rows, and a column the catalogue does
-     * not list passes, as schema validation lets it.
+     * A cursor seeks by selected column values, which an aggregate is not, and
+     * a seek past a null boundary drops rows. A column the catalogue does not
+     * list passes, as schema validation lets it.
      *
      * @param  string  $column
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\SortTarget  $target
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
-    private function guardCursorKey(string $column, Model $model): void
+    private function guardCursorKey(string $column, SortTarget $target, Model $model): void
     {
+        if ($target->isAggregate()) {
+            throw Rejection::at('order.' . $column, 'order.aggregate_cursor', ['key' => $column]);
+        }
+
         $definition = $this->schemaIntrospector->getColumnDefinitions($model)[$column] ?? null;
 
         if ($definition?->nullable === true) {

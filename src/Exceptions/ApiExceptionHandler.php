@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Exceptions;
 
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,6 +26,9 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface as SymfonyHttp
  */
 final class ApiExceptionHandler
 {
+    /** The message Laravel gives a denial raised without one */
+    private const string DEFAULT_DENIAL = 'This action is unauthorized.';
+
     /**
      * Register the JSON rendering and the filter that keeps handled exceptions
      * out of every reporter.
@@ -62,12 +66,17 @@ final class ApiExceptionHandler
      */
     private static function isClientHttpException(\Throwable $exception): bool
     {
-        if (!$exception instanceof SymfonyHttpExceptionInterface) {
-            return false;
-        }
+        return $exception instanceof SymfonyHttpExceptionInterface && self::isClientStatus($exception->getStatusCode());
+    }
 
-        $status = $exception->getStatusCode();
-
+    /**
+     * Determine whether the given status is rendered as a client error.
+     *
+     * @param  int  $status
+     * @return bool
+     */
+    private static function isClientStatus(int $status): bool
+    {
         return $status === 419 || HttpStatus::tryFrom($status)?->isClientError() === true;
     }
 
@@ -145,15 +154,38 @@ final class ApiExceptionHandler
     {
         $headers = method_exists($exception, 'getHeaders') ? $exception->getHeaders() : [];
         $meta    = method_exists($exception, 'errors') ? $exception->errors() : null;
+        $mapped  = $map->targetFor($exception::class);
 
-        $previous = is_a($exception, ValidationException::class) ? null : $exception;
-        $mapped   = $map->targetFor($exception::class);
+        if ($exception instanceof ValidationException) {
+            return self::mapValidationException($exception, $mapped, $meta, $headers);
+        }
 
         if ($mapped === HttpException::class && $exception instanceof SymfonyHttpExceptionInterface) {
             return self::mapGenericHttpException($map, $exception, $meta, $headers);
         }
 
-        return new $mapped($meta, $headers, $previous);
+        return self::instantiate($mapped, $exception, $meta, $headers);
+    }
+
+    /**
+     * Map a validation failure as the configured exception, or as a generic
+     * HTTP exception keeping a client-error status other than 422.
+     *
+     * @param  \Illuminate\Validation\ValidationException  $exception
+     * @param  class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>  $mapped
+     * @param  array<string, mixed>|null  $meta
+     * @param  array<string, mixed>  $headers
+     * @return \SineMacula\ApiToolkit\Exceptions\ApiException
+     */
+    private static function mapValidationException(ValidationException $exception, string $mapped, ?array $meta, array $headers): ApiException
+    {
+        $status = HttpStatus::tryFrom($exception->status);
+
+        if ($mapped === InvalidInputException::class && $exception->status !== 422 && $status?->isClientError() === true) {
+            return new HttpException($status, $meta, $headers);
+        }
+
+        return new $mapped($meta, $headers);
     }
 
     /**
@@ -175,12 +207,84 @@ final class ApiExceptionHandler
         $target = $status === 419 ? TokenMismatchException::class : $map->targetForStatus($status);
 
         if ($target !== null) {
-            return new $target($meta, $headers, $exception);
+            return self::instantiate($target, $exception, $meta, $headers);
         }
 
         $known = HttpStatus::tryFrom($status);
 
-        return $known === null ? new UnhandledException($meta, $headers, $exception) : new HttpException($known, $meta, $headers, $exception);
+        if ($known === null) {
+            return new UnhandledException($meta, $headers, $exception);
+        }
+
+        $denial = self::denialOf($exception, $status);
+
+        return new HttpException($known, self::withReason($meta, $denial), $headers, $exception, self::detailOf($denial));
+    }
+
+    /**
+     * Instantiate the target for the exception, carrying the denial behind it
+     * when the target renders as a client error.
+     *
+     * @param  class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>  $target
+     * @param  \Throwable  $exception
+     * @param  array<string, mixed>|null  $meta
+     * @param  array<string, mixed>  $headers
+     * @return \SineMacula\ApiToolkit\Exceptions\ApiException
+     */
+    private static function instantiate(string $target, \Throwable $exception, ?array $meta, array $headers): ApiException
+    {
+        $denial = self::denialOf($exception, $target::getHttpStatusCode());
+
+        return new $target(self::withReason($meta, $denial), $headers, $exception, self::detailOf($denial));
+    }
+
+    /**
+     * Resolve the policy denial Laravel prepared the exception from, when the
+     * exception renders as a client error.
+     *
+     * @param  \Throwable  $exception
+     * @param  int  $status
+     * @return \Illuminate\Auth\Access\AuthorizationException|null
+     */
+    private static function denialOf(\Throwable $exception, int $status): ?AuthorizationException
+    {
+        $previous = $exception->getPrevious();
+
+        return $exception instanceof SymfonyHttpExceptionInterface && $previous instanceof AuthorizationException && self::isClientStatus($status) ? $previous : null;
+    }
+
+    /**
+     * Resolve the detail a denial carries, unless it is Laravel's default.
+     *
+     * @param  \Illuminate\Auth\Access\AuthorizationException|null  $denial
+     * @return string|null
+     */
+    private static function detailOf(?AuthorizationException $denial): ?string
+    {
+        $message = $denial?->getMessage();
+
+        return $message === self::DEFAULT_DENIAL ? null : $message;
+    }
+
+    /**
+     * Add the code a denial carries to the meta as its reason, unless it is
+     * missing or neither an int, a string nor a backed enum.
+     *
+     * @param  array<string, mixed>|null  $meta
+     * @param  \Illuminate\Auth\Access\AuthorizationException|null  $denial
+     * @return array<string, mixed>|null
+     */
+    private static function withReason(?array $meta, ?AuthorizationException $denial): ?array
+    {
+        // getCode() is typed int, though the denial holds the code as raised
+        $code   = $denial?->toResponse()->code();
+        $reason = $code instanceof \BackedEnum ? $code->value : $code;
+
+        if ((!is_int($reason) && !is_string($reason)) || $code === 0) {
+            return $meta;
+        }
+
+        return [...$meta ?? [], 'reason' => $reason];
     }
 
     /**

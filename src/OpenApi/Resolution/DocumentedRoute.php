@@ -7,7 +7,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 use Illuminate\Routing\Route;
 
 /**
- * A documentable route, resolved once and shared by every audience it joins.
+ * One path form of a documentable route, resolved once and shared by every
+ * audience it joins.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -20,13 +21,15 @@ final readonly class DocumentedRoute
      * @param  \Illuminate\Routing\Route  $route
      * @param  class-string|null  $controllerClass
      * @param  string  $action
-     * @param  string  $path
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathForm  $form
      * @param  non-empty-list<string>  $verbs
      * @param  array{model: class-string<\Illuminate\Database\Eloquent\Model>, resource: class-string, schema: string}|null  $resource
      * @param  string  $tag
      * @param  array<string, string>  $operationIds
      * @param  string|null  $summary
      * @param  bool  $operationIdDeclared
+     * @param  string  $primaryPath
+     * @param  string|null  $primaryOperationId
      */
     public function __construct(
 
@@ -39,8 +42,8 @@ final readonly class DocumentedRoute
         /** The controller method the route dispatches to. */
         public string $action,
 
-        /** The OpenAPI path template of the route's URI. */
-        public string $path,
+        /** The URL shape of the route this documents. */
+        public RoutePathForm $form,
 
         /** The documentable, lowercased HTTP verbs of the route. */
         public array $verbs,
@@ -59,18 +62,13 @@ final readonly class DocumentedRoute
 
         /** Whether the action declares its operationId through #[Operation]. */
         public bool $operationIdDeclared,
-    ) {}
 
-    /**
-     * Return the first verb's operationId, which every verb's description falls
-     * back to.
-     *
-     * @return string|null
-     */
-    public function primaryOperationId(): ?string
-    {
-        return $this->operationIds[$this->verbs[0]] ?? null;
-    }
+        /** The path of the operation whose id descriptions fall back to. */
+        public string $primaryPath,
+
+        /** The first-verb operationId descriptions fall back to. */
+        public ?string $primaryOperationId,
+    ) {}
 
     /**
      * Describe the operation under the verb for a failure message, prefixing
@@ -85,6 +83,6 @@ final readonly class DocumentedRoute
             ? $this->route->getActionName()
             : $this->controllerClass . '::' . $this->action;
 
-        return sprintf('%s %s%s (%s)', strtoupper($verb), $this->route->getDomain(), $this->path, $handler);
+        return sprintf('%s %s%s (%s)', strtoupper($verb), $this->route->getDomain(), $this->form->path, $handler);
     }
 }

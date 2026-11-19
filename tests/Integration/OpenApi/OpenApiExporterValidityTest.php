@@ -61,6 +61,7 @@ use Tests\Fixtures\OpenApi\PathTagInternalController;
 use Tests\Fixtures\OpenApi\PaymentRequiredException;
 use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
@@ -305,6 +306,38 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that a document with optional route parameters stays valid, with a
+     * path item per form declaring exactly its template's parameters.
+     *
+     * @return void
+     */
+    public function testDocumentWithOptionalRouteParametersValidatesAsOpenApiThreeOne(): void
+    {
+        $this->getConfig()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->router()->get('reports/{a?}/{b?}', [PathPlainController::class, 'report'])->name('reports.show');
+        $this->router()->get('files/{name}.{ext?}', [PathPlainController::class, 'index']);
+        $this->router()->get('{locale?}/news', [PathPlainController::class, 'report']);
+
+        $document = $this->export()->document;
+        $result   = $this->validateDocument($document);
+        $paths    = $document['paths'];
+
+        self::assertIsArray($paths);
+        self::assertSame(['/reports', '/reports/{a}', '/reports/{a}/{b}', '/files/{name}', '/files/{name}.{ext}', '/{locale}/news'], array_keys($paths));
+
+        foreach ($paths as $template => $item) {
+
+            preg_match_all('/\{(\w+)\}/', (string) $template, $names);
+
+            self::assertIsArray($item['get']);
+            self::assertSame($names[1], array_column((array) ($item['get']['parameters'] ?? []), 'name'), (string) $template);
+        }
+
+        self::assertTrue($result->isValid(), 'A document with optional route parameters must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
+    }
+
+    /**
      * Test that the document declares a 3.1.x version and populated components.
      *
      * @return void
@@ -413,6 +446,34 @@ final class OpenApiExporterValidityTest extends TestCase
             ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
             $this->referencedParameterNames($paths['/users']['get']),
         );
+    }
+
+    /**
+     * Test that an index over a resource with its own page size bounds exports
+     * them inline, and the document stays valid.
+     *
+     * @return void
+     */
+    public function testIndexOverALoweredResourceExportsAValidInlineLimit(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.resource_map.' . User::class, CappedPageUserResource::class);
+
+        $this->registerUserRoutes();
+
+        $document = $this->export()->document;
+        $result   = $this->validateDocument($document);
+
+        self::assertTrue($result->isValid(), 'Emitted document is not valid OpenAPI 3.1: ' . $this->formatErrors($result));
+
+        /** @var array<string, array<string, array<string, mixed>>> $paths */
+        $paths  = $document['paths'];
+        $limits = array_values(array_filter(
+            (array) $paths['/users']['get']['parameters'],
+            static fn (mixed $parameter): bool => is_array($parameter) && ($parameter['name'] ?? null) === 'limit',
+        ));
+
+        self::assertSame([['type' => 'integer', 'minimum' => 1, 'maximum' => 2, 'default' => 2]], array_column($limits, 'schema'));
+        self::assertNotContains('Limit', $this->referencedParameterNames($paths['/users']['get']));
     }
 
     /**

@@ -48,14 +48,7 @@ final class ValidateFieldSelections implements SchemaValidationRule
             $errors[] = new SchemaValidationError($resourceClass, $name, $this->describe('Fixed', $name, $resourceClass));
         }
 
-        foreach ($schema->getFieldKeys() as $key) {
-
-            $field = $schema->getField($key);
-
-            if ($field === null) {
-                continue;
-            }
-
+        foreach ($schema->getFields() as $key => $field) {
             array_push($errors, ...$this->checkRelation($resourceClass, $key, $field));
         }
 

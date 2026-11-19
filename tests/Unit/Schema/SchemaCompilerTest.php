@@ -157,6 +157,65 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
+     * Test that sortable aggregates are keyed by order key, and that a sortable
+     * relation is recorded with its declaring field and resource while staying
+     * off the sortable columns.
+     *
+     * @return void
+     */
+    public function testCompileRecordsSortableAggregatesAndRelationsApartFromColumns(): void
+    {
+        $compiled = SchemaCompiler::compile($this->createStubResourceClass(Field::set(
+            Field::scalar('name')->sortable(),
+            Count::of('posts')->sortable('Leaderboard'),
+            Sum::of('orders', 'total', 'spend')->sortable('Accounts list'),
+            Average::of('posts', 'id'),
+            Relation::to('organization', TagResource::class, 'employer')->sortable('Back-office list'),
+        )));
+
+        self::assertSame(['aggregates.posts_count', 'aggregates.spend'], array_keys($compiled->getSortableMetrics()));
+        self::assertSame('Accounts list', $compiled->getSortableMetrics()['aggregates.spend']->unindexedReason);
+        self::assertSame(['organization' => ['employer']], $compiled->getSortableRelations());
+        self::assertSame(['name'], $compiled->getSortableColumns());
+        self::assertSame(TagResource::class, $compiled->getTraversableResource('organization'));
+
+        $employer = $compiled->getField('employer');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $employer);
+        self::assertSame('Back-office list', $employer->sortThroughReason);
+        self::assertNull($employer->unindexedReason);
+    }
+
+    /**
+     * Test that a sort reason only counts beside the sortable marker of a
+     * relation, and that a field's index exemption is not taken for one.
+     *
+     * @return void
+     */
+    public function testCompileReadsASortReasonOnlyBesideTheSortableMarkerOfARelation(): void
+    {
+        $compiled = SchemaCompiler::compile($this->createStubResourceClass([
+            'name'         => ['sortable' => 'name', 'unindexed' => 'Small table'],
+            'email'        => ['sortable' => true, 'unindexed' => 'Orphaned'],
+            'organization' => ['relation' => 'organization', 'resource' => self::STUB_ORGANIZATION_RESOURCE, 'unindexed' => 'Unmarked'],
+        ]));
+
+        $name         = $compiled->getField('name');
+        $email        = $compiled->getField('email');
+        $organization = $compiled->getField('organization');
+
+        self::assertInstanceOf(CompiledFieldDefinition::class, $name);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $email);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $organization);
+        self::assertSame('Small table', $name->unindexedReason);
+        self::assertNull($name->sortThroughReason);
+        self::assertSame('Orphaned', $email->unindexedReason);
+        self::assertNull($email->sortThroughReason);
+        self::assertNull($organization->sortThroughReason);
+        self::assertSame([], $compiled->getSortableRelations());
+    }
+
+    /**
      * Test that a filterable column without a real capability is left out of
      * the filter surface but stays on the field for validation to report.
      *
@@ -1494,6 +1553,34 @@ final class SchemaCompilerTest extends TestCase
             'variants_min_price'         => [AggregateFunction::MIN, 'variants', 'price', 'aggregate_variants_min_price'],
             'order_items_max_created_at' => [AggregateFunction::MAX, 'orderItems', 'created_at', 'aggregate_order_items_max_created_at'],
         ], $shape);
+    }
+
+    /**
+     * Test that an aggregate's declared OpenAPI contract reaches its compiled
+     * definition, and that an undeclared one compiles without one.
+     *
+     * @return void
+     */
+    public function testCompileCarriesAnAggregatesDeclaredContract(): void
+    {
+        $resourceClass = $this->createStubResourceClass(Field::set(
+            Count::of('posts')->openapi()->type('string')->end(),
+            Sum::of('orders', 'total')->openapi()->type('string')->format('decimal')->end(),
+            Average::of('orders', 'total')->openapi()->type('integer')->end(),
+            Max::of('orders', 'total'),
+        ));
+
+        $contracts = array_map(
+            static fn (CompiledAggregateDefinition $definition): ?array => $definition->openApi?->toArray(),
+            SchemaCompiler::compile($resourceClass)->getAggregateDefinitions(),
+        );
+
+        self::assertSame([
+            'posts_count'      => ['type' => 'string'],
+            'orders_sum_total' => ['type' => 'string', 'format' => 'decimal'],
+            'orders_avg_total' => ['type' => 'integer'],
+            'orders_max_total' => null,
+        ], $contracts);
     }
 
     /**
