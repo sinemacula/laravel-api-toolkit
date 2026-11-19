@@ -17,6 +17,7 @@ final readonly class FieldColumnMap
      *
      * @param  array<string, array<int, string>>  $declared
      * @param  array<int, string>  $inferred
+     * @param  array<int, string>  $names
      */
     private function __construct(
 
@@ -25,18 +26,35 @@ final readonly class FieldColumnMap
 
         /** Plain field keys whose column is taken to be the key itself */
         private array $inferred,
+
+        /** The names the schema declares, so the resource renders */
+        private array $names,
     ) {}
 
     /**
-     * Build a map from the declared column reads and the inferred plain keys.
+     * Build a map from the declared column reads, the inferred plain keys and
+     * the names the schema declares.
      *
      * @param  array<string, array<int, string>>  $declared
      * @param  array<int, string>  $inferred
+     * @param  array<int, string>  $names
      * @return self
      */
-    public static function make(array $declared, array $inferred): self
+    public static function make(array $declared, array $inferred, array $names): self
     {
-        return new self($declared, $inferred);
+        return new self($declared, $inferred, $names);
+    }
+
+    /**
+     * Determine whether the schema declares the name, so the resource renders
+     * it.
+     *
+     * @param  string  $name
+     * @return bool
+     */
+    public function declares(string $name): bool
+    {
+        return in_array($name, $this->names, true);
     }
 
     /**

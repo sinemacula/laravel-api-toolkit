@@ -8,7 +8,10 @@ use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -32,7 +35,10 @@ use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIdentity;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Models\Note;
+use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\TenantWidget;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
@@ -1296,9 +1302,7 @@ final class SchemaIntrospectorTest extends TestCase
         $introspector = $this->makeIntrospector();
         $relation     = (new User)->organization();
 
-        $keys = $introspector->parentKeysFor($relation);
-
-        self::assertContains('organization_id', $keys);
+        self::assertSame(['organization_id'], $introspector->parentKeysFor($relation));
     }
 
     /**
@@ -1311,9 +1315,7 @@ final class SchemaIntrospectorTest extends TestCase
         $introspector = $this->makeIntrospector();
         $relation     = (new User)->posts();
 
-        $keys = $introspector->parentKeysFor($relation);
-
-        self::assertContains('id', $keys);
+        self::assertSame(['id'], $introspector->parentKeysFor($relation));
     }
 
     /**
@@ -1330,25 +1332,92 @@ final class SchemaIntrospectorTest extends TestCase
 
         $introspector = $this->makeIntrospector();
 
-        $keys = $introspector->parentKeysFor($morphTo);
-
-        self::assertContains('taggable_id', $keys);
-        self::assertContains('taggable_type', $keys);
-        self::assertCount(2, $keys);
+        self::assertSame(['taggable_id', 'taggable_type'], $introspector->parentKeysFor($morphTo));
     }
 
     /**
-     * Test that parentKeysFor returns nothing for an unrecognised relation.
+     * Test that parentKeysFor returns null for an unrecognised relation class.
      *
      * @return void
      */
-    public function testParentKeysForUnknownRelationReturnsEmpty(): void
+    public function testParentKeysForUnknownRelationReturnsNull(): void
     {
-        $unknown = self::createStub(Relation::class);
+        self::assertNull($this->makeIntrospector()->parentKeysFor(self::createStub(Relation::class)));
+    }
+
+    /**
+     * Test that parentKeysFor returns the custom parent key of a
+     * belongs-to-many and the custom local key of a has-many-through.
+     *
+     * @return void
+     */
+    public function testParentKeysForPivotAndThroughRelationsReturnTheirCustomKeys(): void
+    {
+        $model = new #[Table('organizations')] class extends Model {
+            /**
+             * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Tests\Fixtures\Models\Tag, $this>
+             */
+            public function tags(): BelongsToMany
+            {
+                return $this->belongsToMany(Tag::class, 'organization_tag', 'organization_slug', 'tag_id', 'slug');
+            }
+
+            /**
+             * @return \Illuminate\Database\Eloquent\Relations\HasManyThrough<\Tests\Fixtures\Models\Post, \Tests\Fixtures\Models\User, $this>
+             */
+            public function posts(): HasManyThrough
+            {
+                return $this->hasManyThrough(Post::class, User::class, 'organization_slug', 'user_id', 'slug');
+            }
+        };
 
         $introspector = $this->makeIntrospector();
 
-        self::assertSame([], $introspector->parentKeysFor($unknown));
+        self::assertSame(['slug'], $introspector->parentKeysFor($model->tags()));
+        self::assertSame(['slug'], $introspector->parentKeysFor($model->posts()));
+        self::assertSame(['id'], $introspector->parentKeysFor((new Note)->labels()));
+    }
+
+    /**
+     * Test that relatedKeysFor returns the related-side columns each relation
+     * matches its results on.
+     *
+     * @return void
+     */
+    public function testRelatedKeysForReturnsTheColumnsEachRelationMatchesOn(): void
+    {
+        $model = new #[Table('posts')] class extends Model {
+            /**
+             * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Tests\Fixtures\Models\Organization, $this>
+             */
+            public function organization(): BelongsTo
+            {
+                return $this->belongsTo(Organization::class, 'organization_slug', 'slug');
+            }
+        };
+
+        $introspector = $this->makeIntrospector();
+
+        self::assertSame(['user_id'], $introspector->relatedKeysFor((new User)->posts()));
+        self::assertSame(['user_id'], $introspector->relatedKeysFor((new User)->profile()));
+        self::assertSame(['slug'], $introspector->relatedKeysFor($model->organization()));
+        self::assertSame(['noteable_id', 'noteable_type'], $introspector->relatedKeysFor((new User)->notes()));
+        self::assertSame(['code'], $introspector->relatedKeysFor((new Post)->countries()));
+        self::assertSame([], $introspector->relatedKeysFor((new Organization)->posts()));
+    }
+
+    /**
+     * Test that relatedKeysFor returns null for a MorphTo, whose related model
+     * is only known per type, and for an unrecognised relation class.
+     *
+     * @return void
+     */
+    public function testRelatedKeysForMorphToAndUnknownRelationsReturnsNull(): void
+    {
+        $introspector = $this->makeIntrospector();
+
+        self::assertNull($introspector->relatedKeysFor((new Note)->noteable()));
+        self::assertNull($introspector->relatedKeysFor(self::createStub(Relation::class)));
     }
 
     /**

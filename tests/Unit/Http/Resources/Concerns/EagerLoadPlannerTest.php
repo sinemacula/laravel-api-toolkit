@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
@@ -18,6 +19,7 @@ use SineMacula\ApiToolkit\Query\ApiQuerySnapshot;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\Exists;
 use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\Max;
 use SineMacula\ApiToolkit\Schema\Min;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -58,6 +60,7 @@ final class EagerLoadPlannerTest extends TestCase
 
         SchemaCompiler::clearCache();
         EagerLoadPlanner::clearCache();
+        FieldColumnMapper::clearCache();
 
         // Path-walking tests read plain paths; bounded ones set a limit
         Config::set('api-toolkit.resources.relation_limit', 0);
@@ -73,6 +76,7 @@ final class EagerLoadPlannerTest extends TestCase
     {
         SchemaCompiler::clearCache();
         EagerLoadPlanner::clearCache();
+        FieldColumnMapper::clearCache();
 
         parent::tearDown();
     }
@@ -1359,6 +1363,128 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
+     * Test that the projection plan unions the fields every alias over a path
+     * renders, each child's fixed fields included.
+     *
+     * @return void
+     */
+    public function testProjectionPlanUnionsTheFieldsOfEveryAliasOverAPath(): void
+    {
+        $resource = self::projectingResource([
+            'post_authors' => ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['id', 'user']],
+        ]);
+
+        ApiQuery::shouldReceive('getFields')->andReturn(null);
+
+        $plan = EagerLoadPlanner::buildProjectionPlan($resource, ['posts', 'post_authors']);
+
+        self::assertSame(['posts', 'posts.user'], array_keys($plan));
+        self::assertSame(PostResource::class, $plan['posts']->resource);
+        self::assertSame(['id', 'title', 'user', '_type'], $plan['posts']->fields);
+        self::assertFalse($plan['posts']->opaque);
+        self::assertSame(UserResource::class, $plan['posts.user']->resource);
+        self::assertFalse($plan['posts.user']->opaque);
+    }
+
+    /**
+     * Test that a child's fields are listed once each, its fixed fields after
+     * the fields it selects.
+     *
+     * @return void
+     */
+    public function testProjectionPlanListsEachChildFieldOnce(): void
+    {
+        ApiQuery::shouldReceive('getFields')->andReturn(null);
+
+        self::assertSame(['id', 'title', 'user', '_type'], EagerLoadPlanner::buildProjectionPlan(self::projectingResource([]), ['posts'])['posts']->fields);
+    }
+
+    /**
+     * Provide siblings that read the posts other than through PostResource.
+     *
+     * @return iterable<string, array{array<string, mixed>}>
+     */
+    public static function relatedModelReaders(): iterable
+    {
+        yield 'string accessor' => [['relation' => 'posts', 'resource' => PostResource::class, 'accessor' => 'title']];
+        yield 'callable accessor' => [['relation' => 'posts', 'resource' => PostResource::class, 'accessor' => static fn (): null => null]];
+        yield 'raw relation' => [['relation' => 'posts']];
+        yield 'extras consumer' => [['accessor' => static fn (): null => null, 'needs' => ['id'], 'extras' => ['comments', 'posts']]];
+        yield 'nested extras consumer' => [['accessor' => static fn (): null => null, 'needs' => ['id'], 'extras' => ['posts.user:id,name']]];
+    }
+
+    /**
+     * Test that a sibling reading the related models other than through the
+     * child resource marks the path and its subtree opaque, whichever field is
+     * planned first.
+     *
+     * @param  array<string, mixed>  $sibling
+     * @return void
+     */
+    #[DataProvider('relatedModelReaders')]
+    public function testAnotherReaderOfTheRelatedModelsMarksThePathAndItsSubtreeOpaque(array $sibling): void
+    {
+        $resource = self::projectingResource(['sibling' => $sibling]);
+
+        ApiQuery::shouldReceive('getFields')->andReturn(null);
+
+        foreach ([['posts', 'sibling'], ['sibling', 'posts']] as $fields) {
+
+            $plan = EagerLoadPlanner::buildProjectionPlan($resource, $fields);
+
+            self::assertSame(PostResource::class, $plan['posts']->resource);
+            self::assertTrue($plan['posts']->opaque);
+            self::assertTrue($plan['posts.user']->opaque);
+        }
+    }
+
+    /**
+     * Test that an unannotated compute on the parent marks its relations
+     * opaque, while the same compute declaring its columns does not.
+     *
+     * @return void
+     */
+    public function testAnUnannotatedComputeOnTheParentMarksItsRelationsOpaque(): void
+    {
+        $compute = static fn (): null => null;
+
+        ApiQuery::shouldReceive('getFields')->andReturn(null);
+
+        $unannotated = EagerLoadPlanner::buildProjectionPlan(self::projectingResource(['summary' => ['compute' => $compute]]), ['posts', 'summary']);
+
+        SchemaCompiler::clearCache();
+        EagerLoadPlanner::clearCache();
+        FieldColumnMapper::clearCache();
+
+        $annotated = EagerLoadPlanner::buildProjectionPlan(self::projectingResource(['summary' => ['compute' => $compute, 'needs' => ['name']]]), ['posts', 'summary']);
+
+        self::assertTrue($unannotated['posts']->opaque);
+        self::assertFalse($annotated['posts']->opaque);
+    }
+
+    /**
+     * Test that the projection plan is memoised per resource and field list
+     * beside the eager-load map, and cleared with it.
+     *
+     * @return void
+     */
+    public function testProjectionPlanIsMemoisedAndClearedWithTheEagerLoadMap(): void
+    {
+        ApiQuery::shouldReceive('getFields')->andReturn(null);
+
+        $first = EagerLoadPlanner::buildProjectionPlan(UserResource::class, ['posts']);
+
+        self::assertSame($first['posts'], EagerLoadPlanner::buildProjectionPlan(UserResource::class, ['posts'])['posts']);
+        self::assertSame(['posts'], EagerLoadPlanner::buildEagerLoadMap(UserResource::class, ['posts']));
+        self::assertSame([], EagerLoadPlanner::buildProjectionPlan(UserResource::class, ['name']));
+        self::assertSame([], EagerLoadPlanner::buildProjectionPlan(PostResource::class, ['posts']));
+
+        EagerLoadPlanner::clearCache();
+
+        self::assertNotSame($first['posts'], EagerLoadPlanner::buildProjectionPlan(UserResource::class, ['posts'])['posts']);
+    }
+
+    /**
      * Build a resource whose single posts field carries the given definition.
      *
      * @param  array<string, mixed>  $definition
@@ -1383,6 +1509,40 @@ final class EagerLoadPlannerTest extends TestCase
         };
 
         $resource::$definition = ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['id'], ...$definition];
+
+        return $resource::class;
+    }
+
+    /**
+     * Build a resource rendering posts through the post resource beside the
+     * given fields.
+     *
+     * @param  array<string, array<string, mixed>>  $siblings
+     * @return string
+     */
+    private static function projectingResource(array $siblings): string
+    {
+        $resource = new class {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'projecting_planner_test';
+
+            /** @var array<string, array<string, mixed>> */
+            public static array $siblings = [];
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'name'  => [],
+                    'posts' => ['relation' => 'posts', 'resource' => PostResource::class, 'fields' => ['id', 'title', 'user']],
+                    ...self::$siblings,
+                ];
+            }
+        };
+
+        $resource::$siblings = $siblings;
 
         return $resource::class;
     }

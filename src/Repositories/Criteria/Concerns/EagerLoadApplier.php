@@ -8,6 +8,7 @@ use Illuminate\Contracts\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 
 /**
@@ -26,10 +27,17 @@ final class EagerLoadApplier
      * @param  string|null  $resourceClass
      * @param  string|null  $resourceType
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate  $trashedGate
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationColumnNarrower  $columnNarrower
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
-    public function apply(Builder $query, ResourceMetadataProvider $metadataProvider, ?string $resourceClass, ?string $resourceType, RelationTrashedGate $trashedGate): Builder
-    {
+    public function apply(
+        Builder $query,
+        ResourceMetadataProvider $metadataProvider,
+        ?string $resourceClass,
+        ?string $resourceType,
+        RelationTrashedGate $trashedGate,
+        RelationColumnNarrower $columnNarrower,
+    ): Builder {
         if ($resourceClass === null || $resourceType === null || !is_subclass_of($resourceClass, ApiResourceInterface::class)) {
             return $query;
         }
@@ -40,8 +48,12 @@ final class EagerLoadApplier
             return $query;
         }
 
+        $model = $query->getModel();
+        $plan  = EagerLoadPlanner::buildProjectionPlan($resourceClass, $fields);
+        $with  = $columnNarrower->decorate($metadataProvider->eagerLoadMapFor($resourceClass, $fields), $model, $plan);
+
         $with = array_filter(
-            $trashedGate->decorate($metadataProvider->eagerLoadMapFor($resourceClass, $fields), $query->getModel(), ApiQuery::getTrashed()),
+            $trashedGate->decorate($with, $model, ApiQuery::getTrashed()),
             static fn (mixed $load): bool => is_string($load) || is_array($load) || $load instanceof \Closure,
         );
 

@@ -127,7 +127,7 @@ final class BoundedRelationHttpTest extends TestCase
         self::assertSame($this->postTitles($six, 5), array_column(self::rows($users[$six]['posts']), 'title'));
         self::assertSame(['posts'], $users[$six]['_truncated']);
 
-        $postQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'posts')));
+        $postQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'from "posts"')));
 
         self::assertCount(1, $postQueries);
         self::assertStringContainsString('laravel_row', $postQueries[0]);
@@ -154,7 +154,7 @@ final class BoundedRelationHttpTest extends TestCase
         self::assertSame(['posts'], $record['_truncated']);
         self::assertSame($this->postTitles($user, 5), array_column(self::rows($record['posts']), 'title'));
 
-        $postQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'posts')));
+        $postQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'from "posts"')));
 
         self::assertCount(1, $postQueries);
         self::assertStringContainsString('laravel_row', $postQueries[0]);
@@ -280,7 +280,7 @@ final class BoundedRelationHttpTest extends TestCase
             self::assertSame(['countries'], $post['_truncated']);
         }
 
-        $countryQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'countries')));
+        $countryQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'from "countries"')));
 
         self::assertCount(1, $countryQueries);
         self::assertStringContainsString('laravel_row', $countryQueries[0]);

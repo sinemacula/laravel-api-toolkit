@@ -24,6 +24,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationColumnNarrower;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
@@ -71,6 +72,9 @@ final class ApiCriteria implements CriteriaInterface
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate */
     private readonly RelationTrashedGate $relationTrashedGate;
 
+    /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationColumnNarrower */
+    private readonly RelationColumnNarrower $relationColumnNarrower;
+
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard */
     private readonly QueryCostGuard $queryCostGuard;
 
@@ -113,7 +117,9 @@ final class ApiCriteria implements CriteriaInterface
         $this->orderApplier                = new OrderApplier($this->schemaIntrospector, $this->searchApplier);
         $this->eagerLoadApplier            = new EagerLoadApplier;
         $this->limitApplier                = new LimitApplier;
-        $this->columnProjectionApplier     = new ColumnProjectionApplier(new SafetySetDeriver($this->schemaIntrospector), $this->schemaIntrospector);
+        $safetySetDeriver                  = new SafetySetDeriver($this->schemaIntrospector);
+        $this->columnProjectionApplier     = new ColumnProjectionApplier($safetySetDeriver, $this->schemaIntrospector);
+        $this->relationColumnNarrower      = new RelationColumnNarrower($safetySetDeriver, $this->schemaIntrospector);
         $this->softDeleteVisibilityApplier = new SoftDeleteVisibilityApplier;
         $this->queryCostGuard              = new QueryCostGuard;
         $this->queryToken                  = ApiQuery::token();
@@ -168,6 +174,7 @@ final class ApiCriteria implements CriteriaInterface
             $this->resolveResource($query->getModel()),
             $resourceType,
             $this->relationTrashedGate,
+            $this->relationColumnNarrower,
         );
     }
 

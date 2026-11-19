@@ -196,7 +196,9 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         self::assertContains('articles.summary', $columns);
         self::assertSame($scalarOff, $this->serialiseArticles('title,slug,summary_excerpt', 'views:desc'));
 
-        self::assertSame(['*'], $this->captureArticleColumns('title,author', 'views:desc'));
+        $relationColumns = ['articles.title', 'articles.id', 'articles.deleted_at', 'articles.user_id', 'articles.views'];
+
+        self::assertSame($relationColumns, $this->captureArticleColumns('title,author', 'views:desc'));
         self::assertSame($relationOff, $this->serialiseArticles('title,author', 'views:desc'));
     }
 
