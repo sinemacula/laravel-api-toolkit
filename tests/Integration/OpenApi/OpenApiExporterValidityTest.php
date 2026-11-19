@@ -8,6 +8,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Foundation\Application;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Route as RouteFacade;
 use Illuminate\Support\Facades\Validator as RequestValidator;
 use Opis\JsonSchema\ValidationResult;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -48,6 +49,7 @@ use Tests\Fixtures\OpenApi\PathKeyedArrayController;
 use Tests\Fixtures\OpenApi\PathNumericKeyController;
 use Tests\Fixtures\OpenApi\PathOperationController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
+use Tests\Fixtures\OpenApi\PathPlainController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
@@ -244,6 +246,62 @@ final class OpenApiExporterValidityTest extends TestCase
             self::assertCount($count, $document['servers']);
             self::assertTrue($result->isValid(), 'A document carrying servers must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
         }
+    }
+
+    /**
+     * Test that a document with domain routes stays valid, every path parameter
+     * is in its template, and each path and verb is one operation.
+     *
+     * @return void
+     */
+    public function testDocumentWithDomainRoutesValidatesAsOpenApiThreeOne(): void
+    {
+        $this->registerUserRoutes();
+
+        RouteFacade::domain('{account}.example.com')->get('projects/{value}', [PathBindingController::class, 'value'])->whereIn('account', ['acme', 'globex']);
+        RouteFacade::domain('{status}.example.com')->get('statuses', [PathBindingController::class, 'status']);
+        RouteFacade::domain('{user}.example.com')->get('members/{user}', [PathBindingController::class, 'user']);
+        RouteFacade::domain('a.example.com')->get('reports', [PathPlainController::class, 'report']);
+        RouteFacade::domain('b.example.com')->get('reports', [PathPlainController::class, 'report']);
+
+        $this->getConfig()->set('api-toolkit.openapi.servers', [
+            ['url' => 'https://api.example.com/v1', 'description' => 'Production'],
+            ['url' => 'http://localhost:{port}', 'variables' => ['port' => ['default' => '8000']]],
+        ]);
+
+        $document = $this->export()->document;
+        $result   = $this->validateDocument($document);
+        $paths    = $document['paths'];
+
+        self::assertIsArray($paths);
+
+        $operations = 0;
+
+        foreach ($paths as $template => $item) {
+
+            self::assertIsArray($item);
+
+            $operations += count($item);
+
+            foreach ($item as $operation) {
+                self::assertIsArray($operation);
+                $this->assertPathParametersInTemplate((string) $template, $operation);
+            }
+        }
+
+        $reports = $paths['/reports']['get']['servers'];
+
+        self::assertIsArray($reports);
+        self::assertSame(10, $operations);
+        self::assertSame(
+            ['account' => ['enum' => ['acme', 'globex'], 'default' => 'acme']],
+            $paths['/projects/{value}']['get']['servers'][0]['variables'],
+        );
+        self::assertSame(
+            ['https://a.example.com/v1', 'http://a.example.com:{port}', 'https://b.example.com/v1', 'http://b.example.com:{port}'],
+            array_column($reports, 'url'),
+        );
+        self::assertTrue($result->isValid(), 'A document with domain routes must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
     }
 
     /**
@@ -558,11 +616,11 @@ final class OpenApiExporterValidityTest extends TestCase
 
     /**
      * Test that every error example is referenced, resolves, and validates
-     * against the exported error envelope.
+     * against the exported envelope of its code.
      *
      * @return void
      */
-    public function testErrorExamplesAreReferencedAndValidateAgainstTheEnvelope(): void
+    public function testErrorExamplesAreReferencedAndValidateAgainstTheirEnvelopes(): void
     {
         $this->registerUserRoutes();
         $this->router()->post('sign-in', [PathRouteFactsController::class, 'signIn'])->middleware(['auth', 'throttle:60,1']);
@@ -593,9 +651,9 @@ final class OpenApiExporterValidityTest extends TestCase
 
             /** @var array<string, mixed> $value */
             $value  = $example['value'];
-            $result = $this->validateAgainstExported($document, '/components/schemas/ErrorEnvelope', $value);
+            $result = $this->validateAgainstExported($document, '/components/schemas/' . $name, $value);
 
-            self::assertTrue($result->isValid(), sprintf('The %s example must validate against the ErrorEnvelope schema: %s', $name, $this->formatErrors($result)));
+            self::assertTrue($result->isValid(), sprintf('The %1$s example must validate against the %1$s schema: %2$s', $name, $this->formatErrors($result)));
         }
 
         $this->assertReferencesResolve($document);
@@ -810,11 +868,12 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that both pagination shapes validate against the index 200 schema.
+     * Test that every pagination shape validates against the index 200 schema,
+     * and that the length-aware meta requires the capped flag.
      *
      * @return void
      */
-    public function testIndexSchemaAcceptsBothPaginationShapes(): void
+    public function testIndexSchemaAcceptsEveryPaginationShape(): void
     {
         $this->registerUserRoutes();
 
@@ -834,13 +893,25 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $lengthAware = [
             'data'  => [$user],
-            'meta'  => ['total' => 30, 'count' => 1, 'continue' => true],
+            'meta'  => ['total' => 30, 'total_capped' => false, 'count' => 1, 'continue' => true],
             'links' => [
                 'self'  => 'https://api.example.com/users?page=2',
                 'first' => 'https://api.example.com/users?page=1',
                 'prev'  => 'https://api.example.com/users?page=1',
                 'next'  => 'https://api.example.com/users?page=3',
                 'last'  => 'https://api.example.com/users?page=30',
+            ],
+        ];
+
+        $capped = ['meta' => ['total' => 500000, 'total_capped' => true, 'count' => 1, 'continue' => true]] + $lengthAware;
+
+        $simple = [
+            'data'  => [$user],
+            'meta'  => ['continue' => true],
+            'links' => [
+                'self' => 'https://api.example.com/users?page=2',
+                'prev' => 'https://api.example.com/users?page=1',
+                'next' => 'https://api.example.com/users?page=3',
             ],
         ];
 
@@ -854,7 +925,9 @@ final class OpenApiExporterValidityTest extends TestCase
             ],
         ];
 
-        foreach (['length-aware' => $lengthAware, 'cursor' => $cursor] as $shape => $page) {
+        self::assertSame(['total', 'total_capped', 'count', 'continue'], $document['components']['schemas']['PaginationMeta']['required'] ?? null);
+
+        foreach (['length-aware' => $lengthAware, 'capped' => $capped, 'simple' => $simple, 'cursor' => $cursor] as $shape => $page) {
 
             $result = $this->validateIndexPage($document, $page);
 
@@ -1060,6 +1133,37 @@ final class OpenApiExporterValidityTest extends TestCase
             $this->validateDocument($document)->isValid(),
             'A document with a requestBody must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
+    }
+
+    /**
+     * Test that an update taking its FormRequest after the bound model emits
+     * the FormRequest's body.
+     *
+     * @return void
+     */
+    public function testUpdateTakingTheBodyAfterTheBoundModelEmitsItsBody(): void
+    {
+        $this->router()->put('users/{user}', [PathRequestBodyController::class, 'updateBound']);
+
+        $document = $this->export()->document;
+
+        self::assertSame([
+            'required' => true,
+            'content'  => [
+                'application/json' => [
+                    'schema' => [
+                        'type'       => 'object',
+                        'properties' => [
+                            'name'  => ['type' => 'string', 'maxLength' => 255],
+                            'email' => ['type' => 'string', 'format' => 'email'],
+                        ],
+                        'required' => ['name', 'email'],
+                    ],
+                ],
+            ],
+        ], $document['paths']['/users/{user}']['put']['requestBody']);
+
+        $this->assertValidDocument($document);
     }
 
     /**
@@ -1297,7 +1401,8 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that shared pagination and error schemas survive audience filtering.
+     * Test that the shared pagination schemas and the referenced error
+     * envelopes survive audience filtering.
      *
      * @return void
      */
@@ -1309,7 +1414,7 @@ final class OpenApiExporterValidityTest extends TestCase
 
         self::assertIsArray($schemas);
 
-        foreach (['PaginationMeta', 'PaginationLinks', 'CursorPaginationMeta', 'CursorPaginationLinks', 'ErrorEnvelope'] as $name) {
+        foreach (['PaginationMeta', 'PaginationLinks', 'CursorPaginationMeta', 'CursorPaginationLinks', 'Error10001'] as $name) {
             self::assertArrayHasKey($name, $schemas);
         }
 
@@ -1467,13 +1572,35 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $notFound = $paths['/users/{user}']['get']['responses']['404']['content']['application/json'];
 
-        self::assertSame('#/components/schemas/ErrorEnvelope', $notFound['schema']['$ref']);
+        self::assertSame('#/components/schemas/Error10103', $notFound['schema']['$ref']);
         self::assertSame(['Error10103' => ['$ref' => '#/components/examples/Error10103']], $notFound['examples']);
 
         $conflict = $paths['/users']['post']['responses']['409']['content']['application/json'];
 
-        self::assertSame('#/components/schemas/ErrorEnvelope', $conflict['schema']['$ref']);
+        self::assertSame('#/components/schemas/Error10108', $conflict['schema']['$ref']);
         self::assertSame(['Error10108' => ['$ref' => '#/components/examples/Error10108']], $conflict['examples']);
+    }
+
+    /**
+     * Test that a status carrying two codes is a oneOf of their envelopes and
+     * the document stays valid.
+     *
+     * @return void
+     */
+    public function testStatusCarryingTwoCodesIsAOneOfAndStaysValid(): void
+    {
+        $this->registerUserRoutes();
+
+        $document = $this->export()->document;
+
+        self::assertSame(
+            ['oneOf' => [['$ref' => '#/components/schemas/Error10106'], ['$ref' => '#/components/schemas/Error10201']]],
+            $document['paths']['/users']['get']['responses']['422']['content']['application/json']['schema'],
+        );
+        self::assertSame(10201, $document['components']['schemas']['Error10201']['properties']['error']['properties']['code']['const']);
+
+        $this->assertValidDocument($document);
+        $this->assertReferencesResolve($document);
     }
 
     /**
@@ -1833,6 +1960,26 @@ final class OpenApiExporterValidityTest extends TestCase
         }
 
         return $names;
+    }
+
+    /**
+     * Assert that each path parameter of the operation is in the path template.
+     *
+     * @param  string  $template
+     * @param  array<array-key, mixed>  $operation
+     * @return void
+     */
+    private function assertPathParametersInTemplate(string $template, array $operation): void
+    {
+        foreach ((array) ($operation['parameters'] ?? []) as $parameter) {
+
+            if (!is_array($parameter) || ($parameter['in'] ?? null) !== 'path') {
+                continue;
+            }
+
+            self::assertIsString($parameter['name']);
+            self::assertStringContainsString('{' . $parameter['name'] . '}', $template);
+        }
     }
 
     /**

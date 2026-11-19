@@ -7,6 +7,7 @@ namespace Tests\Feature\Query;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -18,6 +19,7 @@ use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
+use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
@@ -39,7 +41,7 @@ use Tests\TestCase;
 #[CoversTrait(ProvidesApiEnvelope::class)]
 final class CursorPaginationTest extends TestCase
 {
-    use RegistersApiExceptionHandler;
+    use RecordsStatements, RegistersApiExceptionHandler;
 
     /**
      * Set up each test with a cursor-capable users route and ordered rows.
@@ -101,6 +103,31 @@ final class CursorPaginationTest extends TestCase
 
         self::assertNull($response->json('links.prev'));
         self::assertIsString($response->json('links.next'));
+    }
+
+    /**
+     * Test that a followed cursor page runs one seek read, with no count and no
+     * offset.
+     *
+     * @return void
+     */
+    public function testFollowedCursorPageRunsOneSeekRead(): void
+    {
+        foreach (range(1, 25) as $index) {
+            User::create(['name' => sprintf('User %02d', $index), 'email' => 'user' . $index . '@example.com']);
+        }
+
+        $second = $this->follow($this->nextLink($this->getJson('/users?pagination=cursor&limit=5&order=name:asc')));
+        $third  = $this->nextLink($second);
+
+        $statements = $this->recordStatements(fn () => $this->follow($third));
+        $grammar    = DB::connection()->getQueryGrammar();
+
+        self::assertStatementCount(1, $statements);
+        self::assertStringContainsString(sprintf('where (%1$s > ? or (%1$s = ? and (%2$s > ?)))', $grammar->wrap('name'), $grammar->wrap('users.id')), $statements[0]);
+        self::assertStringEndsWith(sprintf('order by %s asc, %s asc limit 6', $grammar->wrap('name'), $grammar->wrap('users.id')), $statements[0]);
+        self::assertStringNotContainsString('count(', $statements[0]);
+        self::assertStringNotContainsString('offset', $statements[0]);
     }
 
     /**
@@ -418,6 +445,21 @@ final class CursorPaginationTest extends TestCase
         $response->assertOk();
 
         return $response;
+    }
+
+    /**
+     * Read the next link of the page.
+     *
+     * @param  \Illuminate\Testing\TestResponse<\Symfony\Component\HttpFoundation\Response>  $response
+     * @return string
+     */
+    private function nextLink(TestResponse $response): string
+    {
+        $next = $response->json('links.next');
+
+        self::assertIsString($next);
+
+        return $next;
     }
 
     /**

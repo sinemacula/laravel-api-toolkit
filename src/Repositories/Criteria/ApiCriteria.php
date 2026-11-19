@@ -322,6 +322,7 @@ final class ApiCriteria implements CriteriaInterface
             $resource && is_subclass_of($resource, ApiResourceInterface::class) ? SchemaCompiler::compile($resource) : null,
             new RelationTraversal($this->schemaIntrospector, ResourceSettings::resourceMap()),
             new CallerAdmission($this->request, new GuardEvaluator),
+            $this->operatorRegistry,
         );
     }
 }

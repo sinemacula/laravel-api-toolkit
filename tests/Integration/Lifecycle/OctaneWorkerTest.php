@@ -18,6 +18,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Events\CacheFlushed;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
@@ -91,7 +92,7 @@ final class OctaneWorkerTest extends TestCase
 
         Route::get('/octane/operators', static fn (OperatorRegistry $registry): JsonResponse => new JsonResponse([
             'registry' => spl_object_id($registry),
-            'starts'   => $registry->has('$starts'),
+            'starts'   => $registry->admits('$starts', Capability::RANGE),
         ]));
     }
 
@@ -267,7 +268,7 @@ final class OctaneWorkerTest extends TestCase
 
                 assert($equal !== null);
 
-                $registry->register('$starts', $equal);
+                $registry->register('$starts', $equal, Capability::RANGE);
             }
         });
 

@@ -222,7 +222,7 @@ final class SparseFieldsetHttpTest extends TestCase
 
         $this->getJson($uri)->assertOk();
 
-        foreach ([5, 50] as $total) {
+        foreach ([5, 40] as $total) {
 
             $this->seedAuthors($total);
 
@@ -252,7 +252,7 @@ final class SparseFieldsetHttpTest extends TestCase
 
         $this->getJson($uri)->assertOk();
 
-        foreach ([5, 50] as $total) {
+        foreach ([5, 40] as $total) {
 
             $this->seedAuthors($total);
 

@@ -6,7 +6,9 @@ namespace Tests\Unit\Repositories\Criteria;
 
 use Illuminate\Database\Eloquent\Builder;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
@@ -53,69 +55,219 @@ final class OperatorRegistryTest extends TestCase
     {
         $operator = $this->createStubOperator();
 
-        $this->registry->register('$eq', $operator);
+        $this->registry->register('$eq', $operator, Capability::EXACT);
 
         self::assertTrue($this->registry->has('$eq'));
         self::assertSame($operator, $this->registry->resolve('$eq'));
     }
 
     /**
-     * Test that register throws when the token is already registered.
+     * Test that a token is admitted only by the capabilities it was registered
+     * with.
      *
      * @return void
      */
-    public function testRegisterThrowsWhenTokenAlreadyRegistered(): void
+    public function testAdmitsOnlyTheRegisteredCapabilities(): void
     {
-        $this->registry->register('$eq', $this->createStubOperator());
+        $this->registry->register(self::OPERATOR_CUSTOM, $this->createStubOperator(), Capability::RANGE, Capability::ENUM);
 
-        $this->expectException(\InvalidArgumentException::class);
+        $admitted = array_filter(Capability::cases(), fn (Capability $capability): bool => $this->registry->admits(self::OPERATOR_CUSTOM, $capability));
 
-        $this->registry->register('$eq', $this->createStubOperator());
+        self::assertSame([Capability::ENUM, Capability::RANGE], array_values($admitted));
     }
 
     /**
-     * Test that override replaces an existing handler.
+     * Test that an unregistered token is admitted by no capability.
      *
      * @return void
      */
-    public function testOverrideReplacesExistingHandler(): void
+    public function testAdmitsNoCapabilityForAnUnregisteredToken(): void
     {
-        $original    = $this->createStubOperator();
-        $replacement = $this->createStubOperator();
+        $this->registry->register('$eq', $this->createStubOperator(), ...Capability::cases());
 
-        $this->registry->register('$eq', $original);
-        $this->registry->override('$eq', $replacement);
-
-        self::assertSame($replacement, $this->registry->resolve('$eq'));
+        foreach (Capability::cases() as $capability) {
+            self::assertFalse($this->registry->admits(self::OPERATOR_CUSTOM, $capability));
+        }
     }
 
     /**
-     * Test that override registers when the token is not present.
+     * Test that a capability given twice is stored once.
      *
      * @return void
      */
-    public function testOverrideRegistersWhenTokenNotPresent(): void
+    public function testRegisterDeduplicatesCapabilities(): void
+    {
+        $this->registry->register(self::OPERATOR_CUSTOM, $this->createStubOperator(), Capability::EXACT, Capability::EXACT, Capability::RANGE);
+
+        self::assertSame([self::OPERATOR_CUSTOM], $this->registry->tokensFor(Capability::EXACT));
+        self::assertSame([self::OPERATOR_CUSTOM], $this->registry->tokensFor(Capability::RANGE));
+        self::assertSame([], $this->registry->tokensFor(Capability::OPAQUE));
+    }
+
+    /**
+     * Test that tokensFor lists a capability's tokens in registration order.
+     *
+     * @return void
+     */
+    public function testTokensForListsTheCapabilityTokensInRegistrationOrder(): void
+    {
+        $this->registry->register('$gt', $this->createStubOperator(), Capability::RANGE);
+        $this->registry->register('$eq', $this->createStubOperator(), Capability::EXACT, Capability::RANGE);
+        $this->registry->register('$neq', $this->createStubOperator(), Capability::ENUM);
+
+        self::assertSame(['$gt', '$eq'], $this->registry->tokensFor(Capability::RANGE));
+        self::assertSame(['$eq'], $this->registry->tokensFor(Capability::EXACT));
+    }
+
+    /**
+     * Provide tokens the filter grammar cannot register.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function invalidTokenProvider(): iterable
+    {
+        $structural = ' is a structural filter token and cannot be registered.';
+        $malformed  = ' must be a dollar sign followed by a letter, then letters, digits or underscores.';
+
+        yield 'and group' => ['$and', 'Operator "$and"' . $structural];
+        yield 'or group' => ['$or', 'Operator "$or"' . $structural];
+        yield 'has relation' => ['$has', 'Operator "$has"' . $structural];
+        yield 'hasnt relation' => ['$hasnt', 'Operator "$hasnt"' . $structural];
+        yield 'column name' => ['name', 'Operator "name"' . $malformed];
+        yield 'bare dollar' => ['$', 'Operator "$"' . $malformed];
+        yield 'leading digit' => ['$1x', 'Operator "$1x"' . $malformed];
+        yield 'hyphen' => ['$a-b', 'Operator "$a-b"' . $malformed];
+        yield 'trailing newline' => ["\$x\n", "Operator \"\$x\n\"" . $malformed];
+    }
+
+    /**
+     * Test that a token outside the grammar is refused and nothing is stored.
+     *
+     * @param  string  $token
+     * @param  string  $message
+     * @return void
+     */
+    #[DataProvider('invalidTokenProvider')]
+    public function testRegisterRefusesATokenOutsideTheGrammar(string $token, string $message): void
+    {
+        try {
+            $this->registry->register($token, $this->createStubOperator(), Capability::EXACT);
+            self::fail('The token was registered.');
+        } catch (\InvalidArgumentException $exception) {
+            self::assertSame($message, $exception->getMessage());
+        }
+
+        self::assertFalse($this->registry->has($token));
+        self::assertSame([], $this->registry->tokens());
+        self::assertFalse($this->registry->admits($token, Capability::EXACT));
+    }
+
+    /**
+     * Test that a taken token is refused and keeps its handler and
+     * capabilities.
+     *
+     * @return void
+     */
+    public function testRegisterRefusesATakenToken(): void
+    {
+        $original = $this->createStubOperator();
+
+        $this->registry->register('$eq', $original, Capability::EXACT);
+
+        try {
+            $this->registry->register('$eq', $this->createStubOperator(), Capability::RANGE);
+            self::fail('The token was registered twice.');
+        } catch (\InvalidArgumentException $exception) {
+            self::assertSame('Operator "$eq" is already registered. Use override() to replace it.', $exception->getMessage());
+        }
+
+        self::assertSame($original, $this->registry->resolve('$eq'));
+        self::assertFalse($this->registry->admits('$eq', Capability::RANGE));
+    }
+
+    /**
+     * Test that one handler registered under two tokens keeps each token's
+     * capabilities apart.
+     *
+     * @return void
+     */
+    public function testOneHandlerUnderTwoTokensKeepsEachTokensCapabilities(): void
     {
         $operator = $this->createStubOperator();
 
-        $this->registry->override('$eq', $operator);
+        $this->registry->register('$starts', $operator, Capability::RANGE);
+        $this->registry->register('$prefix', $operator, Capability::EXACT);
+        $this->registry->remove('$starts');
 
-        self::assertTrue($this->registry->has('$eq'));
-        self::assertSame($operator, $this->registry->resolve('$eq'));
+        self::assertSame($operator, $this->registry->resolve('$prefix'));
+        self::assertTrue($this->registry->admits('$prefix', Capability::EXACT));
+        self::assertFalse($this->registry->admits('$prefix', Capability::RANGE));
+        self::assertSame([], $this->registry->tokensFor(Capability::RANGE));
     }
 
     /**
-     * Test that remove deregisters a token.
+     * Test that override replaces the handler and keeps the capabilities.
      *
      * @return void
      */
-    public function testRemoveDeregistersToken(): void
+    public function testOverrideReplacesTheHandlerAndKeepsTheCapabilities(): void
     {
-        $this->registry->register('$eq', $this->createStubOperator());
+        $replacement = $this->createStubOperator();
+
+        $this->registry->register('$contains', $this->createStubOperator(), Capability::DOCUMENT);
+        $this->registry->override('$contains', $replacement);
+
+        self::assertSame($replacement, $this->registry->resolve('$contains'));
+        self::assertSame(['$contains'], $this->registry->tokensFor(Capability::DOCUMENT));
+        self::assertSame([], $this->registry->tokensFor(Capability::EXACT));
+    }
+
+    /**
+     * Test that override refuses a token that was never registered.
+     *
+     * @return void
+     */
+    public function testOverrideRefusesAnUnregisteredToken(): void
+    {
+        try {
+            $this->registry->override(self::OPERATOR_CUSTOM, $this->createStubOperator());
+            self::fail('The token was overridden.');
+        } catch (\InvalidArgumentException $exception) {
+            self::assertSame('Operator "$custom" is not registered. Use register() to add it.', $exception->getMessage());
+        }
+
+        self::assertFalse($this->registry->has(self::OPERATOR_CUSTOM));
+    }
+
+    /**
+     * Test that remove drops the handler and its capabilities.
+     *
+     * @return void
+     */
+    public function testRemoveDropsTheHandlerAndItsCapabilities(): void
+    {
+        $this->registry->register('$eq', $this->createStubOperator(), Capability::EXACT);
         $this->registry->remove('$eq');
 
         self::assertFalse($this->registry->has('$eq'));
         self::assertNull($this->registry->resolve('$eq'));
+        self::assertFalse($this->registry->admits('$eq', Capability::EXACT));
+        self::assertSame([], $this->registry->tokensFor(Capability::EXACT));
+    }
+
+    /**
+     * Test that removing then registering a token gives it new capabilities.
+     *
+     * @return void
+     */
+    public function testRemoveThenRegisterChangesTheTokensCapabilities(): void
+    {
+        $this->registry->register('$neq', $this->createStubOperator(), Capability::ENUM);
+        $this->registry->remove('$neq');
+        $this->registry->register('$neq', $this->createStubOperator(), Capability::EXACT);
+
+        self::assertTrue($this->registry->admits('$neq', Capability::EXACT));
+        self::assertFalse($this->registry->admits('$neq', Capability::ENUM));
     }
 
     /**
@@ -141,16 +293,6 @@ final class OperatorRegistryTest extends TestCase
     }
 
     /**
-     * Test that has returns false for an unregistered token.
-     *
-     * @return void
-     */
-    public function testHasReturnsFalseForUnregisteredToken(): void
-    {
-        self::assertFalse($this->registry->has('$unknown'));
-    }
-
-    /**
      * Test that register with a closure wraps it in a FilterOperator.
      *
      * @return void
@@ -159,7 +301,7 @@ final class OperatorRegistryTest extends TestCase
     {
         $this->registry->register(self::OPERATOR_CUSTOM, function (Builder $query, string $column, mixed $value): void {
             $query->where($column, '=', $value);
-        });
+        }, Capability::EXACT);
 
         $resolved = $this->registry->resolve(self::OPERATOR_CUSTOM);
 
@@ -183,28 +325,16 @@ final class OperatorRegistryTest extends TestCase
      */
     public function testOverrideWithClosureWrapsInFilterOperator(): void
     {
+        $this->registry->register(self::OPERATOR_CUSTOM, $this->createStubOperator(), Capability::EXACT);
         $this->registry->override(self::OPERATOR_CUSTOM, function (Builder $query, string $column, mixed $value): void {
             $query->where($column, '=', $value);
         });
 
-        $resolved = $this->registry->resolve(self::OPERATOR_CUSTOM);
+        $query = (new User)->newQuery();
 
-        self::assertInstanceOf(FilterOperator::class, $resolved);
-    }
+        $this->registry->resolve(self::OPERATOR_CUSTOM)?->apply($query, 'name', 'Alice');
 
-    /**
-     * Test that the duplicate registration message contains the token.
-     *
-     * @return void
-     */
-    public function testRegisterThrowsExceptionMessageIncludesToken(): void
-    {
-        $this->registry->register('$eq', $this->createStubOperator());
-
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Operator "$eq" is already registered. Use override() to replace it.');
-
-        $this->registry->register('$eq', $this->createStubOperator());
+        self::assertSame('Alice', $query->getQuery()->wheres[0]['value'] ?? null);
     }
 
     /**
@@ -224,13 +354,11 @@ final class OperatorRegistryTest extends TestCase
      */
     public function testTokensReturnsAllRegisteredTokens(): void
     {
-        $registry = new OperatorRegistry;
+        $this->registry->register('$eq', $this->createStubOperator(), Capability::EXACT);
+        $this->registry->register('$neq', $this->createStubOperator(), Capability::ENUM);
+        $this->registry->register('$gt', $this->createStubOperator(), Capability::RANGE);
 
-        $registry->register('$eq', $this->createStubOperator());
-        $registry->register('$neq', $this->createStubOperator());
-        $registry->register('$gt', $this->createStubOperator());
-
-        self::assertSame(['$eq', '$neq', '$gt'], $registry->tokens());
+        self::assertSame(['$eq', '$neq', '$gt'], $this->registry->tokens());
     }
 
     /**
@@ -240,13 +368,11 @@ final class OperatorRegistryTest extends TestCase
      */
     public function testTokensReflectsRemoval(): void
     {
-        $registry = new OperatorRegistry;
+        $this->registry->register('$eq', $this->createStubOperator(), Capability::EXACT);
+        $this->registry->register('$neq', $this->createStubOperator(), Capability::ENUM);
+        $this->registry->remove('$eq');
 
-        $registry->register('$eq', $this->createStubOperator());
-        $registry->register('$neq', $this->createStubOperator());
-        $registry->remove('$eq');
-
-        self::assertSame(['$neq'], array_values($registry->tokens()));
+        self::assertSame(['$neq'], array_values($this->registry->tokens()));
     }
 
     /**
@@ -256,12 +382,10 @@ final class OperatorRegistryTest extends TestCase
      */
     public function testTokensReflectsOverride(): void
     {
-        $registry = new OperatorRegistry;
+        $this->registry->register('$eq', $this->createStubOperator(), Capability::EXACT);
+        $this->registry->override('$eq', $this->createStubOperator());
 
-        $registry->register('$eq', $this->createStubOperator());
-        $registry->override('$eq', $this->createStubOperator());
-
-        self::assertSame(['$eq'], $registry->tokens());
+        self::assertSame(['$eq'], $this->registry->tokens());
     }
 
     /**
