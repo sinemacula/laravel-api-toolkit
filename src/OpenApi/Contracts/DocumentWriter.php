@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Contracts;
 
 /**
- * Persists the assembled OpenAPI document.
+ * Persists the assembled OpenAPI documents.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -13,13 +13,12 @@ namespace SineMacula\ApiToolkit\OpenApi\Contracts;
 interface DocumentWriter
 {
     /**
-     * Persist the serialized document at the given path.
+     * Persist every serialized document at its path, as one batch.
      *
-     * @param  string  $path
-     * @param  string  $contents
+     * @param  array<string, string>  $documents
      * @return void
      *
      * @throws \RuntimeException
      */
-    public function write(string $path, string $contents): void;
+    public function write(array $documents): void;
 }

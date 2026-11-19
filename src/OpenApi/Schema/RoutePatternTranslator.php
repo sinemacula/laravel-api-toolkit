@@ -62,16 +62,31 @@ final readonly class RoutePatternTranslator
      */
     public function translate(string $pattern): ?array
     {
-        $pattern = $this->stripAnchors($pattern);
+        $literals = $this->literals($pattern);
+        $pattern  = $this->stripAnchors($pattern);
 
         return match (true) {
-            $pattern === ''                => null,
-            $pattern === $this->uuid       => $this->uuidSchema(),
-            $pattern === $this->number     => ['type' => 'integer', 'minimum' => 0],
-            $this->isLiteralList($pattern) => ['type' => 'string', 'enum' => array_values(array_unique(explode('|', $pattern)))],
-            $this->isPortable($pattern)    => $this->patternSchema($pattern),
-            default                        => null,
+            $pattern === ''             => null,
+            $pattern === $this->uuid    => $this->uuidSchema(),
+            $pattern === $this->number  => ['type' => 'integer', 'minimum' => 0],
+            $literals !== null          => ['type' => 'string', 'enum' => $literals],
+            $this->isPortable($pattern) => $this->patternSchema($pattern),
+            default                     => null,
         };
+    }
+
+    /**
+     * List the values a constraint of literal alternatives accepts, or null
+     * when it is not one.
+     *
+     * @param  string  $pattern
+     * @return non-empty-list<string>|null
+     */
+    public function literals(string $pattern): ?array
+    {
+        $pattern = $this->stripAnchors($pattern);
+
+        return $this->isLiteralList($pattern) ? array_values(array_unique(explode('|', $pattern))) : null;
     }
 
     /**

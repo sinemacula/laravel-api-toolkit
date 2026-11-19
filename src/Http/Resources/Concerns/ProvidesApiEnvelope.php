@@ -6,8 +6,10 @@ namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use SineMacula\ApiToolkit\Repositories\Pagination\CappedLengthAwarePaginator;
 
 /**
  * Provides the toolkit's pagination envelope for resource collections.
@@ -20,6 +22,8 @@ trait ProvidesApiEnvelope
     /**
      * Customize the response for a request.
      *
+     * A capped total is not sent, since a header carries no flag to mark it.
+     *
      * @SuppressWarnings("php:S1172")
      *
      * @param  \Illuminate\Http\Request  $request
@@ -29,7 +33,7 @@ trait ProvidesApiEnvelope
     #[\Override]
     public function withResponse(Request $request, JsonResponse $response): void
     {
-        if (!($this->resource instanceof LengthAwarePaginator)) {
+        if (!($this->resource instanceof LengthAwarePaginator) || $this->resource instanceof CappedLengthAwarePaginator) {
             return;
         }
 
@@ -38,6 +42,8 @@ trait ProvidesApiEnvelope
 
     /**
      * Customize the pagination information for the resource.
+     *
+     * A paginator that does not count takes the cursor shape.
      *
      * @SuppressWarnings("php:S1172")
      *
@@ -48,21 +54,21 @@ trait ProvidesApiEnvelope
      */
     public function paginationInformation(Request $request, array $paginated, array $default): array
     {
-        if ($this->resource instanceof LengthAwarePaginator) {
-            return [
+        return match (true) {
+            $this->resource instanceof LengthAwarePaginator => [
                 'meta'  => $this->buildPaginationMeta($this->resource),
                 'links' => $this->buildPaginationLinks($this->resource),
-            ];
-        }
-
-        if ($this->resource instanceof CursorPaginator) {
-            return [
-                'meta'  => $this->buildCursorPaginationMeta($this->resource),
+            ],
+            $this->resource instanceof CursorPaginator => [
+                'meta'  => $this->buildContinuationMeta($this->resource),
                 'links' => $this->buildCursorPaginationLinks($this->resource),
-            ];
-        }
-
-        return [];
+            ],
+            $this->resource instanceof Paginator => [
+                'meta'  => $this->buildContinuationMeta($this->resource),
+                'links' => $this->buildSimplePaginationLinks($this->resource),
+            ],
+            default => [],
+        };
     }
 
     /**
@@ -74,9 +80,10 @@ trait ProvidesApiEnvelope
     private function buildPaginationMeta(LengthAwarePaginator $paginator): array
     {
         return [
-            'total'    => $paginator->total(),
-            'count'    => count($paginator->items()),
-            'continue' => $paginator->hasMorePages(),
+            'total'        => $paginator->total(),
+            'total_capped' => $paginator instanceof CappedLengthAwarePaginator,
+            'count'        => count($paginator->items()),
+            'continue'     => $paginator->hasMorePages(),
         ];
     }
 
@@ -98,12 +105,12 @@ trait ProvidesApiEnvelope
     }
 
     /**
-     * Build the meta for cursor-based pagination.
+     * Build the meta for pagination that does not count.
      *
-     * @param  \Illuminate\Contracts\Pagination\CursorPaginator<int|string, mixed>  $paginator
+     * @param  \Illuminate\Contracts\Pagination\CursorPaginator<int|string, mixed>|\Illuminate\Contracts\Pagination\Paginator<int|string, mixed>  $paginator
      * @return array<string, bool>
      */
-    private function buildCursorPaginationMeta(CursorPaginator $paginator): array
+    private function buildContinuationMeta(CursorPaginator|Paginator $paginator): array
     {
         return [
             'continue' => $paginator->hasMorePages(),
@@ -120,6 +127,21 @@ trait ProvidesApiEnvelope
     {
         return [
             'self' => request()->fullUrl(),
+            'prev' => $paginator->previousPageUrl(),
+            'next' => $paginator->nextPageUrl(),
+        ];
+    }
+
+    /**
+     * Build the links for simple pagination.
+     *
+     * @param  \Illuminate\Contracts\Pagination\Paginator<int|string, mixed>  $paginator
+     * @return array<string, string|null>
+     */
+    private function buildSimplePaginationLinks(Paginator $paginator): array
+    {
+        return [
+            'self' => $paginator->url($paginator->currentPage()),
             'prev' => $paginator->previousPageUrl(),
             'next' => $paginator->nextPageUrl(),
         ];

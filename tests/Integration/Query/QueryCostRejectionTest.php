@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Repositories\Concerns\OffsetPaginator;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
@@ -43,6 +44,7 @@ use Tests\TestCase;
 #[CoversClass(ApiCriteria::class)]
 #[CoversClass(EagerLoadApplier::class)]
 #[CoversClass(FilterApplier::class)]
+#[CoversClass(OffsetPaginator::class)]
 #[CoversClass(QueryCostGuard::class)]
 #[CoversClass(QueryParameterValidator::class)]
 #[CoversClass(QueryTooExpensiveException::class)]
@@ -312,18 +314,19 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that aggregates keyed on another type are not counted or loaded.
+     * Test that aggregates keyed on a type the response does not render are not
+     * loaded.
      *
      * @return void
      */
-    public function testAggregatesKeyedOnAnotherResourceTypeAreNeitherCountedNorLoaded(): void
+    public function testAggregatesKeyedOnAnotherResourceTypeAreNotLoaded(): void
     {
         $this->seedAuthorWithPosts();
 
         $response = $this->recordQueries('/aggregate-users?' . http_build_query([
             'fields'     => [UserResource::RESOURCE_TYPE => 'name'],
             'filters'    => json_encode(['name' => 'Carol']),
-            'aggregates' => [AggregatingUserResource::RESOURCE_TYPE => 'posts_count,has_published_posts,posts_sum_id,posts_avg_id,posts_min_created_at,last_posted_at'],
+            'aggregates' => [AggregatingUserResource::RESOURCE_TYPE => 'posts_count,posts_avg_id'],
         ]));
 
         $response->assertOk();
@@ -331,6 +334,73 @@ final class QueryCostRejectionTest extends TestCase
 
         self::assertSame(['_type', 'id', 'name'], array_keys((array) $response->json('data.0')));
         self::assertSame([], $this->aggregateStatements());
+    }
+
+    /**
+     * Test that aggregates keyed on a type the response does not render still
+     * count toward the cap.
+     *
+     * @return void
+     */
+    public function testAggregatesKeyedOnAnotherResourceTypeCountTowardTheCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_aggregates', 1);
+
+        $response = $this->recordQueries('/aggregate-users?' . http_build_query([
+            'fields'     => [UserResource::RESOURCE_TYPE => 'name'],
+            'aggregates' => [AggregatingUserResource::RESOURCE_TYPE => 'posts_count,posts_avg_id'],
+        ]));
+
+        $this->assertRejectionEnvelope($response, 'aggregates', '', 'max_aggregates', 1, 2);
+    }
+
+    /**
+     * Test that the aggregates of an embedded type count toward the cap with
+     * the root's.
+     *
+     * @return void
+     */
+    public function testEmbeddedAggregatesBeyondTheCapIssueNoSql(): void
+    {
+        Config::set('api-toolkit.query_cost.max_aggregates', 1);
+
+        $response = $this->recordQueries('/aggregate-users?' . http_build_query([
+            'fields' => [
+                UserResource::RESOURCE_TYPE => 'name,posts,aggregates',
+                PostResource::RESOURCE_TYPE => 'title,aggregates',
+            ],
+            'aggregates' => [
+                UserResource::RESOURCE_TYPE => 'posts_count',
+                PostResource::RESOURCE_TYPE => 'tags_count',
+            ],
+        ]));
+
+        $this->assertRejectionEnvelope($response, 'aggregates', '', 'max_aggregates', 1, 2);
+    }
+
+    /**
+     * Test that a single embedded aggregate within the cap is answered.
+     *
+     * @return void
+     */
+    public function testSingleEmbeddedAggregateWithinTheCapIsAnswered(): void
+    {
+        Config::set('api-toolkit.query_cost.max_aggregates', 1);
+
+        $this->seedAuthorWithPosts();
+
+        $response = $this->recordQueries('/aggregate-users?' . http_build_query([
+            'fields' => [
+                UserResource::RESOURCE_TYPE => 'name,posts',
+                PostResource::RESOURCE_TYPE => 'title,aggregates',
+            ],
+            'filters'    => json_encode(['name' => 'Carol']),
+            'aggregates' => [PostResource::RESOURCE_TYPE => 'tags_count'],
+        ]));
+
+        $response->assertOk();
+        $response->assertJsonPath('data.0.posts.0.aggregates.tags_count', 0);
+        $response->assertJsonPath('data.0.posts.1.aggregates.tags_count', 0);
     }
 
     /**

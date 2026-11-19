@@ -22,6 +22,7 @@ use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\SluggedTitleArticle;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\AggregatingUserResource;
 use Tests\Fixtures\Resources\AliasedScalarUserResource;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\DeclaredSluggedTitleArticleResource;
@@ -55,6 +56,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         parent::setUp();
 
         Config::set(ResourceDiscovery::RESOURCES_KEY, [
+            AggregatingUserResource::class,
             AliasedScalarUserResource::class,
             ArticleResource::class,
             DeclaredSluggedTitleArticleResource::class,
@@ -100,7 +102,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         $sql      = $this->captureUserSql($fields, 'users');
 
         self::assertSame(['*'], $columns);
-        self::assertStringContainsString('users.*', $this->unquote($sql));
+        self::assertStringStartsWith('select * from users', $this->unquote($sql));
         self::assertSame($baseline, $this->serialiseUsers($fields));
     }
 
@@ -124,6 +126,32 @@ final class ColumnNarrowingIntegrationTest extends TestCase
         self::assertContains('users.email', $columns);
         self::assertLessThan(count($this->userColumns()), count($columns));
         self::assertSame($off, $this->serialiseUsers('name,email,status,display_label'));
+    }
+
+    /**
+     * Test that ':all' keeps the default aggregates, a bound one included, when
+     * the select is narrowed.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAllTokenKeepsTheDefaultAggregatesWhenNarrowed(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        DB::enableQueryLog();
+
+        /** @var list<array{name: string, aggregates: array<string, mixed>}> $rows */
+        $rows = json_decode($this->serialiseThrough(AggregatingUserResource::class, new User, ':all'), true);
+        $sql  = $this->unquote($this->lastSelectSql('users'));
+
+        $aggregates = array_column($rows, 'aggregates', 'name');
+
+        self::assertStringStartsWith('select id, name, (select count(*) from posts', $sql);
+        self::assertSame(1, $aggregates['Alice']['posts_count']);
+        self::assertTrue($aggregates['Alice']['has_published_posts']);
+        self::assertSame(['posts_count' => 0, 'has_published_posts' => false], $aggregates['Bob']);
     }
 
     /**
@@ -215,7 +243,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
 
         self::assertNotNull($user);
         self::assertSame(['*'], $this->normaliseColumns($query->getQuery()->columns));
-        self::assertStringContainsString('users.*', $this->unquote($sql));
+        self::assertStringStartsWith('select * from users', $this->unquote($sql));
 
         $resource = (new UserResource($user))->withFields(['status']);
         $data     = $resource->resolve(Request::create(self::TEST_URL));

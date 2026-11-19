@@ -96,12 +96,7 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
         $request = $request instanceof Request ? $request : null;
         $schema  = SchemaCompiler::compile(static::class);
         $data    = ['_type' => static::getResourceType()];
-        $fields  = $this->fieldResolver->getFields(
-            $schema,
-            static::getResourceType(),
-            static::getDefaultFields(),
-            static::getFixedFields(),
-        );
+        $fields  = $this->fieldResolver->getFields(static::class);
 
         $truncated = [];
 
@@ -132,7 +127,9 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
             $data[RelationLimit::TRUNCATED_KEY] = $truncated;
         }
 
-        $this->appendAggregatesPayload($data, $schema, $request);
+        if (in_array('aggregates', $fields, true)) {
+            $this->appendAggregatesPayload($data, $schema, $request);
+        }
 
         return $this->orderResolvedFields($data);
     }
@@ -306,17 +303,19 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      */
     private function loadMissingRelations(object $resource): void
     {
-        if (method_exists($resource, 'loadMissing')) {
+        $fields = $this->fieldResolver->getFields(static::class);
 
-            $fields = $this->fieldResolver->shouldRespondWithAll(static::getResourceType())
-                ? static::getAllFields()
-                : static::resolveFields();
+        if (method_exists($resource, 'loadMissing')) {
 
             $with = EagerLoadPlanner::buildEagerLoadMap(static::class, $fields);
 
             if ($with !== []) {
                 $resource->loadMissing($with);
             }
+        }
+
+        if (!in_array('aggregates', $fields, true)) {
+            return;
         }
 
         $this->loadMissingAggregates($resource);
@@ -332,10 +331,6 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      */
     private function appendAggregatesPayload(array &$data, CompiledSchema $schema, ?Request $request): void
     {
-        if (!$this->fieldResolver->shouldIncludeAggregatesField(static::getResourceType(), static::getDefaultFields())) {
-            return;
-        }
-
         $aggregates = $this->valueResolver->resolveAggregatesPayload($this, $schema, static::getResourceType(), $request);
 
         if ($aggregates === []) {
@@ -356,15 +351,13 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      */
     private function loadMissingAggregates(object $resource): void
     {
-        $resourceType = static::getResourceType();
-
-        if (!method_exists($resource, 'loadAggregate') || !$this->fieldResolver->shouldIncludeAggregatesField($resourceType, static::getDefaultFields())) {
+        if (!method_exists($resource, 'loadAggregate')) {
             return;
         }
 
         $groups = [];
 
-        foreach (EagerLoadPlanner::buildAggregateMap(static::class, ApiQuery::getAggregates($resourceType) ?? []) as $entry) {
+        foreach (EagerLoadPlanner::buildAggregateMap(static::class, ApiQuery::getAggregates(static::getResourceType()) ?? []) as $entry) {
 
             if (EagerLoadPlanner::isAggregateAttributeLoaded($resource, $entry['relation'])) {
                 continue;

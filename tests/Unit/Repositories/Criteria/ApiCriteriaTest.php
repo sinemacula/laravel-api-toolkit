@@ -1131,13 +1131,14 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that eager loading resolves fields through the metadata provider.
+     * Test that eager loading plans the selection with the provider's fixed
+     * fields.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyEagerLoadingUsesMetadataProviderForFieldResolution(): void
+    public function testApplyEagerLoadingPlansTheProvidersFixedFields(): void
     {
         assert($this->app !== null);
 
@@ -1146,15 +1147,13 @@ final class ApiCriteriaTest extends TestCase
         $provider->method('getResourceType')
             ->willReturn('users');
 
-        $provider->expects(self::once())
-            ->method('resolveFields')
+        $provider->method('getFixedFields')
             ->with(UserResource::class)
-            ->willReturn(['id', 'name']);
+            ->willReturn(['organization']);
 
-        $provider->method('eagerLoadMapFor')
-            ->willReturn([]);
-
-        $provider->method('eagerLoadAggregatesFor')
+        $provider->expects(self::once())
+            ->method('eagerLoadMapFor')
+            ->with(UserResource::class, ['name', 'organization'])
             ->willReturn([]);
 
         $this->app->instance(ResourceMetadataProvider::class, $provider);
@@ -1164,7 +1163,7 @@ final class ApiCriteriaTest extends TestCase
         $criteria->usingResource(UserResource::class);
 
         $this->parseRequest(new Request([
-            'fields' => ['users' => self::STUB_USER_FIELDS],
+            'fields' => ['users' => 'name'],
         ]));
 
         $criteria->apply(new User);
@@ -1211,7 +1210,8 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that eager loading calls eagerLoadAggregatesFor on the provider.
+     * Test that eager loading calls eagerLoadAggregatesFor on the provider when
+     * the selection includes the aggregates.
      *
      * @return void
      *
@@ -1225,9 +1225,6 @@ final class ApiCriteriaTest extends TestCase
 
         $provider->method('getResourceType')
             ->willReturn('users');
-
-        $provider->method('resolveFields')
-            ->willReturn(['id', 'name']);
 
         $provider->method('eagerLoadMapFor')
             ->willReturn([]);
@@ -1244,7 +1241,7 @@ final class ApiCriteriaTest extends TestCase
         $criteria->usingResource(UserResource::class);
 
         $this->parseRequest(new Request([
-            'fields' => ['users' => self::STUB_USER_FIELDS],
+            'fields' => ['users' => 'id,name,aggregates'],
         ]));
 
         $criteria->apply(new User);
@@ -1340,21 +1337,21 @@ final class ApiCriteriaTest extends TestCase
      */
     public function testApplyEnforcesTheFlatCostCapsBeforeBuildingTheQuery(): void
     {
-        Config::set('api-toolkit.query_cost.max_offset', 100);
+        Config::set('api-toolkit.query_cost.max_order_keys', 1);
 
-        $this->parseRequest(Request::create('/test', HttpMethod::GET->getVerb(), ['page' => '12', 'limit' => '10']));
+        $this->parseRequest(Request::create('/test', HttpMethod::GET->getVerb(), ['order' => 'name,email']));
 
         try {
             $this->criteria->apply(new User);
 
-            self::fail('Expected a rejection for a page beyond the offset cap.');
+            self::fail('Expected a rejection for an order beyond the order-key cap.');
         } catch (QueryTooExpensiveException $exception) {
             self::assertSame([
-                'parameter' => 'page',
+                'parameter' => 'order',
                 'pointer'   => '',
-                'reason'    => QueryCostLimits::MAX_OFFSET,
-                'limit'     => 11,
-                'actual'    => 12,
+                'reason'    => QueryCostLimits::MAX_ORDER_KEYS,
+                'limit'     => 1,
+                'actual'    => 2,
             ], $exception->getCustomMeta());
         }
     }
