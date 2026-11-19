@@ -320,6 +320,7 @@ abstract class TestCase extends OrchestraTestCase
         $this->createReleasesTable();
         $this->createProjectsTable();
         $this->createProjectTagTable();
+        $this->createGatheringsTable();
         $this->createSearchIndexes();
     }
 
@@ -842,6 +843,32 @@ abstract class TestCase extends OrchestraTestCase
             $table->foreignId('project_id')->constrained()->cascadeOnDelete();
             $table->foreignId('tag_id')->constrained();
             $table->primary(['project_id', 'tag_id']);
+        });
+    }
+
+    /**
+     * Create the soft-deleting gatherings table, whose sessions are gatherings
+     * under a parent.
+     *
+     * @return void
+     */
+    private function createGatheringsTable(): void
+    {
+        Schema::dropIfExists('gatherings');
+        Schema::create('gatherings', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('parent_id')->nullable();
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('name');
+            $table->string('visibility')->default('public');
+            $table->timestamp('starts_at');
+            $table->double('latitude');
+            $table->double('longitude');
+            $table->softDeletes();
+
+            $table->index('parent_id');
+            $table->index('user_id');
+            $table->index('starts_at');
         });
     }
 

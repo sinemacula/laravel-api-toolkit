@@ -37,8 +37,8 @@ final class QueryParameterBuilderTest extends TestCase
         '$in', '$between', '$contains', '$null', '$notNull',
     ];
 
-    /** @var array<int, string> The four structural operators */
-    private const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', '$hasnt'];
+    /** @var array<int, string> The five structural operators */
+    private const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', '$hasnt', '$scope'];
 
     /**
      * Test that the full shared query-parameter set is emitted.
@@ -111,16 +111,16 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the filter enumerates the 11 registered and 4 structural ops.
+     * Test that the filter enumerates the 11 registered and 5 structural ops.
      *
      * @return void
      */
-    public function testFilterParameterEnumeratesTheFullElevenPlusFourVocabulary(): void
+    public function testFilterParameterEnumeratesTheFullElevenPlusFiveVocabulary(): void
     {
         $operators = $this->makeBuilder()->build()['Filters']['schema']['x-operators'];
 
         self::assertIsArray($operators);
-        self::assertCount(15, $operators);
+        self::assertCount(16, $operators);
     }
 
     /**
@@ -154,6 +154,25 @@ final class QueryParameterBuilderTest extends TestCase
             . 'e.g. filters={"status":"active","$or":[{"role":"admin"},{"role":"owner"}]}. '
             . 'A traversable relation key takes a filter document for the related resource. '
             . '$has and $hasnt take a relation name, a list of names, or relation names keyed to filter documents. ',
+            $description,
+        );
+    }
+
+    /**
+     * Test that the filter description states the scope grammar with an
+     * example.
+     *
+     * @return void
+     */
+    public function testFilterDescriptionStatesTheScopeGrammarWithAnExample(): void
+    {
+        $description = $this->makeBuilder()->build()['Filters']['description'];
+
+        self::assertIsString($description);
+        self::assertStringContainsString(
+            'relation names keyed to filter documents. '
+            . '$scope invokes the named scopes the resource declares: a scope name, a list of names, or names keyed to objects of arguments, '
+            . 'e.g. filters={"$scope":{"near":{"lat":51.5,"lng":-0.12,"km":5}}}. Each operator',
             $description,
         );
     }

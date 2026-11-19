@@ -86,17 +86,21 @@ final readonly class SuccessResponseBuilder
     }
 
     /**
-     * Build the success body of an action outside the resource contract.
+     * Build the success body of an action outside the resource contract, with
+     * the total-count header of a declared collection.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
-     * @return array{content: array<string, array{schema: array<string, mixed>}>}
+     * @return array{headers?: array<string, array{'$ref': string}>, content: array<string, array{schema: array<string, mixed>}>}
      */
     public function body(?string $controllerClass, string $action): array
     {
         $schema = $this->responseSchema->resolve($controllerClass, $action) ?? $this->envelope->undocumentedEnvelope();
+        $body   = ['content' => [self::MEDIA_TYPE => ['schema' => $schema]]];
 
-        return ['content' => [self::MEDIA_TYPE => ['schema' => $schema]]];
+        return $this->responseSchema->declaresCollection($controllerClass, $action)
+            ? ['headers' => $this->envelope->collectionHeaders(), ...$body]
+            : $body;
     }
 
     /**

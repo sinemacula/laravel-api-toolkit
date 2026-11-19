@@ -62,6 +62,23 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
+     * Test that a declaration only annotating a field keeps its inferred or
+     * flagged schema.
+     *
+     * @return void
+     */
+    public function testAnnotatingDeclarationKeepsTheInferredSchema(): void
+    {
+        $declared = new OpenApiFieldSchema(examples: ['Ada'], description: 'The name.');
+        $resolver = $this->makeResolver([
+            'name' => new ColumnDefinition(name: 'name', typeName: 'varchar', nullable: false),
+        ]);
+
+        self::assertSame(['type' => 'string'], $resolver->resolve('name', $this->field(openApi: $declared), User::class)->toArray());
+        self::assertSame(['x-undocumented' => true], $resolver->resolve('name', $this->field(compute: 'strtoupper', openApi: $declared), User::class)->toArray());
+    }
+
+    /**
      * Test that a typed non-null column infers a concrete unflagged type.
      *
      * @return void
@@ -632,6 +649,38 @@ final class FieldTypeResolverTest extends TestCase
             $this->aggregate(AggregateFunction::COUNT, guards: $guard, callerGuards: $guard),
             AggregateOwner::class,
         ));
+    }
+
+    /**
+     * Test that an aggregate declaration only annotating it is laid over the
+     * inferred schema.
+     *
+     * @return void
+     */
+    public function testAnAnnotatingAggregateDeclarationKeepsTheInferredType(): void
+    {
+        $declared = new OpenApiFieldSchema(examples: [3], description: 'The line count.');
+
+        self::assertSame(
+            ['type' => 'integer', 'minimum' => 0, 'examples' => [3], 'description' => 'The line count.'],
+            $this->makeAggregateResolver([])->resolveAggregate($this->aggregate(AggregateFunction::COUNT, openApi: $declared), AggregateOwner::class),
+        );
+    }
+
+    /**
+     * Test that a column ignores a field declaration only annotating it.
+     *
+     * @return void
+     */
+    public function testColumnIgnoresAnAnnotatingDeclaration(): void
+    {
+        $resolver = $this->makeResolver([
+            'email' => new ColumnDefinition(name: 'email', typeName: 'varchar', nullable: false),
+        ]);
+
+        $field = $this->field(openApi: new OpenApiFieldSchema(examples: ['a@example.com']));
+
+        self::assertSame(['type' => 'string'], $resolver->resolveColumn('email', User::class, $field)->toArray());
     }
 
     /**

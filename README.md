@@ -158,6 +158,52 @@ rather than dropped: a group that is not a non-empty list, an empty group docume
 column given an empty object, a list, or a key that is not a registered condition, and any entry that adds no
 condition, such as an empty `$has` list.
 
+**Named scopes** - a resource can let clients invoke its model's local scopes, a `scopeUpcoming()` or `#[Scope]`
+method, by name:
+
+```php
+use SineMacula\ApiToolkit\Schema\Scope;
+
+Field::set(
+    Field::scalar('visibility')->filterable(Capability::EXACT),
+    Scope::of('upcoming')->description('Events that have not started yet.'),
+    Scope::of('near')->parameters([
+        'lat' => ['required', 'numeric', 'between:-90,90'],
+        'lng' => ['required', 'numeric', 'between:-180,180'],
+        'km'  => ['required', 'integer', 'between:1,50'],
+    ])->description('Events within km kilometres of the point.'),
+    Scope::of('ownedByCaller', 'mine')->visibleTo(fn (?Request $request): bool => $request?->user() !== null),
+);
+```
+
+```json
+{"visibility":"public","$scope":"upcoming"}
+{"$scope":{"near":{"lat":51.5,"lng":-0.12,"km":5},"upcoming":{}}}
+{"$or":[{"$scope":"mine"},{"visibility":"public"}]}
+{"sessions":{"$scope":"upcoming"}}
+```
+
+`$scope` takes a name, a list of names, or names keyed to objects of arguments, `{}` for none. Scopes AND with the
+rest of their document, compose inside `$and` and `$or`, and in a relation body or under `$has` resolve against the
+related resource's scopes. Each scope counts toward `max_nodes`. `visibleTo()` hides a scope from a caller, to whom it
+answers as undeclared.
+
+`parameters()` takes rules keyed as in a form request. The validated arguments reach the method as named arguments, so
+the method's parameter names are the contract and key order does not matter. Values arrive as decoded JSON under PHP's
+coercive typing, so the rules must admit only what the parameter types accept. An undeclared argument, a failed rule,
+a required parameter a rule left unfilled, a `null` for a parameter refusing it and a `ValidationException` the scope
+throws are each a 422 keyed under the scope, such as `filters.$or.1.$scope.near.km`. `api-toolkit:validate-schemas`
+checks every declaration against its method.
+
+A scope may only add where clauses, and one adding none matches every row. A scope that returns another builder,
+eager loads, removes a global scope (`withTrashed()` included), or changes the query's columns, table, joins, orders,
+groups, limits, unions or lock throws a `LogicException`. Eloquent drops an order inside the scope's own nested
+`where()` closure, a global scope it registers and an `afterQuery()` callback unseen, so they are unsupported. Trashed
+rows stay with `?trashed`.
+
+Declarations and their rule objects are compiled once per worker, so they must not depend on the request and must
+validate repeatedly. What a scope reads about the caller or the clock is read when it runs, on a queue worker too.
+
 **Free-text search** - match a term against the fields a resource declares `searchable()`:
 
 ```http
@@ -173,6 +219,11 @@ The minimum word length is three characters. Configuration can raise it, and ref
 MySQL matches nothing once a word is shorter than the n-gram token size, and PostgreSQL answers by reading the whole
 table. The minimum applies to each word, because a short word is dropped from a MySQL full-text phrase but kept by a
 PostgreSQL pattern match, so the two engines would return different rows.
+
+Each engine still compares text by its own rules. MySQL folds case and accents through the column's collation, and
+matches a multi-word term's words in order whatever whitespace separates them. PostgreSQL folds case but not accents,
+and SQLite folds only ASCII case. An `EXACT` match compares with `=`, so it ignores case only under a case-insensitive
+collation, such as MySQL's default.
 
 Drivers ship for MySQL, PostgreSQL and SQLite, registered under the driver name each connection reports. On MySQL the
 proof also checks that the planner can use the index, which the catalogue only reports from 8.0; on older versions
@@ -965,7 +1016,7 @@ class AppServiceProvider extends ServiceProvider
 
 An operator is a class implementing `SineMacula\ApiToolkit\Contracts\FilterOperator`, or a closure with the same
 signature, `apply(Builder $query, string $column, mixed $value): void`. A token is `$` followed by a letter, then
-letters, digits or underscores, and may not be `$and`, `$or`, `$has` or `$hasnt`. `register()` throws
+letters, digits or underscores, and may not be `$and`, `$or`, `$has`, `$hasnt` or `$scope`. `register()` throws
 `InvalidArgumentException` for any other token, or one already taken. `$column` arrives qualified by its table, such as
 `users.name`; use it as given, or take `Str::afterLast($column, '.')` where the public name is needed.
 
@@ -1306,10 +1357,11 @@ Each resource becomes a component schema, and each documented route an operation
 action honours. Every queryable property carries an `x-query-surface` extension naming the key to send, the filter
 capability and the operators it answers, whether an index backs its sort (with the recorded reason where none does), its
 search strategy, and `conditional` on a filter or sort only some callers may use. The relations a filter may descend
-through are listed on the schema itself. All of this is read from the same compiled schema the request-time checks use,
-and each column's operators from the tokens the bound registry admits on its capability, so the document cannot offer a
-column or an operator the request would reject. A column whose capability admits no registered token is documented as
-answering no filter.
+through are listed on the schema itself, and its named scopes under `x-scopes`, each with its description, the JSON
+Schema of its arguments and `conditional` where only some callers may invoke it. All of this is read from the same
+compiled schema the request-time checks use, and each column's operators from the tokens the bound registry admits on
+its capability, so the document cannot offer a column or an operator the request would reject. A column whose capability
+admits no registered token is documented as answering no filter.
 
 A resource schema requires only what every response carries: `_type`, and each fixed field read straight from its
 column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names
@@ -1320,7 +1372,8 @@ else by the column type. Date casts and the model's timestamps are a `date-time`
 other date-time or time column the driver's string. A value with no fixed shape is marked `x-undocumented`: an `array`,
 `json`, `collection` or `object` cast, a cast class other than an enum, `AsStringable` or `AsUri`, and an uncast
 decimal, binary or JSON column. On PostgreSQL before PHP 8.4, a float column is a string, as the driver returns it.
-Declare the field's `openapi()` schema to document any of these.
+Declare the field's `openapi()` schema to document any of these. A declaration naming no type, format, enum or
+nullability, such as `->openapi()->example('Ada')`, keeps the inferred schema and adds its example and description.
 
 A relation rendered through a child resource is typed from its Eloquent relation: a to-many relation as an array of the
 related schema, and a to-one relation as the related schema or `null`, since it renders `null` when the related row is
@@ -1382,7 +1435,8 @@ field narrowed by `only()` or `except()`, which lists its accepted values inline
 A request field's presence rules shape its object's schema:
 
 - A `confirmed` field documents its confirmation field (`<field>_confirmation`, or the one `confirmed:` names), required
-  always when the field is required and through `dependentRequired` when it is optional.
+  always when the field is required and through `dependentRequired` when it is optional. The confirmation field names
+  the field it repeats in `x-confirms`, unless it confirms several.
 - `required_with`, `required_with_all`, `required_without` and `required_without_all` are expressed with
   `dependentRequired`, `if`/`then` and `anyOf`. They reference only fields declared in the same object or array item:
   any other name is left out, and a `_all` rule naming one is dropped.
@@ -1392,15 +1446,16 @@ A request field's presence rules shape its object's schema:
 A route outside the resource pipeline documents its success body with `#[ResponseSchema]` on the action. Name a
 registered resource to reference its component, or a class implementing `DefinesSchema` to export the JSON Schema its
 `schema()` returns as a component named after the class, or after its `#[SchemaName]`. The class is defined once and
-referenced wherever it is named. `collection: true` wraps the shape in the collection envelope. Name several classes to
-document a response that may be any one of them, exported as a `oneOf` of their references under `data` (or under each
-item of a collection). Give each member an object schema (`type` exactly `object`) with a required property holding its
-own string `const`, such as a `status`. When every member pins the same property to a distinct value, the `oneOf`
-carries a `discriminator` mapping each value to its member. Resources pin `_type`, so a union of resources with distinct
-types is discriminated on it. If any named class is neither a registered resource nor a `DefinesSchema`, the body is
-left undocumented. `#[SchemaName]` on a resource, enum or `DefinesSchema` sets its component name, and two classes
-deriving one name fail the export. An enum named as a shape fails the export when a registered resource's field or a
-documented request rule also uses the enum.
+referenced wherever it is named. `collection: true` documents a collection of the shape: a length-aware page with its
+`Total-Count` header, a cursor page or an unpaginated list. Name several classes to document a response that may be any
+one of them, exported as a `oneOf` of their references under `data` (or under each item of a collection). Give each
+member an object schema (`type` exactly `object`) with a required property holding its own string `const`, such as a
+`status`. When every member pins the same property to a distinct value, the `oneOf` carries a `discriminator` mapping
+each value to its member. Resources pin `_type`, so a union of resources with distinct types is discriminated on it. If
+any named class is neither a registered resource nor a `DefinesSchema`, the body is left undocumented. `#[SchemaName]`
+on a resource, enum or `DefinesSchema` sets its component name, and two classes deriving one name fail the export. An
+enum named as a shape fails the export when a registered resource's field or a documented request rule also uses the
+enum.
 
 On a resource controller's `index`, `show`, `store`, `update` or `destroy`, declaring the controller's own resource
 (as a collection on `index`, a single item elsewhere) changes nothing: the action keeps its full resource
@@ -1498,6 +1553,52 @@ resources their filters reach through a relation that is not a `MorphTo`:
 ```bash
 php artisan api-toolkit:docs:generate
 ```
+
+#### Examples
+
+Every JSON request body and success body carries generated examples. A value comes from the schema node's `examples`,
+`const`, `enum`, `format` and `type`, within its bounds; nothing is random or guessed from a field name. A request
+example sends every field that can be sent, so its presence rules hold, and a confirmation repeats the field it
+confirms. A response example holds each resource's required and default fields. A body that may take several shapes,
+such as an index's two pagination shapes or a `#[ResponseSchema]` naming several classes, carries one example per
+shape, named by its title or component. A multipart body takes none.
+
+Give a value where the exporter finds none, such as for a field with a `regex` rule, or where a realistic one reads
+better. The structure around it stays generated:
+
+- `->openapi()->example()` on a resource field, exported under `examples`.
+- `fieldExamples()` on a rules source implementing `DefinesFieldExamples`, keyed by rules key. A value at a container
+  key, such as `items`, is used as that whole subtree. A key naming no field, or a prohibited one, fails the export.
+- An `examples` keyword anywhere in a `DefinesSchema`'s `schema()`.
+
+```php
+use SineMacula\ApiToolkit\OpenApi\Contracts\DefinesFieldExamples;
+use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
+
+final class RedeemVoucher implements DefinesFieldExamples, DefinesInputSchema
+{
+    public static function rules(): array
+    {
+        return [
+            'code'        => ['required', 'string', 'regex:/^[A-Z]{3}-[0-9]{4}$/'],
+            'items'       => ['required', 'array'],
+            'items.*.sku' => ['required', 'string'],
+        ];
+    }
+
+    public static function fieldExamples(): array
+    {
+        return ['code' => 'ABC-1234', 'items' => [['sku' => 'TEE-M'], ['sku' => 'CAP-L']]];
+    }
+}
+```
+
+Every example the document carries, generated, declared or an error example, is validated against the schema beside it,
+offline. A mismatch fails the export, naming the example and where it fails, and so does a required field the exporter
+finds no value for. A body needing an undocumented field, such as an uncast column exported without a database, gets no
+example, and the export command warns, naming the operation and the field; a wholly undocumented body gets none
+silently. A `date_format` field is a `date` or `date-time` only when every format it lists renders that form, and its
+example is rendered in its own format.
 
 #### Operation Ids, Summaries and Descriptions
 

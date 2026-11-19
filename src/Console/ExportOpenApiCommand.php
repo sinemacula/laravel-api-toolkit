@@ -66,6 +66,12 @@ final class ExportOpenApiCommand extends Command
         $exports = $this->exportAudiences($exporter, $targets);
         $empty   = $this->emptyAudiences($exports);
 
+        foreach ($exports as [, $result]) {
+            foreach ($result->skippedExamples as $skipped) {
+                $this->warn($skipped);
+            }
+        }
+
         if ($empty !== [] && $this->option('allow-empty') !== true) {
             $this->reportEmptyAudiences($empty);
 

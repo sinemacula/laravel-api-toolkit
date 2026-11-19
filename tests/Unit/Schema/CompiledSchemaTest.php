@@ -12,6 +12,7 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledScopeDefinition;
 
 /**
  * Tests for the CompiledSchema value object.
@@ -374,6 +375,20 @@ final class CompiledSchemaTest extends TestCase
         self::assertSame([], $empty->getConditionalFilterKeys());
         self::assertSame([], $empty->getConditionalSortKeys());
         self::assertSame([], $empty->getConditionalTraversalKeys());
+    }
+
+    /**
+     * Test that getScopes returns the scopes it was given, and defaults to
+     * empty.
+     *
+     * @return void
+     */
+    public function testGetScopesReturnsTheGivenScopesAndDefaultsToEmpty(): void
+    {
+        $scope = new CompiledScopeDefinition('upcoming', 'upcoming');
+
+        self::assertSame(['upcoming' => $scope], (new CompiledSchema([], scopes: ['upcoming' => $scope]))->getScopes());
+        self::assertSame([], (new CompiledSchema([]))->getScopes());
     }
 
     /**

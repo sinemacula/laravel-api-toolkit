@@ -45,11 +45,14 @@ use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Fixtures\Input\StorePayload;
+use Tests\Fixtures\Models\Gathering;
 use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BrokenResource;
 use Tests\Fixtures\Resources\EmptyAccessorResource;
+use Tests\Fixtures\Resources\GatheringResource;
+use Tests\Fixtures\Resources\GatheringSessionResource;
 use Tests\Fixtures\Resources\MissingAggregateColumnResource;
 use Tests\Fixtures\Resources\MissingColumnQueryableResource;
 use Tests\Fixtures\Resources\MissingComputeMethodResource;
@@ -63,6 +66,7 @@ use Tests\Fixtures\Resources\SensitiveQueryableResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\ToOneLimitedRelationResource;
 use Tests\Fixtures\Resources\TrailingIndexSortableResource;
+use Tests\Fixtures\Resources\UnboundScopeResource;
 use Tests\Fixtures\Resources\UndeclaredDefaultFieldResource;
 use Tests\Fixtures\Resources\UnprovenSearchResource;
 use Tests\Fixtures\Search\PatternSearchDriver;
@@ -262,6 +266,13 @@ final class ContainerBindingRegistrarTest extends TestCase
             . 'List that connection under api-toolkit.search.unverified_connections to serve it regardless',
         ];
 
+        yield 'scopes' => [
+            Gathering::class,
+            UnboundScopeResource::class,
+            '__scope__:cancelled',
+            sprintf('Scope "cancelled" is not a local scope of model "%s"', Gathering::class),
+        ];
+
         yield 'sensitive columns' => [
             User::class,
             SensitiveQueryableResource::class,
@@ -303,6 +314,26 @@ final class ContainerBindingRegistrarTest extends TestCase
         } catch (InvalidSchemaException $exception) {
             self::assertSame(sprintf("Schema validation failed with 1 error(s):\n  - [%s] Field \"%s\": %s", $resource, $field, $defect), $exception->getMessage());
         }
+    }
+
+    /**
+     * Test that the shipped rules accept scopes bound to their model.
+     *
+     * @return void
+     */
+    public function testRegisterBindsSchemaValidatorAcceptingScopesTheModelDefines(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        SchemaCompiler::clearCache();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [GatheringResource::class, GatheringSessionResource::class]);
+
+        $this->expectNotToPerformAssertions();
+
+        $app->make(SchemaValidator::class)->validate([Gathering::class => GatheringResource::class]);
     }
 
     /**

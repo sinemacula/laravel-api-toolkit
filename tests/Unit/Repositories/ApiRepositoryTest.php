@@ -598,6 +598,36 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
+     * Test that a cursor read bounds its leading column at the boundary.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testPaginateBoundsTheCursorReadOnItsLeadingColumn(): void
+    {
+        $this->parseRequest(new Request(['cursor' => (new Cursor(['users.name' => 'Alice', 'users.id' => 1]))->encode()]));
+
+        DB::enableQueryLog();
+
+        $this->repository->addScope(static function (Builder $query): void {
+            $query->getQuery()->orderBy('users.name');
+        })->paginate();
+
+        $log     = DB::getQueryLog();
+        $read    = (array) end($log);
+        $grammar = DB::connection()->getQueryGrammar();
+        $name    = $grammar->wrap('users.name');
+        $key     = $grammar->wrap('users.id');
+
+        self::assertSame(
+            sprintf('select * from %s where %2$s >= ? and (%2$s > ? or (%2$s = ? and (%3$s > ?))) order by %2$s asc, %3$s asc limit 51', $grammar->wrapTable('users'), $name, $key),
+            $read['query'] ?? null,
+        );
+        self::assertSame(['Alice', 'Alice', 'Alice', 1], $read['bindings'] ?? null);
+    }
+
+    /**
      * Test that a rejected paginate resets the handle it was called on.
      *
      * @return void

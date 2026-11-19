@@ -133,6 +133,7 @@ final class OperatorRegistryTest extends TestCase
         yield 'or group' => ['$or', 'Operator "$or"' . $structural];
         yield 'has relation' => ['$has', 'Operator "$has"' . $structural];
         yield 'hasnt relation' => ['$hasnt', 'Operator "$hasnt"' . $structural];
+        yield 'named scope' => ['$scope', 'Operator "$scope"' . $structural];
         yield 'column name' => ['name', 'Operator "name"' . $malformed];
         yield 'bare dollar' => ['$', 'Operator "$"' . $malformed];
         yield 'leading digit' => ['$1x', 'Operator "$1x"' . $malformed];
