@@ -413,6 +413,26 @@ follows the state where its own resource opts in and otherwise stays live, where
 filtered on (`$has` and `$hasnt` too). A read that applies no criteria, such as implicit route-model binding, only
 checks the value.
 
+**Row visibility** - override `restrictRows()` on a resource to limit the rows a request may see through it:
+
+```php
+public static function restrictRows(Builder $query, Request $request): void
+{
+    $query->whereIn($query->qualifyColumn('workspace_id'), $request->user()?->workspaceIds() ?? []);
+}
+```
+
+The rule applies to the root query and its total, a single record (an invisible one is a 404), every include through the
+criteria or `loadMissing`, every relation filter (`$has` means "has a visible row") and every relation aggregate,
+rendered or ordered by. A related row follows the resource its parent declares over the relation, else the one mapped to
+its model. Qualify each column and add only wheres; anything else throws. Write it to fail closed: an empty `whereIn()`
+matches nothing for a request without a user, while `where($column, null)` matches every row whose column is null. Not
+covered: route-model binding and queries the application builds, relations or aggregates loaded before rendering,
+repository scopes and persistent criteria, writes, and compute fields or accessors that query. With `validate_schemas`
+on, a model whose `$with` or `$withCount` default reaches a restricted resource is refused. Use a global scope for an
+invariant of the model everywhere, a relation method for a fixed predicate of one relation, `constrain()` to shape an
+include, a policy to authorise an action, and `restrictRows()` for what a caller may see through the API.
+
 ### Schema-Driven ApiResource
 
 Extend `ApiResource` and declare a `schema()` method using the `Field` and `Relation` helpers and the relation aggregate
@@ -461,6 +481,9 @@ class UserResource extends ApiResource
     }
 }
 ```
+
+**Date fields** - `Field::timestamp()` renders an ISO 8601 date-time and `Field::date()` a calendar date, from a cast
+date or a date string an uncast column holds. A non-null value that is neither throws, rather than rendering as null.
 
 **Relation aggregates** - six helpers load an aggregate over a relation in the same query, through Laravel's
 `withAggregate()`. Each has one key, which names it in the declaration, the `?aggregates` request, the response and the
@@ -625,6 +648,20 @@ A relation loads once per path, so the schema compiler rejects a constrained rel
 fields over one relation where any is constrained or they render different resources, and a relation name holding a
 dot. Fields over one relation may differ in `fields()`, and an accessor-only field may share any relation.
 
+**Pivot columns** - `pivot()` renders columns of a many-to-many relation's pivot table on each child reached through
+that relation, under a `pivot` key:
+
+```php
+Relation::to('members', UserResource::class)->pivot('role', 'joined_at'),
+```
+
+The relation selects the columns itself, so the model's relation method needs no `withPivot()`. The key is always
+`pivot`, whatever the relation's `as()` name, and each column is read through the pivot class's casts; a column the
+loaded pivot does not carry is omitted. A relation your application loaded itself renders only what it carries. The
+exported schema adds the typed `pivot` object to the relation's items and leaves the child's component untouched. When
+clients create, update or delete the pivot rows, model the pivot as a resource of its own instead, such as a
+`memberships` relation to a `TeamMembership` model that belongs to its user.
+
 **Field-set control** at instantiation:
 
 ```php
@@ -648,6 +685,8 @@ Validation checks that:
 - no declaration names a column configured as sensitive.
 - every `limit()` sits on a to-many relation rendered through a child resource, and every field over one relation
   shares one limit.
+- every `pivot()` sits on a `BelongsToMany` or `MorphToMany` relation rendered through a child resource with no `pivot`
+  field, and names columns its pivot table carries.
 
 Every resource a filter reaches through a `traversable()` relation is validated too, once per related model, whether or
 not the resource map lists it.
@@ -671,9 +710,10 @@ paginated read's search for the key column and a cursor-paginated sort's refusal
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
 relations and the order columns. A field reads the columns it declares through `needs()`, each of which must exist on
-the table. A plain field without `needs()` is taken to read the column of its own key, but only when the table carries
-that column and the model reads it without an accessor, a public instance property of the same name or a cast that could
-consult other attributes; Eloquent's built-in cast types, enums that do not name their own caster, and the casts under
+the table. A plain field without `needs()` is taken to read the column of its own key, and an unguarded, untransformed
+`Field::timestamp()` or `Field::date()` the column it formats, but only when the table carries that column and the model
+reads it without an accessor, a public instance property of the same name or a cast that could consult other attributes;
+Eloquent's built-in cast types, enums that do not name their own caster, and the casts under
 `Illuminate\Database\Eloquent\Casts` qualify. Any other field, such as one over an accessor or custom cast, or a
 computed, row-guarded or transformed field, leaves the select unnarrowed until it declares `needs()`.
 
@@ -1051,7 +1091,10 @@ Exceptions are mapped to `ApiException` subclasses and rendered as JSON error re
 - `'json_when_expected'` - JSON only when the request expects it (Laravel's `expectsJson()`, e.g.
   `Accept: application/json`).
 
-Every error renders as one envelope:
+Every `ApiException` implements Symfony's `HttpExceptionInterface`, so one left to Laravel's renderer keeps its status
+and headers, such as a maintenance `503` with its `Retry-After`.
+
+Every error the toolkit renders shares one envelope:
 
 ```json
 {

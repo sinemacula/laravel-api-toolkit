@@ -23,6 +23,9 @@ final class ApiResourceCollection extends ToolkitCollection
     /** @var array<int, string>|null Explicit list of fields to be excluded in the response */
     protected ?array $excludedFields;
 
+    /** @var array{string, array<int, string>}|null The pivot accessor and the columns each item renders from it */
+    private ?array $pivot = null;
+
     /**
      * Transform the resource collection into an array.
      *
@@ -43,6 +46,10 @@ final class ApiResourceCollection extends ToolkitCollection
 
             if (isset($this->excludedFields)) {
                 $item->withoutFields($this->excludedFields);
+            }
+
+            if ($this->pivot !== null) {
+                $item->withPivot(...$this->pivot);
             }
 
             return $item->resolve($request);
@@ -71,6 +78,22 @@ final class ApiResourceCollection extends ToolkitCollection
     public function withoutFields(?array $fields = null): self
     {
         $this->excludedFields = $fields;
+
+        return $this;
+    }
+
+    /**
+     * Render the given columns of each item's pivot loaded under the accessor.
+     *
+     * Mutates this collection, as withFields() does.
+     *
+     * @param  string  $accessor
+     * @param  array<int, string>  $columns
+     * @return self
+     */
+    public function withPivot(string $accessor, array $columns): self
+    {
+        $this->pivot = [$accessor, $columns];
 
         return $this;
     }

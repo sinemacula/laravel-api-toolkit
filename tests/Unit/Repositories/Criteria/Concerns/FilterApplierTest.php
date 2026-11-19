@@ -27,6 +27,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\InOperator;
@@ -50,9 +51,11 @@ use Tests\Fixtures\Resources\CommentResource;
 use Tests\Fixtures\Resources\DeepTraversalPostResource;
 use Tests\Fixtures\Resources\DeviceResource;
 use Tests\Fixtures\Resources\GatheringResource;
+use Tests\Fixtures\Resources\OwnPostResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\PublicAuthorPostResource;
 use Tests\Fixtures\Resources\PublicUserResource;
+use Tests\Fixtures\Resources\PublishedPostResource;
 use Tests\Fixtures\Resources\TrashedSearchArticleResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -124,6 +127,7 @@ final class FilterApplierTest extends TestCase
         $this->applier = new FilterApplier(
             new FilterValueGuard(new ColumnLiteral($introspector)),
             new RelationTrashedGate($introspector, Request::create('/'), [Article::class => ArticleResource::class, Comment::class => CommentResource::class]),
+            new RowPerimeter(Request::create('/'), []),
         );
     }
 
@@ -2168,6 +2172,68 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
+     * Provide relation filters with the subquery each runs, the governing
+     * resource's rule ahead of the filter it carries.
+     *
+     * @return iterable<string, array{array<string, mixed>, string}>
+     */
+    public static function restrictedRelationProvider(): iterable
+    {
+        $exists = 'exists (select * from "posts" where "users"."id" = "posts"."user_id" and (0 = 1)';
+
+        yield 'relation key' => [['posts' => ['title' => 'Launch']], 'select * from "users" where ' . $exists . ' and "posts"."title" = ?)'];
+        yield '$has document' => [['$has' => ['posts' => ['title' => 'Launch']]], 'select * from "users" where ' . $exists . ' and "posts"."title" = ?)'];
+        yield '$hasnt document' => [['$hasnt' => ['posts' => ['title' => 'Launch']]], 'select * from "users" where not ' . $exists . ' and "posts"."title" = ?)'];
+        yield 'bare $has' => [['$has' => ['posts']], 'select * from "users" where ' . $exists . ')'];
+        yield 'bare $hasnt' => [['$hasnt' => ['posts']], 'select * from "users" where not ' . $exists . ')'];
+    }
+
+    /**
+     * Test that every relation filter applies the row rule of the resource
+     * governing the related level, so it sees only the visible rows.
+     *
+     * @param  array<string, mixed>  $filters
+     * @param  string  $sql
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('restrictedRelationProvider')]
+    public function testRelationFilterAppliesTheGoverningRowRule(array $filters, string $sql): void
+    {
+        $surface = $this->declaredSurface(relations: ['posts'], resourceMap: [Post::class => OwnPostResource::class]);
+
+        self::assertSame($sql, $this->restrictingApplier()->apply((new User)->newQuery(), $filters, $this->operatorRegistry, $surface)->toSql());
+    }
+
+    /**
+     * Test that a polymorphic relation filter applies the row rule of each
+     * concrete type's resource, whatever resource the relation declares.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testPolymorphicRelationFilterAppliesEachTypesRowRule(): void
+    {
+        $author = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        $post   = Post::create(['user_id' => $author->id, 'title' => 'Launch', 'body' => 'Body']);
+
+        $this->attachNote($author, 'On Alice');
+        $this->attachNote($post, 'On launch');
+
+        $surface = $this->declaredSurface(
+            relations  : ['noteable'],
+            resourceMap: [Post::class => OwnPostResource::class, User::class => UserResource::class],
+            resources  : ['noteable' => PublishedPostResource::class],
+        );
+
+        $query = $this->restrictingApplier()->apply((new Note)->newQuery(), ['$has' => ['noteable']], $this->operatorRegistry, $surface);
+
+        self::assertSame(['On Alice'], $query->pluck('title')->all());
+    }
+
+    /**
      * Provide documents reaching a relation's level by every form, with the key
      * each is refused at when the declared resource omits it.
      *
@@ -2538,6 +2604,23 @@ final class FilterApplierTest extends TestCase
         $note->title = $title;
 
         $note->noteable()->associate($noteable)->save();
+    }
+
+    /**
+     * Build an applier whose row perimeter restricts the posts to the caller's
+     * own, with no caller.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier
+     */
+    private function restrictingApplier(): FilterApplier
+    {
+        $introspector = app(SchemaIntrospectionProvider::class);
+
+        return new FilterApplier(
+            new FilterValueGuard(new ColumnLiteral($introspector)),
+            new RelationTrashedGate($introspector, Request::create('/'), []),
+            new RowPerimeter(Request::create('/'), [Post::class => OwnPostResource::class]),
+        );
     }
 
     /**

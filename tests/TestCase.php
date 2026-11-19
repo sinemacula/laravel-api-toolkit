@@ -21,6 +21,7 @@ use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\PivotColumns;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
@@ -109,6 +110,7 @@ abstract class TestCase extends OrchestraTestCase
         // Clear every process-static cache, worker-lifetime ones included
         FieldResolver::clearCache();
         ValueResolver::clearCache();
+        PivotColumns::clearCache();
         EagerLoadPlanner::clearCache();
         SchemaCompiler::clearCache();
         FieldColumnMapper::clearCache();
@@ -507,6 +509,7 @@ abstract class TestCase extends OrchestraTestCase
             $table->unsignedBigInteger('post_id');
             $table->unsignedBigInteger('tag_id');
             $table->string('role')->nullable();
+            $table->timestamp('tagged_at')->nullable();
             $table->primary(['post_id', 'tag_id']);
         });
     }

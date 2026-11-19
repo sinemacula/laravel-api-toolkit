@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Http\Resources;
 
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\MissingValue;
 use SineMacula\ApiToolkit\Concerns\OrdersFields;
@@ -14,7 +16,11 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GatesTrashedVisibility;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\RendersPivotColumns;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\RestrictsVisibleRows;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter;
+use SineMacula\ApiToolkit\Schema\ChildProjection;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -31,7 +37,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  */
 abstract class ApiResource extends ToolkitResource implements ApiResourceInterface
 {
-    use GatesTrashedVisibility, OrdersFields;
+    use GatesTrashedVisibility, OrdersFields, RendersPivotColumns, RestrictsVisibleRows;
 
     /** @var array<int, string> Default fields to include if no specific fields are requested */
     protected static array $default = [];
@@ -126,6 +132,8 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
         if ($truncated !== []) {
             $data[RelationLimit::TRUNCATED_KEY] = $truncated;
         }
+
+        $data = array_replace($data, $this->pivotPayload());
 
         if (in_array('aggregates', $fields, true)) {
             $this->appendAggregatesPayload($data, $schema, $request);
@@ -320,18 +328,26 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     }
 
     /**
-     * Load missing relations and aggregates on the underlying resource.
+     * Load missing relations and aggregates on the underlying resource, each
+     * narrowed to the rows the request may see.
      *
      * @param  object  $resource
      * @return void
      */
     private function loadMissingRelations(object $resource): void
     {
-        $fields = $this->fieldResolver->getFields(static::class);
+        $fields    = $this->fieldResolver->getFields(static::class);
+        $perimeter = new RowPerimeter(request(), ResourceSettings::resourceMap());
 
         if (method_exists($resource, 'loadMissing')) {
 
+            /** @var array<int|string, array<mixed>|(\Closure(mixed): mixed)|string> $with */
             $with = EagerLoadPlanner::buildEagerLoadMap(static::class, $fields);
+            $root = $resource instanceof EloquentCollection ? $resource->first() : $resource;
+
+            if ($root instanceof Model) {
+                $with = $perimeter->decorate($with, $root, ChildProjection::resourcesOf(EagerLoadPlanner::buildProjectionPlan(static::class, $fields)));
+            }
 
             if ($with !== []) {
                 $resource->loadMissing($with);
@@ -342,7 +358,7 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
             return;
         }
 
-        $this->loadMissingAggregates($resource);
+        $this->loadMissingAggregates($resource, $perimeter);
     }
 
     /**
@@ -371,9 +387,10 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
      * aggregates sharing a function and a column load in one query.
      *
      * @param  object  $resource
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter  $perimeter
      * @return void
      */
-    private function loadMissingAggregates(object $resource): void
+    private function loadMissingAggregates(object $resource, RowPerimeter $perimeter): void
     {
         if (!method_exists($resource, 'loadAggregate')) {
             return;
@@ -381,7 +398,9 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
 
         $groups = [];
 
-        foreach (EagerLoadPlanner::buildAggregateMap(static::class, ApiQuery::getAggregates(static::getResourceType()) ?? []) as $entry) {
+        $entries = EagerLoadPlanner::buildAggregateMap(static::class, ApiQuery::getAggregates(static::getResourceType()) ?? []);
+
+        foreach ($perimeter->wrapAggregates($entries, static::class) as $entry) {
 
             if (EagerLoadPlanner::isAggregateAttributeLoaded($resource, $entry['relation'])) {
                 continue;

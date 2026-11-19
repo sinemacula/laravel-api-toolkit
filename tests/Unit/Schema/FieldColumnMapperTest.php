@@ -9,6 +9,7 @@ use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\TestCase;
@@ -255,6 +256,42 @@ final class FieldColumnMapperTest extends TestCase
         self::assertTrue($map->isMapped('title'));
         self::assertFalse($map->isInferred('title'));
         self::assertSame(['title', 'slug'], $map->columnsFor('title'));
+    }
+
+    /**
+     * Test that the timestamp and date helpers are inferred to read the
+     * attribute they format, under an alias too.
+     *
+     * @return void
+     */
+    public function testDateHelpersAreInferredToReadTheirAttribute(): void
+    {
+        $map = FieldColumnMapper::for($this->makeResourceClass(Field::set(
+            Field::timestamp('created_at'),
+            Field::date('dob', 'birthday'),
+        )));
+
+        self::assertTrue($map->isInferred('created_at'));
+        self::assertSame(['created_at'], $map->columnsFor('created_at'));
+        self::assertTrue($map->isInferred('birthday'));
+        self::assertSame(['dob'], $map->columnsFor('birthday'));
+    }
+
+    /**
+     * Test that a guarded or transformed date helper is unmapped, since its
+     * guard or transformer receives the resource.
+     *
+     * @return void
+     */
+    public function testGuardedOrTransformedDateHelpersAreUnmapped(): void
+    {
+        $map = FieldColumnMapper::for($this->makeResourceClass(Field::set(
+            Field::timestamp('created_at')->guard(static fn (): bool => true),
+            Field::timestamp('updated_at')->transform(static fn (mixed $resource, mixed $value): mixed => $value),
+        )));
+
+        self::assertFalse($map->isMapped('created_at'));
+        self::assertFalse($map->isMapped('updated_at'));
     }
 
     /**

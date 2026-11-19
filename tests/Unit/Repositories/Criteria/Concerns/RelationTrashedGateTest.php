@@ -16,12 +16,14 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\TrashedState;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Comment;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\CommentResource;
+use Tests\Fixtures\Resources\PublishedArticleResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -177,6 +179,27 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
+     * Test that a path follows the gate of the resource declared over it, else
+     * of the mapped resource, and that its row rule follows the same resource.
+     *
+     * @return void
+     */
+    public function testPathFollowsItsDeclaredResourceElseTheMappedOne(): void
+    {
+        $map       = [Article::class => PublishedArticleResource::class];
+        $declared  = ['articles' => ArticleResource::class];
+        $perimeter = new RowPerimeter(new Request, $map);
+
+        $open = $this->gateFor($map)->decorate(['articles'], new User, TrashedState::WITH, $declared);
+
+        self::assertSame('select * from "articles"', $this->sqlAfter($open['articles']));
+        self::assertSame(['articles'], $this->gateFor($map)->decorate(['articles'], new User, TrashedState::WITH));
+
+        self::assertSame(['articles'], $perimeter->decorate(['articles'], new User, $declared));
+        self::assertStringContainsString('("articles"."status" = ?)', $this->sqlAfter($perimeter->decorate(['articles'], new User)['articles']));
+    }
+
+    /**
      * Test that a nested relation path resolves the gate of its leaf.
      *
      * @return void
@@ -241,6 +264,31 @@ final class RelationTrashedGateTest extends TestCase
 
         self::assertStringContainsString('as "siblings_count"', $sql);
         self::assertSame(1, substr_count($sql, 'deleted_at'));
+    }
+
+    /**
+     * Test that an aggregate decorator the gated closure receives runs before
+     * the gate's own.
+     *
+     * @return void
+     */
+    public function testReceivedAggregateDecoratorRunsBeforeTheGates(): void
+    {
+        $decorated = [];
+
+        $existing = static function (Builder $query, \Closure $decorate) use (&$decorated): void {
+            $decorated = $decorate([self::countEntry('siblingArticles as siblings_count')]);
+        };
+
+        $incoming = static fn (array $entries): array => [...$entries, self::countEntry('authorComments as comments_count')];
+
+        $constraint = $this->gate()->decorate(['comments' => $existing], new User, TrashedState::WITH)['comments'];
+
+        assert($constraint instanceof \Closure);
+
+        $constraint(Article::query(), $incoming);
+
+        self::assertSame(['siblingArticles as siblings_count', 'authorComments as comments_count'], array_map(self::aliasOf(...), $decorated));
     }
 
     /**
@@ -434,6 +482,17 @@ final class RelationTrashedGateTest extends TestCase
     private static function countEntry(array|string $relation): array
     {
         return ['relation' => $relation, 'column' => '*', 'function' => 'count'];
+    }
+
+    /**
+     * Return the aliased relation an aggregate entry loads.
+     *
+     * @param  array{relation: array<string, mixed>|string}  $entry
+     * @return string
+     */
+    private static function aliasOf(array $entry): string
+    {
+        return is_array($entry['relation']) ? (string) array_key_first($entry['relation']) : $entry['relation'];
     }
 
     /**

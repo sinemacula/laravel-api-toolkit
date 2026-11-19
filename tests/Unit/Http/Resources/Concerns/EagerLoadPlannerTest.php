@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Http\Resources\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use Illuminate\Http\Request;
@@ -1375,6 +1376,102 @@ final class EagerLoadPlannerTest extends TestCase
         self::assertSame(['value' => 6, 'column' => 'posts.user_id'], $base->groupLimit);
         self::assertSame([true], $base->getBindings());
         self::assertStringContainsString('"aggregate_tags_count"', $relation->toSql());
+    }
+
+    /**
+     * Test that a path declaring pivot columns selects them in the closure that
+     * owns it, while a path without them stays plain.
+     *
+     * @return void
+     */
+    public function testPivotColumnsAreSelectedInTheClosureOwningThePath(): void
+    {
+        $tags = ['relation' => 'tags', 'resource' => TagResource::class];
+
+        self::assertSame(['tags'], EagerLoadPlanner::buildEagerLoadMap(self::boundedResource($tags), ['posts']));
+
+        SchemaCompiler::clearCache();
+        EagerLoadPlanner::clearCache();
+
+        $relation = $this->applyPlanned(self::boundedResource([...$tags, 'pivot' => ['role', 'tagged_at']]), $this->eagerRelation(new Post, 'tags'));
+
+        self::assertInstanceOf(BelongsToMany::class, $relation);
+        self::assertSame(['role', 'tagged_at'], $relation->getPivotColumns());
+    }
+
+    /**
+     * Test that the pivot columns compose with the field's constraint.
+     *
+     * @return void
+     */
+    public function testPivotColumnsComposeWithTheConstraint(): void
+    {
+        $relation = $this->applyPlanned(self::boundedResource([
+            'relation'   => 'tags',
+            'resource'   => TagResource::class,
+            'pivot'      => ['role'],
+            'constraint' => static function ($query): void {
+                assert($query instanceof BelongsToMany);
+                $query->wherePivot('role', 'primary');
+            },
+        ]), $this->eagerRelation(new Post, 'tags'));
+
+        self::assertInstanceOf(BelongsToMany::class, $relation);
+        self::assertSame(['role'], $relation->getPivotColumns());
+        self::assertContains('post_tag.role', array_column($relation->getQuery()->getQuery()->wheres, 'column'));
+    }
+
+    /**
+     * Test that fields over one many-to-many path select the union of their
+     * pivot columns.
+     *
+     * @return void
+     */
+    public function testFieldsOverOnePathUnionTheirPivotColumns(): void
+    {
+        $resource = new class {
+            /** @var string The resource type identifier. */
+            public const string RESOURCE_TYPE = 'aliased_pivot_test';
+
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return [
+                    'tags'        => ['relation' => 'tags', 'resource' => TagResource::class, 'pivot' => ['role']],
+                    'plain_tags'  => ['relation' => 'tags', 'resource' => TagResource::class],
+                    'tagged_tags' => ['relation' => 'tags', 'resource' => TagResource::class, 'pivot' => ['tagged_at', 'role']],
+                ];
+            }
+        };
+
+        $map      = EagerLoadPlanner::buildEagerLoadMap($resource::class, ['tags', 'plain_tags', 'tagged_tags']);
+        $relation = $this->eagerRelation(new Post, 'tags');
+
+        self::assertSame(['tags'], array_keys($map));
+        self::assertInstanceOf(\Closure::class, $map['tags']);
+        self::assertInstanceOf(BelongsToMany::class, $relation);
+
+        $map['tags']($relation);
+
+        self::assertSame(['role', 'tagged_at'], $relation->getPivotColumns());
+    }
+
+    /**
+     * Test that pivot columns on a relation that is not many-to-many are
+     * refused, naming the field.
+     *
+     * @return void
+     */
+    public function testPivotColumnsOnARelationThatIsNotManyToManyAreRefused(): void
+    {
+        $resourceClass = self::boundedResource(['pivot' => ['role']]);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('The ' . $resourceClass . '::posts relation declares pivot columns but is not a many-to-many relation');
+
+        $this->applyPlanned($resourceClass, $this->eagerRelation(new User, 'posts'));
     }
 
     /**

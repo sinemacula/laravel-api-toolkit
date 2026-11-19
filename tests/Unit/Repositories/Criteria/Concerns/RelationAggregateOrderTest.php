@@ -19,6 +19,7 @@ use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationAggregateOrder;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter;
 use SineMacula\ApiToolkit\Repositories\Criteria\SortTarget;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\Http\Enums\HttpMethod;
@@ -28,6 +29,8 @@ use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\PostOwnerResource;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -235,6 +238,24 @@ final class RelationAggregateOrderTest extends TestCase
     }
 
     /**
+     * Test that the order counts only the rows the request may see, governed by
+     * the resource the owner declares over the relation, after its own
+     * constraint and before the trashed scope.
+     *
+     * @return void
+     */
+    public function testOrderCountsOnlyTheVisibleRows(): void
+    {
+        $query = User::query();
+
+        $this->order([Post::class => PostResource::class])->apply($query, $this->aggregate('posts', AggregateFunction::COUNT, null, static function (Builder $posts): void {
+            $posts->where('title', 'Launch');
+        }), 'asc', PostOwnerResource::class);
+
+        self::assertStringEndsWith('"title" = ? and (0 = 1))', $this->orderSql($query));
+    }
+
+    /**
      * Test that a plain has-one relation, which renders no particular row, is
      * refused as a schema defect.
      *
@@ -384,16 +405,19 @@ final class RelationAggregateOrderTest extends TestCase
     }
 
     /**
-     * Build the order over a gate that opens the articles' trashed rows.
+     * Build the order over a gate that opens the articles' trashed rows and a
+     * perimeter over the resource map.
      *
+     * @param  array<string, string>  $resourceMap
      * @return \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationAggregateOrder
      */
-    private function order(): RelationAggregateOrder
+    private function order(array $resourceMap = []): RelationAggregateOrder
     {
         assert($this->app !== null);
 
-        $gate = new RelationTrashedGate($this->app->make(SchemaIntrospectionProvider::class), new Request, [Article::class => ArticleResource::class]);
-
-        return new RelationAggregateOrder($gate);
+        return new RelationAggregateOrder(
+            new RelationTrashedGate($this->app->make(SchemaIntrospectionProvider::class), new Request, [Article::class => ArticleResource::class]),
+            new RowPerimeter(new Request, $resourceMap),
+        );
     }
 }

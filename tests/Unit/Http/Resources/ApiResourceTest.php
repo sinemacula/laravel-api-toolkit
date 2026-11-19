@@ -8,9 +8,11 @@ use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\MissingValue;
@@ -31,10 +33,15 @@ use Tests\Fixtures\Models\AggregateCapturingModel;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\PostTag;
 use Tests\Fixtures\Models\Profile;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Policies\ArticlePolicy;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\OwnPostResource;
+use Tests\Fixtures\Resources\PivotPostResource;
+use Tests\Fixtures\Resources\PostOwnerResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\RestorableArticleResource;
 use Tests\Fixtures\Resources\TagResource;
@@ -646,6 +653,61 @@ final class ApiResourceTest extends TestCase
 
         self::assertSame('mobile_app', $result['platform']);
         self::assertStringContainsString('"platform":"mobile_app"', json_encode($result, JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Test that a resource given the pivot renders each declared column its
+     * loaded pivot carries, a present null included, and returns itself.
+     *
+     * @return void
+     */
+    public function testWithPivotRendersTheDeclaredColumnsThePivotCarries(): void
+    {
+        $resource = new TagResource($this->tagWithPivot(['post_id' => 1, 'tag_id' => 1, 'role' => 'primary', 'tagged_at' => null]));
+
+        self::assertSame($resource, $resource->withPivot('pivot', ['role', 'tagged_at', 'rank']));
+        self::assertSame(['role' => 'primary', 'tagged_at' => null], $resource->resolve()['pivot']);
+    }
+
+    /**
+     * Test that the same model rendered without the pivot, or with a pivot
+     * carrying none of the declared columns, has no pivot key.
+     *
+     * @return void
+     */
+    public function testNoPivotKeyWithoutADeclaredColumnToRender(): void
+    {
+        $tag  = $this->tagWithPivot(['post_id' => 1, 'tag_id' => 1, 'role' => 'primary']);
+        $bare = $this->tagWithPivot(['post_id' => 1, 'tag_id' => 1]);
+
+        self::assertArrayNotHasKey('pivot', (new TagResource($tag))->resolve());
+        self::assertArrayNotHasKey('pivot', (new TagResource($bare))->withPivot('pivot', ['role'])->resolve());
+    }
+
+    /**
+     * Test that a child reached through a relation loading a casting pivot
+     * under its own accessor renders the cast columns under the pivot key.
+     *
+     * @return void
+     */
+    public function testACastingPivotUnderItsOwnAccessorRendersUnderThePivotKey(): void
+    {
+        $post = (new Post)->forceFill(['id' => 1]);
+        $tag  = (new Tag)->forceFill(['id' => 2, 'name' => 'php'])->setRelation('tagging', PostTag::fromRawAttributes($post, [
+            'post_id'   => 1,
+            'tag_id'    => 2,
+            'role'      => 'primary',
+            'tagged_at' => '2026-01-01 10:00:00',
+        ], 'post_tag', true));
+
+        $post->setRelation('typedTags', new EloquentCollection([$tag]));
+
+        $rendered = json_decode((string) json_encode((new PivotPostResource($post))->withFields(['typed_tags'])), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame(
+            [['_type' => 'tags', 'id' => 2, 'name' => 'php', 'pivot' => ['role' => 'primary', 'tagged_at' => '2026-01-01T10:00:00.000000Z']]],
+            $rendered['typed_tags'],
+        );
     }
 
     /**
@@ -2868,6 +2930,49 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
+     * Test that a resource loading what is missing loads only the rows the
+     * request may see, on a model or a collection, and counts only them.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testLoadMissingLoadsAndCountsOnlyVisibleRows(): void
+    {
+        $this->seedAuthorWithPost();
+
+        $result = (new PostOwnerResource(User::query()->firstOrFail(), true))->resolve();
+
+        self::assertSame([], json_decode((string) json_encode($result['posts']), true));
+        self::assertSame(['posts_count' => 0], $result['aggregates']);
+
+        $users = User::query()->get();
+
+        new PostOwnerResource($users, true);
+
+        self::assertSame([], $users->firstOrFail()->toArray()['posts']);
+    }
+
+    /**
+     * Test that a resource loading what is missing keeps an aggregate the model
+     * already carries.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testLoadMissingKeepsAnAggregateTheModelCarries(): void
+    {
+        $this->seedAuthorWithPost();
+
+        $user = User::query()->firstOrFail();
+
+        $user->setAttribute('aggregate_posts_count', 1);
+
+        self::assertSame(['posts_count' => 1], (new PostOwnerResource($user, true))->resolve()['aggregates']);
+    }
+
+    /**
      * Test that load_missing skips every aggregate while the aggregates field
      * is neither requested nor default, even when the definitions are default.
      *
@@ -3217,6 +3322,17 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
+     * Build a tag carrying a pivot of the given attributes.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return \Tests\Fixtures\Models\Tag
+     */
+    private function tagWithPivot(array $attributes): Tag
+    {
+        return (new Tag)->forceFill(['id' => 1, 'name' => 'php'])->setRelation('pivot', Pivot::fromRawAttributes(new Post, $attributes, 'post_tag', true));
+    }
+
+    /**
      * Create a user with the given number of posts loaded unbounded.
      *
      * @param  int  $count
@@ -3241,5 +3357,34 @@ final class ApiResourceTest extends TestCase
     private function clearSchemaCache(): void
     {
         SchemaCompiler::clearCache();
+    }
+
+    /**
+     * Seed an author with one post, mapped to a resource restricting the posts
+     * to the caller's own, and parse a request for the author's posts and
+     * count.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function seedAuthorWithPost(): void
+    {
+        assert($this->app !== null);
+
+        Config::set('api-toolkit.resources.resource_map', [Post::class => OwnPostResource::class]);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [PostOwnerResource::class, OwnPostResource::class]);
+
+        $author = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+
+        Post::create(['user_id' => $author->id, 'title' => 'Launch', 'body' => 'Body']);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+
+        $parser->parse(Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields'     => ['post_owners' => 'name,posts,aggregates'],
+            'aggregates' => ['post_owners' => 'posts_count'],
+        ]));
     }
 }

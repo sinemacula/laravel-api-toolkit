@@ -282,7 +282,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
      */
     private function resolveColumnDefinitions(Model $model, Connection $connection): array
     {
-        $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($connection), $model::class]);
+        $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($connection), $model::class, $model->getTable()]);
 
         /** @var array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition> $cached */
         $cached = $this->metadataCacheWriter->readMetadata($cacheKey, [], StoredSchema::toColumnDefinitions(...));
@@ -315,7 +315,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
      */
     private function resolveIndexes(Model $model, Connection $connection): ?array
     {
-        $cacheKey = CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of($connection), $model::class]);
+        $cacheKey = CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of($connection), $model::class, $model->getTable()]);
 
         /** @var array<int, \SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition>|null $cached */
         $cached = $this->metadataCacheWriter->readMetadata($cacheKey, null, StoredSchema::toIndexes(...));
@@ -375,13 +375,15 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     /**
      * Return the key the per-instance caches hold this model's schema under.
      *
+     * The table is part of it, since one pivot class serves many tables.
+     *
      * @param  \Illuminate\Database\Connection  $connection
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return string
      */
     private function memoKey(Connection $connection, Model $model): string
     {
-        return SchemaIdentity::of($connection) . '|' . $model::class;
+        return SchemaIdentity::of($connection) . '|' . $model::class . '|' . $model->getTable();
     }
 
     /**

@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ScopeApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
@@ -564,7 +565,7 @@ final class ScopeApplierTest extends TestCase
     {
         $introspector = app(SchemaIntrospectionProvider::class);
         $trashedGate  = new RelationTrashedGate($introspector, Request::create('/'), []);
-        $applier      = new FilterApplier(new FilterValueGuard(new ColumnLiteral($introspector)), $trashedGate, new ScopeApplier);
+        $applier      = new FilterApplier(new FilterValueGuard(new ColumnLiteral($introspector)), $trashedGate, new RowPerimeter(Request::create('/'), []), new ScopeApplier);
 
         return $applier->apply($query ?? Gathering::query(), $filters, app(OperatorRegistry::class), $surface);
     }

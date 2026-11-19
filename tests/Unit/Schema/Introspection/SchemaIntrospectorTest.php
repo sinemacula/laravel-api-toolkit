@@ -38,6 +38,7 @@ use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\Project;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\TenantWidget;
 use Tests\Fixtures\Models\User;
@@ -120,13 +121,36 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
+     * Test that pivots of one class over different tables are each read,
+     * memoised and stored under their own table.
+     *
+     * @return void
+     */
+    public function testPivotsOfOneClassOverDifferentTablesAreReadAndStoredApart(): void
+    {
+        $introspector = $this->makeIntrospector();
+        $posts        = (new Post)->tags()->newPivot();
+        $projects     = (new Project)->tags()->newPivot();
+        $identity     = SchemaIdentity::of(DB::connection('testing'));
+
+        self::assertSame($posts::class, $projects::class);
+        self::assertSame(['post_id', 'tag_id', 'role', 'tagged_at'], $introspector->getColumns($posts));
+        self::assertSame(['project_id', 'tag_id'], $introspector->getColumns($projects));
+        self::assertSame(['project_id', 'tag_id'], array_keys($introspector->getColumnDefinitions($projects)));
+        self::assertContains(['post_id', 'tag_id'], array_column($introspector->getIndexes($posts) ?? [], 'columns'));
+        self::assertNotContains(['post_id', 'tag_id'], array_column($introspector->getIndexes($projects) ?? [], 'columns'));
+        self::assertSame(['post_id', 'tag_id', 'role', 'tagged_at'], $this->storedColumnNames($this->columnDefinitionsKey($identity, $posts)));
+        self::assertSame(['project_id', 'tag_id'], $this->storedColumnNames($this->columnDefinitionsKey($identity, $projects)));
+    }
+
+    /**
      * Test that a stored empty set of definitions is read as a miss.
      *
      * @return void
      */
     public function testGetColumnsReadsAStoredEmptySetAsAMiss(): void
     {
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class, 'users']));
 
         Cache::memo()->rememberForever($key, fn (): array => []);
 
@@ -210,7 +234,7 @@ final class SchemaIntrospectorTest extends TestCase
         self::assertNotSame(['handle'], Schema::getColumnListing('users'));
         self::assertSame(
             ['handle'],
-            $this->storedColumnNames(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('secondary')), $model::class])),
+            $this->storedColumnNames(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('secondary')), $model::class, $model->getTable()])),
         );
     }
 
@@ -244,8 +268,8 @@ final class SchemaIntrospectorTest extends TestCase
         self::assertSame(['beta'], array_keys($introspector->getColumnDefinitions($this->tenantModel())));
 
         self::assertNotSame($identityA, $identityB);
-        self::assertSame(['alpha'], $this->storedColumnNames(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$identityA, $this->tenantModel()::class])));
-        self::assertSame(['beta'], $this->storedColumnNames(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$identityB, $this->tenantModel()::class])));
+        self::assertSame(['alpha'], $this->storedColumnNames($this->columnDefinitionsKey($identityA, $this->tenantModel())));
+        self::assertSame(['beta'], $this->storedColumnNames($this->columnDefinitionsKey($identityB, $this->tenantModel())));
     }
 
     /**
@@ -294,8 +318,8 @@ final class SchemaIntrospectorTest extends TestCase
         self::assertCount(2, $indexes);
 
         foreach ([$before, $after] as $identity) {
-            self::assertArrayHasKey($identity . '|' . $this->tenantModel()::class, $columns);
-            self::assertSame(['alpha'], $this->storedColumnNames(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$identity, $this->tenantModel()::class])));
+            self::assertArrayHasKey($identity . '|' . $this->tenantModel()::class . '|' . $this->tenantModel()->getTable(), $columns);
+            self::assertSame(['alpha'], $this->storedColumnNames($this->columnDefinitionsKey($identity, $this->tenantModel())));
         }
     }
 
@@ -414,7 +438,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         self::assertSame([], ($this->makeIntrospector())->getColumnDefinitions($model));
 
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class, $model->getTable()]));
 
         self::assertNull(Cache::memo()->get($key));
         self::assertSame(['id'], array_keys(($this->makeIntrospector())->getColumnDefinitions($model)));
@@ -432,7 +456,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $definitions = $introspector->getColumnDefinitions($model);
 
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class, 'users']));
 
         self::assertSame(array_map(static fn (ColumnDefinition $definition): array => $definition->toArray(), array_values($definitions)), Cache::memo()->get($key));
     }
@@ -567,7 +591,9 @@ final class SchemaIntrospectorTest extends TestCase
 
         ($this->makeIntrospector())->getIndexes($model);
 
-        self::assertNull(Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]))));
+        $key = CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class, $model->getTable()]);
+
+        self::assertNull(Cache::memo()->get($this->metadataStorageKey($key)));
     }
 
     /**
@@ -581,7 +607,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         self::assertIsArray($indexes);
 
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class, 'users']));
 
         self::assertSame(array_map(static fn (IndexDefinition $index): array => $index->toArray(), $indexes), Cache::memo()->get($key));
     }
@@ -1394,7 +1420,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnsServesDefinitionsAnotherProcessWrote(): void
     {
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class, 'users']));
 
         Cache::memo()->rememberForever($key, fn (): array => [
             ['name' => 'id', 'type_name' => 'integer', 'nullable' => false],
@@ -1411,7 +1437,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetColumnDefinitionsServesDefinitionsAnotherProcessWrote(): void
     {
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class, 'users']));
 
         Cache::memo()->rememberForever($key, fn (): array => [
             ['name' => 'id', 'type_name' => 'integer', 'nullable' => false],
@@ -1431,7 +1457,7 @@ final class SchemaIntrospectorTest extends TestCase
      */
     public function testGetIndexesServesACatalogueAnotherProcessWrote(): void
     {
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class, 'users']));
 
         Cache::memo()->rememberForever($key, fn (): array => [['name' => 'users_name_index', 'columns' => ['name'], 'type' => 'btree']]);
 
@@ -1520,7 +1546,7 @@ final class SchemaIntrospectorTest extends TestCase
             ->willReturn([['name' => 'id', 'type_name' => 'integer', 'nullable' => false]]);
 
         $model = $this->modelReadingFrom($builder);
-        $key   = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]));
+        $key   = $this->metadataStorageKey($this->columnDefinitionsKey(SchemaIdentity::of($model->getConnection()), $model));
 
         $this->storeWithoutEvents($key, $stale);
 
@@ -1560,7 +1586,7 @@ final class SchemaIntrospectorTest extends TestCase
             ->willReturn([['name' => 'widgets_name_index', 'columns' => ['name'], 'type' => 'btree']]);
 
         $model = $this->modelReadingFrom($builder);
-        $key   = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]));
+        $key   = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class, $model->getTable()]));
 
         $this->storeWithoutEvents($key, $stale);
 
@@ -1751,9 +1777,21 @@ final class SchemaIntrospectorTest extends TestCase
 
         ($this->makeIntrospector())->getColumnDefinitions($model);
 
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class, $model->getTable()]));
 
         self::assertNull(Cache::memo()->get($key));
+    }
+
+    /**
+     * Return the key the model's column definitions are stored under.
+     *
+     * @param  string  $identity
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return string
+     */
+    private function columnDefinitionsKey(string $identity, Model $model): string
+    {
+        return CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$identity, $model::class, $model->getTable()]);
     }
 
     /**
