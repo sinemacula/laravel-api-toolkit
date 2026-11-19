@@ -108,9 +108,7 @@ final readonly class PageOrder
      *
      * The bound is implied by the seek predicate, but PostgreSQL reads that
      * predicate's disjunction from the start of the index rather than as a
-     * range. A lone ordered column already seeks by range. Only a column of the
-     * queried table is bound, since an alias is not a column a where clause can
-     * name.
+     * range.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
@@ -121,18 +119,40 @@ final readonly class PageOrder
     public function seek(Builder $query, ?Cursor $cursor): Builder
     {
         $base   = $query->getQuery();
-        $orders = $base->orders ?? [];
-        $column = $orders[0]['column'] ?? null;
+        $column = $this->boundableColumn($base, $query->getModel());
 
-        if ($cursor === null || count($orders) < 2 || !empty($base->unions) || !is_string($column) || !str_starts_with($column, $query->getModel()->getTable() . '.')) {
+        if ($cursor === null || $column === null) {
             return $query;
         }
 
-        $forward = (($orders[0]['direction'] ?? null) === 'asc') === $cursor->pointsToNextItems();
+        $forward = (($base->orders[0]['direction'] ?? null) === 'asc') === $cursor->pointsToNextItems();
 
         $base->where($column, $forward ? '>=' : '<=', $cursor->parameter($column));
 
         return $query;
+    }
+
+    /**
+     * Resolve the leading order column a seek gains from bounding, or null.
+     *
+     * A lone ordered column already seeks by range. Only a column of the
+     * queried table is bound, since an alias is not a column a where clause can
+     * name.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $base
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return string|null
+     */
+    private function boundableColumn(QueryBuilder $base, Model $model): ?string
+    {
+        $orders = $base->orders        ?? [];
+        $column = $orders[0]['column'] ?? null;
+
+        if (count($orders) < 2 || !empty($base->unions) || !is_string($column)) {
+            return null;
+        }
+
+        return str_starts_with($column, $model->getTable() . '.') ? $column : null;
     }
 
     /**
