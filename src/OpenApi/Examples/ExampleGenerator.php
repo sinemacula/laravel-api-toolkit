@@ -456,24 +456,24 @@ final class ExampleGenerator
      */
     private function withConfirmations(array $values, array $confirmations, array $properties): array
     {
-        $confirmations = array_filter($confirmations, static fn (string $original): bool => array_key_exists($original, $values) && !$values[$original] instanceof MissingValue);
+        $valued = static fn (array $current, int|string $field): bool => array_key_exists($field, $current) && !$current[$field] instanceof MissingValue;
 
         foreach ($confirmations as $name => $original) {
 
-            $own  = $values[$name];
-            $kept = $own instanceof MissingValue
+            $kept = !$valued($values, $original)
+                || !$valued($values, $name)
                 || $this->schemas->mismatch($values[$original], $properties[$name]) === null
-                || $this->schemas->mismatch($own, $properties[$original]) !== null;
+                || $this->schemas->mismatch($values[$name], $properties[$original]) !== null;
 
             if ($kept) {
                 continue;
             }
 
-            $values[$original] = $own;
+            $values[$original] = $values[$name];
         }
 
         foreach ($confirmations as $name => $original) {
-            $values[$name] = $values[$original];
+            $values[$name] = $valued($values, $original) ? $values[$original] : $values[$name];
         }
 
         return $values;

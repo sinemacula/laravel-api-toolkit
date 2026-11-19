@@ -233,6 +233,7 @@ final class ExampleGeneratorTest extends TestCase
         self::assertSame([10, 15], $this->value([...$list, 'minItems' => 2, 'items' => ['type' => 'integer', 'minimum' => 7, 'multipleOf' => 5]]));
         self::assertSame([true, false], $this->value([...$list, 'minItems' => 2, 'items' => ['type' => 'boolean']]));
         self::assertSame([1, 2], $this->value([...$list, 'minItems' => 2, 'items' => ['allOf' => [['type' => 'integer']]]]));
+        self::assertSame(['string', 'string2'], $this->value([...$list, 'minItems' => 2, 'items' => new \stdClass]));
         self::assertEquals(new MissingValue(self::BODY), $this->generate([...$list, 'minItems' => PHP_INT_MAX, 'items' => ['type' => 'boolean']]));
     }
 
@@ -357,6 +358,24 @@ final class ExampleGeneratorTest extends TestCase
                 'c2' => ['type' => 'string', 'minLength' => 8, 'x-confirms' => 'p'],
             ],
             'required' => ['p', 'c1', 'c2'],
+        ]));
+    }
+
+    /**
+     * Test that a confirmation of a confirmation repeats the value its own
+     * field ends with.
+     *
+     * @return void
+     */
+    public function testChainedConfirmationRepeatsTheValueItsFieldEndsWith(): void
+    {
+        self::assertSame(['p' => 'secret', 'c1' => 'secret', 'c2' => 'secret'], $this->value([
+            'type'       => 'object',
+            'properties' => [
+                'p'  => ['type' => 'string', 'examples' => ['secret']],
+                'c1' => ['type' => 'string', 'pattern' => '^secret$', 'x-confirms' => 'p'],
+                'c2' => ['type' => 'string', 'x-confirms' => 'c1'],
+            ],
         ]));
     }
 

@@ -88,7 +88,10 @@ final class LiteralValuesTest extends TestCase
         yield 'multiple inside a narrow range' => ['number', ['minimum' => 1, 'exclusiveMaximum' => 1.5, 'multipleOf' => 1], 1.0];
         yield 'integer inside a narrow range' => ['integer', ['minimum' => 1, 'exclusiveMaximum' => 1.5], 1];
         yield 'range at the float limit' => ['number', ['exclusiveMinimum' => 1e308, 'maximum' => 1.1e308], 1.05e308];
-        yield 'multiple past a lone upper bound' => ['number', ['maximum' => 1.2, 'multipleOf' => 1], 2.0];
+        yield 'integer range' => ['integer', ['minimum' => 10, 'maximum' => 20], 10];
+        yield 'multiple past the maximum' => ['number', ['minimum' => 0.2, 'maximum' => 0.6, 'multipleOf' => 0.5], 0.5];
+        yield 'large multiple in range' => ['number', ['minimum' => 1e20, 'maximum' => 1.1e20, 'multipleOf' => 1e20], 1e20];
+        yield 'range spanning the float limits' => ['number', ['minimum' => -1e308, 'maximum' => 1e308, 'multipleOf' => 1e308], 1e308];
         yield 'number multiple' => ['number', ['multipleOf' => 0.5, 'minimum' => 1.75], 2.0];
         yield 'boolean' => ['boolean', [], true];
         yield 'null' => ['null', [], null];
@@ -109,6 +112,17 @@ final class LiteralValuesTest extends TestCase
     }
 
     /**
+     * Test that a multiple rounded past an upper bound with no lower bound is
+     * left for the final validation to reject.
+     *
+     * @return void
+     */
+    public function testMultiplePastALoneUpperBoundIsLeftForValidation(): void
+    {
+        self::assertSame(2.0, (new LiteralValues)->scalar('number', ['maximum' => 1.2, 'multipleOf' => 1]));
+    }
+
+    /**
      * Provide scalar types with their nodes, an ordinal and the value built.
      *
      * @return iterable<string, array{string, array<string, mixed>, int, mixed}>
@@ -120,6 +134,7 @@ final class LiteralValuesTest extends TestCase
         yield 'formatted string' => ['string', ['format' => 'email'], 1, 'user@example.com'];
         yield 'integer' => ['integer', [], 2, 3];
         yield 'integer multiple' => ['integer', ['minimum' => 7, 'multipleOf' => 5], 1, 15];
+        yield 'integer non-positive multiple' => ['integer', ['multipleOf' => 0], 1, 2];
         yield 'number' => ['number', [], 1, 2.5];
         yield 'boolean' => ['boolean', [], 1, false];
     }

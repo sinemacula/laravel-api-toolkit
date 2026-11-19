@@ -172,10 +172,10 @@ final readonly class LiteralValues
      */
     private function fits(array $node, float|int $value): bool
     {
-        return $value >= ($this->bound($node, 'minimum') ?? $value)
-            && $value <= ($this->bound($node, 'maximum') ?? $value)
-            && $value > ($this->bound($node, 'exclusiveMinimum') ?? $value - 1)
-            && $value < ($this->bound($node, 'exclusiveMaximum') ?? $value + 1);
+        return $value >= ($this->bound($node, 'minimum') ?? -INF)
+            && $value <= ($this->bound($node, 'maximum') ?? INF)
+            && $value > ($this->bound($node, 'exclusiveMinimum') ?? -INF)
+            && $value < ($this->bound($node, 'exclusiveMaximum') ?? INF);
     }
 
     /**
@@ -190,7 +190,7 @@ final readonly class LiteralValues
         $lower = max($this->bound($node, 'minimum') ?? -INF, $this->bound($node, 'exclusiveMinimum') ?? -INF);
         $upper = min($this->bound($node, 'maximum') ?? INF, $this->bound($node, 'exclusiveMaximum') ?? INF);
 
-        return is_infinite($lower) || is_infinite($upper) ? null : $lower + ($upper - $lower) / 2;
+        return is_infinite($lower) || is_infinite($upper) ? null : $lower / 2 + $upper / 2;
     }
 
     /**
