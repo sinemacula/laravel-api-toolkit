@@ -72,7 +72,7 @@ final readonly class QueryParameterBuilder
     }
 
     /**
-     * List the parameter references the given REST action accepts, in order.
+     * List the parameters the given REST action accepts, in order.
      *
      * A resource whose page size bounds differ from the configured ones gets
      * its own limit parameter inline, since the shared components are not

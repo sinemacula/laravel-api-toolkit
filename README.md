@@ -274,9 +274,9 @@ public static function maxLimit(): ?int
 }
 ```
 
-It can only lower the configured ceiling, so a value above it changes nothing, and a value below 1 throws a
-`LogicException`. `paginate()` and `withApiCriteria()` refuse a `limit` over it with the same `422`, for the resource
-the repository resolves, including one named with `usingResource()`.
+It can only lower the configured ceiling: a value above it changes nothing, it applies alone while the configured
+ceiling is `0`, and a value below 1 throws a `LogicException`. `paginate()` and `withApiCriteria()` refuse a `limit`
+over it with the same `422`, for the resource the repository resolves, including one named with `usingResource()`.
 
 **Relation aggregates** - request declared aggregates per resource type by their keys. Requesting any aggregate replaces
 every default of that type, as `?fields` replaces `$default`. A type's aggregates apply wherever it renders, at the root

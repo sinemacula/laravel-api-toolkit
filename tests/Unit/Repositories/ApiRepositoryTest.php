@@ -6,6 +6,7 @@ namespace Tests\Unit\Repositories;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Contracts\Pagination\CursorPaginator;
+use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
@@ -450,28 +451,6 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that a page with no size asked for is served at the resource's own
-     * ceiling.
-     *
-     * @return void
-     *
-     * @throws \Throwable
-     */
-    public function testPaginateServesAnUnsizedPageAtTheResourceCeiling(): void
-    {
-        $this->seedThreeUsers();
-
-        $this->parseRequest(new Request);
-
-        $page = $this->repository->usingResource(PagedUserResource::class)->paginate();
-
-        self::assertInstanceOf(LengthAwarePaginator::class, $page);
-        self::assertSame(2, $page->perPage());
-        self::assertCount(2, $page);
-        self::assertSame(3, $page->total());
-    }
-
-    /**
      * Provide the pagination modes a page size is bounded in.
      *
      * @return iterable<string, array{array<string, string>}>
@@ -480,6 +459,29 @@ final class ApiRepositoryTest extends TestCase
     {
         yield 'offset' => [[]];
         yield 'cursor' => [['pagination' => 'cursor']];
+    }
+
+    /**
+     * Test that a page with no size asked for is served at the resource's own
+     * ceiling.
+     *
+     * @param  array<string, string>  $mode
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    #[DataProvider('paginationModeProvider')]
+    public function testPaginateServesAnUnsizedPageAtTheResourceCeiling(array $mode): void
+    {
+        $this->seedThreeUsers();
+
+        $this->parseRequest(new Request($mode));
+
+        $page = $this->repository->usingResource(PagedUserResource::class)->paginate();
+
+        self::assertTrue($page instanceof Paginator || $page instanceof CursorPaginator);
+        self::assertSame(2, $page->perPage());
+        self::assertCount(2, $page->items());
     }
 
     /**
