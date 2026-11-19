@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Exceptions\PreconditionFailedException;
 use SineMacula\ApiToolkit\Exceptions\ServiceFailedException;
 use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
 use SineMacula\ApiToolkit\Services\Events\ServiceCompleted;
@@ -412,6 +413,7 @@ final class ServiceJobTest extends TestCase
     {
         yield 'authorization' => [static fn (): \Throwable => new AuthorizationException('Denied.')];
         yield 'validation' => [static fn (): \Throwable => ValidationException::withMessages(['name' => 'Invalid.'])];
+        yield 'precondition failed' => [static fn (): \Throwable => new PreconditionFailedException];
     }
 
     /**

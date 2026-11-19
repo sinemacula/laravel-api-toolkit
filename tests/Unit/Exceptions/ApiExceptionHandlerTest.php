@@ -47,6 +47,8 @@ use Symfony\Component\HttpKernel\Exception\HttpException as SymfonyHttpException
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface as SymfonyHttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\PreconditionFailedHttpException;
+use Symfony\Component\HttpKernel\Exception\PreconditionRequiredHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
@@ -136,6 +138,18 @@ final class ApiExceptionHandlerTest extends TestCase
             10110,
         ];
 
+        yield 'PreconditionFailedHttpException -> 412' => [
+            new PreconditionFailedHttpException,
+            412,
+            10114,
+        ];
+
+        yield 'PreconditionRequiredHttpException -> 428' => [
+            new PreconditionRequiredHttpException,
+            428,
+            10115,
+        ];
+
         yield 'abort(400) -> 400' => [
             new SymfonyHttpException(400),
             400,
@@ -172,6 +186,12 @@ final class ApiExceptionHandlerTest extends TestCase
             10104,
         ];
 
+        yield 'abort(412) -> 412' => [
+            new SymfonyHttpException(412),
+            412,
+            10114,
+        ];
+
         yield 'abort(413) -> 413' => [
             new SymfonyHttpException(413),
             413,
@@ -182,6 +202,12 @@ final class ApiExceptionHandlerTest extends TestCase
             new SymfonyHttpException(419),
             419,
             10105,
+        ];
+
+        yield 'abort(428) -> 428' => [
+            new SymfonyHttpException(428),
+            428,
+            10115,
         ];
 
         yield 'abort(429) -> 429' => [
@@ -1496,6 +1522,18 @@ final class ApiExceptionHandlerTest extends TestCase
             PostTooLargeException::class,
             static fn (): \Throwable => new PostTooLargeException,
             413,
+        ];
+
+        yield 'precondition failed http' => [
+            PreconditionFailedHttpException::class,
+            static fn (): \Throwable => new PreconditionFailedHttpException,
+            412,
+        ];
+
+        yield 'precondition required http' => [
+            PreconditionRequiredHttpException::class,
+            static fn (): \Throwable => new PreconditionRequiredHttpException,
+            428,
         ];
 
         yield 'symfony http exception' => [

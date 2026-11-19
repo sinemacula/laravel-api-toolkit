@@ -348,6 +348,7 @@ final class ExportOpenApiComponentsTest extends TestCase
                     new ResponseHeaderResolver,
                     new ResponseStatusResolver,
                 ),
+                new RouteMiddlewareResolver($router),
             ),
             new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($router)),
             new EnumSchemaBuilder,

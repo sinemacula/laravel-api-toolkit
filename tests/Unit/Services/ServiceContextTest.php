@@ -151,6 +151,7 @@ final class ServiceContextTest extends TestCase
         self::assertSame([
             ServiceContext::METADATA_IP         => '198.51.100.4',
             ServiceContext::METADATA_USER_AGENT => 'client/2.0',
+            ServiceContext::METADATA_IF_MATCH   => null,
         ], $context->metadata);
     }
 
@@ -169,7 +170,25 @@ final class ServiceContextTest extends TestCase
         self::assertSame([
             ServiceContext::METADATA_IP         => '198.51.100.4',
             ServiceContext::METADATA_USER_AGENT => null,
+            ServiceContext::METADATA_IF_MATCH   => null,
         ], $context->metadata);
+    }
+
+    /**
+     * Test that fromRequest() captures every If-Match line as one raw value
+     * that survives serialization.
+     *
+     * @return void
+     */
+    public function testFromRequestCapturesTheIfMatchFieldAndItSurvivesSerialization(): void
+    {
+        $request = $this->makeRequest();
+        $request->headers->set('If-Match', ['"a"', 'W/"b"']);
+
+        $context = unserialize(serialize(ServiceContext::fromRequest($request, $this->makeActor())));
+
+        self::assertInstanceOf(ServiceContext::class, $context);
+        self::assertSame('"a",W/"b"', $context->metadata[ServiceContext::METADATA_IF_MATCH]);
     }
 
     /**
@@ -201,6 +220,7 @@ final class ServiceContextTest extends TestCase
         self::assertSame([
             ServiceContext::METADATA_IP         => '203.0.113.9',
             ServiceContext::METADATA_USER_AGENT => 'client/2.0',
+            ServiceContext::METADATA_IF_MATCH   => null,
             'tenant'                            => 'acme',
         ], $context->metadata);
     }
@@ -354,6 +374,7 @@ final class ServiceContextTest extends TestCase
     {
         self::assertSame('ip', ServiceContext::METADATA_IP);
         self::assertSame('user_agent', ServiceContext::METADATA_USER_AGENT);
+        self::assertSame('if_match', ServiceContext::METADATA_IF_MATCH);
     }
 
     /**
