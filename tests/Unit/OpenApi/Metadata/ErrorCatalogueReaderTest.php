@@ -9,13 +9,16 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
+use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
 use SineMacula\ApiToolkit\Exceptions\NotFoundException;
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use Tests\Fixtures\Enums\AppErrorCode;
 use Tests\Fixtures\Exceptions\WidgetFailureException;
+use Tests\Fixtures\Exceptions\WidgetLockedException;
 use Tests\Fixtures\Support\FunctionOverrides;
 use Tests\TestCase;
 
@@ -345,6 +348,59 @@ final class ErrorCatalogueReaderTest extends TestCase
     }
 
     /**
+     * Test that a toolkit code carries the meta schema its exception declares,
+     * and a code whose exception declares none carries null.
+     *
+     * @return void
+     */
+    public function testToolkitCodeCarriesTheDeclaredMetaSchema(): void
+    {
+        $descriptors = $this->reader()->read();
+
+        self::assertSame(InvalidInputException::metaSchema(), $this->findDescriptor($descriptors, ErrorCode::INVALID_INPUT->getCode())?->meta);
+        self::assertSame(QueryTooExpensiveException::metaSchema(), $this->findDescriptor($descriptors, ErrorCode::QUERY_TOO_EXPENSIVE->getCode())?->meta);
+        self::assertNull($this->findDescriptor($descriptors, ErrorCode::NOT_FOUND->getCode())?->meta);
+    }
+
+    /**
+     * Test that an application code carries the meta schema its exception
+     * declares, and a code whose exception declares none carries null.
+     *
+     * @return void
+     */
+    public function testApplicationCodeCarriesTheDeclaredMetaSchema(): void
+    {
+        $descriptors = $this->reader($this->fixturesDiscoverer())->read();
+
+        self::assertSame(WidgetLockedException::metaSchema(), $this->findDescriptor($descriptors, AppErrorCode::WIDGET_LOCKED->getCode())?->meta);
+        self::assertNull($this->findDescriptor($descriptors, AppErrorCode::WIDGET_FAILURE->getCode())?->meta);
+    }
+
+    /**
+     * Test that a meta schema that is a list fails the read.
+     *
+     * @return void
+     */
+    public function testListMetaSchemaFailsTheRead(): void
+    {
+        $directory = $this->makeRuntimeFixtures([
+            'ListedMetaException' => " extends ApiException implements DefinesErrorMeta\n{\n"
+                . "    public const CODE = AppErrorCode::WIDGET_FAILURE;\n"
+                . "    public const HTTP_STATUS = HttpStatus::BAD_GATEWAY;\n\n"
+                . "    public static function metaSchema(): array\n    {\n        return ['object'];\n    }\n}\n",
+        ]);
+
+        $this->expectException(MetadataReadException::class);
+        $this->expectExceptionMessage('The meta schema of [Tests\Fixtures\Runtime\ListedMetaException] must be a JSON-Schema object.');
+
+        try {
+            $this->reader(new ApiExceptionDiscoverer(['Tests\Fixtures\Runtime\\' => [$directory]]))->read();
+        } finally {
+            $this->removeDirectory($directory);
+        }
+    }
+
+    /**
      * Test that a duplicate code keeps the first class and warns.
      *
      * @return void
@@ -400,19 +456,34 @@ final class ErrorCatalogueReaderTest extends TestCase
      */
     private function makeCollisionFixtures(): string
     {
-        $directory = sys_get_temp_dir() . '/api-toolkit-collision-' . uniqid('', true);
+        $declaration = " extends ApiException\n{\n"
+            . "    public const CODE = AppErrorCode::WIDGET_FAILURE;\n"
+            . "    public const HTTP_STATUS = HttpStatus::BAD_GATEWAY;\n}\n";
+
+        return $this->makeRuntimeFixtures(['AlphaException' => $declaration, 'BetaException' => $declaration]);
+    }
+
+    /**
+     * Create and load temporary exceptions, each declared by the source that
+     * follows its class name.
+     *
+     * @param  array<string, string>  $declarations
+     * @return string
+     */
+    private function makeRuntimeFixtures(array $declarations): string
+    {
+        $directory = sys_get_temp_dir() . '/api-toolkit-runtime-' . uniqid('', true);
 
         mkdir($directory, 0777, true);
 
-        foreach (['AlphaException', 'BetaException'] as $name) {
+        foreach ($declarations as $name => $declaration) {
 
             $source = "<?php\n\ndeclare(strict_types = 1);\n\nnamespace Tests\\Fixtures\\Runtime;\n\n"
                 . "use SineMacula\\ApiToolkit\\Exceptions\\ApiException;\n"
+                . "use SineMacula\\ApiToolkit\\OpenApi\\Contracts\\DefinesErrorMeta;\n"
                 . "use SineMacula\\Http\\Enums\\HttpStatus;\n"
                 . "use Tests\\Fixtures\\Enums\\AppErrorCode;\n\n"
-                . "final class {$name} extends ApiException\n{\n"
-                . "    public const CODE = AppErrorCode::WIDGET_FAILURE;\n"
-                . "    public const HTTP_STATUS = HttpStatus::BAD_GATEWAY;\n}\n";
+                . "final class {$name}{$declaration}";
 
             $file = $directory . '/' . $name . '.php';
 
