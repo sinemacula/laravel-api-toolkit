@@ -80,13 +80,16 @@ final class ApiQueryTest extends TestCase
     {
         $docComment = (string) (new \ReflectionClass(ApiQuery::class))->getDocComment();
 
-        preg_match_all('/@method static .*?(\w+)\((.*)\)$/m', $docComment, $tags, PREG_SET_ORDER);
+        preg_match_all('/@method static (?:.*\s)?(\w+)\((.*)\)$/m', $docComment, $tags, PREG_SET_ORDER);
 
         $documented = [];
 
         foreach ($tags as [, $name, $parameters]) {
             $documented[$name] = substr_count($parameters, '$');
         }
+
+        // Every tag parsed, and none names a method twice
+        self::assertCount(substr_count($docComment, '@method'), $documented);
 
         $public = [];
 

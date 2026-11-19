@@ -150,8 +150,8 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Provide, for each shipped schema rule, a resource only that rule refuses,
-     * the model it is mapped to and the defect it reports.
+     * Provide, for each shipped schema rule, the model, a resource only that
+     * rule refuses, the field and defect it reports and any settings it needs.
      *
      * @return iterable<string, array{0: class-string, 1: class-string, 2: string, 3: string, 4?: array<string, mixed>}>
      */
