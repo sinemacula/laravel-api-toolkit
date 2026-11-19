@@ -61,6 +61,7 @@ use Tests\Fixtures\OpenApi\PathTagInternalController;
 use Tests\Fixtures\OpenApi\PaymentRequiredException;
 use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
@@ -445,6 +446,34 @@ final class OpenApiExporterValidityTest extends TestCase
             ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
             $this->referencedParameterNames($paths['/users']['get']),
         );
+    }
+
+    /**
+     * Test that an index over a resource with its own page size bounds exports
+     * them inline, and the document stays valid.
+     *
+     * @return void
+     */
+    public function testIndexOverALoweredResourceExportsAValidInlineLimit(): void
+    {
+        $this->getConfig()->set('api-toolkit.resources.resource_map.' . User::class, CappedPageUserResource::class);
+
+        $this->registerUserRoutes();
+
+        $document = $this->export()->document;
+        $result   = $this->validateDocument($document);
+
+        self::assertTrue($result->isValid(), 'Emitted document is not valid OpenAPI 3.1: ' . $this->formatErrors($result));
+
+        /** @var array<string, array<string, array<string, mixed>>> $paths */
+        $paths  = $document['paths'];
+        $limits = array_values(array_filter(
+            (array) $paths['/users']['get']['parameters'],
+            static fn (mixed $parameter): bool => is_array($parameter) && ($parameter['name'] ?? null) === 'limit',
+        ));
+
+        self::assertSame([['type' => 'integer', 'minimum' => 1, 'maximum' => 2, 'default' => 2]], array_column($limits, 'schema'));
+        self::assertNotContains('Limit', $this->referencedParameterNames($paths['/users']['get']));
     }
 
     /**

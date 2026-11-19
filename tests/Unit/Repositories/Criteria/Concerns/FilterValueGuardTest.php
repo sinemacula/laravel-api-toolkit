@@ -73,6 +73,10 @@ final class FilterValueGuardTest extends TestCase
         yield 'list of date-times' => [FilterValueShape::LIST, 'at', ['2024-01-01', '2024-01-01T10:00Z'], ['2024-01-01 00:00:00', '2024-01-01 10:00:00']];
         yield 'bounds of date-times' => [FilterValueShape::BOUNDS, 'at', ['2024-01-01', '2024-01-02'], ['2024-01-01 00:00:00', '2024-01-02 00:00:00']];
         yield 'undescribed column' => [FilterValueShape::SCALAR, 'missing', true, true];
+        yield 'element of any type on a typed column' => [FilterValueShape::ELEMENTS, 'count', 'abc', 'abc'];
+        yield 'boolean element' => [FilterValueShape::ELEMENTS, 'label', false, false];
+        yield 'float element on an integer column' => [FilterValueShape::ELEMENTS, 'count', 1.5, 1.5];
+        yield 'list of elements' => [FilterValueShape::ELEMENTS, 'label', ['php', 2, true], ['php', 2, true]];
     }
 
     /**
@@ -103,6 +107,7 @@ final class FilterValueGuardTest extends TestCase
         $null     = 'The $op condition on "label" ' . $nullable;
         $bounds   = 'The $op condition on "count" must be a list of two values, [low, high].';
         $presence = 'The $op condition on "count" takes only true; $null matches a missing value and $notNull a present one.';
+        $elements = 'The $op condition on "label" must be a single value or a non-empty list of values.';
 
         yield 'null scalar' => [FilterValueShape::SCALAR, 'label', null, $null];
         yield 'null on an undescribed column' => [FilterValueShape::SCALAR, 'missing', null, 'The $op condition on "missing" ' . $nullable];
@@ -126,6 +131,15 @@ final class FilterValueGuardTest extends TestCase
         yield 'mistyped bound' => [FilterValueShape::BOUNDS, 'day', ['2024-01-01', '2024-02-30'], 'Item 1 of the $op condition on "day" must be a date as YYYY-MM-DD.'];
         yield 'bool on a varchar' => [FilterValueShape::SCALAR, 'label', true, 'The $op condition on "label" must be a string or a number.'];
         yield 'NUL on a varchar' => [FilterValueShape::SCALAR, 'label', "a\0", 'The $op condition on "label" must be free of NUL characters.'];
+        yield 'null elements' => [FilterValueShape::ELEMENTS, 'label', null, $null];
+        yield 'empty elements' => [FilterValueShape::ELEMENTS, 'label', [], $elements];
+        yield 'object elements' => [FilterValueShape::ELEMENTS, 'label', ['x' => 1], $elements];
+        yield 'nested element' => [FilterValueShape::ELEMENTS, 'label', ['a', ['b']], 'Item 1 of the $op condition on "label" must be ' . $scalar . '.'];
+        yield 'null element' => [FilterValueShape::ELEMENTS, 'label', [null], 'Item 0 of the $op condition on "label" must be ' . $scalar . '.'];
+        yield 'NUL element' => [FilterValueShape::ELEMENTS, 'label', "a\0", 'The $op condition on "label" must be free of NUL characters.'];
+        yield 'NUL item' => [FilterValueShape::ELEMENTS, 'label', ['a', "b\0"], 'Item 1 of the $op condition on "label" must be free of NUL characters.'];
+        yield 'infinite element' => [FilterValueShape::ELEMENTS, 'label', INF, 'The $op condition on "label" must be a finite number.'];
+        yield 'NaN item' => [FilterValueShape::ELEMENTS, 'label', [1, NAN], 'Item 1 of the $op condition on "label" must be a finite number.'];
     }
 
     /**

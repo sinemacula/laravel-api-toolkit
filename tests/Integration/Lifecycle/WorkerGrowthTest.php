@@ -55,6 +55,7 @@ final class WorkerGrowthTest extends TestCase
     private const array FLUSHED = [
         EagerLoadPlanner::class . '::$aggregateCache',
         EagerLoadPlanner::class . '::$eagerLoadCache',
+        EagerLoadPlanner::class . '::$projectionCache',
         FieldResolver::class . '::$resolvedCache',
         IndexProof::class . '::$cache',
     ];

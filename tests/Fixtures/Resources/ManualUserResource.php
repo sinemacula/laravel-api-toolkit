@@ -57,10 +57,10 @@ final class ManualUserResource extends ApiResource
             Field::scalar('email')->filterable(Capability::EXACT)->searchable(SearchStrategy::SUBSTRING),
             Field::scalar('age')->filterable(Capability::RANGE),
             Field::timestamp('created_at')->filterable(Capability::RANGE)->sortable(),
-            Relation::to('organization', ManualOrganizationResource::class),
+            Relation::to('organization', ManualOrganizationResource::class)->sortable('Admin list of a few hundred users'),
             Relation::to('posts', PostResource::class)->traversable(),
             Relation::to('comments', ManualCommentResource::class)->traversable(),
-            Count::of('posts'),
+            Count::of('posts')->sortable('Admin list of a few hundred users'),
         );
     }
 }

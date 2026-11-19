@@ -28,6 +28,7 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\AggregatingUserResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -98,6 +99,13 @@ final class QueryCostRejectionTest extends TestCase
             $users = $repository->usingResource(UserResource::class)->withApiCriteria()->paginate();
 
             return new ApiResourceCollection($users, UserResource::class);
+        });
+
+        Route::middleware(ParseApiQuery::class)->get('/paged-users', function (UserRepository $repository): ApiResourceCollection {
+
+            $users = $repository->usingResource(CappedPageUserResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($users, CappedPageUserResource::class);
         });
 
         User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);
@@ -250,6 +258,21 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
+     * Test that a page size beyond the resource's own ceiling is refused with
+     * that ceiling and issues no SQL, while one at it is served.
+     *
+     * @return void
+     */
+    public function testPageSizeBeyondTheResourceCeilingIssuesNoSql(): void
+    {
+        $this->getJson('/paged-users?limit=2')->assertOk()->assertJsonCount(2, 'data');
+
+        $response = $this->recordQueries('/paged-users?limit=3');
+
+        $this->assertRejectionEnvelope($response, 'limit', '', 'max_limit', 2, 3);
+    }
+
+    /**
      * Test that sorting by more columns than the cap allows issues no SQL.
      *
      * @return void
@@ -299,6 +322,33 @@ final class QueryCostRejectionTest extends TestCase
         ]));
 
         $this->assertRejectionEnvelope($response, 'aggregates', '', 'max_aggregates', 2, 3);
+    }
+
+    /**
+     * Test that an aggregate requested twice is charged once against the cap
+     * and loaded once.
+     *
+     * @return void
+     */
+    public function testRepeatedAggregateIsChargedAndLoadedOnce(): void
+    {
+        Config::set('api-toolkit.query_cost.max_aggregates', 1);
+
+        $expected = $this->seedAuthorWithPosts();
+
+        $response = $this->recordQueries('/aggregate-users?' . http_build_query([
+            'fields'     => [UserResource::RESOURCE_TYPE => 'name,aggregates'],
+            'filters'    => json_encode(['name' => 'Carol']),
+            'aggregates' => [UserResource::RESOURCE_TYPE => 'posts_avg_id,posts_avg_id'],
+        ]));
+
+        $response->assertOk();
+        $response->assertJsonPath('data.0.aggregates', ['posts_avg_id' => $expected]);
+
+        $statements = $this->aggregateStatements();
+
+        self::assertCount(1, $statements);
+        self::assertSame(1, substr_count($statements[0], 'aggregate_posts_avg_id'));
     }
 
     /**

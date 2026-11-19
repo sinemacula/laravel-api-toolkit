@@ -5,11 +5,11 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
-use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
@@ -134,9 +134,23 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
             $caps[$cap] = $limits->limit($cap);
         }
 
-        $caps[QueryParameterValidator::MAX_LIMIT] = QuerySettings::maxLimit();
+        $caps[QueryParameterValidator::MAX_LIMIT] = $this->getPageSize(null)->ceiling;
 
         return $caps;
+    }
+
+    /**
+     * Return the page size bounds the given resource is held to.
+     *
+     * @param  string|null  $resourceClass
+     * @return \SineMacula\ApiToolkit\Query\PageSize
+     *
+     * @throws \LogicException
+     */
+    #[\Override]
+    public function getPageSize(?string $resourceClass): PageSize
+    {
+        return PageSize::for($resourceClass);
     }
 
     /**

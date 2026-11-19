@@ -222,7 +222,7 @@ final class EnvelopeBuilderTest extends TestCase
     public function testCollectionEnvelopeWrapsAnyItemSchema(): void
     {
         $items    = ['oneOf' => [['$ref' => '#/components/schemas/A'], ['$ref' => '#/components/schemas/B']]];
-        $envelope = (new EnvelopeBuilder)->collectionEnvelopeFor($items);
+        $envelope = (new EnvelopeBuilder)->anyCollectionEnvelopeFor($items)['anyOf'][0];
 
         self::assertSame('Length-aware page', $envelope['title']);
         self::assertSame(['type' => 'array', 'items' => $items], $envelope['properties']['data']);
@@ -247,6 +247,46 @@ final class EnvelopeBuilderTest extends TestCase
             ],
             'required' => ['data', 'meta', 'links'],
         ], $envelope);
+    }
+
+    /**
+     * Test that a collection's headers reference the shared total-count header.
+     *
+     * @return void
+     */
+    public function testCollectionHeadersReferenceTheTotalCountHeader(): void
+    {
+        self::assertSame(
+            ['Total-Count' => ['$ref' => '#/components/headers/Total-Count']],
+            (new EnvelopeBuilder)->collectionHeaders(),
+        );
+    }
+
+    /**
+     * Test that the envelope of a collection of any pagination offers the
+     * length-aware page, the cursor page and the unpaginated list.
+     *
+     * @return void
+     */
+    public function testAnyCollectionEnvelopeOffersEveryPaginationAndTheList(): void
+    {
+        $builder = new EnvelopeBuilder;
+        $items   = ['$ref' => '#/components/schemas/User'];
+
+        self::assertSame([
+            'anyOf' => [
+                $builder->collectionEnvelope('#/components/schemas/User'),
+                $builder->cursorCollectionEnvelope('#/components/schemas/User'),
+                [
+                    'title'      => 'Unpaginated list',
+                    'type'       => 'object',
+                    'properties' => [
+                        'data' => ['type' => 'array', 'items' => $items],
+                    ],
+                    'required' => ['data'],
+                ],
+            ],
+        ], $builder->anyCollectionEnvelopeFor($items));
     }
 
     /**

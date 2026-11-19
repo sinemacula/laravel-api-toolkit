@@ -85,6 +85,11 @@ final class OffsetPaginationTest extends TestCase
         $response = $this->getJson('/users?limit=2&page=2');
 
         $response->assertOk();
+        $response->assertExactJsonStructure([
+            'data'  => ['*' => ['_type', 'id', 'email', 'name']],
+            'meta'  => ['total', 'total_capped', 'count', 'continue'],
+            'links' => ['self', 'first', 'prev', 'next', 'last'],
+        ]);
         $response->assertJsonCount(2, 'data');
         $response->assertJsonPath('data.0.name', 'Cara');
         $response->assertJsonPath('data.1.name', 'Dan');

@@ -18,7 +18,8 @@ final readonly class ErrorCatalogueDocGenerator
     private const string BANNER = '<!-- This file is auto-generated. Do not edit; regenerating the documentation overwrites it. -->';
 
     /** The fixed introduction printed beneath the heading. */
-    private const string INTRO = 'Every error the API can return, keyed by its stable numeric code.';
+    private const string INTRO = 'Every error the API can return, keyed by its stable numeric code. The description is each code\'s default detail; '
+        . 'an error raised with its own detail carries that instead.';
 
     /**
      * Create a new error catalogue documentation generator.

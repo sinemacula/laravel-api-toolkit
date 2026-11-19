@@ -65,7 +65,7 @@ final class ResponseSchemaResolverTest extends TestCase
         $schema = $this->resolver()->resolve(PathResponseSchemaController::class, 'list');
 
         self::assertSame(
-            (new EnvelopeBuilder)->collectionEnvelope(self::PREFIX . 'User'),
+            (new EnvelopeBuilder)->anyCollectionEnvelopeFor(['$ref' => self::PREFIX . 'User']),
             $schema,
         );
     }
@@ -95,7 +95,7 @@ final class ResponseSchemaResolverTest extends TestCase
         $registry = new DefinedSchemaRegistry;
         $schema   = $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'widgets');
 
-        self::assertSame((new EnvelopeBuilder)->collectionEnvelope(self::PREFIX . 'WidgetShape'), $schema);
+        self::assertSame((new EnvelopeBuilder)->anyCollectionEnvelopeFor(['$ref' => self::PREFIX . 'WidgetShape']), $schema);
         self::assertSame([WidgetShape::class], $registry->classes());
     }
 
@@ -182,7 +182,7 @@ final class ResponseSchemaResolverTest extends TestCase
         $registry = new DefinedSchemaRegistry;
         $schema   = $this->resolver($registry)->resolve(PathResponseSchemaController::class, 'unionList');
 
-        self::assertSame((new EnvelopeBuilder)->collectionEnvelopeFor($this->signInUnion()), $schema);
+        self::assertSame((new EnvelopeBuilder)->anyCollectionEnvelopeFor($this->signInUnion()), $schema);
         self::assertSame([SignedInShape::class, PendingSignInShape::class], $registry->classes());
     }
 
@@ -412,6 +412,22 @@ final class ResponseSchemaResolverTest extends TestCase
     {
         self::assertFalse($this->resolver()->declares(PathResponseSchemaController::class, 'bare'));
         self::assertFalse($this->resolver()->declares(null, 'widget'));
+    }
+
+    /**
+     * Test that only a directive marked as a collection declares one.
+     *
+     * @return void
+     */
+    public function testOnlyACollectionDirectiveDeclaresACollection(): void
+    {
+        $resolver = $this->resolver();
+
+        self::assertTrue($resolver->declaresCollection(PathResponseSchemaController::class, 'widgets'));
+        self::assertTrue($resolver->declaresCollection(PathResponseSchemaController::class, 'unionList'));
+        self::assertFalse($resolver->declaresCollection(PathResponseSchemaController::class, 'widget'));
+        self::assertFalse($resolver->declaresCollection(PathResponseSchemaController::class, 'bare'));
+        self::assertFalse($resolver->declaresCollection(null, 'widgets'));
     }
 
     /**
