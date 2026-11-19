@@ -250,7 +250,7 @@ final class ApiExceptionHandler
     {
         $previous = $exception->getPrevious();
 
-        return $previous instanceof AuthorizationException && self::isClientStatus($status) ? $previous : null;
+        return $exception instanceof SymfonyHttpExceptionInterface && $previous instanceof AuthorizationException && self::isClientStatus($status) ? $previous : null;
     }
 
     /**
@@ -267,8 +267,8 @@ final class ApiExceptionHandler
     }
 
     /**
-     * Add the code a denial carries to the meta as its reason, unless empty or
-     * neither an int nor a string.
+     * Add the code a denial carries to the meta as its reason, unless it is
+     * missing or neither an int, a string nor a backed enum.
      *
      * @param  array<string, mixed>|null  $meta
      * @param  \Illuminate\Auth\Access\AuthorizationException|null  $denial
@@ -276,11 +276,11 @@ final class ApiExceptionHandler
      */
     private static function withReason(?array $meta, ?AuthorizationException $denial): ?array
     {
-        // The response keeps the code as raised; getCode() is declared an int
+        // getCode() is typed int, though the denial holds the code as raised
         $code   = $denial?->toResponse()->code();
         $reason = $code instanceof \BackedEnum ? $code->value : $code;
 
-        if ((!is_int($reason) && !is_string($reason)) || in_array($reason, [0, ''], true)) {
+        if ((!is_int($reason) && !is_string($reason)) || $code === 0) {
             return $meta;
         }
 

@@ -1022,14 +1022,13 @@ final class ApiExceptionHandlerTest extends TestCase
         yield 'message and string code' => [new AuthorizationException(self::DENIAL, 'TRIAL_EXPIRED'), 403, 10102, self::DENIAL, ['reason' => 'TRIAL_EXPIRED']];
         yield 'int code' => [new AuthorizationException(self::DENIAL, 42), 403, 10102, self::DENIAL, ['reason' => 42]];
         yield 'backed enum code' => [new AuthorizationException(self::DENIAL, UserStatus::BANNED), 403, 10102, self::DENIAL, ['reason' => 'banned']];
-        yield 'backed enum code of zero' => [new AuthorizationException(self::DENIAL, Magnitude::ZERO), 403, 10102, self::DENIAL, null];
+        yield 'backed enum code of zero' => [new AuthorizationException(self::DENIAL, Magnitude::ZERO), 403, 10102, self::DENIAL, ['reason' => 0]];
         yield 'array code' => [new AuthorizationException(self::DENIAL, ['TRIAL_EXPIRED']), 403, 10102, self::DENIAL, null];
         yield 'no code' => [new AuthorizationException(self::DENIAL), 403, 10102, self::DENIAL, null];
         yield 'default message' => [new AuthorizationException, 403, 10102, self::FORBIDDEN_DETAIL, null];
+        yield 'default message and a code' => [new AuthorizationException(null, 'TRIAL_EXPIRED'), 403, 10102, self::FORBIDDEN_DETAIL, ['reason' => 'TRIAL_EXPIRED']];
         yield 'empty message' => [new AuthorizationException(''), 403, 10102, self::FORBIDDEN_DETAIL, null];
-        $wrapped = new \RuntimeException('', 0, new AuthorizationException(self::DENIAL));
-
-        yield 'denial deeper in the chain' => [new AccessDeniedHttpException('', $wrapped), 403, 10102, self::FORBIDDEN_DETAIL, null];
+        yield 'denial deeper in the chain' => [new AccessDeniedHttpException('', new \RuntimeException('', 0, new AuthorizationException(self::DENIAL))), 403, 10102, self::FORBIDDEN_DETAIL, null];
         yield 'status standing for a key' => [(new AuthorizationException(self::DENIAL, 'HIDDEN'))->withStatus(404), 404, 10103, self::DENIAL, ['reason' => 'HIDDEN']];
         yield 'token mismatch status' => [(new AuthorizationException(self::DENIAL, 'STALE'))->withStatus(419), 419, 10105, self::DENIAL, ['reason' => 'STALE']];
         yield 'generic client status' => [(new AuthorizationException(self::DENIAL, 'SHIPPED'))->withStatus(409), 409, 10113, self::DENIAL, ['reason' => 'SHIPPED']];
@@ -1133,6 +1132,23 @@ final class ApiExceptionHandlerTest extends TestCase
         self::assertSame($status, $error['status']);
         self::assertSame($carried ? self::DENIAL : (new $target)->getCustomDetail(), $error['detail']);
         self::assertSame($carried ? ['reason' => 'TRIAL_EXPIRED'] : null, $error['meta'] ?? null);
+    }
+
+    /**
+     * Test that a denial the application wrapped in its own exception keeps the
+     * configured target's catalogue detail.
+     *
+     * @return void
+     */
+    public function testApplicationWrappedDenialKeepsTheCatalogueDetail(): void
+    {
+        config()->set('app.debug', false);
+        config()->set('api-toolkit.exceptions.map', [\RuntimeException::class => ConflictException::class]);
+
+        $error = $this->renderToJson(new \RuntimeException('', 0, new AuthorizationException(self::DENIAL, 'SHIPPED')), self::jsonRequest())->getData(true)['error'];
+
+        self::assertIsArray($error);
+        self::assertSame(['status' => 409, 'code' => 10108, 'detail' => (new ConflictException)->getCustomDetail()], Arr::except($error, 'title'));
     }
 
     /**

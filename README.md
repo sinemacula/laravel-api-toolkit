@@ -925,11 +925,11 @@ A policy denial's message and code are client-facing. `Response::deny('Your tria
 `403` with that `detail` and `meta.reason` `TRIAL_EXPIRED`; an int code is carried as an int and a backed enum as its
 value. A denial without a message keeps the catalogue detail, a `denyWithStatus()` denial keeps its status, and one
 rendered as a server error carries neither. `denyAsNotFound()` answers exactly as a missing record, while
-`denyAsNotFound('...')` gives up that concealment for its message. `abort()` text is never carried: throw an
+`denyAsNotFound('...')` gives up that concealment for its message. `abort()` text is never the detail: throw an
 `ApiException` with `detail:` instead.
 
-A `ValidationException` raised with a client-error status other than `422`, such as `->status(429)`, renders with that
-status as `HTTP_ERROR` (`10113`), its field errors in `meta`. Any other status renders `422`, and an
+A `ValidationException` raised with a standard client-error status other than `422`, such as `->status(429)`, renders
+with that status as `HTTP_ERROR` (`10113`), its field errors in `meta`. Any other status renders `422`, and an
 `api-toolkit.exceptions.map` target for `ValidationException` keeps its own status.
 
 An `ApiException` declares the shape of its meta by implementing `DefinesErrorMeta`, and the exported document types
