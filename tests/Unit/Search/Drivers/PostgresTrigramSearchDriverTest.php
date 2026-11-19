@@ -305,6 +305,21 @@ final class PostgresTrigramSearchDriverTest extends TestCase
     }
 
     /**
+     * Test that a declared column is matched literally, not as a pattern.
+     *
+     * @return void
+     */
+    public function testMatchesTheDeclaredColumnLiterally(): void
+    {
+        $connection = $this->catalogue(['CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)'], true);
+
+        self::assertSame(
+            ['n.me' => ['Column "n.me" is declared searchable with the "substring" strategy, which needs a trigram index over that column on table "users"']],
+            (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['n.me'], 'users', $connection),
+        );
+    }
+
+    /**
      * Test that a multi-column trigram index proves each of its columns.
      *
      * @return void
