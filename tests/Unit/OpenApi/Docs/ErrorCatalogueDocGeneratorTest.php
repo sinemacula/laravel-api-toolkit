@@ -36,6 +36,11 @@ final class ErrorCatalogueDocGeneratorTest extends TestCase
 
         self::assertStringStartsWith('<!-- This file is auto-generated.', $markdown);
         self::assertStringContainsString("\n# Error Catalogue\n", $markdown);
+        self::assertStringContainsString(
+            "\nEvery error the API can return, keyed by its stable numeric code. The description is each code's default detail; "
+            . "an error raised with its own detail carries that instead.\n",
+            $markdown,
+        );
         self::assertStringContainsString("| Name | Code | HTTP | Description |\n| --- | --- | --- | --- |\n", $markdown);
         self::assertStringEndsWith("\n", $markdown);
     }

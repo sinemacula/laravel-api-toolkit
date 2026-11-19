@@ -14,6 +14,7 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
+use SineMacula\ApiToolkit\Exceptions\ForbiddenException;
 use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Exceptions\ServiceUnavailableException;
@@ -717,10 +718,11 @@ final class ErrorResponseBuilderTest extends TestCase
      */
     public function testEnvelopeSchemaPinsTheCodeAndTypesTheDeclaredMeta(): void
     {
-        $route   = $this->router()->get('users', [PathPlainController::class, 'index']);
+        $route   = $this->router()->get('users', [PathPlainController::class, 'index'])->middleware('can:update-user');
         $schemas = $this->builder()->buildEnvelopeSchemas(['/users' => ['get' => ['responses' => $this->build($route, [ValidationException::class])]]]);
 
         self::assertSame($this->envelope(10001, ['type' => 'object', 'additionalProperties' => true]), $schemas['Error10001']);
+        self::assertSame($this->envelope(10102, ForbiddenException::metaSchema()), $schemas['Error10102']);
         self::assertSame($this->envelope(10106, InvalidInputException::metaSchema()), $schemas['Error10106']);
     }
 
@@ -742,8 +744,11 @@ final class ErrorResponseBuilderTest extends TestCase
                         'status' => ['type' => 'integer'],
                         'code'   => ['type' => 'integer', 'const' => $code],
                         'title'  => ['type' => 'string'],
-                        'detail' => ['type' => 'string'],
-                        'meta'   => $meta,
+                        'detail' => [
+                            'type'        => 'string',
+                            'description' => 'Explains this occurrence: the code\'s catalogue text, or the detail the error was raised with, such as a policy denial\'s message.',
+                        ],
+                        'meta' => $meta,
                     ],
                     'required' => ['status', 'code', 'detail'],
                 ],
