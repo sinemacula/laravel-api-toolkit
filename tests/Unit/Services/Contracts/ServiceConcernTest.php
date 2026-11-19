@@ -4,88 +4,43 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Services\Contracts;
 
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Services\Contracts\ServiceConcern;
+use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Services\ServiceContext;
+use SineMacula\ApiToolkit\Services\ServiceRunner;
+use Tests\Fixtures\Services\ConcernedService;
+use Tests\Fixtures\Services\Concerns\ContextCapturingConcern;
 use Tests\Fixtures\Services\StubActor;
+use Tests\TestCase;
 
 /**
- * Tests for the ServiceConcern interface.
+ * Tests for the ServiceConcern contract as a service run honours it.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
  * @internal
  */
-#[CoversNothing]
+#[CoversClass(ServiceRunner::class)]
 final class ServiceConcernTest extends TestCase
 {
     /**
-     * Test that an implementer receives the context and next closure.
+     * Test that a concern receives the run's context and a next step that runs
+     * prepare() and handle() and returns the output.
      *
      * @return void
      */
-    public function testHandleReceivesContextAndNext(): void
+    public function testConcernReceivesTheRunContextAndANextThatRunsTheService(): void
     {
-        $nextCalled = false;
-
+        $concern = new ContextCapturingConcern;
         $context = ServiceContext::for(new StubActor);
+        $service = (new ConcernedService([ContextCapturingConcern::class]))->withContext($context);
 
-        $concern = new class implements ServiceConcern {
-            /**
-             * Handle the concern, wrapping the next step result.
-             *
-             * @param  \SineMacula\ApiToolkit\Services\ServiceContext  $context
-             * @param  \Closure(): mixed  $next
-             * @return mixed
-             */
-            #[\Override]
-            public function handle(ServiceContext $context, \Closure $next): mixed
-            {
-                return ['wrapped' => $next()];
-            }
-        };
+        app()->instance(ContextCapturingConcern::class, $concern);
 
-        $result = $concern->handle($context, function () use (&$nextCalled): string {
-            $nextCalled = true;
+        $result = $service->run();
 
-            return 'inner';
-        });
-
-        self::assertTrue($nextCalled);
-        self::assertSame(['wrapped' => 'inner'], $result);
-    }
-
-    /**
-     * Test that the first parameter of handle() is ServiceContext, not Service.
-     *
-     * @return void
-     */
-    public function testContractDoesNotReferenceService(): void
-    {
-        $reflection = new \ReflectionClass(ServiceConcern::class);
-
-        self::assertTrue($reflection->hasMethod('handle'));
-
-        $method     = $reflection->getMethod('handle');
-        $parameters = $method->getParameters();
-
-        self::assertCount(2, $parameters);
-
-        $contextParam = $parameters[0]->getType();
-
-        self::assertInstanceOf(\ReflectionNamedType::class, $contextParam);
-        self::assertSame(ServiceContext::class, $contextParam->getName());
-
-        $nextParam = $parameters[1]->getType();
-
-        self::assertInstanceOf(\ReflectionNamedType::class, $nextParam);
-        self::assertSame(\Closure::class, $nextParam->getName());
-
-        $returnType = $method->getReturnType();
-
-        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-        self::assertSame('mixed', $returnType->getName());
+        self::assertSame($context, $concern->context);
+        self::assertSame('handled', $result->output());
+        self::assertSame(['prepare', 'handle', 'afterCommit'], $service->calls);
     }
 }
