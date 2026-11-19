@@ -324,7 +324,8 @@ final readonly class OpenApiAssembler
     }
 
     /**
-     * Build the schemas block, reduced to those reachable from the paths.
+     * Build the schemas block, reduced to those reachable from the paths and
+     * sorted by name, so its order follows no configuration or build order.
      *
      * Resource and filter schemas are built first so their enum references are
      * registered.
@@ -361,7 +362,11 @@ final readonly class OpenApiAssembler
             $this->enumBuilder->build($this->enums->classes(), $reserved),
         );
 
-        return $this->reachability->reachable($schemas, $paths, $this->sharedSchemaNames());
+        $schemas = $this->reachability->reachable($schemas, $paths, $this->sharedSchemaNames());
+
+        ksort($schemas, SORT_STRING);
+
+        return $schemas;
     }
 
     /**

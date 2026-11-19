@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\OpenApi;
 
+use Illuminate\Http\Request;
 use SineMacula\ApiToolkit\OpenApi\Attributes\RequestSchema;
 
 /**
@@ -13,6 +14,8 @@ use SineMacula\ApiToolkit\OpenApi\Attributes\RequestSchema;
  * type-hinted plain self-describing input, a type-hinted Payload, a type-hinted
  * FormRequest, and a directive naming the plain input. The resolver must
  * document a byte-identical body from each, which is the flow-parity oracle.
+ * The plain input and the directive validate the request themselves, as an
+ * application must.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -23,9 +26,13 @@ final class ParityRequestBodyController
      * Create a resource from a type-hinted plain self-describing input.
      *
      * @param  \Tests\Fixtures\OpenApi\ParityInput  $input
+     * @param  \Illuminate\Http\Request  $request
      * @return void
      */
-    public function plain(ParityInput $input): void {}
+    public function plain(ParityInput $input, Request $request): void
+    {
+        $request->validate($input::rules());
+    }
 
     /**
      * Create a resource from a type-hinted Payload.
@@ -47,8 +54,12 @@ final class ParityRequestBodyController
      * Create a resource from a directive naming the plain self-describing
      * input.
      *
+     * @param  \Illuminate\Http\Request  $request
      * @return void
      */
     #[RequestSchema(ParityInput::class)]
-    public function attribute(): void {}
+    public function attribute(Request $request): void
+    {
+        $request->validate(ParityInput::rules());
+    }
 }

@@ -324,6 +324,30 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Test that the component schemas are sorted by name whatever the order of
+     * the resource map.
+     *
+     * @return void
+     */
+    public function testComponentSchemasAreSortedByNameWhateverTheResourceMapOrder(): void
+    {
+        $this->registerUserRoutes();
+
+        $sorted = [
+            'CursorPaginationLinks', 'CursorPaginationMeta', 'Error10001', 'Error10102', 'Error10103', 'Error10106', 'Error10108', 'Organization',
+            'OrganizationFilters', 'PaginationLinks', 'PaginationMeta', 'PostFilters', 'User', 'UserFilters', 'UserStatus',
+        ];
+
+        foreach ([self::RESOURCE_MAP, array_reverse(self::RESOURCE_MAP, true)] as $resourceMap) {
+
+            $schemas = $this->makeAssembler($resourceMap)->assemble()['components']['schemas'];
+
+            self::assertIsArray($schemas);
+            self::assertSame($sorted, array_keys($schemas));
+        }
+    }
+
+    /**
      * Test that a reachable enum is emitted as its own typed component.
      *
      * @return void
