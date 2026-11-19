@@ -243,6 +243,21 @@ final class ValidateRowPerimeterDefaultsTest extends TestCase
     }
 
     /**
+     * Test that a default entry naming no relation path is skipped.
+     *
+     * @return void
+     */
+    public function testDefaultEntryNamingNoRelationPathIsSkipped(): void
+    {
+        $model = new class extends DefaultLoadingUser {
+            /** @var array<int, mixed> */
+            protected $with = [['posts'], 'posts']; // @phpstan-ignore property.phpDocType
+        };
+
+        self::assertEquals([self::refusal($model, 'posts', 'with', self::REACHES_POSTS)], $this->validate($model));
+    }
+
+    /**
      * Test that a resource serving no model is not checked.
      *
      * @return void
