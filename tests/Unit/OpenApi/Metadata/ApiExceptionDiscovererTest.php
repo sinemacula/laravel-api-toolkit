@@ -81,6 +81,30 @@ final class ApiExceptionDiscovererTest extends TestCase
     }
 
     /**
+     * Test that a dangling symlink beside an exception does not halt discovery.
+     *
+     * @return void
+     */
+    public function testDanglingSymlinkDoesNotHaltDiscovery(): void
+    {
+        $directory = sys_get_temp_dir() . '/api-toolkit-dangling-' . uniqid('', true);
+
+        mkdir($directory, 0777, true);
+        file_put_contents($directory . '/WidgetFailureException.php', "<?php\n");
+        symlink($directory . '/Removed.php', $directory . '/Dangling.php');
+
+        try {
+            $discoverer = new ApiExceptionDiscoverer(['Tests\Fixtures\Exceptions\\' => [$directory]]);
+
+            self::assertSame([WidgetFailureException::class], $discoverer->discover());
+        } finally {
+            unlink($directory . '/Dangling.php');
+            unlink($directory . '/WidgetFailureException.php');
+            rmdir($directory);
+        }
+    }
+
+    /**
      * Test that a discoverer with no roots discovers nothing.
      *
      * @return void

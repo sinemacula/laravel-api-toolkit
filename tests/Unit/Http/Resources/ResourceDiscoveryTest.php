@@ -715,6 +715,27 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
+     * Test that a vanished file yields no classes when read warnings are not
+     * reported.
+     *
+     * @return void
+     */
+    public function testVanishedFileYieldsNoClassesWithWarningsUnreported(): void
+    {
+        $method = new \ReflectionMethod(ResourceDiscovery::class, 'classesFromFile');
+
+        $reporting = error_reporting(E_ALL & ~E_WARNING);
+
+        try {
+            $result = $method->invoke($this->discovery(), $this->fixturePath('Primary') . '/DoesNotExist.php');
+        } finally {
+            error_reporting($reporting);
+        }
+
+        self::assertSame([], $result);
+    }
+
+    /**
      * Test that both attributed resources in a multi-class, multi-namespace
      * file bind and a trailing unloadable class is skipped.
      *
@@ -821,6 +842,33 @@ final class ResourceDiscoveryTest extends TestCase
             ], $this->discovery()->discover());
         } finally {
             unlink($directory . '/notes.txt');
+            unlink($directory . '/DiscoveredUserResource.php');
+            rmdir($directory);
+        }
+    }
+
+    /**
+     * Test that a dangling symlink beside a resource does not halt discovery.
+     *
+     * @return void
+     */
+    public function testDanglingSymlinkDoesNotHaltDiscovery(): void
+    {
+        $directory = sys_get_temp_dir() . '/resource-discovery-' . uniqid((string) getmypid(), true);
+
+        mkdir($directory, 0o755, true);
+
+        copy($this->fixturePath('Primary') . '/DiscoveredUserResource.php', $directory . '/DiscoveredUserResource.php');
+        symlink($directory . '/Removed.php', $directory . '/Dangling.php');
+
+        try {
+            Config::set('api-toolkit.resources.paths', [$directory]);
+
+            self::assertSame([
+                User::class => DiscoveredUserResource::class,
+            ], $this->discovery()->discover());
+        } finally {
+            unlink($directory . '/Dangling.php');
             unlink($directory . '/DiscoveredUserResource.php');
             rmdir($directory);
         }

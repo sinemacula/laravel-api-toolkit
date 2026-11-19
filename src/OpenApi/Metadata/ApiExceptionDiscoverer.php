@@ -160,7 +160,7 @@ final readonly class ApiExceptionDiscoverer
             $real = $file->getRealPath();
 
             if ($real === false) {
-                continue; // @codeCoverageIgnore
+                continue;
             }
 
             $files[] = $real;

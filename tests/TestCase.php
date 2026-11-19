@@ -203,13 +203,14 @@ abstract class TestCase extends OrchestraTestCase
     /**
      * Make the default cache store one whose every operation throws.
      *
+     * @param  \Throwable|null  $failure
      * @return void
      */
-    protected function useUnreachableCacheStore(): void
+    protected function useUnreachableCacheStore(?\Throwable $failure = null): void
     {
         assert($this->app !== null);
 
-        UnreachableCacheStore::install($this->app);
+        UnreachableCacheStore::install($this->app, $failure);
     }
 
     /**
