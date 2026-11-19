@@ -1520,7 +1520,7 @@ final class ApiCriteriaTest extends TestCase
         $query = $this->filtersOnlyCriteria(FilterableUserResource::class)->apply(User::query()->where('status', 'active'));
 
         self::assertSame(
-            'select * from "users" where "status" = ? and ((("name" = ?) or ("email" = ?)))',
+            'select * from "users" where "status" = ? and ((("users"."name" = ?) or ("users"."email" = ?)))',
             $this->sqlOf($query),
         );
     }
