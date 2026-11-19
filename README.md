@@ -625,6 +625,20 @@ A relation loads once per path, so the schema compiler rejects a constrained rel
 fields over one relation where any is constrained or they render different resources, and a relation name holding a
 dot. Fields over one relation may differ in `fields()`, and an accessor-only field may share any relation.
 
+**Pivot columns** - `pivot()` renders columns of a many-to-many relation's pivot table on each child reached through
+that relation, under a `pivot` key:
+
+```php
+Relation::to('members', UserResource::class)->pivot('role', 'joined_at'),
+```
+
+The relation selects the columns itself, so the model's relation method needs no `withPivot()`. The key is always
+`pivot`, whatever the relation's `as()` name, and each column is read through the pivot class's casts; a column the
+loaded pivot does not carry is omitted. A relation your application loaded itself renders only what it carries. The
+exported schema adds the typed `pivot` object to the relation's items and leaves the child's component untouched. When
+clients create, update or delete the pivot rows, model the pivot as a resource of its own instead, such as a
+`memberships` relation to a `TeamMembership` model that belongs to its user.
+
 **Field-set control** at instantiation:
 
 ```php
@@ -648,6 +662,8 @@ Validation checks that:
 - no declaration names a column configured as sensitive.
 - every `limit()` sits on a to-many relation rendered through a child resource, and every field over one relation
   shares one limit.
+- every `pivot()` sits on a `BelongsToMany` or `MorphToMany` relation rendered through a child resource with no `pivot`
+  field, and names columns its pivot table carries.
 
 Every resource a filter reaches through a `traversable()` relation is validated too, once per related model, whether or
 not the resource map lists it.

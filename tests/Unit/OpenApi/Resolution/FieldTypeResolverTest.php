@@ -5,8 +5,10 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi\Resolution;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -19,10 +21,12 @@ use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 use Tests\Fixtures\Enums\Platform;
+use Tests\Fixtures\Enums\TagRole;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\AggregateLine;
 use Tests\Fixtures\Models\AggregateOwner;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\PostTag;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 
@@ -144,6 +148,40 @@ final class FieldTypeResolverTest extends TestCase
         self::assertFalse($schema->undocumented);
         self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schema->toArray());
         self::assertSame([UserStatus::class], $enums->classes());
+    }
+
+    /**
+     * Test that the pivot object types each column from the pivot table and the
+     * pivot class's casts, an enum cast registering its component.
+     *
+     * @return void
+     */
+    public function testResolvePivotTypesEachColumnFromThePivotTableAndItsPivotClassCasts(): void
+    {
+        $enums        = new EnumSchemaRegistry;
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
+
+        $introspector->method('getColumnDefinitions')->willReturnCallback(static fn (Model $model): array => $model->getTable() === 'post_tag' ? [
+            'role'      => new ColumnDefinition(name: 'role', typeName: 'varchar', nullable: true),
+            'tagged_at' => new ColumnDefinition(name: 'tagged_at', typeName: 'timestamp', nullable: true),
+        ] : []);
+
+        $resolver = new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums);
+        $typed    = self::createStub(BelongsToMany::class);
+        $plain    = self::createStub(BelongsToMany::class);
+
+        $typed->method('newPivot')->willReturn((new PostTag)->setTable('post_tag'));
+        $plain->method('newPivot')->willReturn((new Pivot)->setTable('post_tag'));
+
+        self::assertSame(['type' => 'object', 'properties' => [
+            'role'      => ['anyOf' => [['$ref' => '#/components/schemas/TagRole'], ['type' => 'null']]],
+            'tagged_at' => ['type' => ['string', 'null'], 'format' => 'date-time'],
+        ]], $resolver->resolvePivot($typed, ['role', 'tagged_at']));
+        self::assertSame([TagRole::class], $enums->classes());
+        self::assertSame(['type' => 'object', 'properties' => [
+            'role' => ['type' => ['string', 'null']],
+            'rank' => OpenApiFieldSchema::undocumented()->toArray(),
+        ]], $resolver->resolvePivot($plain, ['role', 'rank']));
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Resources;
 
+use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\MissingValue;
@@ -19,7 +20,10 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\ProvidesApiEnvelope;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\Organization;
+use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -103,6 +107,26 @@ final class ApiResourceCollectionTest extends TestCase
             self::assertArrayNotHasKey('email', $item);
             self::assertArrayHasKey('name', $item);
         }
+    }
+
+    /**
+     * Test that withPivot reaches both pre-wrapped and raw items, and returns
+     * the collection.
+     *
+     * @return void
+     */
+    public function testWithPivotReachesPreWrappedAndRawItems(): void
+    {
+        $tag = static fn (int $id, string $role): Tag => (new Tag)->forceFill(['id' => $id, 'name' => 'tag' . $id])
+            ->setRelation('tagging', Pivot::fromRawAttributes(new Post, ['role' => $role], 'post_tag', true));
+
+        $collection = new ApiResourceCollection(collect([new TagResource($tag(1, 'primary')), $tag(2, 'secondary')]), TagResource::class);
+
+        self::assertSame($collection, $collection->withPivot('tagging', ['role']));
+        self::assertSame(
+            [['role' => 'primary'], ['role' => 'secondary']],
+            array_column($collection->toArray(Request::create('/', HttpMethod::GET->getVerb())), 'pivot'),
+        );
     }
 
     /**
