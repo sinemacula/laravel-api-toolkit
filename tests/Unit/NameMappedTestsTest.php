@@ -21,6 +21,9 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class NameMappedTestsTest extends TestCase
 {
+    /** @var list<string> The test suite directories PHPUnit runs. */
+    private const array SUITES = ['Unit', 'Integration', 'Feature'];
+
     /**
      * Test that each class, trait or enum declaring a method body has a test
      * named after it.
@@ -29,8 +32,9 @@ final class NameMappedTestsTest extends TestCase
      */
     public function testEveryClassWithLogicHasANameMappedTest(): void
     {
-        $root  = dirname(__DIR__, 2);
-        $tests = array_map(static fn (\SplFileInfo $file): string => $file->getBasename('.php'), self::files($root . '/tests'));
+        $root   = dirname(__DIR__, 2);
+        $suites = array_merge(...array_map(static fn (string $suite): array => self::files($root . '/tests/' . $suite), self::SUITES));
+        $tests  = array_map(static fn (\SplFileInfo $file): string => $file->getBasename('.php'), $suites);
 
         $unmapped = [];
 

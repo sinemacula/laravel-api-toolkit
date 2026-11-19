@@ -74,8 +74,11 @@ final readonly class RequestBodyResolver
             return true;
         }
 
-        $anyOf = array_filter((array) ($schema['anyOf'] ?? []), is_array(...));
-        $allOf = array_filter((array) ($schema['allOf'] ?? []), is_array(...));
+        /** @var list<array<array-key, mixed>> $anyOf */
+        $anyOf = $schema['anyOf'] ?? [];
+
+        /** @var list<array<array-key, mixed>> $allOf */
+        $allOf = $schema['allOf'] ?? [];
 
         return ($anyOf !== [] && array_filter($anyOf, fn (array $branch): bool => !$this->demandsBody($branch)) === [])
             || array_filter($allOf, $this->demandsBody(...)) !== [];

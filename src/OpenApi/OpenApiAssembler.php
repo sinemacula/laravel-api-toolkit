@@ -273,7 +273,8 @@ final readonly class OpenApiAssembler
             }
         }
 
-        return array_keys($names);
+        // A numeric name comes back from the keys as an integer
+        return array_map('strval', array_keys($names));
     }
 
     /**
@@ -296,14 +297,14 @@ final readonly class OpenApiAssembler
      * requirements.
      *
      * @param  array<string, mixed>  $operation
-     * @return list<string>
+     * @return list<array-key>
      */
     private function schemeNamesIn(array $operation): array
     {
         $names = [];
 
         foreach ((array) ($operation['security'] ?? []) as $requirement) {
-            $names = array_merge($names, array_map('strval', array_keys((array) $requirement)));
+            $names = array_merge($names, array_keys((array) $requirement));
         }
 
         return $names;
