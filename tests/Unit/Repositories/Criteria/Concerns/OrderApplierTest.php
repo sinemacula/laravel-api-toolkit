@@ -4,28 +4,36 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
+use Illuminate\Database\Query\Expression;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
+use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationAggregateOrder;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\SearchableFilterableUserResource;
+use Tests\Fixtures\Resources\SortableUserResource;
 use Tests\TestCase;
 
 /**
@@ -54,7 +62,7 @@ final class OrderApplierTest extends TestCase
 
         assert($this->app !== null);
 
-        $this->applier = new OrderApplier($this->app->make(SchemaIntrospectionProvider::class), $this->searchApplier());
+        $this->applier = new OrderApplier($this->app->make(SchemaIntrospectionProvider::class), $this->searchApplier(), $this->aggregateOrder());
     }
 
     /**
@@ -265,7 +273,7 @@ final class OrderApplierTest extends TestCase
         $introspector = self::createStub(SchemaIntrospectionProvider::class);
         $introspector->method('getColumnDefinitions')->willReturn(['name' => new ColumnDefinition('name', 'varchar', true)]);
 
-        $result = (new OrderApplier($introspector, $this->searchApplier()))->apply((new User)->newQuery(), ['email' => 'asc'], $this->surface());
+        $result = (new OrderApplier($introspector, $this->searchApplier(), $this->aggregateOrder()))->apply((new User)->newQuery(), ['email' => 'asc'], $this->surface());
 
         self::assertSame([['column' => 'users.email', 'direction' => 'asc']], $result->getQuery()->orders);
     }
@@ -285,12 +293,81 @@ final class OrderApplierTest extends TestCase
         $introspector = $this->createMock(SchemaIntrospectionProvider::class);
         $introspector->expects(self::never())->method('getColumnDefinitions');
 
-        $result = (new OrderApplier($introspector, $this->searchApplier()))->apply((new User)->newQuery(), ['random' => 'asc', 'created_at' => 'desc'], $this->surface());
+        $applier = new OrderApplier($introspector, $this->searchApplier(), $this->aggregateOrder());
+        $result  = $applier->apply((new User)->newQuery(), ['random' => 'asc', 'created_at' => 'desc'], $this->surface());
 
         $orders = $result->getQuery()->orders ?? [];
 
         self::assertCount(2, $orders);
         self::assertSame(['column' => 'users.created_at', 'direction' => 'desc'], $orders[1]);
+    }
+
+    /**
+     * Test that aggregate and relation keys order an offset read in place,
+     * beside a column, each with its own direction.
+     *
+     * @return void
+     */
+    public function testAggregateAndRelationKeysOrderAnOffsetReadInPlace(): void
+    {
+        $order  = ['aggregates.posts_count' => 'desc', 'name' => 'asc', 'latestArticle.views' => 'asc'];
+        $result = $this->applier->apply((new User)->newQuery(), $order, $this->sortableSurface());
+
+        $orders = $result->getQuery()->orders ?? [];
+
+        self::assertCount(3, $orders);
+        self::assertInstanceOf(Expression::class, $orders[0]['column']);
+        self::assertSame('desc', $orders[0]['direction']);
+        self::assertSame(['column' => 'users.name', 'direction' => 'asc'], $orders[1]);
+        self::assertInstanceOf(Expression::class, $orders[2]['column']);
+        self::assertSame('asc', $orders[2]['direction']);
+    }
+
+    /**
+     * Test that a cursor-paginated read refuses an aggregate or relation key,
+     * after refusing an undeclared one as undeclared.
+     *
+     * @return void
+     */
+    public function testAggregateAndRelationKeysAreRejectedUnderCursorPagination(): void
+    {
+        $this->paginateByCursor();
+
+        foreach (['aggregates.posts_count', 'latestArticle.views'] as $key) {
+            $this->assertRejectsWith(
+                fn () => $this->applier->apply((new User)->newQuery(), [$key => 'asc'], $this->sortableSurface()),
+                $key,
+                sprintf('The "%s" key cannot order a cursor-paginated read; use offset pagination.', $key),
+            );
+        }
+
+        $this->assertRejects(fn () => $this->applier->apply((new User)->newQuery(), ['aggregates.missing' => 'asc'], $this->sortableSurface()), 'aggregates.missing');
+    }
+
+    /**
+     * Test that a relation key over a plain has-one is refused as a defect of
+     * the resource the read names, or of the model where it names none.
+     *
+     * @return void
+     */
+    public function testPlainHasOneRelationKeyIsRefusedAsADefectOfTheNamedResource(): void
+    {
+        $profile = new CompiledFieldDefinition(null, null, 'profile', FilterableUserResource::class, null, null, [], [], [], [], sortThroughReason: 'Admin list');
+        $surface = new QuerySurface(
+            new CompiledSchema(['profile' => $profile], traversableResources: ['profile' => FilterableUserResource::class], sortableRelations: ['profile' => ['profile']]),
+            new RelationTraversal(app(SchemaIntrospectionProvider::class), []),
+            new CallerAdmission(Request::create('/'), new GuardEvaluator),
+            app(OperatorRegistry::class),
+        );
+
+        foreach ([SortableUserResource::class => SortableUserResource::class, User::class => null] as $named => $resourceClass) {
+            try {
+                $this->applier->apply((new User)->newQuery(), ['profile.name' => 'asc'], $surface, null, $resourceClass);
+                self::fail('Expected an InvalidSchemaException for a plain has-one relation key.');
+            } catch (InvalidSchemaException $exception) {
+                self::assertStringStartsWith(sprintf('[%s] Field "profile"', $named), (string) $exception->getErrors()[0]);
+            }
+        }
     }
 
     /**
@@ -392,6 +469,31 @@ final class OrderApplierTest extends TestCase
     {
         return new QuerySurface(
             new CompiledSchema([], sortableColumns: ['name', 'email', 'created_at']),
+            new RelationTraversal(app(SchemaIntrospectionProvider::class), []),
+            new CallerAdmission(Request::create('/'), new GuardEvaluator),
+            app(OperatorRegistry::class),
+        );
+    }
+
+    /**
+     * Build the relation aggregate order over a closed trashed gate.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationAggregateOrder
+     */
+    private function aggregateOrder(): RelationAggregateOrder
+    {
+        return new RelationAggregateOrder(new RelationTrashedGate(app(SchemaIntrospectionProvider::class), Request::create('/'), []));
+    }
+
+    /**
+     * Build a query surface over the sortable user resource.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
+     */
+    private function sortableSurface(): QuerySurface
+    {
+        return new QuerySurface(
+            SchemaCompiler::compile(SortableUserResource::class),
             new RelationTraversal(app(SchemaIntrospectionProvider::class), []),
             new CallerAdmission(Request::create('/'), new GuardEvaluator),
             app(OperatorRegistry::class),

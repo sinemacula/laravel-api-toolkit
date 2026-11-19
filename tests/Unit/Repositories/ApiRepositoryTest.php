@@ -6,6 +6,7 @@ namespace Tests\Unit\Repositories;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Contracts\Pagination\CursorPaginator;
+use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Exceptions\PreconditionFailedException;
@@ -43,6 +45,7 @@ use Tests\Fixtures\Repositories\DeferrableModelRepository;
 use Tests\Fixtures\Repositories\DocumentRepository;
 use Tests\Fixtures\Repositories\DummyRepository;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Support\UnreachableCacheStore;
@@ -445,6 +448,131 @@ final class ApiRepositoryTest extends TestCase
         $this->parseRequest(new Request(['limit' => '5', 'page' => '4']));
 
         self::assertCount(1, $this->repository->usingResource(UserResource::class)->withApiCriteria()->get());
+    }
+
+    /**
+     * Provide the pagination modes a page size is bounded in.
+     *
+     * @return iterable<string, array{array<string, string>}>
+     */
+    public static function paginationModeProvider(): iterable
+    {
+        yield 'offset' => [[]];
+        yield 'cursor' => [['pagination' => 'cursor']];
+    }
+
+    /**
+     * Test that a page with no size asked for is served at the resource's own
+     * ceiling.
+     *
+     * @param  array<string, string>  $mode
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    #[DataProvider('paginationModeProvider')]
+    public function testPaginateServesAnUnsizedPageAtTheResourceCeiling(array $mode): void
+    {
+        $this->seedThreeUsers();
+
+        $this->parseRequest(new Request($mode));
+
+        $page = $this->repository->usingResource(CappedPageUserResource::class)->paginate();
+
+        self::assertTrue($page instanceof Paginator || $page instanceof CursorPaginator);
+        self::assertSame(2, $page->perPage());
+        self::assertCount(2, $page->items());
+    }
+
+    /**
+     * Test that a page size at the resource's ceiling is served and one above
+     * it is refused, naming that ceiling.
+     *
+     * @param  array<string, string>  $mode
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    #[DataProvider('paginationModeProvider')]
+    public function testPaginateHoldsThePageSizeToTheResourceCeiling(array $mode): void
+    {
+        $this->seedThreeUsers();
+
+        $repository = $this->repository->usingResource(CappedPageUserResource::class);
+
+        $this->parseRequest(new Request(['limit' => '2', ...$mode]));
+
+        $page = $repository->paginate();
+
+        self::assertInstanceOf(\Countable::class, $page);
+        self::assertCount(2, $page);
+
+        $this->parseRequest(new Request(['limit' => '3', ...$mode]));
+
+        try {
+            $repository->paginate();
+            self::fail('Expected the page size to be refused.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame(['parameter' => 'limit', 'pointer' => '', 'reason' => 'max_limit', 'limit' => 2, 'actual' => 3], $exception->getCustomMeta());
+        }
+    }
+
+    /**
+     * Test that the ceiling of the mapped resource applies, and a named
+     * resource replaces it.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testPaginateHoldsThePageSizeToTheResolvedResource(): void
+    {
+        Config::set('api-toolkit.resources.resource_map.' . User::class, CappedPageUserResource::class);
+
+        $this->seedThreeUsers();
+
+        $this->parseRequest(new Request(['limit' => '3']));
+
+        $page = $this->repository->usingResource(UserResource::class)->paginate();
+
+        self::assertInstanceOf(LengthAwarePaginator::class, $page);
+        self::assertCount(3, $page);
+
+        $this->expectException(QueryTooExpensiveException::class);
+
+        $this->repository->usingResource(null)->paginate();
+    }
+
+    /**
+     * Test that the offset cap counts its pages at the resource's ceiling.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testOffsetCapCountsPagesAtTheResourceCeiling(): void
+    {
+        Config::set('api-toolkit.query_cost.max_offset', 4);
+
+        $this->seedThreeUsers();
+
+        $repository = $this->repository->usingResource(CappedPageUserResource::class);
+
+        $this->parseRequest(new Request(['page' => '3']));
+
+        $page = $repository->paginate();
+
+        self::assertInstanceOf(LengthAwarePaginator::class, $page);
+        self::assertCount(0, $page);
+
+        $this->parseRequest(new Request(['page' => '4']));
+
+        try {
+            $repository->paginate();
+            self::fail('Expected the page to be refused.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame(['parameter' => 'page', 'pointer' => '', 'reason' => 'max_offset', 'limit' => 3, 'actual' => 4], $exception->getCustomMeta());
+        }
     }
 
     /**
@@ -1134,6 +1262,18 @@ final class ApiRepositoryTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query');
         $parser->parse($request);
+    }
+
+    /**
+     * Seed three users.
+     *
+     * @return void
+     */
+    private function seedThreeUsers(): void
+    {
+        User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        User::create(['name' => 'Bob', 'email' => self::BOB_EMAIL]);
+        User::create(['name' => 'Carol', 'email' => 'carol@example.com']);
     }
 
     /**

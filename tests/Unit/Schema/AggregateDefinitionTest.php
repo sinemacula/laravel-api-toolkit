@@ -242,4 +242,18 @@ final class AggregateDefinitionTest extends TestCase
 
         self::assertArrayHasKey('openapi', $array['__aggregate__:posts_sum_id']);
     }
+
+    /**
+     * Test that a sortable aggregate emits the sortable marker and its reason.
+     *
+     * @return void
+     */
+    public function testSortableAggregateEmitsTheMarkerAndItsReason(): void
+    {
+        $data = Count::of('posts')->sortable('Leaderboard')->toArray()['__aggregate__:posts_count'];
+
+        self::assertSame(['key', 'metric', 'relation', 'sortable', 'unindexed'], array_keys($data));
+        self::assertTrue($data['sortable']);
+        self::assertSame('Leaderboard', $data['unindexed']);
+    }
 }

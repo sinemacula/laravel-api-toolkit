@@ -38,6 +38,7 @@ final readonly class CompiledFieldDefinition
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy|null  $searchStrategy
      * @param  int|null  $limit
      * @param  array<int, callable(mixed): bool>  $callerGuards
+     * @param  string|null  $sortThroughReason
      * @param  array<int, string>  $pivot
      */
     public function __construct(
@@ -101,6 +102,9 @@ final readonly class CompiledFieldDefinition
 
         /** Caller guard closures that control visibility */
         public array $callerGuards = [],
+
+        /** Why an order through the relation may run unindexed; null when not sortable */
+        public ?string $sortThroughReason = null,
 
         /** Pivot columns rendered on each child of the relation */
         public array $pivot = [],

@@ -257,6 +257,33 @@ orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode
 ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column cannot hold is rejected
 with a `422` on `cursor`; restart from the first page.
 
+**Sorting by aggregates and relations** - an aggregate or a to-one relation declared `sortable()` can order a read.
+No index serves an order by a correlated subquery, so the declaration takes the reason the order may run unindexed:
+
+```php
+Count::of('posts')->sortable('Leaderboard; the active filter bounds the set'),
+Sum::of('orders', 'total', 'spend')->sortable('Admin list of a few thousand accounts'),
+Relation::to('customer', CustomerResource::class)->sortable('Back-office order list'),
+```
+
+```http
+GET /users?order=aggregates.posts_count:desc
+GET /orders?order=customer.name
+```
+
+An aggregate is ordered by `aggregates.{key}`, the path its value renders under, whether or not the request selects
+it. A relation is ordered by `{relation}.{column}`: the Eloquent relation name and a `sortable()` column of the
+resource the relation renders, one hop deep. Only a `BelongsTo`, or a `HasOne`, `MorphOne` or `HasOneThrough` declared
+with `latestOfMany()` or `ofMany()`, may be sortable, so the order always reads the row the response renders; schema
+validation reports any other. A sortable relation renders a resource, takes no `constrain()` and no row guard, and
+caller guards on the relation, the column or the aggregate hide the key as they hide the field.
+
+The order reads the stored value before transformers, runs the aggregate's constraint, the related model's global scopes
+and the request's `trashed` state, and counts once against `max_order_keys`. A relation key orders a row with no related
+row, or one a `withDefault()` relation fills in, as `NULL`, and an aggregate key orders an empty sum, average, minimum
+or maximum as `NULL` and an empty count as `0`; the engine places `NULL` first ascending on MySQL and SQLite and last on
+PostgreSQL. These keys cannot order a cursor-paginated read, which is refused with a `422` on `order.{key}`.
+
 **Page-size ceiling** - a `?limit` above `api-toolkit.parser.max_limit` (default 100) is rejected with a `422` naming
 the ceiling and the requested size, not reduced to the ceiling. Set the ceiling to `0` to disable it:
 
@@ -264,6 +291,20 @@ the ceiling and the requested size, not reduced to the ceiling. Set the ceiling 
 GET /users?limit=200   // 422, the ceiling is 100
 GET /users?limit=25    // honoured as-is
 ```
+
+A resource whose rows are expensive can lower the ceiling for itself. Its pages default to the lower of
+`parser.defaults.limit` and its ceiling, and the exported `limit` parameter and query surface docs state both:
+
+```php
+public static function maxLimit(): ?int
+{
+    return 25;
+}
+```
+
+It can only lower the configured ceiling: a value above it changes nothing, it applies alone while the configured
+ceiling is `0`, and a value below 1 throws a `LogicException`. `paginate()` and `withApiCriteria()` refuse a `limit`
+over it with the same `422`, for the resource the repository resolves, including one named with `usingResource()`.
 
 **Relation aggregates** - request declared aggregates per resource type by their keys. Requesting any aggregate replaces
 every default of that type, as `?fields` replaces `$default`. A type's aggregates apply wherever it renders, at the root
@@ -728,6 +769,8 @@ Two overrides cover what the catalogue cannot show:
 - `indexed('users_lower_name_index')` names the index behind the column, such as an expression or partial index. The
   name must exist on the table; what it covers is not checked.
 - `unindexed('the table is bounded at a few hundred rows')` records a deliberate exemption. The reason is required.
+
+A sortable aggregate or relation is never index-backed, so its `sortable()` carries the exemption's reason itself.
 
 **Random ordering** - `?order=random` is disabled by default. Enable it with
 `api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_REPOSITORIES_ALLOW_RANDOM_ORDER=true`); while disabled,

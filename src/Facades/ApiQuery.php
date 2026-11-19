@@ -19,7 +19,6 @@ use SineMacula\ApiToolkit\Config\HttpSettings;
  * @method static \SineMacula\ApiToolkit\Search\SearchTerm|null getSearch()
  * @method static array<string, 'asc'|'desc'> getOrder()
  * @method static int|null getLimit()
- * @method static int getResolvedLimit()
  * @method static bool isCursorPaginated()
  * @method static int getPage()
  * @method static string|null getCursor()

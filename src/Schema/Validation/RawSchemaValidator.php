@@ -66,6 +66,7 @@ final class RawSchemaValidator
                 ...self::collectDefects($definition),
                 ...self::collectPivotDefects($definition['pivot'] ?? null),
                 ...self::collectGuardDefects($definition),
+                ...self::collectSortDefects($definition),
                 ...self::collectCapabilityDefects($key, $definition, $capabilities),
                 ...self::collectAggregateDefects($key, $definition, $aggregates),
                 ...self::collectRelationDefects($key, $definition, $relations, $traversed),
@@ -173,7 +174,9 @@ final class RawSchemaValidator
 
         foreach (self::QUERY_DECLARATIONS as $declaration) {
 
-            if (!$rowGuarded || !is_string($definition[$declaration] ?? null)) {
+            $marker = $definition[$declaration] ?? null;
+
+            if (!$rowGuarded || (!is_string($marker) && $marker !== true)) {
                 continue;
             }
 
@@ -183,6 +186,60 @@ final class RawSchemaValidator
 
         if (self::carries($definition, 'caller_guards') && is_string($definition['searchable'] ?? null)) {
             $defects[] = 'A field with a caller guard may not be searchable, as a search matches the same columns for every caller';
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Collect the defects in a relation or aggregate declared sortable.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return list<string>
+     */
+    private static function collectSortDefects(array $definition): array
+    {
+        $metric   = self::aggregateFunction($definition) !== null;
+        $relation = $metric ? null : SchemaCompiler::resolveFieldRelation($definition);
+
+        if (($definition['sortable'] ?? null) !== true || (!$metric && $relation === null)) {
+            return [];
+        }
+
+        $reason  = $definition['unindexed'] ?? null;
+        $defects = $relation === null ? [] : self::collectSortableRelationDefects($relation, $definition);
+
+        if (!is_string($reason) || trim($reason) === '') {
+            array_unshift($defects, 'A sortable relation or aggregate must carry the reason its order is unindexed');
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Collect the defects in a sortable relation.
+     *
+     * The order reruns no relation constraint, and the aggregate order keys
+     * would shadow a relation named after their prefix.
+     *
+     * @param  string  $relation
+     * @param  array<string, mixed>  $definition
+     * @return list<string>
+     */
+    private static function collectSortableRelationDefects(string $relation, array $definition): array
+    {
+        $defects = [];
+
+        if (!is_string($definition['resource'] ?? null)) {
+            $defects[] = 'A sortable relation must render a child resource, whose sortable columns it orders by';
+        }
+
+        if (isset($definition['constraint'])) {
+            $defects[] = 'A sortable relation may not be constrained, as its order would read the rows the constraint hides';
+        }
+
+        if ($relation === self::AGGREGATES_KEY) {
+            $defects[] = sprintf('A sortable relation may not be named "%s", which prefixes the aggregate order keys', self::AGGREGATES_KEY);
         }
 
         return $defects;

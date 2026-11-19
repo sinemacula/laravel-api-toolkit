@@ -415,4 +415,16 @@ final class RelationTest extends TestCase
 
         Relation::to('members', OrganizationResource::class)->pivot();
     }
+
+    /**
+     * Test that a sortable relation emits the sortable marker and its reason.
+     *
+     * @return void
+     */
+    public function testSortableRelationEmitsTheMarkerAndItsReason(): void
+    {
+        $array = Relation::to('organization', OrganizationResource::class)->sortable('Back-office list')->toArray();
+
+        self::assertSame(['relation' => 'organization', 'resource' => OrganizationResource::class, 'sortable' => true, 'unindexed' => 'Back-office list'], $array['organization']);
+    }
 }
