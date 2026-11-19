@@ -218,20 +218,13 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that getStructuralOperators returns the four structural tokens.
+     * Test that getStructuralOperators returns every structural token.
      *
      * @return void
      */
-    public function testGetStructuralOperatorsReturnsAllFour(): void
+    public function testGetStructuralOperatorsReturnsEveryStructuralToken(): void
     {
-        $catalogue  = $this->makeCatalogue();
-        $structural = $catalogue->getStructuralOperators();
-
-        self::assertCount(4, $structural);
-        self::assertContains('$and', $structural);
-        self::assertContains('$or', $structural);
-        self::assertContains('$has', $structural);
-        self::assertContains('$hasnt', $structural);
+        self::assertSame(['$and', '$or', '$has', '$hasnt', '$scope'], $this->makeCatalogue()->getStructuralOperators());
     }
 
     /**

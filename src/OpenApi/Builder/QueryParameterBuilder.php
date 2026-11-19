@@ -215,6 +215,8 @@ final readonly class QueryParameterBuilder
                 . 'e.g. filters={"status":"active","$or":[{"role":"admin"},{"role":"owner"}]}. '
                 . 'A traversable relation key takes a filter document for the related resource. '
                 . '$has and $hasnt take a relation name, a list of names, or relation names keyed to filter documents. '
+                . '$scope invokes the named scopes the resource declares: a scope name, a list of names, or names keyed to objects of arguments, '
+                . 'e.g. filters={"$scope":{"near":{"lat":51.5,"lng":-0.12,"km":5}}}. '
                 . 'Each operator\'s value must fit its shape and the field\'s type, and a date-time is sent in the form the field emits. '
                 . 'The operator grammar is documented at the pattern level; each resource accepts only the fields it declares filterable.',
                 implode(', ', $operators),

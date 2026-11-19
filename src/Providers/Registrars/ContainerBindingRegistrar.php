@@ -55,6 +55,7 @@ use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationInterfaces;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationLimits;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateScopes;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchIndexes;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSensitiveColumns;
@@ -211,6 +212,7 @@ final readonly class ContainerBindingRegistrar
             new ValidateRelationClasses,
             new ValidateRelationInterfaces,
             new ValidateRelationMethods,
+            new ValidateScopes,
             new ValidateRelationLimits,
             new ValidateComputedFields,
             new ValidateAccessors,
