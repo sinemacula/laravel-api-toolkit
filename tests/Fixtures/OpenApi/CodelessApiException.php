@@ -9,10 +9,8 @@ use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseHeader;
 use SineMacula\Http\Enums\HttpStatus;
 
 /**
- * Fixture exception that reports a status but carries no error code.
- *
- * Its status and header are documented without an example, since an example is
- * keyed by error code.
+ * Fixture exception that reports a status but carries no error code, so the
+ * handler cannot render it and documenting it fails the export.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

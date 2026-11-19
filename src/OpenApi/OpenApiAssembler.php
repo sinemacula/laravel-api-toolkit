@@ -76,7 +76,7 @@ final readonly class OpenApiAssembler
         /** The builder for reusable query parameter definitions. */
         private QueryParameterBuilder $parameterBuilder,
 
-        /** The builder of the shared error-envelope schema. */
+        /** The builder of the per-code error-envelope schemas. */
         private ErrorResponseBuilder $responseBuilder,
 
         /** The builder for the per-audience paths object. */
@@ -320,10 +320,8 @@ final readonly class OpenApiAssembler
     private function buildSchemas(array $paths): array
     {
         $resourceSchemas = $this->schemaBuilder->build();
-        $envelopeSchemas = array_merge(
-            [ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME => $this->responseBuilder->buildEnvelopeSchema()],
-            $this->envelopeBuilder->buildSchemas(),
-        );
+        $errorSchemas    = $this->responseBuilder->buildEnvelopeSchemas($paths);
+        $envelopeSchemas = $this->envelopeBuilder->buildSchemas();
 
         $reserved = $this->schemaBuilder->claims();
         $guard    = new SchemaNameCollisionGuard;
@@ -332,11 +330,16 @@ final readonly class OpenApiAssembler
             $guard->claim($reserved, $name, EnvelopeBuilder::class);
         }
 
+        foreach (array_keys($errorSchemas) as $name) {
+            $guard->claim($reserved, $name, ErrorResponseBuilder::class);
+        }
+
         $definedSchemas = $this->definedSchemaBuilder->build($this->definedSchemas->classes(), $this->enums->classes(), $reserved);
 
         $schemas = array_replace(
             $resourceSchemas,
             $envelopeSchemas,
+            $errorSchemas,
             $definedSchemas,
             $this->enumBuilder->build($this->enums->classes(), $reserved),
         );
@@ -351,9 +354,6 @@ final readonly class OpenApiAssembler
      */
     private function sharedSchemaNames(): array
     {
-        return [
-            ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME,
-            ...array_keys($this->envelopeBuilder->buildSchemas()),
-        ];
+        return array_keys($this->envelopeBuilder->buildSchemas());
     }
 }

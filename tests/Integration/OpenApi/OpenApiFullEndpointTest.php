@@ -85,7 +85,7 @@ final class OpenApiFullEndpointTest extends TestCase
         self::assertSame([['bearerAuth' => []]], $operation['security']);
 
         self::assertSame(
-            ['$ref' => '#/components/schemas/ErrorEnvelope'],
+            ['$ref' => '#/components/schemas/Error10108'],
             $operation['responses'][409]['content']['application/json']['schema'],
         );
         self::assertIsArray($operation['responses']);
