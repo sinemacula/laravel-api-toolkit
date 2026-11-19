@@ -17,6 +17,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\RelationWindow;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Schema\RelationLimit;
 use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
@@ -27,8 +28,10 @@ use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Repositories\ArticleRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\BoundedArticleResource;
 use Tests\Fixtures\Resources\BoundedOrganizationResource;
 use Tests\Fixtures\Resources\BoundedPostResource;
 use Tests\Fixtures\Resources\BoundedUserResource;
@@ -48,6 +51,7 @@ use Tests\TestCase;
 #[CoversClass(ApiResource::class)]
 #[CoversClass(EagerLoadPlanner::class)]
 #[CoversClass(RelationLimit::class)]
+#[CoversClass(RelationTrashedGate::class)]
 #[CoversClass(RelationWindow::class)]
 #[CoversClass(ValueResolver::class)]
 final class BoundedRelationHttpTest extends TestCase
@@ -55,7 +59,7 @@ final class BoundedRelationHttpTest extends TestCase
     use RecordsStatements, RegistersApiExceptionHandler;
 
     /**
-     * Set up the users index, user show and organizations routes.
+     * Set up the users index, user show, articles and organizations routes.
      *
      * @return void
      */
@@ -66,6 +70,7 @@ final class BoundedRelationHttpTest extends TestCase
 
         Config::set(ResourceDiscovery::RESOURCES_KEY, [
             ArticleResource::class,
+            BoundedArticleResource::class,
             BoundedOrganizationResource::class,
             BoundedPostResource::class,
             BoundedUserResource::class,
@@ -90,6 +95,13 @@ final class BoundedRelationHttpTest extends TestCase
             $user = User::query()->findOrFail($id);
 
             return new BoundedUserResource($user, loadMissing: true);
+        });
+
+        Route::middleware(ParseApiQuery::class)->get('/articles', function (ArticleRepository $repository): ApiResourceCollection {
+
+            $articles = $repository->usingResource(BoundedArticleResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($articles, BoundedArticleResource::class);
         });
 
         Route::middleware(ParseApiQuery::class)->get('/organizations', function (): ApiResourceCollection {
@@ -379,6 +391,52 @@ final class BoundedRelationHttpTest extends TestCase
         $this->getJson('/users?trashed=with&fields[bounded_users]=name,articles&fields[articles]=slug')
             ->assertUnprocessable()
             ->assertJsonPath('error.meta.trashed.0', fn ($message): bool => is_string($message) && $message !== '');
+    }
+
+    /**
+     * Provide each trashed state with the root count, the sibling slugs inside
+     * the bound and whether the bound cuts them.
+     *
+     * @return iterable<string, array{string, int, array<int, string>, bool}>
+     */
+    public static function trashedBoundProvider(): iterable
+    {
+        yield 'live only' => ['', 2, ['first', 'second'], false];
+        yield 'with trashed' => ['&trashed=with', 3, ['removed', 'first'], true];
+        yield 'only trashed' => ['&trashed=only', 1, ['removed'], false];
+    }
+
+    /**
+     * Test that a relation opted in to trashed rows counts them inside its
+     * bound under each state of a trashed-widened root.
+     *
+     * @param  string  $trashed
+     * @param  int  $roots
+     * @param  array<int, string>  $slugs
+     * @param  bool  $truncated
+     * @return void
+     */
+    #[DataProvider('trashedBoundProvider')]
+    public function testTrashedRowsCountInsideTheBoundOfAnOptedInRelation(string $trashed, int $roots, array $slugs, bool $truncated): void
+    {
+        $author = User::create(['name' => 'Author', 'email' => 'author@example.com']);
+
+        $removed = $this->seedArticle($author->id, 'removed');
+        $this->seedArticle($author->id, 'first');
+        $this->seedArticle($author->id, 'second');
+
+        $removed->delete();
+
+        $response = $this->getJson('/articles?fields[articles]=slug' . $trashed);
+
+        $response->assertOk();
+        $response->assertJsonCount($roots, 'data');
+
+        foreach (self::rows($response->json('data')) as $article) {
+
+            self::assertSame($slugs, array_column(self::rows($article['siblingArticles']), 'slug'));
+            self::assertSame($truncated ? ['siblingArticles'] : null, $article['_truncated'] ?? null);
+        }
     }
 
     /**

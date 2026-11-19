@@ -300,9 +300,10 @@ without an explicit projection, which MySQL refuses to count.
 **Soft deletes** - `?trashed=with` or `?trashed=only`, read as a `TrashedState` from `ApiQuery::getTrashed()`. The
 criteria layer applies it only where the model uses `SoftDeletes` and the resource opts in by overriding
 `allowsTrashed()`; anywhere else the request is refused with a 422 on `trashed`, as is any value other than `with` or
-`only`, so a client never mistakes live records for the ones it asked for. On a read through the criteria, an included
-relation follows the state where its own resource opts in and otherwise stays live; a read that applies no criteria,
-such as implicit route-model binding, only checks the value.
+`only`, so a client never mistakes live records for the ones it asked for. On a read through the criteria, a relation
+follows the state where its own resource opts in and otherwise stays live, wherever it is included, aggregated or
+filtered on (`$has` and `$hasnt` too). A read that applies no criteria, such as implicit route-model binding, only
+checks the value.
 
 ### Schema-Driven ApiResource
 
@@ -355,26 +356,29 @@ exported schema. The key defaults to Laravel's own attribute name and `as()` or 
 |-----------------------------------|-------------------------|---------------------------------------|
 | `Count::of('posts')`              | `posts_count`           | integer, `0` without related rows     |
 | `Exists::of('posts')`             | `posts_exists`          | boolean, `false` without related rows |
-| `Sum::of('orders', 'total')`      | `orders_sum_total`      | number                                |
-| `Average::of('orders', 'total')`  | `orders_avg_total`      | number                                |
-| `Min::of('variants', 'price')`    | `variants_min_price`    | the column's value                    |
-| `Max::of('orders', 'created_at')` | `orders_max_created_at` | the column's value                    |
+| `Sum::of('orders', 'total')`      | `orders_sum_total`      | number or `null`                      |
+| `Average::of('orders', 'total')`  | `orders_avg_total`      | number or `null`                      |
+| `Min::of('variants', 'price')`    | `variants_min_price`    | the column's value or `null`          |
+| `Max::of('orders', 'created_at')` | `orders_max_created_at` | the column's value or `null`          |
 
 `constrain()` narrows the related rows, `default()` includes the aggregate when the request names none, and `guard()`,
-`visibleTo()` and `transform()` work as on fields. A minimum or maximum is read the way the related model reads that
-column, so a timestamp renders as ISO 8601 and a cast enum as its value. Sum, average, minimum and maximum over zero
-related rows are omitted. `api-toolkit:schemas:validate` rejects an aggregate over a sensitive or missing column, a sum
-or average over a non-numeric column, a minimum or maximum the related model would read back through an accessor or a
-non-scalar cast, a `MorphTo` relation, and an `aggregate_<key>` attribute the owner model already uses as a column, cast
-or setter.
+`visibleTo()`, `transform()` and `openapi()` work as on fields. Sum, average, minimum and maximum are `null` over zero
+related rows. A sum or average is a JSON number on every engine, so a decimal column sums with float precision. A
+minimum or maximum is read the way the related model reads that column, so a timestamp renders as
+`2026-01-01T10:00:00.000000Z`, a `decimal:2` cast as an exact string such as `"12.50"` and a cast enum as its value. A
+key that reads as an integer, such as `12`, fails to compile. `api-toolkit:schemas:validate` rejects an aggregate over a
+sensitive or missing column, a sum or average over a non-numeric column, a minimum or maximum the related model would
+read back through an accessor or a non-scalar cast, a `MorphTo` relation, and an `aggregate_<key>` attribute the owner
+model already uses as a column, cast or setter.
 
 Only fields marked `filterable()` or `sortable()` can be queried, and `?search=` matches only fields marked
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. A column declared filterable with
-two capabilities fails to compile. `$default` lists the fields returned when the client sends no `?fields`, and the
-static `$fixed` the fields added to every selection, after those in `resources.fixed_fields`. Schema validation rejects
-a default or fixed field the resource does not declare. A tabular export has a column for each selected field, in the
-order selected: the requested fields, every field for `:all`, or the defaults. Relations are left out and fixed fields
-are not added.
+two capabilities fails to compile, as does a field named `_type` or `_truncated`, or one named `aggregates` beside a
+declared aggregate, since the response writes those keys itself. `$default` lists the fields returned when the client
+sends no `?fields`, and the static `$fixed` the fields added to every selection, after those in
+`resources.fixed_fields`. Schema validation rejects a default or fixed field the resource does not declare. A tabular
+export has a column for each selected field, in the order selected: the requested fields, every field for `:all`, or the
+defaults. Relations are left out and fixed fields are not added.
 
 **Guards** - `guard(fn ($resource, $request) => ...)` is a row guard and `visibleTo(fn ($request) => ...)` a caller
 guard; either hides the field, aggregate or relation when it returns exactly `false`. A query cannot honour a row guard
@@ -528,8 +532,8 @@ Validation checks that:
 - an ordered index leads with every `sortable()` column, unless the field carries `indexed()` or `unindexed()`.
 - an index on the connection serves every `searchable()` declaration in the shape its strategy needs.
 - no declaration names a column configured as sensitive.
-- every `limit()` sits on a to-many relation rendered through a child resource, every field over one relation shares
-  one limit, and no field is named `_truncated`.
+- every `limit()` sits on a to-many relation rendered through a child resource, and every field over one relation
+  shares one limit.
 
 Every resource a filter reaches through a `traversable()` relation is validated too, once per related model, whether or
 not the resource map lists it.
@@ -757,8 +761,10 @@ rows wait for the next deferral outside a transaction or for the boundary flush,
 not undo them. A flush that does run inside an open transaction joins it: `flushWrites()` called there, or a boundary
 flush while an outer transaction is still open, such as a sync-queued job dispatched inside one. Each chunk then runs in
 its own savepoint, or each table with `deferred_writes.transactional`, so a failure rolls back only that chunk or table
-and the transaction stays usable. A deadlock is the exception: the database may already have rolled back the whole
-transaction.
+and the transaction stays usable. A deadlock or a lost connection ends the transaction instead, whatever `on_failure`
+says: the flush rethrows the error as is, so `DB::transaction()` retries a deadlock, and drops every row buffered for
+that connection. The retried closure defers its own rows again; rows deferred before the transaction opened are lost
+with it.
 
 `api-toolkit.deferred_writes.on_failure` picks what happens when a flush fails:
 

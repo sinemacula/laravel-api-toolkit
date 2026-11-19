@@ -1137,6 +1137,24 @@ final class EagerLoadPlannerTest extends TestCase
     }
 
     /**
+     * Test that a decorator handed to the closure owning a path rewrites the
+     * aggregates it loads.
+     *
+     * @return void
+     */
+    public function testAggregateDecoratorRewritesTheAggregatesTheClosureLoads(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('posts')->andReturn(['tags_count']);
+
+        $decorate = static fn (array $entries): array => array_map(static fn (array $entry): array => ['relation' => 'tags as decorated_count'] + $entry, $entries);
+
+        $sql = $this->applyPlanned(self::boundedResource(['fields' => ['id', 'aggregates']]), $this->eagerRelation(new User, 'posts'), $decorate)->toSql();
+
+        self::assertStringContainsString('as "decorated_count"', $sql);
+        self::assertStringNotContainsString('aggregate_tags_count', $sql);
+    }
+
+    /**
      * Test that a child requesting no aggregate loads its defaults.
      *
      * @return void
@@ -1549,15 +1567,16 @@ final class EagerLoadPlannerTest extends TestCase
      *
      * @param  string  $resourceClass
      * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
+     * @param  (\Closure(array<mixed>): array<mixed>)|null  $decorateAggregates
      * @return \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>
      */
-    private function applyPlanned(string $resourceClass, EloquentRelation $relation): EloquentRelation
+    private function applyPlanned(string $resourceClass, EloquentRelation $relation, ?\Closure $decorateAggregates = null): EloquentRelation
     {
         $closure = current(EagerLoadPlanner::buildEagerLoadMap($resourceClass, ['posts']));
 
         self::assertInstanceOf(\Closure::class, $closure);
 
-        $closure($relation);
+        $closure($relation, $decorateAggregates);
 
         return $relation;
     }

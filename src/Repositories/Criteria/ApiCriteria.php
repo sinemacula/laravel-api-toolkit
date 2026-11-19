@@ -112,7 +112,8 @@ final class ApiCriteria implements CriteriaInterface
         /** Writes resolved resource metadata to the persistent cache */
         private readonly MetadataCacheWriter $metadataCacheWriter,
     ) {
-        $this->filterApplier               = new FilterApplier(new FilterValueGuard(new ColumnLiteral($this->schemaIntrospector)));
+        $this->relationTrashedGate         = new RelationTrashedGate($this->schemaIntrospector, $this->request, ResourceSettings::resourceMap());
+        $this->filterApplier               = new FilterApplier(new FilterValueGuard(new ColumnLiteral($this->schemaIntrospector)), $this->relationTrashedGate);
         $this->searchApplier               = new SearchApplier($this->searchDriverRegistry, new IndexProof($this->metadataCacheWriter));
         $this->orderApplier                = new OrderApplier($this->schemaIntrospector, $this->searchApplier);
         $this->eagerLoadApplier            = new EagerLoadApplier;
@@ -123,12 +124,6 @@ final class ApiCriteria implements CriteriaInterface
         $this->softDeleteVisibilityApplier = new SoftDeleteVisibilityApplier;
         $this->queryCostGuard              = new QueryCostGuard;
         $this->queryToken                  = ApiQuery::token();
-
-        $this->relationTrashedGate = new RelationTrashedGate(
-            $this->schemaIntrospector,
-            $this->request,
-            ResourceSettings::resourceMap(),
-        );
     }
 
     /**

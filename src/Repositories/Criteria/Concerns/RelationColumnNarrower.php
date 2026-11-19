@@ -207,7 +207,8 @@ final readonly class RelationColumnNarrower
     }
 
     /**
-     * Replace the path's entry with one that narrows after its constraint.
+     * Replace the path's entry with one that narrows after its constraint,
+     * handing the constraint any aggregate decorator it receives.
      *
      * @param  array<int|string, mixed>  $with
      * @param  string  $path
@@ -221,10 +222,10 @@ final readonly class RelationColumnNarrower
 
         $with = array_filter($with, static fn (mixed $value, int|string $key): bool => is_string($key) || $value !== $path, ARRAY_FILTER_USE_BOTH);
 
-        $with[$path] = static function (EloquentRelation $relation) use ($constraint, $path, $resource, $columns): void {
+        $with[$path] = static function (EloquentRelation $relation, ?\Closure $decorateAggregates = null) use ($constraint, $path, $resource, $columns): void {
 
             if ($constraint !== null) {
-                $constraint($relation);
+                $constraint($relation, $decorateAggregates);
             }
 
             if (self::hasInverse($relation)) {

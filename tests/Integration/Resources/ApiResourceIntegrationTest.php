@@ -213,7 +213,8 @@ final class ApiResourceIntegrationTest extends TestCase
 
     /**
      * Test that every function resolves identically through withAggregate() on
-     * the query and through loadAggregate() on a loaded model.
+     * the query and through loadAggregate() on a loaded model, a column
+     * aggregate over zero related rows encoding as null.
      *
      * @return void
      */
@@ -250,8 +251,10 @@ final class ApiResourceIntegrationTest extends TestCase
         self::assertSame('2026-01-01 08:00:00', $aggregates['posts_min_created_at']->format('Y-m-d H:i:s'));
         self::assertSame('2026-03-01 09:30:00', $aggregates['last_posted_at']->format('Y-m-d H:i:s'));
 
-        // Bob has no posts, so only the count and the existence check render
-        self::assertSame(['posts_count' => 0, 'has_published_posts' => false], $queryPath[1]['aggregates']);
+        self::assertSame(
+            '{"posts_count":0,"has_published_posts":false,"posts_sum_id":null,"posts_avg_id":null,"posts_min_created_at":null,"last_posted_at":null}',
+            json_encode($loadPath[1]['aggregates']),
+        );
     }
 
     /**

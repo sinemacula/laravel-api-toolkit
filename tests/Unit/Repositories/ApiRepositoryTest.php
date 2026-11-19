@@ -29,6 +29,7 @@ use SineMacula\Repositories\Contracts\CriteriaInterface;
 use Tests\Concerns\CreatesDeferredWriteTargets;
 use Tests\Concerns\CreatesDocumentTables;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\AuditEntry;
 use Tests\Fixtures\Models\Document;
@@ -61,7 +62,7 @@ use Tests\TestCase;
 #[Group('database')]
 final class ApiRepositoryTest extends TestCase
 {
-    use CreatesDeferredWriteTargets, CreatesDocumentTables, InteractsWithNonPublicMembers;
+    use CreatesDeferredWriteTargets, CreatesDocumentTables, InteractsWithNonPublicMembers, RecordsStatements;
 
     /** @var string */
     private const string ALICE_EMAIL = 'alice@example.com';
@@ -868,11 +869,12 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that a repository with Cacheable serves cached data on later reads.
+     * Test that a repository with Cacheable serves a repeated read from the
+     * cache without querying.
      *
      * @return void
      */
-    public function testApiRepositorySubclassWithCacheableTraitReturnsCachedData(): void
+    public function testApiRepositorySubclassWithCacheableTraitServesARepeatedReadFromTheCache(): void
     {
         Config::set('cache.default', 'array');
 
@@ -884,11 +886,15 @@ final class ApiRepositoryTest extends TestCase
         $repository = $this->app->make(CacheableTagRepository::class);
 
         $firstRead  = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
-        $secondRead = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+        $secondRead = null;
 
-        self::assertCount(2, $firstRead);
-        self::assertCount(2, $secondRead);
-        self::assertTrue($repository->getCacheStatus()->isPopulated());
+        $statements = $this->recordStatements(static function () use ($repository, &$secondRead): void {
+            $secondRead = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+        });
+
+        self::assertStatementCount(0, $statements);
+        self::assertSame(['php', 'laravel'], $firstRead->pluck('name')->all());
+        self::assertEquals($firstRead, $secondRead);
     }
 
     /**

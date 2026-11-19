@@ -214,6 +214,31 @@ final class RelationColumnNarrowerTest extends TestCase
     }
 
     /**
+     * Test that the aggregate decorator the narrowed entry receives is handed
+     * to the constraint it wraps.
+     *
+     * @return void
+     */
+    public function testTheAggregateDecoratorReachesTheExistingConstraint(): void
+    {
+        $received = [];
+
+        $constraint = static function (Relation $relation, ?\Closure $decorateAggregates = null) use (&$received): void {
+            $received[] = $decorateAggregates;
+        };
+
+        $with      = $this->narrower()->decorate(['posts' => $constraint], new User, UserResource::class, ['name'], ['posts' => $this->posts()]);
+        $decorator = static fn (array $entries): array => $entries;
+
+        self::assertInstanceOf(\Closure::class, $with['posts']);
+
+        $with['posts']($this->eagerRelation(new User, 'posts'), $decorator);
+        $with['posts']($this->eagerRelation(new User, 'posts'));
+
+        self::assertSame([$decorator, null], $received);
+    }
+
+    /**
      * Test that a one-of-many relation, which selects its table's wildcard, is
      * narrowed in its place.
      *

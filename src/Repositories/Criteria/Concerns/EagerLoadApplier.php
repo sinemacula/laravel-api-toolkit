@@ -62,7 +62,10 @@ final class EagerLoadApplier
         }
 
         if (in_array('aggregates', $fields, true)) {
-            foreach ($metadataProvider->eagerLoadAggregatesFor($resourceClass, ApiQuery::getAggregates($resourceType) ?? []) as $entry) {
+
+            $aggregates = $metadataProvider->eagerLoadAggregatesFor($resourceClass, ApiQuery::getAggregates($resourceType) ?? []);
+
+            foreach ($trashedGate->decorateAggregates($aggregates, ApiQuery::getTrashed()) as $entry) {
                 $query->withAggregate($entry['relation'], $entry['column'], $entry['function']);
             }
         }
