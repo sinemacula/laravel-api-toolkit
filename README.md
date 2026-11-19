@@ -770,6 +770,63 @@ the event is still dispatched.
 outcome of the most recent automatic flush (`null` if none has run). Under `collect` and `log` this is the only
 in-process signal that an auto-flush failed.
 
+#### Concurrency
+
+A versioned model lets a write refuse to overwrite a state its client never read. Implement `Versioned` with the
+`HasVersion` trait and add the column:
+
+```php
+use SineMacula\ApiToolkit\Concerns\HasVersion;
+use SineMacula\ApiToolkit\Contracts\Versioned;
+
+class Order extends Model implements Versioned
+{
+    use HasVersion;
+}
+
+// Migration
+$table->unsignedBigInteger('version')->default(1);
+```
+
+Every insert stores `1` and every update stores the stored version plus one, quiet saves included; a clean save writes
+nothing. `const VERSION = 'revision'` names another column. Saving a changed model loaded without its version throws a
+`LogicException`. `persist()` advances the version once when only many-to-many relations change. A model can implement
+`Versioned` itself to version by another column, but `updated_at` holds whole seconds, so two writes in one second share
+a version.
+
+A single-item `ToolkitResource` of a versioned model answers with a weak `ETag`, kept on narrowed `?fields` reads;
+collections and nested resources carry none. A write reads its row with `findForUpdate()` inside the transaction that
+writes it, passing the request's `If-Match`:
+
+```php
+// handle() of a service
+$order = $this->orders->findForUpdate($this->input->id, IfMatch::fromContext($this->context()));
+
+$this->orders->persist($order, $this->input->attributes);
+```
+
+`findForUpdate()` reads the row afresh under `lockForUpdate()`. A missing or scoped-out row is a `404` before the
+precondition is checked, and an `If-Match` naming neither the current tag nor `*` throws `PreconditionFailedException`
+(`412`, code `10114`), which rolls the transaction back. A malformed `If-Match` matches nothing. It throws a
+`LogicException` outside a transaction on the model's connection, or on a handle carrying `withApiCriteria()`.
+`ServiceContext::fromRequest()` captures the field, so a queued run compares on the worker, where a `412` fails the job
+without a retry. A request without the field writes unconditionally: add `RequireIfMatch` to a route group to answer a
+`PUT`, `PATCH` or `DELETE` without it with a `428` (code `10115`), while other methods pass.
+
+Tags compare weakly on both sides, where RFC 9110 compares `If-Match` strongly: the toolkit's tags are weak, and proxies
+such as nginx weaken a strong tag they compress. A `412` carries no tag, so the client re-reads before retrying. The
+toolkit never answers `304`, and `cache.headers:etag` on these routes hashes the body, so it can answer `304` for a
+changed `?include`.
+
+These writes do not advance the version: `Model::query()->update()`, `upsert()`, `increment()` and `decrement()`, a soft
+`delete()`, `DB::table()`, `Relation::touch()`, and `attach()`, `detach()` or child saves outside `persist()`. Follow
+them with `markVersionChanged()` and a save. On SQLite `lockForUpdate()` compiles to nothing, and the database write
+lock turns a race into a busy error.
+
+The export documents the `ETag` on the show, store and update responses of a versioned resource, a required `If-Match`
+on the `PUT`, `PATCH` and `DELETE` operations behind `RequireIfMatch`, and an optional one where such an operation
+documents a `412`.
+
 ### Filter-Operator Registry
 
 The `OperatorRegistry` singleton maps tokens to `FilterOperator` handlers and the capabilities that admit each. Register
@@ -1143,27 +1200,29 @@ Every operation also lists the errors it can return, derived from the route: an 
 middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
 `AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the route
 has parameters, a validation failure when the operation accepts a request body or the toolkit's query parameters, a
-refusal behind a rate limit, and an unhandled exception always. Each is documented as the exception map renders it: by
-default a `401`, `403`, `404`, `422`, `429` and `500`. A list operation also documents the query cost refusal under
-`422` while any query cost cap is enabled. The unhandled exception is looked up as a `Throwable`, so a `Throwable` key
-changes it and a narrower catch-all such as `RuntimeException` does not. A denial with a status of its own is documented
-only where the route already lists the error that status stands for, as a path with parameters does for
-`denyAsNotFound()`. Middleware is read as the router resolves it, so a guard or limit applied through a group counts and
-one removed with `withoutMiddleware()` does not.
+refusal behind a rate limit, a missing `If-Match` on a `PUT`, `PATCH` or `DELETE` behind `RequireIfMatch`, and an
+unhandled exception always. Each is documented as the exception map renders it: by default a `401`, `403`, `404`, `422`,
+`428`, `429` and `500`. A list operation also documents the query cost refusal under `422` while any query cost cap is
+enabled. The unhandled exception is looked up as a `Throwable`, so a `Throwable` key changes it and a narrower catch-all
+such as `RuntimeException` does not. A denial with a status of its own is documented only where the route already lists
+the error that status stands for, as a path with parameters does for `denyAsNotFound()`. Middleware is read as the
+router resolves it, so a guard or limit applied through a group counts and one removed with `withoutMiddleware()` does
+not.
 
 Each `ApiException` subclass named in the `@throws` tags of the action, or of the `handle()` (else `__invoke()`) of any
 middleware the route runs, read as the router resolves it, is added under its status too; other throwables in those tags
-are ignored. Global middleware is not read, and a middleware the container rebinds is read from the class the route
-names. Class names in `@throws` resolve as PHP would in the file declaring the method, so imported, aliased,
-same-namespace and fully qualified names all work, and a union such as `@throws A|B` names both. Each error code is
-documented once, as the `components.examples` entry `Error<code>` (such as `Error10107`) carrying the code's catalogue
-title and detail, and as the `components.schemas` envelope `Error<code>`, which pins `error.code` and types `error.meta`
-as the code's exception declares it, else as an open object. `InvalidInputException` declares its field errors and
-`QueryTooExpensiveException` the limit it exceeded. Every error response references the examples of its exceptions, and
-its schema is the envelope of its code, or a `oneOf` of the envelopes where the status carries several codes. The export
-fails when a documented exception has no `CODE`, which the handler cannot render, when its code is not in the error
-catalogue (add its namespace to `api-toolkit.openapi.exception_namespaces`), or when it shares a code with an exception
-answering another status or declaring another meta.
+are ignored. Global middleware is not read, nor is `RequireIfMatch`, which is documented from its route fact, and a
+middleware the container rebinds is read from the class the route names. Class names in `@throws` resolve as PHP would
+in the file declaring the method, so imported, aliased, same-namespace and fully qualified names all work, and a union
+such as `@throws A|B` names both. Each error code is documented once, as the `components.examples` entry `Error<code>`
+(such as `Error10107`) carrying the code's catalogue title and detail, and as the `components.schemas` envelope
+`Error<code>`, which pins `error.code` and types `error.meta` as the code's exception declares it, else as an open
+object. `InvalidInputException` declares its field errors and `QueryTooExpensiveException` the limit it exceeded. Every
+error response references the examples of its exceptions, and its schema is the envelope of its code, or a `oneOf` of
+the envelopes where the status carries several codes. The export fails when a documented exception has no `CODE`, which
+the handler cannot render, when its code is not in the error catalogue (add its namespace to
+`api-toolkit.openapi.exception_namespaces`), or when it shares a code with an exception answering another status or
+declaring another meta.
 
 Each path parameter is typed from what the router enforces on its segment. A `where` constraint comes first:
 `whereUuid()` exports a `uuid`, `whereNumber()` a non-negative integer, `whereIn()` or a plain alternation such as
@@ -1526,13 +1585,14 @@ given through `withContext()`, or an `INTERNAL` one. `dispatch()` returns Larave
 `onConnection()`, `delay()` and `afterCommit()` apply per call.
 
 A failed attempt fires `onFailure()` and `ServiceFailed` and fails the job with the captured exception, which the worker
-retries per `--tries` and `--backoff`. An `AuthorizationException` or `ValidationException` fails the job at once and is
-not retried. Once the queue gives up on the job, because its attempts ran out, a refusal failed it or its last attempt
-timed out, it calls `onFinalFailure()` with the exception. A timed-out attempt fires no other hook, as the worker kills
-itself mid-run. Laravel deletes the job first, so `onFinalFailure()` runs at most once and must be idempotent; `run()`
-and `runOrFail()` never call it. On the `sync` connection there is no worker to retry, so the failure is thrown to the
-dispatching code when it releases the returned `PendingDispatch`, at the end of the statement unless it is kept in a
-variable, or when the transaction commits for a job queued after commit.
+retries per `--tries` and `--backoff`. An `AuthorizationException`, `ValidationException` or
+`PreconditionFailedException` fails the job at once and is not retried. Once the queue gives up on the job, because its
+attempts ran out, a refusal failed it or its last attempt timed out, it calls `onFinalFailure()` with the exception. A
+timed-out attempt fires no other hook, as the worker kills itself mid-run. Laravel deletes the job first, so
+`onFinalFailure()` runs at most once and must be idempotent; `run()` and `runOrFail()` never call it. On the `sync`
+connection there is no worker to retry, so the failure is thrown to the dispatching code when it releases the returned
+`PendingDispatch`, at the end of the statement unless it is kept in a variable, or when the transaction commits for a
+job queued after commit.
 
 #### Queued Services
 

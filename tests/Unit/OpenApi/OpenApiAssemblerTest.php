@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route as RouteFacade;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
+use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
 use SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
@@ -53,15 +54,20 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
+use Tests\Concerns\CreatesDocumentTables;
+use Tests\Concerns\ValidatesOpenApiDocuments;
 use Tests\Concerns\WritesDocsDirectories;
 use Tests\Fixtures\Enums\SelfDescribingPlan;
 use Tests\Fixtures\Enums\UserStatus;
+use Tests\Fixtures\Models\Document;
 use Tests\Fixtures\Models\Organization;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\Alternate\SignedInShape as AlternateSignedInShape;
 use Tests\Fixtures\OpenApi\EnvelopeNamedShape;
 use Tests\Fixtures\OpenApi\MfaChallengeShape;
 use Tests\Fixtures\OpenApi\NumericNamedShape;
+use Tests\Fixtures\OpenApi\PathDocumentController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
@@ -71,9 +77,11 @@ use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\OpenApi\StatusNamedShape;
 use Tests\Fixtures\OpenApi\UserNamedShape;
 use Tests\Fixtures\OpenApi\WidgetShape;
+use Tests\Fixtures\Resources\DocumentResource;
 use Tests\Fixtures\Resources\EnvelopeNamedResource;
 use Tests\Fixtures\Resources\ErrorNamedResource;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -88,7 +96,7 @@ use Tests\TestCase;
 #[CoversClass(OpenApiAssembler::class)]
 final class OpenApiAssemblerTest extends TestCase
 {
-    use WritesDocsDirectories;
+    use CreatesDocumentTables, ValidatesOpenApiDocuments, WritesDocsDirectories;
 
     /** @var array<class-string, class-string> The default resource map. */
     private const array RESOURCE_MAP = [
@@ -413,16 +421,43 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the total-count header is emitted under components.headers.
+     * Test that the total-count and entity-tag headers are emitted under
+     * components.headers.
      *
      * @return void
      */
-    public function testTotalCountHeaderIsPresent(): void
+    public function testSharedResponseHeadersArePresent(): void
     {
         $headers = $this->assemble()['components']['headers'];
 
         self::assertIsArray($headers);
-        self::assertArrayHasKey(EnvelopeBuilder::TOTAL_COUNT_HEADER_NAME, $headers);
+        self::assertSame([EnvelopeBuilder::TOTAL_COUNT_HEADER_NAME, EnvelopeBuilder::ETAG_HEADER_NAME], array_keys($headers));
+    }
+
+    /**
+     * Test that a document of conditional writes over a versioned resource is a
+     * valid OpenAPI document whose precondition errors resolve.
+     *
+     * @return void
+     */
+    public function testConditionalWritesExportAValidDocument(): void
+    {
+        $router = $this->router();
+
+        $router->get('documents/{document}', [PathDocumentController::class, 'show'])->middleware(RequireIfMatch::class);
+        $router->match(['PUT', 'PATCH'], 'documents/{document}', [PathDocumentController::class, 'update'])->middleware(RequireIfMatch::class);
+
+        $document  = $this->makeAssembler([Document::class => DocumentResource::class, Tag::class => TagResource::class])->assemble();
+        $responses = $document['paths']['/documents/{document}']['patch']['responses'] ?? null;
+        $examples  = $document['components']['examples']                               ?? null;
+
+        self::assertIsArray($responses);
+        self::assertIsArray($examples);
+        self::assertSame([200, 403, 404, 412, 422, 428, 500], array_keys($responses));
+        self::assertArrayHasKey('Error10114', $examples);
+        self::assertArrayHasKey('Error10115', $examples);
+
+        $this->assertValidDocument($document);
     }
 
     /**
@@ -946,6 +981,19 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Define the database migrations.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function defineDatabaseMigrations(): void
+    {
+        parent::defineDatabaseMigrations();
+
+        $this->createDocumentTables();
+    }
+
+    /**
      * Expect the export to fail on a component name derived by two sources.
      *
      * @param  string  $name
@@ -1033,6 +1081,7 @@ final class OpenApiAssemblerTest extends TestCase
                     new ResponseHeaderResolver,
                     new ResponseStatusResolver,
                 ),
+                new RouteMiddlewareResolver($this->router()),
             ),
             new SecuritySchemeResolver(new SecuritySchemeMapper, new RouteMiddlewareResolver($this->router())),
             new EnumSchemaBuilder,

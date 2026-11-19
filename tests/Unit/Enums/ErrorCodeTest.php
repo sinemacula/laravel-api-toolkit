@@ -43,6 +43,8 @@ final class ErrorCodeTest extends TestCase
         yield 'LOCKED' => [ErrorCode::LOCKED, 10111];
         yield 'SERVICE_UNAVAILABLE' => [ErrorCode::SERVICE_UNAVAILABLE, 10112];
         yield 'HTTP_ERROR' => [ErrorCode::HTTP_ERROR, 10113];
+        yield 'PRECONDITION_FAILED' => [ErrorCode::PRECONDITION_FAILED, 10114];
+        yield 'PRECONDITION_REQUIRED' => [ErrorCode::PRECONDITION_REQUIRED, 10115];
         yield 'MAINTENANCE_MODE' => [ErrorCode::MAINTENANCE_MODE, 10200];
         yield 'QUERY_TOO_EXPENSIVE' => [ErrorCode::QUERY_TOO_EXPENSIVE, 10201];
     }
@@ -93,6 +95,8 @@ final class ErrorCodeTest extends TestCase
             'LOCKED',
             'SERVICE_UNAVAILABLE',
             'HTTP_ERROR',
+            'PRECONDITION_FAILED',
+            'PRECONDITION_REQUIRED',
             'MAINTENANCE_MODE',
             'QUERY_TOO_EXPENSIVE',
         ];
