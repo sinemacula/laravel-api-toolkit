@@ -7,6 +7,7 @@ namespace Tests\Unit\Exceptions;
 use Illuminate\Support\Facades\Lang;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
@@ -24,6 +25,9 @@ use SineMacula\Http\Enums\HttpStatus;
 #[CoversClass(ApiException::class)]
 final class ApiExceptionTest extends TestCase
 {
+    /** @var string The catalogue detail of a bad request. */
+    private const string BAD_REQUEST_DETAIL = 'There was an issue with the request, please try again';
+
     /**
      * Test that the constructor sets the code from the HTTP status.
      *
@@ -170,6 +174,61 @@ final class ApiExceptionTest extends TestCase
         $exception = new BadRequestException(null, null, $previous);
 
         self::assertSame($previous, $exception->getPrevious());
+    }
+
+    /**
+     * Test that a detail the exception is raised with replaces the catalogue
+     * detail and the message.
+     *
+     * @return void
+     */
+    public function testRaisedDetailReplacesTheCatalogueDetailAndMessage(): void
+    {
+        $exception = new BadRequestException(detail: 'This email is already invited');
+
+        self::assertSame('This email is already invited', $exception->getCustomDetail());
+        self::assertSame('This email is already invited', $exception->getMessage());
+    }
+
+    /**
+     * Provide raised details that fall back to the catalogue detail.
+     *
+     * @return iterable<string, array{string|null}>
+     */
+    public static function absentDetailProvider(): iterable
+    {
+        yield 'null' => [null];
+
+        yield 'empty' => [''];
+    }
+
+    /**
+     * Test that a null or empty raised detail falls back to the catalogue
+     * detail.
+     *
+     * @param  string|null  $detail
+     * @return void
+     */
+    #[DataProvider('absentDetailProvider')]
+    public function testAbsentDetailFallsBackToTheCatalogueDetail(?string $detail): void
+    {
+        $exception = new BadRequestException(detail: $detail);
+
+        self::assertSame(self::BAD_REQUEST_DETAIL, $exception->getCustomDetail());
+        self::assertSame(self::BAD_REQUEST_DETAIL, $exception->getMessage());
+    }
+
+    /**
+     * Test that an instance built without its constructor reads the catalogue
+     * detail.
+     *
+     * @return void
+     */
+    public function testInstanceBuiltWithoutItsConstructorReadsTheCatalogueDetail(): void
+    {
+        $exception = (new \ReflectionClass(BadRequestException::class))->newInstanceWithoutConstructor();
+
+        self::assertSame(self::BAD_REQUEST_DETAIL, $exception->getCustomDetail());
     }
 
     /**
