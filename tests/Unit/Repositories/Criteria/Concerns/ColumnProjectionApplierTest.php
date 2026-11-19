@@ -633,6 +633,32 @@ final class ColumnProjectionApplierTest extends TestCase
     }
 
     /**
+     * Test that ':all' renders the aggregates payload, so a guarded aggregate
+     * leaves the select unnarrowed.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAllFieldsTokenCarriesTheAggregatesPayload(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [MeteredPostResource::class, TagResource::class, UserResource::class]);
+
+        $this->parseRequest(new Request(['fields' => ['metered_posts' => ':all']]));
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('metered_posts');
+        $provider->method('getAllFields')->willReturn(['id', 'title']);
+        $provider->method('eagerLoadMapFor')->willReturn([]);
+
+        $introspector = $this->realIntrospector();
+        $applier      = new ColumnProjectionApplier(new SafetySetDeriver($introspector), $introspector);
+
+        self::assertNull($applier->apply((new Post)->newQuery(), $provider, MeteredPostResource::class, [])->getQuery()->columns);
+    }
+
+    /**
      * Test that a chaperoned relation leaves the select unnarrowed and logs the
      * relation.
      *
@@ -658,8 +684,7 @@ final class ColumnProjectionApplierTest extends TestCase
 
         Log::shouldReceive('debug')
             ->once()
-            ->withArgs(static fn (string $message, array $context): bool => $message === 'Column narrowing fell back to a full select'
-                && $context                                                          === ['model' => User::class, 'resource' => UserResource::class, 'relation' => 'posts']);
+            ->with('Column narrowing fell back to a full select', ['model' => User::class, 'resource' => UserResource::class, 'relation' => 'posts']);
 
         $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector), $introspector);
 

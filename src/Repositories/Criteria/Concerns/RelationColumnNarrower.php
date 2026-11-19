@@ -49,12 +49,18 @@ final readonly class RelationColumnNarrower
      * Decorate the eager-load map so each provable path selects only the
      * columns its child resource renders.
      *
+     * A field its level cannot prove, such as one over a model accessor, may
+     * read any loaded relation, so every relation beneath that level loads in
+     * full.
+     *
      * @param  array<int|string, mixed>  $with
      * @param  \Illuminate\Database\Eloquent\Model  $root
+     * @param  string  $resourceClass
+     * @param  array<int, string>  $fields
      * @param  array<string, \SineMacula\ApiToolkit\Schema\ChildProjection>  $plan
      * @return array<int|string, mixed>
      */
-    public function decorate(array $with, Model $root, array $plan): array
+    public function decorate(array $with, Model $root, string $resourceClass, array $fields, array $plan): array
     {
         if (!ResourceSettings::shouldNarrowColumns()) {
             return $with;
@@ -66,11 +72,16 @@ final readonly class RelationColumnNarrower
             return $with;
         }
 
+        $proven = ['' => $this->proves($root, $resourceClass, $fields)];
+
         foreach ($plan as $path => $projection) {
 
-            $relation = $relations[$path];
+            $relation   = $relations[$path];
+            $narrowable = $relation !== null && ($proven[str_contains($path, '.') ? Str::beforeLast($path, '.') : ''] ?? false);
 
-            if ($relation === null || $projection->opaque) {
+            $proven[$path] = $narrowable && $this->proves($relation->getRelated(), $projection->resource, $projection->fields);
+
+            if (!$narrowable || $projection->opaque || !self::loads($with, $path)) {
                 continue;
             }
 
@@ -224,6 +235,32 @@ final readonly class RelationColumnNarrower
     private function logFallback(Model $related, ChildProjection $projection, string $path, array $cause): void
     {
         Log::debug('Column narrowing fell back to a full select', ['model' => $related::class, 'resource' => $projection->resource, 'path' => $path, ...$cause]);
+    }
+
+    /**
+     * Determine whether every field the level renders reads only columns the
+     * select can prove.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $resourceClass
+     * @param  array<int, string>  $fields
+     * @return bool
+     */
+    private function proves(Model $model, string $resourceClass, array $fields): bool
+    {
+        return (new ColumnNarrower)->decide(FieldColumnMapper::for($resourceClass), $fields, [], $model, $this->schemaIntrospector->getColumns($model))->shouldNarrow();
+    }
+
+    /**
+     * Determine whether the map loads the path itself, plain or keyed.
+     *
+     * @param  array<int|string, mixed>  $with
+     * @param  string  $path
+     * @return bool
+     */
+    private static function loads(array $with, string $path): bool
+    {
+        return array_key_exists($path, $with) || in_array($path, $with, true);
     }
 
     /**

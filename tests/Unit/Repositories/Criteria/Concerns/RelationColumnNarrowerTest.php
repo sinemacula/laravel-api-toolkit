@@ -90,7 +90,7 @@ final class RelationColumnNarrowerTest extends TestCase
     {
         Config::set('api-toolkit.resources.narrow_columns', false);
 
-        self::assertSame(['posts', 'organization'], $this->narrower()->decorate(['posts', 'organization'], new User, ['posts' => $this->posts()]));
+        self::assertSame(['posts', 'organization'], $this->narrower()->decorate(['posts', 'organization'], new User, UserResource::class, ['name'], ['posts' => $this->posts()]));
     }
 
     /**
@@ -101,10 +101,23 @@ final class RelationColumnNarrowerTest extends TestCase
      */
     public function testAHasManySelectsItsRenderedColumnsAndForeignKey(): void
     {
-        $with = $this->narrower()->decorate(['posts'], new User, ['posts' => $this->posts()]);
+        $with = $this->narrower()->decorate(['posts'], new User, UserResource::class, ['name'], ['posts' => $this->posts()]);
 
         self::assertSame(['posts'], array_keys($with));
         self::assertSame(['posts.id', 'posts.title', 'posts.user_id'], $this->columnsAfter($with['posts'], new User, 'posts'));
+    }
+
+    /**
+     * Test that a planned path the map does not load is not added to it.
+     *
+     * @return void
+     */
+    public function testAPlannedPathTheMapDoesNotLoadIsNotAdded(): void
+    {
+        $plan = ['posts' => $this->posts(), 'notes' => new ChildProjection(NoteResource::class, ['title'], false)];
+
+        self::assertSame([], $this->narrower()->decorate([], new User, UserResource::class, ['name'], $plan));
+        self::assertSame(['notes.labels'], $this->narrower()->decorate(['notes.labels'], new User, UserResource::class, ['name'], $plan));
     }
 
     /**
@@ -126,16 +139,16 @@ final class RelationColumnNarrowerTest extends TestCase
         };
 
         $cases = [
-            [new Post, 'user', new ChildProjection(UserResource::class, ['name'], false), ['users.name', 'users.id']],
-            [$slugged, 'organization', new ChildProjection(OrganizationResource::class, ['name'], false), ['organizations.name', 'organizations.id', 'organizations.slug']],
-            [new User, 'notes', new ChildProjection(NoteResource::class, ['title'], false), ['notes.title', 'notes.id', 'notes.noteable_id', 'notes.noteable_type']],
-            [new Post, 'tags', new ChildProjection(TagResource::class, ['name'], false), ['tags.name', 'tags.id']],
-            [new Organization, 'posts', new ChildProjection(PostResource::class, ['title'], false), ['posts.title', 'posts.id']],
+            [new Post, PostResource::class, 'user', new ChildProjection(UserResource::class, ['name'], false), ['users.name', 'users.id']],
+            [$slugged, PostResource::class, 'organization', new ChildProjection(OrganizationResource::class, ['name'], false), ['organizations.name', 'organizations.id', 'organizations.slug']],
+            [new User, UserResource::class, 'notes', new ChildProjection(NoteResource::class, ['title'], false), ['notes.title', 'notes.id', 'notes.noteable_id', 'notes.noteable_type']],
+            [new Post, PostResource::class, 'tags', new ChildProjection(TagResource::class, ['name'], false), ['tags.name', 'tags.id']],
+            [new Organization, OrganizationResource::class, 'posts', new ChildProjection(PostResource::class, ['title'], false), ['posts.title', 'posts.id']],
         ];
 
-        foreach ($cases as [$root, $name, $projection, $expected]) {
+        foreach ($cases as [$root, $resource, $name, $projection, $expected]) {
 
-            $with = $this->narrower()->decorate([$name], $root, [$name => $projection]);
+            $with = $this->narrower()->decorate([$name], $root, $resource, ['id'], [$name => $projection]);
 
             self::assertSame($expected, $this->columnsAfter($with[$name], $root, $name), $name);
         }
@@ -151,7 +164,7 @@ final class RelationColumnNarrowerTest extends TestCase
     {
         $plan = ['notes' => new ChildProjection(NoteResource::class, ['title'], false)];
 
-        $planned  = $this->narrower()->decorate(['notes', 'notes.labels', 'notes.owner'], new User, $plan);
+        $planned  = $this->narrower()->decorate(['notes', 'notes.labels', 'notes.owner'], new User, UserResource::class, ['name'], $plan);
         $declared = $this->narrower(['notes' => static function (): Relation {
 
             $notes = (new User)->notes();
@@ -159,7 +172,7 @@ final class RelationColumnNarrowerTest extends TestCase
             $notes->getQuery()->with('owner');
 
             return $notes;
-        }])->decorate(['notes'], new User, $plan);
+        }])->decorate(['notes'], new User, UserResource::class, ['name'], $plan);
 
         self::assertContains('notes.owner_id', $this->columnsAfter($planned['notes'], new User, 'notes'));
         self::assertContains('notes.owner', $planned);
@@ -182,8 +195,8 @@ final class RelationColumnNarrowerTest extends TestCase
             $relation->select(['posts.id', 'posts.user_id', 'posts.body']);
         };
 
-        $filtered = $this->narrower()->decorate(['posts' => $filtering], new User, ['posts' => $this->posts()]);
-        $selected = $this->narrower()->decorate(['posts' => $selecting], new User, ['posts' => $this->posts()]);
+        $filtered = $this->narrower()->decorate(['posts' => $filtering], new User, UserResource::class, ['name'], ['posts' => $this->posts()]);
+        $selected = $this->narrower()->decorate(['posts' => $selecting], new User, UserResource::class, ['name'], ['posts' => $this->posts()]);
 
         $relation = $this->eagerRelation(new User, 'posts');
 
@@ -214,7 +227,7 @@ final class RelationColumnNarrowerTest extends TestCase
             }
         };
 
-        $with = $this->narrower()->decorate(['latestPost'], $root, ['latestPost' => $this->posts()]);
+        $with = $this->narrower()->decorate(['latestPost'], $root, UserResource::class, ['name'], ['latestPost' => $this->posts()]);
 
         self::assertSame(['posts.id', 'posts.title', 'posts.user_id'], $this->columnsAfter($with['latestPost'], $root, 'latestPost'));
     }
@@ -233,16 +246,45 @@ final class RelationColumnNarrowerTest extends TestCase
             'notes.noteable'       => $this->posts(),
             'notes.noteable.owner' => new ChildProjection(UserResource::class, ['name'], false),
         ];
-        $morphed      = $this->narrower()->decorate(['notes', 'notes.noteable', 'notes.noteable.owner'], new User, $morphTo);
-        $unrecognised = $this->narrower(['posts' => static fn (): Relation => self::createStub(Relation::class)]);
+        $morphed      = $this->narrower()->decorate(['notes', 'notes.noteable', 'notes.noteable.owner'], new User, UserResource::class, ['name'], $morphTo);
+        $unrecognised = $this->narrower(['posts' => static function (): Relation {
 
-        $withOpaque = $this->narrower()->decorate(['posts', 'notes'], new User, $opaque);
+            $relation = self::createStub(Relation::class);
+            $relation->method('getRelated')->willReturn(new Post);
+
+            return $relation;
+        }]);
+
+        $withOpaque = $this->narrower()->decorate(['posts', 'notes'], new User, UserResource::class, ['name'], $opaque);
 
         self::assertSame('posts', $withOpaque[0]);
         self::assertInstanceOf(\Closure::class, $withOpaque['notes']);
         self::assertContains('notes.noteable', $morphed);
         self::assertContains('notes.noteable.owner', $morphed);
-        self::assertSame(['posts'], $unrecognised->decorate(['posts'], new User, ['posts' => $this->posts()]));
+        self::assertSame(['posts'], $unrecognised->decorate(['posts'], new User, UserResource::class, ['name'], ['posts' => $this->posts()]));
+    }
+
+    /**
+     * Test that a field its level cannot prove, which may read any loaded
+     * relation, leaves every relation beneath that level full, while a compute
+     * declaring its columns does not.
+     *
+     * @return void
+     */
+    public function testAnUnprovenFieldLeavesEveryRelationBeneathItsLevelFull(): void
+    {
+        $author   = new ChildProjection(UserResource::class, ['name'], false);
+        $articles = ['articles' => new ChildProjection(ArticleResource::class, ['title', 'headline', 'author'], false), 'articles.author' => $author];
+
+        $accessor = $this->narrower()->decorate(['author'], new Article, ArticleResource::class, ['title', 'headline'], ['author' => $author]);
+        $nested   = $this->narrower()->decorate(['articles', 'articles.author'], new User, UserResource::class, ['name', 'articles'], $articles);
+        $compute  = $this->narrower()->decorate(['posts'], new User, UserResource::class, ['name', 'full_label'], ['posts' => $this->posts()]);
+        $declared = $this->narrower()->decorate(['author'], new Article, ArticleResource::class, ['title', 'summary_excerpt'], ['author' => $author]);
+
+        self::assertSame(['author'], $accessor);
+        self::assertSame(['articles', 'articles.author'], $nested);
+        self::assertSame(['posts'], $compute);
+        self::assertInstanceOf(\Closure::class, $declared['author'] ?? null);
     }
 
     /**
@@ -257,7 +299,7 @@ final class RelationColumnNarrowerTest extends TestCase
 
         $plan = ['posts' => $this->posts(), 'notes' => new ChildProjection(NoteResource::class, ['title'], false)];
 
-        self::assertSame(['posts', 'notes'], $narrower->decorate(['posts', 'notes'], new User, $plan));
+        self::assertSame(['posts', 'notes'], $narrower->decorate(['posts', 'notes'], new User, UserResource::class, ['name'], $plan));
     }
 
     /**
@@ -272,7 +314,7 @@ final class RelationColumnNarrowerTest extends TestCase
             $posts->chaperone('user');
         };
 
-        $with = $this->narrower()->decorate(['posts' => $chaperoning], new User, ['posts' => $this->posts()]);
+        $with = $this->narrower()->decorate(['posts' => $chaperoning], new User, UserResource::class, ['name'], ['posts' => $this->posts()]);
 
         self::assertInstanceOf(\Closure::class, $with['posts']);
 
@@ -303,7 +345,7 @@ final class RelationColumnNarrowerTest extends TestCase
             ]);
 
         $plan = ['articles' => new ChildProjection(ArticleResource::class, ['id', 'headline'], false), 'posts' => $this->posts()];
-        $with = $this->narrower()->decorate(['articles', 'posts'], new User, $plan);
+        $with = $this->narrower()->decorate(['articles', 'posts'], new User, UserResource::class, ['name'], $plan);
 
         self::assertSame('articles', $with[0]);
         self::assertInstanceOf(\Closure::class, $with['posts']);
@@ -326,7 +368,7 @@ final class RelationColumnNarrowerTest extends TestCase
                 'relation' => 'missing',
             ]);
 
-        self::assertSame(['posts', 'posts.missing'], $this->narrower()->decorate(['posts', 'posts.missing'], new User, ['posts' => $this->posts()]));
+        self::assertSame(['posts', 'posts.missing'], $this->narrower()->decorate(['posts', 'posts.missing'], new User, UserResource::class, ['name'], ['posts' => $this->posts()]));
     }
 
     /**
@@ -337,7 +379,7 @@ final class RelationColumnNarrowerTest extends TestCase
      */
     public function testTheClosuresCaptureNoObject(): void
     {
-        $with = $this->narrower()->decorate(['posts'], new User, ['posts' => $this->posts()]);
+        $with = $this->narrower()->decorate(['posts'], new User, UserResource::class, ['name'], ['posts' => $this->posts()]);
 
         self::assertInstanceOf(\Closure::class, $with['posts']);
 

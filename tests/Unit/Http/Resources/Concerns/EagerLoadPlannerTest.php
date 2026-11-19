@@ -19,7 +19,6 @@ use SineMacula\ApiToolkit\Query\ApiQuerySnapshot;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\Exists;
 use SineMacula\ApiToolkit\Schema\Field;
-use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\Max;
 use SineMacula\ApiToolkit\Schema\Min;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -60,7 +59,6 @@ final class EagerLoadPlannerTest extends TestCase
 
         SchemaCompiler::clearCache();
         EagerLoadPlanner::clearCache();
-        FieldColumnMapper::clearCache();
 
         // Path-walking tests read plain paths; bounded ones set a limit
         Config::set('api-toolkit.resources.relation_limit', 0);
@@ -76,7 +74,6 @@ final class EagerLoadPlannerTest extends TestCase
     {
         SchemaCompiler::clearCache();
         EagerLoadPlanner::clearCache();
-        FieldColumnMapper::clearCache();
 
         parent::tearDown();
     }
@@ -1436,30 +1433,6 @@ final class EagerLoadPlannerTest extends TestCase
             self::assertTrue($plan['posts']->opaque);
             self::assertTrue($plan['posts.user']->opaque);
         }
-    }
-
-    /**
-     * Test that an unannotated compute on the parent marks its relations
-     * opaque, while the same compute declaring its columns does not.
-     *
-     * @return void
-     */
-    public function testAnUnannotatedComputeOnTheParentMarksItsRelationsOpaque(): void
-    {
-        $compute = static fn (): null => null;
-
-        ApiQuery::shouldReceive('getFields')->andReturn(null);
-
-        $unannotated = EagerLoadPlanner::buildProjectionPlan(self::projectingResource(['summary' => ['compute' => $compute]]), ['posts', 'summary']);
-
-        SchemaCompiler::clearCache();
-        EagerLoadPlanner::clearCache();
-        FieldColumnMapper::clearCache();
-
-        $annotated = EagerLoadPlanner::buildProjectionPlan(self::projectingResource(['summary' => ['compute' => $compute, 'needs' => ['name']]]), ['posts', 'summary']);
-
-        self::assertTrue($unannotated['posts']->opaque);
-        self::assertFalse($annotated['posts']->opaque);
     }
 
     /**

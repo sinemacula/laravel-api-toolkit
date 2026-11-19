@@ -50,7 +50,7 @@ final class EagerLoadApplier
 
         $model = $query->getModel();
         $plan  = EagerLoadPlanner::buildProjectionPlan($resourceClass, $fields);
-        $with  = $columnNarrower->decorate($metadataProvider->eagerLoadMapFor($resourceClass, $fields), $model, $plan);
+        $with  = $columnNarrower->decorate($metadataProvider->eagerLoadMapFor($resourceClass, $fields), $model, $resourceClass, $fields, $plan);
 
         $with = array_filter(
             $trashedGate->decorate($with, $model, ApiQuery::getTrashed()),

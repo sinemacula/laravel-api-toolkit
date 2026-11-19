@@ -14,7 +14,6 @@ use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\ChildProjection;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
-use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
@@ -226,7 +225,6 @@ final class EagerLoadPlanner
         $ancestors[] = $resourceClass;
 
         $schema = SchemaCompiler::compile($resourceClass);
-        $opaque = !self::mapsEveryField($resourceClass, $fields);
 
         foreach ($fields as $field) {
 
@@ -248,7 +246,7 @@ final class EagerLoadPlanner
             $childFields = self::resolveChildFields($definition);
 
             self::addEagerLoadPath($definition, $resourceClass . '::' . $field, $fullPath, self::resolveChildAggregates($definition, $childFields), $plain, $scoped);
-            self::addProjection($definition, $fullPath, $childFields, $opaque, $projections);
+            self::addProjection($definition, $fullPath, $childFields, $projections);
 
             if ($childFields === []) {
                 continue;
@@ -318,17 +316,15 @@ final class EagerLoadPlanner
     /**
      * Record the child resource and fields the relation renders over the path.
      *
-     * Its models are opaque when a field of the parent level is unmapped, or
-     * when an accessor or a raw relation renders them.
+     * Its models are opaque when an accessor or a raw relation renders them.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  string  $path
      * @param  array<int, string>  $childFields
-     * @param  bool  $opaque
      * @param  array<string, PlannedProjection>  $projections
      * @return void
      */
-    private static function addProjection(CompiledFieldDefinition $definition, string $path, array $childFields, bool $opaque, array &$projections): void
+    private static function addProjection(CompiledFieldDefinition $definition, string $path, array $childFields, array &$projections): void
     {
         /** @var class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>|null $resource */
         $resource = self::shouldRecurseIntoChild($definition) ? $definition->resource : null;
@@ -337,7 +333,7 @@ final class EagerLoadPlanner
         $projections[$path] = [
             'resource' => $resource ?? $planned['resource'],
             'fields'   => array_values(array_unique([...$planned['fields'], ...$childFields])),
-            'opaque'   => $opaque || $planned['opaque'] || $resource === null || $definition->accessor !== null,
+            'opaque'   => $planned['opaque'] || $resource === null || $definition->accessor !== null,
         ];
     }
 
@@ -369,30 +365,6 @@ final class EagerLoadPlanner
         }
 
         return $plan;
-    }
-
-    /**
-     * Determine whether every declared field the level renders is mapped to the
-     * columns it reads.
-     *
-     * A compute or callable accessor receives the resource and may read any
-     * loaded relation, so an unmapped field leaves the level's relations full.
-     *
-     * @param  string  $resourceClass
-     * @param  array<int, string>  $fields
-     * @return bool
-     */
-    private static function mapsEveryField(string $resourceClass, array $fields): bool
-    {
-        $map = FieldColumnMapper::for($resourceClass);
-
-        foreach ($fields as $field) {
-            if ($map->declares($field) && !$map->isMapped($field)) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /**
