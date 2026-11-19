@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Routing\Attributes\CustomAuthorization;
+use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
@@ -24,17 +25,16 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * The route's facts and the operation's inputs name the exceptions the handler
  * receives, each documented as the ApiException it renders as, beside the
  * ApiExceptions the @throws tags of the action and its route middleware name.
+ * Each response body is the envelope of its error code, or a oneOf of those of
+ * every code its status carries.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class ErrorResponseBuilder
 {
-    /** The component name of the shared error-envelope schema */
-    public const string ENVELOPE_SCHEMA_NAME = 'ErrorEnvelope';
-
-    /** The reference to the shared error-envelope schema */
-    private const string ENVELOPE_SCHEMA_REF = '#/components/schemas/' . self::ENVELOPE_SCHEMA_NAME;
+    /** The reference format of each per-code error-envelope schema */
+    private const string ENVELOPE_SCHEMA_REF = '#/components/schemas/' . ErrorExampleBuilder::NAME_FORMAT;
 
     /** The media type every error response body is served under */
     private const string MEDIA_TYPE = SuccessResponseBuilder::MEDIA_TYPE;
@@ -95,13 +95,14 @@ final readonly class ErrorResponseBuilder
 
             $status = $exception::getHttpStatusCode();
 
-            $errors[$status] ??= ['phrase' => self::BASELINE_PHRASES[$status] ?? $this->phraseFor($status, $exception), 'examples' => [], 'headers' => []];
+            $errors[$status] ??= ['phrase' => self::BASELINE_PHRASES[$status] ?? $this->phraseFor($status, $exception), 'codes' => [], 'examples' => [], 'headers' => []];
 
             $errors[$status]['examples'] += $this->examples->reference($exception);
+            $errors[$status]['codes'][] = $exception::getInternalErrorCode();
             $errors[$status]['headers'] = $this->headers->merge($errors[$status]['headers'], $headers);
         }
 
-        $responses = array_map(fn (array $error): array => $this->errorResponse($error['phrase'], $error['examples'], $error['headers']), $errors);
+        $responses = array_map(fn (array $error): array => $this->errorResponse($error['phrase'], $error['codes'], $error['examples'], $error['headers']), $errors);
 
         ksort($responses);
 
@@ -109,31 +110,15 @@ final readonly class ErrorResponseBuilder
     }
 
     /**
-     * Build the shared error-envelope schema referenced by every response.
+     * Build the error-envelope schema of each code the paths reference, keyed
+     * by its component name and ordered by code.
      *
-     * Mirrors the runtime exception payload.
-     *
-     * @return array<string, mixed>
+     * @param  array<string, array<string, mixed>>  $paths
+     * @return array<string, array<string, mixed>>
      */
-    public function buildEnvelopeSchema(): array
+    public function buildEnvelopeSchemas(array $paths): array
     {
-        return [
-            'type'       => 'object',
-            'properties' => [
-                'error' => [
-                    'type'       => 'object',
-                    'properties' => [
-                        'status' => ['type' => 'integer'],
-                        'code'   => ['type' => 'integer'],
-                        'title'  => ['type' => 'string'],
-                        'detail' => ['type' => 'string'],
-                        'meta'   => ['type' => 'object', 'additionalProperties' => true],
-                    ],
-                    'required' => ['status', 'code', 'detail'],
-                ],
-            ],
-            'required' => ['error'],
-        ];
+        return array_map(fn (ErrorDescriptor $descriptor): array => $this->envelopeSchema($descriptor), $this->examples->referenced($paths));
     }
 
     /**
@@ -175,7 +160,8 @@ final readonly class ErrorResponseBuilder
 
     /**
      * List the ApiExceptions the throws tags name, the action's first and then
-     * each route middleware's in dispatch order.
+     * each route middleware's in dispatch order, but for middleware documented
+     * from its route fact.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -186,7 +172,7 @@ final readonly class ErrorResponseBuilder
     {
         $exceptions = $controllerClass === null ? [] : $this->throws->resolve($controllerClass, $action);
 
-        foreach ($this->middleware->classes($route) as $middleware) {
+        foreach (array_diff($this->middleware->classes($route), RouteMiddlewareResolver::FACT_MIDDLEWARE) as $middleware) {
             array_push($exceptions, ...$this->throws->resolve($middleware, method_exists($middleware, 'handle') ? 'handle' : '__invoke'));
         }
 
@@ -247,17 +233,52 @@ final readonly class ErrorResponseBuilder
     }
 
     /**
-     * Build a single error response referencing the shared error envelope.
+     * Build the envelope a code's error renders as, its code pinned and its
+     * meta typed as declared, else left open.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor  $descriptor
+     * @return array<string, mixed>
+     */
+    private function envelopeSchema(ErrorDescriptor $descriptor): array
+    {
+        return [
+            'type'       => 'object',
+            'properties' => [
+                'error' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'status' => ['type' => 'integer'],
+                        'code'   => ['type' => 'integer', 'const' => $descriptor->code],
+                        'title'  => ['type' => 'string'],
+                        'detail' => ['type' => 'string'],
+                        'meta'   => $descriptor->meta ?? ['type' => 'object', 'additionalProperties' => true],
+                    ],
+                    'required' => ['status', 'code', 'detail'],
+                ],
+            ],
+            'required' => ['error'],
+        ];
+    }
+
+    /**
+     * Build a single error response whose body is the envelope of its code, or
+     * any one of its codes' envelopes.
      *
      * @param  string  $description
+     * @param  list<int>  $codes
      * @param  array<string, array<string, mixed>>  $examples
      * @param  array<string, array<string, mixed>>  $headers
      * @return array<string, mixed>
      */
-    private function errorResponse(string $description, array $examples, array $headers): array
+    private function errorResponse(string $description, array $codes, array $examples, array $headers): array
     {
-        $media    = ['schema' => ['$ref' => self::ENVELOPE_SCHEMA_REF]];
-        $response = ['description' => $description];
+        $codes = array_unique($codes);
+
+        sort($codes);
+
+        $references = array_map(static fn (int $code): array => ['$ref' => sprintf(self::ENVELOPE_SCHEMA_REF, $code)], $codes);
+        $media      = ['schema' => count($references) === 1 ? $references[0] : ['oneOf' => $references]];
+        $response   = ['description' => $description];
 
         if ($examples !== []) {
             $media['examples'] = $examples;

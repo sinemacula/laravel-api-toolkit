@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
@@ -38,12 +39,12 @@ final readonly class QuerySurfaceReader
      * resource reached through a traversable relation.
      *
      * @param  array<class-string, class-string>  $resourceMap
-     * @param  array<int, string>  $vocabulary
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $registry
      * @return array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
-    public function read(array $resourceMap, array $vocabulary): array
+    public function read(array $resourceMap, OperatorRegistry $registry): array
     {
         $traversal = new RelationTraversal($this->introspector, $resourceMap);
         $queue     = [];
@@ -63,7 +64,7 @@ final readonly class QuerySurfaceReader
 
             $edges = $traversal->edges($resourceClass, $modelClass);
 
-            $surfaces[$resourceClass] = $this->readResource($resourceClass, $edges, $vocabulary);
+            $surfaces[$resourceClass] = $this->readResource($resourceClass, $edges, $registry);
 
             foreach ($edges as $edge) {
 
@@ -83,12 +84,12 @@ final readonly class QuerySurfaceReader
      *
      * @param  class-string  $resourceClass
      * @param  list<\SineMacula\ApiToolkit\Schema\RelationEdge>  $edges
-     * @param  array<int, string>  $vocabulary
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $registry
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
-    private function readResource(string $resourceClass, array $edges, array $vocabulary): QuerySurfaceDescriptor
+    private function readResource(string $resourceClass, array $edges, OperatorRegistry $registry): QuerySurfaceDescriptor
     {
         $compiled = SchemaCompiler::compile($resourceClass);
         $columns  = [];
@@ -101,7 +102,7 @@ final readonly class QuerySurfaceReader
                 continue;
             }
 
-            $columns = [...$columns, ...$this->readColumns($property, $field, $compiled, $vocabulary)];
+            $columns = [...$columns, ...$this->readColumns($property, $field, $compiled, $registry)];
         }
 
         return new QuerySurfaceDescriptor($resourceClass, $columns, $this->readRelations($compiled, $edges));
@@ -145,16 +146,16 @@ final readonly class QuerySurfaceReader
      * @param  string  $property
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
-     * @param  array<int, string>  $vocabulary
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $registry
      * @return list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor>
      */
-    private function readColumns(string $property, CompiledFieldDefinition $field, CompiledSchema $compiled, array $vocabulary): array
+    private function readColumns(string $property, CompiledFieldDefinition $field, CompiledSchema $compiled, OperatorRegistry $registry): array
     {
         $columns = [];
 
         foreach ($this->declaredColumns($field) as $column) {
 
-            $descriptor = $this->readColumn($property, $column, $field, $compiled, $vocabulary);
+            $descriptor = $this->readColumn($property, $column, $field, $compiled, $registry);
 
             if ($descriptor === null) {
                 continue;
@@ -195,13 +196,13 @@ final readonly class QuerySurfaceReader
      * @param  string  $column
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
-     * @param  array<int, string>  $vocabulary
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $registry
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor|null
      */
-    private function readColumn(string $property, string $column, CompiledFieldDefinition $field, CompiledSchema $compiled, array $vocabulary): ?QueryColumnDescriptor
+    private function readColumn(string $property, string $column, CompiledFieldDefinition $field, CompiledSchema $compiled, OperatorRegistry $registry): ?QueryColumnDescriptor
     {
         $capability = $field->filterable === $column ? ($compiled->getFilterableColumns()[$column] ?? null) : null;
-        $operators  = $capability        === null ? [] : DispatchableOperators::forCapability($capability, $vocabulary);
+        $operators  = $capability        === null ? [] : $registry->tokensFor($capability);
         $sortable   = $field->sortable   === $column && in_array($column, $compiled->getSortableColumns(), true);
         $strategy   = $field->searchable === $column ? ($compiled->getSearchableColumns()[$column] ?? null) : null;
 

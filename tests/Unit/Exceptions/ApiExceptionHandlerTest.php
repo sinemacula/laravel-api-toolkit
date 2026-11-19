@@ -47,9 +47,12 @@ use Symfony\Component\HttpKernel\Exception\HttpException as SymfonyHttpException
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface as SymfonyHttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\PreconditionFailedHttpException;
+use Symfony\Component\HttpKernel\Exception\PreconditionRequiredHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
+use Tests\Fixtures\OpenApi\PaymentRequiredException;
 
 /**
  * Tests for the ApiExceptionHandler.
@@ -132,6 +135,18 @@ final class ApiExceptionHandlerTest extends TestCase
             10110,
         ];
 
+        yield 'PreconditionFailedHttpException -> 412' => [
+            new PreconditionFailedHttpException,
+            412,
+            10114,
+        ];
+
+        yield 'PreconditionRequiredHttpException -> 428' => [
+            new PreconditionRequiredHttpException,
+            428,
+            10115,
+        ];
+
         yield 'abort(400) -> 400' => [
             new SymfonyHttpException(400),
             400,
@@ -168,6 +183,12 @@ final class ApiExceptionHandlerTest extends TestCase
             10104,
         ];
 
+        yield 'abort(412) -> 412' => [
+            new SymfonyHttpException(412),
+            412,
+            10114,
+        ];
+
         yield 'abort(413) -> 413' => [
             new SymfonyHttpException(413),
             413,
@@ -178,6 +199,12 @@ final class ApiExceptionHandlerTest extends TestCase
             new SymfonyHttpException(419),
             419,
             10105,
+        ];
+
+        yield 'abort(428) -> 428' => [
+            new SymfonyHttpException(428),
+            428,
+            10115,
         ];
 
         yield 'abort(429) -> 429' => [
@@ -395,11 +422,11 @@ final class ApiExceptionHandlerTest extends TestCase
 
     /**
      * Test that debug mode, spelt as an environment variable reads, includes
-     * meta with exception trace.
+     * the debug details with the exception trace.
      *
      * @return void
      */
-    public function testDebugModeIncludesMetaWithTrace(): void
+    public function testDebugModeIncludesDebugDetailsWithTrace(): void
     {
         $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);
@@ -416,10 +443,11 @@ final class ApiExceptionHandlerTest extends TestCase
         $data = $response->getData(true);
 
         self::assertIsArray($data['error']);
-        self::assertArrayHasKey('meta', $data['error']);
-        self::assertArrayHasKey('exception', $data['error']['meta']);
-        self::assertArrayHasKey('trace', $data['error']['meta']);
-        self::assertSame(self::GENERIC_ERROR_MESSAGE, $data['error']['meta']['message']);
+        self::assertArrayNotHasKey('meta', $data['error']);
+        self::assertIsArray($data['error']['debug']);
+        self::assertArrayHasKey('exception', $data['error']['debug']);
+        self::assertArrayHasKey('trace', $data['error']['debug']);
+        self::assertSame(self::GENERIC_ERROR_MESSAGE, $data['error']['debug']['message']);
     }
 
     /**
@@ -749,7 +777,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
     /**
      * Test that malformed UTF-8 in the message of the previous exception is
-     * substituted in the debug meta rather than hiding that exception.
+     * substituted in the debug details rather than hiding that exception.
      *
      * @return void
      */
@@ -759,11 +787,11 @@ final class ApiExceptionHandlerTest extends TestCase
         config()->set('api-toolkit.exceptions.include_debug_info', true);
 
         $response = $this->renderToJson(new \RuntimeException("Driver error near \xFF"), self::jsonRequest());
-        $meta     = $response->getData(true)['error']['meta'];
+        $debug    = $response->getData(true)['error']['debug'];
 
         self::assertSame(500, $response->getStatusCode());
-        self::assertSame("Driver error near \u{FFFD}", $meta['message']);
-        self::assertSame(\RuntimeException::class, $meta['exception']);
+        self::assertSame("Driver error near \u{FFFD}", $debug['message']);
+        self::assertSame(\RuntimeException::class, $debug['exception']);
     }
 
     /**
@@ -786,12 +814,20 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that an empty meta value is omitted from the error payload.
+     * Test that an absent or empty meta value is omitted from the error
+     * payload.
      *
      * @return void
      */
     public function testEmptyMetaIsOmittedFromErrorPayload(): void
     {
+        config()->set('app.debug', false);
+
+        $error = $this->renderToJson(new ConflictException([]), self::jsonRequest())->getData(true)['error'];
+
+        self::assertIsArray($error);
+        self::assertArrayNotHasKey('meta', $error);
+
         $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);
 
@@ -832,9 +868,9 @@ final class ApiExceptionHandlerTest extends TestCase
 
         self::assertIsArray($data);
         self::assertIsArray($data['error']);
-        self::assertArrayHasKey('meta', $data['error']);
-        self::assertSame(self::GENERIC_ERROR_MESSAGE, $data['error']['meta']['message']);
-        self::assertArrayHasKey('trace', $data['error']['meta']);
+        self::assertArrayHasKey('debug', $data['error']);
+        self::assertSame(self::GENERIC_ERROR_MESSAGE, $data['error']['debug']['message']);
+        self::assertArrayHasKey('trace', $data['error']['debug']);
     }
 
     /**
@@ -860,6 +896,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         self::assertIsArray($data);
         self::assertIsArray($data['error']);
+        self::assertArrayNotHasKey('debug', $data['error']);
         self::assertArrayNotHasKey('meta', $data['error']);
     }
 
@@ -886,43 +923,78 @@ final class ApiExceptionHandlerTest extends TestCase
         $data = $response->getData(true);
 
         self::assertIsArray($data);
+        self::assertIsArray($data['error']);
         self::assertSame(['custom' => 'value'], $data['error']['meta']);
+        self::assertArrayNotHasKey('debug', $data['error']);
     }
 
     /**
-     * Test that debug meta merges custom meta with the previous exception
-     * details.
+     * Test that the debug details render beside the custom meta, which they
+     * leave untouched.
      *
      * @return void
      */
-    public function testDebugMetaMergesCustomMetaWithPreviousExceptionDetails(): void
+    public function testDebugDetailsRenderBesideTheCustomMeta(): void
     {
-        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
-        $request->headers->set('Accept', self::ACCEPT_JSON);
-
         config()->set('app.debug', true);
 
-        $previous  = new \RuntimeException(self::GENERIC_ERROR_MESSAGE);
-        $exception = new BadRequestException(['custom' => 'value'], null, $previous);
+        $previous = new \RuntimeException(self::GENERIC_ERROR_MESSAGE);
+        $error    = $this->renderToJson(new BadRequestException(['custom' => 'value'], null, $previous), self::jsonRequest())->getData(true)['error'];
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, $exception, $request);
+        self::assertSame(['custom' => 'value'], $error['meta']);
+        self::assertIsArray($error['debug']);
+        self::assertSame(['message', 'exception', 'file', 'line', 'trace'], array_keys($error['debug']));
+        self::assertSame(self::GENERIC_ERROR_MESSAGE, $error['debug']['message']);
+        self::assertSame(\RuntimeException::class, $error['debug']['exception']);
+        self::assertSame($previous->getFile(), $error['debug']['file']);
+        self::assertSame($previous->getLine(), $error['debug']['line']);
+    }
 
-        self::assertInstanceOf(JsonResponse::class, $response);
+    /**
+     * Test that a custom meta key named like a debug detail survives debug
+     * mode.
+     *
+     * @return void
+     */
+    public function testCustomMetaKeyNamedLikeADebugDetailSurvivesDebugMode(): void
+    {
+        config()->set('app.debug', true);
 
-        $data = $response->getData(true);
+        $exception = new BadRequestException(['message' => 'Choose another slot'], null, new \RuntimeException(self::GENERIC_ERROR_MESSAGE));
+        $error     = $this->renderToJson($exception, self::jsonRequest())->getData(true)['error'];
 
-        self::assertIsArray($data);
+        self::assertSame(['message' => 'Choose another slot'], $error['meta']);
+        self::assertSame(self::GENERIC_ERROR_MESSAGE, $error['debug']['message']);
+    }
 
-        $meta = $data['error']['meta'];
+    /**
+     * Test that a code without a detail translation renders an empty detail.
+     *
+     * @return void
+     */
+    public function testCodeWithoutADetailTranslationRendersAnEmptyDetail(): void
+    {
+        config()->set('app.debug', false);
 
-        self::assertSame('value', $meta['custom']);
-        self::assertSame(self::GENERIC_ERROR_MESSAGE, $meta['message']);
-        self::assertSame(\RuntimeException::class, $meta['exception']);
-        self::assertSame($previous->getFile(), $meta['file']);
-        self::assertSame($previous->getLine(), $meta['line']);
-        self::assertIsArray($meta);
-        self::assertArrayHasKey('trace', $meta);
+        $error = $this->renderToJson(new PaymentRequiredException, self::jsonRequest())->getData(true)['error'];
+
+        self::assertSame(['status' => 402, 'code' => 20003, 'title' => 'Payment Required', 'detail' => ''], $error);
+    }
+
+    /**
+     * Test that a meta keyed by sequential integers renders as a JSON object.
+     *
+     * @return void
+     */
+    public function testMetaKeyedBySequentialIntegersRendersAsAnObject(): void
+    {
+        config()->set('app.debug', false);
+
+        $exception = ValidationException::withMessages(['0' => 'The 0 field must be an integer.', '1' => 'The 1 field must be an integer.']);
+        $content   = $this->renderToJson($exception, self::jsonRequest())->getContent();
+
+        self::assertIsString($content);
+        self::assertStringContainsString('"meta":{"0":["The 0 field must be an integer."],"1":["The 1 field must be an integer."]}', $content);
     }
 
     /**
@@ -961,14 +1033,14 @@ final class ApiExceptionHandlerTest extends TestCase
 
             self::assertIsArray($data);
             self::assertArrayHasKey('error', $data);
-            self::assertArrayHasKey('meta', $data['error']);
-            self::assertArrayHasKey('trace', $data['error']['meta']);
-            self::assertIsArray($data['error']['meta']['trace']);
-            self::assertNotEmpty($data['error']['meta']['trace']);
+            self::assertArrayHasKey('debug', $data['error']);
+            self::assertArrayHasKey('trace', $data['error']['debug']);
+            self::assertIsArray($data['error']['debug']['trace']);
+            self::assertNotEmpty($data['error']['debug']['trace']);
 
             // One set assertion: the frame count varies with stack depth
             $renderedFramesWithArgs = array_filter(
-                $data['error']['meta']['trace'],
+                $data['error']['debug']['trace'],
                 static fn (mixed $frame): bool => is_array($frame) && array_key_exists('args', $frame),
             );
 
@@ -1463,6 +1535,18 @@ final class ApiExceptionHandlerTest extends TestCase
             PostTooLargeException::class,
             static fn (): \Throwable => new PostTooLargeException,
             413,
+        ];
+
+        yield 'precondition failed http' => [
+            PreconditionFailedHttpException::class,
+            static fn (): \Throwable => new PreconditionFailedHttpException,
+            412,
+        ];
+
+        yield 'precondition required http' => [
+            PreconditionRequiredHttpException::class,
+            static fn (): \Throwable => new PreconditionRequiredHttpException,
+            428,
         ];
 
         yield 'symfony http exception' => [

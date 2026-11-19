@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Config\HttpSettings;
 use SineMacula\ApiToolkit\Config\LifecycleSettings;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
@@ -153,17 +154,23 @@ final readonly class ContainerBindingRegistrar
 
             $registry = new OperatorRegistry;
 
-            $registry->register('$eq', new EqualOperator);
-            $registry->register('$neq', new NotEqualOperator);
-            $registry->register('$gt', new GreaterThanOperator);
-            $registry->register('$lt', new LessThanOperator);
-            $registry->register('$ge', new GreaterThanOrEqualOperator);
-            $registry->register('$le', new LessThanOrEqualOperator);
-            $registry->register('$in', new InOperator);
-            $registry->register('$between', new BetweenOperator);
-            $registry->register('$contains', new ContainsOperator);
-            $registry->register('$null', new NullOperator);
-            $registry->register('$notNull', new NotNullOperator);
+            $operators = [
+                '$eq'       => new EqualOperator,
+                '$in'       => new InOperator,
+                '$neq'      => new NotEqualOperator,
+                '$gt'       => new GreaterThanOperator,
+                '$ge'       => new GreaterThanOrEqualOperator,
+                '$lt'       => new LessThanOperator,
+                '$le'       => new LessThanOrEqualOperator,
+                '$between'  => new BetweenOperator,
+                '$contains' => new ContainsOperator,
+                '$null'     => new NullOperator,
+                '$notNull'  => new NotNullOperator,
+            ];
+
+            foreach ($operators as $token => $operator) {
+                $registry->register($token, $operator, ...Capability::admitting($token));
+            }
 
             return $registry;
         });
