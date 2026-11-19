@@ -95,6 +95,17 @@ final class ResponseExampleTest extends TestCase
     }
 
     /**
+     * Test that a numeric name exported as a map key is accepted.
+     *
+     * @return void
+     */
+    public function testAcceptsANumericNameThatStaysAMapKey(): void
+    {
+        self::assertSame('01', (new ResponseExample(HttpStatus::OK, '01', 'signed-in.json'))->name);
+        self::assertSame('1.0', (new ResponseExample(HttpStatus::OK, '1.0', 'signed-in.json'))->name);
+    }
+
+    /**
      * Provide files that are not a relative path to a visible .json file.
      *
      * @return iterable<string, array{string}>
