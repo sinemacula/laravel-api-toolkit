@@ -241,13 +241,14 @@ all. It is unsupported beside a repository scope that adds `distinct`, `group by
 GET /users?order=last_name,first_name:desc
 ```
 
-A direction is `asc` (the default) or `desc`, in any case; anything else, including an empty suffix, is rejected with
-a `422` on `order.{column}` rather than ignored. `paginate()` appends the model key in the last direction when the
-order does not already include it, so rows tied on the requested columns never repeat or go missing between pages. The
-appended key needs no `sortable()` declaration and does not count against `max_order_keys`. A grouped read takes its
-group columns instead; a read grouped by an expression, filtered by `having` without groups, `distinct` on columns, or
-`distinct` without selecting the columns it would take gets nothing appended and needs a unique order of its own. A
-`sortable()` field names a column of the model's table, so a select alias a repository scope adds cannot be ordered by.
+A direction is `asc` (the default) or `desc`, in any case; anything else, including an empty suffix, is rejected with a
+`422` on `order.{column}` rather than ignored, as is a column ordered by twice. `paginate()` appends the model key in
+the last direction when the order does not already include it, so rows tied on the requested columns never repeat or go
+missing between pages. The appended key needs no `sortable()` declaration and does not count against `max_order_keys`. A
+grouped read takes its group columns instead; a read grouped by an expression, filtered by `having` without groups,
+`distinct` on columns, or `distinct` without selecting the columns it would take gets nothing appended and needs a
+unique order of its own. A `sortable()` field names a column of the model's table, so a select alias a repository scope
+adds cannot be ordered by.
 
 A cursor can only seek by a column that holds a value in every row, so a cursor-paginated read rejects `random` and
 any column the cached column catalogue reports as nullable, such as the `created_at` that `timestamps()` creates;
@@ -287,15 +288,16 @@ selects none. A resource embedded through a `MorphTo` relation or a `Polymorphic
 }
 ```
 
-**Pagination** - `?pagination=cursor` (or any `?cursor` token) selects cursor pagination; offset pagination is used
-otherwise. A non-empty offset page shorter than `limit`, or an empty first page, derives its total without a count.
-Any other page counts at most the rows through the last page `query_cost.max_offset` allows: past that, `meta.total` is
-those rows, `meta.total_capped` is `true` and `Total-Count` is absent, so read further with cursor pagination. That
-bounds the rows the count admits, not the rows it examines; set `max_offset` to `0` for exact, unbounded totals. A
-capped page is a `CappedLengthAwarePaginator`, which a container binding of `LengthAwarePaginator` does not replace. A
-`simplePaginate()` result renders the cursor envelope. Offset pages do not support an ungrouped aggregate projection
-such as `selectRaw('max(id) as id')`, which is one row rather than a pageable set, nor a `distinct` or union over a join
-without an explicit projection, which MySQL refuses to count.
+**Pagination** - `?pagination=cursor` (or any `?cursor` token) selects cursor pagination, and offset pagination is used
+otherwise. An empty `pagination` reads as absent; any other value is rejected with a `422`. A non-empty offset page
+shorter than `limit`, or an empty first page, derives its total without a count. Any other page counts at most the rows
+through the last page `query_cost.max_offset` allows: past that, `meta.total` is those rows, `meta.total_capped` is
+`true` and `Total-Count` is absent, so read further with cursor pagination. That bounds the rows the count admits, not
+the rows it examines; set `max_offset` to `0` for exact, unbounded totals. A capped page is a
+`CappedLengthAwarePaginator`, which a container binding of `LengthAwarePaginator` does not replace. A `simplePaginate()`
+result renders the cursor envelope. Offset pages do not support an ungrouped aggregate projection such as
+`selectRaw('max(id) as id')`, which is one row rather than a pageable set, nor a `distinct` or union over a join without
+an explicit projection, which MySQL refuses to count.
 
 **Soft deletes** - `?trashed=with` or `?trashed=only`, read as a `TrashedState` from `ApiQuery::getTrashed()`. The
 criteria layer applies it only where the model uses `SoftDeletes` and the resource opts in by overriding
