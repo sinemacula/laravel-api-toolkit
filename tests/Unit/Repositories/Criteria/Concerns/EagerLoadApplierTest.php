@@ -17,9 +17,13 @@ use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationColumnNarrower;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\OwnPostResource;
+use Tests\Fixtures\Resources\PostOwnerResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -72,7 +76,7 @@ final class EagerLoadApplierTest extends TestCase
         $provider->expects(self::never())->method('eagerLoadMapFor');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, null, 'users', $this->gate(), $this->narrower());
+        $result = $this->applier->apply($query, $provider, null, 'users', $this->gate(), $this->narrower(), $this->perimeter());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -93,7 +97,7 @@ final class EagerLoadApplierTest extends TestCase
         $provider->expects(self::never())->method('eagerLoadMapFor');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, null, $this->gate(), $this->narrower());
+        $result = $this->applier->apply($query, $provider, UserResource::class, null, $this->gate(), $this->narrower(), $this->perimeter());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -113,7 +117,7 @@ final class EagerLoadApplierTest extends TestCase
         $provider->expects(self::never())->method('eagerLoadMapFor');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, \stdClass::class, 'users', $this->gate(), $this->narrower());
+        $result = $this->applier->apply($query, $provider, \stdClass::class, 'users', $this->gate(), $this->narrower(), $this->perimeter());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -143,7 +147,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query = (new User)->newQuery();
-        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
+        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower(), $this->perimeter());
     }
 
     /**
@@ -171,7 +175,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query = (new User)->newQuery();
-        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
+        $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower(), $this->perimeter());
     }
 
     /**
@@ -208,7 +212,7 @@ final class EagerLoadApplierTest extends TestCase
             ->method('eagerLoadAggregatesFor');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, $resource::class, 'fieldless_users', $this->gate(), $this->narrower());
+        $result = $this->applier->apply($query, $provider, $resource::class, 'fieldless_users', $this->gate(), $this->narrower(), $this->perimeter());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -235,7 +239,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower(), $this->perimeter());
 
         self::assertArrayHasKey('organization', $result->getEagerLoads());
     }
@@ -262,7 +266,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower(), $this->perimeter());
 
         self::assertEmpty($result->getEagerLoads());
     }
@@ -301,7 +305,7 @@ final class EagerLoadApplierTest extends TestCase
             ]);
 
         $query = (new User)->newQuery();
-        $sql   = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower())->toSql();
+        $sql   = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower(), $this->perimeter())->toSql();
 
         self::assertStringContainsString('count(*)', $sql);
         self::assertStringContainsString('"aggregate_posts_count"', $sql);
@@ -337,7 +341,7 @@ final class EagerLoadApplierTest extends TestCase
             ->willReturn([]);
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower(), $this->perimeter());
 
         self::assertEmpty($result->getQuery()->columns ?? []);
     }
@@ -363,7 +367,7 @@ final class EagerLoadApplierTest extends TestCase
             ->method('eagerLoadAggregatesFor');
 
         $query  = (new User)->newQuery();
-        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
+        $result = $this->applier->apply($query, $provider, UserResource::class, 'users', $this->gate(), $this->narrower(), $this->perimeter());
 
         self::assertNull($result->getQuery()->columns);
     }
@@ -382,7 +386,7 @@ final class EagerLoadApplierTest extends TestCase
         $provider = self::createStub(ResourceMetadataProvider::class);
         $provider->method('eagerLoadMapFor')->willReturn(['organization', 'profile' => 42, 'posts' => null]);
 
-        $query = $this->applier->apply((new User)->newQuery(), $provider, UserResource::class, 'users', $this->gate(), $this->narrower());
+        $query = $this->applier->apply((new User)->newQuery(), $provider, UserResource::class, 'users', $this->gate(), $this->narrower(), $this->perimeter());
 
         self::assertSame(['organization'], array_keys($query->getEagerLoads()));
     }
@@ -402,7 +406,7 @@ final class EagerLoadApplierTest extends TestCase
 
         $this->parseRequest(new Request(['fields' => ['users' => 'name,posts', 'posts' => 'title']]));
 
-        $query = $this->applier->apply((new User)->newQuery(), new ResourceMetadataService, UserResource::class, 'users', $this->gate(), $this->narrower());
+        $query = $this->applier->apply((new User)->newQuery(), new ResourceMetadataService, UserResource::class, 'users', $this->gate(), $this->narrower(), $this->perimeter());
 
         $constraint = $query->getEagerLoads()['posts'];
         $relation   = Relation::noConstraints(static fn (): Relation => (new User)->posts());
@@ -410,6 +414,48 @@ final class EagerLoadApplierTest extends TestCase
         $constraint($relation);
 
         self::assertSame(['posts.title', 'posts.id', 'posts.user_id'], $relation->getQuery()->getQuery()->columns);
+    }
+
+    /**
+     * Test that the row rule governs every relation the query loads, the ones
+     * it carried already among them, and every aggregate it selects.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testApplyGovernsEveryLoadAndAggregateByTheRowRule(): void
+    {
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [PostOwnerResource::class, OwnPostResource::class]);
+
+        $this->parseRequest(new Request([
+            'fields'     => ['post_owners' => 'name,posts,aggregates'],
+            'aggregates' => ['post_owners' => 'posts_count,posts_sum_id'],
+        ]));
+
+        $query = $this->applier->apply(
+            User::query()->with('publishedPosts'),
+            new ResourceMetadataService,
+            PostOwnerResource::class,
+            'post_owners',
+            $this->gate(),
+            $this->narrower(),
+            $this->perimeter([Post::class => OwnPostResource::class]),
+        );
+
+        $relations = [
+            'posts'          => Relation::noConstraints(static fn (): Relation => (new User)->posts()),
+            'publishedPosts' => Relation::noConstraints(static fn (): Relation => (new User)->publishedPosts()),
+        ];
+
+        foreach ($relations as $name => $relation) {
+
+            $query->getEagerLoads()[$name]($relation);
+
+            self::assertStringContainsString('(0 = 1)', $relation->toSql());
+        }
+
+        self::assertSame(2, substr_count($query->toSql(), 'and (0 = 1)) as "aggregate_'));
     }
 
     /**
@@ -443,6 +489,17 @@ final class EagerLoadApplierTest extends TestCase
             new Request,
             [],
         );
+    }
+
+    /**
+     * Build a row perimeter over the resource map for the applier under test.
+     *
+     * @param  array<string, string>  $resourceMap
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter
+     */
+    private function perimeter(array $resourceMap = []): RowPerimeter
+    {
+        return new RowPerimeter(new Request, $resourceMap);
     }
 
     /**

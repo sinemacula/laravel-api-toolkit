@@ -10,6 +10,7 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
+use SineMacula\ApiToolkit\Schema\ChildProjection;
 
 /**
  * Applies eager loading to an Eloquent query builder.
@@ -28,6 +29,7 @@ final class EagerLoadApplier
      * @param  string|null  $resourceType
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate  $trashedGate
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationColumnNarrower  $columnNarrower
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter  $rowPerimeter
      * @return \Illuminate\Contracts\Database\Eloquent\Builder
      */
     public function apply(
@@ -37,6 +39,7 @@ final class EagerLoadApplier
         ?string $resourceType,
         RelationTrashedGate $trashedGate,
         RelationColumnNarrower $columnNarrower,
+        RowPerimeter $rowPerimeter,
     ): Builder {
         if ($resourceClass === null || $resourceType === null || !is_subclass_of($resourceClass, ApiResourceInterface::class)) {
             return $query;
@@ -50,12 +53,19 @@ final class EagerLoadApplier
 
         $model = $query->getModel();
         $plan  = EagerLoadPlanner::buildProjectionPlan($resourceClass, $fields);
+        $paths = ChildProjection::resourcesOf($plan);
         $with  = $columnNarrower->decorate($metadataProvider->eagerLoadMapFor($resourceClass, $fields), $model, $resourceClass, $fields, $plan);
 
+        /** @var array<int|string, array<mixed>|(\Closure(mixed): mixed)|string> $with */
         $with = array_filter(
-            $trashedGate->decorate($with, $model, ApiQuery::getTrashed()),
+            $trashedGate->decorate($with, $model, ApiQuery::getTrashed(), $paths),
             static fn (mixed $load): bool => is_string($load) || is_array($load) || $load instanceof \Closure,
         );
+
+        // The model's default loads and any the caller added are read too
+        $query->setEagerLoads($rowPerimeter->decorate($query->getEagerLoads(), $model));
+
+        $with = $rowPerimeter->decorate($with, $model, $paths);
 
         if (!empty($with)) {
             $query->with($with);
@@ -63,7 +73,7 @@ final class EagerLoadApplier
 
         if (in_array('aggregates', $fields, true)) {
 
-            $aggregates = $metadataProvider->eagerLoadAggregatesFor($resourceClass, ApiQuery::getAggregates($resourceType) ?? []);
+            $aggregates = $rowPerimeter->wrapAggregates($metadataProvider->eagerLoadAggregatesFor($resourceClass, ApiQuery::getAggregates($resourceType) ?? []), $resourceClass);
 
             foreach ($trashedGate->decorateAggregates($aggregates, ApiQuery::getTrashed()) as $entry) {
                 $query->withAggregate($entry['relation'], $entry['column'], $entry['function']);

@@ -39,7 +39,9 @@ use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Policies\ArticlePolicy;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\OwnPostResource;
 use Tests\Fixtures\Resources\PivotPostResource;
+use Tests\Fixtures\Resources\PostOwnerResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\RestorableArticleResource;
 use Tests\Fixtures\Resources\TagResource;
@@ -2928,6 +2930,49 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
+     * Test that a resource loading what is missing loads only the rows the
+     * request may see, on a model or a collection, and counts only them.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testLoadMissingLoadsAndCountsOnlyVisibleRows(): void
+    {
+        $this->seedAuthorWithPost();
+
+        $result = (new PostOwnerResource(User::query()->firstOrFail(), true))->resolve();
+
+        self::assertSame([], json_decode((string) json_encode($result['posts']), true));
+        self::assertSame(['posts_count' => 0], $result['aggregates']);
+
+        $users = User::query()->get();
+
+        new PostOwnerResource($users, true);
+
+        self::assertSame([], $users->firstOrFail()->toArray()['posts']);
+    }
+
+    /**
+     * Test that a resource loading what is missing keeps an aggregate the model
+     * already carries.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testLoadMissingKeepsAnAggregateTheModelCarries(): void
+    {
+        $this->seedAuthorWithPost();
+
+        $user = User::query()->firstOrFail();
+
+        $user->setAttribute('aggregate_posts_count', 1);
+
+        self::assertSame(['posts_count' => 1], (new PostOwnerResource($user, true))->resolve()['aggregates']);
+    }
+
+    /**
      * Test that load_missing skips every aggregate while the aggregates field
      * is neither requested nor default, even when the definitions are default.
      *
@@ -3312,5 +3357,34 @@ final class ApiResourceTest extends TestCase
     private function clearSchemaCache(): void
     {
         SchemaCompiler::clearCache();
+    }
+
+    /**
+     * Seed an author with one post, mapped to a resource restricting the posts
+     * to the caller's own, and parse a request for the author's posts and
+     * count.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function seedAuthorWithPost(): void
+    {
+        assert($this->app !== null);
+
+        Config::set('api-toolkit.resources.resource_map', [Post::class => OwnPostResource::class]);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [PostOwnerResource::class, OwnPostResource::class]);
+
+        $author = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+
+        Post::create(['user_id' => $author->id, 'title' => 'Launch', 'body' => 'Body']);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+
+        $parser->parse(Request::create('/', HttpMethod::GET->getVerb(), [
+            'fields'     => ['post_owners' => 'name,posts,aggregates'],
+            'aggregates' => ['post_owners' => 'posts_count'],
+        ]));
     }
 }
