@@ -268,7 +268,7 @@ final readonly class RowPerimeter
             return $this->wrap($constraint);
         }
 
-        $resource = (string) ($declared ?? $this->mappedResource($model));
+        $resource = $declared ?? $this->mappedResource($model);
 
         return self::restricts($resource) || ($declared !== null && $this->restrictsAggregatesOf($declared)) ? $this->wrap($constraint, $resource) : null;
     }

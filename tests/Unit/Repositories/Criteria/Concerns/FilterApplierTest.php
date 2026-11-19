@@ -53,6 +53,7 @@ use Tests\Fixtures\Resources\OwnPostResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\PublicAuthorPostResource;
 use Tests\Fixtures\Resources\PublicUserResource;
+use Tests\Fixtures\Resources\PublishedPostResource;
 use Tests\Fixtures\Resources\TrashedSearchArticleResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -2205,7 +2206,7 @@ final class FilterApplierTest extends TestCase
 
     /**
      * Test that a polymorphic relation filter applies the row rule of each
-     * concrete type's resource.
+     * concrete type's resource, whatever resource the relation declares.
      *
      * @return void
      *
@@ -2219,8 +2220,13 @@ final class FilterApplierTest extends TestCase
         $this->attachNote($author, 'On Alice');
         $this->attachNote($post, 'On launch');
 
-        $surface = $this->declaredSurface(relations: ['noteable'], resourceMap: [Post::class => OwnPostResource::class, User::class => UserResource::class]);
-        $query   = $this->restrictingApplier()->apply((new Note)->newQuery(), ['$has' => ['noteable']], $this->operatorRegistry, $surface);
+        $surface = $this->declaredSurface(
+            relations  : ['noteable'],
+            resourceMap: [Post::class => OwnPostResource::class, User::class => UserResource::class],
+            resources  : ['noteable' => PublishedPostResource::class],
+        );
+
+        $query = $this->restrictingApplier()->apply((new Note)->newQuery(), ['$has' => ['noteable']], $this->operatorRegistry, $surface);
 
         self::assertSame(['On Alice'], $query->pluck('title')->all());
     }

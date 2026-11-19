@@ -64,7 +64,7 @@ final class ValidateRowPerimeterDefaultsTest extends TestCase
 
     /**
      * Test that a dotted default load is refused at the restricting relation it
-     * reaches.
+     * reaches, beside a legal one.
      *
      * @return void
      */
@@ -72,7 +72,7 @@ final class ValidateRowPerimeterDefaultsTest extends TestCase
     {
         $model = new class extends DefaultLoadingUser {
             /** @var array<int, string> */
-            protected $with = ['author.posts']; // @phpstan-ignore property.phpDocType
+            protected $with = ['organization', 'author.posts']; // @phpstan-ignore property.phpDocType
         };
 
         self::assertEquals([self::refusal($model, 'author.posts', 'with', self::REACHES_POSTS)], $this->validate($model));
@@ -188,7 +188,12 @@ final class ValidateRowPerimeterDefaultsTest extends TestCase
 
         Config::set('api-toolkit.resources.resource_map', [Post::class => PostResource::class]);
 
-        self::assertSame([], $this->validate(new DefaultLoadingUser));
+        $model = new class extends DefaultLoadingUser {
+            /** @var array<int, string> */
+            protected $with = ['ghost']; // @phpstan-ignore property.phpDocType
+        };
+
+        self::assertSame([], $this->validate($model));
     }
 
     /**

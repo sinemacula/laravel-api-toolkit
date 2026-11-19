@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\Schema\Field;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OwnPostResource;
 use Tests\Fixtures\Resources\PostOwnerResource;
@@ -92,6 +93,54 @@ final class RowPerimeterTest extends TestCase
     {
         self::assertTrue(RowPerimeter::restricts(OwnPostResource::class));
         self::assertTrue(RowPerimeter::restricts((new class (null) extends OwnPostResource {})::class));
+    }
+
+    /**
+     * Test that a relation is resolved by calling its method, and anything else
+     * resolves to nothing.
+     *
+     * @return void
+     */
+    public function testRelationOfResolvesOnlyRelations(): void
+    {
+        self::assertInstanceOf(HasMany::class, RowPerimeter::relationOf(new User, 'posts'));
+        self::assertNull(RowPerimeter::relationOf(new User, 'fullLabel'));
+        self::assertNull(RowPerimeter::relationOf(new User, 'ghost'));
+    }
+
+    /**
+     * Test that an aggregate constraint is returned as given where nothing
+     * restricts the rows it counts, and wrapped otherwise.
+     *
+     * @return void
+     */
+    public function testAggregateConstraintIsWrappedOnlyWhereARuleApplies(): void
+    {
+        $existing = static function (Builder $query): void {
+            $query->where('title', 'Launch');
+        };
+
+        self::assertSame($existing, $this->perimeter([Post::class => PostResource::class])->wrapAggregate($existing, UserResource::class, 'publishedPosts'));
+        self::assertNull($this->perimeter([Post::class => PostResource::class])->wrapAggregate(null, UserResource::class, 'publishedPosts'));
+
+        $wrapped = $this->perimeter([Post::class => OwnPostResource::class])->wrapAggregate($existing, UserResource::class, 'publishedPosts');
+
+        self::assertSame('select * from "posts" where "title" = ? and ' . self::OWN_POSTS, $this->builderAfter($wrapped, Post::query()));
+    }
+
+    /**
+     * Test that a path whose relation cannot be resolved ahead of the load is
+     * wrapped to resolve its resource from the model it loads.
+     *
+     * @return void
+     */
+    public function testUnresolvablePathResolvesItsResourceAsItLoads(): void
+    {
+        $decorated = $this->perimeter([Post::class => OwnPostResource::class])->decorate(['ghost'], new User);
+
+        self::assertSame(['ghost'], array_keys($decorated));
+        self::assertInstanceOf(\Closure::class, $decorated['ghost']);
+        self::assertStringEndsWith(self::OWN_POSTS, $this->sqlAfter($decorated['ghost'], (new User)->posts()));
     }
 
     /**
@@ -433,7 +482,7 @@ final class RowPerimeterTest extends TestCase
             $query->where('name', 'Alice');
         };
 
-        $decorated = $this->perimeter([Post::class => OwnPostResource::class, User::class => UserResource::class])->decorate([
+        $decorated = $this->perimeter([User::class => UserResource::class, Post::class => OwnPostResource::class])->decorate([
             'noteable' => static function (mixed $relation) use ($userConstraint): void {
 
                 assert($relation instanceof MorphTo);
@@ -507,6 +556,62 @@ final class RowPerimeterTest extends TestCase
         $sql = $this->sqlAfter($this->morphState($relation, 'morphableEagerLoads')[User::class]['posts'], (new User)->posts());
 
         self::assertSame(1, substr_count($sql, self::OWN_POSTS));
+    }
+
+    /**
+     * Test that the per-type relations and counts given in every accepted form
+     * are each decorated, and an entry naming no relation is left out.
+     *
+     * @return void
+     */
+    public function testPolymorphicPerTypeListsAreDecoratedWhole(): void
+    {
+        $relation = (new Note)->noteable()
+            ->morphWith([User::class => 'posts', Tag::class => ['posts', 'articles']])
+            ->morphWithCount([User::class => [['bogus'], 'posts', 'publishedPosts']]);
+
+        $this->perimeter([Post::class => OwnPostResource::class])->wrap(null)($relation);
+
+        $loads  = $this->morphState($relation, 'morphableEagerLoads');
+        $counts = $this->morphState($relation, 'morphableEagerLoadCounts');
+
+        self::assertStringEndsWith(self::OWN_POSTS, $this->sqlAfter($loads[User::class]['posts'] ?? null, (new User)->posts()));
+        self::assertSame(['posts', 'articles'], array_keys((array) $loads[Tag::class]));
+        self::assertSame(['posts', 'publishedPosts'], array_keys((array) $counts[User::class]));
+    }
+
+    /**
+     * Test that a per-type relation replacing a generic one is decorated, as
+     * the generic decoration no longer runs.
+     *
+     * @return void
+     */
+    public function testPolymorphicPerTypeRelationReplacingAGenericOneIsDecorated(): void
+    {
+        $perimeter = $this->perimeter([Post::class => OwnPostResource::class]);
+        $relation  = (new Note)->noteable()->morphWith([User::class => ['posts' => static function (): void {}]]);
+
+        $relation->getQuery()->with(['posts' => $perimeter->wrap(null)]);
+
+        $perimeter->wrap(null)($relation);
+
+        self::assertStringEndsWith(self::OWN_POSTS, $this->sqlAfter($this->morphState($relation, 'morphableEagerLoads')[User::class]['posts'] ?? null, (new User)->posts()));
+    }
+
+    /**
+     * Test that a polymorphic relation leaves its own query to the types it
+     * loads.
+     *
+     * @return void
+     */
+    public function testPolymorphicRelationLeavesItsOwnQueryToItsTypes(): void
+    {
+        $relation = (new Note)->noteable();
+        $wheres   = $relation->getQuery()->getQuery()->wheres;
+
+        $this->perimeter([Note::class => OwnPostResource::class, Post::class => OwnPostResource::class])->wrap(null)($relation);
+
+        self::assertSame($wheres, $relation->getQuery()->getQuery()->wheres);
     }
 
     /**
