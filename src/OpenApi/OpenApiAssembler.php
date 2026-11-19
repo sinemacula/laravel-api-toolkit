@@ -129,6 +129,7 @@ final readonly class OpenApiAssembler
      *
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\OperationIdCollisionException
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\OrphanedDocumentationException
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\TagConfigurationException
      */
     public function assemble(?string $audience = null): array
@@ -138,14 +139,13 @@ final readonly class OpenApiAssembler
 
         $audience = $audience === null || $audience === '' ? $this->audiences->defaultAudience() : $audience;
         $routes   = $this->routes->collect($this->audiences->exportedAudiences($audience));
-        $paths    = $this->pathBuilder->build($routes->in($audience), $this->descriptions->for($audience, $routes));
+        $servers  = $this->audiences->serversFor($audience);
+        $paths    = $this->pathBuilder->build($routes->in($audience), $this->descriptions->for($audience, $routes), $audience, $servers);
 
         $document = [
             'openapi' => self::OPENAPI_VERSION,
             'info'    => $this->buildInfo($audience),
         ];
-
-        $servers = $this->audiences->serversFor($audience);
 
         if ($servers !== []) {
             $document['servers'] = $servers;

@@ -206,7 +206,9 @@ return [
 
             // Extra or replacement driver mappings, keyed by auth driver name,
             // each with a scheme `name` and an OpenAPI security scheme
-            // `definition`. Built in: jwt, basic, sanctum, token, session
+            // `definition`. Built in: jwt, basic, sanctum, token, session. A
+            // mapping keeping a built-in name replaces its definition, and
+            // mappings sharing a name must share its definition
             'drivers' => [],
 
         ],
@@ -283,9 +285,12 @@ return [
     | `max_nodes`       - total filter keys visited.
     | `max_in_items`    - items in one operator value list, such as `$in`.
     | `max_order_keys`  - sort columns.
-    | `max_aggregates`  - relation aggregates.
+    | `max_aggregates`  - relation aggregates, across every resource type.
     | `max_offset`      - rows skipped to reach a page, (page - 1) x page size;
-    |                     cursor pagination is exempt.
+    |                     cursor pagination is exempt. It also bounds the
+    |                     count: a total past the last page it allows stops
+    |                     there, with `meta.total_capped` true and no
+    |                     `Total-Count`. 0 counts every match.
     */
 
     'query_cost' => [

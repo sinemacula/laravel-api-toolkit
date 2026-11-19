@@ -51,18 +51,38 @@ final class FilesystemDocumentWriterTest extends TestCase
     }
 
     /**
-     * Test that the writer persists the contents at the given path.
+     * Test that the writer persists each document at its path, leaving no
+     * staging file behind.
      *
      * @return void
      */
-    public function testWritesContentsToPath(): void
+    public function testWritesEveryDocumentToItsPath(): void
+    {
+        $public   = $this->directory . '/openapi.public.json';
+        $internal = $this->directory . '/openapi.internal.json';
+
+        (new FilesystemDocumentWriter(new Filesystem))->write([$public => '{"openapi":"3.1.0"}', $internal => '{}']);
+
+        self::assertSame('{"openapi":"3.1.0"}', file_get_contents($public));
+        self::assertSame('{}', file_get_contents($internal));
+        self::assertSame([$internal, $public], glob($this->directory . '/*'));
+    }
+
+    /**
+     * Test that the writer replaces a document already at the path.
+     *
+     * @return void
+     */
+    public function testReplacesAnExistingDocument(): void
     {
         $path = $this->directory . '/openapi.json';
 
-        (new FilesystemDocumentWriter(new Filesystem))->write($path, '{"openapi":"3.1.0"}');
+        (new Filesystem)->ensureDirectoryExists($this->directory);
+        file_put_contents($path, 'stale');
 
-        self::assertFileExists($path);
-        self::assertSame('{"openapi":"3.1.0"}', file_get_contents($path));
+        (new FilesystemDocumentWriter(new Filesystem))->write([$path => 'fresh']);
+
+        self::assertSame('fresh', file_get_contents($path));
     }
 
     /**
@@ -74,18 +94,45 @@ final class FilesystemDocumentWriterTest extends TestCase
     {
         $path = $this->directory . '/nested/deep/openapi.json';
 
-        (new FilesystemDocumentWriter(new Filesystem))->write($path, 'contents');
+        (new FilesystemDocumentWriter(new Filesystem))->write([$path => 'contents']);
 
         self::assertDirectoryExists($this->directory . '/nested/deep');
         self::assertSame('contents', file_get_contents($path));
     }
 
     /**
-     * Test that the parent directory is created recursively with the mode.
+     * Test that a document that cannot be staged leaves every other document as
+     * it was and no staging file behind.
      *
      * @return void
      */
-    public function testCreatesDirectoryWithExpectedModeAndFlags(): void
+    public function testFailedDocumentLeavesEveryDocumentUnreplaced(): void
+    {
+        $public = $this->directory . '/openapi.public.json';
+        $file   = $this->directory . '/file';
+
+        (new Filesystem)->ensureDirectoryExists($this->directory);
+        file_put_contents($public, 'previous');
+        file_put_contents($file, '');
+
+        $this->expectException(DocumentWriteException::class);
+        $this->expectExceptionMessage(sprintf('Unable to create directory [%s] for the OpenAPI document.', $file));
+
+        try {
+            (new FilesystemDocumentWriter(new Filesystem))->write([$public => 'next', $file . '/openapi.internal.json' => 'next']);
+        } finally {
+            self::assertSame('previous', file_get_contents($public));
+            self::assertSame([$file, $public], glob($this->directory . '/*'));
+        }
+    }
+
+    /**
+     * Test that the staging file is written beside the target and moved onto
+     * it, the parent directory created recursively with the mode.
+     *
+     * @return void
+     */
+    public function testStagesBesideTheTargetThenMovesOntoIt(): void
     {
         $path      = $this->directory . '/nested/openapi.json';
         $directory = dirname($path);
@@ -96,40 +143,55 @@ final class FilesystemDocumentWriterTest extends TestCase
             ->method('makeDirectory')
             ->with($directory, 0o755, true, true)
             ->willReturn(true);
-        $files->method('put')->willReturn(8);
+        $files->expects(self::once())->method('put')->with($path . '.tmp', 'contents')->willReturn(8);
+        $files->expects(self::once())->method('move')->with($path . '.tmp', $path)->willReturn(true);
+        $files->expects(self::once())->method('delete')->with([])->willReturn(true);
 
-        (new FilesystemDocumentWriter($files))->write($path, 'contents');
+        (new FilesystemDocumentWriter($files))->write([$path => 'contents']);
     }
 
     /**
-     * Test that a write failure surfaces as a DocumentWriteException.
+     * Test that a failed write surfaces as a DocumentWriteException naming the
+     * document and removes the staging file it may have left partly written.
      *
      * @return void
      */
-    public function testThrowsWhenTheWriteFails(): void
+    public function testThrowsAndRemovesTheStagingFileWhenTheWriteFails(): void
     {
-        $files = self::createStub(Filesystem::class);
+        $path = $this->directory . '/openapi.json';
+
+        $files = $this->createMock(Filesystem::class);
         $files->method('isDirectory')->willReturn(true);
         $files->method('put')->willReturn(false);
+        $files->expects(self::never())->method('move');
+        $files->expects(self::once())->method('delete')->with([$path . '.tmp'])->willReturn(true);
 
         $this->expectException(DocumentWriteException::class);
+        $this->expectExceptionMessage(sprintf('Unable to write the OpenAPI document to [%s].', $path));
 
-        (new FilesystemDocumentWriter($files))->write($this->directory . '/openapi.json', 'contents');
+        (new FilesystemDocumentWriter($files))->write([$path => 'contents']);
     }
 
     /**
-     * Test that an un-creatable directory surfaces as a DocumentWriteException.
+     * Test that a failed move surfaces as a DocumentWriteException and removes
+     * the staging files not yet moved.
      *
      * @return void
      */
-    public function testThrowsWhenTheDirectoryCannotBeCreated(): void
+    public function testThrowsAndRemovesUnmovedStagingWhenTheMoveFails(): void
     {
-        $files = self::createStub(Filesystem::class);
-        $files->method('isDirectory')->willReturn(false);
-        $files->method('makeDirectory')->willReturn(false);
+        $public   = $this->directory . '/openapi.public.json';
+        $internal = $this->directory . '/openapi.internal.json';
+
+        $files = $this->createMock(Filesystem::class);
+        $files->method('isDirectory')->willReturn(true);
+        $files->method('put')->willReturn(2);
+        $files->method('move')->willReturnCallback(static fn (string $from, string $to): bool => $to === $public);
+        $files->expects(self::once())->method('delete')->with([$internal . '.tmp'])->willReturn(true);
 
         $this->expectException(DocumentWriteException::class);
+        $this->expectExceptionMessage(sprintf('Unable to write the OpenAPI document to [%s].', $internal));
 
-        (new FilesystemDocumentWriter($files))->write($this->directory . '/openapi.json', 'contents');
+        (new FilesystemDocumentWriter($files))->write([$public => '{}', $internal => '{}']);
     }
 }
