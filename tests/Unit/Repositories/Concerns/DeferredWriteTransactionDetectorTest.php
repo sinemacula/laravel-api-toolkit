@@ -5,9 +5,12 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Concerns;
 
 use Illuminate\Database\DatabaseTransactionsManager;
+use Illuminate\Database\DeadlockException;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Repositories\Concerns\DeferredWriteTransactionDetector;
 use Tests\Concerns\CreatesDeferredWriteTargets;
 use Tests\TestCase;
@@ -150,5 +153,36 @@ final class DeferredWriteTransactionDetectorTest extends TestCase
     public function testAnUnconfiguredConnectionHoldsNoTransaction(): void
     {
         self::assertFalse((new DeferredWriteTransactionDetector)->hasOpenTransaction('missing'));
+    }
+
+    /**
+     * Provide failures and whether each ended the transaction it was raised in.
+     *
+     * @return iterable<string, array{\Throwable, bool}>
+     */
+    public static function failureProvider(): iterable
+    {
+        $lost = 'SQLSTATE[HY000]: General error: 2006 MySQL server has gone away';
+
+        yield 'deadlock' => [new DeadlockException('Deadlock found when trying to get lock'), true];
+        yield 'lost connection' => [new QueryException('testing', 'insert', [], new \PDOException($lost)), true];
+        yield 'lost connection warning' => [new \ErrorException('PDO::exec(): Error while sending QUERY packet'), true];
+        yield 'constraint violation' => [new QueryException('testing', 'insert', [], new \PDOException('SQLSTATE[23000]: Integrity constraint violation')), false];
+        yield 'warning' => [new \ErrorException('Undefined array key "name"'), false];
+        yield 'lost connection outside the database' => [new \RuntimeException($lost), false];
+    }
+
+    /**
+     * Test that only a nested concurrency error or a lost database connection
+     * ends a transaction.
+     *
+     * @param  \Throwable  $failure
+     * @param  bool  $ends
+     * @return void
+     */
+    #[DataProvider('failureProvider')]
+    public function testOnlyAConcurrencyErrorOrALostConnectionEndsATransaction(\Throwable $failure, bool $ends): void
+    {
+        self::assertSame($ends, (new DeferredWriteTransactionDetector)->endsTransaction($failure));
     }
 }

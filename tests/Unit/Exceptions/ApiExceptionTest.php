@@ -41,42 +41,33 @@ final class ApiExceptionTest extends TestCase
     }
 
     /**
-     * Test that the constructor sets the message (from getCustomDetail).
+     * Test that the constructor sets the message to the translated detail.
      *
      * @return void
      */
     public function testConstructorSetsMessage(): void
     {
-        $exception = new BadRequestException;
-
-        self::assertIsString($exception->getMessage());
-        self::assertNotEmpty($exception->getMessage());
+        self::assertSame('There was an issue with the request, please try again', (new BadRequestException)->getMessage());
     }
 
     /**
-     * Test that getCustomDetail returns a string.
+     * Test that getCustomDetail returns the translated detail.
      *
      * @return void
      */
-    public function testGetCustomDetailReturnsString(): void
+    public function testGetCustomDetailReturnsTheTranslatedDetail(): void
     {
-        $exception = new BadRequestException;
-
-        self::assertIsString($exception->getCustomDetail());
-        self::assertNotEmpty($exception->getCustomDetail());
+        self::assertSame('There was an issue with the request, please try again', (new BadRequestException)->getCustomDetail());
     }
 
     /**
-     * Test that getCustomTitle returns a string.
+     * Test that getCustomTitle returns the translated title.
      *
      * @return void
      */
-    public function testGetCustomTitleReturnsString(): void
+    public function testGetCustomTitleReturnsTheTranslatedTitle(): void
     {
-        $exception = new BadRequestException;
-
-        self::assertIsString($exception->getCustomTitle());
-        self::assertNotEmpty($exception->getCustomTitle());
+        self::assertSame('Bad Request', (new BadRequestException)->getCustomTitle());
     }
 
     /**

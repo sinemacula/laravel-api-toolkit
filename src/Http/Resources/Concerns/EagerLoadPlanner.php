@@ -20,6 +20,8 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  *
  * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
  *
+ * @phpstan-type EagerRelation \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  *
@@ -252,18 +254,19 @@ final class EagerLoadPlanner
      *
      * A column selection runs first so the aggregates add to it, and the bound
      * runs last. A MorphTo loads each type through a fresh query that drops the
-     * aggregate selects, so it loads none.
+     * aggregate selects, so it loads none. The trashed gate passes a decorator
+     * for the aggregates.
      *
      * @param  string  $owner
      * @param  (\Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null  $constraint
      * @param  int  $limit
      * @param  list<AggregateLoad>  $aggregates
      * @param  list<string>  $columns
-     * @return \Closure(\Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>): void
+     * @return \Closure(EagerRelation, (\Closure(list<AggregateLoad>): list<AggregateLoad>)|null=): void
      */
     private static function scope(string $owner, ?\Closure $constraint, int $limit, array $aggregates, array $columns): \Closure
     {
-        return static function (EloquentRelation $relation) use ($owner, $constraint, $limit, $aggregates, $columns): void {
+        return static function (EloquentRelation $relation, ?\Closure $decorateAggregates = null) use ($owner, $constraint, $limit, $aggregates, $columns): void {
 
             if ($columns !== []) {
                 $relation->select(self::qualifyColumns($relation, $columns));
@@ -273,14 +276,28 @@ final class EagerLoadPlanner
                 RelationWindow::constrain($relation, $constraint, $owner);
             }
 
-            if (!$relation instanceof MorphTo) {
-                foreach ($aggregates as $entry) {
-                    $relation->withAggregate($entry['relation'], $entry['column'], $entry['function']);
-                }
-            }
+            self::loadAggregates($relation, $decorateAggregates === null ? $aggregates : $decorateAggregates($aggregates));
 
             RelationWindow::bound($relation, $limit);
         };
+    }
+
+    /**
+     * Load the aggregates on the relation, unless it is a MorphTo.
+     *
+     * @param  EagerRelation  $relation
+     * @param  list<AggregateLoad>  $aggregates
+     * @return void
+     */
+    private static function loadAggregates(EloquentRelation $relation, array $aggregates): void
+    {
+        if ($relation instanceof MorphTo) {
+            return;
+        }
+
+        foreach ($aggregates as $entry) {
+            $relation->withAggregate($entry['relation'], $entry['column'], $entry['function']);
+        }
     }
 
     /**

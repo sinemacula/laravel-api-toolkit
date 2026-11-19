@@ -213,7 +213,7 @@ final class LockableTest extends TestCase
 
             self::fail('Expected LockUnavailableException was not thrown');
         } catch (LockUnavailableException $exception) {
-            self::assertNotEmpty($exception->getMessage());
+            self::assertSame('Unable to acquire the cache lock; the resource is currently locked.', $exception->getMessage());
         } finally {
             $existingLock->release();
         }
