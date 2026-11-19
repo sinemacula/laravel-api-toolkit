@@ -52,6 +52,7 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
+use Tests\Concerns\WritesDocsDirectories;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Document;
 use Tests\Fixtures\Models\User;
@@ -72,6 +73,7 @@ use Tests\Fixtures\OpenApi\PathOperationController;
 use Tests\Fixtures\OpenApi\PathPlainController;
 use Tests\Fixtures\OpenApi\PathReflectionGapController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
+use Tests\Fixtures\OpenApi\PathResponseExampleController;
 use Tests\Fixtures\OpenApi\PathResponseHeaderController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PathResponseStatusController;
@@ -95,6 +97,8 @@ use Tests\TestCase;
 #[CoversClass(PathBuilder::class)]
 final class PathBuilderTest extends TestCase
 {
+    use WritesDocsDirectories;
+
     /** The description of the page size parameter */
     private const string LIMIT_DESCRIPTION = 'Page size: the maximum number of records to return per page. A request above the ceiling is rejected rather than reduced to it.';
 
@@ -1703,6 +1707,44 @@ final class PathBuilderTest extends TestCase
         $register();
 
         self::assertSame([['url' => 'https://b.example.com']], $this->build()['/reports']['get']['servers']);
+    }
+
+    /**
+     * Test that one action declaring examples on two domains is still one
+     * operation, listing both servers and carrying the examples.
+     *
+     * @return void
+     */
+    public function testOneActionDeclaringExamplesOnTwoDomainsIsOneOperation(): void
+    {
+        $this->useDocsDirectory(['examples/auth/signed-in.json' => '{"data": {}}', 'examples/auth/remembered.json' => '{"data": {}}']);
+
+        RouteFacade::domain('a.example.com')->post('sign-in', [PathResponseExampleController::class, 'signIn']);
+        RouteFacade::domain('b.example.com')->post('sign-in', [PathResponseExampleController::class, 'signIn']);
+
+        $operation = $this->operationOf($this->build(), '/sign-in', 'post');
+
+        self::assertSame([['url' => 'https://a.example.com'], ['url' => 'https://b.example.com']], $operation['servers'] ?? null);
+        self::assertSame(['signed-in', 'remembered'], $this->examplesOf(['/sign-in' => ['post' => $operation]], '/sign-in', 'post', 200));
+    }
+
+    /**
+     * Test that only the operation a path and verb keeps reads its declared
+     * examples.
+     *
+     * @return void
+     */
+    public function testOverwrittenOperationReadsNoExamples(): void
+    {
+        $this->useDocsDirectory(['examples/auth/signed-in.json' => '{"data": {}}', 'examples/auth/remembered.json' => '{"data": {}}']);
+
+        RouteFacade::domain('a.example.com')->post('sign-in', [PathResponseExampleController::class, 'challenge']);
+        $this->router()->post('sign-in', [PathResponseExampleController::class, 'signIn']);
+
+        $routes = $this->collector()->collect(['public'])->in('public');
+
+        self::assertCount(2, $routes);
+        self::assertSame(['signed-in', 'remembered'], $this->examplesOf($this->builder()->build($routes, [], 'public', []), '/sign-in', 'post', 200));
     }
 
     /**

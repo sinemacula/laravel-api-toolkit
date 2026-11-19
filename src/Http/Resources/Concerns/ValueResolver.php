@@ -311,7 +311,7 @@ final class ValueResolver
 
         $related = $owner->getRelation($name);
 
-        return $related === null ? null : $this->resolveRelatedValue($definition, $related, $resource, $request);
+        return $related === null ? null : $this->resolveRelatedValue($definition, $related, $resource, $owner, $request);
     }
 
     /**
@@ -320,10 +320,11 @@ final class ValueResolver
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  mixed  $related
      * @param  mixed  $resource
+     * @param  object  $owner
      * @param  \Illuminate\Http\Request|null  $request
      * @return mixed
      */
-    private function resolveRelatedValue(CompiledFieldDefinition $definition, mixed $related, mixed $resource, ?Request $request): mixed
+    private function resolveRelatedValue(CompiledFieldDefinition $definition, mixed $related, mixed $resource, object $owner, ?Request $request): mixed
     {
         if ($definition->accessor !== null) {
             return match (true) {
@@ -342,8 +343,14 @@ final class ValueResolver
 
         $capped          = RelationLimit::cap($definition, $related);
         $this->truncated = $capped !== $related;
+        $wrapped         = $this->wrapRelatedWithResource($capped, $childClass, $childFields);
+        $accessor        = $definition->pivot === [] ? null : PivotColumns::accessor($owner, (string) $definition->relation);
 
-        return $this->wrapRelatedWithResource($capped, $childClass, $childFields);
+        if ($accessor !== null && method_exists($wrapped, 'withPivot')) {
+            $wrapped->withPivot($accessor, $definition->pivot);
+        }
+
+        return $wrapped;
     }
 
     /**
@@ -384,9 +391,9 @@ final class ValueResolver
      * @param  mixed  $related
      * @param  string  $resource
      * @param  array<int, string>|null  $fields
-     * @return mixed
+     * @return object
      */
-    private function wrapRelatedWithResource(mixed $related, string $resource, ?array $fields = null): mixed
+    private function wrapRelatedWithResource(mixed $related, string $resource, ?array $fields = null): object
     {
         /** @var object $wrapped */
         $wrapped = $related instanceof Collection

@@ -339,17 +339,31 @@ final class FieldTest extends TestCase
     }
 
     /**
-     * Test that the timestamp accessor returns null for a non-Carbon value.
+     * Test that the timestamp accessor returns null for a null value.
      *
      * @return void
      */
-    public function testTimestampAccessorReturnsNullForNonCarbonValue(): void
+    public function testTimestampAccessorReturnsNullForANullValue(): void
     {
         $accessor = Field::timestamp('created_at')->toArray()['created_at']['accessor'];
 
         self::assertIsCallable($accessor);
 
         self::assertNull($accessor(['created_at' => null]));
+    }
+
+    /**
+     * Test that an aliased timestamp reads its field, not its alias.
+     *
+     * @return void
+     */
+    public function testTimestampReadsItsFieldUnderAnAlias(): void
+    {
+        $accessor = Field::timestamp('created_at', 'created')->toArray()['created']['accessor'];
+
+        self::assertIsCallable($accessor);
+
+        self::assertSame('2026-07-15T09:30:00+00:00', $accessor(['created_at' => Carbon::parse('2026-07-15T09:30:00+00:00')]));
     }
 
     /**
@@ -385,17 +399,31 @@ final class FieldTest extends TestCase
     }
 
     /**
-     * Test that the date accessor returns null for a non-Carbon value.
+     * Test that the date accessor returns null for a null value.
      *
      * @return void
      */
-    public function testDateAccessorReturnsNullForNonCarbonValue(): void
+    public function testDateAccessorReturnsNullForANullValue(): void
     {
         $accessor = Field::date('birth_date')->toArray()['birth_date']['accessor'];
 
         self::assertIsCallable($accessor);
 
-        self::assertNull($accessor(['birth_date' => 'not-a-carbon']));
+        self::assertNull($accessor(['birth_date' => null]));
+    }
+
+    /**
+     * Test that an aliased date reads its field, not its alias.
+     *
+     * @return void
+     */
+    public function testDateReadsItsFieldUnderAnAlias(): void
+    {
+        $accessor = Field::date('birth_date', 'born_on')->toArray()['born_on']['accessor'];
+
+        self::assertIsCallable($accessor);
+
+        self::assertSame('2026-07-15', $accessor(['birth_date' => Carbon::parse('2026-07-15T09:30:00+00:00')]));
     }
 
     /**

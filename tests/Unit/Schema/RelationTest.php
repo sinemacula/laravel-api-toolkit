@@ -379,6 +379,44 @@ final class RelationTest extends TestCase
     }
 
     /**
+     * Test that pivot columns are emitted once each, across calls.
+     *
+     * @return void
+     */
+    public function testPivotColumnsAreEmittedOnceEach(): void
+    {
+        $array = Relation::to('members', OrganizationResource::class)
+            ->pivot('role', 'joined_at', 'role')
+            ->pivot('joined_at', 'title')
+            ->toArray();
+
+        self::assertSame(['role', 'joined_at', 'title'], $array['members']['pivot']);
+    }
+
+    /**
+     * Test that the pivot key is omitted when no columns are declared.
+     *
+     * @return void
+     */
+    public function testPivotIsOmittedWhenNotDeclared(): void
+    {
+        self::assertArrayNotHasKey('pivot', Relation::to('members', OrganizationResource::class)->toArray()['members']);
+    }
+
+    /**
+     * Test that declaring no pivot columns is refused.
+     *
+     * @return void
+     */
+    public function testPivotWithoutColumnsIsRefused(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('A relation must declare at least one pivot column');
+
+        Relation::to('members', OrganizationResource::class)->pivot();
+    }
+
+    /**
      * Test that a sortable relation emits the sortable marker and its reason.
      *
      * @return void

@@ -462,6 +462,40 @@ final class ResponseSchemaResolverTest extends TestCase
     }
 
     /**
+     * Test that a documented body naming a DefinesSchema shape, alone, in a
+     * union or as a collection, declares a shape.
+     *
+     * @return void
+     */
+    public function testDocumentedBodyNamingAShapeDeclaresOne(): void
+    {
+        $resolver = $this->resolver();
+
+        self::assertTrue($resolver->declaresShape(PathResponseSchemaController::class, 'widget'));
+        self::assertTrue($resolver->declaresShape(PathResponseSchemaController::class, 'widgets'));
+        self::assertTrue($resolver->declaresShape(PathResponseSchemaController::class, 'union'));
+        self::assertTrue($resolver->declaresShape(PathResponseSchemaController::class, 'mixed'));
+    }
+
+    /**
+     * Test that a body of resources, an undocumented body, or no body declares
+     * no shape.
+     *
+     * @return void
+     */
+    public function testBodyWithoutADocumentedShapeDeclaresNone(): void
+    {
+        $resolver = $this->resolver();
+
+        self::assertFalse($resolver->declaresShape(PathResponseSchemaController::class, 'single'));
+        self::assertFalse($resolver->declaresShape(PathResponseSchemaController::class, 'resources'));
+        self::assertFalse($resolver->declaresShape(PathResponseSchemaController::class, 'plain'));
+        self::assertFalse($resolver->declaresShape(PathResponseSchemaController::class, 'partlyPlain'));
+        self::assertFalse($resolver->declaresShape(PathResponseSchemaController::class, 'bare'));
+        self::assertFalse($resolver->declaresShape(null, 'widget'));
+    }
+
+    /**
      * Build the discriminated union of the signed-in and pending shapes.
      *
      * @return array<string, mixed>

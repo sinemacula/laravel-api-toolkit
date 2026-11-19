@@ -120,6 +120,18 @@ final class EmbeddedColumnNarrowingHttpTest extends TestCase
     }
 
     /**
+     * Test that a timestamp field narrows an embedded relation to its column.
+     *
+     * @return void
+     */
+    public function testAnEmbeddedTimestampFieldNarrowsToItsColumn(): void
+    {
+        $statements = $this->narrowedLikeUnnarrowed('/users?fields[users]=name,posts&fields[posts]=title,created_at');
+
+        $this->assertExecuted($statements, 'select posts.title, posts.created_at, posts.id, posts.user_id, row_number()');
+    }
+
+    /**
      * Test that every recognised relation type, nested paths, a declared limit
      * and a child aggregate render as they do unnarrowed.
      *

@@ -48,12 +48,16 @@ final readonly class RelationTrashedGate
     /**
      * Decorate the eager-load map so each relation applies its gated scope.
      *
+     * A path is gated by the resource declared over it, else by the resource
+     * mapped to the model it loads.
+     *
      * @param  array<int|string, mixed>  $with
      * @param  \Illuminate\Database\Eloquent\Model  $root
      * @param  \SineMacula\ApiToolkit\Enums\TrashedState  $state
+     * @param  array<string, string>  $pathResources
      * @return array<int|string, mixed>
      */
-    public function decorate(array $with, Model $root, TrashedState $state): array
+    public function decorate(array $with, Model $root, TrashedState $state, array $pathResources = []): array
     {
         if ($state === TrashedState::NONE || $with === []) {
             return $with;
@@ -63,7 +67,7 @@ final readonly class RelationTrashedGate
 
         foreach ($with as $key => $value) {
             [$path, $constraint] = $this->normaliseEntry($key, $value);
-            $decorated           = $this->addEntry($decorated, $path, $constraint, $root, $state);
+            $decorated           = $this->addEntry($decorated, $path, $constraint, $root, $state, $pathResources[$path] ?? null);
         }
 
         return $decorated;
@@ -101,7 +105,7 @@ final readonly class RelationTrashedGate
      */
     public function constrain(Builder $query, TrashedState $state): void
     {
-        if ($state === TrashedState::NONE || !$this->isGateOpen($query->getModel())) {
+        if ($state === TrashedState::NONE || !$this->isGateOpen($query->getModel(), $this->mappedResource($query->getModel()))) {
             return;
         }
 
@@ -155,12 +159,13 @@ final readonly class RelationTrashedGate
      * @param  (\Closure(mixed, mixed=): void)|null  $constraint
      * @param  \Illuminate\Database\Eloquent\Model  $root
      * @param  \SineMacula\ApiToolkit\Enums\TrashedState  $state
+     * @param  string|null  $declared
      * @return array<int|string, mixed>
      */
-    private function addEntry(array $decorated, string $path, ?\Closure $constraint, Model $root, TrashedState $state): array
+    private function addEntry(array $decorated, string $path, ?\Closure $constraint, Model $root, TrashedState $state, ?string $declared): array
     {
         $leaf = $this->resolveLeaf($root, $path);
-        $open = $leaf !== null && $this->isGateOpen($leaf);
+        $open = $leaf !== null && $this->isGateOpen($leaf, $declared ?? $this->mappedResource($leaf));
 
         if (!$open && $constraint === null) {
             $decorated[] = $path;
@@ -197,18 +202,18 @@ final readonly class RelationTrashedGate
     }
 
     /**
-     * Determine whether the leaf uses SoftDeletes and its resource opts in.
+     * Determine whether the leaf uses SoftDeletes and the resource governing it
+     * opts in.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $leaf
+     * @param  mixed  $resource
      * @return bool
      */
-    private function isGateOpen(Model $leaf): bool
+    private function isGateOpen(Model $leaf, mixed $resource): bool
     {
         if (!in_array(SoftDeletes::class, class_uses_recursive($leaf), true)) {
             return false;
         }
-
-        $resource = $this->resourceMap[$leaf::class] ?? null;
 
         if (!is_string($resource) || !is_subclass_of($resource, ApiResource::class)) {
             return false;
@@ -218,24 +223,35 @@ final readonly class RelationTrashedGate
     }
 
     /**
+     * Return the resource mapped to the model, if any.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return mixed
+     */
+    private function mappedResource(Model $model): mixed
+    {
+        return $this->resourceMap[$model::class] ?? null;
+    }
+
+    /**
      * Build a closure running any existing constraint, then the gated scope.
      *
-     * The existing constraint is handed the aggregate decorator, which the
-     * planner's closures apply to the aggregates they load.
+     * The existing constraint is handed the aggregate decorator, after any it
+     * receives, which the planner's closures apply to the aggregates they load.
      *
      * @param  (\Closure(mixed, mixed=): void)|null  $existing
      * @param  \SineMacula\ApiToolkit\Enums\TrashedState  $state
      * @param  bool  $open
-     * @return \Closure(mixed): void
+     * @return \Closure(mixed, (\Closure(list<AggregateLoad>): list<AggregateLoad>)|null=): void
      */
     private function scopeClosure(?\Closure $existing, TrashedState $state, bool $open): \Closure
     {
-        return function ($query) use ($existing, $state, $open): void {
+        return function ($query, ?\Closure $decorateAggregates = null) use ($existing, $state, $open): void {
 
             if ($existing !== null) {
-                $existing($query, function (array $entries) use ($state): array {
+                $existing($query, function (array $entries) use ($state, $decorateAggregates): array {
                     /** @var list<AggregateLoad> $entries */
-                    return $this->decorateAggregates($entries, $state);
+                    return $this->decorateAggregates($decorateAggregates === null ? $entries : $decorateAggregates($entries), $state);
                 });
             }
 

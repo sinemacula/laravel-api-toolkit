@@ -129,6 +129,25 @@ final class ColumnNarrowingIntegrationTest extends TestCase
     }
 
     /**
+     * Test that timestamp fields narrow the select to their own columns.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testTimestampFieldsNarrowToTheirColumns(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', false);
+
+        $off = $this->serialiseUsers('name,created_at,updated_at');
+
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        self::assertSame(['users.name', 'users.created_at', 'users.updated_at', 'users.id'], $this->captureUserColumns('name,created_at,updated_at'));
+        self::assertSame($off, $this->serialiseUsers('name,created_at,updated_at'));
+    }
+
+    /**
      * Test that ':all' keeps the default aggregates, a bound one included, when
      * the select is narrowed.
      *

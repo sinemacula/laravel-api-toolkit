@@ -28,6 +28,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationAggregateOrder;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationColumnNarrower;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SoftDeleteVisibilityApplier;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
@@ -74,6 +75,9 @@ final class ApiCriteria implements CriteriaInterface
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate */
     private readonly RelationTrashedGate $relationTrashedGate;
 
+    /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter */
+    private readonly RowPerimeter $rowPerimeter;
+
     /** @var \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationColumnNarrower */
     private readonly RelationColumnNarrower $relationColumnNarrower;
 
@@ -119,9 +123,11 @@ final class ApiCriteria implements CriteriaInterface
         private readonly bool $filtersOnly = false,
     ) {
         $this->relationTrashedGate         = new RelationTrashedGate($this->schemaIntrospector, $this->request, ResourceSettings::resourceMap());
-        $this->filterApplier               = new FilterApplier(new FilterValueGuard(new ColumnLiteral($this->schemaIntrospector)), $this->relationTrashedGate);
+        $this->rowPerimeter                = new RowPerimeter($this->request, ResourceSettings::resourceMap());
+        $this->filterApplier               = new FilterApplier(new FilterValueGuard(new ColumnLiteral($this->schemaIntrospector)), $this->relationTrashedGate, $this->rowPerimeter);
         $this->searchApplier               = new SearchApplier($this->searchDriverRegistry, new IndexProof($this->metadataCacheWriter));
-        $this->orderApplier                = new OrderApplier($this->schemaIntrospector, $this->searchApplier, new RelationAggregateOrder($this->relationTrashedGate));
+        $aggregateOrder                    = new RelationAggregateOrder($this->relationTrashedGate, $this->rowPerimeter);
+        $this->orderApplier                = new OrderApplier($this->schemaIntrospector, $this->searchApplier, $aggregateOrder);
         $this->eagerLoadApplier            = new EagerLoadApplier;
         $this->limitApplier                = new LimitApplier;
         $safetySetDeriver                  = new SafetySetDeriver($this->schemaIntrospector);
@@ -178,6 +184,7 @@ final class ApiCriteria implements CriteriaInterface
             $resourceType,
             $this->relationTrashedGate,
             $this->relationColumnNarrower,
+            $this->rowPerimeter,
         );
     }
 
@@ -219,8 +226,8 @@ final class ApiCriteria implements CriteriaInterface
     }
 
     /**
-     * Apply the row predicates: soft-delete visibility, search and the grouped
-     * filters.
+     * Apply the row predicates: the resource's row rule, soft-delete
+     * visibility, search and the grouped filters.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $surface
@@ -233,6 +240,8 @@ final class ApiCriteria implements CriteriaInterface
     private function applyRowSelection(EloquentBuilder $query, QuerySurface $surface): EloquentBuilder
     {
         $resource = $this->resolveResource($query->getModel());
+
+        $this->rowPerimeter->constrain($query, $resource);
 
         /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
         $query = $this->softDeleteVisibilityApplier->apply($query, $resource, $this->request);

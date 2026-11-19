@@ -50,11 +50,13 @@ use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateComputedFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateFieldSelections;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateIndexBacking;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateNeedsColumns;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidatePivotColumns;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateQueryableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationClasses;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationInterfaces;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationLimits;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRelationMethods;
+use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateRowPerimeterDefaults;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateScopes;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchableFields;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateSearchIndexes;
@@ -212,6 +214,7 @@ final readonly class ContainerBindingRegistrar
             new ValidateRelationClasses,
             new ValidateRelationInterfaces,
             new ValidateRelationMethods,
+            new ValidateRowPerimeterDefaults,
             new ValidateScopes,
             new ValidateRelationLimits,
             new ValidateComputedFields,
@@ -221,6 +224,7 @@ final readonly class ContainerBindingRegistrar
             new ValidateAggregateColumns($app->make(SchemaIntrospectionProvider::class)),
             new ValidateNeedsColumns($app->make(SchemaIntrospectionProvider::class)),
             new ValidateIndexBacking($app->make(SchemaIntrospectionProvider::class), $app->make(IndexEligibilityInspector::class)),
+            new ValidatePivotColumns($app->make(SchemaIntrospectionProvider::class)),
             new ValidateSearchableFields,
             new ValidateSearchIndexes($app->make(SearchDriverRegistry::class), $app->make(SchemaIntrospectionProvider::class)),
             new ValidateSensitiveColumns,

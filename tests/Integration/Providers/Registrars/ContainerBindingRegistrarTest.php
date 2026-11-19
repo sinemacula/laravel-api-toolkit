@@ -45,8 +45,10 @@ use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Fixtures\Input\StorePayload;
+use Tests\Fixtures\Models\DefaultLoadingUser;
 use Tests\Fixtures\Models\Gathering;
 use Tests\Fixtures\Models\Log;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BrokenResource;
 use Tests\Fixtures\Resources\EmptyAccessorResource;
@@ -56,11 +58,14 @@ use Tests\Fixtures\Resources\MissingAggregateColumnResource;
 use Tests\Fixtures\Resources\MissingColumnQueryableResource;
 use Tests\Fixtures\Resources\MissingComputeMethodResource;
 use Tests\Fixtures\Resources\MissingNeedsColumnResource;
+use Tests\Fixtures\Resources\MissingPivotColumnResource;
 use Tests\Fixtures\Resources\MissingRelationClassResource;
 use Tests\Fixtures\Resources\NonResourceRelationResource;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PublishedPostResource;
 use Tests\Fixtures\Resources\SearchableComputedResource;
 use Tests\Fixtures\Resources\SensitiveQueryableResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\ToOneLimitedRelationResource;
 use Tests\Fixtures\Resources\TrailingIndexSortableResource;
 use Tests\Fixtures\Resources\UnboundScopeResource;
@@ -183,6 +188,18 @@ final class ContainerBindingRegistrarTest extends TestCase
             sprintf('Relation method "nonExistentRelation" does not exist on model "%s"', User::class),
         ];
 
+        yield 'row perimeter defaults' => [
+            DefaultLoadingUser::class,
+            TagResource::class,
+            'posts',
+            sprintf(
+                'Model "%s" loads "posts" by default through $with, which reaches "posts", whose rows %s restricts; load it explicitly instead',
+                DefaultLoadingUser::class,
+                PublishedPostResource::class,
+            ),
+            ['api-toolkit.resources.resource_map' => [Post::class => PublishedPostResource::class]],
+        ];
+
         yield 'relation limits' => [
             User::class,
             ToOneLimitedRelationResource::class,
@@ -237,6 +254,14 @@ final class ContainerBindingRegistrarTest extends TestCase
             TrailingIndexSortableResource::class,
             'created_at',
             'Field is declared sortable against "created_at", and no ordered index on table "logs" leads with that column',
+        ];
+
+        yield 'pivot columns' => [
+            Post::class,
+            MissingPivotColumnResource::class,
+            'tags',
+            'Field declares pivot column "missing", and pivot table "post_tag" carries no such column',
+            [ResourceDiscovery::RESOURCES_KEY => [OrganizationResource::class, TagResource::class]],
         ];
 
         yield 'searchable fields' => [
