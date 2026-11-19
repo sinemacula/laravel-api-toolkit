@@ -12,6 +12,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
+use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
@@ -50,6 +51,7 @@ use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use Tests\Fixtures\Models\Article;
+use Tests\Fixtures\Models\Document;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\ArticleRequestInput;
 use Tests\Fixtures\OpenApi\PathArticleController;
@@ -57,6 +59,8 @@ use Tests\Fixtures\OpenApi\PathAttributelessController;
 use Tests\Fixtures\OpenApi\PathBindingController;
 use Tests\Fixtures\OpenApi\PathDeclaredBodyUserController;
 use Tests\Fixtures\OpenApi\PathDeclaredResourceUserController;
+use Tests\Fixtures\OpenApi\PathDocumentController;
+use Tests\Fixtures\OpenApi\PathDocumentDeclarationsController;
 use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathHeaderCollisionController;
@@ -73,6 +77,7 @@ use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\DocumentResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -2049,6 +2054,115 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that a route requiring If-Match documents a required field and a 428
+     * on the verbs that replace, modify or delete, and on no other verb.
+     *
+     * @return void
+     */
+    public function testRequiredIfMatchIsDocumentedOnConditionalVerbsOnly(): void
+    {
+        $this->registerDocumentRoutes(RequireIfMatch::class);
+        $this->router()->match(['GET', 'DELETE'], 'documents/{document}/archive', [PathDocumentController::class, 'destroy'])->middleware(RequireIfMatch::class);
+
+        $paths = $this->build();
+
+        $conditional = [['/documents/{document}', 'put'], ['/documents/{document}', 'patch'], ['/documents/{document}', 'delete'], ['/documents/{document}/archive', 'delete']];
+        $other       = [['/documents', 'get'], ['/documents', 'post'], ['/documents/{document}', 'get'], ['/documents/{document}/archive', 'get']];
+
+        foreach ($conditional as [$path, $verb]) {
+            self::assertSame([$this->ifMatchParameter(true)], $this->headerParametersOf($paths, $path, $verb));
+            self::assertContains(428, $this->statusesOf($paths, $path, $verb));
+        }
+
+        foreach ($other as [$path, $verb]) {
+            self::assertSame([], $this->headerParametersOf($paths, $path, $verb));
+            self::assertNotContains(428, $this->statusesOf($paths, $path, $verb));
+        }
+    }
+
+    /**
+     * Test that an action declaring a precondition failure documents an
+     * optional If-Match field beside its 412, and no other operation does.
+     *
+     * @return void
+     */
+    public function testDeclaredPreconditionFailureDocumentsAnOptionalIfMatch(): void
+    {
+        $this->registerDocumentRoutes();
+
+        $paths = $this->build();
+
+        foreach (['put', 'patch'] as $verb) {
+            self::assertSame([$this->ifMatchParameter(false)], $this->headerParametersOf($paths, '/documents/{document}', $verb));
+            self::assertContains(412, $this->statusesOf($paths, '/documents/{document}', $verb));
+            self::assertNotContains(428, $this->statusesOf($paths, '/documents/{document}', $verb));
+        }
+
+        foreach ([['/documents/{document}', 'delete'], ['/documents/{document}', 'get'], ['/documents', 'post']] as [$path, $verb]) {
+            self::assertSame([], $this->headerParametersOf($paths, $path, $verb));
+            self::assertNotContains(412, $this->statusesOf($paths, $path, $verb));
+        }
+    }
+
+    /**
+     * Test that the single-resource responses of a versioned model reference
+     * the entity-tag header, and those of another model do not.
+     *
+     * @return void
+     */
+    public function testVersionedResourceResponsesReferenceTheEntityTag(): void
+    {
+        $this->registerDocumentRoutes();
+        $this->registerRestRoutes();
+
+        $paths = $this->build();
+        $etag  = ['ETag' => ['$ref' => '#/components/headers/ETag']];
+
+        $collection = $this->responseOf($paths, '/documents', 'get', 200)['headers'] ?? null;
+
+        self::assertSame($etag, $this->responseOf($paths, '/documents/{document}', 'get', 200)['headers'] ?? null);
+        self::assertSame($etag, $this->responseOf($paths, '/documents', 'post', 201)['headers'] ?? null);
+        self::assertSame($etag, $this->responseOf($paths, '/documents/{document}', 'patch', 200)['headers'] ?? null);
+        self::assertIsArray($collection);
+        self::assertSame(['Total-Count'], array_keys($collection));
+        self::assertArrayNotHasKey('headers', $this->responseOf($paths, '/users/{user}', 'get', 200));
+    }
+
+    /**
+     * Test that a replaced or emptied contract response carries no entity tag.
+     *
+     * @return void
+     */
+    public function testReplacedOrEmptiedContractCarriesNoEntityTag(): void
+    {
+        $this->router()->post('documents', [PathDocumentDeclarationsController::class, 'store']);
+        $this->router()->patch('documents/{document}', [PathDocumentDeclarationsController::class, 'update']);
+
+        $paths = $this->build();
+
+        self::assertArrayNotHasKey('headers', $this->responseOf($paths, '/documents', 'post', 201));
+        self::assertSame(['description' => 'No Content.'], $this->responseOf($paths, '/documents/{document}', 'patch', 204));
+    }
+
+    /**
+     * Test that redeclaring the entity tag on a versioned contract response
+     * fails the build.
+     *
+     * @return void
+     */
+    public function testRedeclaringTheEntityTagFailsTheBuild(): void
+    {
+        $this->router()->get('documents/{document}', [PathDocumentDeclarationsController::class, 'show']);
+
+        $this->expectExceptionObject(new ResponseHeaderCollisionException(sprintf(
+            'The etag header declared for %s::show is emitted by the exporter and cannot be redeclared',
+            PathDocumentDeclarationsController::class,
+        )));
+
+        $this->build();
+    }
+
+    /**
      * Test that a route answering only HEAD or OPTIONS is not built, so its
      * action's status conflict cannot fail the build.
      *
@@ -2091,6 +2205,76 @@ final class PathBuilderTest extends TestCase
         $router->get('users/{user}', [PathFixtureController::class, 'show'])->middleware($middleware);
         $router->match(['PUT', 'PATCH'], 'users/{user}', [PathFixtureController::class, 'update'])->middleware($middleware);
         $router->delete('users/{user}', [PathFixtureController::class, 'destroy'])->middleware($middleware);
+    }
+
+    /**
+     * Register the REST routes of the versioned document controller with the
+     * given middleware.
+     *
+     * @param  string  ...$middleware
+     * @return void
+     */
+    private function registerDocumentRoutes(string ...$middleware): void
+    {
+        $router = $this->router();
+
+        $router->get('documents', [PathDocumentController::class, 'index'])->middleware($middleware);
+        $router->post('documents', [PathDocumentController::class, 'store'])->middleware($middleware);
+        $router->get('documents/{document}', [PathDocumentController::class, 'show'])->middleware($middleware);
+        $router->match(['PUT', 'PATCH'], 'documents/{document}', [PathDocumentController::class, 'update'])->middleware($middleware);
+        $router->delete('documents/{document}', [PathDocumentController::class, 'destroy'])->middleware($middleware);
+    }
+
+    /**
+     * Read one response of a built operation.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @param  string  $path
+     * @param  string  $method
+     * @param  int  $status
+     * @return array<array-key, mixed>
+     */
+    private function responseOf(array $paths, string $path, string $method, int $status): array
+    {
+        $response = $this->operationOf($paths, $path, $method)['responses'][$status] ?? null;
+
+        self::assertIsArray($response);
+
+        return $response;
+    }
+
+    /**
+     * List the header parameters a built operation documents.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @param  string  $path
+     * @param  string  $method
+     * @return list<mixed>
+     */
+    private function headerParametersOf(array $paths, string $path, string $method): array
+    {
+        $parameters = $this->operationOf($paths, $path, $method)['parameters'] ?? [];
+
+        self::assertIsArray($parameters);
+
+        return array_values(array_filter($parameters, static fn (mixed $parameter): bool => is_array($parameter) && ($parameter['in'] ?? null) === 'header'));
+    }
+
+    /**
+     * Build the If-Match header parameter.
+     *
+     * @param  bool  $required
+     * @return array<string, mixed>
+     */
+    private function ifMatchParameter(bool $required): array
+    {
+        return [
+            'name'        => 'If-Match',
+            'in'          => 'header',
+            'description' => 'The entity tag of the resource as last read. The write is refused with a 412 when the resource has changed since.',
+            'required'    => $required,
+            'schema'      => ['type' => 'string'],
+        ];
     }
 
     /**
@@ -2305,6 +2489,7 @@ final class PathBuilderTest extends TestCase
                 new ResponseHeaderResolver,
                 new ResponseStatusResolver,
             ),
+            new RouteMiddlewareResolver($this->router()),
         );
     }
 
@@ -2339,8 +2524,9 @@ final class PathBuilderTest extends TestCase
 
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn([
-            User::class    => UserResource::class,
-            Article::class => ArticleResource::class,
+            User::class     => UserResource::class,
+            Article::class  => ArticleResource::class,
+            Document::class => DocumentResource::class,
         ]);
         $catalogue->method('getErrorCatalogue')->willReturn($app->make(ErrorCatalogueReader::class)->read());
         $catalogue->method('getQueryLimits')->willReturnCallback(static fn (): array => $app->make(MetadataCatalogue::class)->getQueryLimits());

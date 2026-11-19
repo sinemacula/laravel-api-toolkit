@@ -250,7 +250,7 @@ final class ApiCriteriaTest extends TestCase
         $query = $this->parser()->using($snapshot, fn (): BuilderContract => $this->searchableCriteria()->apply(new User));
 
         self::assertSame(['%smith%', '%smith%', 'banned'], $query->getQuery()->getBindings());
-        self::assertSame(['column' => 'id', 'direction' => 'desc'], $query->getQuery()->orders[0] ?? null);
+        self::assertSame(['column' => 'users.id', 'direction' => 'desc'], $query->getQuery()->orders[0] ?? null);
         self::assertNull($query->getQuery()->limit);
     }
 
@@ -289,7 +289,7 @@ final class ApiCriteriaTest extends TestCase
         $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
-        self::assertSame('name', $wheres[0]['column']);
+        self::assertSame('users.name', $wheres[0]['column']);
         self::assertSame('Alice', $wheres[0]['value']);
     }
 
@@ -446,7 +446,7 @@ final class ApiCriteriaTest extends TestCase
 
         self::assertNotEmpty($wheres);
         self::assertSame('Null', $wheres[0]['type']);
-        self::assertSame('organization_id', $wheres[0]['column']);
+        self::assertSame('users.organization_id', $wheres[0]['column']);
     }
 
     /**
@@ -532,7 +532,7 @@ final class ApiCriteriaTest extends TestCase
 
         $query = $this->metricFreeCriteria()->apply(new User);
 
-        self::assertSame('select * from "users" where ((("name" = ?) or ("email" = ?)))', $this->sqlOf($query));
+        self::assertSame('select * from "users" where ((("users"."name" = ?) or ("users"."email" = ?)))', $this->sqlOf($query));
     }
 
     /**
@@ -553,7 +553,7 @@ final class ApiCriteriaTest extends TestCase
         $query = $this->metricFreeCriteria()->apply(User::query()->where('status', 'active'));
 
         self::assertSame(
-            'select * from "users" where "status" = ? and ((("name" = ?) or ("email" = ?)))',
+            'select * from "users" where "status" = ? and ((("users"."name" = ?) or ("users"."email" = ?)))',
             $this->sqlOf($query),
         );
 
@@ -577,7 +577,7 @@ final class ApiCriteriaTest extends TestCase
 
         $query = $this->metricFreeCriteria()->apply(new User);
 
-        self::assertSame('select * from "users" where ((("name" = ?) and ("email" = ?)))', $this->sqlOf($query));
+        self::assertSame('select * from "users" where ((("users"."name" = ?) and ("users"."email" = ?)))', $this->sqlOf($query));
     }
 
     /**
@@ -625,7 +625,7 @@ final class ApiCriteriaTest extends TestCase
         $orders = $query->getQuery()->orders ?? [];
 
         self::assertNotEmpty($orders);
-        self::assertSame('name', $orders[0]['column']);
+        self::assertSame('users.name', $orders[0]['column']);
         self::assertSame('asc', $orders[0]['direction']);
     }
 
@@ -829,7 +829,7 @@ final class ApiCriteriaTest extends TestCase
 
         $query = $this->metricFreeCriteria()->apply(new User);
 
-        self::assertSame('select * from "users" where ((((("name" = ?) or ("email" = ?)))))', $this->sqlOf($query));
+        self::assertSame('select * from "users" where ((((("users"."name" = ?) or ("users"."email" = ?)))))', $this->sqlOf($query));
     }
 
     /**
@@ -852,7 +852,7 @@ final class ApiCriteriaTest extends TestCase
         $query = $this->metricFreeCriteria()->apply(new User);
 
         self::assertSame(
-            'select * from "users" where (exists (select * from "posts" where "users"."id" = "posts"."user_id" and (("title" = ?) or ("title" = ?))))',
+            'select * from "users" where (exists (select * from "posts" where "users"."id" = "posts"."user_id" and (("posts"."title" = ?) or ("posts"."title" = ?))))',
             $this->sqlOf($query),
         );
     }
@@ -927,7 +927,7 @@ final class ApiCriteriaTest extends TestCase
         $query = $this->metricFreeCriteria()->apply(new User);
 
         self::assertSame(
-            'select * from "users" where ((("name" = ?) or (exists (select * from "posts" where "users"."id" = "posts"."user_id"))))',
+            'select * from "users" where ((("users"."name" = ?) or (exists (select * from "posts" where "users"."id" = "posts"."user_id"))))',
             $this->sqlOf($query),
         );
     }
@@ -1025,7 +1025,7 @@ final class ApiCriteriaTest extends TestCase
 
         $query = $this->criteria->apply(new User);
 
-        self::assertStringContainsString('((("organization_id" is not null)))', $this->sqlOf($query));
+        self::assertStringContainsString('((("users"."organization_id" is not null)))', $this->sqlOf($query));
     }
 
     /**
