@@ -4,10 +4,13 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\Lifecycle;
 
+use Illuminate\Database\Events\MigrationsEnded;
+use Illuminate\Database\Events\SchemaLoaded;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\Attributes\DefineEnvironment;
@@ -163,8 +166,11 @@ final class MigrationInvalidationTest extends TestCase
     {
         $this->writeAsEarlierProcess();
 
+        $events = $this->recordSchemaEvents();
+
         $this->migrate('migrate', ['--schema-path' => $this->schemaPath()]);
 
+        self::assertSame([SchemaLoaded::class], $events->getArrayCopy());
         self::assertNull($this->freshProcess()->readMetadata(self::KEY));
     }
 
@@ -178,8 +184,11 @@ final class MigrationInvalidationTest extends TestCase
         $this->migrate();
         $this->writeAsEarlierProcess();
 
+        $events = $this->recordSchemaEvents();
+
         $this->migrate('migrate:fresh', ['--schema-path' => $this->schemaPath()]);
 
+        self::assertSame([SchemaLoaded::class], $events->getArrayCopy());
         self::assertNull($this->freshProcess()->readMetadata(self::KEY));
     }
 
@@ -328,6 +337,23 @@ final class MigrationInvalidationTest extends TestCase
     private function schemaPath(): string
     {
         return $this->migrationPath . '/probe-schema.sql';
+    }
+
+    /**
+     * Record each schema load and migration run end from here on.
+     *
+     * @return \ArrayObject<int, class-string>
+     */
+    private function recordSchemaEvents(): \ArrayObject
+    {
+        /** @var \ArrayObject<int, class-string> $events */
+        $events = new \ArrayObject;
+
+        Event::listen([SchemaLoaded::class, MigrationsEnded::class], static function (object $event) use ($events): void {
+            $events[] = $event::class;
+        });
+
+        return $events;
     }
 
     /**
