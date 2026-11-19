@@ -2279,29 +2279,6 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that each invoked scope counts toward the node cap.
-     *
-     * @return void
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
-    public function testEachInvokedScopeCountsTowardTheNodeCap(): void
-    {
-        Config::set('api-toolkit.query_cost.max_nodes', 2);
-
-        try {
-            $this->applyToGatherings(['$scope' => ['upcoming', 'near']]);
-
-            self::fail('The second scope must exceed the node cap.');
-        } catch (QueryTooExpensiveException $exception) {
-            self::assertSame(
-                ['parameter' => 'filters', 'pointer' => '/$scope/near', 'reason' => QueryCostLimits::MAX_NODES, 'limit' => 2, 'actual' => 3],
-                $exception->getCustomMeta(),
-            );
-        }
-    }
-
-    /**
      * Assert that the filters are rejected on cost with the given details.
      *
      * @param  array<string, mixed>  $filters

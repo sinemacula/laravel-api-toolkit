@@ -451,6 +451,7 @@ final class QuerySurfaceTest extends TestCase
         self::assertNull($root->scopeFor('cancelled'));
         self::assertNull($root->scopeFor('mine'));
         self::assertNull($this->make()->scopeFor('near'));
+        self::assertNull((new QuerySurface(null, $this->traversal([]), $this->admission(), $this->operators()))->scopeFor('near'));
 
         $member = new QuerySurface(SchemaCompiler::compile(GatheringResource::class), $this->traversal([]), $this->admission(true), $this->operators());
 

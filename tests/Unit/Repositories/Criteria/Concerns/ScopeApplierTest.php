@@ -6,12 +6,15 @@ namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
+use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
@@ -328,10 +331,10 @@ final class ScopeApplierTest extends TestCase
     public function testARequiredParameterARuleLetsGoUnfilledIsRefused(): void
     {
         $this->assertRefusedAt(
-            ['$scope' => ['near' => ['lng' => -0.12, 'km' => 5]]],
-            'filters.$scope.near.lat',
-            'The "lat" argument is required by the "near" scope.',
-            ['near' => ['lat' => 'sometimes|required|numeric', 'lng' => 'required|numeric', 'km' => 'required|integer']],
+            ['$scope' => ['near' => ['lat' => 51.5, 'lng' => -0.12]]],
+            'filters.$scope.near.km',
+            'The "km" argument is required by the "near" scope.',
+            ['near' => ['lat' => 'required|numeric', 'lng' => 'required|numeric', 'km' => 'sometimes|required|integer']],
         );
     }
 
@@ -382,6 +385,29 @@ final class ScopeApplierTest extends TestCase
         $this->expectExceptionObject(new \LogicException('The "archived" scope is not defined on ' . Gathering::class . '.'));
 
         $this->apply(['$scope' => 'archived'], $this->surface([new CompiledScopeDefinition('archived', 'archived')]));
+    }
+
+    /**
+     * Test that each invoked scope counts toward the node cap.
+     *
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function testEachInvokedScopeCountsTowardTheNodeCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 2);
+
+        try {
+            $this->apply(['$scope' => ['upcoming', 'hasStarted']], $this->surface());
+
+            self::fail('The second scope must exceed the node cap.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame(
+                ['parameter' => 'filters', 'pointer' => '/$scope/hasStarted', 'reason' => QueryCostLimits::MAX_NODES, 'limit' => 2, 'actual' => 3],
+                $exception->getCustomMeta(),
+            );
+        }
     }
 
     /**

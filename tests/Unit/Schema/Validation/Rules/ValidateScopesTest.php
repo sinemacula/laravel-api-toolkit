@@ -74,8 +74,8 @@ final class ValidateScopesTest extends TestCase
     public function testAnArgumentNamingNoParameterIsReported(): void
     {
         self::assertSame(
-            ['Argument "radius" names no parameter of method "near"'],
-            $this->defects('near', ['lat' => 'numeric', 'lng' => 'numeric', 'km' => 'integer', 'radius' => 'integer']),
+            ['Argument "radius" names no parameter of method "near"', 'Argument "unit" names no parameter of method "near"'],
+            $this->defects('near', ['lat' => 'numeric', 'lng' => 'numeric', 'km' => 'integer', 'radius' => 'integer', 'unit' => 'string']),
         );
     }
 
@@ -89,6 +89,10 @@ final class ValidateScopesTest extends TestCase
     {
         self::assertSame(['Argument "query" names the builder parameter of method "scopeUpcoming"'], $this->defects('upcoming', ['query' => 'string']));
         self::assertSame(['Argument "query" names the builder parameter of method "scopeIdentified"'], $this->defects('identified', ['query' => 'integer']));
+        self::assertSame(
+            ['Argument "query" names the builder parameter of method "scopeNamed"', 'Argument "third" names no parameter of method "scopeNamed"'],
+            $this->defects('named', ['query' => 'string', 'third' => 'string', 'first' => 'string', 'second' => 'string']),
+        );
     }
 
     /**
@@ -100,10 +104,14 @@ final class ValidateScopesTest extends TestCase
     {
         self::assertSame(
             [
+                'Parameter "lat" of method "near" has no default and is not a declared argument',
                 'Parameter "lng" of method "near" has no default and is not a declared argument',
-                'Parameter "km" of method "near" has no default and is not a declared argument',
             ],
-            $this->defects('near', ['lat' => 'numeric']),
+            $this->defects('near', ['km' => 'integer']),
+        );
+        self::assertSame(
+            ['Parameter "km" of method "near" has no default and is not a declared argument'],
+            $this->defects('near', ['lat' => 'numeric', 'lng' => 'numeric']),
         );
     }
 
