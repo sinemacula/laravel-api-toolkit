@@ -137,6 +137,8 @@ final class ColumnNarrowingIntegrationTest extends TestCase
      */
     public function testTimestampFieldsNarrowToTheirColumns(): void
     {
+        Config::set('api-toolkit.resources.narrow_columns', false);
+
         $off = $this->serialiseUsers('name,created_at,updated_at');
 
         Config::set('api-toolkit.resources.narrow_columns', true);
