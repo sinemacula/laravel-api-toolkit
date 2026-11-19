@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -309,11 +310,7 @@ final class RelationTrashedGateTest extends TestCase
      */
     public function testOnlyTrashedNarrowsARelationDeclaredWithTrashedRows(): void
     {
-        $user = new class extends Model {
-
-            /** @var string */
-            protected $table = 'users';
-
+        $user = new #[Table('users')] class extends Model {
             /**
              * Return every article of the user, trashed ones included.
              *

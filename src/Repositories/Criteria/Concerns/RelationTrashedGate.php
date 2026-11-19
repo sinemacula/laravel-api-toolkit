@@ -266,7 +266,7 @@ final readonly class RelationTrashedGate
 
         if ($state === TrashedState::ONLY) {
 
-            // A scope of its own, so a constraint's OR stays grouped apart
+            // Its own scope, so no OR or relation merge can strip it
             $builder->withGlobalScope(self::class, static function (Builder $query): void {
                 $query->whereNotNull($query->getModel()->getQualifiedDeletedAtColumn()); // @phpstan-ignore method.notFound
             });
