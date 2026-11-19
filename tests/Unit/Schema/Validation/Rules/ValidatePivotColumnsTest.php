@@ -146,7 +146,7 @@ final class ValidatePivotColumnsTest extends TestCase
 
     /**
      * Test that an unreadable column listing reports each pivot column as
-     * unverified, read from the relation's own pivot table.
+     * unverified, read and explained from the relation's own pivot table.
      *
      * @return void
      */
@@ -166,9 +166,11 @@ final class ValidatePivotColumnsTest extends TestCase
             'tags' => $this->makeField(['role', 'tagged_at']),
         ], []));
 
+        $cause = 'the catalogue of table "post_tag" on connection "testing" could not be read during validation';
+
         self::assertEquals([
-            new UnverifiedDeclaration(PostResource::class, 'tags', 'pivot table "post_tag" carries the "role" column the pivot() declaration names', Post::class),
-            new UnverifiedDeclaration(PostResource::class, 'tags', 'pivot table "post_tag" carries the "tagged_at" column the pivot() declaration names', Post::class),
+            new UnverifiedDeclaration(PostResource::class, 'tags', 'pivot table "post_tag" carries the "role" column the pivot() declaration names', Post::class, $cause),
+            new UnverifiedDeclaration(PostResource::class, 'tags', 'pivot table "post_tag" carries the "tagged_at" column the pivot() declaration names', Post::class, $cause),
         ], $results);
         self::assertSame(['post_tag'], $tables);
     }

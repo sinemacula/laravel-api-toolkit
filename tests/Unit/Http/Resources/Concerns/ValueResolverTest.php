@@ -7,6 +7,7 @@ namespace Tests\Unit\Http\Resources\Concerns;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -347,6 +348,30 @@ final class ValueResolverTest extends TestCase
         self::assertInstanceOf(ApiResourceCollection::class, $result);
         self::assertArrayNotHasKey('pivot', $result->resolve()[0]);
         self::assertSame(['posts' => null], $this->getStaticProperty(ValueResolver::class, 'pivotAccessorCache')[User::class]);
+    }
+
+    /**
+     * Test that a many-to-many relation registered at runtime hands each child
+     * the accessor its pivot loads under.
+     *
+     * @return void
+     */
+    public function testADynamicManyToManyRelationRendersThePivotUnderItsAccessor(): void
+    {
+        $property = new \ReflectionProperty(Model::class, 'relationResolvers');
+        $original = $property->getValue();
+
+        try {
+            Post::resolveRelationUsing('labels', static fn (Post $post): BelongsToMany => $post->belongsToMany(Tag::class, 'post_tag')->as('labelling'));
+
+            $post = $this->postWithTags('labelling', ['role' => 'primary']);
+
+            $post->setRelation('labels', $post->getRelation('tags'));
+
+            self::assertSame(['role' => 'primary'], $this->resolveTags($post, 'labels')[0]['pivot']);
+        } finally {
+            $property->setValue(null, $original);
+        }
     }
 
     /**

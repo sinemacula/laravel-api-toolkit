@@ -398,7 +398,7 @@ final class ValueResolver
     private function pivotAccessor(object $owner, string $relation): ?string
     {
         if (!array_key_exists($relation, self::$pivotAccessorCache[$owner::class] ?? [])) {
-            $instance = method_exists($owner, $relation) ? $owner->{$relation}() : null; // @phpstan-ignore method.dynamicName
+            $instance = $owner instanceof Model && $owner->isRelation($relation) ? $owner->{$relation}() : null; // @phpstan-ignore method.dynamicName
 
             self::$pivotAccessorCache[$owner::class][$relation] = $instance instanceof BelongsToMany ? $instance->getPivotAccessor() : null;
         }

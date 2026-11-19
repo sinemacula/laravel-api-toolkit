@@ -146,12 +146,13 @@ final class PivotColumnsHttpTest extends TestCase
      */
     public function testACastingPivotUnderItsOwnAccessorRendersUnderThePivotKey(): void
     {
-        /** @var list<array<string, mixed>> $tags */
-        $tags = $this->getJson('/posts/' . $this->first . '?fields[pivot_posts]=typed_tags')->assertOk()->json('data.typed_tags');
+        /** @var list<array<string, mixed>> $rendered */
+        $rendered = $this->getJson('/posts/' . $this->first . '?fields[pivot_posts]=typed_tags')->assertOk()->json('data.typed_tags');
+        $tags     = array_column($rendered, null, 'id');
 
-        self::assertSame(['role' => 'primary', 'tagged_at' => '2026-01-01T10:00:00.000000Z'], $tags[0]['pivot']);
-        self::assertSame(['role' => null, 'tagged_at' => null], $tags[3]['pivot']);
-        self::assertArrayNotHasKey('tagging', $tags[0]);
+        self::assertSame(['role' => 'primary', 'tagged_at' => '2026-01-01T10:00:00.000000Z'], $tags[$this->tags['php']]['pivot']);
+        self::assertSame(['role' => null, 'tagged_at' => null], $tags[$this->tags['draft']]['pivot']);
+        self::assertArrayNotHasKey('tagging', $tags[$this->tags['php']]);
     }
 
     /**

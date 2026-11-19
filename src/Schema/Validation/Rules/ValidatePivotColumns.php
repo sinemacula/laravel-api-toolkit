@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\Introspection\CatalogueProbe;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
@@ -140,7 +141,8 @@ final readonly class ValidatePivotColumns implements SchemaValidationRule
     /**
      * Check that the pivot table carries each column.
      *
-     * An empty listing means the pivot table's columns are unknown.
+     * An empty listing means the pivot table's columns are unknown, so each
+     * column carries why that table could not be read.
      *
      * @param  string  $resourceClass
      * @param  string  $key
@@ -154,11 +156,14 @@ final readonly class ValidatePivotColumns implements SchemaValidationRule
         $listed = $this->introspector->getColumns($pivot);
 
         if ($listed === []) {
+            $cause = (new CatalogueProbe)->describe($pivot);
+
             return array_map(static fn (string $column): UnverifiedDeclaration => new UnverifiedDeclaration(
                 resourceClass: $resourceClass,
                 fieldKey: $key,
                 check: sprintf('pivot table "%s" carries the "%s" column the pivot() declaration names', $pivot->getTable(), $column),
                 modelClass: $model::class,
+                cause: $cause,
             ), $columns);
         }
 
