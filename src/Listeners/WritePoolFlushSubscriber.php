@@ -26,6 +26,9 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
  */
 final readonly class WritePoolFlushSubscriber
 {
+    /** @var string The message a failure the subscriber reports falls back to */
+    private const string FAILURE = 'WritePool flush subscriber failed';
+
     /**
      * Register the listeners for the subscriber.
      *
@@ -66,7 +69,7 @@ final readonly class WritePoolFlushSubscriber
         } catch (\Throwable $e) {
             $this->rethrowIfItEndedATransaction($e);
 
-            FailureReporter::report($e, 'WritePool flush subscriber failed');
+            FailureReporter::report($e, self::FAILURE);
 
             return;
         }
@@ -90,8 +93,8 @@ final readonly class WritePoolFlushSubscriber
     {
         try {
             $this->handleFlush();
-        } catch (\PDOException|\ErrorException $e) {
-            FailureReporter::report($e, 'WritePool flush subscriber failed');
+        } catch (\ErrorException|\PDOException $e) {
+            FailureReporter::report($e, self::FAILURE);
         }
     }
 
@@ -149,7 +152,7 @@ final readonly class WritePoolFlushSubscriber
         try {
             event(new WritePoolFlushFailed($exception->flushResult()));
         } catch (\Throwable $e) { // @phpstan-ignore catch.neverThrown
-            FailureReporter::report($e, 'WritePool flush subscriber failed');
+            FailureReporter::report($e, self::FAILURE);
         }
     }
 }
