@@ -287,7 +287,14 @@ selects none. A resource embedded through a `MorphTo` relation or a `Polymorphic
 ```
 
 **Pagination** - `?pagination=cursor` (or any `?cursor` token) selects cursor pagination; offset pagination is used
-otherwise.
+otherwise. A non-empty offset page shorter than `limit`, or an empty first page, derives its total without a count.
+Any other page counts at most the rows through the last page `query_cost.max_offset` allows: past that, `meta.total` is
+those rows, `meta.total_capped` is `true` and `Total-Count` is absent, so read further with cursor pagination. That
+bounds the rows the count admits, not the rows it examines; set `max_offset` to `0` for exact, unbounded totals. A
+capped page is a `CappedLengthAwarePaginator`, which a container binding of `LengthAwarePaginator` does not replace. A
+`simplePaginate()` result renders the cursor envelope. Offset pages do not support an ungrouped aggregate projection
+such as `selectRaw('max(id) as id')`, which is one row rather than a pageable set, nor a `distinct` or union over a join
+without an explicit projection, which MySQL refuses to count.
 
 **Soft deletes** - `?trashed=with` or `?trashed=only`, read as a `TrashedState` from `ApiQuery::getTrashed()`. The
 criteria layer applies it only where the model uses `SoftDeletes` and the resource opts in by overriding
@@ -1003,7 +1010,8 @@ php artisan api-toolkit:export-openapi --all
 
 Without options the default audience is written to `api-toolkit.openapi.output`. `--audience` exports one named
 audience. `--all` exports every configured audience, each to its own file with the audience inserted before the
-extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`.
+extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`. Each file is staged beside its
+target and moved into place only once all are staged, so one that cannot be staged replaces none of them.
 
 Resources are optional: a route documented only through `#[RequestSchema]` and `#[ResponseSchema]` is exported with
 an empty resource map. Operations are not. Every target audience is built before anything is written, and if any of
@@ -1014,6 +1022,10 @@ exit successfully:
 ```bash
 php artisan api-toolkit:export-openapi --all --allow-empty
 ```
+
+Routes handled under a framework or tooling namespace (`api-toolkit.openapi.exclude.namespaces`) and `Route::fallback()`
+routes are left out. A closure in an application route file is documented, whether or not the routes are cached.
+Responses are documented as JSON; the formats the resource exporter negotiates, such as CSV, are not listed.
 
 List the hosts the API is served from under `api-toolkit.openapi.servers`, so interactive viewers call the API rather
 than the docs host and generated clients get a base URL. Each entry is an OpenAPI Server Object with a `url`, an

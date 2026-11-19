@@ -174,6 +174,59 @@ final class SecuritySchemeMapperTest extends TestCase
     }
 
     /**
+     * Provide the built-in bearer drivers a configured mapping may override
+     * while keeping their scheme name.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function bearerDriverProvider(): iterable
+    {
+        yield 'jwt' => ['jwt'];
+        yield 'sanctum' => ['sanctum'];
+        yield 'token' => ['token'];
+    }
+
+    /**
+     * Test that a configured driver keeping a built-in scheme name supplies
+     * that scheme's definition.
+     *
+     * @param  string  $driver
+     * @return void
+     */
+    #[DataProvider('bearerDriverProvider')]
+    public function testConfiguredDriverKeepingTheSchemeNameWinsItsDefinition(string $driver): void
+    {
+        $definition = ['type' => 'http', 'scheme' => 'bearer', 'bearerFormat' => 'Sanctum'];
+
+        $this->config()->set('api-toolkit.openapi.security.drivers', [
+            $driver => ['name' => 'bearerAuth', 'definition' => $definition],
+        ]);
+
+        self::assertSame($definition, (new SecuritySchemeMapper)->definitionFor('bearerAuth'));
+    }
+
+    /**
+     * Test that two configured drivers giving one scheme name different
+     * definitions are refused rather than one being dropped.
+     *
+     * @return void
+     */
+    public function testConfiguredDriversSharingANameWithDifferentDefinitionsAreRefused(): void
+    {
+        $this->config()->set('api-toolkit.openapi.security.drivers', [
+            'passport' => ['name' => 'sharedAuth', 'definition' => ['type' => 'http', 'scheme' => 'bearer']],
+            'custom'   => ['name' => 'sharedAuth', 'definition' => ['type' => 'http', 'scheme' => 'basic']],
+        ]);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage(
+            'The api-toolkit.openapi.security.drivers.custom.definition setting must be the sharedAuth definition the passport driver declares; [array] given.',
+        );
+
+        (new SecuritySchemeMapper)->definitionFor('sharedAuth');
+    }
+
+    /**
      * Test that definitionFor prefers the first declaring driver.
      *
      * @return void
