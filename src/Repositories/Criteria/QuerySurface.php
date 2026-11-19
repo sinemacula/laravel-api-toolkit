@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledScopeDefinition;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Validation\Rejection;
@@ -160,6 +161,20 @@ final readonly class QuerySurface
     {
         return in_array($relation, $this->schema?->getTraversableRelations() ?? [], true)
             && $this->admits($this->schema->getConditionalTraversalKeys(), $relation);
+    }
+
+    /**
+     * Resolve the named scope the caller may invoke at this level, or null when
+     * it is undeclared or hidden from the caller.
+     *
+     * @param  string  $name
+     * @return \SineMacula\ApiToolkit\Schema\CompiledScopeDefinition|null
+     */
+    public function scopeFor(string $name): ?CompiledScopeDefinition
+    {
+        $scope = $this->schema?->getScopes()[$name] ?? null;
+
+        return $scope !== null && $this->admission->admitsScope($scope) ? $scope : null;
     }
 
     /**

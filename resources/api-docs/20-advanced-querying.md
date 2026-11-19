@@ -80,7 +80,8 @@ records from their own endpoint to page through them.
 
 Filters are expressed as a JSON object, then URL-encoded and passed as the
 `filters` parameter. Each key is a field name, a relationship, a logical
-operator, or a comparison operator, and its value depends on which it is.
+operator, a comparison operator, or `$scope`, and its value depends on which it
+is.
 
 A resource declares which of its fields may be filtered and which of its
 relationships may be filtered through. A key it has not declared, or hides from
@@ -164,6 +165,29 @@ nested filter the related records must satisfy:
   }
 }
 ```
+
+### Named scopes
+
+A resource can offer named scopes: conditions the server defines, such as
+events that have not started yet or places near a point. `$scope` takes a scope
+name, a list of names, or names mapped to an object of arguments, `{}` for
+none:
+
+```json
+{
+  "status": "published",
+  "$scope": {
+    "near": {"lat": 51.5, "lng": -0.12, "km": 5},
+    "upcoming": {}
+  }
+}
+```
+
+Each scope narrows the result like any other key, inside `$or` and under a
+relationship too, where the related resource's scopes apply. Each resource
+schema lists its scopes and the arguments they take in `x-scopes`. A scope the
+resource does not offer the caller, an argument it does not declare, and an
+argument that fails its rules are each rejected with a `422` naming it.
 
 ### Building a filter
 

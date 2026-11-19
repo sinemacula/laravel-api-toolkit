@@ -4,21 +4,30 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\Lifecycle;
 
+use Illuminate\Auth\AuthManager;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Enums\Capability;
+use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
+use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
+use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ScopeApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Fixtures\Models\Gathering;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\GatheringResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -32,11 +41,13 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiQueryParser::class)]
 #[CoversClass(CacheManager::class)]
+#[CoversClass(CallerAdmission::class)]
 #[CoversClass(ContainerBindingRegistrar::class)]
 #[CoversClass(MetadataCacheWriter::class)]
 #[CoversClass(OctaneFlushListener::class)]
 #[CoversClass(OperatorRegistry::class)]
 #[CoversClass(RuntimeContext::class)]
+#[CoversClass(ScopeApplier::class)]
 final class OctaneRequestIsolationTest extends TestCase
 {
     /** @var bool Whether LARAVEL_OCTANE was set before each test. */
@@ -160,6 +171,77 @@ final class OctaneRequestIsolationTest extends TestCase
 
         self::assertNull($this->writer()->readMetadata($key));
         self::assertSame('rebuilt', $this->writer()->rememberMetadataForever($key, static fn () => 'rebuilt'));
+    }
+
+    /**
+     * Test that successive requests through one compiled scope each get their
+     * own caller admission, rows and argument errors.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testSuccessiveRequestsThroughOneCompiledScopeKeepTheirOwnCallerRowsAndErrors(): void
+    {
+        $_SERVER['LARAVEL_OCTANE'] = 1;
+
+        $alice = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        $bob   = User::create(['name' => 'Bob', 'email' => 'bob@example.com']);
+
+        Gathering::create(['name' => 'Launch', 'user_id' => $alice->id, 'starts_at' => now(), 'latitude' => 51.51, 'longitude' => -0.13]);
+        Gathering::create(['name' => 'Retro', 'user_id' => $bob->id, 'starts_at' => now(), 'latitude' => 48.85, 'longitude' => 2.35]);
+
+        $scope   = SchemaCompiler::compile(GatheringResource::class)->getScopes()['near'];
+        $london  = ['$scope' => ['near' => ['lat' => 51.5, 'lng' => -0.12, 'km' => 5]]];
+        $refused = ['filters.$scope.near.lat' => ['The lat field must be between -90 and 90.']];
+        $outside = ['$scope' => ['near' => ['lat' => 91, 'lng' => -0.12, 'km' => 5]]];
+
+        self::assertSame(['Retro'], $this->serve($bob, ['$scope' => 'mine']));
+        self::assertSame(['filters.$scope.mine' => ['The "mine" scope is not declared for this resource.']], $this->serve(null, ['$scope' => 'mine']));
+        self::assertSame(['Launch'], $this->serve($alice, ['$scope' => 'mine']));
+        self::assertSame($refused, $this->serve($alice, $outside));
+        self::assertSame(['Launch'], $this->serve($bob, $london));
+        self::assertSame($refused, $this->serve(null, $outside));
+        self::assertSame($scope, SchemaCompiler::compile(GatheringResource::class)->getScopes()['near']);
+    }
+
+    /**
+     * Serve one gathering request as the given caller, returning the names it
+     * reads or the errors it is refused with.
+     *
+     * @param  \Tests\Fixtures\Models\User|null  $caller
+     * @param  array<string, mixed>  $filters
+     * @return array<array-key, mixed>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function serve(?User $caller, array $filters): array
+    {
+        $app = $this->app;
+
+        assert($app !== null);
+
+        $app->forgetScopedInstances();
+        $app->make(AuthManager::class)->forgetGuards();
+
+        if ($caller !== null) {
+            $this->actingAs($caller);
+        }
+
+        $request = Request::create('/gatherings?filters=' . urlencode(json_encode($filters, JSON_THROW_ON_ERROR)));
+
+        $app->instance('request', $request);
+
+        ApiQuery::parse($request);
+
+        try {
+            /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+            $criteria = $app->make(ApiCriteria::class);
+
+            return $criteria->usingResource(GatheringResource::class)->apply(new Gathering)->orderBy('name')->pluck('name')->all();
+        } catch (ValidationException $exception) {
+            return $exception->errors();
+        }
     }
 
     /**

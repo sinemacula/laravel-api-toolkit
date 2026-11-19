@@ -12,6 +12,7 @@ use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QueryScopeDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
 use SineMacula\ApiToolkit\Query\PageSize;
@@ -19,16 +20,19 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledScopeDefinition;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Fixtures\Models\Gathering;
 use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AliasedQueryableUserResource;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\CappedPageUserResource;
+use Tests\Fixtures\Resources\GatheringResource;
 use Tests\Fixtures\Resources\GuardedQueryableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -504,6 +508,38 @@ final class QuerySurfaceReaderTest extends TestCase
         }
 
         self::assertSame(['email' => [true, false], 'name' => [false, true], 'payload' => [false, true], 'secret' => [false, false]], $columns);
+    }
+
+    /**
+     * Test that each scope is read with its description, its arguments and
+     * whether its rules require each, and whether it is conditional.
+     *
+     * @return void
+     */
+    public function testScopesAreReadWithTheirArgumentsAndConditionality(): void
+    {
+        $surface = $this->reader()->read([Gathering::class => GatheringResource::class], $this->registry())[0];
+
+        self::assertEquals([
+            new QueryScopeDescriptor('upcoming', 'Gatherings that have not started yet.'),
+            new QueryScopeDescriptor('near', 'Gatherings within km kilometres of the point.', ['lat' => true, 'lng' => true, 'km' => true]),
+            new QueryScopeDescriptor('mine', conditional: true),
+        ], $surface->scopes);
+    }
+
+    /**
+     * Test that an argument is required only where its own rules demand it.
+     *
+     * @return void
+     */
+    public function testAnArgumentIsRequiredOnlyWhereItsOwnRulesDemandIt(): void
+    {
+        $rules = ['km' => 'sometimes|required|integer', 'ids.*' => 'required|integer', 'tag' => ['required']];
+        $scope = new CompiledScopeDefinition('within', 'within', $rules, ['km', 'ids', 'tag']);
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => new CompiledSchema([], scopes: ['within' => $scope])]);
+
+        self::assertSame(['km' => false, 'ids' => false, 'tag' => true], $this->ghostSurface('GhostResource')->scopes[0]->arguments);
     }
 
     /**

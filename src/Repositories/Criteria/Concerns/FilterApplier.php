@@ -32,11 +32,14 @@ use SineMacula\ApiToolkit\Validation\Rejection;
  */
 final class FilterApplier
 {
-    /** @var array<int, string> Structural operator tokens, kept aligned with the dispatch maps */
-    public const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', self::OPERATOR_HASNT];
+    /** @var array<int, string> Structural operator tokens, each dispatched by the document walker */
+    public const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', self::OPERATOR_HASNT, self::OPERATOR_SCOPE];
 
     /** @var string */
     private const string OPERATOR_HASNT = '$hasnt';
+
+    /** @var string */
+    private const string OPERATOR_SCOPE = '$scope';
 
     /** @var string The token the bare shorthand compiles to, and so the one its column is gated against */
     private const string OPERATOR_EQUAL = '$eq';
@@ -62,6 +65,7 @@ final class FilterApplier
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard  $guard
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate  $trashedGate
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter  $rowPerimeter
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ScopeApplier  $scopes
      */
     public function __construct(
 
@@ -73,6 +77,9 @@ final class FilterApplier
 
         /** Applies each related level's row rule to its subqueries */
         private readonly RowPerimeter $rowPerimeter,
+
+        /** Applies the named scopes a document invokes */
+        private readonly ScopeApplier $scopes = new ScopeApplier,
     ) {}
 
     /**
@@ -87,6 +94,7 @@ final class FilterApplier
      * @return \Illuminate\Database\Eloquent\Builder<TModel>
      *
      * @throws \Illuminate\Validation\ValidationException
+     * @throws \LogicException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     public function apply(Builder $query, ?array $filters, OperatorRegistry $operatorRegistry, QuerySurface $querySurface): Builder
@@ -112,6 +120,7 @@ final class FilterApplier
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
+     * @throws \LogicException
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
     private function applyDocument(Builder $query, array $document, FilterContext $context, QuerySurface $surface): void
@@ -143,6 +152,7 @@ final class FilterApplier
      * @return void
      *
      * @throws \Illuminate\Validation\ValidationException
+     * @throws \LogicException
      * @throws \SineMacula\ApiToolkit\Validation\Rejection
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
@@ -155,6 +165,11 @@ final class FilterApplier
 
         if (array_key_exists($key, $this->relationalMethodMap)) {
             $this->applyHasFilter($query, $key, $value, $context, $surface);
+            return;
+        }
+
+        if ($key === self::OPERATOR_SCOPE) {
+            $this->scopes->apply($query, $value, $context->at($key), $surface);
             return;
         }
 

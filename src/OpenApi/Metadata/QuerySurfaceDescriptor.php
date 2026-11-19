@@ -23,6 +23,7 @@ final readonly class QuerySurfaceDescriptor
      * @param  class-string  $resource
      * @param  array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor>  $columns
      * @param  list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor>  $relations
+     * @param  list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryScopeDescriptor>  $scopes
      * @param  \SineMacula\ApiToolkit\Query\PageSize|null  $pageSize
      */
     public function __construct(
@@ -35,6 +36,9 @@ final readonly class QuerySurfaceDescriptor
 
         /** The relations a filter may descend through */
         public array $relations = [],
+
+        /** The named scopes a filter may invoke */
+        public array $scopes = [],
 
         /** The resource's own page size bounds, where they differ from the configured ones */
         public ?PageSize $pageSize = null,

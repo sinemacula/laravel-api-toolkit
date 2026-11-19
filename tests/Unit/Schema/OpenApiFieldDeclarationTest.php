@@ -44,9 +44,20 @@ final class OpenApiFieldDeclarationTest extends TestCase
         self::assertSame('email', $schema->format);
         self::assertTrue($schema->nullable);
         self::assertSame(['a', 'b'], $schema->enum);
-        self::assertSame('a', $schema->example);
+        self::assertSame(['a'], $schema->examples);
         self::assertSame('A status field', $schema->description);
         self::assertFalse($schema->undocumented);
+    }
+
+    /**
+     * Test that an explicit null example is kept, apart from no example.
+     *
+     * @return void
+     */
+    public function testExplicitNullExampleIsKept(): void
+    {
+        self::assertSame([null], (new OpenApiFieldDeclaration(Field::scalar('name')))->example(null)->toSchema()->examples);
+        self::assertNull((new OpenApiFieldDeclaration(Field::scalar('name')))->toSchema()->examples);
     }
 
     /**

@@ -19,6 +19,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ScopeSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
@@ -59,6 +60,7 @@ use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\InternalOnlyTagController;
+use Tests\Fixtures\OpenApi\PathExampleController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -111,6 +113,32 @@ final class ExportOpenApiComponentsTest extends TestCase
         self::assertIsString($result->document['openapi']);
         self::assertStringStartsWith('3.1', $result->document['openapi']);
         self::assertArrayHasKey('components', $result->document);
+    }
+
+    /**
+     * Test that the document carries its composed examples, and a body skipped
+     * for want of an undocumented value is reported against the default
+     * audience when none, or an empty one, is named.
+     *
+     * @return void
+     */
+    public function testComposedExamplesAndSkipsReachTheResult(): void
+    {
+        $this->router()->get('widget', [PathResponseSchemaController::class, 'widget']);
+        $this->router()->get('opaque', [PathExampleController::class, 'opaque']);
+
+        $skipped = 'No example for GET /opaque response 200 in the [public] audience: the value at #/components/schemas/UndocumentedFieldShape/properties/meta is undocumented.';
+
+        foreach ([null, ''] as $audience) {
+
+            $result = $this->export($audience);
+
+            self::assertSame([$skipped], $result->skippedExamples);
+            self::assertSame(
+                '{"default":{"value":{"data":{"id":1,"label":"string"}}}}',
+                json_encode($result->document['paths']['/widget']['get']['responses']['200']['content']['application/json']['examples'], JSON_THROW_ON_ERROR),
+            );
+        }
     }
 
     /**
@@ -328,7 +356,12 @@ final class ExportOpenApiComponentsTest extends TestCase
         );
 
         $assembler = new OpenApiAssembler(
-            new ResourceSchemaBuilder($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums), $introspector),
+            new ResourceSchemaBuilder(
+                $catalogue,
+                new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums),
+                $introspector,
+                new ScopeSchemaBuilder(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
+            ),
             new QueryParameterBuilder($catalogue),
             $errors,
             new PathBuilder(

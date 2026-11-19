@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ScopeSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
@@ -1081,7 +1082,12 @@ final class OpenApiAssemblerTest extends TestCase
         );
 
         return new OpenApiAssembler(
-            new ResourceSchemaBuilder($catalogue, $this->resolver($enums), $this->app->make(SchemaIntrospector::class)),
+            new ResourceSchemaBuilder(
+                $catalogue,
+                $this->resolver($enums),
+                $this->app->make(SchemaIntrospector::class),
+                new ScopeSchemaBuilder(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
+            ),
             new QueryParameterBuilder($catalogue),
             $errors,
             new PathBuilder(

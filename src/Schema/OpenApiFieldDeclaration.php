@@ -24,8 +24,8 @@ final class OpenApiFieldDeclaration
     /** @var array<int, scalar>|null Declared enumerated values */
     private ?array $enum = null;
 
-    /** @var mixed Declared example value */
-    private mixed $example = null;
+    /** @var list<mixed>|null Declared example values, null until one is declared */
+    private ?array $examples = null;
 
     /** @var string|null Declared description */
     private ?string $description = null;
@@ -96,12 +96,15 @@ final class OpenApiFieldDeclaration
     /**
      * Declare an example value for the field.
      *
+     * Without a type, format, enum or nullability, the field keeps its inferred
+     * schema and the example is laid over it.
+     *
      * @param  mixed  $example
      * @return self
      */
     public function example(mixed $example): self
     {
-        $this->example = $example;
+        $this->examples = [$example];
 
         return $this;
     }
@@ -141,7 +144,7 @@ final class OpenApiFieldDeclaration
             format     : $this->format,
             nullable   : $this->nullable,
             enum       : $this->enum,
-            example    : $this->example,
+            examples   : $this->examples,
             description: $this->description,
         );
     }
