@@ -1095,6 +1095,25 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
+     * Test that declared pivot columns are carried onto the field, and an
+     * undeclared list is empty.
+     *
+     * @return void
+     */
+    public function testCompileCarriesThePivotColumnsOntoTheField(): void
+    {
+        $resourceClass = $this->createStubResourceClass([
+            'members' => ['relation' => 'members', 'pivot' => ['role', 'joined_at']],
+            'tags'    => ['relation' => 'tags'],
+        ]);
+
+        $schema = SchemaCompiler::compile($resourceClass);
+
+        self::assertSame(['role', 'joined_at'], $schema->getField('members')?->pivot);
+        self::assertSame([], $schema->getField('tags')?->pivot);
+    }
+
+    /**
      * Test that a fixture resource's plain fields compile with a null openApi
      * while timestamp() auto-declares a date-time format.
      *

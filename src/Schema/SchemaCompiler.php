@@ -365,6 +365,7 @@ final class SchemaCompiler
             searchStrategy  : self::resolveSearchStrategy($definition),
             limit           : is_int($definition['limit'] ?? null) ? $definition['limit'] : null,
             callerGuards    : self::callableList($definition, 'caller_guards'),
+            pivot           : self::stringList((array) ($definition['pivot'] ?? [])),
         );
     }
 

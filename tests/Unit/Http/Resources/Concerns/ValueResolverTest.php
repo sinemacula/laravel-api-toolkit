@@ -5,8 +5,11 @@ declare(strict_types = 1);
 namespace Tests\Unit\Http\Resources\Concerns;
 
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Collection;
@@ -28,9 +31,12 @@ use Tests\Fixtures\Models\AggregateLine;
 use Tests\Fixtures\Models\AggregateOwner;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PlainJsonResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -273,20 +279,134 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that clearing the cache empties the cast-accessor and related-model
-     * memos.
+     * Test that clearing the cache empties the cast-accessor, related-model and
+     * pivot-accessor memos.
      *
      * @return void
      */
-    public function testClearCacheEmptiesTheCastAccessorAndRelatedModelMemos(): void
+    public function testClearCacheEmptiesTheCastAccessorRelatedModelAndPivotAccessorMemos(): void
     {
         $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', ['Foo' => ['bar' => true]]);
         $this->setStaticProperty(ValueResolver::class, 'relatedModelCache', ['Foo' => ['bar' => null]]);
+        $this->setStaticProperty(ValueResolver::class, 'pivotAccessorCache', ['Foo' => ['bar' => 'pivot']]);
 
         ValueResolver::clearCache();
 
         self::assertSame([], $this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
         self::assertSame([], $this->getStaticProperty(ValueResolver::class, 'relatedModelCache'));
+        self::assertSame([], $this->getStaticProperty(ValueResolver::class, 'pivotAccessorCache'));
+    }
+
+    /**
+     * Test that a many-to-many relation declaring pivot columns hands each
+     * child the columns and the accessor its relation loads the pivot under,
+     * memoised per owner class and relation.
+     *
+     * @return void
+     */
+    public function testManyToManyChildrenRenderThePivotUnderTheRelationsAccessor(): void
+    {
+        $tags  = $this->resolveTags($this->postWithTags('tagging', ['role' => 'primary']), 'typedTags');
+        $plain = $this->resolveTags($this->postWithTags('pivot', ['role' => 'secondary']), 'tags');
+
+        self::assertSame(['role' => 'primary'], $tags[0]['pivot']);
+        self::assertSame(['role' => 'secondary'], $plain[0]['pivot']);
+        self::assertSame(['typedTags' => 'tagging', 'tags' => 'pivot'], $this->getStaticProperty(ValueResolver::class, 'pivotAccessorCache')[Post::class]);
+    }
+
+    /**
+     * Test that a memoised pivot accessor is honoured, so the owner's relation
+     * is not resolved again.
+     *
+     * @return void
+     */
+    public function testAMemoisedPivotAccessorIsHonoured(): void
+    {
+        $this->setStaticProperty(ValueResolver::class, 'pivotAccessorCache', [Post::class => ['tags' => 'membership']]);
+
+        $tags = $this->resolveTags($this->postWithTags('membership', ['role' => 'primary']), 'tags');
+
+        self::assertSame(['role' => 'primary'], $tags[0]['pivot']);
+    }
+
+    /**
+     * Test that pivot columns on a relation that is not many-to-many reach no
+     * child, and the miss is memoised.
+     *
+     * @return void
+     */
+    public function testPivotColumnsOnARelationThatIsNotManyToManyReachNoChild(): void
+    {
+        $user = new User;
+
+        $user->setRelation('posts', new Collection([(new Post)->forceFill(['id' => 1, 'title' => 'First'])->setRelation('pivot', (new Post)->forceFill(['role' => 'primary']))]));
+
+        $definition = $this->makeFieldDefinition(relation: 'posts', resource: PostResource::class, fields: ['id'], pivot: ['role']);
+        $result     = $this->resolver->resolveFieldValue('posts', $definition, new JsonResource($user), null);
+
+        self::assertInstanceOf(ApiResourceCollection::class, $result);
+        self::assertArrayNotHasKey('pivot', $result->resolve()[0]);
+        self::assertSame(['posts' => null], $this->getStaticProperty(ValueResolver::class, 'pivotAccessorCache')[User::class]);
+    }
+
+    /**
+     * Test that a child resource unable to render a pivot is wrapped as it is.
+     *
+     * @return void
+     */
+    public function testAChildResourceWithoutPivotSupportIsWrappedAsItIs(): void
+    {
+        $definition = $this->makeFieldDefinition(relation: 'tags', resource: PlainJsonResource::class, pivot: ['role']);
+        $result     = $this->resolver->resolveFieldValue('tags', $definition, new JsonResource($this->postWithTags('pivot', ['role' => 'primary'])), null);
+
+        self::assertInstanceOf(AnonymousResourceCollection::class, $result);
+        self::assertInstanceOf(Collection::class, $result->collection);
+        self::assertContainsOnlyInstancesOf(PlainJsonResource::class, $result->collection);
+    }
+
+    /**
+     * Test that the pivot payload reads each present column through the pivot's
+     * casts, a null included, omits an absent one and reduces a pure enum to
+     * its name.
+     *
+     * @return void
+     */
+    public function testPivotPayloadReadsEachPresentColumnThroughThePivotsCasts(): void
+    {
+        $pivot = new class extends Pivot {
+            /**
+             * Get the attributes that should be cast.
+             *
+             * @return array<string, string>
+             */
+            #[\Override]
+            protected function casts(): array
+            {
+                return ['platform' => Platform::class, 'status' => UserStatus::class];
+            }
+        };
+
+        $tag = (new Tag)->setRelation('membership', $pivot->setRawAttributes(['tag_id' => 1, 'platform' => 'MOBILE_APP', 'status' => 'active', 'note' => null]));
+
+        self::assertSame(
+            ['platform' => 'mobile_app', 'status' => UserStatus::ACTIVE, 'note' => null],
+            $this->resolver->resolvePivotPayload(new JsonResource($tag), 'membership', ['platform', 'status', 'note', 'joined_at']),
+        );
+    }
+
+    /**
+     * Test that a model without the pivot loaded, or a value that is not a
+     * model, has no pivot payload.
+     *
+     * @return void
+     */
+    public function testPivotPayloadIsEmptyWithoutALoadedPivot(): void
+    {
+        $tag = (new Tag)->setRelation('pivot', null);
+
+        self::assertSame([], $this->resolver->resolvePivotPayload(new Tag, 'pivot', ['role']));
+        self::assertSame([], $this->resolver->resolvePivotPayload($tag, 'pivot', ['role']));
+        self::assertSame([], $this->resolver->resolvePivotPayload(['pivot' => ['role' => 'primary']], 'pivot', ['role']));
     }
 
     /**
@@ -1718,6 +1838,40 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
+     * Resolve the post's tags over the given relation, rendering their role.
+     *
+     * @param  \Tests\Fixtures\Models\Post  $post
+     * @param  string  $relation
+     * @return array<int, array<string, mixed>>
+     */
+    private function resolveTags(Post $post, string $relation): array
+    {
+        $definition = $this->makeFieldDefinition(relation: $relation, resource: TagResource::class, fields: ['id'], pivot: ['role']);
+        $result     = $this->resolver->resolveFieldValue($relation, $definition, new JsonResource($post), null);
+
+        self::assertInstanceOf(ApiResourceCollection::class, $result);
+
+        /** @var array<int, array<string, mixed>> */
+        return $result->resolve();
+    }
+
+    /**
+     * Build a post whose tags and typed tags each hold one tag carrying a pivot
+     * of the given attributes under the given accessor.
+     *
+     * @param  string  $accessor
+     * @param  array<string, mixed>  $attributes
+     * @return \Tests\Fixtures\Models\Post
+     */
+    private function postWithTags(string $accessor, array $attributes): Post
+    {
+        $post = (new Post)->forceFill(['id' => 1]);
+        $tag  = (new Tag)->forceFill(['id' => 1, 'name' => 'php'])->setRelation($accessor, Pivot::fromRawAttributes($post, $attributes, 'post_tag', true));
+
+        return $post->setRelation('tags', new EloquentCollection([$tag]))->setRelation('typedTags', new EloquentCollection([$tag]));
+    }
+
+    /**
      * Create a user with the given number of posts loaded.
      *
      * @param  int  $count
@@ -1781,6 +1935,7 @@ final class ValueResolverTest extends TestCase
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
      * @param  int|null  $limit
      * @param  array<int, callable(mixed): bool>  $callerGuards
+     * @param  array<int, string>  $pivot
      * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
     private function makeFieldDefinition(
@@ -1796,6 +1951,7 @@ final class ValueResolverTest extends TestCase
         array $transformers = [],
         ?int $limit = null,
         array $callerGuards = [],
+        array $pivot = [],
     ): CompiledFieldDefinition {
         return new CompiledFieldDefinition(
             accessor: $accessor,
@@ -1810,6 +1966,7 @@ final class ValueResolverTest extends TestCase
             transformers: $transformers,
             limit: $limit,
             callerGuards: $callerGuards,
+            pivot: $pivot,
         );
     }
 }

@@ -37,6 +37,9 @@ final class RawSchemaValidator
     /** @var string The characters an aggregate key may hold, so it survives the relation alias and the SQL alias */
     private const string AGGREGATE_KEY_PATTERN = '/^[\w\p{M}]+$/Du';
 
+    /** @var string The form of a pivot column, which the relation qualifies and aliases itself */
+    private const string PIVOT_COLUMN_PATTERN = '/\A[A-Za-z_][A-Za-z0-9_]*\z/';
+
     /** @var int The longest identifier PostgreSQL keeps before truncating it */
     private const int MAX_ATTRIBUTE_BYTES = 63;
 
@@ -61,6 +64,7 @@ final class RawSchemaValidator
 
             $defects = [
                 ...self::collectDefects($definition),
+                ...self::collectPivotDefects($definition['pivot'] ?? null),
                 ...self::collectGuardDefects($definition),
                 ...self::collectCapabilityDefects($key, $definition, $capabilities),
                 ...self::collectAggregateDefects($key, $definition, $aggregates),
@@ -118,6 +122,36 @@ final class RawSchemaValidator
 
         foreach (self::CALLABLE_LISTS as $list => $label) {
             array_push($defects, ...self::collectCallableDefects($definition[$list] ?? [], $label));
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Collect the defects in a raw definition's pivot column list.
+     *
+     * @param  mixed  $pivot
+     * @return list<string>
+     */
+    private static function collectPivotDefects(mixed $pivot): array
+    {
+        if ($pivot === null) {
+            return [];
+        }
+
+        if (!is_array($pivot) || !array_is_list($pivot)) {
+            return ['Pivot must be a list of column names'];
+        }
+
+        $defects = [];
+
+        foreach ($pivot as $index => $column) {
+
+            if (is_string($column) && preg_match(self::PIVOT_COLUMN_PATTERN, $column) === 1) {
+                continue;
+            }
+
+            $defects[] = sprintf('Pivot column at index %d must be a bare column name', $index);
         }
 
         return $defects;

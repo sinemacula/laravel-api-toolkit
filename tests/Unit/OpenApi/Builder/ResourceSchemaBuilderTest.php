@@ -348,6 +348,53 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
+     * Test that a many-to-many relation declaring pivot columns extends its
+     * items with the typed pivot object, under that key whatever the relation's
+     * accessor, and leaves the child component untouched.
+     *
+     * @return void
+     */
+    public function testPivotColumnsExtendTheManyToManyItemsOnly(): void
+    {
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => new CompiledSchema([
+            'tags'       => $this->relationField(null, 'tags', TagResource::class, pivot: ['role']),
+            'typed_tags' => $this->relationField(null, 'typedTags', TagResource::class, pivot: ['role', 'tagged_at']),
+        ], [])]);
+
+        $schemas = $this->makeGhostBuilder([Post::class => 'GhostResource', Tag::class => TagResource::class])->build();
+
+        self::assertSame(['$ref' => '#/components/schemas/Tag'], $schemas['Ghost']['properties']['tags']['items']['allOf'][0]);
+        self::assertSame(
+            ['type' => 'object', 'properties' => ['pivot' => ['type' => 'object', 'properties' => ['role' => ['type' => ['string', 'null']]]]]],
+            $schemas['Ghost']['properties']['tags']['items']['allOf'][1],
+        );
+        self::assertSame(
+            ['role' => ['anyOf' => [['$ref' => '#/components/schemas/TagRole'], ['type' => 'null']]], 'tagged_at' => ['type' => ['string', 'null'], 'format' => 'date-time']],
+            $schemas['Ghost']['properties']['typed_tags']['items']['allOf'][1]['properties']['pivot']['properties'],
+        );
+        self::assertIsArray($schemas['Tag']['properties']);
+        self::assertArrayNotHasKey('pivot', $schemas['Tag']['properties']);
+    }
+
+    /**
+     * Test that pivot columns leave a relation that is not many-to-many, and
+     * one of unknown cardinality, as they would render without them.
+     *
+     * @return void
+     */
+    public function testPivotColumnsLeaveOtherRelationsUnchanged(): void
+    {
+        $properties = $this->buildGhost(new CompiledSchema(['posts' => $this->relationField(null, pivot: ['role'])], []))['properties'];
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => new CompiledSchema(['posts' => $this->relationField(null, pivot: ['role'])], [])]);
+
+        $unknown = $this->makeGhostBuilder(['GhostModel' => 'GhostResource', Post::class => PostResource::class])->build()['Ghost']['properties']['posts'];
+
+        self::assertSame(['type' => 'object', 'x-undocumented' => true], $properties['posts']['items']);
+        self::assertSame(['$ref' => '#/components/schemas/Post'], $unknown['oneOf'][1]['items']);
+    }
+
+    /**
      * Test that an uninstantiable owner falls back to the unknown shape.
      *
      * @return void
@@ -1255,6 +1302,7 @@ final class ResourceSchemaBuilderTest extends TestCase
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
      * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema|null  $openApi
+     * @param  array<int, string>  $pivot
      * @return \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition
      */
     private function relationField(
@@ -1264,6 +1312,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         array $guards = [],
         array $transformers = [],
         ?OpenApiFieldSchema $openApi = null,
+        array $pivot = [],
     ): CompiledFieldDefinition {
         return new CompiledFieldDefinition(
             accessor: null,
@@ -1278,6 +1327,7 @@ final class ResourceSchemaBuilderTest extends TestCase
             transformers: $transformers,
             openApi: $openApi,
             limit: $limit,
+            pivot: $pivot,
         );
     }
 

@@ -45,6 +45,9 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     /** @var \SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver */
     private readonly ValueResolver $valueResolver;
 
+    /** @var array{string, array<int, string>}|null The pivot accessor and the columns rendered from it */
+    private ?array $pivot = null;
+
     /**
      * Create a new resource instance.
      *
@@ -125,6 +128,10 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
 
         if ($truncated !== []) {
             $data[RelationLimit::TRUNCATED_KEY] = $truncated;
+        }
+
+        if ($this->pivot !== null) {
+            $this->appendPivotPayload($data, ...$this->pivot);
         }
 
         if (in_array('aggregates', $fields, true)) {
@@ -271,6 +278,22 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     }
 
     /**
+     * Render the given columns of the pivot loaded under the accessor.
+     *
+     * Mutates this instance, as withFields() does.
+     *
+     * @param  string  $accessor
+     * @param  array<int, string>  $columns
+     * @return static
+     */
+    public function withPivot(string $accessor, array $columns): static
+    {
+        $this->pivot = [$accessor, $columns];
+
+        return $this;
+    }
+
+    /**
      * Force the response to include all available fields.
      *
      * @return static
@@ -330,6 +353,25 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
         }
 
         $this->loadMissingAggregates($resource);
+    }
+
+    /**
+     * Append the pivot payload to the resolved data array.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  string  $accessor
+     * @param  array<int, string>  $columns
+     * @return void
+     */
+    private function appendPivotPayload(array &$data, string $accessor, array $columns): void
+    {
+        $pivot = $this->valueResolver->resolvePivotPayload($this, $accessor, $columns);
+
+        if ($pivot === []) {
+            return;
+        }
+
+        $data['pivot'] = $pivot;
     }
 
     /**

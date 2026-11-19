@@ -30,6 +30,9 @@ final class Relation extends BaseDefinition
     /** @var bool Whether this relation is declared externally traversable */
     private bool $traversable = false;
 
+    /** @var array<int, string> Pivot columns rendered on each child */
+    private array $pivot = [];
+
     /**
      * Prevent direct instantiation.
      *
@@ -136,6 +139,25 @@ final class Relation extends BaseDefinition
     }
 
     /**
+     * Render the given pivot columns on each child under its "pivot" key.
+     *
+     * @param  string  ...$columns
+     * @return self
+     *
+     * @throws \InvalidArgumentException
+     */
+    public function pivot(string ...$columns): self
+    {
+        if ($columns === []) {
+            throw new \InvalidArgumentException('A relation must declare at least one pivot column');
+        }
+
+        $this->pivot = array_values(array_unique([...$this->pivot, ...$columns]));
+
+        return $this;
+    }
+
+    /**
      * Declare this relation traversable by $has/$hasnt and nested filters.
      *
      * @return self
@@ -168,6 +190,7 @@ final class Relation extends BaseDefinition
                 'fields'      => $this->fields,
                 'constraint'  => $this->constraint,
                 'limit'       => $this->limit,
+                'pivot'       => $this->pivot ?: null,
                 ...$this->commonAttributes(),
             ], static fn ($value) => $value !== null),
         ];

@@ -506,6 +506,7 @@ abstract class TestCase extends OrchestraTestCase
             $table->unsignedBigInteger('post_id');
             $table->unsignedBigInteger('tag_id');
             $table->string('role')->nullable();
+            $table->timestamp('tagged_at')->nullable();
             $table->primary(['post_id', 'tag_id']);
         });
     }

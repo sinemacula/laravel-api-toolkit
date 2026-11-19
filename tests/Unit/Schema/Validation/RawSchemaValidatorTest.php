@@ -562,6 +562,33 @@ final class RawSchemaValidatorTest extends TestCase
     }
 
     /**
+     * Test that a raw pivot that is not a list of bare column names is refused
+     * naming each field and entry, while a bare list or none passes.
+     *
+     * @return void
+     */
+    public function testReportsEveryPivotThatIsNotAListOfBareColumnNames(): void
+    {
+        $errors = $this->collectErrors([
+            'members'  => ['relation' => 'members', 'pivot' => ['role', '_joined_at2']],
+            'teams'    => ['relation' => 'teams', 'pivot' => null],
+            'tags'     => ['relation' => 'tags', 'pivot' => 'role'],
+            'labels'   => ['relation' => 'labels', 'pivot' => ['first' => 'role']],
+            'projects' => ['relation' => 'projects', 'pivot' => ['role', 7, 'team_user.role', 'role as r', "role\n", '2nd']],
+        ]);
+
+        self::assertSame([
+            [self::RESOURCE, 'tags', 'Pivot must be a list of column names'],
+            [self::RESOURCE, 'labels', 'Pivot must be a list of column names'],
+            [self::RESOURCE, 'projects', 'Pivot column at index 1 must be a bare column name'],
+            [self::RESOURCE, 'projects', 'Pivot column at index 2 must be a bare column name'],
+            [self::RESOURCE, 'projects', 'Pivot column at index 3 must be a bare column name'],
+            [self::RESOURCE, 'projects', 'Pivot column at index 4 must be a bare column name'],
+            [self::RESOURCE, 'projects', 'Pivot column at index 5 must be a bare column name'],
+        ], $errors);
+    }
+
+    /**
      * Test that a constrained relation is refused when its own field, an
      * accessor-only sibling or another field's marker makes it traversable.
      *

@@ -74,6 +74,7 @@ final class WorkerGrowthTest extends TestCase
         SchemaCompiler::class . '::$cache',
         SearchPlan::class . '::$cache',
         ValueResolver::class . '::$castAccessorCache',
+        ValueResolver::class . '::$pivotAccessorCache',
         ValueResolver::class . '::$relatedModelCache',
     ];
 

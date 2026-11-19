@@ -193,8 +193,8 @@ final class EagerLoadPlanner
         $plain    = array_diff(array_unique($plain), array_keys($scoped));
         $closures = [];
 
-        foreach ($scoped as $path => [$owner, $constraint, $limit, $aggregates]) {
-            $closures[$path] = self::scope($owner, $constraint, $limit, $aggregates, self::takeColumnSelection($plain, $path));
+        foreach ($scoped as $path => [$owner, $constraint, $limit, $aggregates, $pivot]) {
+            $closures[$path] = self::scope($owner, $constraint, $limit, $aggregates, $pivot, self::takeColumnSelection($plain, $path));
         }
 
         self::$eagerLoadCache[$key]  = $plain === [] && $closures === [] ? [] : array_merge($plain, $closures);
@@ -212,7 +212,7 @@ final class EagerLoadPlanner
      * @param  array<int, string>  $fields
      * @param  string  $prefix
      * @param  array<int, string>  $plain
-     * @param  array<string, array{string, (\Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null, int, list<AggregateLoad>}>  $scoped
+     * @param  array<string, array{string, (\Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null, int, list<AggregateLoad>, list<string>}>  $scoped
      * @param  array<string, PlannedProjection>  $projections
      * @param  array<int, string>  $ancestors
      * @return void
@@ -294,7 +294,7 @@ final class EagerLoadPlanner
      * @param  string  $fullPath
      * @param  list<AggregateLoad>  $aggregates
      * @param  array<int, string>  $plain
-     * @param  array<string, array{string, (\Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null, int, list<AggregateLoad>}>  $scoped
+     * @param  array<string, array{string, (\Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null, int, list<AggregateLoad>, list<string>}>  $scoped
      * @return void
      */
     private static function addEagerLoadPath(CompiledFieldDefinition $definition, string $owner, string $fullPath, array $aggregates, array &$plain, array &$scoped): void
@@ -302,16 +302,18 @@ final class EagerLoadPlanner
         $constraint = $definition->constraint;
         $limit      = RelationLimit::for($definition);
 
-        if ($constraint === null && $limit === 0 && $aggregates === []) {
+        if ($constraint === null && $limit === 0 && $aggregates === [] && $definition->pivot === []) {
             $plain[] = $fullPath;
 
             return;
         }
 
-        // Another field over the same path keeps the aggregates it selected
+        // Fields over one path keep each other's aggregates and pivot columns
         $planned = $scoped[$fullPath][3] ?? [];
+        $added   = array_filter($aggregates, static fn (array $entry): bool => !in_array($entry, $planned, true));
+        $pivot   = array_values(array_unique([...$scoped[$fullPath][4] ?? [], ...$definition->pivot]));
 
-        $scoped[$fullPath] = [$owner, $constraint, $limit, [...$planned, ...array_filter($aggregates, static fn (array $entry): bool => !in_array($entry, $planned, true))]];
+        $scoped[$fullPath] = [$owner, $constraint, $limit, [...$planned, ...$added], $pivot];
     }
 
     /**
@@ -380,15 +382,20 @@ final class EagerLoadPlanner
      * @param  (\Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null  $constraint
      * @param  int  $limit
      * @param  list<AggregateLoad>  $aggregates
+     * @param  list<string>  $pivot
      * @param  list<string>  $columns
      * @return \Closure(EagerRelation, (\Closure(list<AggregateLoad>): list<AggregateLoad>)|null=): void
      */
-    private static function scope(string $owner, ?\Closure $constraint, int $limit, array $aggregates, array $columns): \Closure
+    private static function scope(string $owner, ?\Closure $constraint, int $limit, array $aggregates, array $pivot, array $columns): \Closure
     {
-        return static function (EloquentRelation $relation, ?\Closure $decorateAggregates = null) use ($owner, $constraint, $limit, $aggregates, $columns): void {
+        return static function (EloquentRelation $relation, ?\Closure $decorateAggregates = null) use ($owner, $constraint, $limit, $aggregates, $pivot, $columns): void {
 
             if ($columns !== []) {
                 $relation->select(self::qualifyColumns($relation, $columns));
+            }
+
+            if ($pivot !== []) {
+                self::selectPivot($relation, $pivot, $owner);
             }
 
             if ($constraint !== null) {
@@ -399,6 +406,25 @@ final class EagerLoadPlanner
 
             RelationWindow::bound($relation, $limit);
         };
+    }
+
+    /**
+     * Select the pivot columns the relation renders on each child.
+     *
+     * @param  EagerRelation  $relation
+     * @param  list<string>  $pivot
+     * @param  string  $owner
+     * @return void
+     *
+     * @throws \LogicException
+     */
+    private static function selectPivot(EloquentRelation $relation, array $pivot, string $owner): void
+    {
+        if (!$relation instanceof BelongsToMany) {
+            throw new \LogicException(sprintf('The %s relation declares pivot columns but is not a many-to-many relation', $owner));
+        }
+
+        $relation->withPivot($pivot);
     }
 
     /**

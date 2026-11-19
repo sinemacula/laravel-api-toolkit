@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
@@ -38,6 +39,9 @@ final readonly class ResourceSchemaBuilder
 
     /** The property a resource's relation aggregates are rendered under */
     private const string AGGREGATES_PROPERTY = 'aggregates';
+
+    /** The property a many-to-many child renders its declared pivot columns under */
+    private const string PIVOT_PROPERTY = 'pivot';
 
     /** The path prefix under which resource component schemas are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
@@ -213,7 +217,8 @@ final readonly class ResourceSchemaBuilder
      * An unmapped resource has no component, so it becomes an undocumented
      * object, never a dangling $ref. An unresolved relation may take any shape,
      * and a to-one relation renders null when the related model is absent,
-     * unless it declares a default model.
+     * unless it declares a default model. A many-to-many child extends its
+     * component with the pivot columns it declares.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @param  string  $relation
@@ -229,9 +234,10 @@ final readonly class ResourceSchemaBuilder
         $target = isset($built[$childResource]) && class_exists($childResource)
             ? ['$ref' => self::SCHEMA_REF_PREFIX . SchemaComponentName::fromResource($childResource)]
             : ['type' => 'object', self::UNDOCUMENTED_KEY => true];
-        $limit    = RelationLimit::for($field);
-        $array    = ['type' => 'array', 'items' => $target] + ($limit > 0 ? ['maxItems' => $limit] : []);
         $instance = $this->resolveRelation($relation, $modelClass);
+        $items    = $field->pivot !== [] && $instance instanceof BelongsToMany ? $this->withPivotProperty($target, $instance, $field->pivot) : $target;
+        $limit    = RelationLimit::for($field);
+        $array    = ['type' => 'array', 'items' => $items] + ($limit > 0 ? ['maxItems' => $limit] : []);
         $null     = ['type' => 'null'];
 
         if ($instance === null) {
@@ -245,6 +251,29 @@ final readonly class ResourceSchemaBuilder
         $defaulted = (bool) (new \ReflectionProperty($instance, 'withDefault'))->getValue($instance);
 
         return $defaulted ? $target : ['oneOf' => [$target, $null]];
+    }
+
+    /**
+     * Extend the child schema with the pivot columns each item renders, typed
+     * from the pivot table and its pivot class's casts.
+     *
+     * None is required, since a column the pivot does not carry is omitted.
+     *
+     * @param  array<string, mixed>  $target
+     * @param  \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model>  $relation
+     * @param  array<int, string>  $columns
+     * @return array<string, mixed>
+     */
+    private function withPivotProperty(array $target, BelongsToMany $relation, array $columns): array
+    {
+        $pivot      = $relation->newPivot();
+        $properties = [];
+
+        foreach ($columns as $column) {
+            $properties[$column] = $this->resolver->inferColumn($pivot, $column)->toArray();
+        }
+
+        return ['allOf' => [$target, ['type' => 'object', 'properties' => [self::PIVOT_PROPERTY => ['type' => 'object', 'properties' => $properties]]]]];
     }
 
     /**

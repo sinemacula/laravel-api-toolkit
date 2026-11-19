@@ -7,6 +7,7 @@ namespace Tests\Unit\OpenApi\Resolution;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -19,10 +20,12 @@ use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 use Tests\Fixtures\Enums\Platform;
+use Tests\Fixtures\Enums\TagRole;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\AggregateLine;
 use Tests\Fixtures\Models\AggregateOwner;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\PostTag;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 
@@ -127,6 +130,38 @@ final class FieldTypeResolverTest extends TestCase
         self::assertFalse($schema->undocumented);
         self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schema->toArray());
         self::assertSame([UserStatus::class], $enums->classes());
+    }
+
+    /**
+     * Test that a pivot's column is typed from its own table and its pivot
+     * class's casts, an enum cast registering its component.
+     *
+     * @return void
+     */
+    public function testInferColumnTypesAPivotFromItsTableAndItsPivotClassCasts(): void
+    {
+        $enums        = new EnumSchemaRegistry;
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
+
+        $introspector->method('getColumnDefinitions')->willReturnCallback(static fn (Model $model): array => $model->getTable() === 'post_tag' ? [
+            'role'      => new ColumnDefinition(name: 'role', typeName: 'varchar', nullable: true),
+            'tagged_at' => new ColumnDefinition(name: 'tagged_at', typeName: 'timestamp', nullable: true),
+        ] : []);
+
+        $resolver = new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums);
+        $typed    = (new PostTag)->setTable('post_tag');
+        $plain    = (new Pivot)->setTable('post_tag');
+
+        $role      = $resolver->inferColumn($typed, 'role');
+        $taggedAt  = $resolver->inferColumn($typed, 'tagged_at');
+        $plainRole = $resolver->inferColumn($plain, 'role');
+
+        self::assertSame('#/components/schemas/TagRole', $role->ref);
+        self::assertTrue($role->nullable);
+        self::assertSame([TagRole::class], $enums->classes());
+        self::assertSame(['string', 'date-time', true], [$taggedAt->type, $taggedAt->format, $taggedAt->nullable]);
+        self::assertSame(['string', null, true], [$plainRole->type, $plainRole->format, $plainRole->nullable]);
+        self::assertTrue($resolver->inferColumn($plain, 'rank')->undocumented);
     }
 
     /**

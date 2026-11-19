@@ -59,7 +59,7 @@ final readonly class FieldTypeResolver
             return OpenApiFieldSchema::undocumented();
         }
 
-        return $this->inferScalar($fieldKey, $modelClass);
+        return $this->inferColumn(new $modelClass, $fieldKey);
     }
 
     /**
@@ -109,7 +109,30 @@ final readonly class FieldTypeResolver
             return $field->openApi;
         }
 
-        return $this->inferScalar($column, $modelClass);
+        return $this->inferColumn(new $modelClass, $column);
+    }
+
+    /**
+     * Infer the schema of a column on the model from its definition and cast.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $column
+     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
+     */
+    public function inferColumn(Model $model, string $column): OpenApiFieldSchema
+    {
+        $definition = $this->introspector->getColumnDefinitions($model)[$column] ?? null;
+        $cast       = $this->resolveCast($model, $column);
+
+        if ($cast !== null && enum_exists($cast)) {
+            return OpenApiFieldSchema::reference($this->enums->reference($cast), $definition !== null && $definition->nullable);
+        }
+
+        if ($definition === null && $cast === null) {
+            return OpenApiFieldSchema::undocumented();
+        }
+
+        return $this->mapper->map($definition, $cast);
     }
 
     /**
@@ -129,7 +152,8 @@ final readonly class FieldTypeResolver
             return OpenApiFieldSchema::undocumented();
         }
 
-        $schema = $this->inferScalar($definition->column, $relation->getRelated()::class);
+        $related = $relation->getRelated()::class;
+        $schema  = $this->inferColumn(new $related, $definition->column);
 
         return match (true) {
             $schema->undocumented => $schema,
@@ -190,31 +214,6 @@ final readonly class FieldTypeResolver
     private function hasTransformers(CompiledFieldDefinition $field): bool
     {
         return $field->transformers !== [];
-    }
-
-    /**
-     * Infer a plain scalar field's schema from its backing column and model
-     * cast.
-     *
-     * @param  string  $fieldKey
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
-     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
-     */
-    private function inferScalar(string $fieldKey, string $modelClass): OpenApiFieldSchema
-    {
-        $model  = new $modelClass;
-        $column = $this->introspector->getColumnDefinitions($model)[$fieldKey] ?? null;
-        $cast   = $this->resolveCast($model, $fieldKey);
-
-        if ($cast !== null && enum_exists($cast)) {
-            return OpenApiFieldSchema::reference($this->enums->reference($cast), $column !== null && $column->nullable);
-        }
-
-        if ($column === null && $cast === null) {
-            return OpenApiFieldSchema::undocumented();
-        }
-
-        return $this->mapper->map($column, $cast);
     }
 
     /**
