@@ -331,23 +331,29 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that pivot columns on a relation that is not many-to-many reach no
-     * child, and the miss is memoised.
+     * Test that pivot columns on a loaded relation that is not many-to-many, or
+     * that the model does not declare, reach no child, and each miss is
+     * memoised.
      *
      * @return void
      */
     public function testPivotColumnsOnARelationThatIsNotManyToManyReachNoChild(): void
     {
-        $user = new User;
+        $user  = new User;
+        $posts = new Collection([(new Post)->forceFill(['id' => 1, 'title' => 'First'])->setRelation('pivot', (new Post)->forceFill(['role' => 'primary']))]);
 
-        $user->setRelation('posts', new Collection([(new Post)->forceFill(['id' => 1, 'title' => 'First'])->setRelation('pivot', (new Post)->forceFill(['role' => 'primary']))]));
+        $user->setRelation('posts', $posts)->setRelation('drafts', $posts);
 
-        $definition = $this->makeFieldDefinition(relation: 'posts', resource: PostResource::class, fields: ['id'], pivot: ['role']);
-        $result     = $this->resolver->resolveFieldValue('posts', $definition, new JsonResource($user), null);
+        foreach (['posts', 'drafts'] as $relation) {
 
-        self::assertInstanceOf(ApiResourceCollection::class, $result);
-        self::assertArrayNotHasKey('pivot', $result->resolve()[0]);
-        self::assertSame(['posts' => null], $this->getStaticProperty(ValueResolver::class, 'pivotAccessorCache')[User::class]);
+            $definition = $this->makeFieldDefinition(relation: $relation, resource: PostResource::class, fields: ['id'], pivot: ['role']);
+            $result     = $this->resolver->resolveFieldValue($relation, $definition, new JsonResource($user), null);
+
+            self::assertInstanceOf(ApiResourceCollection::class, $result);
+            self::assertArrayNotHasKey('pivot', $result->resolve()[0]);
+        }
+
+        self::assertSame(['posts' => null, 'drafts' => null], $this->getStaticProperty(ValueResolver::class, 'pivotAccessorCache')[User::class]);
     }
 
     /**

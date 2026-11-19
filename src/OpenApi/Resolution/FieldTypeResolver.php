@@ -128,10 +128,6 @@ final readonly class FieldTypeResolver
             return OpenApiFieldSchema::reference($this->enums->reference($cast), $definition !== null && $definition->nullable);
         }
 
-        if ($definition === null && $cast === null) {
-            return OpenApiFieldSchema::undocumented();
-        }
-
         return $this->mapper->map($definition, $cast);
     }
 
