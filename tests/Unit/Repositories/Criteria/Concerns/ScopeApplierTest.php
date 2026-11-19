@@ -563,7 +563,8 @@ final class ScopeApplierTest extends TestCase
     private function apply(array $filters, QuerySurface $surface, ?Builder $query = null): Builder
     {
         $introspector = app(SchemaIntrospectionProvider::class);
-        $applier      = new FilterApplier(new FilterValueGuard(new ColumnLiteral($introspector)), new RelationTrashedGate($introspector, Request::create('/'), []), new ScopeApplier);
+        $trashedGate  = new RelationTrashedGate($introspector, Request::create('/'), []);
+        $applier      = new FilterApplier(new FilterValueGuard(new ColumnLiteral($introspector)), $trashedGate, new ScopeApplier);
 
         return $applier->apply($query ?? Gathering::query(), $filters, app(OperatorRegistry::class), $surface);
     }
