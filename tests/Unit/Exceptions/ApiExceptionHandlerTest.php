@@ -1063,6 +1063,44 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
+     * Test that a denial's reason is added beside the meta the exception
+     * carries.
+     *
+     * @return void
+     */
+    public function testDenialReasonIsAddedBesideTheExceptionMeta(): void
+    {
+        config()->set('app.debug', false);
+
+        $exception = new class (new AuthorizationException(self::DENIAL, 'SHIPPED')) extends SymfonyHttpException {
+            /**
+             * Create a conflict raised from the given denial.
+             *
+             * @param  \Illuminate\Auth\Access\AuthorizationException  $denial
+             */
+            public function __construct(AuthorizationException $denial)
+            {
+                parent::__construct(409, '', $denial);
+            }
+
+            /**
+             * Get the errors the exception carries.
+             *
+             * @return array<string, list<string>>
+             */
+            public function errors(): array
+            {
+                return ['order' => ['The order has shipped.']];
+            }
+        };
+
+        $error = $this->renderToJson($exception, self::jsonRequest())->getData(true)['error'];
+
+        self::assertIsArray($error);
+        self::assertSame(['order' => ['The order has shipped.'], 'reason' => 'SHIPPED'], $error['meta']);
+    }
+
+    /**
      * Provide configured targets of a denial, with whether each carries it.
      *
      * @return iterable<string, array{class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>, int, bool}>
