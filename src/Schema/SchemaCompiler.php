@@ -114,13 +114,14 @@ final class SchemaCompiler
         $declarers   = [];
         $sorted      = [];
 
-        foreach ($rawSchema as $schemaKey => $definition) {
+        $scoped = array_filter($rawSchema, static fn (string $key): bool => str_starts_with($key, Scope::KEY_PREFIX), ARRAY_FILTER_USE_KEY);
 
-            if (str_starts_with($schemaKey, Scope::KEY_PREFIX)) {
-                $scope                = CompiledScopeDefinition::fromRaw($schemaKey, $definition);
-                $scopes[$scope->name] = $scope;
-                continue;
-            }
+        foreach ($scoped as $schemaKey => $definition) {
+            $scope                = CompiledScopeDefinition::fromRaw($schemaKey, $definition);
+            $scopes[$scope->name] = $scope;
+        }
+
+        foreach (array_diff_key($rawSchema, $scoped) as $schemaKey => $definition) {
 
             $function = self::resolveAggregateFunction($definition);
 
@@ -135,7 +136,13 @@ final class SchemaCompiler
 
             $field = self::buildFieldDefinition($definition);
 
-            self::collectRelation($schemaKey, $field, $resources, $sorted);
+            if ($field->relation !== null && $field->resource !== null) {
+                $resources[$field->relation] = $field->resource;
+            }
+
+            if ($field->relation !== null && $field->sortThroughReason !== null) {
+                $sorted[$field->relation][] = $schemaKey;
+            }
 
             $fields[$schemaKey] = $field;
         }
@@ -156,31 +163,6 @@ final class SchemaCompiler
             $scopes,
             $sorted,
         );
-    }
-
-    /**
-     * Record the resource a field's relation renders, and the field declaring
-     * each relation an order may read through.
-     *
-     * @param  string  $schemaKey
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
-     * @param  array<string, string>  $resources
-     * @param  array<string, list<string>>  $sorted
-     * @return void
-     */
-    private static function collectRelation(string $schemaKey, CompiledFieldDefinition $field, array &$resources, array &$sorted): void
-    {
-        if ($field->relation === null) {
-            return;
-        }
-
-        if ($field->resource !== null) {
-            $resources[$field->relation] = $field->resource;
-        }
-
-        if ($field->sortThroughReason !== null) {
-            $sorted[$field->relation][] = $schemaKey;
-        }
     }
 
     /**
