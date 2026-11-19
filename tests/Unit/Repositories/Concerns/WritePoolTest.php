@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Concerns;
 
 use Illuminate\Database\DatabaseTransactionsManager;
+use Illuminate\Database\DeadlockException;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\FlushStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
@@ -37,6 +39,12 @@ use Tests\TestCase;
 final class WritePoolTest extends TestCase
 {
     use CreatesDeferredWriteTargets;
+
+    /** @var string The message MySQL raises for a deadlock */
+    private const string DEADLOCK = 'SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock; try restarting transaction';
+
+    /** @var string The message MySQL raises for a dropped connection */
+    private const string LOST_CONNECTION = 'SQLSTATE[HY000]: General error: 2006 MySQL server has gone away';
 
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\WritePool The write pool instance under test. */
     private WritePool $pool;
@@ -1775,6 +1783,203 @@ final class WritePoolTest extends TestCase
     }
 
     /**
+     * Provide each flush strategy, flushing by chunk and by table.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\FlushStrategy, bool}>
+     */
+    public static function strategyProvider(): iterable
+    {
+        foreach (FlushStrategy::cases() as $strategy) {
+            yield "{$strategy->value} by chunk" => [$strategy, false];
+            yield "{$strategy->value} by table" => [$strategy, true];
+        }
+    }
+
+    /**
+     * Test that a deadlock flushing inside a transaction reaches the caller
+     * whatever the strategy, so its retry writes each row once.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
+     * @param  bool  $transactional
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    #[DataProvider('strategyProvider')]
+    public function testADeadlockInsideATransactionReachesTheCallerAndItsRetryWritesEachRowOnce(FlushStrategy $strategy, bool $transactional): void
+    {
+        $this->useAuditTestTables();
+        $this->failInsert(2, new QueryException('audit', 'insert', [], new \PDOException(self::DEADLOCK)));
+
+        $pool     = new WritePool(chunkSize: 1, poolLimit: 10000, strategy: $strategy, transactional: $transactional);
+        $attempts = 0;
+
+        DB::connection('audit')->transaction(function () use ($pool, &$attempts): void {
+            $attempts++;
+
+            $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
+            $pool->add('audit', 'test_records', ['name' => 'b', 'value' => '2']);
+            $pool->flush();
+        }, 2);
+
+        self::assertSame(2, $attempts);
+        self::assertSame(['a', 'b'], DB::connection('audit')->table('test_records')->orderBy('id')->pluck('name')->all());
+        self::assertTrue($pool->isEmpty());
+    }
+
+    /**
+     * Provide the forms a dropped connection surfaces as.
+     *
+     * @return iterable<string, array{\Throwable}>
+     */
+    public static function lostConnectionProvider(): iterable
+    {
+        yield 'query exception' => [new QueryException('audit', 'insert', [], new \PDOException(self::LOST_CONNECTION))];
+        yield 'driver warning' => [new \ErrorException('PDO::exec(): MySQL server has gone away')];
+    }
+
+    /**
+     * Test that a lost connection flushing inside a transaction is rethrown and
+     * drops that connection's records, unprocessed ones included, while a later
+     * connection's stay buffered.
+     *
+     * @param  \Throwable  $lost
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    #[DataProvider('lostConnectionProvider')]
+    public function testALostConnectionInsideATransactionIsRethrownAndDropsOnlyThatConnectionsRecords(\Throwable $lost): void
+    {
+        $this->useAuditTestTables();
+        $this->failInsert(2, $lost);
+
+        $pool = new WritePool(chunkSize: 1, poolLimit: 10000);
+
+        try {
+            DB::connection('audit')->transaction(function () use ($pool): void {
+                $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
+                $pool->add('audit', 'test_records', ['name' => 'b', 'value' => '2']);
+                $pool->add('audit', 'test_records', ['name' => 'c', 'value' => '3']);
+                $pool->add('testing', 'test_records', ['name' => 'd', 'value' => '4']);
+                $pool->flush();
+            });
+
+            self::fail('Expected the lost connection to be rethrown');
+        } catch (\ErrorException|QueryException $exception) {
+            self::assertSame($lost, $exception);
+        }
+
+        self::assertSame(0, DB::table('test_records')->count());
+
+        $pool->flush();
+
+        self::assertSame(0, DB::connection('audit')->table('test_records')->count());
+        self::assertSame(['d'], DB::table('test_records')->pluck('name')->all());
+    }
+
+    /**
+     * Test that a failure ending a transaction keeps the outcome of the
+     * connections flushed before it and invalidates their tables.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testATransactionEndingFailureSettlesTheConnectionsFlushedBeforeIt(): void
+    {
+        Config::set('cache.default', 'array');
+        Config::set('api-toolkit.deferred_writes.invalidate_query_cache', true);
+
+        $this->cacheStore('test_records')->put('stale-query-hash', collect(['stale']), 60);
+        $this->useAuditTestTables();
+        $this->failInsert(1, new QueryException('audit', 'insert', [], new \PDOException(self::DEADLOCK)));
+
+        $pool = new WritePool(chunkSize: 500, poolLimit: 10000);
+
+        $pool->add('testing', 'test_records', ['name' => 'a', 'value' => '1']);
+        $pool->add('testing', 'nonexistent_table', ['col' => 'val']);
+
+        try {
+            DB::connection('audit')->transaction(function () use ($pool): void {
+                $pool->add('audit', 'test_records', ['name' => 'b', 'value' => '2']);
+                $pool->flush();
+            });
+
+            self::fail('Expected the deadlock to be rethrown');
+        } catch (DeadlockException) {
+            // The buffer is inspected below
+        }
+
+        self::assertSame(['a'], DB::table('test_records')->pluck('name')->all());
+        self::assertSame(1, $pool->count());
+        self::assertNull($this->cacheStore('test_records')->fetch('stale-query-hash'));
+    }
+
+    /**
+     * Provide each non-throwing strategy and the records it keeps after a
+     * failed flush.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\FlushStrategy, int}>
+     */
+    public static function nonThrowingStrategyProvider(): iterable
+    {
+        yield 'collect' => [FlushStrategy::COLLECT, 1];
+        yield 'log' => [FlushStrategy::LOG, 0];
+    }
+
+    /**
+     * Test that a lost connection outside a transaction is a chunk failure the
+     * strategy handles.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
+     * @param  int  $kept
+     * @return void
+     */
+    #[DataProvider('nonThrowingStrategyProvider')]
+    public function testALostConnectionOutsideATransactionFollowsTheStrategy(FlushStrategy $strategy, int $kept): void
+    {
+        $this->useAuditTestTables();
+        $this->failInsert(1, new QueryException('audit', 'insert', [], new \PDOException(self::LOST_CONNECTION)));
+
+        $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: $strategy);
+
+        $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
+
+        self::assertSame(1, $pool->flush()->failureCount());
+        self::assertSame($kept, $pool->count());
+    }
+
+    /**
+     * Test that a lost connection outside a transaction raises the throw
+     * strategy's flush exception and keeps the record.
+     *
+     * @return void
+     */
+    public function testALostConnectionOutsideATransactionRaisesTheFlushExceptionUnderThrow(): void
+    {
+        $this->useAuditTestTables();
+
+        $lost = new QueryException('audit', 'insert', [], new \PDOException(self::LOST_CONNECTION));
+
+        $this->failInsert(1, $lost);
+
+        $pool = new WritePool(chunkSize: 500, poolLimit: 10000, strategy: FlushStrategy::THROW, transactional: true);
+
+        $pool->add('audit', 'test_records', ['name' => 'a', 'value' => '1']);
+
+        try {
+            $pool->flush();
+
+            self::fail('Expected WritePoolFlushException was not thrown');
+        } catch (WritePoolFlushException $exception) {
+            self::assertSame($lost, $exception->getPrevious());
+        }
+
+        self::assertSame(1, $pool->count());
+    }
+
+    /**
      * Define the database migrations.
      *
      * @return void
@@ -1826,6 +2031,24 @@ final class WritePoolTest extends TestCase
         Schema::connection('audit')->create('test_unique', function (Blueprint $table): void {
             $table->id();
             $table->string('name')->unique();
+        });
+    }
+
+    /**
+     * Throw the given failure in place of the audit connection's nth INSERT.
+     *
+     * @param  int  $insert
+     * @param  \Throwable  $failure
+     * @return void
+     */
+    private function failInsert(int $insert, \Throwable $failure): void
+    {
+        $inserts = 0;
+
+        DB::connection('audit')->beforeExecuting(function (string $query) use ($insert, $failure, &$inserts): void {
+            if (str_starts_with($query, 'insert') && ++$inserts === $insert) {
+                throw $failure;
+            }
         });
     }
 
