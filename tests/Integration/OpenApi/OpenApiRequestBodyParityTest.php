@@ -52,8 +52,8 @@ final class OpenApiRequestBodyParityTest extends TestCase
 {
     use RegistersApiExceptionHandler, ValidatesOpenApiDocuments;
 
-    /** @var string The email the generated examples send, already held by the routed user */
-    private const string PROFILE_EMAIL = 'user@example.com';
+    /** @var array<string, mixed> The exported default audience, as a client reads it */
+    private array $document;
 
     /** @var \Tests\Fixtures\Actors\ActorUser The caller, who authors the routed article */
     private ActorUser $author;
@@ -89,9 +89,12 @@ final class OpenApiRequestBodyParityTest extends TestCase
         Route::post('users/{user}/avatar', [ParityProfileController::class, 'avatar']);
         Route::apiResource('articles', ArticleController::class)->middleware([ParseApiQuery::class, 'auth', SubstituteBindings::class]);
 
-        $this->author = ActorUser::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        $this->document = $this->export();
+        $this->author   = ActorUser::create(['name' => 'Alice', 'email' => 'alice@example.com']);
 
-        $user    = User::create(['name' => 'Bob', 'email' => self::PROFILE_EMAIL]);
+        // The routed user already holds the documented email, so only the rule's ignore() accepts it
+        $profile = $this->examplesOf('PUT', '/users/{user}');
+        $user    = User::create(['name' => 'Bob', 'email' => reset($profile)['email'] ?? null]);
         $article = Article::create(['user_id' => $this->author->id, 'title' => 'Title', 'slug' => 'existing', 'body' => 'Body', 'summary' => 'Summary']);
 
         Tag::create(['name' => 'news']);
@@ -126,10 +129,8 @@ final class OpenApiRequestBodyParityTest extends TestCase
     #[DataProvider('documentedBodyProvider')]
     public function testDocumentedExamplesAreAcceptedByTheRoute(string $method, string $path): void
     {
-        $document = $this->export();
-
-        foreach ($this->examplesOf($document, $method, $path) as $name => $body) {
-            $this->assertAcceptedAsDocumented($document, $method, $path, $name, $body);
+        foreach ($this->examplesOf($method, $path) as $name => $body) {
+            $this->assertAcceptedAsDocumented($method, $path, $name, $body);
         }
     }
 
@@ -144,13 +145,12 @@ final class OpenApiRequestBodyParityTest extends TestCase
     #[DataProvider('documentedBodyProvider')]
     public function testExamplesReducedToTheirRequiredFieldsAreAcceptedByTheRoute(string $method, string $path): void
     {
-        $document = $this->export();
-        $required = $this->resolveReference($document, '#' . $this->requestSchemaPointer($method, $path) . '/required') ?? [];
+        $required = $this->resolveReference($this->document, '#' . $this->requestSchemaPointer($method, $path) . '/required') ?? [];
 
         self::assertIsArray($required);
 
-        foreach ($this->examplesOf($document, $method, $path) as $name => $body) {
-            $this->assertAcceptedAsDocumented($document, $method, $path, $name . ' reduced to its required fields', Arr::only($body, $required));
+        foreach ($this->examplesOf($method, $path) as $name => $body) {
+            $this->assertAcceptedAsDocumented($method, $path, $name . ' reduced to its required fields', Arr::only($body, $required));
         }
     }
 
@@ -184,13 +184,11 @@ final class OpenApiRequestBodyParityTest extends TestCase
     #[DataProvider('refusedBodyProvider')]
     public function testBodyTheSchemaRefusesIsRefusedAsDocumented(string $method, string $path, array $body): void
     {
-        $document = $this->export();
-
-        self::assertFalse($this->validateBody($document, $method, $path, $body)->isValid(), 'The documented schema must refuse the body.');
+        self::assertFalse($this->validateBody($method, $path, $body)->isValid(), 'The documented schema must refuse the body.');
 
         $response = $this->actingAs($this->author)->json($method, $this->uriOf($path), $body);
 
-        $this->assertRefusedAsDocumented($document, $method, $path, $response);
+        $this->assertRefusedAsDocumented($method, $path, $response);
     }
 
     /**
@@ -201,8 +199,7 @@ final class OpenApiRequestBodyParityTest extends TestCase
      */
     public function testMultipartUploadIsAcceptedWithItsFileAndRefusedAsDocumentedWithout(): void
     {
-        $document = $this->export();
-        $media    = $this->requestMedia($document, 'POST', '/users/{user}/avatar');
+        $media = $this->requestMedia('POST', '/users/{user}/avatar');
 
         self::assertSame(['multipart/form-data'], array_keys($media));
 
@@ -210,22 +207,21 @@ final class OpenApiRequestBodyParityTest extends TestCase
 
         $this->call('POST', $this->uriOf('/users/{user}/avatar'), [], [], ['avatar' => UploadedFile::fake()->image('avatar.png')], $server)->assertSuccessful();
 
-        $this->assertRefusedAsDocumented($document, 'POST', '/users/{user}/avatar', $this->call('POST', $this->uriOf('/users/{user}/avatar'), [], [], [], $server));
+        $this->assertRefusedAsDocumented('POST', '/users/{user}/avatar', $this->call('POST', $this->uriOf('/users/{user}/avatar'), [], [], [], $server));
     }
 
     /**
      * Assert the documented schema accepts the body and so does the route.
      *
-     * @param  array<string, mixed>  $document
      * @param  string  $method
      * @param  string  $path
      * @param  string  $label
      * @param  array<array-key, mixed>  $body
      * @return void
      */
-    private function assertAcceptedAsDocumented(array $document, string $method, string $path, string $label, array $body): void
+    private function assertAcceptedAsDocumented(string $method, string $path, string $label, array $body): void
     {
-        $result = $this->validateBody($document, $method, $path, $body);
+        $result = $this->validateBody($method, $path, $body);
 
         self::assertTrue($result->isValid(), sprintf('The body [%s] of %s %s must match its schema: %s', $label, $method, $path, $this->formatErrors($result)));
 
@@ -245,29 +241,28 @@ final class OpenApiRequestBodyParityTest extends TestCase
      * Assert the response is the validation failure the operation documents, in
      * a body its 422 schema accepts.
      *
-     * @param  array<string, mixed>  $document
      * @param  string  $method
      * @param  string  $path
      * @param  \Illuminate\Testing\TestResponse<\Symfony\Component\HttpFoundation\Response>  $response
      * @return void
      */
-    private function assertRefusedAsDocumented(array $document, string $method, string $path, TestResponse $response): void
+    private function assertRefusedAsDocumented(string $method, string $path, TestResponse $response): void
     {
         $response->assertUnprocessable();
         $response->assertJsonPath('error.code', 10106);
 
         $pointer  = $this->operationPointer($method, $path) . '/responses/422/content/application~1json';
-        $examples = $this->resolveReference($document, '#' . $pointer . '/examples');
+        $examples = $this->resolveReference($this->document, '#' . $pointer . '/examples');
 
         self::assertIsArray($examples);
         self::assertSame(['$ref' => '#/components/examples/Error10106'], $examples['Error10106'] ?? null);
         self::assertSame(
-            $this->resolveReference($document, '#/components/examples/Error10106/value/error'),
+            $this->resolveReference($this->document, '#/components/examples/Error10106/value/error'),
             Arr::only((array) $response->json('error'), ['status', 'code', 'title', 'detail']),
         );
 
         $body   = json_decode((string) $response->baseResponse->getContent(), false, 512, JSON_THROW_ON_ERROR);
-        $result = $this->validateAgainstExported($document, $this->uriPointer($pointer . '/schema'), $body);
+        $result = $this->validateAgainstExported($this->document, $this->uriPointer($pointer . '/schema'), $body);
 
         self::assertTrue($result->isValid(), 'The refusal must validate against its documented schema: ' . $this->formatErrors($result));
     }
@@ -275,17 +270,16 @@ final class OpenApiRequestBodyParityTest extends TestCase
     /**
      * Validate a body against the operation's documented JSON request schema.
      *
-     * @param  array<string, mixed>  $document
      * @param  string  $method
      * @param  string  $path
      * @param  array<array-key, mixed>  $body
      * @return \Opis\JsonSchema\ValidationResult
      */
-    private function validateBody(array $document, string $method, string $path, array $body): ValidationResult
+    private function validateBody(string $method, string $path, array $body): ValidationResult
     {
         $json = json_decode(json_encode((object) $body, JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR);
 
-        return $this->validateAgainstExported($document, $this->uriPointer($this->requestSchemaPointer($method, $path)), $json);
+        return $this->validateAgainstExported($this->document, $this->uriPointer($this->requestSchemaPointer($method, $path)), $json);
     }
 
     /**
@@ -309,14 +303,13 @@ final class OpenApiRequestBodyParityTest extends TestCase
      * Read the documented examples of the operation's JSON request body, by
      * name.
      *
-     * @param  array<string, mixed>  $document
      * @param  string  $method
      * @param  string  $path
      * @return non-empty-array<string, array<array-key, mixed>>
      */
-    private function examplesOf(array $document, string $method, string $path): array
+    private function examplesOf(string $method, string $path): array
     {
-        $examples = $this->requestMedia($document, $method, $path)['application/json']['examples'] ?? [];
+        $examples = $this->requestMedia($method, $path)['application/json']['examples'] ?? [];
 
         self::assertIsArray($examples);
         self::assertNotEmpty($examples, sprintf('%s %s documents no request example.', $method, $path));
@@ -327,14 +320,13 @@ final class OpenApiRequestBodyParityTest extends TestCase
     /**
      * Read the content of the operation's request body, keyed by media type.
      *
-     * @param  array<string, mixed>  $document
      * @param  string  $method
      * @param  string  $path
      * @return array<string, mixed>
      */
-    private function requestMedia(array $document, string $method, string $path): array
+    private function requestMedia(string $method, string $path): array
     {
-        $content = $this->resolveReference($document, '#' . $this->operationPointer($method, $path) . '/requestBody/content');
+        $content = $this->resolveReference($this->document, '#' . $this->operationPointer($method, $path) . '/requestBody/content');
 
         self::assertIsArray($content, sprintf('%s %s documents no request body.', $method, $path));
 
