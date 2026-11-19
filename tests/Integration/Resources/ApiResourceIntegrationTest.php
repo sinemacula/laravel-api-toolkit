@@ -17,6 +17,7 @@ use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationColumnNarrower;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\Http\Enums\HttpMethod;
@@ -310,9 +311,11 @@ final class ApiResourceIntegrationTest extends TestCase
         $introspector = $this->app->make(SchemaIntrospectionProvider::class);
         $gate         = new RelationTrashedGate($introspector, new Request, []);
         $narrower     = new RelationColumnNarrower(new SafetySetDeriver($introspector), $introspector);
+        $perimeter    = new RowPerimeter(new Request, []);
+        $resourceType = AggregatingUserResource::getResourceType();
         $query        = User::query();
 
-        (new EagerLoadApplier)->apply($query, new ResourceMetadataService, AggregatingUserResource::class, AggregatingUserResource::getResourceType(), $gate, $narrower);
+        (new EagerLoadApplier)->apply($query, new ResourceMetadataService, AggregatingUserResource::class, $resourceType, $gate, $narrower, $perimeter);
 
         return $query->get()->sortBy('id')->values()->all();
     }

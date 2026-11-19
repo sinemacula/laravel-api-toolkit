@@ -21,8 +21,9 @@ use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
  * Orders a query by a relation aggregate, as the aggregate renders.
  *
  * Laravel builds the correlated subquery on a probe query, so the order runs
- * the constraints, global scopes and trashed scope the rendered aggregate runs;
- * the subquery then moves from the probe's select list to the order.
+ * the constraints, global scopes, trashed scope and row rule the rendered
+ * aggregate runs; the subquery then moves from the probe's select list to the
+ * order.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -36,11 +37,15 @@ final readonly class RelationAggregateOrder
      * Create a new relation aggregate order.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate  $trashedGate
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter  $rowPerimeter
      */
     public function __construct(
 
         /** Widens the related rows to the trashed state the request asks for */
         private RelationTrashedGate $trashedGate,
+
+        /** Narrows the related rows to those the request may see */
+        private RowPerimeter $rowPerimeter,
     ) {}
 
     /**
@@ -92,7 +97,7 @@ final readonly class RelationAggregateOrder
         $probe  = $model->newModelQuery();
         $column = $target->toOne ? self::relatedColumn($probe, $target->relation, $target->column, $resourceClass) : $target->column;
 
-        $constraint = $this->trashedGate->gatedConstraint($target->constraint, ApiQuery::getTrashed());
+        $constraint = $this->trashedGate->gatedConstraint($this->rowPerimeter->wrapAggregate($target->constraint, $resourceClass, $target->relation), ApiQuery::getTrashed());
 
         $probe->withAggregate([$target->relation . ' as ' . self::ALIAS => $constraint], $column, $target->function?->value);
 

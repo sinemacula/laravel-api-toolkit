@@ -23,7 +23,7 @@ use SineMacula\ApiToolkit\Validation\Rejection;
  * routed the same way. An entry that adds no condition is refused, as dropping
  * it would widen the result set, and so is a value its operator cannot take. A
  * relation filter sees the rows its relation would embed under the trashed
- * state.
+ * state and the row rule of the resource governing it.
  *
  * @SuppressWarnings("php:S1448")
  *
@@ -64,6 +64,7 @@ final class FilterApplier
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard  $guard
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate  $trashedGate
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter  $rowPerimeter
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ScopeApplier  $scopes
      */
     public function __construct(
@@ -73,6 +74,9 @@ final class FilterApplier
 
         /** Applies each relation's soft-delete visibility to its subqueries */
         private readonly RelationTrashedGate $trashedGate,
+
+        /** Applies each related level's row rule to its subqueries */
+        private readonly RowPerimeter $rowPerimeter,
 
         /** Applies the named scopes a document invokes */
         private readonly ScopeApplier $scopes = new ScopeApplier,
@@ -448,8 +452,9 @@ final class FilterApplier
 
                 $surface->guardRelation($relation);
 
-                $this->applyRelationalMethod($query, $method, $relation, function (Builder $query): void {
+                $this->applyRelationalMethod($query, $method, $relation, function (Builder $query, ?string $type = null) use ($surface, $relation): void {
                     $this->trashedGate->constrain($query, $this->trashed);
+                    $this->rowPerimeter->constrain($query, $surface->through($relation, $query->getModel(), $type !== null)->resource);
                 });
 
                 continue;
@@ -485,9 +490,12 @@ final class FilterApplier
 
         $this->applyRelationalMethod($query, $method, $relation, function (Builder $query, ?string $type = null) use ($document, $nested, $surface, $relation): void {
 
-            $this->trashedGate->constrain($query, $this->trashed);
+            $level = $surface->through($relation, $query->getModel(), $type !== null);
 
-            $this->applyDocument($query, $document, $nested, $surface->through($relation, $query->getModel(), $type !== null));
+            $this->trashedGate->constrain($query, $this->trashed);
+            $this->rowPerimeter->constrain($query, $level->resource);
+
+            $this->applyDocument($query, $document, $nested, $level);
         });
     }
 

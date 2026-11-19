@@ -30,4 +30,15 @@ final readonly class ChildProjection
         /** Whether something other than the child resource reads the related models */
         public bool $opaque,
     ) {}
+
+    /**
+     * Map each path of a projection plan to the child resource rendering it.
+     *
+     * @param  array<string, self>  $plan
+     * @return array<string, class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>>
+     */
+    public static function resourcesOf(array $plan): array
+    {
+        return array_map(static fn (self $projection): string => $projection->resource, $plan);
+    }
 }

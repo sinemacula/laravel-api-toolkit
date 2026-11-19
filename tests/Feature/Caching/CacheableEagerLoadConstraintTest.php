@@ -22,6 +22,7 @@ use Tests\Fixtures\Repositories\CacheableArticleRepository;
 use Tests\Fixtures\Repositories\CacheableOrganizationRepository;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\HeaderGatedArticleResource;
+use Tests\Fixtures\Resources\HeaderGatedSiblingsArticleResource;
 use Tests\Fixtures\Resources\TrashedCascadeArticleResource;
 use Tests\Fixtures\Resources\ViewerOrganizationResource;
 use Tests\Fixtures\Support\CurrentTenant;
@@ -172,7 +173,12 @@ final class CacheableEagerLoadConstraintTest extends TestCase
      */
     public function testRelationTrashedGateIsCachedPerCaller(): void
     {
-        Config::set('api-toolkit.resources.resource_map', [Article::class => HeaderGatedArticleResource::class]);
+        Route::middleware(ParseApiQuery::class)->get('/articles', function (CacheableArticleRepository $repository): ApiResourceCollection {
+
+            $articles = $repository->usingResource(HeaderGatedSiblingsArticleResource::class)->withApiCriteria()->get(); // @phpstan-ignore staticMethod.dynamicCall
+
+            return new ApiResourceCollection($articles, HeaderGatedSiblingsArticleResource::class);
+        });
 
         $author = User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
 
