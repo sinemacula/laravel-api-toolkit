@@ -83,6 +83,17 @@ return [
         'detail' => 'The request could not be completed',
     ],
 
+    // Precondition errors
+    ErrorCode::PRECONDITION_FAILED->getCode() => [
+        'title'  => 'Precondition Failed',
+        'detail' => 'The resource has changed since it was read, please fetch it again before retrying',
+    ],
+
+    ErrorCode::PRECONDITION_REQUIRED->getCode() => [
+        'title'  => 'Precondition Required',
+        'detail' => 'This request must be conditional, please send the If-Match header with the tag of the resource it changes',
+    ],
+
     // Application errors
     ErrorCode::MAINTENANCE_MODE->getCode() => [
         'title'  => 'Maintenance Mode',

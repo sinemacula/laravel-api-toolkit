@@ -33,6 +33,8 @@ use SineMacula\ApiToolkit\Exceptions\LockUnavailableException;
 use SineMacula\ApiToolkit\Exceptions\NotAllowedException;
 use SineMacula\ApiToolkit\Exceptions\NotFoundException;
 use SineMacula\ApiToolkit\Exceptions\PayloadTooLargeException;
+use SineMacula\ApiToolkit\Exceptions\PreconditionFailedException;
+use SineMacula\ApiToolkit\Exceptions\PreconditionRequiredException;
 use SineMacula\ApiToolkit\Exceptions\ServiceUnavailableException;
 use SineMacula\ApiToolkit\Exceptions\TokenMismatchException;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
@@ -46,6 +48,8 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException as SymfonyHttpException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\PreconditionFailedHttpException;
+use Symfony\Component\HttpKernel\Exception\PreconditionRequiredHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Tests\Fixtures\OpenApi\CodelessApiException;
@@ -124,6 +128,8 @@ final class ExceptionMapTest extends TestCase
         yield 'lock unavailable' => [LockUnavailableException::class, TooManyRequestsException::class];
         yield 'service unavailable http' => [ServiceUnavailableHttpException::class, ServiceUnavailableException::class];
         yield 'post too large' => [PostTooLargeException::class, PayloadTooLargeException::class];
+        yield 'precondition failed http' => [PreconditionFailedHttpException::class, PreconditionFailedException::class];
+        yield 'precondition required http' => [PreconditionRequiredHttpException::class, PreconditionRequiredException::class];
         yield 'symfony http exception' => [ConflictHttpException::class, HttpException::class];
         yield 'unmatched' => [\RuntimeException::class, UnhandledException::class];
     }
@@ -446,7 +452,9 @@ final class ExceptionMapTest extends TestCase
         yield 'forbidden' => [403, ForbiddenException::class];
         yield 'not found' => [404, NotFoundException::class];
         yield 'method not allowed' => [405, NotAllowedException::class];
+        yield 'precondition failed' => [412, PreconditionFailedException::class];
         yield 'payload too large' => [413, PayloadTooLargeException::class];
+        yield 'precondition required' => [428, PreconditionRequiredException::class];
         yield 'too many requests' => [429, TooManyRequestsException::class];
         yield 'service unavailable' => [503, ServiceUnavailableException::class];
     }
