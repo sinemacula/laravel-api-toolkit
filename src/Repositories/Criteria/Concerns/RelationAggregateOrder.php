@@ -120,7 +120,7 @@ final readonly class RelationAggregateOrder
      * @param  string  $relation
      * @param  string  $column
      * @param  string  $resourceClass
-     * @return \Illuminate\Database\Query\Expression<literal-string>
+     * @return \Illuminate\Database\Query\Expression<*>
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
