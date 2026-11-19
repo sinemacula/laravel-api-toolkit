@@ -406,7 +406,7 @@ final class ExampleGenerator
     {
         $object = new \stdClass;
 
-        foreach ($this->propertyValues($names, $properties, $resolved, $stack) as $name => $value) {
+        foreach ($this->propertyValues($names, $properties, $required, $resolved, $stack) as $name => $value) {
 
             if (!$value instanceof MissingValue) {
                 $object->{$name} = $value;
@@ -428,11 +428,12 @@ final class ExampleGenerator
      *
      * @param  list<string>  $names
      * @param  array<array-key, string>  $properties
+     * @param  list<string>  $required
      * @param  array<array-key, mixed>  $resolved
      * @param  list<string>  $stack
      * @return array<array-key, mixed>
      */
-    private function propertyValues(array $names, array $properties, array &$resolved, array $stack): array
+    private function propertyValues(array $names, array $properties, array $required, array &$resolved, array $stack): array
     {
         $values        = [];
         $confirmations = [];
@@ -448,13 +449,33 @@ final class ExampleGenerator
             $confirmations[$name] = is_array($schema) ? $schema[PresenceConstraintBuilder::CONFIRMS_KEY] ?? null : null;
 
             if (!array_key_exists($name, $resolved)) {
-                $resolved[$name] = $this->value($properties[$name], $stack);
+                $resolved[$name] = $this->propertyValue($properties[$name], in_array($name, $required, true), $stack);
             }
 
             $values[$name] = $resolved[$name];
         }
 
         return $this->withConfirmations($values, array_filter($confirmations, is_string(...)));
+    }
+
+    /**
+     * Resolve a property's value, leaving out an optional one its schema
+     * rejects.
+     *
+     * @param  string  $pointer
+     * @param  bool  $required
+     * @param  list<string>  $stack
+     * @return mixed
+     */
+    private function propertyValue(string $pointer, bool $required, array $stack): mixed
+    {
+        $value = $this->value($pointer, $stack);
+
+        if ($required || $value instanceof MissingValue || $this->schemas->mismatch($value, $pointer) === null) {
+            return $value;
+        }
+
+        return new MissingValue($pointer);
     }
 
     /**
@@ -484,7 +505,7 @@ final class ExampleGenerator
      * value of its items.
      *
      * An item without a value leaves a list that may be empty empty, unless it
-     * is undocumented.
+     * is undocumented. Unique items are each a different candidate.
      *
      * @param  string  $pointer
      * @param  array<array-key, mixed>  $node
@@ -495,13 +516,56 @@ final class ExampleGenerator
     {
         $minimum = is_int($node['minItems'] ?? null) ? $node['minItems'] : 0;
         $count   = is_int($node['maxItems'] ?? null) ? min(max($minimum, 1), $node['maxItems']) : max($minimum, 1);
-        $item    = $count > 0 && array_key_exists('items', $node) ? $this->value(SchemaDocument::append($pointer, 'items'), $stack) : 'string';
+
+        if ($count > 1 && ($node['uniqueItems'] ?? false) === true) {
+            return $this->distinctItems($pointer, $node, $count, $stack);
+        }
+
+        $item = $count > 0 && array_key_exists('items', $node) ? $this->value(SchemaDocument::append($pointer, 'items'), $stack) : 'string';
 
         if ($item instanceof MissingValue) {
             return $minimum === 0 && !$item->undocumented ? [] : $item;
         }
 
         return array_fill(0, $count, $item);
+    }
+
+    /**
+     * Build a list of distinct items from the candidates its items accept, a
+     * referenced items schema's own, or report the list when too few differ.
+     *
+     * @param  string  $pointer
+     * @param  array<array-key, mixed>  $node
+     * @param  int  $count
+     * @param  list<string>  $stack
+     * @return list<mixed>|\SineMacula\ApiToolkit\OpenApi\Examples\MissingValue
+     */
+    private function distinctItems(string $pointer, array $node, int $count, array $stack): array|MissingValue
+    {
+        $items     = SchemaDocument::append($pointer, 'items');
+        $reference = $this->schemas->node(SchemaDocument::append($items, '$ref'));
+        $items     = is_string($reference) ? substr($reference, 1) : $items;
+        $schema    = $this->schemas->node($items);
+        $distinct  = [];
+
+        foreach (is_array($schema) && !in_array($items, $stack, true) ? $this->candidates($items, $schema, [...$stack, $items]) : [] as $candidate) {
+
+            if ($candidate instanceof MissingValue && $candidate->undocumented) {
+                return $candidate;
+            }
+
+            if ($candidate instanceof MissingValue || $this->schemas->mismatch($candidate, $items) !== null) {
+                continue;
+            }
+
+            $distinct[json_encode($candidate, JSON_THROW_ON_ERROR)] = $candidate;
+
+            if (count($distinct) === $count) {
+                return array_values($distinct);
+            }
+        }
+
+        return new MissingValue($pointer);
     }
 
     /**

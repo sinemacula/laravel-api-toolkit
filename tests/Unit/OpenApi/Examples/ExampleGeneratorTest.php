@@ -66,6 +66,8 @@ final class ExampleGeneratorTest extends TestCase
         yield 'format alternatives' => [['type' => 'string', 'anyOf' => [['format' => 'ipv4'], ['format' => 'ipv6']]], '192.0.2.1'];
         yield 'object or list' => [['type' => ['object', 'array'], 'properties' => ['a' => ['type' => 'string']], 'minProperties' => 2, 'minItems' => 2], ['string', 'string']];
         yield 'items conjuncts' => [['type' => 'array', 'items' => ['allOf' => [['enum' => ['x', 'y']], ['type' => 'string']]]], ['x']];
+        yield 'distinct list' => [['type' => 'array', 'items' => ['enum' => ['x', 'y', 'z']], 'minItems' => 2, 'uniqueItems' => true], ['x', 'y']];
+        yield 'distinct list of one' => [['type' => 'array', 'items' => ['type' => 'string'], 'uniqueItems' => true], ['string']];
     }
 
     /**
@@ -152,6 +154,45 @@ final class ExampleGeneratorTest extends TestCase
             'maxProperties' => 0,
         ]));
         self::assertSame(['a' => 'string'], $this->value(['type' => 'object', 'properties' => ['a' => ['type' => 'string']], 'required' => ['a', 'ghost']]));
+    }
+
+    /**
+     * Test that an optional property its schema rejects is left out, keeping
+     * the other optional properties.
+     *
+     * @return void
+     */
+    public function testRejectedOptionalPropertyIsLeftOut(): void
+    {
+        self::assertSame(['id' => 1, 'name' => 'string'], $this->value([
+            'type'       => 'object',
+            'properties' => [
+                'id'   => ['type' => 'integer'],
+                'tags' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['a' => ['type' => 'string']], 'required' => ['a', 'ghost']]],
+                'name' => ['type' => 'string'],
+            ],
+            'required' => ['id'],
+        ]));
+    }
+
+    /**
+     * Test that unique items take distinct candidates, through a reference,
+     * and a list with too few is reported, as undocumented when its items are.
+     *
+     * @return void
+     */
+    public function testUniqueItemsTakeDistinctCandidates(): void
+    {
+        $list = ['type' => 'array', 'minItems' => 2, 'uniqueItems' => true];
+
+        self::assertSame(['active', 'banned'], $this->value(
+            [...$list, 'items' => ['$ref' => '#/components/schemas/Status']],
+            ExampleScope::REQUEST,
+            ['Status' => ['type' => 'string', 'enum' => ['active', 'banned']]],
+        ));
+        self::assertEquals(new MissingValue(self::BODY), $this->generate([...$list, 'items' => ['type' => 'string']]));
+        self::assertEquals(new MissingValue(self::BODY), $this->generate($list));
+        self::assertEquals(new MissingValue(self::BODY . '/items', true), $this->generate([...$list, 'items' => ['x-undocumented' => true]]));
     }
 
     /**
