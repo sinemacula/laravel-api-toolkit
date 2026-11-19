@@ -40,7 +40,6 @@ final class RequestOrderedUserResource extends ApiResource
             Field::scalar('id'),
             Field::scalar('name'),
             Field::scalar('email'),
-            Field::timestamp('created_at'),
             Relation::to('posts', PostResource::class)->limit(1),
             Count::of('posts')->default(),
         );
