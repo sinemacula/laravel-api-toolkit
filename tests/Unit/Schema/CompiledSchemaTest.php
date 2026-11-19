@@ -382,4 +382,24 @@ final class CompiledSchemaTest extends TestCase
         self::assertSame(['customer' => ['customer', 'buyer']], $schema->getSortableRelations());
         self::assertSame([], (new CompiledSchema([]))->getSortableRelations());
     }
+
+    /**
+     * Test that a sortable relation is conditional only while every field
+     * declaring it is caller-guarded.
+     *
+     * @return void
+     */
+    public function testSortRelationIsConditionalOnlyWhileEveryDeclarerIsCallerGuarded(): void
+    {
+        $field  = static fn (array $callerGuards): CompiledFieldDefinition => new CompiledFieldDefinition(null, null, 'customer', null, null, null, [], [], [], [], callerGuards: $callerGuards);
+        $guard  = static fn (): bool => true;
+        $schema = new CompiledSchema(
+            fields           : ['customer' => $field([$guard]), 'buyer' => $field([$guard]), 'client' => $field([])],
+            sortableRelations: ['customer' => ['customer', 'buyer'], 'account' => ['customer', 'client']],
+        );
+
+        self::assertTrue($schema->isConditionalSortRelation('customer'));
+        self::assertFalse($schema->isConditionalSortRelation('account'));
+        self::assertFalse($schema->isConditionalSortRelation('supplier'));
+    }
 }

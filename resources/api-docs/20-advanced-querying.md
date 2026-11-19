@@ -361,8 +361,9 @@ relation and the column:
 ?order=customer.name
 ```
 
-A record with no related record, or with no value to aggregate, sorts as empty:
-first in ascending order on MySQL and SQLite, last on PostgreSQL. Neither key can
+A record with no related record to sort by, or whose sum, average, minimum or
+maximum has no value, sorts as empty: first in ascending order on MySQL and
+SQLite, last on PostgreSQL. A count of nothing sorts as zero. Neither key can
 order a cursor-paginated read.
 
 ## Limiting and paging
@@ -409,7 +410,9 @@ wherever a field is presented under an alias. A `sort` reporting `"indexed":
 false` also carries the reason the resource recorded for ordering by a column no
 index holds. A `filter` or `sort` reporting `"conditional": true` is open only
 to callers the resource shows the field to; any other caller is refused exactly
-as for an undeclared key.
+as for an undeclared key. The `sort` of a property holding a related record
+names a `prefix` in place of a `key`: order by the prefix, a dot, and a sortable
+key of that record's schema.
 
 The relations a filter may descend through belong to the resource rather than to
 any one property, so the schema names them itself:

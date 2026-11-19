@@ -140,7 +140,9 @@ final class RawSchemaValidator
 
         foreach (self::QUERY_DECLARATIONS as $declaration) {
 
-            if (!$rowGuarded || ($definition[$declaration] ?? null) === null) {
+            $marker = $definition[$declaration] ?? null;
+
+            if (!$rowGuarded || (!is_string($marker) && $marker !== true)) {
                 continue;
             }
 

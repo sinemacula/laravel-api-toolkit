@@ -408,6 +408,18 @@ final class RawSchemaValidatorTest extends TestCase
     }
 
     /**
+     * Test that a row guard leaves alone a query marker that declares nothing.
+     *
+     * @return void
+     */
+    public function testAcceptsARowGuardedFieldWhoseQueryMarkerDeclaresNothing(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        RawSchemaValidator::assertValid(['salary' => ['guards' => [static fn (): bool => true], 'sortable' => false]], self::RESOURCE);
+    }
+
+    /**
      * Test that a caller guard refuses a searchable declaration, since a search
      * matches the same columns for every caller.
      *

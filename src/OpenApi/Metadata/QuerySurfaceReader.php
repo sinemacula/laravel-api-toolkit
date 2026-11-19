@@ -156,7 +156,7 @@ final readonly class QuerySurfaceReader
             }
 
             $child   = SchemaCompiler::compile($resource);
-            $guarded = array_filter($declarers, static fn (string $key): bool => $compiled->getField($key)?->callerGuards !== []) === $declarers;
+            $guarded = $compiled->isConditionalSortRelation($relation);
 
             foreach ($this->sortableColumns($child) as $column => $property) {
                 $columns[] = new QueryColumnDescriptor(

@@ -187,25 +187,30 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
-     * Test that a sort reason only counts beside the sortable marker, and that
-     * a field's index exemption is not taken for one.
+     * Test that a sort reason only counts beside the sortable marker of a
+     * relation, and that a field's index exemption is not taken for one.
      *
      * @return void
      */
-    public function testCompileReadsASortReasonOnlyBesideTheSortableMarker(): void
+    public function testCompileReadsASortReasonOnlyBesideTheSortableMarkerOfARelation(): void
     {
         $compiled = SchemaCompiler::compile($this->createStubResourceClass([
             'name'         => ['sortable' => 'name', 'unindexed' => 'Small table'],
+            'email'        => ['sortable' => true, 'unindexed' => 'Orphaned'],
             'organization' => ['relation' => 'organization', 'resource' => self::STUB_ORGANIZATION_RESOURCE, 'unindexed' => 'Unmarked'],
         ]));
 
         $name         = $compiled->getField('name');
+        $email        = $compiled->getField('email');
         $organization = $compiled->getField('organization');
 
         self::assertInstanceOf(CompiledFieldDefinition::class, $name);
+        self::assertInstanceOf(CompiledFieldDefinition::class, $email);
         self::assertInstanceOf(CompiledFieldDefinition::class, $organization);
         self::assertSame('Small table', $name->unindexedReason);
         self::assertNull($name->sortThroughReason);
+        self::assertSame('Orphaned', $email->unindexedReason);
+        self::assertNull($email->sortThroughReason);
         self::assertNull($organization->sortThroughReason);
         self::assertSame([], $compiled->getSortableRelations());
     }

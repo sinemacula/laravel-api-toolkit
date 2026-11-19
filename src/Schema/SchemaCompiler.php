@@ -351,12 +351,13 @@ final class SchemaCompiler
      */
     private static function buildFieldDefinition(array $definition): CompiledFieldDefinition
     {
-        $sortThrough = self::sortThroughReason($definition);
+        $relation    = self::resolveFieldRelation($definition);
+        $sortThrough = $relation === null ? null : self::sortThroughReason($definition);
 
         return new CompiledFieldDefinition(
             accessor         : $definition['accessor'] ?? null,
             compute          : $definition['compute']  ?? null,
-            relation         : self::resolveFieldRelation($definition),
+            relation         : $relation,
             resource         : self::declaredColumn($definition, 'resource'),
             fields           : is_array($definition['fields'] ?? null) ? self::stringList($definition['fields']) : null,
             constraint       : self::resolveFieldConstraint($definition),

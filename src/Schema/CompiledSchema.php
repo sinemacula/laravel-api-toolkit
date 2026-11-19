@@ -167,6 +167,21 @@ final readonly class CompiledSchema
     }
 
     /**
+     * Determine whether only caller-guarded fields declare the sortable
+     * relation, so its order keys are open only to callers they admit.
+     *
+     * @param  string  $relation
+     * @return bool
+     */
+    public function isConditionalSortRelation(string $relation): bool
+    {
+        $declarers = $this->sortableRelations[$relation] ?? [];
+        $guarded   = array_filter($declarers, fn (string $key): bool => ($this->fields[$key]->callerGuards ?? []) !== []);
+
+        return $declarers !== [] && $guarded === $declarers;
+    }
+
+    /**
      * Return the declared externally-traversable relation names.
      *
      * @return array<int, string>

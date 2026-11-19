@@ -479,8 +479,8 @@ final readonly class ResourceSchemaBuilder
      */
     private function sortSurface(CompiledFieldDefinition $field, CompiledSchema $compiled): ?array
     {
-        if ($field->relation !== null && isset($compiled->getSortableRelations()[$field->relation])) {
-            $conditional = $field->callerGuards === [] ? [] : ['conditional' => true];
+        if ($field->relation !== null && $field->sortThroughReason !== null) {
+            $conditional = $compiled->isConditionalSortRelation($field->relation) ? ['conditional' => true] : [];
 
             return ['prefix' => $field->relation, 'indexed' => false, 'reason' => $field->sortThroughReason, ...$conditional];
         }

@@ -77,6 +77,18 @@ final class RelationAggregateOrderTest extends TestCase
     }
 
     /**
+     * Test that an existence check and a minimum order by the expressions
+     * withExists() and withMin() build.
+     *
+     * @return void
+     */
+    public function testExistsAndMinMatchWithExistsAndWithMin(): void
+    {
+        $this->assertOrdersLike(User::query(), $this->aggregate('posts', AggregateFunction::EXISTS), User::query()->withExists('posts'));
+        $this->assertOrdersLike(User::query(), $this->aggregate('articles', AggregateFunction::MIN, 'views'), User::query()->withMin('articles', 'views'));
+    }
+
+    /**
      * Test that a one-of-many relation orders by the subselect withMax() builds
      * over the row it renders.
      *
