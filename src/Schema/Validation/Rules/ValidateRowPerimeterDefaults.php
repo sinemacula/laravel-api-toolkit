@@ -36,18 +36,17 @@ final class ValidateRowPerimeterDefaults implements SchemaValidationRule
     #[\Override]
     public function validate(string $resourceClass, ?string $modelClass, CompiledSchema $schema): array
     {
-        $resourceMap = ResourceSettings::resourceMap();
-
-        if ($modelClass === null || !is_subclass_of($modelClass, Model::class) || array_filter($resourceMap, RowPerimeter::restricts(...)) === []) {
+        if ($modelClass === null || !is_subclass_of($modelClass, Model::class)) {
             return [];
         }
 
-        $model  = new $modelClass;
-        $errors = [];
+        $resourceMap = ResourceSettings::resourceMap();
+        $model       = new $modelClass;
+        $errors      = [];
 
         foreach (self::defaults($model) as [$property, $path, $relations]) {
 
-            $defect = self::reach($model, $relations, $resourceMap);
+            $defect = self::reach($model, $resourceClass, $relations, $resourceMap);
 
             if ($defect === null) {
                 continue;
@@ -96,23 +95,31 @@ final class ValidateRowPerimeterDefaults implements SchemaValidationRule
      * Describe how the relation path reaches a restricted or unresolvable
      * relation, or return null when every relation along it is unrestricted.
      *
+     * Each relation is governed by the resource its owner declares over it,
+     * else by the resource mapped to its model. An unresolvable one is governed
+     * only by a mapped resource as it loads, so it is refused only while one
+     * restricts.
+     *
      * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $owner
      * @param  string  $path
      * @param  array<string, string>  $resourceMap
      * @return string|null
      */
-    private static function reach(Model $model, string $path, array $resourceMap): ?string
+    private static function reach(Model $model, string $owner, string $path, array $resourceMap): ?string
     {
+        $resource = $owner;
+
         foreach (explode('.', $path) as $segment) {
 
             $relation = RowPerimeter::relationOf($model, $segment);
 
             if ($relation === null || $relation instanceof MorphTo) {
-                return sprintf('cannot be resolved to the resource governing "%s"', $segment);
+                return array_filter($resourceMap, RowPerimeter::restricts(...)) === [] ? null : sprintf('cannot be resolved to the resource governing "%s"', $segment);
             }
 
             $model    = $relation->getRelated();
-            $resource = $resourceMap[$model::class] ?? null;
+            $resource = RowPerimeter::declaredResource($resource, $segment) ?? $resourceMap[$model::class] ?? null;
 
             if (RowPerimeter::restricts($resource)) {
                 return sprintf('reaches "%s", whose rows %s restricts', $segment, $resource);

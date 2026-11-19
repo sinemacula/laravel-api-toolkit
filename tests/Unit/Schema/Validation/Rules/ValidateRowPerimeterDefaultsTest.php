@@ -14,7 +14,9 @@ use Tests\Fixtures\Concerns\LoadsPostsByDefault;
 use Tests\Fixtures\Models\DefaultLoadingUser;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\AliasedScalarUserResource;
 use Tests\Fixtures\Resources\OwnPostResource;
+use Tests\Fixtures\Resources\PostOwnerResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -46,7 +48,7 @@ final class ValidateRowPerimeterDefaultsTest extends TestCase
     {
         parent::setUp();
 
-        Config::set('api-toolkit.resources.resource_map', [Post::class => OwnPostResource::class, User::class => UserResource::class]);
+        Config::set('api-toolkit.resources.resource_map', [Post::class => OwnPostResource::class, User::class => AliasedScalarUserResource::class]);
     }
 
     /**
@@ -76,6 +78,22 @@ final class ValidateRowPerimeterDefaultsTest extends TestCase
         };
 
         self::assertEquals([self::refusal($model, 'author.posts', 'with', self::REACHES_POSTS)], $this->validate($model));
+    }
+
+    /**
+     * Test that a default keyed by its relation, with nested loads, is refused
+     * at that relation.
+     *
+     * @return void
+     */
+    public function testDefaultKeyedByItsRelationIsRefused(): void
+    {
+        $model = new class extends DefaultLoadingUser {
+            /** @var array<string, array<int, string>> */
+            protected $with = ['posts' => ['tags']]; // @phpstan-ignore property.phpDocType
+        };
+
+        self::assertEquals([self::refusal($model, 'posts', 'with', self::REACHES_POSTS)], $this->validate($model));
     }
 
     /**
@@ -174,37 +192,63 @@ final class ValidateRowPerimeterDefaultsTest extends TestCase
     }
 
     /**
-     * Test that nothing is checked when no resource restricts, or no model is
-     * served.
+     * Test that the resource the serving resource declares over a default
+     * relation governs it rather than the resource mapped to its model.
      *
      * @return void
      */
-    public function testNothingIsCheckedWhenNoResourceRestricts(): void
+    public function testDeclaredResourceGovernsADefaultOverTheMappedOne(): void
     {
-        $rule = new ValidateRowPerimeterDefaults;
+        $model = new DefaultLoadingUser;
 
-        self::assertSame([], $rule->validate(UserResource::class, null, new CompiledSchema([])));
-        self::assertSame([], $rule->validate(UserResource::class, \stdClass::class, new CompiledSchema([])));
+        self::assertSame([], $this->validate($model, UserResource::class));
 
+        Config::set('api-toolkit.resources.resource_map', [Post::class => PostResource::class]);
+
+        self::assertEquals([self::refusal($model, 'posts', 'with', self::REACHES_POSTS, PostOwnerResource::class)], $this->validate($model, PostOwnerResource::class));
+    }
+
+    /**
+     * Test that an unresolvable default is legal while no mapped resource
+     * restricts, since only a mapped resource governs it as it loads.
+     *
+     * @return void
+     */
+    public function testUnresolvableDefaultIsLegalWhileNoMappedResourceRestricts(): void
+    {
         Config::set('api-toolkit.resources.resource_map', [Post::class => PostResource::class]);
 
         $model = new class extends DefaultLoadingUser {
             /** @var array<int, string> */
-            protected $with = ['ghost']; // @phpstan-ignore property.phpDocType
+            protected $with = ['ghost', 'subject']; // @phpstan-ignore property.phpDocType
         };
 
         self::assertSame([], $this->validate($model));
     }
 
     /**
-     * Validate the model as served by the user resource.
+     * Test that a resource serving no model is not checked.
+     *
+     * @return void
+     */
+    public function testResourceServingNoModelIsNotChecked(): void
+    {
+        $rule = new ValidateRowPerimeterDefaults;
+
+        self::assertSame([], $rule->validate(PostOwnerResource::class, null, new CompiledSchema([])));
+        self::assertSame([], $rule->validate(PostOwnerResource::class, \stdClass::class, new CompiledSchema([])));
+    }
+
+    /**
+     * Validate the model as served by the given resource.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $resource
      * @return array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>
      */
-    private function validate(Model $model): array
+    private function validate(Model $model, string $resource = AliasedScalarUserResource::class): array
     {
-        return (new ValidateRowPerimeterDefaults)->validate(UserResource::class, $model::class, new CompiledSchema([]));
+        return (new ValidateRowPerimeterDefaults)->validate($resource, $model::class, new CompiledSchema([]));
     }
 
     /**
@@ -214,12 +258,13 @@ final class ValidateRowPerimeterDefaultsTest extends TestCase
      * @param  string  $path
      * @param  string  $property
      * @param  string  $defect
+     * @param  string  $resource
      * @return \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError
      */
-    private static function refusal(Model $model, string $path, string $property, string $defect): SchemaValidationError
+    private static function refusal(Model $model, string $path, string $property, string $defect, string $resource = AliasedScalarUserResource::class): SchemaValidationError
     {
         return new SchemaValidationError(
-            UserResource::class,
+            $resource,
             $path,
             sprintf('Model "%s" loads "%s" by default through $%s, which %s; load it explicitly instead', $model::class, $path, $property, $defect),
         );

@@ -78,6 +78,28 @@ final readonly class RowPerimeter
     }
 
     /**
+     * Return the child resource the owner declares over the relation, if any.
+     *
+     * @param  string|null  $owner
+     * @param  string  $relation
+     * @return string|null
+     */
+    public static function declaredResource(?string $owner, string $relation): ?string
+    {
+        if (!is_subclass_of($owner, ApiResource::class)) {
+            return null;
+        }
+
+        foreach (SchemaCompiler::compile($owner)->getFields() as $field) {
+            if ($field->relation === $relation && $field->resource !== null && is_subclass_of($field->resource, ApiResource::class)) {
+                return $field->resource;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Add the resource's row rule to the query as one nested where group.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<covariant \Illuminate\Database\Eloquent\Model>  $query
@@ -319,7 +341,7 @@ final readonly class RowPerimeter
             }
 
             $existing          = $constraints[$model] ?? null;
-            $callbacks[$model] = $this->ruleAfter($existing instanceof \Closure ? $existing : null, $resource);
+            $callbacks[$model] = $this->ruleAfter(is_callable($existing) ? \Closure::fromCallable($existing) : null, $resource);
         }
 
         $generic = $relation->getQuery()->getEagerLoads();
@@ -361,7 +383,7 @@ final readonly class RowPerimeter
                 continue;
             }
 
-            $counts[$name] = $this->ruleAfter($value instanceof \Closure ? $value : null, null);
+            $counts[$name] = $this->ruleAfter(is_string($key) && is_callable($value) ? \Closure::fromCallable($value) : null, null);
         }
 
         return $counts;
@@ -388,7 +410,8 @@ final readonly class RowPerimeter
     }
 
     /**
-     * Determine whether any mapped or given resource restricts its rows.
+     * Determine whether any mapped or given resource, or an aggregate a given
+     * resource loads, restricts its rows.
      *
      * @param  array<string, string>  $resources
      * @return bool
@@ -397,6 +420,12 @@ final readonly class RowPerimeter
     {
         foreach ([...$this->resourceMap, ...$resources] as $resource) {
             if (self::restricts($resource)) {
+                return true;
+            }
+        }
+
+        foreach ($resources as $resource) {
+            if ($this->restrictsAggregatesOf($resource)) {
                 return true;
             }
         }
@@ -434,28 +463,6 @@ final readonly class RowPerimeter
     }
 
     /**
-     * Return the child resource the owner declares over the relation, if any.
-     *
-     * @param  string  $owner
-     * @param  string  $relation
-     * @return string|null
-     */
-    private static function declaredResource(string $owner, string $relation): ?string
-    {
-        if (!is_subclass_of($owner, ApiResource::class)) {
-            return null;
-        }
-
-        foreach (SchemaCompiler::compile($owner)->getFields() as $field) {
-            if ($field->relation === $relation && $field->resource !== null && is_subclass_of($field->resource, ApiResource::class)) {
-                return $field->resource;
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * Determine whether the rule query carries nothing but where clauses.
      *
      * Any other clause would be dropped by the nested group, and a scope the
@@ -468,11 +475,14 @@ final readonly class RowPerimeter
     {
         $base    = $rule->getQuery();
         $clauses = [
-            $base->joins, $base->columns, $base->orders, $base->groups, $base->havings, $base->limit, $base->offset, $base->unions, $base->lock,
+            $base->joins, $base->columns, $base->distinct ?: null, $base->indexHint, $base->orders, $base->groups, $base->havings,
+            $base->limit, $base->groupLimit, $base->offset, $base->unions, $base->lock, $base->beforeQueryCallbacks,
             $rule->getEagerLoads(), $rule->removedScopes(),
         ];
 
-        return array_filter($clauses, static fn (mixed $clause): bool => $clause !== null && $clause !== []) === [] && $rule->applyScopes() === $rule;
+        return array_filter($clauses, static fn (mixed $clause): bool => $clause !== null && $clause !== []) === []
+            && $base->from === $rule->getModel()->getTable()
+            && $rule->applyScopes() === $rule;
     }
 
     /**

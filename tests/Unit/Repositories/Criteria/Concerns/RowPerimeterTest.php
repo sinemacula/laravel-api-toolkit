@@ -191,6 +191,11 @@ final class RowPerimeterTest extends TestCase
         yield 'offset' => [static fn (Builder $rule): mixed => $rule->offset(1)];
         yield 'union' => [static fn (Builder $rule): mixed => $rule->union(Post::query()->toBase())];
         yield 'lock' => [static fn (Builder $rule): mixed => $rule->lockForUpdate()];
+        yield 'distinct' => [static fn (Builder $rule): mixed => $rule->distinct()];
+        yield 'from' => [static fn (Builder $rule): mixed => $rule->from('posts as visible_posts')];
+        yield 'index hint' => [static fn (Builder $rule): mixed => $rule->useIndex('posts_user_id_index')];
+        yield 'group limit' => [static fn (Builder $rule): mixed => $rule->getQuery()->groupLimit(1, 'user_id')];
+        yield 'before query callback' => [static fn (Builder $rule): mixed => $rule->beforeQuery(static fn (mixed $query): mixed => $query)];
         yield 'eager load' => [static fn (Builder $rule): mixed => $rule->with('user')];
         yield 'removed global scope' => [static fn (Builder $rule): mixed => $rule->withoutGlobalScope('tenant')];
         yield 'global scope' => [static fn (Builder $rule): mixed => $rule->withGlobalScope('tenant', static fn (Builder $query): mixed => $query)];
@@ -410,6 +415,28 @@ final class RowPerimeterTest extends TestCase
     }
 
     /**
+     * Test that a path is wrapped when an aggregate it loads counts rows only a
+     * declared resource restricts, while no mapped resource restricts any.
+     *
+     * @return void
+     */
+    public function testPathLoadingAnAggregateOnlyADeclaredResourceRestrictsIsWrapped(): void
+    {
+        $existing = static function (mixed $relation, mixed $decorate = null): void {
+
+            assert($relation instanceof EloquentRelation && $decorate instanceof \Closure);
+
+            foreach ($decorate([['relation' => 'posts as posts_count', 'column' => '*', 'function' => 'count']]) as $entry) {
+                $relation->getQuery()->withAggregate($entry['relation'], $entry['column'], $entry['function']);
+            }
+        };
+
+        $with = $this->perimeter([Post::class => PostResource::class])->decorate(['tags' => $existing], new Post, ['tags' => PostTagResource::class]);
+
+        self::assertStringContainsString(self::OWN_POSTS . ') as "posts_count"', $this->sqlAfter($with['tags'], (new Post)->tags()));
+    }
+
+    /**
      * Test that a constraint run on something other than an Eloquent query is
      * left to the existing constraint alone.
      *
@@ -516,6 +543,37 @@ final class RowPerimeterTest extends TestCase
         $constraints = $this->morphState($relation, 'morphableConstraints');
 
         self::assertSame('select * from "posts" where "body" = ? and ' . self::OWN_POSTS, $this->builderAfter($constraints[Post::class], Post::query()));
+    }
+
+    /**
+     * Test that a per-type constraint or count given as a callable other than a
+     * closure still runs before the rule.
+     *
+     * @return void
+     */
+    public function testPolymorphicCallableConstraintsRunBeforeTheRule(): void
+    {
+        $callable = new class {
+            /**
+             * Narrow the query to the launch post.
+             *
+             * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+             * @return void
+             */
+            public function __invoke(Builder $query): void
+            {
+                $query->where('title', 'Launch');
+            }
+        };
+
+        $relation = (new Note)->noteable()->constrain([Post::class => $callable])->morphWithCount([User::class => ['posts' => $callable]]);
+
+        $this->perimeter([Post::class => OwnPostResource::class])->wrap(null)($relation);
+
+        $expected = 'select * from "posts" where "title" = ? and ' . self::OWN_POSTS;
+
+        self::assertSame($expected, $this->builderAfter($this->morphState($relation, 'morphableConstraints')[Post::class], Post::query()));
+        self::assertSame($expected, $this->builderAfter($this->morphState($relation, 'morphableEagerLoadCounts')[User::class]['posts'], Post::query()));
     }
 
     /**
