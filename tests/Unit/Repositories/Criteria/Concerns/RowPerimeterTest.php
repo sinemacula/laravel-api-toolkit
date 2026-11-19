@@ -109,6 +109,20 @@ final class RowPerimeterTest extends TestCase
     }
 
     /**
+     * Test that the resource an owner declares over a relation is found, and
+     * nothing for an owner that is no resource or declares none over it.
+     *
+     * @return void
+     */
+    public function testDeclaredResourceIsTheOneTheOwnerDeclaresOverTheRelation(): void
+    {
+        self::assertSame(OwnPostResource::class, RowPerimeter::declaredResource(PostOwnerResource::class, 'posts'));
+        self::assertNull(RowPerimeter::declaredResource(PostOwnerResource::class, 'organization'));
+        self::assertNull(RowPerimeter::declaredResource(\stdClass::class, 'posts'));
+        self::assertNull(RowPerimeter::declaredResource(null, 'posts'));
+    }
+
+    /**
      * Test that an aggregate constraint is returned as given where nothing
      * restricts the rows it counts, and wrapped otherwise.
      *
@@ -349,6 +363,7 @@ final class RowPerimeterTest extends TestCase
         $with = ['posts', 'posts.tags' => static function (): void {}];
 
         self::assertSame($with, $this->perimeter([Post::class => PostResource::class])->decorate($with, new User));
+        self::assertSame(['noteable'], $this->perimeter([Post::class => PostResource::class])->decorate(['noteable'], new Note));
         self::assertSame($with, $this->perimeter([Post::class => OwnPostResource::class])->decorate($with, new User, ['posts' => PostResource::class]));
         self::assertSame([], $this->perimeter([Post::class => OwnPostResource::class])->decorate([], new User));
     }
