@@ -24,8 +24,8 @@ final readonly class ResponseExample
     /** The message for a status outside the success range */
     private const string STATUS_MESSAGE = 'A response example must name a success status, [%d] given; error examples come from the exceptions an action throws';
 
-    /** The message for a file that is not a relative path to a .json file */
-    private const string FILE_MESSAGE = 'A response example file must be a relative path to a .json file inside the examples directory, [%s] given';
+    /** The message for a file that is not a relative path to a visible .json file */
+    private const string FILE_MESSAGE = 'A response example file must be a relative path to a visible .json file inside the examples directory, [%s] given';
 
     /**
      * Create a new response-example directive.
@@ -61,18 +61,18 @@ final readonly class ResponseExample
     }
 
     /**
-     * Determine whether the path names a .json file beneath the directory it is
-     * resolved against, without leaving it.
+     * Determine whether the path names a visible .json file beneath the
+     * directory it is resolved against, without leaving it.
      *
      * @param  string  $file
      * @return bool
      */
     private static function isRelativeJsonPath(string $file): bool
     {
-        $segments = explode('/', $file);
+        $hidden = array_filter(explode('/', $file), static fn (string $segment): bool => $segment === '' || str_starts_with($segment, '.'));
 
         return str_ends_with($file, '.json')
             && !str_contains($file, '\\')
-            && array_intersect($segments, ['', '.', '..']) === [];
+            && $hidden === [];
     }
 }

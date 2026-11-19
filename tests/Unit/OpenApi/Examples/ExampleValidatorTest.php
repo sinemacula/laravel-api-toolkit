@@ -137,6 +137,12 @@ final class ExampleValidatorTest extends TestCase
             . ' at the root: The data (string) must match the type: integer',
         ];
 
+        yield 'list-keyed property example' => [
+            ['components' => ['schemas' => ['Pair' => ['type' => 'object', 'properties' => (object) [['type' => 'string'], ['type' => 'integer', 'examples' => ['two']]]]]]],
+            'The schema example [0] for #/components/schemas/Pair/properties/1 in the [public] audience does not match its schema'
+            . ' at the root: The data (string) must match the type: integer',
+        ];
+
         yield 'property after a prohibited one' => [
             ['components' => ['schemas' => ['Member' => ['properties' => ['retired' => false, 'age' => ['type' => 'integer', 'examples' => ['old']]]]]]],
             'The schema example [0] for #/components/schemas/Member/properties/age in the [public] audience does not match its schema'

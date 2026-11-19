@@ -138,6 +138,9 @@ final readonly class ExampleValidator
 
         foreach ($schema as $keyword => $value) {
 
+            // A schema map keyed like a list is normalised to an object.
+            $value = $value instanceof \stdClass ? (array) $value : $value;
+
             if (!is_array($value)) {
                 continue;
             }

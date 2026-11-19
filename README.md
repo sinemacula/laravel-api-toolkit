@@ -1530,10 +1530,10 @@ final class RedeemVoucher implements DefinesFieldExamples, DefinesInputSchema
 }
 ```
 
-A `#[ResponseSchema]` body of `DefinesSchema` shapes, one or a `oneOf` of several, may show hand-written examples
+A `#[ResponseSchema]` body naming a `DefinesSchema` shape, alone or in a `oneOf`, may show hand-written examples
 instead. `#[ResponseExample]` names the success status, the example's name and a JSON file holding the body as sent,
 envelope included. The file is relative to `<docs_path>/examples/`, and an `audiences/<name>/examples/` copy replaces it
-for that audience. Declared examples replace the generated one, in declaration order. Every other body is derived, so
+for that audience. Declared examples replace the generated ones, in declaration order. Every other body is derived, so
 an example declared on one fails the export, as does one naming another status or a status without a body, a name
 declared twice, and an example file no exported operation names. A `oneOf` example must match exactly one shape:
 

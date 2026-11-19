@@ -8,7 +8,6 @@ use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseExample;
 use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseSchema;
 use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseStatus;
 use SineMacula\Http\Enums\HttpStatus;
-use Tests\Fixtures\Resources\UserResource;
 
 /**
  * Fixture controller declaring response examples.
@@ -56,24 +55,6 @@ final class PathResponseExampleController
     #[ResponseSchema(SignedInShape::class)]
     #[ResponseStatus(HttpStatus::ACCEPTED)]
     public function queue(): void {}
-
-    /**
-     * Respond with either a registered resource or a shape.
-     *
-     * @return void
-     */
-    #[ResponseExample(HttpStatus::OK, 'signed-in', 'auth/signed-in.json')]
-    #[ResponseSchema([UserResource::class, SignedInShape::class])]
-    public function mixed(): void {}
-
-    /**
-     * Respond with a registered resource.
-     *
-     * @return void
-     */
-    #[ResponseExample(HttpStatus::OK, 'user', 'user.json')]
-    #[ResponseSchema(UserResource::class)]
-    public function resource(): void {}
 
     /**
      * Respond with an undocumented body.

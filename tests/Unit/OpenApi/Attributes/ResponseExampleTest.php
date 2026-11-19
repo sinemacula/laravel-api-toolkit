@@ -81,7 +81,7 @@ final class ResponseExampleTest extends TestCase
     }
 
     /**
-     * Provide files that are not a relative path to a .json file.
+     * Provide files that are not a relative path to a visible .json file.
      *
      * @return iterable<string, array{string}>
      */
@@ -92,13 +92,15 @@ final class ResponseExampleTest extends TestCase
         yield 'current directory segment' => ['./signed-in.json'];
         yield 'parent directory segment' => ['auth/../signed-in.json'];
         yield 'empty segment' => ['auth//signed-in.json'];
+        yield 'hidden file' => ['auth/.signed-in.json'];
+        yield 'hidden directory' => ['.drafts/signed-in.json'];
         yield 'not json' => ['auth/signed-in.yaml'];
         yield 'empty' => [''];
     }
 
     /**
-     * Test that a file that is not a relative path to a .json file inside the
-     * examples directory is refused.
+     * Test that a file that is not a relative path to a visible .json file
+     * inside the examples directory is refused.
      *
      * @param  string  $file
      * @return void
@@ -107,7 +109,7 @@ final class ResponseExampleTest extends TestCase
     public function testRefusesAFileOutsideTheExamplesDirectory(string $file): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage(sprintf('A response example file must be a relative path to a .json file inside the examples directory, [%s] given', $file));
+        $this->expectExceptionMessage(sprintf('A response example file must be a relative path to a visible .json file inside the examples directory, [%s] given', $file));
 
         new ResponseExample(HttpStatus::OK, 'signed-in', $file);
     }

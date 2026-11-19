@@ -1736,10 +1736,13 @@ final class PathBuilderTest extends TestCase
     {
         $this->useDocsDirectory(['examples/auth/signed-in.json' => '{"data": {}}', 'examples/auth/remembered.json' => '{"data": {}}']);
 
-        $this->router()->post('sign-in', [PathResponseExampleController::class, 'challenge']);
+        RouteFacade::domain('a.example.com')->post('sign-in', [PathResponseExampleController::class, 'challenge']);
         $this->router()->post('sign-in', [PathResponseExampleController::class, 'signIn']);
 
-        self::assertSame(['signed-in', 'remembered'], $this->examplesOf($this->build(), '/sign-in', 'post', 200));
+        $routes = $this->collector()->collect(['public'])->in('public');
+
+        self::assertCount(2, $routes);
+        self::assertSame(['signed-in', 'remembered'], $this->examplesOf($this->builder()->build($routes, [], 'public', []), '/sign-in', 'post', 200));
     }
 
     /**
