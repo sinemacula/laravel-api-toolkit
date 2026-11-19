@@ -53,7 +53,7 @@ final class RequestStatementBudgetTest extends TestCase
     private const array KINDS = [
         '/order by (?:users\.)?name asc, (?:users\.)?email asc, (?:users\.)?id desc limit /' => 'page',
         '/^select count\(\*\) as aggregate from \(select 1 from users /'                     => 'count',
-        '/^select \* from (\w+) where \1\.\w+ in /'                                          => 'eager load',
+        '/^select (?:\*|[\w., ]+) from (\w+) where \1\.\w+ in /'                             => 'eager load',
         '/ over \(partition by [^)]+\) as laravel_row from (\w+) /'                          => 'window',
     ];
 
