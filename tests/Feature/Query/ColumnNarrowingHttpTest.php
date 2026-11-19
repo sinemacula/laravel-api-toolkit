@@ -203,9 +203,9 @@ final class ColumnNarrowingHttpTest extends TestCase
         $requested->assertOk();
         $requested->assertJsonPath('data.0.aggregates', ['posts_count' => 2]);
 
-        self::assertStringStartsWith('select id, name, (select count(*) from posts', $defaultsSql);
+        self::assertStringStartsWith('select users.id, users.name, (select count(*) from posts', $defaultsSql);
         self::assertStringContainsString('as aggregate_has_published_posts', $defaultsSql);
-        self::assertStringStartsWith('select id, name, (select count(*) from posts', $requestedSql);
+        self::assertStringStartsWith('select users.id, users.name, (select count(*) from posts', $requestedSql);
         self::assertStringNotContainsString('aggregate_has_published_posts', $requestedSql);
     }
 

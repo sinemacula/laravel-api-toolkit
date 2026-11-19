@@ -233,7 +233,7 @@ final class ColumnProjectionApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->makeApplier()->apply($query, $provider, UserResource::class, ['name' => 'asc']);
 
-        self::assertSame(['id', 'name', 'email'], $result->getQuery()->columns);
+        self::assertSame(['users.id', 'users.name', 'users.email'], $result->getQuery()->columns);
     }
 
     /**
@@ -260,7 +260,7 @@ final class ColumnProjectionApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->makeApplier()->apply($query, $provider, UserResource::class, []);
 
-        self::assertSame(['name', 'id', 'status'], $result->getQuery()->columns);
+        self::assertSame(['users.name', 'users.id', 'users.status'], $result->getQuery()->columns);
     }
 
     /**
@@ -317,7 +317,7 @@ final class ColumnProjectionApplierTest extends TestCase
         $query  = (new User)->newQuery();
         $result = $this->makeApplier()->apply($query, $provider, UserResource::class, []);
 
-        self::assertSame(['id', 'name'], $result->getQuery()->columns);
+        self::assertSame(['users.id', 'users.name'], $result->getQuery()->columns);
     }
 
     /**
@@ -362,8 +362,8 @@ final class ColumnProjectionApplierTest extends TestCase
         $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, [])->getQuery()->columns;
 
         self::assertNotNull($columns);
-        self::assertContains('author_id', $columns);
-        self::assertContains('editor_id', $columns);
+        self::assertContains('users.author_id', $columns);
+        self::assertContains('users.editor_id', $columns);
     }
 
     /**
@@ -399,7 +399,7 @@ final class ColumnProjectionApplierTest extends TestCase
         $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, [])->getQuery()->columns;
 
         self::assertNotNull($columns);
-        self::assertContains('organization_id', $columns);
+        self::assertContains('users.organization_id', $columns);
     }
 
     /**
@@ -427,9 +427,9 @@ final class ColumnProjectionApplierTest extends TestCase
         $columns = $result->getQuery()->columns;
 
         self::assertNotNull($columns);
-        self::assertContains('id', $columns);
-        self::assertContains('name', $columns);
-        self::assertContains('email', $columns);
+        self::assertContains('users.id', $columns);
+        self::assertContains('users.name', $columns);
+        self::assertContains('users.email', $columns);
     }
 
     /**
@@ -486,7 +486,7 @@ final class ColumnProjectionApplierTest extends TestCase
         $columns = $applier->apply((new User)->newQuery(), $provider, UserResource::class, [])->getQuery()->columns;
 
         self::assertNotNull($columns);
-        self::assertContains('author_id', $columns);
+        self::assertContains('users.author_id', $columns);
     }
 
     /**
