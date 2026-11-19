@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $id
  * @property string $name
  * @property string $email
+ * @property string $status
  * @property bool $is_admin
  *
  * @method static static create(array<string, mixed> $attributes = [])
@@ -29,7 +30,7 @@ use Illuminate\Database\Eloquent\Model;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'status'])]
 #[Table('users')]
 final class ActorUser extends Model implements AuthenticatableContract
 {

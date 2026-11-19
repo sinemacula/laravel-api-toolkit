@@ -204,20 +204,6 @@ abstract class EngineSearchDriver implements SearchDriver
     }
 
     /**
-     * Return the column table-qualified and wrapped for a raw fragment.
-     *
-     * @template TModel of \Illuminate\Database\Eloquent\Model
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
-     * @param  string  $column
-     * @return string
-     */
-    protected function wrap(Builder $query, string $column): string
-    {
-        return $query->getQuery()->getGrammar()->wrap($query->qualifyColumn($column));
-    }
-
-    /**
      * Return, keyed by column, what blocks serving the strategy from a B-tree.
      *
      * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy  $strategy
