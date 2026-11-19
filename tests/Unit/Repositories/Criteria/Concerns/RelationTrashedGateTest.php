@@ -5,6 +5,8 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -297,6 +299,41 @@ final class RelationTrashedGateTest extends TestCase
         $query = User::query()->withAggregate($entry['relation'], $entry['column'], $entry['function']);
 
         self::assertSame('select "users".*, (select count(*) from ' . $subquery . ' from "users"', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that Only still narrows a relation declared with its trashed rows,
+     * whose removed scope Eloquent strips again when it merges the relation.
+     *
+     * @return void
+     */
+    public function testOnlyTrashedNarrowsARelationDeclaredWithTrashedRows(): void
+    {
+        $user = new class extends Model {
+
+            /** @var string */
+            protected $table = 'users';
+
+            /**
+             * Return every article of the user, trashed ones included.
+             *
+             * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Article, $this>
+             */
+            public function everyArticle(): HasMany
+            {
+                return $this->hasMany(Article::class, 'user_id')->withTrashed(); // @phpstan-ignore method.notFound
+            }
+        };
+
+        $gate     = $this->gate();
+        [$entry]  = $gate->decorateAggregates([self::countEntry('everyArticle as total')], TrashedState::ONLY);
+        $subquery = 'from "articles" where "users"."id" = "articles"."user_id" and "articles"."deleted_at" is not null)';
+
+        $counted  = $user->newQuery()->withAggregate($entry['relation'], $entry['column'], $entry['function']);
+        $filtered = $user->newQuery()->whereHas('everyArticle', static fn (Builder $query) => $gate->constrain($query, TrashedState::ONLY));
+
+        self::assertSame('select "users".*, (select count(*) ' . $subquery . ' as "total" from "users"', $counted->toSql());
+        self::assertSame('select * from "users" where exists (select * ' . $subquery, $filtered->toSql());
     }
 
     /**
