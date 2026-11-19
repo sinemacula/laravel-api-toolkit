@@ -526,6 +526,30 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
+     * Test that a declared contract wins over a transformer, that a transformer
+     * alone leaves the aggregate undocumented, and that guards, deciding only
+     * presence, keep the inferred type.
+     *
+     * @return void
+     */
+    public function testAnAggregateDeclarationWinsAndATransformerHidesItsType(): void
+    {
+        $resolver    = $this->makeAggregateResolver([]);
+        $transformer = [static fn (mixed $resource, mixed $value): mixed => $value];
+        $guard       = [static fn (): bool => false];
+
+        self::assertSame(['type' => 'string'], $resolver->resolveAggregate(
+            $this->aggregate(AggregateFunction::SUM, 'total', transformers: $transformer, openApi: new OpenApiFieldSchema(type: 'string')),
+            AggregateOwner::class,
+        ));
+        self::assertSame(['x-undocumented' => true], $resolver->resolveAggregate($this->aggregate(AggregateFunction::COUNT, transformers: $transformer), AggregateOwner::class));
+        self::assertSame(['type' => 'integer', 'minimum' => 0], $resolver->resolveAggregate(
+            $this->aggregate(AggregateFunction::COUNT, guards: $guard, callerGuards: $guard),
+            AggregateOwner::class,
+        ));
+    }
+
+    /**
      * Test that a column with no field is inferred from its column and cast.
      *
      * @return void
@@ -657,11 +681,21 @@ final class FieldTypeResolverTest extends TestCase
      *
      * @param  \SineMacula\ApiToolkit\Enums\AggregateFunction  $function
      * @param  string|null  $column
+     * @param  array<int, callable(mixed, mixed): bool>  $guards
+     * @param  array<int, callable(mixed, mixed): mixed>  $transformers
+     * @param  array<int, callable(mixed): bool>  $callerGuards
+     * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema|null  $openApi
      * @return \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition
      */
-    private function aggregate(AggregateFunction $function, ?string $column = null): CompiledAggregateDefinition
-    {
-        return new CompiledAggregateDefinition('metric', 'lines', $function, $column, null, false, []);
+    private function aggregate(
+        AggregateFunction $function,
+        ?string $column = null,
+        array $guards = [],
+        array $transformers = [],
+        array $callerGuards = [],
+        ?OpenApiFieldSchema $openApi = null,
+    ): CompiledAggregateDefinition {
+        return new CompiledAggregateDefinition('metric', 'lines', $function, $column, null, false, $guards, $transformers, $callerGuards, $openApi);
     }
 
     /**

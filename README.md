@@ -354,24 +354,27 @@ exported schema. The key defaults to Laravel's own attribute name and `as()` or 
 |-----------------------------------|-------------------------|---------------------------------------|
 | `Count::of('posts')`              | `posts_count`           | integer, `0` without related rows     |
 | `Exists::of('posts')`             | `posts_exists`          | boolean, `false` without related rows |
-| `Sum::of('orders', 'total')`      | `orders_sum_total`      | number                                |
-| `Average::of('orders', 'total')`  | `orders_avg_total`      | number                                |
-| `Min::of('variants', 'price')`    | `variants_min_price`    | the column's value                    |
-| `Max::of('orders', 'created_at')` | `orders_max_created_at` | the column's value                    |
+| `Sum::of('orders', 'total')`      | `orders_sum_total`      | number or `null`                      |
+| `Average::of('orders', 'total')`  | `orders_avg_total`      | number or `null`                      |
+| `Min::of('variants', 'price')`    | `variants_min_price`    | the column's value or `null`          |
+| `Max::of('orders', 'created_at')` | `orders_max_created_at` | the column's value or `null`          |
 
 `constrain()` narrows the related rows, `default()` includes the aggregate when the request names none, and `guard()`,
-`visibleTo()` and `transform()` work as on fields. A minimum or maximum is read the way the related model reads that
-column, so a timestamp renders as ISO 8601 and a cast enum as its value. Sum, average, minimum and maximum over zero
-related rows are omitted. `api-toolkit:schemas:validate` rejects an aggregate over a sensitive or missing column, a sum
-or average over a non-numeric column, a minimum or maximum the related model would read back through an accessor or a
-non-scalar cast, a `MorphTo` relation, and an `aggregate_<key>` attribute the owner model already uses as a column, cast
-or setter.
+`visibleTo()`, `transform()` and `openapi()` work as on fields. Sum, average, minimum and maximum are `null` over zero
+related rows. A sum or average is a JSON number on every engine, so a decimal column sums with float precision. A
+minimum or maximum is read the way the related model reads that column, so a timestamp renders as
+`2026-01-01T10:00:00.000000Z`, a `decimal:2` cast as an exact string such as `"12.50"` and a cast enum as its value. A
+key that reads as an integer, such as `12`, fails to compile. `api-toolkit:schemas:validate` rejects an aggregate over a
+sensitive or missing column, a sum or average over a non-numeric column, a minimum or maximum the related model would
+read back through an accessor or a non-scalar cast, a `MorphTo` relation, and an `aggregate_<key>` attribute the owner
+model already uses as a column, cast or setter.
 
 Only fields marked `filterable()` or `sortable()` can be queried, and `?search=` matches only fields marked
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. A column declared filterable with
-two capabilities fails to compile. `$default` lists the fields returned when the client sends no `?fields`, and the
-static `$fixed` the fields added to every selection, after those in `resources.fixed_fields`. Schema validation rejects
-a default or fixed field the resource does not declare.
+two capabilities fails to compile, as does a field named `_type`, `_truncated`, or `aggregates` beside a declared
+aggregate, since the response writes those keys itself. `$default` lists the fields returned when the client sends no
+`?fields`, and the static `$fixed` the fields added to every selection, after those in `resources.fixed_fields`. Schema
+validation rejects a default or fixed field the resource does not declare.
 
 **Guards** - `guard(fn ($resource, $request) => ...)` is a row guard and `visibleTo(fn ($request) => ...)` a caller
 guard; either hides the field, aggregate or relation when it returns exactly `false`. A query cannot honour a row guard
@@ -524,8 +527,8 @@ Validation checks that:
 - an ordered index leads with every `sortable()` column, unless the field carries `indexed()` or `unindexed()`.
 - an index on the connection serves every `searchable()` declaration in the shape its strategy needs.
 - no declaration names a column configured as sensitive.
-- every `limit()` sits on a to-many relation rendered through a child resource, every field over one relation shares
-  one limit, and no field is named `_truncated`.
+- every `limit()` sits on a to-many relation rendered through a child resource, and every field over one relation
+  shares one limit.
 
 Every resource a filter reaches through a `traversable()` relation is validated too, once per related model, whether or
 not the resource map lists it.

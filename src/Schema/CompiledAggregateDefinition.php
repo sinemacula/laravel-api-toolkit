@@ -29,6 +29,7 @@ final readonly class CompiledAggregateDefinition
      * @param  array<int, callable(mixed, mixed): bool>  $guards
      * @param  array<int, callable(mixed, mixed): mixed>  $transformers
      * @param  array<int, callable(mixed): bool>  $callerGuards
+     * @param  \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema|null  $openApi
      */
     public function __construct(
 
@@ -58,6 +59,9 @@ final readonly class CompiledAggregateDefinition
 
         /** Caller guard closures that control visibility */
         public array $callerGuards = [],
+
+        /** The declared OpenAPI contract, or null to derive it from the function */
+        public ?OpenApiFieldSchema $openApi = null,
     ) {}
 
     /**

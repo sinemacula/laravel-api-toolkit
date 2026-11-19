@@ -198,7 +198,14 @@ final class ColumnNarrowingHttpTest extends TestCase
         $defaults->assertOk();
         $defaults->assertJsonPath('data.0.aggregates.posts_count', 2);
         $defaults->assertJsonPath('data.0.aggregates.has_published_posts', true);
-        $defaults->assertJsonPath('data.1.aggregates', ['posts_count' => 0, 'has_published_posts' => false]);
+        $defaults->assertJsonPath('data.1.aggregates', [
+            'posts_count'          => 0,
+            'has_published_posts'  => false,
+            'posts_sum_id'         => null,
+            'posts_avg_id'         => null,
+            'posts_min_created_at' => null,
+            'last_posted_at'       => null,
+        ]);
 
         $requested->assertOk();
         $requested->assertJsonPath('data.0.aggregates', ['posts_count' => 2]);

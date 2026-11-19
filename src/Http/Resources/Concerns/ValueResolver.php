@@ -139,9 +139,7 @@ final class ValueResolver
                 ? in_array($presentKey, $requested, true)
                 : $definition->isDefault;
 
-            $raw = $attributes[$definition->attribute()] ?? null;
-
-            if (!$include || $raw === null || !$this->guardEvaluator->passesCallerGuards($definition->callerGuards, $request)) {
+            if (!$include || !$this->hasRenderableAggregate($definition, $attributes) || !$this->guardEvaluator->passesCallerGuards($definition->callerGuards, $request)) {
                 continue;
             }
 
@@ -149,7 +147,7 @@ final class ValueResolver
                 continue;
             }
 
-            $result[$presentKey] = $this->applyTransformers($definition->transformers, $resource, $this->readAggregate($owner, $definition, $raw));
+            $result[$presentKey] = $this->applyTransformers($definition->transformers, $resource, $this->readAggregate($owner, $definition, $attributes[$definition->attribute()]));
         }
 
         return $result;
@@ -415,6 +413,24 @@ final class ValueResolver
     }
 
     /**
+     * Determine whether the owner carries a renderable value for the aggregate.
+     *
+     * A column aggregate over no related values is null and renders so; a null
+     * count or existence check is left out.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $definition
+     * @param  array<string, mixed>  $attributes
+     * @return bool
+     */
+    private function hasRenderableAggregate(CompiledAggregateDefinition $definition, array $attributes): bool
+    {
+        $attribute = $definition->attribute();
+
+        return array_key_exists($attribute, $attributes)
+            && ($attributes[$attribute] !== null || $definition->function->requiresColumn());
+    }
+
+    /**
      * Read a raw aggregate value the way its function defines it.
      *
      * @param  object  $owner
@@ -424,6 +440,10 @@ final class ValueResolver
      */
     private function readAggregate(object $owner, CompiledAggregateDefinition $definition, mixed $raw): mixed
     {
+        if ($raw === null) {
+            return null;
+        }
+
         return match ($definition->function) {
             AggregateFunction::COUNT                       => (int) $raw, // @phpstan-ignore cast.int
             AggregateFunction::EXISTS                      => (bool) $raw,

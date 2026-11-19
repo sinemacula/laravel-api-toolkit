@@ -63,7 +63,8 @@ final readonly class FieldTypeResolver
     }
 
     /**
-     * Resolve one relation aggregate's emitted schema from its function.
+     * Resolve one relation aggregate's emitted schema by precedence: declared,
+     * flagged when transformed, then inferred from its function.
      *
      * A minimum or maximum takes the related column's type, and is null over
      * zero related rows.
@@ -74,6 +75,14 @@ final readonly class FieldTypeResolver
      */
     public function resolveAggregate(CompiledAggregateDefinition $definition, string $modelClass): array
     {
+        if ($definition->openApi !== null) {
+            return $definition->openApi->toArray();
+        }
+
+        if ($definition->transformers !== []) {
+            return OpenApiFieldSchema::undocumented()->toArray();
+        }
+
         return match ($definition->function) {
             AggregateFunction::COUNT                       => ['type' => 'integer', 'minimum' => 0],
             AggregateFunction::EXISTS                      => ['type' => 'boolean'],
