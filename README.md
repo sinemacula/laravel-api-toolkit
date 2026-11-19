@@ -1212,7 +1212,8 @@ else by the column type. Date casts and the model's timestamps are a `date-time`
 other date-time or time column the driver's string. A value with no fixed shape is marked `x-undocumented`: an `array`,
 `json`, `collection` or `object` cast, a cast class other than an enum, `AsStringable` or `AsUri`, and an uncast
 decimal, binary or JSON column. On PostgreSQL before PHP 8.4, a float column is a string, as the driver returns it.
-Declare the field's `openapi()` schema to document any of these.
+Declare the field's `openapi()` schema to document any of these. A declaration naming no type, format, enum or
+nullability, such as `->openapi()->example('Ada')`, keeps the inferred schema and adds its example and description.
 
 A relation rendered through a child resource is typed from its Eloquent relation: a to-many relation as an array of the
 related schema, and a to-one relation as the related schema or `null`, since it renders `null` when the related row is

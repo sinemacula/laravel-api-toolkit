@@ -146,7 +146,9 @@ final readonly class ResourceSchemaBuilder
                 $limited[] = $fieldKey;
             }
 
-            $properties[$fieldKey] = $this->withQuerySurface($this->overrideProperty($field) ?? $property, $field, $compiled);
+            $schema = $this->overrideProperty($field) ?? $property;
+
+            $properties[$fieldKey] = $this->withQuerySurface($field->openApi?->annotate($schema) ?? $schema, $field, $compiled);
         }
 
         if ($compiled->getAggregateDefinitions() !== []) {
@@ -189,7 +191,7 @@ final readonly class ResourceSchemaBuilder
         }
 
         if (!is_subclass_of($modelClass, Model::class)) {
-            return ($field->openApi ?? OpenApiFieldSchema::undocumented())->toArray();
+            return OpenApiFieldSchema::undocumented()->toArray();
         }
 
         return $this->resolver->resolve($fieldKey, $field, $modelClass)->toArray();
@@ -198,19 +200,21 @@ final readonly class ResourceSchemaBuilder
     /**
      * Resolve the schema that replaces a field's inferred one, if any.
      *
-     * A declaration wins, and a transformer changes the value, so an undeclared
-     * one is undocumented.
+     * A declared shape wins, and a transformer changes the value, so an
+     * undeclared one is undocumented.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return array<string, mixed>|null
      */
     private function overrideProperty(CompiledFieldDefinition $field): ?array
     {
-        return match (true) {
-            $field->openApi      !== null => $field->openApi->toArray(),
-            $field->transformers !== []   => OpenApiFieldSchema::undocumented()->toArray(),
-            default                       => null,
-        };
+        $declared = $field->openApi;
+
+        if ($declared !== null && !$declared->annotatesOnly()) {
+            return $declared->toArray();
+        }
+
+        return $field->transformers === [] ? null : OpenApiFieldSchema::undocumented()->toArray();
     }
 
     /**
