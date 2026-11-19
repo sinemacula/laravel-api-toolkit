@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\RelationEdge;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use Tests\Fixtures\Models\Article;
+use Tests\Fixtures\Models\AuthoredPost;
 use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -21,6 +22,7 @@ use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\PublicUserResource;
 use Tests\Fixtures\Resources\QueryableTagResource;
+use Tests\Fixtures\Resources\SortableAuthoredPostResource;
 use Tests\Fixtures\Resources\SortableUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -178,7 +180,10 @@ final class RelationTraversalTest extends TestCase
             $this->traversal()->edges($articles::class, Article::class),
         );
         self::assertEquals(
-            [new RelationEdge('latestArticle', Article::class, false, ArticleResource::class)],
+            [
+                new RelationEdge('latestArticle', Article::class, false, ArticleResource::class),
+                new RelationEdge('latestPost', AuthoredPost::class, false, SortableAuthoredPostResource::class),
+            ],
             $this->traversal()->edges(SortableUserResource::class, User::class),
         );
     }

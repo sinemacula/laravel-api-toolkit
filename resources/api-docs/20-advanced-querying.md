@@ -363,7 +363,10 @@ relation and the column:
 
 ```text
 ?order=aggregates.posts_count:desc
-?order=customer.name
+```
+
+```text
+?order=organization.name
 ```
 
 A record with no related record to sort by, or whose sum, average, minimum or
