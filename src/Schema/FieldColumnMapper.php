@@ -42,8 +42,8 @@ final class FieldColumnMapper
         foreach ($schema->getFields() as $field => $definition) {
             if ($definition->needs !== []) {
                 $declared[$field] = $definition->needs;
-            } elseif (self::isPlain($definition)) {
-                $inferred[] = $field;
+            } elseif (($column = self::inferredColumn($field, $definition)) !== null) {
+                $inferred[$field] = $column;
             } elseif (self::readsOnlyTheRelated($definition)) {
                 $declared[$field] = [];
             }
@@ -72,18 +72,24 @@ final class FieldColumnMapper
     }
 
     /**
-     * Determine whether a field is read straight off the model by its own key.
+     * Return the attribute a field reads straight off the model, or null when
+     * anything else may shape its value.
      *
+     * @param  string  $key
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
-     * @return bool
+     * @return string|null
      */
-    private static function isPlain(CompiledFieldDefinition $definition): bool
+    private static function inferredColumn(string $key, CompiledFieldDefinition $definition): ?string
     {
-        if ($definition->accessor !== null || $definition->compute !== null || $definition->relation !== null) {
-            return false;
+        if ($definition->compute !== null || $definition->relation !== null || $definition->guards !== [] || $definition->transformers !== []) {
+            return null;
         }
 
-        return $definition->guards === [] && $definition->transformers === [];
+        return match (true) {
+            $definition->accessor === null                => $key,
+            $definition->accessor instanceof DateAccessor => $definition->accessor->attribute,
+            default                                       => null,
+        };
     }
 
     /**

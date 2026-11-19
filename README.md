@@ -482,6 +482,9 @@ class UserResource extends ApiResource
 }
 ```
 
+**Date fields** - `Field::timestamp()` renders an ISO 8601 date-time and `Field::date()` a calendar date, from a cast
+date or a date string an uncast column holds. A non-null value that is neither throws, rather than rendering as null.
+
 **Relation aggregates** - six helpers load an aggregate over a relation in the same query, through Laravel's
 `withAggregate()`. Each has one key, which names it in the declaration, the `?aggregates` request, the response and the
 exported schema. The key defaults to Laravel's own attribute name and `as()` or the last argument of `of()` replaces it:
@@ -707,9 +710,10 @@ paginated read's search for the key column and a cursor-paginated sort's refusal
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
 relations and the order columns. A field reads the columns it declares through `needs()`, each of which must exist on
-the table. A plain field without `needs()` is taken to read the column of its own key, but only when the table carries
-that column and the model reads it without an accessor, a public instance property of the same name or a cast that could
-consult other attributes; Eloquent's built-in cast types, enums that do not name their own caster, and the casts under
+the table. A plain field without `needs()` is taken to read the column of its own key, and an unguarded, untransformed
+`Field::timestamp()` or `Field::date()` the column it formats, but only when the table carries that column and the model
+reads it without an accessor, a public instance property of the same name or a cast that could consult other attributes;
+Eloquent's built-in cast types, enums that do not name their own caster, and the casts under
 `Illuminate\Database\Eloquent\Casts` qualify. Any other field, such as one over an accessor or custom cast, or a
 computed, row-guarded or transformed field, leaves the select unnarrowed until it declares `needs()`.
 
@@ -1614,6 +1618,22 @@ final class RedeemVoucher implements DefinesFieldExamples, DefinesInputSchema
         return ['code' => 'ABC-1234', 'items' => [['sku' => 'TEE-M'], ['sku' => 'CAP-L']]];
     }
 }
+```
+
+A `#[ResponseSchema]` body naming a `DefinesSchema` shape, alone or in a `oneOf`, may show hand-written examples
+instead. `#[ResponseExample]` names the success status, the example's name and a JSON file holding the body as sent,
+envelope included. The file is relative to `<docs_path>/examples/`, and an `audiences/<name>/examples/` copy replaces it
+for that audience. Declared examples replace the generated ones, in declaration order. Every other body is derived, so
+an example declared on one fails the export, as does one naming another status or a status without a body, a name
+declared twice, and an example file no exported operation names. A `oneOf` example must match exactly one shape:
+
+```php
+use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseExample;
+
+#[ResponseSchema([SignedIn::class, MfaChallenge::class])]
+#[ResponseExample(HttpStatus::OK, 'signed-in', 'auth/signed-in.json')]
+#[ResponseExample(HttpStatus::OK, 'mfa-challenge', 'auth/mfa-challenge.json')]
+public function signIn(): JsonResponse {}
 ```
 
 Every example the document carries, generated, declared or an error example, is validated against the schema beside it,

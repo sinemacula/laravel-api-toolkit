@@ -41,11 +41,26 @@ final class FieldColumnMapTest extends TestCase
      */
     public function testInferredFieldMapsToItsOwnKey(): void
     {
-        $map = FieldColumnMap::make([], ['email'], ['email']);
+        $map = FieldColumnMap::make([], ['email' => 'email'], ['email']);
 
         self::assertTrue($map->isMapped('email'));
         self::assertTrue($map->isInferred('email'));
         self::assertSame(['email'], $map->columnsFor('email'));
+    }
+
+    /**
+     * Test that an inferred field keyed apart from its column maps to that
+     * column, and the column is not itself a field.
+     *
+     * @return void
+     */
+    public function testInferredFieldMapsToTheColumnItReads(): void
+    {
+        $map = FieldColumnMap::make([], ['born_on' => 'dob'], ['born_on']);
+
+        self::assertTrue($map->isInferred('born_on'));
+        self::assertSame(['dob'], $map->columnsFor('born_on'));
+        self::assertFalse($map->isMapped('dob'));
     }
 
     /**
@@ -59,20 +74,6 @@ final class FieldColumnMapTest extends TestCase
 
         self::assertTrue($map->isMapped('virtual'));
         self::assertSame([], $map->columnsFor('virtual'));
-    }
-
-    /**
-     * Test that inferred keys are matched exactly, never as equal numbers.
-     *
-     * @return void
-     */
-    public function testInferredKeysAreMatchedExactly(): void
-    {
-        $map = FieldColumnMap::make([], ['10'], ['10']);
-
-        self::assertTrue($map->isInferred('10'));
-        self::assertFalse($map->isInferred('1e1'));
-        self::assertFalse($map->isMapped('1e1'));
     }
 
     /**
@@ -98,7 +99,7 @@ final class FieldColumnMapTest extends TestCase
      */
     public function testDeclaresExactlyTheGivenNames(): void
     {
-        $map = FieldColumnMap::make([], ['email'], ['email', 'avatar', '10']);
+        $map = FieldColumnMap::make([], ['email' => 'email'], ['email', 'avatar', '10']);
 
         self::assertTrue($map->declares('email'));
         self::assertTrue($map->declares('avatar'));

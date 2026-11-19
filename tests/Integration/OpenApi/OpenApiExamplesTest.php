@@ -10,15 +10,19 @@ use Illuminate\Support\Facades\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\OpenApi\Examples\Body;
 use SineMacula\ApiToolkit\OpenApi\Examples\ExampleComposer;
+use SineMacula\ApiToolkit\OpenApi\Examples\ExampleDirectory;
+use SineMacula\ApiToolkit\OpenApi\Examples\ExampleFileAudit;
 use SineMacula\ApiToolkit\OpenApi\Examples\ExampleGenerator;
 use SineMacula\ApiToolkit\OpenApi\Examples\ExampleValidator;
 use SineMacula\ApiToolkit\OpenApi\Examples\SchemaDocument;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleGenerationException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleMismatchException;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\OrphanedDocumentationException;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\ValidatesOpenApiDocuments;
+use Tests\Concerns\WritesDocsDirectories;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -29,6 +33,7 @@ use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathKeyedArrayController;
 use Tests\Fixtures\OpenApi\PathNumericKeyController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
+use Tests\Fixtures\OpenApi\PathResponseExampleController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
 use Tests\Fixtures\OpenApi\PresenceRequestInput;
 use Tests\Fixtures\OpenApi\SignUpRequestInput;
@@ -52,9 +57,11 @@ use Tests\TestCase;
 #[CoversClass(ExampleValidator::class)]
 #[CoversClass(SchemaDocument::class)]
 #[CoversClass(Body::class)]
+#[CoversClass(ExampleDirectory::class)]
+#[CoversClass(ExampleFileAudit::class)]
 final class OpenApiExamplesTest extends TestCase
 {
-    use ValidatesOpenApiDocuments;
+    use ValidatesOpenApiDocuments, WritesDocsDirectories;
 
     /** The rules source behind each request body whose rules its schema fully expresses */
     private const array REQUEST_SOURCES = [
@@ -284,6 +291,114 @@ final class OpenApiExamplesTest extends TestCase
             'The schema example [0] for #/paths/~1codes/post/requestBody/content/application~1json/schema/properties/code in the [public] audience'
             . ' does not match its schema at the root: The string should match pattern: ^[A-Z]{3}$',
         );
+
+        $this->export();
+    }
+
+    /**
+     * Test that a shape's declared examples replace its generated one, in
+     * declaration order, exported as the files hold them.
+     *
+     * @return void
+     */
+    public function testDeclaredExamplesReplaceTheGeneratedOneInOrder(): void
+    {
+        $this->useDocsDirectory([
+            'examples/auth/signed-in.json'  => '{"data": {"status": "signed_in", "token": "eyJhbGciOiJIUzI1NiJ9.e30.sig", "meta": {}}}',
+            'examples/auth/remembered.json' => '{"data": {"status": "signed_in", "token": "remembered"}}',
+        ]);
+
+        $this->router()->post('sign-in', [PathResponseExampleController::class, 'signIn']);
+
+        $document = $this->export()->document;
+        $examples = $this->resolveReference($document, '#/paths/~1sign-in/post/responses/200/content/application~1json/examples');
+
+        self::assertSame(
+            '{"signed-in":{"value":{"data":{"status":"signed_in","token":"eyJhbGciOiJIUzI1NiJ9.e30.sig","meta":{}}}},'
+            . '"remembered":{"value":{"data":{"status":"signed_in","token":"remembered"}}}}',
+            json_encode($examples, JSON_THROW_ON_ERROR),
+        );
+        $this->assertValidDocument($document);
+    }
+
+    /**
+     * Test that a union of shapes carries the example declared for each.
+     *
+     * @return void
+     */
+    public function testUnionOfShapesCarriesTheDeclaredExampleOfEach(): void
+    {
+        $this->useDocsDirectory([
+            'examples/auth/pending.json'   => '{"data": {"status": "pending", "choices": ["totp"]}}',
+            'examples/auth/signed-in.json' => '{"data": {"status": "signed_in", "token": "t"}}',
+        ]);
+
+        $this->router()->post('sign-in', [PathResponseExampleController::class, 'challenge']);
+
+        self::assertSame([
+            'pending'   => ['data' => ['status' => 'pending', 'choices' => ['totp']]],
+            'signed-in' => ['data' => ['status' => 'signed_in', 'token' => 't']],
+        ], $this->examplesOf($this->export()->document, '/paths/~1sign-in/post/responses/200/content/application~1json'));
+    }
+
+    /**
+     * Test that a declared example its schema refuses fails the export, naming
+     * the example and where it fails.
+     *
+     * @return void
+     */
+    public function testDeclaredExampleItsSchemaRefusesFailsTheExport(): void
+    {
+        $this->useDocsDirectory([
+            'examples/auth/signed-in.json'  => '{"data": {"status": "pending", "token": "t"}}',
+            'examples/auth/remembered.json' => '{"data": {"status": "signed_in", "token": "t"}}',
+        ]);
+
+        $this->router()->post('sign-in', [PathResponseExampleController::class, 'signIn']);
+
+        $this->expectException(ExampleMismatchException::class);
+        $this->expectExceptionMessage(
+            'The declared example [signed-in] for POST /sign-in response 200 in the [public] audience does not match its schema'
+            . ' at /data/status: The data must match the const value',
+        );
+
+        $this->export();
+    }
+
+    /**
+     * Test that a declared example matching more than one shape of a union
+     * fails the export.
+     *
+     * @return void
+     */
+    public function testExampleMatchingSeveralShapesFailsTheExport(): void
+    {
+        $this->useDocsDirectory(['examples/either.json' => '{"data": {"id": 1, "label": "Widget", "status": "signed_in", "token": "t"}}']);
+
+        $this->router()->get('either', [PathResponseExampleController::class, 'ambiguous']);
+
+        $this->expectException(ExampleMismatchException::class);
+        $this->expectExceptionMessage(
+            'The declared example [either] for GET /either response 200 in the [public] audience does not match its schema'
+            . ' at /data: The data should match exactly one schema',
+        );
+
+        $this->export();
+    }
+
+    /**
+     * Test that an example file no operation names fails the export.
+     *
+     * @return void
+     */
+    public function testExampleFileNoOperationNamesFailsTheExport(): void
+    {
+        $dir = $this->useDocsDirectory(['examples/auth/stale.json' => '{}']);
+
+        $this->router()->get('users', [PathFixtureController::class, 'index']);
+
+        $this->expectException(OrphanedDocumentationException::class);
+        $this->expectExceptionMessage(sprintf('The example file [%s/examples/auth/stale.json] is named by no #[ResponseExample] in any audience.', $dir));
 
         $this->export();
     }

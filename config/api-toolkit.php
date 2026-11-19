@@ -156,7 +156,9 @@ return [
     | `api-toolkit-docs` publish tag and `api-toolkit:docs:generate` write to;
     | while it does not exist no description is added. Its `operations/` and
     | `tags/` subdirectories, and their `audiences/<name>/` counterparts,
-    | describe operations and tags and never join info.description.
+    | describe operations and tags and never join info.description. Its
+    | `examples/` subdirectory, and `audiences/<name>/examples/`, hold the JSON
+    | files #[ResponseExample] names.
     */
 
     'openapi' => [

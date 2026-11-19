@@ -104,6 +104,34 @@ final readonly class ResponseSchemaResolver
     }
 
     /**
+     * Determine whether the action's #[ResponseSchema] body is documented and
+     * names a DefinesSchema shape, which takes declared examples.
+     *
+     * A class that is also a registered resource is documented as the resource.
+     *
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @return bool
+     */
+    public function declaresShape(?string $controllerClass, string $action): bool
+    {
+        $shape = false;
+
+        foreach ($this->directive($controllerClass, $action)->schemas ?? [] as $class) {
+
+            $member = $this->member($class);
+
+            if ($member === null) {
+                return false;
+            }
+
+            $shape = $shape || $member['defined'] !== null;
+        }
+
+        return $shape;
+    }
+
+    /**
      * Resolve the success-body schema declared by the action.
      *
      * @param  class-string|null  $controllerClass

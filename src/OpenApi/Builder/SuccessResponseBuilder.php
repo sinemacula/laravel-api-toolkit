@@ -4,7 +4,11 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
+use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseExample;
+use SineMacula\ApiToolkit\OpenApi\Examples\ExampleDirectory;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleDeclarationException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
+use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseExampleResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver;
@@ -25,6 +29,16 @@ final readonly class SuccessResponseBuilder
     /** The message thrown when an action redeclares an exporter-emitted header */
     private const string HEADER_COLLISION_MESSAGE = 'The %s header declared for %s::%s is emitted by the exporter and cannot be redeclared';
 
+    /** The message for an example declared on a body that is not a shape */
+    private const string UNSHAPED_EXAMPLE_MESSAGE = 'The response example [%s] on %s::%s cannot be declared: the response body is not a DefinesSchema shape.'
+        . ' A resource body\'s examples are generated, so give its fields example values instead.';
+
+    /** The message for an example naming a status the action does not answer with */
+    private const string EXAMPLE_STATUS_MESSAGE = 'The response example [%s] on %s::%s names status %d, but the action answers with %d.';
+
+    /** The message for an example naming a status that has no body */
+    private const string BODYLESS_EXAMPLE_MESSAGE = 'The response example [%s] on %s::%s names status %d, which has no body.';
+
     /**
      * Constructor.
      *
@@ -32,6 +46,8 @@ final readonly class SuccessResponseBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseSchemaResolver  $responseSchema
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver  $responseHeaders
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseStatusResolver  $responseStatus
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\ResponseExampleResolver  $responseExamples
+     * @param  \SineMacula\ApiToolkit\OpenApi\Examples\ExampleDirectory  $exampleFiles
      */
     public function __construct(
 
@@ -46,6 +62,12 @@ final readonly class SuccessResponseBuilder
 
         /** The resolver of the success status an action declares. */
         private ResponseStatusResolver $responseStatus,
+
+        /** The resolver of the response examples an action declares. */
+        private ResponseExampleResolver $responseExamples = new ResponseExampleResolver,
+
+        /** The directory the declared example files are read from. */
+        private ExampleDirectory $exampleFiles = new ExampleDirectory,
     ) {}
 
     /**
@@ -68,6 +90,42 @@ final readonly class SuccessResponseBuilder
             fn (array $response): array => $this->withHeaders($response, $declared, $controllerClass, $action),
             $this->withStatus($responses, $controllerClass, $action),
         );
+    }
+
+    /**
+     * Attach the examples the action declares to its success body, read for the
+     * audience.
+     *
+     * @param  array<string, mixed>  $operation
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @param  string  $audience
+     * @return array<string, mixed>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleDeclarationException
+     */
+    public function withExamples(array $operation, ?string $controllerClass, string $action, string $audience): array
+    {
+        $examples = $this->responseExamples->forAction($controllerClass, $action);
+
+        if ($examples === []) {
+            return $operation;
+        }
+
+        if (!$this->responseSchema->declaresShape($controllerClass, $action)) {
+            throw new ExampleDeclarationException(sprintf(self::UNSHAPED_EXAMPLE_MESSAGE, $examples[0]->name, $controllerClass, $action));
+        }
+
+        /** @var array<int, array<string, mixed>> $responses */
+        $responses = $operation['responses'];
+
+        foreach ($examples as $example) {
+            $responses = $this->withExample($responses, $example, $controllerClass, $action, $audience);
+        }
+
+        $operation['responses'] = $responses;
+
+        return $operation;
     }
 
     /**
@@ -129,6 +187,36 @@ final readonly class SuccessResponseBuilder
         }
 
         return [$directive->status->value => $response + $responses[$default] + $this->body($controllerClass, $action)];
+    }
+
+    /**
+     * Attach a declared example to the body of the success response, the first
+     * of the responses.
+     *
+     * @param  array<int, array<string, mixed>>  $responses
+     * @param  \SineMacula\ApiToolkit\OpenApi\Attributes\ResponseExample  $example
+     * @param  class-string|null  $controllerClass
+     * @param  string  $action
+     * @param  string  $audience
+     * @return array<int, array<string, mixed>>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleDeclarationException
+     */
+    private function withExample(array $responses, ResponseExample $example, ?string $controllerClass, string $action, string $audience): array
+    {
+        $status = array_key_first($responses);
+
+        if ($example->status->value !== $status) {
+            throw new ExampleDeclarationException(sprintf(self::EXAMPLE_STATUS_MESSAGE, $example->name, $controllerClass, $action, $example->status->value, $status));
+        }
+
+        if (!isset($responses[$status]['content'][self::MEDIA_TYPE]['schema'])) {
+            throw new ExampleDeclarationException(sprintf(self::BODYLESS_EXAMPLE_MESSAGE, $example->name, $controllerClass, $action, $status));
+        }
+
+        $responses[$status]['content'][self::MEDIA_TYPE]['examples'][$example->name] = ['value' => $this->exampleFiles->read($example->file, $audience)];
+
+        return $responses;
     }
 
     /**

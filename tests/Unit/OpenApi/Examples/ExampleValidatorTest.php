@@ -24,7 +24,7 @@ final class ExampleValidatorTest extends TestCase
 {
     /**
      * Test that a document whose examples all match passes, an example's own
-     * data never read as a schema.
+     * data never read as a schema and an empty object never read as a list.
      *
      * @return void
      */
@@ -32,11 +32,11 @@ final class ExampleValidatorTest extends TestCase
     {
         $this->expectNotToPerformAssertions();
 
-        (new ExampleValidator)->validate(SchemaDocument::of([
+        $document = [
             'paths' => ['/users' => ['get' => ['responses' => [
                 200 => ['content' => ['application/json' => [
-                    'schema'   => ['type' => 'object', 'properties' => ['id' => ['type' => 'integer', 'examples' => [1]], 'retired' => false]],
-                    'examples' => ['default' => ['value' => ['id' => 1]]],
+                    'schema'   => ['type' => 'object', 'properties' => ['id' => ['type' => 'integer', 'examples' => [1]], 'meta' => ['type' => 'object'], 'retired' => false]],
+                    'examples' => ['default' => ['value' => ['id' => 1, 'meta' => new \stdClass]]],
                 ]]],
                 404 => ['content' => ['application/json' => [
                     'schema'   => ['$ref' => '#/components/schemas/Error404'],
@@ -47,7 +47,9 @@ final class ExampleValidatorTest extends TestCase
                 'schemas'  => ['Error404' => ['type' => 'object', 'required' => ['error']]],
                 'examples' => ['Error404' => ['value' => ['error' => ['schema' => ['type' => 'string', 'examples' => [1]]]]]],
             ],
-        ]), 'public');
+        ];
+
+        (new ExampleValidator)->validate($document, SchemaDocument::of($document), 'public');
     }
 
     /**
@@ -135,6 +137,18 @@ final class ExampleValidatorTest extends TestCase
             . ' at the root: The data (string) must match the type: integer',
         ];
 
+        yield 'list-keyed property example' => [
+            ['components' => ['schemas' => ['Pair' => ['type' => 'object', 'properties' => (object) [['type' => 'string'], ['type' => 'integer', 'examples' => ['two']]]]]]],
+            'The schema example [0] for #/components/schemas/Pair/properties/1 in the [public] audience does not match its schema'
+            . ' at the root: The data (string) must match the type: integer',
+        ];
+
+        yield 'object property schema' => [
+            ['components' => ['schemas' => ['Member' => ['type' => 'object', 'properties' => ['age' => (object) ['type' => 'integer', 'examples' => ['old']]]]]]],
+            'The schema example [0] for #/components/schemas/Member/properties/age in the [public] audience does not match its schema'
+            . ' at the root: The data (string) must match the type: integer',
+        ];
+
         yield 'property after a prohibited one' => [
             ['components' => ['schemas' => ['Member' => ['properties' => ['retired' => false, 'age' => ['type' => 'integer', 'examples' => ['old']]]]]]],
             'The schema example [0] for #/components/schemas/Member/properties/age in the [public] audience does not match its schema'
@@ -168,6 +182,6 @@ final class ExampleValidatorTest extends TestCase
         $this->expectException(ExampleMismatchException::class);
         $this->expectExceptionMessage($message);
 
-        (new ExampleValidator)->validate(SchemaDocument::of($document), 'public');
+        (new ExampleValidator)->validate($document, SchemaDocument::of($document), 'public');
     }
 }
