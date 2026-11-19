@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ProvidesApiEnvelope;
@@ -38,6 +40,7 @@ use Tests\TestCase;
 #[CoversClass(ApiResourceCollection::class)]
 #[CoversClass(OrderApplier::class)]
 #[CoversClass(PageOrder::class)]
+#[CoversClass(QueryParameterValidator::class)]
 #[CoversTrait(ProvidesApiEnvelope::class)]
 final class CursorPaginationTest extends TestCase
 {
@@ -103,6 +106,34 @@ final class CursorPaginationTest extends TestCase
 
         self::assertNull($response->json('links.prev'));
         self::assertIsString($response->json('links.next'));
+    }
+
+    /**
+     * Provide pagination modes other than cursor.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function unknownPaginationModeProvider(): iterable
+    {
+        yield 'misspelt' => ['pagination=curser'];
+        yield 'list' => ['pagination[]=cursor'];
+    }
+
+    /**
+     * Test that a pagination mode other than cursor is refused before any read
+     * rather than served by offset.
+     *
+     * @param  string  $query
+     * @return void
+     */
+    #[DataProvider('unknownPaginationModeProvider')]
+    public function testUnknownPaginationModeIsRefused(string $query): void
+    {
+        $statements = $this->recordStatements(fn () => $this->getJson('/users?' . $query . '&limit=2')
+            ->assertUnprocessable()
+            ->assertJsonPath('error.meta', ['pagination' => ['The selected pagination is invalid.']]));
+
+        self::assertSame([], $statements);
     }
 
     /**
