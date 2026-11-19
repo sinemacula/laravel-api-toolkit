@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Exceptions\PreconditionFailedException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Concurrency\IfMatch;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Repositories\Concerns\AttributeSetter;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Concerns\OffsetPaginator;
@@ -134,7 +135,7 @@ abstract class ApiRepository extends Repository
         try {
 
             $cursor = ApiQuery::isCursorPaginated();
-            $limit  = ApiQuery::getResolvedLimit();
+            $limit  = PageSize::for($this->getResourceClass())->resolve(ApiQuery::getLimit());
             $page   = ApiQuery::getPage();
 
             // Refused before composing, which can read the schema

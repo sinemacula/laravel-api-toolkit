@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
@@ -87,6 +88,7 @@ final readonly class QuerySurfaceReader
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $registry
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
      *
+     * @throws \LogicException
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     private function readResource(string $resourceClass, array $edges, OperatorRegistry $registry): QuerySurfaceDescriptor
@@ -105,7 +107,14 @@ final readonly class QuerySurfaceReader
             $columns = [...$columns, ...$this->readColumns($property, $field, $compiled, $registry)];
         }
 
-        return new QuerySurfaceDescriptor($resourceClass, $columns, $this->readRelations($compiled, $edges));
+        $pageSize = PageSize::for($resourceClass);
+
+        return new QuerySurfaceDescriptor(
+            $resourceClass,
+            $columns,
+            $this->readRelations($compiled, $edges),
+            $pageSize->differsFrom(PageSize::for(null)) ? $pageSize : null,
+        );
     }
 
     /**

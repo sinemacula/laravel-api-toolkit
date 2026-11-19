@@ -30,6 +30,7 @@ use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\AggregatingUserResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PagedUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -98,6 +99,13 @@ final class QueryCostRejectionTest extends TestCase
             $users = $repository->usingResource(UserResource::class)->withApiCriteria()->paginate();
 
             return new ApiResourceCollection($users, UserResource::class);
+        });
+
+        Route::middleware(ParseApiQuery::class)->get('/paged-users', function (UserRepository $repository): ApiResourceCollection {
+
+            $users = $repository->usingResource(PagedUserResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($users, PagedUserResource::class);
         });
 
         User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);
@@ -247,6 +255,21 @@ final class QueryCostRejectionTest extends TestCase
         $response = $this->recordQueries('/users?limit=26');
 
         $this->assertRejectionEnvelope($response, 'limit', '', 'max_limit', 25, 26);
+    }
+
+    /**
+     * Test that a page size beyond the resource's own ceiling is refused with
+     * that ceiling and issues no SQL, while one at it is served.
+     *
+     * @return void
+     */
+    public function testPageSizeBeyondTheResourceCeilingIssuesNoSql(): void
+    {
+        $this->getJson('/paged-users?limit=2')->assertOk()->assertJsonCount(2, 'data');
+
+        $response = $this->recordQueries('/paged-users?limit=3');
+
+        $this->assertRejectionEnvelope($response, 'limit', '', 'max_limit', 2, 3);
     }
 
     /**

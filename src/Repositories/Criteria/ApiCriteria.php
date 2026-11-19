@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier;
@@ -153,7 +154,7 @@ final class ApiCriteria implements CriteriaInterface
 
         $resourceType = $this->getResourceType($query->getModel());
 
-        $this->queryCostGuard->guard();
+        $this->queryCostGuard->guard(PageSize::for($this->resolveResource($query->getModel())));
 
         $surface = $this->buildQuerySurface($query->getModel());
         $query   = $this->applyRowSelection($query, $surface);

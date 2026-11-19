@@ -16,6 +16,7 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\MappedModuleResolver;
@@ -486,6 +487,24 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
 
         self::assertStringContainsString("\n\nTraversable relations: `author` (PublicUser), `noteable` (per type), `tags` (no nested filters).\n", $named);
         self::assertStringContainsString("\n\nTraversable relations: none.\n", $none);
+    }
+
+    /**
+     * Test that a resource's own page size bounds are rendered after its column
+     * table, and only for a resource that carries them.
+     *
+     * @return void
+     */
+    public function testOwnPageSizeIsRenderedOnlyForTheResourceCarryingIt(): void
+    {
+        $lowered   = $this->combinedGenerator()->generate([new QuerySurfaceDescriptor(UserResource::class, [], [], new PageSize(25, 20))], [], []);
+        $inherited = $this->combinedGenerator()->generate([$this->surface(UserResource::class, [])], [], []);
+
+        self::assertStringContainsString(
+            "\nThis resource answers no filter, order, or search.\n\nPagination: at most 25 per page; default page size 20.\n\nTraversable relations: none.\n",
+            $lowered,
+        );
+        self::assertStringNotContainsString('Pagination:', $inherited);
     }
 
     /**

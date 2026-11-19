@@ -39,6 +39,7 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BulkArticleResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\LogResource;
+use Tests\Fixtures\Resources\PagedUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\ProfileResource;
 use Tests\Fixtures\Resources\SearchableFilterableUserResource;
@@ -1357,6 +1358,45 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
+     * Test that a page size above the resource's own ceiling is refused.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testApplyRefusesAPageSizeAboveTheResourceCeiling(): void
+    {
+        $this->parseRequest(new Request(['limit' => '3']));
+
+        try {
+            $this->pagedCriteria()->apply(new User);
+
+            self::fail('Expected a rejection for a page size beyond the resource ceiling.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame(['parameter' => 'limit', 'pointer' => '', 'reason' => 'max_limit', 'limit' => 2, 'actual' => 3], $exception->getCustomMeta());
+        }
+    }
+
+    /**
+     * Test that the resource's own ceiling bounds the size asked for, not the
+     * rows a read without one returns.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testApplyUnderTheResourceCeilingLimitsOnlyWhatIsAskedFor(): void
+    {
+        $this->parseRequest(new Request(['limit' => '2']));
+
+        self::assertSame(2, $this->pagedCriteria()->apply(new User)->getQuery()->limit);
+
+        $this->parseRequest(new Request);
+
+        self::assertNull($this->pagedCriteria()->apply(new User)->getQuery()->limit);
+    }
+
+    /**
      * Test that filters-only criteria apply the search, the filters and the
      * trashed scope of a request that also orders, limits, eager loads and
      * selects aggregates, and nothing else.
@@ -1574,6 +1614,21 @@ final class ApiCriteriaTest extends TestCase
         $criteria = $this->app->make(ApiCriteria::class, ['filtersOnly' => true]);
 
         return $criteria->usingResource($resourceClass);
+    }
+
+    /**
+     * Build a criteria bound to a resource serving at most two records a page.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
+     */
+    private function pagedCriteria(): ApiCriteria
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+
+        return $criteria->usingResource(PagedUserResource::class);
     }
 
     /**
