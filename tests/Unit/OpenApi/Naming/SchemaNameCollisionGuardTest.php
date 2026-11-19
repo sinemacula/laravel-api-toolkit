@@ -58,8 +58,10 @@ final class SchemaNameCollisionGuardTest extends TestCase
         $claimed = ['User' => 'App\UserResource'];
 
         $this->expectException(SchemaNameCollisionException::class);
-        $this->expectExceptionMessage('App\UserResource');
-        $this->expectExceptionMessage('App\Enums\User');
+        $this->expectExceptionMessage(
+            'The OpenAPI component schema name "User" is derived by both [App\UserResource] and [App\Enums\User]. '
+            . 'Disambiguate one with the #[SchemaName] attribute.',
+        );
 
         (new SchemaNameCollisionGuard)->claim($claimed, 'User', 'App\Enums\User');
     }

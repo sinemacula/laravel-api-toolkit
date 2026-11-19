@@ -135,6 +135,19 @@ final class EnvelopeBuilderTest extends TestCase
     }
 
     /**
+     * Test that the entity-tag header carries a described string schema.
+     *
+     * @return void
+     */
+    public function testEntityTagHeaderShape(): void
+    {
+        self::assertSame([
+            'description' => 'The weak entity tag of the stored resource, to send in If-Match on a write that must not overwrite a newer state.',
+            'schema'      => ['type' => 'string'],
+        ], (new EnvelopeBuilder)->buildHeaders()[EnvelopeBuilder::ETAG_HEADER_NAME]);
+    }
+
+    /**
      * Test that the single envelope wraps the reference in a data property.
      *
      * @return void

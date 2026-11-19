@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Config\LifecycleSettings;
 use SineMacula\ApiToolkit\Events\WritePoolFlushFailed;
 use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Exceptions\WritePoolFlushException;
+use SineMacula\ApiToolkit\Repositories\Concerns\DeferredWriteTransactionDetector;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 
 /**
@@ -25,6 +26,9 @@ use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
  */
 final readonly class WritePoolFlushSubscriber
 {
+    /** @var string The message a failure the subscriber reports falls back to */
+    private const string FAILURE = 'WritePool flush subscriber failed';
+
     /**
      * Register the listeners for the subscriber.
      *
@@ -36,7 +40,7 @@ final readonly class WritePoolFlushSubscriber
         $events->listen(RequestHandled::class, [$this, 'handleFlush']);
         $events->listen(CommandFinished::class, [$this, 'handleFlush']);
         $events->listen(JobAttempted::class, [$this, 'handleFlush']);
-        $events->listen(JobTimedOut::class, [$this, 'handleFlush']);
+        $events->listen(JobTimedOut::class, [$this, 'handleTimedOutFlush']);
     }
 
     /**
@@ -45,11 +49,14 @@ final readonly class WritePoolFlushSubscriber
      * The pool is resolved from the current container, which under Octane is
      * the request's sandbox. Every queue job attempt is flushed, including a
      * released or timed-out one. A flush exception is re-thrown only when
-     * rethrow_at_boundary is enabled.
+     * rethrow_at_boundary is enabled; an error that ended a transaction the
+     * flush joined always is, so the transaction can be retried.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
+     * @throws \PDOException
+     * @throws \ErrorException
      */
     public function handleFlush(): void
     {
@@ -60,7 +67,9 @@ final readonly class WritePoolFlushSubscriber
 
             return;
         } catch (\Throwable $e) {
-            FailureReporter::report($e, 'WritePool flush subscriber failed');
+            $this->rethrowIfItEndedATransaction($e);
+
+            FailureReporter::report($e, self::FAILURE);
 
             return;
         }
@@ -70,6 +79,39 @@ final readonly class WritePoolFlushSubscriber
         }
 
         $this->escalate(new WritePoolFlushException($flushResult, $flushResult->firstException()), $flushResult->droppedRecordCount() === 0);
+    }
+
+    /**
+     * Flush the write pool after a job timed out, reporting an error that ended
+     * a transaction the flush joined, since the worker must still stop the job.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
+     */
+    public function handleTimedOutFlush(): void
+    {
+        try {
+            $this->handleFlush();
+        } catch (\ErrorException|\PDOException $e) {
+            FailureReporter::report($e, self::FAILURE);
+        }
+    }
+
+    /**
+     * Rethrow a flush failure that ended a transaction the flush joined.
+     *
+     * @param  \Throwable  $exception
+     * @return void
+     *
+     * @throws \PDOException
+     * @throws \ErrorException
+     */
+    private function rethrowIfItEndedATransaction(\Throwable $exception): void
+    {
+        if ((new DeferredWriteTransactionDetector)->endsTransaction($exception)) {
+            throw $exception;
+        }
     }
 
     /**
@@ -110,7 +152,7 @@ final readonly class WritePoolFlushSubscriber
         try {
             event(new WritePoolFlushFailed($exception->flushResult()));
         } catch (\Throwable $e) { // @phpstan-ignore catch.neverThrown
-            FailureReporter::report($e, 'WritePool flush subscriber failed');
+            FailureReporter::report($e, self::FAILURE);
         }
     }
 }

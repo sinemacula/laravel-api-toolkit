@@ -6,6 +6,8 @@ namespace Tests\Unit\Repositories;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Contracts\Pagination\CursorPaginator;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Cursor;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -16,19 +18,29 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Exceptions\PreconditionFailedException;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
+use SineMacula\ApiToolkit\Http\Concurrency\EntityTag;
+use SineMacula\ApiToolkit\Http\Concurrency\IfMatch;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\Http\Enums\HttpMethod;
 use SineMacula\Repositories\Contracts\CriteriaInterface;
+use Tests\Concerns\CreatesDeferredWriteTargets;
+use Tests\Concerns\CreatesDocumentTables;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Concerns\RecordsStatements;
 use Tests\Fixtures\Enums\UserStatus;
+use Tests\Fixtures\Models\AuditEntry;
+use Tests\Fixtures\Models\Document;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\CacheableTagRepository;
 use Tests\Fixtures\Repositories\CountryRepository;
+use Tests\Fixtures\Repositories\DeferrableModelRepository;
+use Tests\Fixtures\Repositories\DocumentRepository;
 use Tests\Fixtures\Repositories\DummyRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\FilterableUserResource;
@@ -50,13 +62,19 @@ use Tests\TestCase;
 #[Group('database')]
 final class ApiRepositoryTest extends TestCase
 {
-    use InteractsWithNonPublicMembers;
+    use CreatesDeferredWriteTargets, CreatesDocumentTables, InteractsWithNonPublicMembers, RecordsStatements;
 
     /** @var string */
     private const string ALICE_EMAIL = 'alice@example.com';
 
     /** @var string */
     private const string BOB_EMAIL = 'bob@example.com';
+
+    /** @var string The refusal of a locked read composed with request criteria */
+    private const string CRITERIA_MESSAGE = '%s::findForUpdate() cannot apply request criteria; call it on a handle without withApiCriteria().';
+
+    /** @var string The refusal of a locked read outside a transaction */
+    private const string UNLOCKED_MESSAGE = '%s::findForUpdate() must run inside a transaction on the [%s] connection, or its lock is released at once.';
 
     /** @var \Tests\Fixtures\Repositories\UserRepository */
     private UserRepository $repository;
@@ -851,11 +869,12 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that a repository with Cacheable serves cached data on later reads.
+     * Test that a repository with Cacheable serves a repeated read from the
+     * cache without querying.
      *
      * @return void
      */
-    public function testApiRepositorySubclassWithCacheableTraitReturnsCachedData(): void
+    public function testApiRepositorySubclassWithCacheableTraitServesARepeatedReadFromTheCache(): void
     {
         Config::set('cache.default', 'array');
 
@@ -867,11 +886,131 @@ final class ApiRepositoryTest extends TestCase
         $repository = $this->app->make(CacheableTagRepository::class);
 
         $firstRead  = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
-        $secondRead = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+        $secondRead = null;
 
-        self::assertCount(2, $firstRead);
-        self::assertCount(2, $secondRead);
-        self::assertTrue($repository->getCacheStatus()->isPopulated());
+        $statements = $this->recordStatements(static function () use ($repository, &$secondRead): void {
+            $secondRead = $repository->get(); // @phpstan-ignore staticMethod.dynamicCall
+        });
+
+        self::assertStatementCount(0, $statements);
+        self::assertSame(['php', 'laravel'], $firstRead->pluck('name')->all());
+        self::assertEquals($firstRead, $secondRead);
+    }
+
+    /**
+     * Test that findForUpdate() reads the stored row afresh when the
+     * precondition holds or none is given.
+     *
+     * @return void
+     */
+    public function testFindForUpdateReturnsTheStoredRowWhenThePreconditionHolds(): void
+    {
+        $stale = Document::create(['title' => 'Draft']);
+
+        Document::query()->whereKey($stale->id)->update(['title' => 'Revised', 'version' => 4]);
+
+        $current = (new Document)->setRawAttributes(['id' => $stale->id, 'version' => 4], true);
+        $found   = $this->documents()->findForUpdate($stale->id, $this->ifMatch((string) EntityTag::for($current)));
+
+        self::assertInstanceOf(Document::class, $found);
+        self::assertSame('Revised', $found->title);
+        self::assertSame('Revised', $this->documents()->findForUpdate($stale->id)->getAttribute('title'));
+    }
+
+    /**
+     * Test that findForUpdate() reads its row under an update lock.
+     *
+     * @return void
+     */
+    public function testFindForUpdateLocksTheRowItReads(): void
+    {
+        $document = Document::create(['title' => 'Draft']);
+        $read     = null;
+
+        $this->documents()->addScope(static function (Builder $query) use (&$read): void {
+            $read = $query;
+        })->findForUpdate($document->id);
+
+        self::assertInstanceOf(EloquentBuilder::class, $read);
+        self::assertTrue($read->getQuery()->lock);
+    }
+
+    /**
+     * Test that findForUpdate() refuses a row whose tag the precondition does
+     * not name.
+     *
+     * @return void
+     */
+    public function testFindForUpdateRefusesAStaleTag(): void
+    {
+        $document = Document::create(['title' => 'Draft']);
+        $tag      = (string) EntityTag::for($document);
+
+        $document->update(['title' => 'Revised']);
+
+        $this->expectException(PreconditionFailedException::class);
+
+        $this->documents()->findForUpdate($document->id, $this->ifMatch($tag));
+    }
+
+    /**
+     * Test that findForUpdate() answers a row the repository scopes out as not
+     * found before checking the precondition.
+     *
+     * @return void
+     */
+    public function testFindForUpdateTreatsAScopedOutRowAsNotFound(): void
+    {
+        $document = Document::create(['title' => 'Draft']);
+        $other    = Document::create(['title' => 'Other']);
+
+        $this->expectException(ModelNotFoundException::class);
+
+        $this->documents()->scopeById($other->id)->findForUpdate($document->id, $this->ifMatch('"stale"'));
+    }
+
+    /**
+     * Test that findForUpdate() refuses to apply request criteria.
+     *
+     * @return void
+     */
+    public function testFindForUpdateRefusesRequestCriteria(): void
+    {
+        $document = Document::create(['title' => 'Draft']);
+
+        $this->expectExceptionObject(new \LogicException(sprintf(self::CRITERIA_MESSAGE, DocumentRepository::class)));
+
+        $this->documents()->withApiCriteria()->findForUpdate($document->id);
+    }
+
+    /**
+     * Test that findForUpdate() refuses to lock outside a transaction on the
+     * model's own connection.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
+     */
+    public function testFindForUpdateRefusesALockOutsideATransactionOnTheModelsConnection(): void
+    {
+        $this->useAuditConnection();
+
+        $this->expectExceptionObject(new \LogicException(sprintf(self::UNLOCKED_MESSAGE, DeferrableModelRepository::class, 'audit')));
+
+        $this->deferrableRepository(AuditEntry::class)->findForUpdate(1);
+    }
+
+    /**
+     * Define the database migrations.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function defineDatabaseMigrations(): void
+    {
+        parent::defineDatabaseMigrations();
+
+        $this->createDocumentTables();
     }
 
     /**
@@ -889,5 +1028,32 @@ final class ApiRepositoryTest extends TestCase
         /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
         $parser = $this->app->make('api.query');
         $parser->parse($request);
+    }
+
+    /**
+     * Resolve a document repository.
+     *
+     * @return \Tests\Fixtures\Repositories\DocumentRepository
+     */
+    private function documents(): DocumentRepository
+    {
+        assert($this->app !== null);
+
+        return $this->app->make(DocumentRepository::class);
+    }
+
+    /**
+     * Read the precondition the given If-Match field sets.
+     *
+     * @param  string  $field
+     * @return \SineMacula\ApiToolkit\Http\Concurrency\IfMatch
+     */
+    private function ifMatch(string $field): IfMatch
+    {
+        $ifMatch = IfMatch::fromRequest(Request::create('/', 'PATCH', server: ['HTTP_IF_MATCH' => $field]));
+
+        assert($ifMatch !== null);
+
+        return $ifMatch;
     }
 }
