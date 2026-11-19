@@ -37,9 +37,11 @@ final readonly class SecuritySchemeMapper
      * over the built-in ones.
      *
      * @param  string  $name
-     * @return array<string, mixed>|null
+     * @return array<string, mixed>
+     *
+     * @throws \LogicException
      */
-    public function definitionFor(string $name): ?array
+    public function definitionFor(string $name): array
     {
         foreach ($this->map() as $scheme) {
             if ($scheme['name'] === $name) {
@@ -47,7 +49,7 @@ final readonly class SecuritySchemeMapper
             }
         }
 
-        return null;
+        throw new \LogicException(sprintf('No security driver maps to the [%s] scheme', $name));
     }
 
     /**

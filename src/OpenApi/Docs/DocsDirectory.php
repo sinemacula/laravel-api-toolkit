@@ -100,7 +100,7 @@ final readonly class DocsDirectory
         try {
             $contents = file_get_contents($file);
         } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
-            $contents = false; // @codeCoverageIgnore
+            $contents = false;
         }
 
         return trim((string) $contents);
@@ -117,7 +117,7 @@ final readonly class DocsDirectory
         try {
             $entries = is_dir($directory) ? scandir($directory) : [];
         } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
-            $entries = false; // @codeCoverageIgnore
+            $entries = false;
         }
 
         return array_filter($entries ?: [], static fn (string $entry): bool => !self::isHidden($entry));
