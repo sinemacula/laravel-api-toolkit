@@ -292,6 +292,33 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
+     * Test that an aggregate requested twice is charged once against the cap
+     * and loaded once.
+     *
+     * @return void
+     */
+    public function testRepeatedAggregateIsChargedAndLoadedOnce(): void
+    {
+        Config::set('api-toolkit.query_cost.max_aggregates', 1);
+
+        $expected = $this->seedAuthorWithPosts();
+
+        $response = $this->recordQueries('/aggregate-users?' . http_build_query([
+            'fields'     => [UserResource::RESOURCE_TYPE => 'name,aggregates'],
+            'filters'    => json_encode(['name' => 'Carol']),
+            'aggregates' => [UserResource::RESOURCE_TYPE => 'posts_avg_id,posts_avg_id'],
+        ]));
+
+        $response->assertOk();
+        $response->assertJsonPath('data.0.aggregates', ['posts_avg_id' => $expected]);
+
+        $statements = $this->aggregateStatements();
+
+        self::assertCount(1, $statements);
+        self::assertSame(1, substr_count($statements[0], 'aggregate_posts_avg_id'));
+    }
+
+    /**
      * Test that an aggregate keyed on the resolved resource type is loaded.
      *
      * @return void

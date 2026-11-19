@@ -241,12 +241,13 @@ all. It is unsupported beside a repository scope that adds `distinct`, `group by
 GET /users?order=last_name,first_name:desc
 ```
 
-A direction is `asc` (the default) or `desc`, in any case; anything else, including an empty suffix, is rejected with
-a `422` on `order.{column}` rather than ignored. `paginate()` appends the model key in the last direction when the
-order does not already include it, so rows tied on the requested columns never repeat or go missing between pages. The
-appended key needs no `sortable()` declaration and does not count against `max_order_keys`. A grouped read takes its
-group columns instead; a read grouped by an expression, filtered by `having` without groups, `distinct` on columns, or
-`distinct` without selecting the columns it would take gets nothing appended and needs a unique order of its own.
+A direction is `asc` (the default) or `desc`, in any case; anything else, including an empty suffix, is rejected with a
+`422` on `order.{column}` rather than ignored, as is a column ordered by twice. `paginate()` appends the model key in
+the last direction when the order does not already include it, so rows tied on the requested columns never repeat or go
+missing between pages. The appended key needs no `sortable()` declaration and does not count against `max_order_keys`. A
+grouped read takes its group columns instead; a read grouped by an expression, filtered by `having` without groups,
+`distinct` on columns, or `distinct` without selecting the columns it would take gets nothing appended and needs a
+unique order of its own.
 
 A cursor can only seek by a column that holds a value in every row, so a cursor-paginated read rejects `random` and
 any column the cached column catalogue reports as nullable, such as the `created_at` that `timestamps()` creates;
