@@ -18,6 +18,14 @@ surface, repositories, a JSON exception handler, a service layer and an OpenAPI 
 composer require sinemacula/laravel-api-toolkit
 ```
 
+### Laravel Boost
+
+The package ships a skill holding its authoring rules, at `resources/boost/skills/laravel-api-toolkit/SKILL.md`. With
+Laravel Boost, `php artisan boost:install` offers it and `php artisan boost:update` refreshes the installed copy after a
+toolkit upgrade; Boost reads skills from direct dependencies only. Without Boost, copy
+`vendor/sinemacula/laravel-api-toolkit/resources/boost/skills/laravel-api-toolkit` into the skills directory your
+tooling reads, and copy it again after each upgrade.
+
 ## Configuration
 
 Publish the config file:
