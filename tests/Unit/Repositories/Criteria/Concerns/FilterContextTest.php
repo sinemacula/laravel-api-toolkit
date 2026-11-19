@@ -32,6 +32,7 @@ final class FilterContextTest extends TestCase
     {
         $root = FilterContext::root();
 
+        self::assertSame('', $root->pointer());
         self::assertSame('/name', $root->pointerTo('name'));
         self::assertSame('filters', $root->path());
     }
@@ -47,6 +48,7 @@ final class FilterContextTest extends TestCase
     {
         $child = FilterContext::root()->descend('$or')->at('1')->descend('posts');
 
+        self::assertSame('/$or/1/posts', $child->pointer());
         self::assertSame('/$or/1/posts/name', $child->pointerTo('name'));
         self::assertSame('filters.$or.1.posts', $child->path());
         self::assertSame('filters.$or.1.posts.name', $child->at('name')->path());

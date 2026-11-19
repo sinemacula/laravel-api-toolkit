@@ -104,6 +104,16 @@ final readonly class FilterContext
     }
 
     /**
+     * Return the JSON pointer to the current level.
+     *
+     * @return string
+     */
+    public function pointer(): string
+    {
+        return $this->pointer;
+    }
+
+    /**
      * Return the dot path to the current level.
      *
      * @return string

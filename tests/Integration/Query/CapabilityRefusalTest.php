@@ -18,7 +18,9 @@ use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Repositories\LogRepository;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\CapabilitySpectrumLogResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\TestCase;
 
@@ -35,6 +37,7 @@ use Tests\TestCase;
  */
 #[CoversClass(Capability::class)]
 #[CoversClass(FilterApplier::class)]
+#[CoversClass(OperatorRegistry::class)]
 #[CoversClass(QuerySurface::class)]
 final class CapabilityRefusalTest extends TestCase
 {
@@ -60,6 +63,13 @@ final class CapabilityRefusalTest extends TestCase
             $users = $repository->usingResource(FilterableUserResource::class)->withApiCriteria()->paginate();
 
             return new ApiResourceCollection($users, FilterableUserResource::class);
+        });
+
+        Route::middleware(ParseApiQuery::class)->get('/logs', function (LogRepository $repository): ApiResourceCollection {
+
+            $logs = $repository->usingResource(CapabilitySpectrumLogResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($logs, CapabilitySpectrumLogResource::class);
         });
 
         User::create(['name' => 'Alice', 'email' => 'alice@example.com', 'status' => 'active']);
@@ -119,17 +129,16 @@ final class CapabilityRefusalTest extends TestCase
     }
 
     /**
-     * Test that a token the capability matrix does not govern is applied.
+     * Test that a registered token is answered on a column its capability
+     * admits.
      *
      * @return void
      */
-    public function testTokenTheMatrixDoesNotGovernIsAnswered(): void
+    public function testRegisteredTokenIsAnsweredOnAnAdmittedColumn(): void
     {
-        app(OperatorRegistry::class)->override('$starts', static function (Builder $query, string $column, mixed $value): void {
-            $query->where($column, 'like', (is_scalar($value) ? (string) $value : '') . '%');
-        });
+        $this->registerStartsWith();
 
-        $response = $this->recordQueries(['name' => ['$starts' => 'Ali']]);
+        $response = $this->recordQueries(['id' => ['$starts' => '1']]);
 
         $response->assertOk();
         $response->assertJsonCount(1, 'data');
@@ -137,17 +146,44 @@ final class CapabilityRefusalTest extends TestCase
     }
 
     /**
+     * Test that a registered token on an opaque column issues no SQL.
+     *
+     * @return void
+     */
+    public function testRegisteredTokenOnAnOpaqueColumnIssuesNoSql(): void
+    {
+        $this->registerStartsWith();
+
+        $response = $this->recordQueries(['message' => ['$starts' => 'disk']], '/logs');
+
+        $this->assertRefusalEnvelope($response, 'message', '$starts', '$eq');
+    }
+
+    /**
+     * Register a prefix-match token admitted on ordered columns only.
+     *
+     * @return void
+     */
+    private function registerStartsWith(): void
+    {
+        app(OperatorRegistry::class)->register('$starts', static function (Builder $query, string $column, mixed $value): void {
+            $query->where($column, 'like', (is_scalar($value) ? (string) $value : '') . '%');
+        }, Capability::RANGE);
+    }
+
+    /**
      * Dispatch a filtered request, recording every statement it issued.
      *
      * @param  array<string, mixed>  $filters
+     * @param  string  $path
      * @return \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>
      */
-    private function recordQueries(array $filters): TestResponse
+    private function recordQueries(array $filters, string $path = '/users'): TestResponse
     {
         DB::flushQueryLog();
         DB::enableQueryLog();
 
-        $response = $this->getJson('/users?filters=' . urlencode((string) json_encode($filters)));
+        $response = $this->getJson($path . '?filters=' . urlencode((string) json_encode($filters)));
 
         $this->queries = DB::getQueryLog();
 

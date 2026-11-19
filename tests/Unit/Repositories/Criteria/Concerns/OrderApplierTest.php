@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
@@ -393,6 +394,7 @@ final class OrderApplierTest extends TestCase
             new CompiledSchema([], sortableColumns: ['name', 'email', 'created_at']),
             new RelationTraversal(app(SchemaIntrospectionProvider::class), []),
             new CallerAdmission(Request::create('/'), new GuardEvaluator),
+            app(OperatorRegistry::class),
         );
     }
 
