@@ -71,6 +71,44 @@ final class OpenApiSettingsTest extends TestCase
     }
 
     /**
+     * Test that drivers sharing a scheme name must share its definition, since
+     * the document carries one definition per name.
+     *
+     * @return void
+     */
+    public function testSecurityDriversRefuseOneSchemeNameWithTwoDefinitions(): void
+    {
+        Config::set('api-toolkit.openapi.security.drivers', [
+            'passport' => ['name' => 'oauth', 'definition' => ['type' => 'oauth2']],
+            'sanctum'  => ['name' => 'oauth', 'definition' => ['type' => 'oauth2']],
+            'token'    => ['name' => 'oauth', 'definition' => ['type' => 'http', 'scheme' => 'bearer']],
+        ]);
+
+        $this->assertRefused(
+            OpenApiSettings::securityDrivers(...),
+            'The api-toolkit.openapi.security.drivers.token.definition setting must be the oauth definition the passport driver declares; [array] given.',
+        );
+    }
+
+    /**
+     * Test that drivers sharing a scheme name and its definition are read.
+     *
+     * @return void
+     */
+    public function testSecurityDriversAcceptOneSchemeNameWithOneDefinition(): void
+    {
+        $drivers = [
+            'passport' => ['name' => 'oauth', 'definition' => ['type' => 'oauth2']],
+            'sanctum'  => ['name' => 'oauth', 'definition' => ['type' => 'oauth2']],
+            'session'  => ['name' => 'cookie', 'definition' => ['type' => 'apiKey']],
+        ];
+
+        Config::set('api-toolkit.openapi.security.drivers', $drivers);
+
+        self::assertSame($drivers, OpenApiSettings::securityDrivers());
+    }
+
+    /**
      * Provide malformed audiences, with the message each fails with.
      *
      * @return iterable<string, array{mixed, string}>
