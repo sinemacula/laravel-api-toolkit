@@ -140,17 +140,19 @@ final class ValueResolver
 
         foreach ($selected as $presentKey => $definition) {
 
-            $value = $this->readAggregate($owner, $definition, $attributes);
+            $attribute = $definition->attribute();
+            $renders   = array_key_exists($attribute, $attributes)
+                && ($attributes[$attribute] !== null || $definition->function->requiresColumn());
 
             if (
-                $value instanceof MissingValue
+                !$renders
                 || !$this->guardEvaluator->passesCallerGuards($definition->callerGuards, $request)
                 || !$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)
             ) {
                 continue;
             }
 
-            $result[$presentKey] = $this->applyTransformers($definition->transformers, $resource, $value);
+            $result[$presentKey] = $this->applyTransformers($definition->transformers, $resource, $this->readAggregate($owner, $definition, $attributes[$attribute]));
         }
 
         return $result;
@@ -416,23 +418,17 @@ final class ValueResolver
     }
 
     /**
-     * Read a loaded aggregate the way its function defines it.
-     *
-     * A column aggregate over no related values is null; a null count or
-     * existence check, like an aggregate never loaded, is missing.
+     * Read a raw aggregate value the way its function defines it.
      *
      * @param  object  $owner
      * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $definition
-     * @param  array<string, mixed>  $attributes
+     * @param  mixed  $raw
      * @return mixed
      */
-    private function readAggregate(object $owner, CompiledAggregateDefinition $definition, array $attributes): mixed
+    private function readAggregate(object $owner, CompiledAggregateDefinition $definition, mixed $raw): mixed
     {
-        $attribute = $definition->attribute();
-        $raw       = $attributes[$attribute] ?? null;
-
         if ($raw === null) {
-            return array_key_exists($attribute, $attributes) && $definition->function->requiresColumn() ? null : new MissingValue;
+            return null;
         }
 
         return match ($definition->function) {

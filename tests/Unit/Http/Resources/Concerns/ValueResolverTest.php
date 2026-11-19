@@ -1518,6 +1518,25 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
+     * Test that a guard hides a minimum before the related cast reads it, so a
+     * value the cast refuses never surfaces.
+     *
+     * @return void
+     */
+    public function testResolveAggregatesPayloadGuardsAMinimumBeforeReadingIt(): void
+    {
+        ApiQuery::shouldReceive('getAggregates')->with('owners')->andReturn(null);
+
+        $owner  = (new AggregateOwner)->setRawAttributes(['aggregate_hidden_status' => 'bogus', 'aggregate_withheld_status' => 'bogus']);
+        $schema = $this->aggregateSchema(
+            $this->aggregate('hidden_status', AggregateFunction::MIN, 'status', 'lines', guards: [static fn (): bool => false]),
+            $this->aggregate('withheld_status', AggregateFunction::MAX, 'status', 'lines', callerGuards: [static fn (): bool => false]),
+        );
+
+        self::assertSame([], $this->resolver->resolveAggregatesPayload($owner, $schema, 'owners', null));
+    }
+
+    /**
      * Test that a minimum over a relation the owner cannot resolve is returned
      * raw, and the miss is memoised.
      *
