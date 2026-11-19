@@ -471,19 +471,22 @@ final class FilterSchemaBuilderTest extends TestCase
     public function testScopesAllRequiringArgumentsAreInvokedOnlyWithThem(): void
     {
         $document = $this->document($this->surface(ManualUserResource::class, [], scopes: [
-            new QueryScopeDescriptor('near', null, ['lat' => true, 'lng' => true, 'km' => true]),
-            new QueryScopeDescriptor('upcoming', null, ['from' => true]),
+            new QueryScopeDescriptor('near', null, ['lat' => true, 'lng' => true, 'km' => true, 'unit' => true]),
+            new QueryScopeDescriptor('upcoming', null, ['from' => true, 'until' => false]),
         ], models: [ManualUser::class]));
 
         $arguments = $this->scopeBuilder()->build(SchemaCompiler::compile(ManualUserResource::class));
 
+        /** @var array<string, mixed> $near */
+        $near = $arguments['near']['parameters'];
+
         /** @var array<string, mixed> $upcoming */
         $upcoming = $arguments['upcoming']['parameters'];
 
-        self::assertSame(['lat', 'lng', 'km'], $arguments['near']['parameters']['required']);
+        self::assertSame(['lat', 'lng', 'km'], $near['required']);
         self::assertSame([
             'type'                 => 'object',
-            'properties'           => ['near' => $arguments['near']['parameters'], 'upcoming' => [...$upcoming, 'required' => ['from']]],
+            'properties'           => ['near' => [...$near, 'required' => ['lat', 'lng', 'km', 'unit']], 'upcoming' => [...$upcoming, 'required' => ['from']]],
             'minProperties'        => 1,
             'additionalProperties' => false,
         ], $document['properties']['$scope']);
