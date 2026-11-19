@@ -15,10 +15,10 @@ use SineMacula\ApiToolkit\Config\LifecycleSettings;
 enum CacheKeys: string
 {
     // Store the per-column type/nullability definitions, per schema identity
-    case MODEL_SCHEMA_COLUMN_DEFINITIONS = 'model-schema-column-definitions:%s:%s';
+    case MODEL_SCHEMA_COLUMN_DEFINITIONS = 'model-schema-column-definitions:%s:%s:%s';
 
     // Store the indexes declared on each model's table, per schema identity
-    case MODEL_SCHEMA_INDEXES = 'model-schema-indexes:%s:%s';
+    case MODEL_SCHEMA_INDEXES = 'model-schema-indexes:%s:%s:%s';
 
     // Store the relations associated with each model
     case MODEL_RELATIONS = 'model-relations:%s:%s';

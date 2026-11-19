@@ -7,14 +7,15 @@ namespace SineMacula\ApiToolkit\Exceptions;
 use Illuminate\Support\Facades\Lang;
 use SineMacula\ApiToolkit\Contracts\ErrorCodeInterface;
 use SineMacula\Http\Enums\HttpStatus;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 /**
- * The base API exception.
+ * The base API exception, carrying its status and headers to any renderer.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-abstract class ApiException extends \Exception
+abstract class ApiException extends \Exception implements HttpExceptionInterface
 {
     /**
      * Constructor.
@@ -96,6 +97,7 @@ abstract class ApiException extends \Exception
      *
      * @return int
      */
+    #[\Override]
     public function getStatusCode(): int
     {
         return static::getHttpStatusCode();
@@ -146,6 +148,7 @@ abstract class ApiException extends \Exception
      *
      * @return array<string, mixed>
      */
+    #[\Override]
     public function getHeaders(): array
     {
         return (array) $this->headers;

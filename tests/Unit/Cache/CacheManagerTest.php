@@ -306,7 +306,7 @@ final class CacheManagerTest extends TestCase
     {
         Event::fake();
 
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class, 'users']));
 
         Cache::memo()->rememberForever($key, fn (): array => [ // @phpstan-ignore method.notFound
             ['name' => 'id', 'type_name' => 'integer', 'nullable' => false],
@@ -453,7 +453,7 @@ final class CacheManagerTest extends TestCase
     {
         Event::fake();
 
-        $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]);
+        $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class, 'users']);
 
         $earlier = new MetadataCacheWriter(new MetadataGeneration);
         $earlier->rememberMetadataForever($key, fn (): array => [['name' => 'stale-column', 'type_name' => 'varchar', 'nullable' => true]]);

@@ -50,6 +50,17 @@ final class Post extends Model
     }
 
     /**
+     * Get the tags associated with the post through the casting pivot, loaded
+     * under the "tagging" accessor.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Tests\Fixtures\Models\Tag, $this, \Tests\Fixtures\Models\PostTag, 'tagging'>
+     */
+    public function typedTags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'post_tag')->using(PostTag::class)->as('tagging');
+    }
+
+    /**
      * Get the countries associated with the post via a non-`id` related key.
      *
      * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Tests\Fixtures\Models\Country, $this>

@@ -63,6 +63,8 @@ use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PivotPostResource;
+use Tests\Fixtures\Resources\PivotUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -673,6 +675,40 @@ final class OpenApiExporterValidityTest extends TestCase
         self::assertFalse($this->validateAgainstExported($document, $pointer, [...$user, 'posts' => array_fill(0, 26, $post)])->isValid());
         self::assertFalse($this->validateAgainstExported($document, $pointer, [...$user, '_truncated' => ['email']])->isValid());
         self::assertFalse($this->validateAgainstExported($document, $pointer, [...$user, '_truncated' => []])->isValid());
+    }
+
+    /**
+     * Test that pivot columns keep the document valid, and a payload carrying
+     * them validates against the relation's items.
+     *
+     * @return void
+     */
+    public function testPivotPayloadValidatesAgainstTheRelationItems(): void
+    {
+        $this->registerUserRoutes();
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [
+            User::class => PivotUserResource::class,
+            Post::class => PivotPostResource::class,
+            Tag::class  => TagResource::class,
+        ]);
+
+        SchemaCompiler::clearCache();
+
+        $document = $this->export()->document;
+        $pointer  = '/components/schemas/PivotPost';
+        $stamps   = ['created_at' => '2026-01-01T09:00:00Z', 'updated_at' => '2026-01-02T09:00:00Z'];
+        $tag      = ['_type' => 'tags', 'id' => 1, 'name' => 'php', ...$stamps];
+        $post     = ['_type' => 'pivot_posts', 'id' => 1, 'title' => 'First'];
+        $typed    = [...$tag, 'pivot' => ['role' => 'primary', 'tagged_at' => '2026-01-01T10:00:00.000000Z']];
+        $tagProps = $document['components']['schemas']['Tag']['properties'];
+
+        self::assertTrue($this->validateDocument($document)->isValid(), $this->formatErrors($this->validateDocument($document)));
+        self::assertIsArray($tagProps);
+        self::assertArrayNotHasKey('pivot', $tagProps);
+        $rendered = [...$post, 'tags' => [[...$tag, 'pivot' => ['role' => null]]], 'typed_tags' => [$typed, $tag]];
+
+        self::assertTrue($this->validateAgainstExported($document, $pointer, $rendered)->isValid());
+        self::assertFalse($this->validateAgainstExported($document, $pointer, [...$post, 'typed_tags' => [[...$tag, 'pivot' => ['role' => 'owner']]]])->isValid());
     }
 
     /**

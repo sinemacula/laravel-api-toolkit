@@ -5,13 +5,18 @@ declare(strict_types = 1);
 namespace Tests\Integration\Services;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Services\Events\ServiceFailed;
 use SineMacula\ApiToolkit\Services\Input\ArrayInput;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
+use Tests\Fixtures\Exceptions\ServiceExecutionException;
+use Tests\Fixtures\Services\ConcernedService;
 use Tests\Fixtures\Services\Concerns\InnerRecordingConcern;
 use Tests\Fixtures\Services\Concerns\OuterRecordingConcern;
 use Tests\Fixtures\Services\Concerns\RecordingConcern;
+use Tests\Fixtures\Services\Concerns\ThrowingConcern;
 use Tests\TestCase;
 
 /**
@@ -90,5 +95,28 @@ final class ServiceConcernOrderTest extends TestCase
         self::assertSame($expected, RecordingConcern::$levels['outer']);
         self::assertSame($expected, RecordingConcern::$levels['inner']);
         self::assertSame($expected, RecordingConcern::$levels['core']);
+    }
+
+    /**
+     * Test that a concern throwing after handle() wrote rolls the write back
+     * and fails the run.
+     *
+     * @return void
+     */
+    public function testThrowingConcernRollsBackAndFails(): void
+    {
+        Event::fake([ServiceFailed::class]);
+
+        $service = new ConcernedService([ThrowingConcern::class]);
+
+        $result = $service->run();
+
+        self::assertTrue($result->failed());
+        self::assertInstanceOf(ServiceExecutionException::class, $result->exception);
+        self::assertSame('The concern refused the result.', $result->exception->getMessage());
+        self::assertSame(['prepare', 'handle', 'onFailure'], $service->calls);
+        self::assertSame(0, DB::table('users')->count());
+
+        Event::assertDispatched(ServiceFailed::class, static fn (ServiceFailed $event): bool => $event->result === $result);
     }
 }
