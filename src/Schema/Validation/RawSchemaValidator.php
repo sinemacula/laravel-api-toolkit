@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Schema\AggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Schema\Scope;
 
 /**
  * Refuses raw schema definitions the compiled definitions cannot carry.
@@ -36,6 +37,9 @@ final class RawSchemaValidator
 
     /** @var string The characters an aggregate key may hold, so it survives the relation alias and the SQL alias */
     private const string AGGREGATE_KEY_PATTERN = '/^[\w\p{M}]+$/Du';
+
+    /** @var string The grammar of a PHP parameter name, which a scope argument binds to */
+    private const string ARGUMENT_PATTERN = '/\A[A-Za-z_][A-Za-z0-9_]*\z/';
 
     /** @var int The longest identifier PostgreSQL keeps before truncating it */
     private const int MAX_ATTRIBUTE_BYTES = 63;
@@ -66,6 +70,7 @@ final class RawSchemaValidator
                 ...self::collectCapabilityDefects($key, $definition, $capabilities),
                 ...self::collectAggregateDefects($key, $definition, $aggregates),
                 ...self::collectRelationDefects($key, $definition, $relations, $traversed),
+                ...self::collectScopeDefects($key, $definition),
             ];
 
             foreach ($defects as $defect) {
@@ -355,6 +360,39 @@ final class RawSchemaValidator
             }
 
             $defects[] = sprintf('Relation "%s" names a nested path; declare each segment as a relation of its own resource', $name);
+        }
+
+        return $defects;
+    }
+
+    /**
+     * Collect the scope arguments that cannot bind to a parameter by name.
+     *
+     * @param  string  $key
+     * @param  array<string, mixed>  $definition
+     * @return list<string>
+     */
+    private static function collectScopeDefects(string $key, array $definition): array
+    {
+        if (!str_starts_with($key, Scope::KEY_PREFIX)) {
+            return [];
+        }
+
+        $parameters = $definition['parameters'] ?? [];
+
+        if (!is_array($parameters)) {
+            return ['Scope parameters must be an array of validation rules keyed by argument'];
+        }
+
+        $defects = [];
+
+        foreach (Scope::argumentsOf($parameters) as $argument) {
+
+            if (preg_match(self::ARGUMENT_PATTERN, $argument) === 1) {
+                continue;
+            }
+
+            $defects[] = sprintf('Scope argument "%s" must be a PHP identifier, as it binds to the scope parameter of that name', $argument);
         }
 
         return $defects;

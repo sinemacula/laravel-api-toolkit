@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Schema\BaseDefinition;
 use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
+use SineMacula\ApiToolkit\Schema\Scope;
 use SineMacula\ApiToolkit\Schema\Sum;
 use SineMacula\ApiToolkit\Schema\Validation\RawSchemaValidator;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
@@ -724,6 +725,31 @@ final class RawSchemaValidatorTest extends TestCase
         self::assertSame([
             [self::RESOURCE, 'posts', self::sharedRelation('"posts", "bounded_posts"', 'posts')],
             [self::RESOURCE, 'comments', self::sharedRelation('"comments", "open_comments"', 'comments')],
+        ], $errors);
+    }
+
+    /**
+     * Test that a scope argument whose root is no PHP identifier is refused,
+     * while a list argument and its items are one argument.
+     *
+     * @return void
+     */
+    public function testRefusesAScopeArgumentThatCannotBindToAParameter(): void
+    {
+        $errors = $this->collectErrors(Field::set(
+            Scope::of('identified')->parameters(['ids' => 'array', 'ids.*' => 'integer']),
+            Scope::of('near')->parameters(['lat' => 'numeric', '1st' => 'integer', 'max-km' => 'integer', '*.km' => 'integer']),
+            ['__scope__:broken' => ['scope' => 'broken', 'parameters' => 'lat']],
+            ['score' => ['parameters' => ['1st' => 'integer']]],
+        ));
+
+        $defect = 'Scope argument "%s" must be a PHP identifier, as it binds to the scope parameter of that name';
+
+        self::assertSame([
+            [self::RESOURCE, '__scope__:near', sprintf($defect, '1st')],
+            [self::RESOURCE, '__scope__:near', sprintf($defect, 'max-km')],
+            [self::RESOURCE, '__scope__:near', sprintf($defect, '*')],
+            [self::RESOURCE, '__scope__:broken', 'Scope parameters must be an array of validation rules keyed by argument'],
         ], $errors);
     }
 

@@ -250,6 +250,9 @@ final class ManualExamplesTest extends TestCase
             $table->string('first_name')->nullable();
             $table->string('last_name')->nullable();
             $table->unsignedInteger('age')->nullable();
+            $table->double('latitude')->nullable();
+            $table->double('longitude')->nullable();
+            $table->timestamp('starts_at')->nullable();
             $table->softDeletes();
         });
 
