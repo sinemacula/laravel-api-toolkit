@@ -12,6 +12,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
+use Tests\Concerns\ValidatesOpenApiDocuments;
 use Tests\Concerns\WritesDocsDirectories;
 use Tests\Fixtures\Controllers\ArticleController;
 use Tests\Fixtures\Models\Article;
@@ -44,7 +45,7 @@ use Tests\TestCase;
 #[CoversClass(OpenApiAssembler::class)]
 final class OpenApiGoldenDocumentTest extends TestCase
 {
-    use WritesDocsDirectories;
+    use ValidatesOpenApiDocuments, WritesDocsDirectories;
 
     /** @var string The directory holding the golden document of each audience */
     private const string GOLDEN = __DIR__ . '/../../Fixtures/OpenApi/Golden';
@@ -116,14 +117,23 @@ final class OpenApiGoldenDocumentTest extends TestCase
     }
 
     /**
-     * Test that each audience's export matches its golden document byte for
-     * byte.
+     * Test that each audience's export is valid OpenAPI and matches its golden
+     * document byte for byte.
      *
      * @return void
      */
     public function testExportMatchesTheGoldenDocuments(): void
     {
         foreach ($this->exportDocuments() as $audience => $document) {
+
+            $result  = $this->validateJson($document);
+            $decoded = json_decode($document, true, 512, JSON_THROW_ON_ERROR);
+
+            self::assertTrue($result->isValid(), sprintf('The [%s] export is not valid OpenAPI 3.1: %s', $audience, $this->formatErrors($result)));
+            self::assertIsArray($decoded);
+
+            /** @var array<string, mixed> $decoded */
+            $this->assertReferencesResolve($decoded);
 
             $golden = self::GOLDEN . '/' . $audience . '.json';
 
