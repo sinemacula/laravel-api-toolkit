@@ -21,6 +21,7 @@ use Illuminate\Queue\Events\JobAttempted;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\JobTimedOut;
+use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Event;
@@ -49,6 +50,7 @@ use SineMacula\ApiToolkit\Http\Resources\ResourceMetadataService;
 use SineMacula\ApiToolkit\Listeners\NotificationListener;
 use SineMacula\ApiToolkit\Listeners\QueueFlushSubscriber;
 use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
+use SineMacula\ApiToolkit\OpenApi\Docs\DocsDirectory;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LifecycleRegistrar;
 use SineMacula\ApiToolkit\Providers\Registrars\LoggingRegistrar;
@@ -1444,6 +1446,67 @@ final class ApiServiceProviderTest extends TestCase
             [$this->getProviderPath('/../resources/lang') => $this->getApplication()->langPath('vendor/api-toolkit')],
             $paths,
         );
+    }
+
+    /**
+     * Test that the docs publish into the directory the export reads.
+     *
+     * @return void
+     */
+    public function testDocsArePublishableToTheDirectoryTheExportReads(): void
+    {
+        $paths = ServiceProvider::pathsToPublish(ApiServiceProvider::class, 'api-toolkit-docs');
+
+        self::assertSame([$this->getProviderPath('/../resources/api-docs') => resource_path('api-docs')], $paths);
+        self::assertSame(resource_path('api-docs'), (new DocsDirectory)->root());
+    }
+
+    /**
+     * Test that a boot outside the console offers nothing for publishing.
+     *
+     * @return void
+     */
+    public function testBootOutsideTheConsoleOffersNothingForPublishing(): void
+    {
+        $publishes     = ServiceProvider::$publishes;
+        $publishGroups = ServiceProvider::$publishGroups;
+        $stubListeners = $this->countRawListeners(PublishingStubs::class);
+
+        ServiceProvider::$publishes     = [];
+        ServiceProvider::$publishGroups = [];
+
+        try {
+            $this->outsideTheConsole(fn () => (new ApiServiceProvider($this->getApplication()))->boot());
+
+            self::assertSame([], ServiceProvider::$publishes);
+            self::assertSame([], ServiceProvider::$publishGroups);
+            self::assertSame($stubListeners, $this->countRawListeners(PublishingStubs::class));
+        } finally {
+            ServiceProvider::$publishes     = $publishes;
+            ServiceProvider::$publishGroups = $publishGroups;
+        }
+    }
+
+    /**
+     * Test that booting installs the audience route macros.
+     *
+     * @return void
+     */
+    public function testBootInstallsTheRouteMacros(): void
+    {
+        $macros = $this->getStaticProperty(Route::class, 'macros');
+
+        Route::flushMacros();
+
+        try {
+            (new ApiServiceProvider($this->getApplication()))->boot();
+
+            self::assertTrue(Route::hasMacro('undocumented'));
+            self::assertTrue(Route::hasMacro('documentedIn'));
+            self::assertTrue(Route::hasMacro('notDocumentedIn'));
+        } finally {
+            $this->setStaticProperty(Route::class, 'macros', $macros);
+        }
     }
 
     /**
