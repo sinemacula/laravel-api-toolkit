@@ -17,8 +17,9 @@ use SineMacula\ApiToolkit\Enums\FilterValueShape;
  * Filter operator handler for the $contains (JSON containment) token.
  *
  * Each item matches an element of an array document, or the whole of a scalar
- * document, of the same JSON type. A list matches when every item does, a
- * comma-separated string when any of its items does.
+ * document, of the same JSON type; on MySQL, also an element of a nested array.
+ * A list matches when every item does, a comma-separated string when any of its
+ * items does.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -103,7 +104,8 @@ final class ContainsOperator implements DeclaresValueShape, ExpandsValueList, Fi
      * Constrain the document to contain the item, joined by the given boolean.
      *
      * SQLite's own clause compares the bare SQL value of every member, so it
-     * cannot tell true from 1 or an object's values from an array's elements.
+     * cannot tell true from 1 or an object's values from an array's elements. A
+     * number is bound as JSON text, as a bound float keeps only 14 digits.
      *
      * @param  \Illuminate\Database\Query\Builder  $query
      * @param  string  $column
@@ -129,7 +131,7 @@ final class ContainsOperator implements DeclaresValueShape, ExpandsValueList, Fi
             match (true) {
                 is_bool($item)   => $elements->where('json_each.type', $item ? 'true' : 'false'),
                 is_string($item) => $elements->where('json_each.type', 'text')->where('json_each.value', $item),
-                default          => $elements->whereIn('json_each.type', ['integer', 'real'])->whereRaw('json_each.value = cast(? as numeric)', [$item]),
+                default          => $elements->whereIn('json_each.type', ['integer', 'real'])->whereRaw('json_each.value = cast(? as numeric)', [json_encode($item)]),
             };
         }, $boolean);
     }

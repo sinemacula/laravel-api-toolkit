@@ -75,6 +75,7 @@ final class FilterValueGuardTest extends TestCase
         yield 'undescribed column' => [FilterValueShape::SCALAR, 'missing', true, true];
         yield 'element of any type on a typed column' => [FilterValueShape::ELEMENTS, 'count', 'abc', 'abc'];
         yield 'boolean element' => [FilterValueShape::ELEMENTS, 'label', false, false];
+        yield 'float element on an integer column' => [FilterValueShape::ELEMENTS, 'count', 1.5, 1.5];
         yield 'list of elements' => [FilterValueShape::ELEMENTS, 'label', ['php', 2, true], ['php', 2, true]];
     }
 
@@ -137,6 +138,8 @@ final class FilterValueGuardTest extends TestCase
         yield 'null element' => [FilterValueShape::ELEMENTS, 'label', [null], 'Item 0 of the $op condition on "label" must be ' . $scalar . '.'];
         yield 'NUL element' => [FilterValueShape::ELEMENTS, 'label', "a\0", 'The $op condition on "label" must be free of NUL characters.'];
         yield 'NUL item' => [FilterValueShape::ELEMENTS, 'label', ['a', "b\0"], 'Item 1 of the $op condition on "label" must be free of NUL characters.'];
+        yield 'infinite element' => [FilterValueShape::ELEMENTS, 'label', INF, 'The $op condition on "label" must be a finite number.'];
+        yield 'NaN item' => [FilterValueShape::ELEMENTS, 'label', [1, NAN], 'Item 1 of the $op condition on "label" must be a finite number.'];
     }
 
     /**

@@ -955,13 +955,13 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that $contains with an array value uses whereJsonContains.
+     * Test that $contains with a list value adds a containment clause.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testContainsWithArrayValueUsesWhereJsonContains(): void
+    public function testContainsWithListValueAddsAContainmentClause(): void
     {
         $this->parseRequest(new Request([
             'filters' => json_encode(['context' => [self::OPERATOR_CONTAINS => ['php']]]),
@@ -991,13 +991,13 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that $contains with a plain scalar string uses whereJsonContains.
+     * Test that $contains with a plain string adds a containment clause.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testContainsWithPlainStringUsesWhereJsonContains(): void
+    public function testContainsWithPlainStringAddsAContainmentClause(): void
     {
         $this->parseRequest(new Request([
             'filters' => json_encode(['context' => [self::OPERATOR_CONTAINS => 'php']]),

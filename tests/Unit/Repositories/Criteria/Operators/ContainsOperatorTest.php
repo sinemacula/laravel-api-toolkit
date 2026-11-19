@@ -67,11 +67,11 @@ final class ContainsOperatorTest extends TestCase
         $boolean = sprintf(self::SQLITE_ELEMENT, '"json_each"."type" = ?');
 
         yield 'SQLite string' => [SQLiteGrammar::class, 'php', $string, ['object', 'text', 'php']];
-        yield 'SQLite integer' => [SQLiteGrammar::class, 1, $number, ['object', 'integer', 'real', 1]];
-        yield 'SQLite float' => [SQLiteGrammar::class, 1.5, $number, ['object', 'integer', 'real', 1.5]];
+        yield 'SQLite integer' => [SQLiteGrammar::class, 1, $number, ['object', 'integer', 'real', '1']];
+        yield 'SQLite float' => [SQLiteGrammar::class, 1.2345678901234567, $number, ['object', 'integer', 'real', '1.2345678901234567']];
         yield 'SQLite true' => [SQLiteGrammar::class, true, $boolean, ['object', 'true']];
         yield 'SQLite false' => [SQLiteGrammar::class, false, $boolean, ['object', 'false']];
-        yield 'SQLite list' => [SQLiteGrammar::class, ['php', 2], $string . ' and ' . $number, ['object', 'text', 'php', 'object', 'integer', 'real', 2]];
+        yield 'SQLite list' => [SQLiteGrammar::class, ['php', 2], $string . ' and ' . $number, ['object', 'text', 'php', 'object', 'integer', 'real', '2']];
         yield 'SQLite JSON-encoded string' => [SQLiteGrammar::class, '["php"]', $string, ['object', 'text', '["php"]']];
         yield 'MySQL string' => [MySqlGrammar::class, 'php', self::MYSQL_ELEMENT, ['"php"']];
         yield 'MySQL list' => [MySqlGrammar::class, ['php', true], self::MYSQL_ELEMENT . ' and ' . self::MYSQL_ELEMENT, ['"php"', 'true']];

@@ -63,8 +63,10 @@ final class ContainsFilterHttpTest extends TestCase
         Log::create(['level' => 'info', 'message' => 'php', 'context' => ['php']]);
         Log::create(['level' => 'info', 'message' => 'rust', 'context' => ['rust']]);
         Log::create(['level' => 'info', 'message' => 'numbers', 'context' => [1, 2]]);
+        Log::create(['level' => 'info', 'message' => 'precise', 'context' => [1.2345678901234567]]);
         Log::create(['level' => 'info', 'message' => 'flag', 'context' => [true]]);
         Log::create(['level' => 'info', 'message' => 'object', 'context' => ['role' => 'admin']]);
+        Log::create(['level' => 'info', 'message' => 'scalar', 'context' => 'rust']);
     }
 
     /**
@@ -77,14 +79,15 @@ final class ContainsFilterHttpTest extends TestCase
         yield 'single-item list' => [['php'], ['pair', 'php']];
         yield 'list held whole by one row' => [['php', 'laravel'], ['pair']];
         yield 'list held whole by no row' => [['php', 'rust'], []];
-        yield 'string' => ['rust', ['rust']];
+        yield 'string' => ['rust', ['rust', 'scalar']];
         yield 'value of an object member' => ['admin', []];
-        yield 'comma-separated string' => ['laravel,rust', ['pair', 'rust']];
+        yield 'comma-separated string' => ['laravel,rust', ['pair', 'rust', 'scalar']];
         yield 'JSON-encoded list' => ['["php"]', []];
         yield 'JSON-encoded object' => ['{"role":"admin"}', []];
         yield 'integer' => [1, ['numbers']];
         yield 'integer list' => [[1, 2], ['numbers']];
         yield 'float equal to an integer' => [2.0, ['numbers']];
+        yield 'float of full precision' => [1.2345678901234567, ['precise']];
         yield 'digit string' => ['1', []];
         yield 'numeric comma-separated string' => ['1,2', []];
         yield 'true' => [true, ['flag']];

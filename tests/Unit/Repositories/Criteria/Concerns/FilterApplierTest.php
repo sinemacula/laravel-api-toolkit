@@ -338,17 +338,18 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that $contains with an array uses whereJsonContains.
+     * Test that a $contains list adds one clause per item, joined by AND.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithContainsArrayUsesWhereJsonContains(): void
+    public function testApplyWithContainsListRequiresEveryItem(): void
     {
-        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => ['php']]]);
+        $query = $this->applyFilters(['name' => 'Alice', 'context' => [self::OPERATOR_CONTAINS => ['php', 'rust']]]);
 
-        self::assertNotEmpty($result->getQuery()->wheres);
+        self::assertStringEndsWith('where "users"."name" = ? and ' . self::CONTAINS_STRING . ' and ' . self::CONTAINS_STRING, $query->toSql());
+        self::assertSame(['Alice', 'object', 'text', 'php', 'object', 'text', 'rust'], $query->getBindings());
     }
 
     /**
@@ -364,20 +365,6 @@ final class FilterApplierTest extends TestCase
 
         self::assertStringEndsWith('where "users"."name" = ? and (' . self::CONTAINS_STRING . ' or ' . self::CONTAINS_STRING . ')', $query->toSql());
         self::assertSame(['Alice', 'object', 'text', 'php', 'object', 'text', 'rust'], $query->getBindings());
-    }
-
-    /**
-     * Test that $contains with a plain string uses whereJsonContains.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testApplyWithContainsPlainStringUsesWhereJsonContains(): void
-    {
-        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => 'php']]);
-
-        self::assertNotEmpty($result->getQuery()->wheres);
     }
 
     /**

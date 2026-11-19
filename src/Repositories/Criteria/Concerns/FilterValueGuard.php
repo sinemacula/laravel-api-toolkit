@@ -152,6 +152,10 @@ final readonly class FilterValueGuard
             throw $this->rejectType($condition, $index, Rejection::message('filters.expected.scalar'));
         }
 
+        if (is_float($item) && !is_finite($item)) {
+            throw $this->rejectType($condition, $index, Rejection::message('filters.expected.number'));
+        }
+
         if (is_string($item) && str_contains($item, "\0")) {
             throw $this->rejectType($condition, $index, Rejection::message('filters.expected.nul'));
         }

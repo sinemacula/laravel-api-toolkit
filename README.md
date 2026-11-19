@@ -126,7 +126,8 @@ cannot be read, only the shape is checked.
 
 `$contains` matches an element of a JSON array, or a whole scalar document, of the same JSON type, so `1` matches
 neither `"1"` nor `true`. Its list must not be empty, and its items are not checked against the column's type. A string
-is never decoded as JSON; a comma-separated string matches any of its items, each a string.
+is never decoded as JSON; a comma-separated string matches any of its items, each a string. On MySQL an item also
+matches an element of a nested array.
 
 The entries of a filter document AND together, at every depth. `$and` and `$or` take a non-empty list of filter
 documents, each grouped on its own and joined by AND or OR:
