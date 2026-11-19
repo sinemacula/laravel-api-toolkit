@@ -255,7 +255,16 @@ any column the cached column catalogue reports as nullable, such as the `created
 declare the column `NOT NULL` to cursor-page by it. Offset pagination sorts by either. Columns a repository scope
 orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, does not carry a value for every
 ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column cannot hold is rejected
-with a `422` on `cursor`; restart from the first page.
+with a `422` on `cursor`; restart from the first page. A cursor carries each ordered column as the row stores it, not as
+the model casts it, so a microsecond timestamp, an enum or a value object seeks from exactly where its page ended. A
+model whose table has no column for its key is offset-paged without the appended key, and refused cursor pagination with
+a `422` on `pagination` unless the read is grouped and ordered.
+
+Filters and sorts compare by each column's collation, and each engine places NULLs its own way; the toolkit normalises
+neither. With default settings, MySQL matches `{"name":"alice"}` to `Alice` and sorts `anna`, `Ben`, `cara`;
+PostgreSQL matches case exactly and sorts by the database locale (`anna`, `Ben`, `cara` under `en_US.UTF-8`); SQLite
+matches and sorts byte by byte (`Ben`, `anna`, `cara`). An ascending sort puts NULLs first on MySQL and SQLite and last
+on PostgreSQL, and a descending sort the reverse.
 
 **Sorting by aggregates and relations** - an aggregate or a to-one relation declared `sortable()` can order a read.
 No index serves an order by a correlated subquery, so the declaration takes the reason the order may run unindexed:
@@ -616,8 +625,8 @@ skips schema validation while this command runs, so the command reports everythi
 
 Filters and sorts never read the index catalogue while they are served; only validation checks their index backing. Two
 schema reads do sit on the request path, both cached in the shared store: search reads its index proof, and one read of
-the table's column definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks and
-a cursor-paginated sort's refusal of a nullable key.
+the table's column definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks, a
+paginated read's search for the key column and a cursor-paginated sort's refusal of a nullable key.
 
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded

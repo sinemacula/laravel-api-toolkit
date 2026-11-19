@@ -70,6 +70,7 @@ return [
     'cursor' => [
         'malformed' => 'The cursor could not be read; restart from the first page.',
         'mismatch'  => 'The cursor does not match the requested order; restart from the first page.',
+        'keyless'   => 'This collection has no key to page by cursor; use offset pagination.',
     ],
 
     'search' => [
