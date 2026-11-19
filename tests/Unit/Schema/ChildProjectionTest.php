@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Schema\ChildProjection;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\UserResource;
 
 /**
  * Tests for the child projection.
@@ -46,5 +47,21 @@ final class ChildProjectionTest extends TestCase
 
         self::assertSame([], $projection->fields);
         self::assertTrue($projection->opaque);
+    }
+
+    /**
+     * Test that a projection plan maps each path to the child resource that
+     * renders it.
+     *
+     * @return void
+     */
+    public function testPlanMapsEachPathToItsChildResource(): void
+    {
+        $plan = [
+            'organization'       => new ChildProjection(OrganizationResource::class, ['id'], false),
+            'organization.users' => new ChildProjection(UserResource::class, [], true),
+        ];
+
+        self::assertSame(['organization' => OrganizationResource::class, 'organization.users' => UserResource::class], ChildProjection::resourcesOf($plan));
     }
 }

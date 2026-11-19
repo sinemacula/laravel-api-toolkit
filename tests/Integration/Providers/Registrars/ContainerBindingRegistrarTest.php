@@ -45,7 +45,9 @@ use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Fixtures\Input\StorePayload;
+use Tests\Fixtures\Models\DefaultLoadingUser;
 use Tests\Fixtures\Models\Log;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BrokenResource;
 use Tests\Fixtures\Resources\EmptyAccessorResource;
@@ -56,8 +58,10 @@ use Tests\Fixtures\Resources\MissingNeedsColumnResource;
 use Tests\Fixtures\Resources\MissingRelationClassResource;
 use Tests\Fixtures\Resources\NonResourceRelationResource;
 use Tests\Fixtures\Resources\OrganizationResource;
+use Tests\Fixtures\Resources\PublishedPostResource;
 use Tests\Fixtures\Resources\SearchableComputedResource;
 use Tests\Fixtures\Resources\SensitiveQueryableResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\ToOneLimitedRelationResource;
 use Tests\Fixtures\Resources\TrailingIndexSortableResource;
 use Tests\Fixtures\Resources\UndeclaredDefaultFieldResource;
@@ -177,6 +181,18 @@ final class ContainerBindingRegistrarTest extends TestCase
             BrokenResource::class,
             'nonExistentRelation',
             sprintf('Relation method "nonExistentRelation" does not exist on model "%s"', User::class),
+        ];
+
+        yield 'row perimeter defaults' => [
+            DefaultLoadingUser::class,
+            TagResource::class,
+            'posts',
+            sprintf(
+                'Model "%s" loads "posts" by default through $with, which reaches "posts", whose rows %s restricts; load it explicitly instead',
+                DefaultLoadingUser::class,
+                PublishedPostResource::class,
+            ),
+            ['api-toolkit.resources.resource_map' => [Post::class => PublishedPostResource::class]],
         ];
 
         yield 'relation limits' => [

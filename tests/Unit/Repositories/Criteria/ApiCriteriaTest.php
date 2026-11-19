@@ -39,6 +39,7 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BulkArticleResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\LogResource;
+use Tests\Fixtures\Resources\OwnPostResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\ProfileResource;
 use Tests\Fixtures\Resources\SearchableFilterableUserResource;
@@ -1396,6 +1397,44 @@ final class ApiCriteriaTest extends TestCase
         self::assertNull($query->getQuery()->limit);
         self::assertNull($query->getQuery()->columns);
         self::assertSame([], $query->getEagerLoads());
+    }
+
+    /**
+     * Provide each criteria mode.
+     *
+     * @return iterable<string, array{bool}>
+     */
+    public static function filtersOnlyProvider(): iterable
+    {
+        yield 'full criteria' => [false];
+        yield 'filters only' => [true];
+    }
+
+    /**
+     * Test that the resource's row rule leads the row selection, so the filters
+     * and everything built on them see only the visible rows, with or without
+     * the rest of the criteria.
+     *
+     * @param  bool  $filtersOnly
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('filtersOnlyProvider')]
+    public function testRowRuleLeadsTheRowSelection(bool $filtersOnly): void
+    {
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [OwnPostResource::class]);
+
+        $this->parseRequest(new Request(['filters' => json_encode(['title' => [self::OPERATOR_EQUAL => 'Launch']])]));
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class, ['filtersOnly' => $filtersOnly]);
+
+        $query = $criteria->usingResource(OwnPostResource::class)->apply(new Post);
+
+        self::assertStringContainsString('from "posts" where (0 = 1) and ("posts"."title" = ?)', $query->toSql());
     }
 
     /**

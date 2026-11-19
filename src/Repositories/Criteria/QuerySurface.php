@@ -31,6 +31,7 @@ final readonly class QuerySurface
      * @param  \SineMacula\ApiToolkit\Schema\RelationTraversal  $traversal
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission  $admission
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $operators
+     * @param  string|null  $resource
      */
     public function __construct(
 
@@ -45,6 +46,9 @@ final readonly class QuerySurface
 
         /** Decides which operators each capability admits */
         private OperatorRegistry $operators,
+
+        /** The resource a relation descends to, whose row rule its subquery applies */
+        public ?string $resource = null,
     ) {}
 
     /**
@@ -61,7 +65,7 @@ final readonly class QuerySurface
     {
         $resource = $this->schema === null ? null : $this->traversal->governingResource($this->schema, $relation, $related, $polymorphic);
 
-        return new self($resource === null ? null : SchemaCompiler::compile($resource), $this->traversal, $this->admission, $this->operators);
+        return new self($resource === null ? null : SchemaCompiler::compile($resource), $this->traversal, $this->admission, $this->operators, $resource);
     }
 
     /**
@@ -222,7 +226,7 @@ final readonly class QuerySurface
             return null;
         }
 
-        $child = new self(SchemaCompiler::compile($resource), $this->traversal, $this->admission, $this->operators);
+        $child = new self(SchemaCompiler::compile($resource), $this->traversal, $this->admission, $this->operators, $resource);
 
         return $child->sortsByColumn($column) ? SortTarget::related($relation, $column) : null;
     }

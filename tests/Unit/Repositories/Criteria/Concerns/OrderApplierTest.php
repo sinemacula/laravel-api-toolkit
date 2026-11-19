@@ -18,6 +18,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationAggregateOrder;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
@@ -482,7 +483,10 @@ final class OrderApplierTest extends TestCase
      */
     private function aggregateOrder(): RelationAggregateOrder
     {
-        return new RelationAggregateOrder(new RelationTrashedGate(app(SchemaIntrospectionProvider::class), Request::create('/'), []));
+        return new RelationAggregateOrder(
+            new RelationTrashedGate(app(SchemaIntrospectionProvider::class), Request::create('/'), []),
+            new RowPerimeter(Request::create('/'), []),
+        );
     }
 
     /**

@@ -314,6 +314,22 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
+     * Test that the surface a relation descends to names the resource governing
+     * it, declared over the relation or else mapped, and none when ungoverned.
+     *
+     * @return void
+     */
+    public function testThroughNamesTheGoverningResource(): void
+    {
+        $surface = $this->make(relations: ['author', 'posts', 'ghost'], resources: ['author' => PublicUserResource::class], resourceMap: [Post::class => PostResource::class]);
+
+        self::assertNull($surface->resource);
+        self::assertSame(PublicUserResource::class, $surface->through('author', new User, false)->resource);
+        self::assertSame(PostResource::class, $surface->through('posts', new Post, false)->resource);
+        self::assertNull($surface->through('ghost', new User, false)->resource);
+    }
+
+    /**
      * Test that a polymorphic descent is governed by the concrete type's mapped
      * resource, whatever resource the relation declares.
      *
