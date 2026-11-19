@@ -76,25 +76,42 @@ final readonly class RelationColumnNarrower
 
         foreach ($plan as $path => $projection) {
 
-            $relation   = $relations[$path];
-            $narrowable = $relation !== null && ($proven[str_contains($path, '.') ? Str::beforeLast($path, '.') : ''] ?? false);
+            $relation = $relations[$path];
 
-            $proven[$path] = $narrowable && $this->proves($relation->getRelated(), $projection->resource, $projection->fields);
-
-            if (!$narrowable || $projection->opaque || !self::loads($with, $path)) {
+            if ($relation === null || !($proven[str_contains($path, '.') ? Str::beforeLast($path, '.') : ''] ?? false)) {
                 continue;
             }
 
-            $columns = $this->projectColumns($path, $projection, $relation, $with);
-
-            if ($columns === null) {
-                continue;
-            }
-
-            $with = $this->narrowEntry($with, $path, $projection->resource, array_map($relation->getRelated()->qualifyColumn(...), $columns));
+            $proven[$path] = $this->proves($relation->getRelated(), $projection->resource, $projection->fields);
+            $with          = $this->narrowPath($with, $path, $projection, $relation);
         }
 
         return $with;
+    }
+
+    /**
+     * Narrow the path's entry when it alone renders its models and its columns
+     * can be proven.
+     *
+     * @param  array<int|string, mixed>  $with
+     * @param  string  $path
+     * @param  \SineMacula\ApiToolkit\Schema\ChildProjection  $projection
+     * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
+     * @return array<int|string, mixed>
+     */
+    private function narrowPath(array $with, string $path, ChildProjection $projection, EloquentRelation $relation): array
+    {
+        if ($projection->opaque || !self::loads($with, $path)) {
+            return $with;
+        }
+
+        $columns = $this->projectColumns($path, $projection, $relation, $with);
+
+        if ($columns === null) {
+            return $with;
+        }
+
+        return $this->narrowEntry($with, $path, $projection->resource, array_map($relation->getRelated()->qualifyColumn(...), $columns));
     }
 
     /**

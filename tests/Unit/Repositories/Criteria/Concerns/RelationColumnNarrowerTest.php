@@ -138,12 +138,16 @@ final class RelationColumnNarrowerTest extends TestCase
             }
         };
 
+        $organization = new ChildProjection(OrganizationResource::class, ['name'], false);
+        $posts        = new ChildProjection(PostResource::class, ['title'], false);
+        $notes        = new ChildProjection(NoteResource::class, ['title'], false);
+
         $cases = [
             [new Post, PostResource::class, 'user', new ChildProjection(UserResource::class, ['name'], false), ['users.name', 'users.id']],
-            [$slugged, PostResource::class, 'organization', new ChildProjection(OrganizationResource::class, ['name'], false), ['organizations.name', 'organizations.id', 'organizations.slug']],
-            [new User, UserResource::class, 'notes', new ChildProjection(NoteResource::class, ['title'], false), ['notes.title', 'notes.id', 'notes.noteable_id', 'notes.noteable_type']],
+            [$slugged, PostResource::class, 'organization', $organization, ['organizations.name', 'organizations.id', 'organizations.slug']],
+            [new User, UserResource::class, 'notes', $notes, ['notes.title', 'notes.id', 'notes.noteable_id', 'notes.noteable_type']],
             [new Post, PostResource::class, 'tags', new ChildProjection(TagResource::class, ['name'], false), ['tags.name', 'tags.id']],
-            [new Organization, OrganizationResource::class, 'posts', new ChildProjection(PostResource::class, ['title'], false), ['posts.title', 'posts.id']],
+            [new Organization, OrganizationResource::class, 'posts', $posts, ['posts.title', 'posts.id']],
         ];
 
         foreach ($cases as [$root, $resource, $name, $projection, $expected]) {
