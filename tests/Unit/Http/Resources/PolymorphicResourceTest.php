@@ -6,11 +6,12 @@ namespace Tests\Unit\Http\Resources;
 
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\JsonResource;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Exceptions\ResourceMappingException;
+use SineMacula\ApiToolkit\Http\Resources\PolymorphicCollection;
 use SineMacula\ApiToolkit\Http\Resources\PolymorphicResource;
+use SineMacula\ApiToolkit\Http\Resources\ToolkitResource;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
@@ -204,16 +205,19 @@ final class PolymorphicResourceTest extends TestCase
     }
 
     /**
-     * Test that PolymorphicResource extends JsonResource directly.
+     * Test that a polymorphic resource is a toolkit resource whose collection
+     * is a toolkit collection of polymorphic resources.
      *
      * @return void
      */
-    public function testPolymorphicResourceExtendsJsonResource(): void
+    public function testCollectionIsAToolkitCollectionOfPolymorphicResources(): void
     {
-        $resource = new PolymorphicResource(null);
+        $collection = PolymorphicResource::collection(collect([new User]));
 
-        self::assertInstanceOf(JsonResource::class, $resource);
-        self::assertSame(JsonResource::class, get_parent_class($resource));
+        self::assertInstanceOf(ToolkitResource::class, new PolymorphicResource(null));
+        self::assertInstanceOf(PolymorphicCollection::class, $collection);
+        self::assertSame(PolymorphicResource::class, $collection->collects);
+        self::assertInstanceOf(PolymorphicResource::class, $collection->collection?->first());
     }
 
     /**
