@@ -6,6 +6,7 @@ namespace Tests\Feature\Resources;
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -139,7 +140,7 @@ final class BoundedRelationHttpTest extends TestCase
         self::assertSame($this->postTitles($six, 5), array_column(self::rows($users[$six]['posts']), 'title'));
         self::assertSame(['posts'], $users[$six]['_truncated']);
 
-        $postQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'posts')));
+        $postQueries = self::statementsFrom($statements, 'posts');
 
         self::assertCount(1, $postQueries);
         self::assertStringContainsString('laravel_row', $postQueries[0]);
@@ -166,7 +167,7 @@ final class BoundedRelationHttpTest extends TestCase
         self::assertSame(['posts'], $record['_truncated']);
         self::assertSame($this->postTitles($user, 5), array_column(self::rows($record['posts']), 'title'));
 
-        $postQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'posts')));
+        $postQueries = self::statementsFrom($statements, 'posts');
 
         self::assertCount(1, $postQueries);
         self::assertStringContainsString('laravel_row', $postQueries[0]);
@@ -292,7 +293,7 @@ final class BoundedRelationHttpTest extends TestCase
             self::assertSame(['countries'], $post['_truncated']);
         }
 
-        $countryQueries = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'countries')));
+        $countryQueries = self::statementsFrom($statements, 'countries');
 
         self::assertCount(1, $countryQueries);
         self::assertStringContainsString('laravel_row', $countryQueries[0]);
@@ -510,6 +511,20 @@ final class BoundedRelationHttpTest extends TestCase
             'body'    => 'Body',
             'summary' => 'Summary',
         ]);
+    }
+
+    /**
+     * Return the statements that select from the given table.
+     *
+     * @param  array<int, string>  $statements
+     * @param  string  $table
+     * @return list<string>
+     */
+    private static function statementsFrom(array $statements, string $table): array
+    {
+        $from = 'from ' . DB::connection()->getQueryGrammar()->wrapTable($table);
+
+        return array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, $from)));
     }
 
     /**

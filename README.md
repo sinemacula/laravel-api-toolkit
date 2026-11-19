@@ -486,7 +486,8 @@ $with = UserResource::eagerLoadMapFor(UserResource::resolveFields());
 **Relation constraints and limits** - `constrain()` receives the relation itself, as a Laravel `with()` closure does, so
 `where()`, local scopes, `latest()` and pivot clauses such as `wherePivot()` all apply. A constraint may filter and
 order the relation but never bound it: a `limit()`, `take()` or `skip()` inside it that changes the relation's bound
-throws a `LogicException`. Bound a to-many relation with `limit()` instead:
+throws a `LogicException`, as does a `chaperone()` inside it while columns are narrowed; declare that on the relation
+method. Bound a to-many relation with `limit()` instead:
 
 ```php
 Relation::to('posts', PostResource::class)->limit(5)->constrain(fn ($query) => $query->latest()),
@@ -569,6 +570,15 @@ that column and the model reads it without an accessor, a public instance proper
 consult other attributes; Eloquent's built-in cast types, enums that do not name their own caster, and the casts under
 `Illuminate\Database\Eloquent\Casts` qualify. Any other field, such as one over an accessor or custom cast, or a
 computed, row-guarded or transformed field, leaves the select unnarrowed until it declares `needs()`.
+
+A relation field rendered by a child resource or a string accessor reads only its parent-side key, so it narrows with
+its parent. Each relation a repository read embeds selects the columns its child resource renders, plus its key, its
+soft-delete column and the keys it and the relations beneath it match on; a child field it cannot prove leaves that
+relation unnarrowed, as at the root. A relation stays unnarrowed when anything else may read its models: a field above
+it that leaves its own level unnarrowed, such as a compute without `needs()` or a scalar over a model accessor, a raw or
+accessor rendering of it, or an `extras()` path through it. A `MorphTo`, an unrecognised relation class and any graph
+holding a `chaperone()` relation are never narrowed, and a select a constraint or repository chose is kept. A
+`withDefault()` callback, model accessor or cast that reads an attribute the child does not render reads it as missing.
 
 An incomplete `needs()` returns wrong data rather than failing. Call
 `Model::preventAccessingMissingAttributes(! app()->isProduction())` in a service provider to catch it outside

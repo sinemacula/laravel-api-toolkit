@@ -9,18 +9,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOneOrManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
+use Illuminate\Support\Str;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
+use SineMacula\ApiToolkit\Schema\ChildProjection;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\RelationLimit;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
- * Builds eager-load and aggregate maps from compiled schema relations.
+ * Builds eager-load, projection and aggregate maps from compiled schema
+ * relations.
  *
  * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
  *
  * @phpstan-type EagerRelation \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>
+ * @phpstan-type PlannedProjection array{resource: class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>|null, fields: list<string>, opaque: bool}
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -35,6 +39,9 @@ final class EagerLoadPlanner
     /** @var array<string, list<AggregateLoad>> Aggregate entry lists, keyed by resource class + requested signature */
     private static array $aggregateCache = [];
 
+    /** @var array<string, array<string, \SineMacula\ApiToolkit\Schema\ChildProjection>> Projection plans, keyed as the eager-load maps */
+    private static array $projectionCache = [];
+
     /**
      * Build a with()-ready eager-load map for the given fields.
      *
@@ -46,38 +53,44 @@ final class EagerLoadPlanner
      */
     public static function buildEagerLoadMap(string $resourceClass, array $fields): array
     {
-        $key = $resourceClass . '|' . implode("\0", $fields);
+        $key = self::planKey($resourceClass, $fields);
 
-        if (isset(self::$eagerLoadCache[$key])) {
-            return self::$eagerLoadCache[$key];
+        if (!isset(self::$eagerLoadCache[$key])) {
+            self::plan($resourceClass, $fields, $key);
         }
 
-        $plain  = [];
-        $scoped = [];
-
-        self::walkRelations($resourceClass, $fields, '', $plain, $scoped);
-
-        $plain    = array_diff(array_unique($plain), array_keys($scoped));
-        $closures = [];
-
-        foreach ($scoped as $path => [$owner, $constraint, $limit, $aggregates]) {
-            $closures[$path] = self::scope($owner, $constraint, $limit, $aggregates, self::takeColumnSelection($plain, $path));
-        }
-
-        $map = $plain === [] && $closures === [] ? [] : array_merge($plain, $closures);
-
-        return self::$eagerLoadCache[$key] = $map;
+        return self::$eagerLoadCache[$key];
     }
 
     /**
-     * Clear the static eager-load and aggregate map memos.
+     * Build the projection plan for the given fields: the child resource and
+     * fields over every relation path the eager-load map loads.
+     *
+     * @param  string  $resourceClass
+     * @param  array<int, string>  $fields
+     * @return array<string, \SineMacula\ApiToolkit\Schema\ChildProjection>
+     */
+    public static function buildProjectionPlan(string $resourceClass, array $fields): array
+    {
+        $key = self::planKey($resourceClass, $fields);
+
+        if (!isset(self::$projectionCache[$key])) {
+            self::plan($resourceClass, $fields, $key);
+        }
+
+        return self::$projectionCache[$key];
+    }
+
+    /**
+     * Clear the static eager-load, projection and aggregate memos.
      *
      * @return void
      */
     public static function clearCache(): void
     {
-        self::$eagerLoadCache = [];
-        self::$aggregateCache = [];
+        self::$eagerLoadCache  = [];
+        self::$aggregateCache  = [];
+        self::$projectionCache = [];
     }
 
     /**
@@ -149,6 +162,46 @@ final class EagerLoadPlanner
     }
 
     /**
+     * Return the key the eager-load map and projection plan are memoised under.
+     *
+     * @param  string  $resourceClass
+     * @param  array<int, string>  $fields
+     * @return string
+     */
+    private static function planKey(string $resourceClass, array $fields): string
+    {
+        return $resourceClass . '|' . implode("\0", $fields);
+    }
+
+    /**
+     * Walk the fields once, memoising both the eager-load map and the
+     * projection plan under the key.
+     *
+     * @param  string  $resourceClass
+     * @param  array<int, string>  $fields
+     * @param  string  $key
+     * @return void
+     */
+    private static function plan(string $resourceClass, array $fields, string $key): void
+    {
+        $plain       = [];
+        $scoped      = [];
+        $projections = [];
+
+        self::walkRelations($resourceClass, $fields, '', $plain, $scoped, $projections);
+
+        $plain    = array_diff(array_unique($plain), array_keys($scoped));
+        $closures = [];
+
+        foreach ($scoped as $path => [$owner, $constraint, $limit, $aggregates]) {
+            $closures[$path] = self::scope($owner, $constraint, $limit, $aggregates, self::takeColumnSelection($plain, $path));
+        }
+
+        self::$eagerLoadCache[$key]  = $plain === [] && $closures === [] ? [] : array_merge($plain, $closures);
+        self::$projectionCache[$key] = self::finaliseProjections($projections);
+    }
+
+    /**
      * Recursively walk relation definitions, accumulating eager-load paths.
      *
      * Every field recurses into its own child resource and projection, and a
@@ -160,10 +213,11 @@ final class EagerLoadPlanner
      * @param  string  $prefix
      * @param  array<int, string>  $plain
      * @param  array<string, array{string, (\Closure(\Illuminate\Contracts\Database\Eloquent\Builder): void)|null, int, list<AggregateLoad>}>  $scoped
+     * @param  array<string, PlannedProjection>  $projections
      * @param  array<int, string>  $ancestors
      * @return void
      */
-    private static function walkRelations(string $resourceClass, array $fields, string $prefix, array &$plain, array &$scoped, array $ancestors = []): void
+    private static function walkRelations(string $resourceClass, array $fields, string $prefix, array &$plain, array &$scoped, array &$projections, array $ancestors = []): void
     {
         if (in_array($resourceClass, $ancestors, true)) {
             return;
@@ -181,7 +235,7 @@ final class EagerLoadPlanner
                 continue;
             }
 
-            self::collectExtraPaths($definition, $prefix, $plain);
+            self::collectExtraPaths($definition, $prefix, $plain, $projections);
 
             $relation = $definition->relation;
 
@@ -193,24 +247,29 @@ final class EagerLoadPlanner
             $childFields = self::resolveChildFields($definition);
 
             self::addEagerLoadPath($definition, $resourceClass . '::' . $field, $fullPath, self::resolveChildAggregates($definition, $childFields), $plain, $scoped);
+            self::addProjection($definition, $fullPath, $childFields, $projections);
 
             if ($childFields === []) {
                 continue;
             }
 
-            self::walkRelations((string) $definition->resource, $childFields, $fullPath, $plain, $scoped, $ancestors);
+            self::walkRelations((string) $definition->resource, $childFields, $fullPath, $plain, $scoped, $projections, $ancestors);
         }
     }
 
     /**
      * Collect extra eager-load paths from a field definition.
      *
+     * Whatever reads an extra path may read any of its columns, so every path
+     * from the prefix down to it is opaque.
+     *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
      * @param  string  $prefix
      * @param  array<int, string>  $plain
+     * @param  array<string, PlannedProjection>  $projections
      * @return void
      */
-    private static function collectExtraPaths(CompiledFieldDefinition $definition, string $prefix, array &$plain): void
+    private static function collectExtraPaths(CompiledFieldDefinition $definition, string $prefix, array &$plain, array &$projections): void
     {
         foreach ($definition->extras as $extra) {
             if ($extra === '') {
@@ -218,6 +277,12 @@ final class EagerLoadPlanner
             }
 
             $plain[] = self::makePrefixedPath($prefix, $extra);
+            $path    = $prefix;
+
+            foreach (explode('.', Str::before($extra, ':')) as $segment) {
+                $path               = self::makePrefixedPath($path, $segment);
+                $projections[$path] = ['opaque' => true] + ($projections[$path] ?? ['resource' => null, 'fields' => []]);
+            }
         }
     }
 
@@ -247,6 +312,60 @@ final class EagerLoadPlanner
         $planned = $scoped[$fullPath][3] ?? [];
 
         $scoped[$fullPath] = [$owner, $constraint, $limit, [...$planned, ...array_filter($aggregates, static fn (array $entry): bool => !in_array($entry, $planned, true))]];
+    }
+
+    /**
+     * Record the child resource and fields the relation renders over the path.
+     *
+     * Its models are opaque when an accessor or a raw relation renders them.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
+     * @param  string  $path
+     * @param  array<int, string>  $childFields
+     * @param  array<string, PlannedProjection>  $projections
+     * @return void
+     */
+    private static function addProjection(CompiledFieldDefinition $definition, string $path, array $childFields, array &$projections): void
+    {
+        /** @var class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource>|null $resource */
+        $resource = self::shouldRecurseIntoChild($definition) ? $definition->resource : null;
+        $planned  = $projections[$path] ?? ['resource' => null, 'fields' => [], 'opaque' => false];
+
+        $projections[$path] = [
+            'resource' => $resource ?? $planned['resource'],
+            'fields'   => array_values(array_unique([...$planned['fields'], ...$childFields])),
+            'opaque'   => $planned['opaque'] || $resource === null || $definition->accessor !== null,
+        ];
+    }
+
+    /**
+     * Build the projection plan, dropping paths no child resource renders and
+     * cascading opacity to every path beneath an opaque one.
+     *
+     * Every path is planned after its parent, so one pass cascades the flag.
+     *
+     * @param  array<string, PlannedProjection>  $projections
+     * @return array<string, \SineMacula\ApiToolkit\Schema\ChildProjection>
+     */
+    private static function finaliseProjections(array $projections): array
+    {
+        $plan = [];
+
+        foreach (array_keys($projections) as $path) {
+
+            // A top-level path reads its own flag as its parent's
+            $projections[$path]['opaque'] = $projections[$path]['opaque'] || $projections[Str::beforeLast($path, '.')]['opaque'];
+
+            $projection = $projections[$path];
+
+            if ($projection['resource'] === null) {
+                continue;
+            }
+
+            $plan[$path] = new ChildProjection($projection['resource'], $projection['fields'], $projection['opaque']);
+        }
+
+        return $plan;
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
@@ -17,7 +18,10 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ColumnProjectionApplier
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\MeteredPostResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -520,6 +524,204 @@ final class ColumnProjectionApplierTest extends TestCase
         self::assertNotNull($columns);
         self::assertNotContains('random', $columns);
         self::assertNotContains('relevance', $columns);
+    }
+
+    /**
+     * Test that a relation field narrows the root, keeping the key the relation
+     * matches on.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testARelationFieldNarrowsTheRootAndKeepsItsKey(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request);
+
+        $columns = $this->applyThroughTheSchema((new User)->newQuery(), ['name', 'organization', 'posts'], ['organization', 'posts']);
+
+        self::assertSame(['users.name', 'users.id', 'users.organization_id'], $columns);
+    }
+
+    /**
+     * Test that a relation the model or repository already eager loads keeps
+     * its key.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAnEagerLoadTheQueryAlreadyCarriesKeepsItsKey(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request);
+
+        $columns = $this->applyThroughTheSchema((new User)->newQuery()->with('organization'), ['name'], []);
+
+        self::assertSame(['users.name', 'users.id', 'users.organization_id'], $columns);
+    }
+
+    /**
+     * Test that a select the caller already chose is kept.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testASelectTheCallerChoseIsKept(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request);
+
+        $query = (new User)->newQuery();
+
+        $query->getQuery()->select('users.email');
+
+        self::assertSame(['users.email'], $this->applyThroughTheSchema($query, ['name'], []));
+    }
+
+    /**
+     * Test that an aggregate the caller already selected keeps its subselect
+     * when the wildcard beside it is narrowed.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAnAggregateTheCallerSelectedSurvivesTheNarrowing(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request);
+
+        $query   = (new User)->newQuery()->withCount('posts');
+        $columns = $this->applyThroughTheSchema($query, ['name', 'aggregates'], []);
+
+        self::assertSame(['users.name', 'users.id'], array_slice($columns, 0, 2));
+        self::assertCount(3, $columns);
+        self::assertStringContainsString('as "posts_count"', $query->toSql());
+    }
+
+    /**
+     * Test that an aggregate whose guard receives the resource leaves the
+     * select unnarrowed.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAGuardedAggregateLeavesTheSelectUnnarrowed(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [MeteredPostResource::class, TagResource::class, UserResource::class]);
+
+        $this->parseRequest(new Request);
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('metered_posts');
+        $provider->method('resolveFields')->willReturn(['id', 'title', 'aggregates']);
+        $provider->method('eagerLoadMapFor')->willReturn([]);
+
+        $introspector = $this->realIntrospector();
+        $applier      = new ColumnProjectionApplier(new SafetySetDeriver($introspector), $introspector);
+
+        self::assertNull($applier->apply((new Post)->newQuery(), $provider, MeteredPostResource::class, [])->getQuery()->columns);
+    }
+
+    /**
+     * Test that ':all' renders the aggregates payload, so a guarded aggregate
+     * leaves the select unnarrowed.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAllFieldsTokenCarriesTheAggregatesPayload(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [MeteredPostResource::class, TagResource::class, UserResource::class]);
+
+        $this->parseRequest(new Request(['fields' => ['metered_posts' => ':all']]));
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('metered_posts');
+        $provider->method('getAllFields')->willReturn(['id', 'title']);
+        $provider->method('eagerLoadMapFor')->willReturn([]);
+
+        $introspector = $this->realIntrospector();
+        $applier      = new ColumnProjectionApplier(new SafetySetDeriver($introspector), $introspector);
+
+        self::assertNull($applier->apply((new Post)->newQuery(), $provider, MeteredPostResource::class, [])->getQuery()->columns);
+    }
+
+    /**
+     * Test that a chaperoned relation leaves the select unnarrowed and logs the
+     * relation.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testAChaperonedRelationLeavesTheSelectUnnarrowedAndIsLogged(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+
+        $this->parseRequest(new Request);
+
+        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('users');
+        $provider->method('resolveFields')->willReturn(['name', 'posts']);
+        $provider->method('eagerLoadMapFor')->willReturn(['posts']);
+
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
+        $introspector->method('getColumns')->willReturn(self::USER_COLUMNS);
+        $introspector->method('resolveRelation')->willReturn((new User)->posts()->chaperone('user'));
+        $introspector->method('parentKeysFor')->willReturn(['id']);
+
+        Log::shouldReceive('debug')
+            ->once()
+            ->with('Column narrowing fell back to a full select', ['model' => User::class, 'resource' => UserResource::class, 'relation' => 'posts']);
+
+        $applier = new ColumnProjectionApplier(new SafetySetDeriver($introspector), $introspector);
+
+        self::assertNull($applier->apply((new User)->newQuery(), $provider, UserResource::class, [])->getQuery()->columns);
+    }
+
+    /**
+     * Apply the applier to the query for the given fields of the user resource,
+     * reading the real schema.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Tests\Fixtures\Models\User>  $query
+     * @param  array<int, string>  $fields
+     * @param  array<int|string, mixed>  $eagerLoads
+     * @return array<int, mixed>
+     */
+    private function applyThroughTheSchema(Builder $query, array $fields, array $eagerLoads): array
+    {
+        $provider = self::createStub(ResourceMetadataProvider::class);
+        $provider->method('getResourceType')->willReturn('users');
+        $provider->method('resolveFields')->willReturn($fields);
+        $provider->method('eagerLoadMapFor')->willReturn($eagerLoads);
+
+        $introspector = $this->realIntrospector();
+
+        return (array) (new ColumnProjectionApplier(new SafetySetDeriver($introspector), $introspector))->apply($query, $provider, UserResource::class, [])->getQuery()->columns;
+    }
+
+    /**
+     * Resolve the introspector reading the migrated test schema.
+     *
+     * @return \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider
+     */
+    private function realIntrospector(): SchemaIntrospectionProvider
+    {
+        assert($this->app !== null);
+
+        return $this->app->make(SchemaIntrospectionProvider::class);
     }
 
     /**
