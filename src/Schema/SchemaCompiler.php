@@ -135,13 +135,7 @@ final class SchemaCompiler
 
             $field = self::buildFieldDefinition($definition);
 
-            if ($field->relation !== null && $field->resource !== null) {
-                $resources[$field->relation] = $field->resource;
-            }
-
-            if ($field->relation !== null && $field->sortThroughReason !== null) {
-                $sorted[$field->relation][] = $schemaKey;
-            }
+            self::collectRelation($schemaKey, $field, $resources, $sorted);
 
             $fields[$schemaKey] = $field;
         }
@@ -162,6 +156,31 @@ final class SchemaCompiler
             $scopes,
             $sorted,
         );
+    }
+
+    /**
+     * Record the resource a field's relation renders, and the field declaring
+     * each relation an order may read through.
+     *
+     * @param  string  $schemaKey
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
+     * @param  array<string, string>  $resources
+     * @param  array<string, list<string>>  $sorted
+     * @return void
+     */
+    private static function collectRelation(string $schemaKey, CompiledFieldDefinition $field, array &$resources, array &$sorted): void
+    {
+        if ($field->relation === null) {
+            return;
+        }
+
+        if ($field->resource !== null) {
+            $resources[$field->relation] = $field->resource;
+        }
+
+        if ($field->sortThroughReason !== null) {
+            $sorted[$field->relation][] = $schemaKey;
+        }
     }
 
     /**
