@@ -6,9 +6,13 @@ namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\OpenApi\Schema\FieldPresence;
+use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledScopeDefinition;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
@@ -28,11 +32,19 @@ final readonly class QuerySurfaceReader
      * Create a new query surface reader.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $introspector
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser  $normaliser
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\FieldPresence  $presence
      */
     public function __construct(
 
         /** Resolves the relations a filter may descend through */
         private SchemaIntrospectionProvider $introspector,
+
+        /** Flattens a scope argument's rules into tokens */
+        private RuleNormaliser $normaliser = new RuleNormaliser,
+
+        /** Reads whether a scope argument's rules require it */
+        private FieldPresence $presence = new FieldPresence,
     ) {}
 
     /**
@@ -88,6 +100,7 @@ final readonly class QuerySurfaceReader
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $registry
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
      *
+     * @throws \LogicException
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
     private function readResource(string $resourceClass, array $edges, OperatorRegistry $registry): QuerySurfaceDescriptor
@@ -101,7 +114,32 @@ final readonly class QuerySurfaceReader
 
         $columns = [...$columns, ...$this->readAggregateSorts($compiled), ...$this->readRelationSorts($compiled)];
 
-        return new QuerySurfaceDescriptor($resourceClass, $columns, $this->readRelations($compiled, $edges));
+        $pageSize = PageSize::for($resourceClass);
+
+        return new QuerySurfaceDescriptor(
+            $resourceClass,
+            $columns,
+            $this->readRelations($compiled, $edges),
+            array_values(array_map($this->readScope(...), $compiled->getScopes())),
+            $pageSize->differsFrom(PageSize::for(null)) ? $pageSize : null,
+        );
+    }
+
+    /**
+     * Read one named scope and whether its rules require each argument.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledScopeDefinition  $scope
+     * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QueryScopeDescriptor
+     */
+    private function readScope(CompiledScopeDefinition $scope): QueryScopeDescriptor
+    {
+        $arguments = [];
+
+        foreach ($scope->arguments as $argument) {
+            $arguments[$argument] = $this->presence->isRequired($this->normaliser->normalise($scope->parameters[$argument] ?? null));
+        }
+
+        return new QueryScopeDescriptor($scope->name, $scope->description, $arguments, $scope->callerGuards !== []);
     }
 
     /**

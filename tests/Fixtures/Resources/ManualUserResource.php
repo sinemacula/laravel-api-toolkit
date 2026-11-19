@@ -5,16 +5,18 @@ declare(strict_types = 1);
 namespace Tests\Fixtures\Resources;
 
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
+use SineMacula\ApiToolkit\Schema\Scope;
 
 /**
- * Fixture user resource declaring every field, relation and aggregate the API
- * documentation's examples name.
+ * Fixture user resource declaring every field, relation, aggregate and scope
+ * the API documentation's examples name.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -56,11 +58,18 @@ final class ManualUserResource extends ApiResource
             Field::scalar('last_name')->filterable(Capability::EXACT),
             Field::scalar('email')->filterable(Capability::EXACT)->searchable(SearchStrategy::SUBSTRING),
             Field::scalar('age')->filterable(Capability::RANGE),
+            Field::scalar('status')->filterable(Capability::EXACT),
             Field::timestamp('created_at')->filterable(Capability::RANGE)->sortable(),
             Relation::to('organization', ManualOrganizationResource::class)->sortable('Admin list of a few hundred users'),
             Relation::to('posts', PostResource::class)->traversable(),
             Relation::to('comments', ManualCommentResource::class)->traversable(),
             Count::of('posts')->sortable('Admin list of a few hundred users'),
+            Scope::of('upcoming'),
+            Scope::of('near')->parameters([
+                'lat' => ['required', Rule::numeric()->between(-90, 90)],
+                'lng' => ['required', Rule::numeric()->between(-180, 180)],
+                'km'  => ['required', 'integer', 'between:1,50'],
+            ]),
         );
     }
 }

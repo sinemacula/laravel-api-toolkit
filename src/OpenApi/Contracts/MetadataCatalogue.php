@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Contracts;
 
 use SineMacula\ApiToolkit\Enums\Capability;
+use SineMacula\ApiToolkit\Query\PageSize;
 
 /**
  * Exposes the toolkit's metadata surfaces to the OpenAPI exporter.
@@ -66,6 +67,15 @@ interface MetadataCatalogue
      * @return array<string, int>
      */
     public function getQueryLimits(): array;
+
+    /**
+     * Return the page size bounds the given resource is held to, or the
+     * configured ones for null.
+     *
+     * @param  string|null  $resourceClass
+     * @return \SineMacula\ApiToolkit\Query\PageSize
+     */
+    public function getPageSize(?string $resourceClass): PageSize;
 
     /**
      * Return the bounds a free-text search term is held to, keyed by bound

@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\Enums\AudiencePosture;
 use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleGenerationException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\OperationIdCollisionException;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
@@ -21,6 +22,7 @@ use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\InternalOnlyTagController;
+use Tests\Fixtures\OpenApi\PathExampleController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\PathResponseSchemaController;
@@ -639,6 +641,45 @@ final class ExportOpenApiCommandTest extends TestCase
             self::assertFileDoesNotExist($internal);
             @unlink($public);
             @unlink($internal);
+        }
+    }
+
+    /**
+     * Test that a body left without an example for an undocumented value is
+     * reported while the document is still written.
+     *
+     * @return void
+     */
+    public function testCommandReportsEachBodyLeftWithoutAnExample(): void
+    {
+        $this->router()->get('opaque', [PathExampleController::class, 'opaque']);
+
+        $this->runCommand(['--output' => $this->outputPath])
+            ->expectsOutputToContain(
+                'No example for GET /opaque response 200 in the [public] audience: the value at'
+                . ' #/components/schemas/UndocumentedFieldShape/properties/meta is undocumented.',
+            )
+            ->assertExitCode(0);
+
+        self::assertFileExists($this->outputPath);
+    }
+
+    /**
+     * Test that an example the exporter cannot generate fails the export and
+     * writes nothing.
+     *
+     * @return void
+     */
+    public function testCommandFailsAndWritesNothingWhenAnExampleCannotBeGenerated(): void
+    {
+        $this->router()->post('codes', [PathExampleController::class, 'redeem']);
+
+        $this->expectException(ExampleGenerationException::class);
+
+        try {
+            $this->runCommand(['--output' => $this->outputPath])->run();
+        } finally {
+            self::assertFileDoesNotExist($this->outputPath);
         }
     }
 

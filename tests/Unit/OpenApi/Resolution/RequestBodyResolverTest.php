@@ -12,6 +12,7 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use Tests\Fixtures\OpenApi\ParityRequestBodyController;
 use Tests\Fixtures\OpenApi\PathBodylessRequestController;
 use Tests\Fixtures\OpenApi\PathBodyPresenceController;
+use Tests\Fixtures\OpenApi\PathExampleController;
 use Tests\Fixtures\OpenApi\PathRequestBodyController;
 use Tests\Fixtures\OpenApi\TopLevelListRequestInput;
 use Tests\TestCase;
@@ -369,6 +370,23 @@ final class RequestBodyResolverTest extends TestCase
     public function testDirectiveNamingNonRulesSourceResolvesToNull(): void
     {
         self::assertNull($this->resolver()->resolve(PathBodylessRequestController::class, 'foreignSource'));
+    }
+
+    /**
+     * Test that the field examples of the source a directive names, or a
+     * parameter type-hints, reach the body.
+     *
+     * @return void
+     */
+    public function testSourceFieldExamplesReachTheBody(): void
+    {
+        $signUp = $this->resolver()->resolve(PathExampleController::class, 'signUp');
+        $rename = $this->resolver()->resolve(PathExampleController::class, 'rename');
+
+        self::assertNotNull($signUp);
+        self::assertNotNull($rename);
+        self::assertSame(['ABC'], $signUp['content']['application/json']['schema']['properties']['code']['examples']);
+        self::assertSame(['Ada Lovelace'], $rename['content']['application/json']['schema']['properties']['name']['examples']);
     }
 
     /**

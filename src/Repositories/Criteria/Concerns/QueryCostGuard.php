@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 
 /**
@@ -17,14 +18,18 @@ use SineMacula\ApiToolkit\Query\QueryCostLimits;
 final class QueryCostGuard
 {
     /**
-     * Reject the request when it exceeds one of the flat caps.
+     * Reject the request when its page size exceeds the given ceiling or it
+     * exceeds one of the flat caps.
      *
+     * @param  \SineMacula\ApiToolkit\Query\PageSize  $pageSize
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function guard(): void
+    public function guard(PageSize $pageSize): void
     {
+        $pageSize->resolve(ApiQuery::getLimit());
+
         $limits = QueryCostLimits::fromConfig();
 
         $limits->enforce(QueryCostLimits::MAX_ORDER_KEYS, count(ApiQuery::getOrder()), 'order');

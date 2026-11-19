@@ -62,7 +62,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
                 'retired'               => ['type' => 'string', 'enum' => []],
                 'email'                 => ['type' => 'string', 'format' => 'email'],
                 'password'              => ['type' => 'string', 'minLength' => 8],
-                'password_confirmation' => ['type' => 'string'],
+                'password_confirmation' => ['type' => 'string', 'x-confirms' => 'password'],
             ],
             'required' => ['title', 'email', 'password', 'password_confirmation'],
         ], $schema);
@@ -539,7 +539,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
             'type'       => 'object',
             'properties' => [
                 'password'              => ['type' => 'string'],
-                'password_confirmation' => ['type' => 'string'],
+                'password_confirmation' => ['type' => 'string', 'x-confirms' => 'password'],
             ],
             'required' => ['password', 'password_confirmation'],
         ], $schema);
@@ -558,7 +558,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
             'type'       => 'object',
             'properties' => [
                 'password'              => ['type' => 'string'],
-                'password_confirmation' => ['type' => 'string'],
+                'password_confirmation' => ['type' => 'string', 'x-confirms' => 'password'],
             ],
             'dependentRequired' => ['password' => ['password_confirmation']],
         ], $schema);
@@ -580,7 +580,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
             'type'       => 'object',
             'properties' => [
                 'password'        => ['type' => 'string'],
-                'repeat_password' => ['type' => 'string', 'maxLength' => 64],
+                'repeat_password' => ['type' => 'string', 'maxLength' => 64, 'x-confirms' => 'password'],
             ],
             'required' => ['password', 'repeat_password'],
         ], $schema);
@@ -599,7 +599,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
             'type'       => 'object',
             'properties' => [
                 'status'              => ['enum' => ['active', 'inactive']],
-                'status_confirmation' => ['type' => 'string'],
+                'status_confirmation' => ['type' => 'string', 'x-confirms' => 'status'],
             ],
             'dependentRequired' => ['status' => ['status_confirmation']],
         ], $schema);
@@ -618,7 +618,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
             'type'       => 'object',
             'properties' => [
                 'count'              => ['type' => 'integer'],
-                'count_confirmation' => ['type' => 'integer'],
+                'count_confirmation' => ['type' => 'integer', 'x-confirms' => 'count'],
             ],
             'dependentRequired' => ['count' => ['count_confirmation']],
         ], $schema);
@@ -838,7 +838,7 @@ final class RulesToSchemaTranslatorTest extends TestCase
         ])['properties'];
 
         self::assertSame(['password', 'repeat'], $schema['user']['required']);
-        self::assertSame(['type' => 'string'], $schema['user']['properties']['repeat']);
+        self::assertSame(['type' => 'string', 'x-confirms' => 'password'], $schema['user']['properties']['repeat']);
         self::assertSame(['b' => ['a']], $schema['user']['dependentRequired']);
         self::assertSame([['required' => ['a']], ['required' => ['b']]], $schema['items']['items']['anyOf']);
         self::assertSame(['b' => ['a']], $schema['slots']['properties']['1']['dependentRequired']);

@@ -12,10 +12,13 @@ use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\CappedPageUserResource;
+use Tests\Fixtures\Resources\UserResource;
 
 /**
  * Tests for the QueryParameterBuilder.
@@ -34,8 +37,8 @@ final class QueryParameterBuilderTest extends TestCase
         '$in', '$between', '$contains', '$null', '$notNull',
     ];
 
-    /** @var array<int, string> The four structural operators */
-    private const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', '$hasnt'];
+    /** @var array<int, string> The five structural operators */
+    private const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', '$hasnt', '$scope'];
 
     /**
      * Test that the full shared query-parameter set is emitted.
@@ -108,16 +111,16 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that the filter enumerates the 11 registered and 4 structural ops.
+     * Test that the filter enumerates the 11 registered and 5 structural ops.
      *
      * @return void
      */
-    public function testFilterParameterEnumeratesTheFullElevenPlusFourVocabulary(): void
+    public function testFilterParameterEnumeratesTheFullElevenPlusFiveVocabulary(): void
     {
         $operators = $this->makeBuilder()->build()['Filters']['schema']['x-operators'];
 
         self::assertIsArray($operators);
-        self::assertCount(15, $operators);
+        self::assertCount(16, $operators);
     }
 
     /**
@@ -151,6 +154,25 @@ final class QueryParameterBuilderTest extends TestCase
             . 'e.g. filters={"status":"active","$or":[{"role":"admin"},{"role":"owner"}]}. '
             . 'A traversable relation key takes a filter document for the related resource. '
             . '$has and $hasnt take a relation name, a list of names, or relation names keyed to filter documents. ',
+            $description,
+        );
+    }
+
+    /**
+     * Test that the filter description states the scope grammar with an
+     * example.
+     *
+     * @return void
+     */
+    public function testFilterDescriptionStatesTheScopeGrammarWithAnExample(): void
+    {
+        $description = $this->makeBuilder()->build()['Filters']['description'];
+
+        self::assertIsString($description);
+        self::assertStringContainsString(
+            'relation names keyed to filter documents. '
+            . '$scope invokes the named scopes the resource declares: a scope name, a list of names, or names keyed to objects of arguments, '
+            . 'e.g. filters={"$scope":{"near":{"lat":51.5,"lng":-0.12,"km":5}}}. Each operator',
             $description,
         );
     }
@@ -211,6 +233,7 @@ final class QueryParameterBuilderTest extends TestCase
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getOperatorTokens')->willReturn(['$custom']);
         $catalogue->method('getStructuralOperators')->willReturn(['$and']);
+        $catalogue->method('getPageSize')->willReturn(new PageSize(100, 50));
 
         $operators = (new QueryParameterBuilder($catalogue))->build()['Filters']['schema']['x-operators'];
 
@@ -235,31 +258,30 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
+     * Test that the shared page size states its ceiling and the size an omitted
+     * limit is served at.
+     *
+     * @return void
+     */
+    public function testTheSharedLimitCarriesTheCeilingAndTheDefault(): void
+    {
+        self::assertSame(
+            ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'default' => 50],
+            $this->makeBuilder()->build()['Limit']['schema'],
+        );
+    }
+
+    /**
      * Test that a disabled page-size ceiling leaves the schema unbounded.
      *
      * @return void
      */
     public function testDisabledPageSizeCeilingLeavesTheLimitUnbounded(): void
     {
-        $schema = $this->makeBuilder(0)->build()['Limit']['schema'];
-
-        self::assertIsArray($schema);
-        self::assertArrayNotHasKey('maximum', $schema);
-        self::assertSame(1, $schema['minimum']);
-    }
-
-    /**
-     * Test that a catalogue reporting no page-size bound means no ceiling.
-     *
-     * @return void
-     */
-    public function testAnUnreportedPageSizeCeilingLeavesTheLimitUnbounded(): void
-    {
-        $schema = $this->builderReporting([])->build()['Limit']['schema'];
-
-        self::assertIsArray($schema);
-        self::assertArrayNotHasKey('maximum', $schema);
-        self::assertSame(1, $schema['minimum']);
+        self::assertSame(
+            ['type' => 'integer', 'minimum' => 1, 'default' => 50],
+            $this->makeBuilder(0)->build()['Limit']['schema'],
+        );
     }
 
     /**
@@ -594,18 +616,49 @@ final class QueryParameterBuilderTest extends TestCase
      */
     public function testEveryReferencedParameterIsAnEmittedComponent(): void
     {
-        $builder = $this->makeBuilder();
-        $defined = array_keys($builder->build());
+        $defined = array_keys($this->makeBuilder()->build());
 
         foreach (['index', 'show', 'store', 'update', 'destroy'] as $action) {
-            foreach ($builder->referencesFor($action) as $reference) {
-                self::assertContains(
-                    str_replace('#/components/parameters/', '', $reference['$ref']),
-                    $defined,
-                    $action,
-                );
+            foreach ($this->referencedNames($action) as $name) {
+                self::assertContains($name, $defined, $action);
             }
         }
+    }
+
+    /**
+     * Test that an index over a resource with its own page size bounds takes an
+     * inline limit stating them, in the shared one's place.
+     *
+     * @return void
+     */
+    public function testIndexOverALoweredResourceInlinesItsLimit(): void
+    {
+        $builder    = $this->makeBuilder();
+        $references = $builder->referencesFor('index', User::class, CappedPageUserResource::class);
+
+        self::assertSame(
+            [...$builder->build()['Limit'], 'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 2, 'default' => 2]],
+            $references[5],
+        );
+
+        self::assertSame(
+            [...$builder->referencesFor('index', User::class), 5 => $references[5]],
+            $references,
+        );
+    }
+
+    /**
+     * Test that a resource keeping the configured page size bounds, and any
+     * action but an index, reference the shared limit.
+     *
+     * @return void
+     */
+    public function testOnlyAnIndexOverALoweredResourceInlinesItsLimit(): void
+    {
+        $builder = $this->makeBuilder();
+
+        self::assertSame($builder->referencesFor('index', User::class), $builder->referencesFor('index', User::class, UserResource::class));
+        self::assertSame($builder->referencesFor('show', User::class), $builder->referencesFor('show', User::class, CappedPageUserResource::class));
     }
 
     /**
@@ -658,6 +711,25 @@ final class QueryParameterBuilderTest extends TestCase
     {
         self::assertSame([ValidationException::class], $this->builderReporting($this->caps(0))->exceptionsFor('index'));
         self::assertSame([ValidationException::class], $this->builderReporting($this->caps(-1))->exceptionsFor('index'));
+    }
+
+    /**
+     * Test that an index over a resource with its own ceiling raises the query
+     * cost refusal while every configured cap is disabled.
+     *
+     * @return void
+     */
+    public function testIndexOverALoweredResourceRaisesTheQueryCostRefusal(): void
+    {
+        self::assertSame(
+            [ValidationException::class, QueryTooExpensiveException::class],
+            $this->builderReporting($this->caps(0))->exceptionsFor('index', User::class, CappedPageUserResource::class),
+        );
+
+        self::assertSame(
+            [ValidationException::class],
+            $this->builderReporting($this->caps(0))->exceptionsFor('index', User::class, UserResource::class),
+        );
     }
 
     /**
@@ -717,6 +789,7 @@ final class QueryParameterBuilderTest extends TestCase
         $catalogue->method('getOperatorTokens')->willReturn(self::OPERATOR_TOKENS);
         $catalogue->method('getStructuralOperators')->willReturn(self::STRUCTURAL_OPERATORS);
         $catalogue->method('getQueryLimits')->willReturn([QueryParameterValidator::MAX_LIMIT => 100]);
+        $catalogue->method('getPageSize')->willReturn(new PageSize(100, 50));
         $catalogue->method('getSearchBounds')->willReturn([]);
 
         $search = (new QueryParameterBuilder($catalogue))->build()['Search'];
@@ -761,7 +834,12 @@ final class QueryParameterBuilderTest extends TestCase
     private function referencedNames(string $action, ?string $modelClass = null): array
     {
         return array_map(
-            static fn (array $reference): string => str_replace('#/components/parameters/', '', $reference['$ref']),
+            static function (array $reference): string {
+
+                self::assertIsString($reference['$ref']);
+
+                return str_replace('#/components/parameters/', '', $reference['$ref']);
+            },
             $this->makeBuilder()->referencesFor($action, $modelClass),
         );
     }
@@ -800,7 +878,8 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Build a QueryParameterBuilder over a catalogue with the given bounds.
+     * Build a QueryParameterBuilder over a catalogue with the given bounds,
+     * under which the paged fixture resource lowers the page size to two.
      *
      * @param  array<string, int>  $limits
      * @param  int  $longest
@@ -808,10 +887,15 @@ final class QueryParameterBuilderTest extends TestCase
      */
     private function builderReporting(array $limits, int $longest = 128): QueryParameterBuilder
     {
+        $configured = new PageSize($limits[QueryParameterValidator::MAX_LIMIT] ?? 0, 50);
+
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getOperatorTokens')->willReturn(self::OPERATOR_TOKENS);
         $catalogue->method('getStructuralOperators')->willReturn(self::STRUCTURAL_OPERATORS);
         $catalogue->method('getQueryLimits')->willReturn($limits);
+        $catalogue->method('getPageSize')->willReturnCallback(
+            static fn (?string $resource): PageSize => $resource === CappedPageUserResource::class ? new PageSize(2, 2) : $configured,
+        );
         $catalogue->method('getSearchBounds')->willReturn([
             SearchTerm::MIN_WORD_LENGTH_KEY => 3,
             SearchTerm::MAX_LENGTH_KEY      => $longest,

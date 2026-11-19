@@ -97,6 +97,11 @@ final class CursorPaginationTest extends TestCase
         $response = $this->getJson('/users?pagination=cursor&limit=2');
 
         $response->assertOk();
+        $response->assertExactJsonStructure([
+            'data'  => ['*' => ['_type', 'id', 'email', 'name']],
+            'meta'  => ['continue'],
+            'links' => ['self', 'prev', 'next'],
+        ]);
         $response->assertJsonCount(2, 'data');
         $response->assertJsonPath('data.0.name', 'Anna');
         $response->assertJsonPath('data.1.name', 'Ben');
@@ -154,10 +159,12 @@ final class CursorPaginationTest extends TestCase
 
         $statements = $this->recordStatements(fn () => $this->follow($third));
         $grammar    = DB::connection()->getQueryGrammar();
+        $name       = $grammar->wrap('users.name');
+        $key        = $grammar->wrap('users.id');
 
         self::assertStatementCount(1, $statements);
-        self::assertStringContainsString(sprintf('where (%1$s > ? or (%1$s = ? and (%2$s > ?)))', $grammar->wrap('users.name'), $grammar->wrap('users.id')), $statements[0]);
-        self::assertStringEndsWith(sprintf('order by %s asc, %s asc limit 6', $grammar->wrap('users.name'), $grammar->wrap('users.id')), $statements[0]);
+        self::assertStringContainsString(sprintf('where %1$s >= ? and (%1$s > ? or (%1$s = ? and (%2$s > ?)))', $name, $key), $statements[0]);
+        self::assertStringEndsWith(sprintf('order by %s asc, %s asc limit 6', $name, $key), $statements[0]);
         self::assertStringNotContainsString('count(', $statements[0]);
         self::assertStringNotContainsString('offset', $statements[0]);
     }
