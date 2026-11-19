@@ -1136,6 +1136,37 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that an update taking its FormRequest after the bound model emits
+     * the FormRequest's body.
+     *
+     * @return void
+     */
+    public function testUpdateTakingTheBodyAfterTheBoundModelEmitsItsBody(): void
+    {
+        $this->router()->put('users/{user}', [PathRequestBodyController::class, 'updateBound']);
+
+        $document = $this->export()->document;
+
+        self::assertSame([
+            'required' => true,
+            'content'  => [
+                'application/json' => [
+                    'schema' => [
+                        'type'       => 'object',
+                        'properties' => [
+                            'name'  => ['type' => 'string', 'maxLength' => 255],
+                            'email' => ['type' => 'string', 'format' => 'email'],
+                        ],
+                        'required' => ['name', 'email'],
+                    ],
+                ],
+            ],
+        ], $document['paths']['/users/{user}']['put']['requestBody']);
+
+        $this->assertValidDocument($document);
+    }
+
+    /**
      * Test that prohibited and unconstrained fields emit valid schemas.
      *
      * @return void

@@ -198,21 +198,68 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a timestamp-style column resolves to a date-time format.
+     * Test that an uncast timestamp of a timestamped model resolves to a
+     * date-time, as Eloquent returns it as a Carbon instance.
      *
      * @return void
      */
-    public function testTimestampColumnResolvesToDateTime(): void
+    public function testUncastTimestampResolvesToDateTime(): void
     {
         $resolver = $this->makeResolver([
             'created_at' => new ColumnDefinition(name: 'created_at', typeName: 'timestamp', nullable: true),
         ]);
 
-        $schema = $resolver->resolve('created_at', $this->field(), Post::class);
+        self::assertSame(['type' => ['string', 'null'], 'format' => 'date-time'], $resolver->resolve('created_at', $this->field(), Post::class)->toArray());
+        self::assertSame(['type' => 'string', 'format' => 'date-time'], $this->makeResolver([])->resolve('updated_at', $this->field(), Post::class)->toArray());
+    }
 
-        self::assertSame('string', $schema->type);
-        self::assertSame('date-time', $schema->format);
-        self::assertTrue($schema->nullable);
+    /**
+     * Test that a cast on a timestamp wins over its date handling.
+     *
+     * @return void
+     */
+    public function testCastOnATimestampWins(): void
+    {
+        $model = new class extends Model {
+            /**
+             * Get the attributes that should be cast.
+             *
+             * @return array<string, string>
+             */
+            #[\Override]
+            protected function casts(): array
+            {
+                return ['created_at' => 'timestamp'];
+            }
+        };
+
+        $resolver = $this->makeResolver([
+            'created_at' => new ColumnDefinition(name: 'created_at', typeName: 'timestamp', nullable: false),
+        ]);
+
+        self::assertSame(['type' => 'integer'], $resolver->resolve('created_at', $this->field(), $model::class)->toArray());
+    }
+
+    /**
+     * Test that an uncast date-time column outside the model's timestamps
+     * resolves to a plain string, as the driver returns it.
+     *
+     * @return void
+     */
+    public function testUncastDateTimeColumnResolvesToAPlainString(): void
+    {
+        $model = new class extends Model {
+            /** @var bool */
+            public $timestamps = false;
+        };
+
+        $resolver = $this->makeResolver([
+            'created_at' => new ColumnDefinition(name: 'created_at', typeName: 'timestamp', nullable: false),
+            'seen_at'    => new ColumnDefinition(name: 'seen_at', typeName: 'datetime', nullable: false),
+        ]);
+
+        self::assertSame(['type' => 'string'], $resolver->resolve('seen_at', $this->field(), Post::class)->toArray());
+        self::assertSame(['type' => 'string'], $resolver->resolve('created_at', $this->field(), $model::class)->toArray());
     }
 
     /**
@@ -484,7 +531,7 @@ final class FieldTypeResolverTest extends TestCase
         ], $enums);
 
         self::assertSame(
-            ['type' => ['string', 'null'], 'format' => 'date-time'],
+            ['type' => ['string', 'null']],
             $resolver->resolveAggregate($this->aggregate(AggregateFunction::MAX, 'placed_at'), AggregateOwner::class),
         );
         self::assertSame(

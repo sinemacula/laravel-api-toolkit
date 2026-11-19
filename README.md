@@ -1011,7 +1011,8 @@ php artisan api-toolkit:export-openapi --all
 
 Without options the default audience is written to `api-toolkit.openapi.output`. `--audience` exports one named
 audience. `--all` exports every configured audience, each to its own file with the audience inserted before the
-extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`.
+extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`. Each file is staged beside its
+target and moved into place only once all are staged, so one that cannot be staged replaces none of them.
 
 Resources are optional: a route documented only through `#[RequestSchema]` and `#[ResponseSchema]` is exported with
 an empty resource map. Operations are not. Every target audience is built before anything is written, and if any of
@@ -1022,6 +1023,10 @@ exit successfully:
 ```bash
 php artisan api-toolkit:export-openapi --all --allow-empty
 ```
+
+Routes handled under a framework or tooling namespace (`api-toolkit.openapi.exclude.namespaces`) and `Route::fallback()`
+routes are left out. A closure in an application route file is documented, whether or not the routes are cached.
+Responses are documented as JSON; the formats the resource exporter negotiates, such as CSV, are not listed.
 
 List the hosts the API is served from under `api-toolkit.openapi.servers`, so interactive viewers call the API rather
 than the docs host and generated clients get a base URL. Each entry is an OpenAPI Server Object with a `url`, an
@@ -1055,6 +1060,13 @@ answering no filter.
 A resource schema requires only what every response carries: `_type`, and each fixed field read straight from its
 column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names
 none for that type and no parent relation pins them: the declared `$default` fields, then the fixed ones.
+
+A field read straight from its column is typed from the value Eloquent returns: by the model's cast when it has one,
+else by the column type. Date casts and the model's timestamps are a `date-time`, a `decimal:N` cast a string, and any
+other date-time or time column the driver's string. A value with no fixed shape is marked `x-undocumented`: an `array`,
+`json`, `collection` or `object` cast, a cast class other than an enum, `AsStringable` or `AsUri`, and an uncast
+decimal, binary or JSON column. On PostgreSQL before PHP 8.4, a float column is a string, as the driver returns it.
+Declare the field's `openapi()` schema to document any of these.
 
 A relation rendered through a child resource is typed from its Eloquent relation: a to-many relation as an array of the
 related schema, and a to-one relation as the related schema or `null`, since it renders `null` when the related row is
