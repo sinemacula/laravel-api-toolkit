@@ -37,7 +37,7 @@ final readonly class WritePoolFlushSubscriber
         $events->listen(RequestHandled::class, [$this, 'handleFlush']);
         $events->listen(CommandFinished::class, [$this, 'handleFlush']);
         $events->listen(JobAttempted::class, [$this, 'handleFlush']);
-        $events->listen(JobTimedOut::class, [$this, 'handleFlush']);
+        $events->listen(JobTimedOut::class, [$this, 'handleTimedOutFlush']);
     }
 
     /**
@@ -64,9 +64,7 @@ final readonly class WritePoolFlushSubscriber
 
             return;
         } catch (\Throwable $e) {
-            if ((new DeferredWriteTransactionDetector)->endsTransaction($e)) {
-                throw $e;
-            }
+            $this->rethrowIfItEndedATransaction($e);
 
             FailureReporter::report($e, 'WritePool flush subscriber failed');
 
@@ -78,6 +76,39 @@ final readonly class WritePoolFlushSubscriber
         }
 
         $this->escalate(new WritePoolFlushException($flushResult, $flushResult->firstException()), $flushResult->droppedRecordCount() === 0);
+    }
+
+    /**
+     * Flush the write pool after a job timed out, reporting an error that ended
+     * a transaction the flush joined, since the worker must still stop the job.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
+     */
+    public function handleTimedOutFlush(): void
+    {
+        try {
+            $this->handleFlush();
+        } catch (\PDOException|\ErrorException $e) {
+            FailureReporter::report($e, 'WritePool flush subscriber failed');
+        }
+    }
+
+    /**
+     * Rethrow a flush failure that ended a transaction the flush joined.
+     *
+     * @param  \Throwable  $exception
+     * @return void
+     *
+     * @throws \PDOException
+     * @throws \ErrorException
+     */
+    private function rethrowIfItEndedATransaction(\Throwable $exception): void
+    {
+        if ((new DeferredWriteTransactionDetector)->endsTransaction($exception)) {
+            throw $exception;
+        }
     }
 
     /**

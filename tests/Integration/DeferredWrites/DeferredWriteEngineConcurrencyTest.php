@@ -65,19 +65,6 @@ final class DeferredWriteEngineConcurrencyTest extends TestCase
     }
 
     /**
-     * Provide each flush strategy and the records it keeps after a failed
-     * chunk.
-     *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\FlushStrategy, int}>
-     */
-    public static function retentionProvider(): iterable
-    {
-        yield 'collect' => [FlushStrategy::COLLECT, 1];
-        yield 'log' => [FlushStrategy::LOG, 0];
-        yield 'throw' => [FlushStrategy::THROW, 1];
-    }
-
-    /**
      * Test that the MySQL lock wait timeout a flushed row raises inside a
      * transaction reaches the caller, so its retry writes each row once.
      *
@@ -108,6 +95,19 @@ final class DeferredWriteEngineConcurrencyTest extends TestCase
         self::assertSame(2, $attempts);
         self::assertSame(['first@deferred.test', self::CONTESTED], DB::table('users')->orderBy('id')->pluck('email')->all());
         self::assertTrue($pool->isEmpty());
+    }
+
+    /**
+     * Provide each flush strategy and the records it keeps after a failed
+     * chunk.
+     *
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\FlushStrategy, int}>
+     */
+    public static function retentionProvider(): iterable
+    {
+        yield 'collect' => [FlushStrategy::COLLECT, 1];
+        yield 'log' => [FlushStrategy::LOG, 0];
+        yield 'throw' => [FlushStrategy::THROW, 1];
     }
 
     /**

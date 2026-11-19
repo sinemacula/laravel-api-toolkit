@@ -146,7 +146,7 @@ final class WritePool
 
     /**
      * Flush the buffered records of the given connections and invalidate the
-     * per-query cache for the tables the flush persisted.
+     * per-query cache for the tables the flush targeted.
      *
      * @param  array<int, string>  $connections
      * @param  \SineMacula\ApiToolkit\Enums\FlushStrategy  $strategy
@@ -224,7 +224,11 @@ final class WritePool
             $chunks  = (new DeferredWriteChunker($this->chunkSize))->chunk($this->buffer[$connection][$table]);
             $context = new WritePoolFlushContext($strategy, $connection, $table, $chunks, $targets, $targetIndex);
 
-            $this->flushTarget($context, $accumulator);
+            if ($this->transactional) {
+                $this->flushTargetTransactionally($context, $accumulator);
+            } else {
+                $this->flushChunks($context, $accumulator);
+            }
         }
 
         $this->settle($strategy, $targets, $accumulator);
@@ -285,26 +289,6 @@ final class WritePool
         }
 
         unset($this->buffer[$connection]);
-    }
-
-    /**
-     * Flush a single target's chunks, optionally inside a transaction.
-     *
-     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
-     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\WritePoolFlushException
-     */
-    private function flushTarget(WritePoolFlushContext $context, WritePoolFlushAccumulator $accumulator): void
-    {
-        if (!$this->transactional) {
-            $this->flushChunks($context, $accumulator);
-
-            return;
-        }
-
-        $this->flushTargetTransactionally($context, $accumulator);
     }
 
     /**
@@ -408,8 +392,8 @@ final class WritePool
     }
 
     /**
-     * Rethrow a failure that ended the caller's transaction, dropping the
-     * connection's records so a retry of that transaction buffers them again.
+     * Rethrow a failure that ended the caller's transaction, dropping every
+     * record buffered for the connection, since a retry defers its own again.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushAccumulator  $accumulator
@@ -460,7 +444,8 @@ final class WritePool
 
         if ($context->strategy() === FlushStrategy::THROW) {
             // Per-chunk mirror of handleTargetRollback()'s whole-target retain
-            $retained = $this->retainUnprocessedRecords($context, $chunk);
+            $unprocessed = array_slice($context->chunks(), (int) $context->chunkIndex() + 1);
+            $retained    = $this->retainBuffer($context, array_merge($chunk, ...$unprocessed));
 
             throw new WritePoolFlushException($accumulator->toThrowResult($retained, $this->tableNames($context->targets())), $exception);
         }
@@ -489,23 +474,6 @@ final class WritePool
             'error'      => $exception->getMessage(),
             'exception'  => $exception,
         ]);
-    }
-
-    /**
-     * Retain the failed chunk and all unprocessed records in the buffer.
-     *
-     * The context must carry the chunk index (see withChunkIndex()).
-     *
-     * @param  \SineMacula\ApiToolkit\Repositories\Concerns\WritePoolFlushContext  $context
-     * @param  list<array<string, mixed>>  $chunk
-     * @return int
-     */
-    private function retainUnprocessedRecords(WritePoolFlushContext $context, array $chunk): int
-    {
-        $chunkIndex      = (int) $context->chunkIndex();
-        $remainingChunks = array_slice($context->chunks(), $chunkIndex + 1);
-
-        return $this->retainBuffer($context, array_merge($chunk, ...$remainingChunks));
     }
 
     /**
