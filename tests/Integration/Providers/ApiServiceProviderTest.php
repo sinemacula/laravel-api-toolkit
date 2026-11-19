@@ -568,7 +568,7 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
-     * Test that every shipped operator token is permitted by some capability.
+     * Test that every shipped operator token is admitted by some capability.
      *
      * @return void
      */
@@ -578,12 +578,12 @@ final class ApiServiceProviderTest extends TestCase
 
         foreach ($registry->tokens() as $token) {
 
-            $permitted = array_filter(
+            $admitting = array_filter(
                 Capability::cases(),
-                static fn (Capability $capability): bool => $capability->permits($token),
+                static fn (Capability $capability): bool => $registry->admits($token, $capability),
             );
 
-            self::assertNotSame([], $permitted, sprintf('The "%s" operator is permitted by no capability.', $token));
+            self::assertNotSame([], $admitting, sprintf('The "%s" operator is admitted by no capability.', $token));
         }
     }
 

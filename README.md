@@ -419,7 +419,7 @@ operators the column answers. Any other operator is refused with a `422`:
 | `Capability::DOCUMENT` | a JSON column behind a containment index                         | `$contains`                                                               |
 | `Capability::OPAQUE`   | a column with no access path the resource will vouch for         | `$eq`                                                                     |
 
-Operators your application registers under new tokens are not gated by capability (see
+These are the shipped defaults. An operator your application registers names the capabilities that admit it (see
 [Filter-Operator Registry](#filter-operator-registry)).
 
 **Model binding and discovery** - `#[ForModel(...)]` binds a resource to its model, and may be repeated to bind one
@@ -756,28 +756,37 @@ in-process signal that an auto-flush failed.
 
 ### Filter-Operator Registry
 
-The `OperatorRegistry` singleton maps tokens to `FilterOperator` handlers. Register custom operators in a service
-provider's `boot()` method:
+The `OperatorRegistry` singleton maps tokens to `FilterOperator` handlers and the capabilities that admit each. Register
+custom operators in a service provider's `boot()` method:
 
 ```php
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
-use SineMacula\ApiToolkit\Contracts\FilterOperator;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function boot(OperatorRegistry $registry): void
     {
-        $registry->register('$regex', new RegexOperator);
+        $registry->register('$starts', new StartsWithOperator, Capability::RANGE);
 
-        // Override an existing operator
+        // Replace a registered operator's handler
         $registry->override('$contains', new StrictContainsOperator);
     }
 }
 ```
 
 An operator is a class implementing `SineMacula\ApiToolkit\Contracts\FilterOperator`, or a closure with the same
-signature, `apply(Builder $query, string $column, mixed $value): void`. `register()` throws `InvalidArgumentException`
-if the token is already taken; `override()` replaces it unconditionally.
+signature, `apply(Builder $query, string $column, mixed $value): void`. A token is `$` followed by a letter, then
+letters, digits or underscores, and may not be `$and`, `$or`, `$has` or `$hasnt`. `register()` throws
+`InvalidArgumentException` for any other token, or one already taken.
+
+A token is answered only on columns declaring one of the capabilities it was registered with, so `$starts` above is
+refused with a `422` on an `EXACT` or `OPAQUE` column. The shipped tokens are registered with the defaults in
+[Query capabilities](#schema-driven-apiresource). `override()` replaces the handler of a registered token and keeps its
+capabilities, so a replacement `$contains` still serves only `DOCUMENT` columns; it throws `InvalidArgumentException`
+for an unregistered token. To change a token's capabilities, shipped or not, `remove()` it and `register()` it again.
+The bare shorthand `{"name":"Alice"}` runs the registered `$eq` handler, so overriding `$eq` changes both spellings,
+and removing it refuses both. A column whose capability admits no registered token refuses every filter on it.
 
 An operator adds AND-joined predicates for one column; the applier owns the grouping, so an operator never chooses the
 connective, and clauses an operator joins with OR are grouped on their own. One that refuses its operand throws a
@@ -794,10 +803,8 @@ An operator that expands one value into a predicate per item should also impleme
 checked against the `max_in_items` cap, so a delimited string is bounded the same as an array. An operator without
 the contract counts as one item per non-list value.
 
-The capability gate covers only the shipped tokens. A token registered under a new name is allowed on any declared
-column, since the package cannot know which access path it needs. Overriding a shipped token keeps that token's
-capability rules, so a replacement `$contains` is still served only on `DOCUMENT` columns. An unregistered token is
-rejected with a 422, under a column or on its own.
+An unregistered token is rejected with a 422, under a column or on its own. The operators each column answers in the
+exported document and the generated docs are the registered tokens its capability admits, custom ones included.
 
 ### Exception Handling
 
@@ -819,6 +826,50 @@ Exceptions are mapped to `ApiException` subclasses and rendered as JSON error re
 - `'always_json'` - always JSON.
 - `'json_when_expected'` - JSON only when the request expects it (Laravel's `expectsJson()`, e.g.
   `Accept: application/json`).
+
+Every error renders as one envelope:
+
+```json
+{
+  "error": {
+    "status": 422,
+    "code": 10106,
+    "title": "Invalid Input",
+    "detail": "The information supplied was invalid",
+    "meta": {"email": ["The email field must be a valid email address."]}
+  }
+}
+```
+
+`detail` is always present, empty when the code has no detail translation, and `title` is left out when none resolves.
+`meta` is the exception's own meta, always an object, and is left out when empty. With
+`api-toolkit.exceptions.include_debug_info` on (null follows `app.debug`), an error with an underlying exception adds
+that exception's message, class, file, line and trace under `error.debug`, beside the meta rather than inside it.
+
+An `ApiException` declares the shape of its meta by implementing `DefinesErrorMeta`, and the exported document types
+`error.meta` for its code with it. A subclass inherits the declaration with the code:
+
+```php
+use SineMacula\ApiToolkit\Exceptions\ApiException;
+use SineMacula\ApiToolkit\OpenApi\Contracts\DefinesErrorMeta;
+
+final class SlotTakenException extends ApiException implements DefinesErrorMeta
+{
+    public const ErrorCodeInterface CODE = AppErrorCode::SLOT_TAKEN;
+
+    public const HttpStatus HTTP_STATUS = HttpStatus::CONFLICT;
+
+    public static function metaSchema(): array
+    {
+        return [
+            'type'                 => 'object',
+            'properties'           => ['next_free' => ['type' => 'string', 'format' => 'date-time']],
+            'required'             => ['next_free'],
+            'additionalProperties' => false,
+        ];
+    }
+}
+```
 
 On a precognitive request a `ValidationException` renders as Laravel's `{message, errors}` body, which Precognition
 clients read, rather than the error envelope.
@@ -1050,13 +1101,20 @@ action honours. Every queryable property carries an `x-query-surface` extension 
 capability and the operators it answers, whether an index backs its sort (with the recorded reason where none does), its
 search strategy, and `conditional` on a filter or sort only some callers may use. The relations a filter may descend
 through are listed on the schema itself. All of this is read from the same compiled schema the request-time checks use,
-and the operators from the bound registry, so the document cannot offer a column the request would reject or an operator
-that is no longer registered. A column whose operators have all been removed from the registry is documented as
+and each column's operators from the tokens the bound registry admits on its capability, so the document cannot offer a
+column or an operator the request would reject. A column whose capability admits no registered token is documented as
 answering no filter.
 
 A resource schema requires only what every response carries: `_type`, and each fixed field read straight from its
 column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names
 none for that type and no parent relation pins them: the declared `$default` fields, then the fixed ones.
+
+A field read straight from its column is typed from the value Eloquent returns: by the model's cast when it has one,
+else by the column type. Date casts and the model's timestamps are a `date-time`, a `decimal:N` cast a string, and any
+other date-time or time column the driver's string. A value with no fixed shape is marked `x-undocumented`: an `array`,
+`json`, `collection` or `object` cast, a cast class other than an enum, `AsStringable` or `AsUri`, and an uncast
+decimal, binary or JSON column. On PostgreSQL before PHP 8.4, a float column is a string, as the driver returns it.
+Declare the field's `openapi()` schema to document any of these.
 
 A relation rendered through a child resource is typed from its Eloquent relation: a to-many relation as an array of the
 related schema, and a to-one relation as the related schema or `null`, since it renders `null` when the related row is
@@ -1082,10 +1140,13 @@ are ignored. Global middleware is not read, and a middleware the container rebin
 names. Class names in `@throws` resolve as PHP would in the file declaring the method, so imported, aliased,
 same-namespace and fully qualified names all work, and a union such as `@throws A|B` names both. Each error code is
 documented once, as the `components.examples` entry `Error<code>` (such as `Error10107`) carrying the code's catalogue
-title and detail, and every error response references the examples of its exceptions. An exception without a `CODE` adds
-its status and headers but no example. The export fails when a documented exception's code is not in the error catalogue
-(add its namespace to `api-toolkit.openapi.exception_namespaces`), or when it shares a code with an exception answering
-another status.
+title and detail, and as the `components.schemas` envelope `Error<code>`, which pins `error.code` and types `error.meta`
+as the code's exception declares it, else as an open object. `InvalidInputException` declares its field errors and
+`QueryTooExpensiveException` the limit it exceeded. Every error response references the examples of its exceptions, and
+its schema is the envelope of its code, or a `oneOf` of the envelopes where the status carries several codes. The export
+fails when a documented exception has no `CODE`, which the handler cannot render, when its code is not in the error
+catalogue (add its namespace to `api-toolkit.openapi.exception_namespaces`), or when it shares a code with an exception
+answering another status or declaring another meta.
 
 Each path parameter is typed from what the router enforces on its segment. A `where` constraint comes first:
 `whereUuid()` exports a `uuid`, `whereNumber()` a non-negative integer, `whereIn()` or a plain alternation such as

@@ -20,6 +20,7 @@ use SineMacula\ApiToolkit\Cache\MetadataGeneration;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Exceptions\GoneException;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
@@ -314,6 +315,27 @@ final class ContainerBindingRegistrarTest extends TestCase
         self::assertInstanceOf(MySqlNgramSearchDriver::class, $registry->resolve('mysql'));
         self::assertInstanceOf(PostgresTrigramSearchDriver::class, $registry->resolve('pgsql'));
         self::assertInstanceOf(SqliteSearchDriver::class, $registry->resolve('sqlite'));
+    }
+
+    /**
+     * Test that the shipped operators admit, per capability, exactly its
+     * defaults in their documented order.
+     *
+     * @return void
+     */
+    public function testRegisterSeedsTheOperatorRegistryWithEachCapabilitysDefaults(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        $registry = $app->make(OperatorRegistry::class);
+
+        foreach (Capability::cases() as $capability) {
+            self::assertSame($capability->defaultOperators(), $registry->tokensFor($capability), $capability->value);
+        }
+
+        self::assertSame(['$eq', '$in', '$neq', '$gt', '$ge', '$lt', '$le', '$between', '$contains', '$null', '$notNull'], $registry->tokens());
     }
 
     /**

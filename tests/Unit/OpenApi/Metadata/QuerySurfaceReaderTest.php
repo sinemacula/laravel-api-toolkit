@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Field;
@@ -56,7 +57,7 @@ final class QuerySurfaceReaderTest extends TestCase
         $surfaces = $this->reader()->read([
             User::class         => UserResource::class,
             Organization::class => OrganizationResource::class,
-        ], $this->vocabulary());
+        ], $this->registry());
 
         self::assertSame(
             [UserResource::class, OrganizationResource::class, PostResource::class],
@@ -94,7 +95,7 @@ final class QuerySurfaceReaderTest extends TestCase
             }
         };
 
-        $surfaces = $this->reader()->read([Note::class => $notes::class], $this->vocabulary());
+        $surfaces = $this->reader()->read([Note::class => $notes::class], $this->registry());
 
         self::assertEquals([
             new QueryRelationDescriptor('noteable', polymorphic: true),
@@ -153,7 +154,7 @@ final class QuerySurfaceReaderTest extends TestCase
         $users::$posts = $posts::class;
         $posts::$user  = $users::class;
 
-        $surfaces = $this->reader()->read([User::class => $users::class], $this->vocabulary());
+        $surfaces = $this->reader()->read([User::class => $users::class], $this->registry());
 
         self::assertSame([$users::class, $posts::class], array_map(static fn (QuerySurfaceDescriptor $surface): string => $surface->resource, $surfaces));
     }
@@ -165,7 +166,7 @@ final class QuerySurfaceReaderTest extends TestCase
      */
     public function testEmptyResourceMapReadsNoSurfaces(): void
     {
-        self::assertSame([], $this->reader()->read([], $this->vocabulary()));
+        self::assertSame([], $this->reader()->read([], $this->registry()));
     }
 
     /**
@@ -313,28 +314,49 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that an operator gone from the vocabulary is dropped.
+     * Test that a registered token is reported on the columns its capabilities
+     * admit, and only those.
      *
      * @return void
      */
-    public function testAnOperatorTheVocabularyNoLongerHoldsIsDroppedFromTheColumn(): void
+    public function testARegisteredTokenIsReportedOnlyOnTheColumnsItsCapabilitiesAdmit(): void
     {
-        $vocabulary = array_values(array_diff($this->vocabulary(), ['$in']));
-        $column     = $this->columns(UserResource::class, $vocabulary)['status'];
+        $this->registry()->register('$starts', static function (): void {}, Capability::ENUM);
+
+        $columns = $this->columns(UserResource::class);
+
+        self::assertSame(['$eq', '$in', '$neq', '$null', '$notNull', '$starts'], $columns['status']->operators);
+        self::assertSame(['$eq', '$in', '$null', '$notNull'], $columns['email']->operators);
+    }
+
+    /**
+     * Test that an operator removed from the registry is dropped.
+     *
+     * @return void
+     */
+    public function testARemovedOperatorIsDroppedFromTheColumn(): void
+    {
+        $this->registry()->remove('$in');
+
+        $column = $this->columns(UserResource::class)['status'];
 
         self::assertSame(['$eq', '$neq', '$null', '$notNull'], $column->operators);
         self::assertSame(Capability::ENUM, $column->capability);
     }
 
     /**
-     * Test that a column with no remaining operators reports no capability.
+     * Test that a column whose capability admits no operator reports no
+     * capability but keeps its order.
      *
      * @return void
      */
-    public function testAColumnLeftWithNoDispatchableOperatorReportsNoCapability(): void
+    public function testAColumnLeftWithNoAdmittedOperatorReportsNoCapability(): void
     {
-        $vocabulary = array_values(array_diff($this->vocabulary(), ['$eq', '$in', '$null', '$notNull']));
-        $columns    = $this->columns(AliasedQueryableUserResource::class, $vocabulary);
+        foreach (['$eq', '$in', '$null', '$notNull'] as $token) {
+            $this->registry()->remove($token);
+        }
+
+        $columns = $this->columns(AliasedQueryableUserResource::class);
 
         self::assertSame([], $columns['email']->operators);
         self::assertNull($columns['email']->capability);
@@ -453,10 +475,11 @@ final class QuerySurfaceReaderTest extends TestCase
         );
 
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
+        $this->registry()->remove('$contains');
 
         $columns = [];
 
-        foreach ($this->ghostSurface('GhostResource', ['$eq'])->columns as $column) {
+        foreach ($this->ghostSurface('GhostResource')->columns as $column) {
             $columns[$column->property] = [$column->filterConditional, $column->sortConditional];
         }
 
@@ -467,15 +490,11 @@ final class QuerySurfaceReaderTest extends TestCase
      * Read a single resource's surface.
      *
      * @param  class-string  $resourceClass
-     * @param  array<int, string>|null  $vocabulary
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
      */
-    private function surface(string $resourceClass, ?array $vocabulary = null): QuerySurfaceDescriptor
+    private function surface(string $resourceClass): QuerySurfaceDescriptor
     {
-        return $this->reader()->read(
-            [User::class => $resourceClass],
-            $vocabulary ?? $this->vocabulary(),
-        )[0];
+        return $this->reader()->read([User::class => $resourceClass], $this->registry())[0];
     }
 
     /**
@@ -492,37 +511,35 @@ final class QuerySurfaceReaderTest extends TestCase
      * Read the surface of a resource name the compiler has been primed for.
      *
      * @param  string  $resourceClass
-     * @param  array<int, string>|null  $vocabulary
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
      */
-    private function ghostSurface(string $resourceClass, ?array $vocabulary = null): QuerySurfaceDescriptor
+    private function ghostSurface(string $resourceClass): QuerySurfaceDescriptor
     {
         /** @var class-string $resourceClass */
-        return $this->surface($resourceClass, $vocabulary);
+        return $this->surface($resourceClass);
     }
 
     /**
-     * The operator tokens the package registers by default.
+     * Return the bound operator registry, seeded with the shipped operators.
      *
-     * @return array<int, string>
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry
      */
-    private function vocabulary(): array
+    private function registry(): OperatorRegistry
     {
-        return ['$eq', '$neq', '$gt', '$lt', '$ge', '$le', '$in', '$between', '$contains', '$null', '$notNull'];
+        return app(OperatorRegistry::class);
     }
 
     /**
      * Read a single resource's columns, keyed by property.
      *
      * @param  class-string  $resourceClass
-     * @param  array<int, string>|null  $vocabulary
      * @return array<string, \SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor>
      */
-    private function columns(string $resourceClass, ?array $vocabulary = null): array
+    private function columns(string $resourceClass): array
     {
         $columns = [];
 
-        foreach ($this->surface($resourceClass, $vocabulary)->columns as $column) {
+        foreach ($this->surface($resourceClass)->columns as $column) {
             $columns[$column->property] = $column;
         }
 

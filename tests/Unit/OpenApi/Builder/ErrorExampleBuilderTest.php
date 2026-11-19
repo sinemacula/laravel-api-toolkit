@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi\Builder;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Exceptions\ForbiddenException;
 use SineMacula\ApiToolkit\Exceptions\NotFoundException;
@@ -13,6 +14,8 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ErrorCatalogueMismatchException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
+use Tests\Fixtures\Exceptions\WidgetLockedException;
+use Tests\Fixtures\Exceptions\WidgetSealedException;
 use Tests\Fixtures\OpenApi\CodelessApiException;
 use Tests\Fixtures\OpenApi\QuotaExceededException;
 
@@ -41,13 +44,78 @@ final class ErrorExampleBuilderTest extends TestCase
     }
 
     /**
-     * Test that an exception without a CODE references no example.
+     * Test that an exception without a CODE, which the handler cannot render,
+     * fails.
      *
      * @return void
      */
-    public function testExceptionWithoutACodeReferencesNoExample(): void
+    public function testExceptionWithoutACodeFails(): void
     {
-        self::assertSame([], $this->builder()->reference(CodelessApiException::class));
+        $this->expectException(ErrorCatalogueMismatchException::class);
+        $this->expectExceptionMessage(sprintf(
+            '[%s] declares no error code, so the handler cannot render it; give it a CODE constant.',
+            CodelessApiException::class,
+        ));
+
+        $this->builder()->reference(CodelessApiException::class);
+    }
+
+    /**
+     * Provide an exception whose meta differs from the one the catalogue holds
+     * for its code, with that catalogue entry.
+     *
+     * @return iterable<string, array{0: class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>, 1: \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor}>
+     */
+    public static function differentMetaProvider(): iterable
+    {
+        yield 'undeclared against declared' => [
+            NotFoundException::class,
+            new ErrorDescriptor(code: 10103, httpStatus: 404, title: 'Not Found', detail: 'Missing.', source: 'App\Exceptions\MissingException', meta: ['type' => 'object']),
+        ];
+        yield 'declared against undeclared' => [
+            WidgetSealedException::class,
+            new ErrorDescriptor(code: 20004, httpStatus: 423, title: 'Locked', detail: 'Locked.', source: 'App\Exceptions\MissingException'),
+        ];
+        yield 'declared against another declared' => [
+            WidgetSealedException::class,
+            new ErrorDescriptor(code: 20004, httpStatus: 423, title: 'Locked', detail: 'Locked.', source: 'App\Exceptions\MissingException', meta: ['type' => 'object']),
+        ];
+    }
+
+    /**
+     * Test that an exception declaring a different meta from the one its code
+     * is catalogued with fails.
+     *
+     * @param  class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>  $exception
+     * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor  $descriptor
+     * @return void
+     */
+    #[DataProvider('differentMetaProvider')]
+    public function testMetaTheCatalogueDocumentsOtherwiseFails(string $exception, ErrorDescriptor $descriptor): void
+    {
+        $this->expectException(ErrorCatalogueMismatchException::class);
+        $this->expectExceptionMessage(sprintf(
+            '[%1$s] declares a different meta for error code %2$d than [App\Exceptions\MissingException] does; give [%1$s] its own error code.',
+            $exception,
+            $descriptor->code,
+        ));
+
+        $this->builder([$descriptor])->reference($exception);
+    }
+
+    /**
+     * Test that a subclass inheriting the meta of its code's exception
+     * references the code's example.
+     *
+     * @return void
+     */
+    public function testSubclassInheritingTheMetaReferencesTheCodesExample(): void
+    {
+        $builder = $this->builder([
+            new ErrorDescriptor(code: 20004, httpStatus: 423, title: 'Locked', detail: 'Locked.', source: WidgetLockedException::class, meta: WidgetLockedException::metaSchema()),
+        ]);
+
+        self::assertSame(['Error20004' => ['$ref' => '#/components/examples/Error20004']], $builder->reference(WidgetSealedException::class));
     }
 
     /**
@@ -123,6 +191,10 @@ final class ErrorExampleBuilderTest extends TestCase
         $paths['/users']['get']['responses'][500]['content']['application/json']['examples'] = ['Error10001' => ['$ref' => '#/components/examples/Error10001']];
 
         self::assertSame(['Error10001', 'Error10103', 'Error10107'], array_keys($builder->build($paths)));
+        self::assertSame(
+            ['Error10001' => 10001, 'Error10103' => 10103, 'Error10107' => 10107],
+            array_map(static fn (ErrorDescriptor $descriptor): int => $descriptor->code, $builder->referenced($paths)),
+        );
     }
 
     /**

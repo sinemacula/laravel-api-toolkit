@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
@@ -156,12 +157,32 @@ final class ConfigMetadataCatalogueTest extends TestCase
     public function testGetOperatorTokensReturnsRegistryTokens(): void
     {
         $registry = new OperatorRegistry;
-        $registry->register('$eq', new EqualOperator);
-        $registry->register('$neq', new NotEqualOperator);
+        $registry->register('$eq', new EqualOperator, Capability::EXACT);
+        $registry->register('$neq', new NotEqualOperator, Capability::ENUM);
 
         $catalogue = $this->makeCatalogueWithRegistry($registry);
 
         self::assertSame(['$eq', '$neq'], $catalogue->getOperatorTokens());
+    }
+
+    /**
+     * Test that getOperatorsFor returns the tokens the registry admits on the
+     * capability.
+     *
+     * @return void
+     */
+    public function testGetOperatorsForReturnsTheTokensTheRegistryAdmits(): void
+    {
+        $registry = new OperatorRegistry;
+        $registry->register('$eq', new EqualOperator, Capability::EXACT, Capability::RANGE);
+        $registry->register('$neq', new NotEqualOperator, Capability::ENUM);
+        $registry->register('$starts', static function (): void {}, Capability::RANGE);
+
+        $catalogue = $this->makeCatalogueWithRegistry($registry);
+
+        self::assertSame(['$eq', '$starts'], $catalogue->getOperatorsFor(Capability::RANGE));
+        self::assertSame(['$eq'], $catalogue->getOperatorsFor(Capability::EXACT));
+        self::assertSame([], $catalogue->getOperatorsFor(Capability::OPAQUE));
     }
 
     /**
@@ -253,6 +274,26 @@ final class ConfigMetadataCatalogueTest extends TestCase
         self::assertCount(1, $surfaces);
         self::assertSame(PostResource::class, $surfaces[0]->resource);
         self::assertNotSame([], $surfaces[0]->columns);
+    }
+
+    /**
+     * Test that getQuerySurfaces reads each column's operators from the
+     * registry.
+     *
+     * @return void
+     */
+    public function testGetQuerySurfacesReadsTheOperatorsFromTheRegistry(): void
+    {
+        Config::set('api-toolkit.resources.paths', []);
+        Config::set('api-toolkit.resources.resource_map', [Post::class => PostResource::class]);
+
+        $registry = new OperatorRegistry;
+        $registry->register('$starts', static function (): void {}, Capability::EXACT);
+
+        $columns = $this->makeCatalogueWithRegistry($registry)->getQuerySurfaces()[0]->columns;
+
+        self::assertSame(['title'], array_column($columns, 'column'));
+        self::assertSame(['$starts'], $columns[0]->operators);
     }
 
     /**
