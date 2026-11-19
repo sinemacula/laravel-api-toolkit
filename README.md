@@ -1008,7 +1008,8 @@ php artisan api-toolkit:export-openapi --all
 
 Without options the default audience is written to `api-toolkit.openapi.output`. `--audience` exports one named
 audience. `--all` exports every configured audience, each to its own file with the audience inserted before the
-extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`.
+extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`. Each file is staged beside its
+target and moved into place only once all are staged, so one that cannot be staged replaces none of them.
 
 Resources are optional: a route documented only through `#[RequestSchema]` and `#[ResponseSchema]` is exported with
 an empty resource map. Operations are not. Every target audience is built before anything is written, and if any of
@@ -1019,6 +1020,10 @@ exit successfully:
 ```bash
 php artisan api-toolkit:export-openapi --all --allow-empty
 ```
+
+Routes handled under a framework or tooling namespace (`api-toolkit.openapi.exclude.namespaces`) and `Route::fallback()`
+routes are left out. A closure in an application route file is documented, whether or not the routes are cached.
+Responses are documented as JSON; the formats the resource exporter negotiates, such as CSV, are not listed.
 
 List the hosts the API is served from under `api-toolkit.openapi.servers`, so interactive viewers call the API rather
 than the docs host and generated clients get a base URL. Each entry is an OpenAPI Server Object with a `url`, an
