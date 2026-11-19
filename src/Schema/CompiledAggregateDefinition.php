@@ -60,7 +60,7 @@ final readonly class CompiledAggregateDefinition
         /** Caller guard closures that control visibility */
         public array $callerGuards = [],
 
-        /** The declared OpenAPI contract, or null to derive it from the function */
+        /** Declared OpenAPI contract for this aggregate; read by the exporter */
         public ?OpenApiFieldSchema $openApi = null,
     ) {}
 

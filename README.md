@@ -371,10 +371,10 @@ model already uses as a column, cast or setter.
 
 Only fields marked `filterable()` or `sortable()` can be queried, and `?search=` matches only fields marked
 `searchable()`. Relations marked `traversable()` can be targeted by nested filters. A column declared filterable with
-two capabilities fails to compile, as does a field named `_type`, `_truncated`, or `aggregates` beside a declared
-aggregate, since the response writes those keys itself. `$default` lists the fields returned when the client sends no
-`?fields`, and the static `$fixed` the fields added to every selection, after those in `resources.fixed_fields`. Schema
-validation rejects a default or fixed field the resource does not declare.
+two capabilities fails to compile, as does a field named `_type` or `_truncated`, or one named `aggregates` beside a
+declared aggregate, since the response writes those keys itself. `$default` lists the fields returned when the client
+sends no `?fields`, and the static `$fixed` the fields added to every selection, after those in
+`resources.fixed_fields`. Schema validation rejects a default or fixed field the resource does not declare.
 
 **Guards** - `guard(fn ($resource, $request) => ...)` is a row guard and `visibleTo(fn ($request) => ...)` a caller
 guard; either hides the field, aggregate or relation when it returns exactly `false`. A query cannot honour a row guard

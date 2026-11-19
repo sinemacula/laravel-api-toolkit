@@ -213,8 +213,8 @@ final class RawSchemaValidatorTest extends TestCase
     }
 
     /**
-     * Test that a key PHP stores as an integer is rejected, since a payload of
-     * such keys encodes as a JSON list, while a digit string it keeps passes.
+     * Test that a key PHP stores as an integer is rejected, since it can turn
+     * the payload into a JSON list, while a digit string PHP keeps passes.
      *
      * @return void
      */
@@ -227,7 +227,7 @@ final class RawSchemaValidatorTest extends TestCase
             '__aggregate__:1.0' => ['metric' => 'count', 'relation' => 'posts'],
         ]);
 
-        $integer = 'Aggregate key "%s" reads as an integer, so a payload of such keys would encode as a JSON list';
+        $integer = 'Aggregate key "%s" reads as an integer, which can turn the aggregates object into a JSON list';
         $word    = 'Aggregate key "%s" may hold only letters, digits and underscores';
 
         self::assertSame([

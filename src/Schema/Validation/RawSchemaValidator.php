@@ -28,7 +28,7 @@ final class RawSchemaValidator
     /** @var list<string> The declarations that put a field on the query surface */
     private const array QUERY_DECLARATIONS = ['filterable', 'sortable', 'searchable', 'traversable'];
 
-    /** @var array<string, string> The keys every rendered resource writes, mapped to what each carries */
+    /** @var array<string, string> The keys a rendered resource writes itself, mapped to what each carries */
     private const array RESERVED_KEYS = ['_type' => 'the resource type', RelationLimit::TRUNCATED_KEY => 'the relations a response truncates'];
 
     /** @var string The key the aggregates payload renders under, reserved where an aggregate is declared */
@@ -214,7 +214,7 @@ final class RawSchemaValidator
         }
 
         if ((string) (int) $present === $present) {
-            $defects[] = sprintf('Aggregate key "%s" reads as an integer, so a payload of such keys would encode as a JSON list', $present);
+            $defects[] = sprintf('Aggregate key "%s" reads as an integer, which can turn the aggregates object into a JSON list', $present);
         }
 
         if (isset($aggregates[$present])) {

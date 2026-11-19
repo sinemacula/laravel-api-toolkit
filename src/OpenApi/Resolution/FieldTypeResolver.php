@@ -41,8 +41,8 @@ final readonly class FieldTypeResolver
     ) {}
 
     /**
-     * Resolve one field's emitted schema by precedence: declared, inferred,
-     * then flagged.
+     * Resolve one field's emitted schema by precedence: declared, flagged when
+     * opaque, then inferred.
      *
      * @param  string  $fieldKey
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field

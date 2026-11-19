@@ -139,11 +139,12 @@ final class AggregateWireFormatHttpTest extends TestCase
     /**
      * Test that a sum and an average over a decimal column are JSON numbers, a
      * minimum reads through the related decimal cast as an exact string, and a
-     * maximum over the uncast column renders as the related model reads it.
+     * maximum over the uncast column renders as the engine reads it, a float on
+     * SQLite and an exact string elsewhere.
      *
      * @return void
      */
-    public function testDecimalAggregatesRenderTheSameTypesOnEveryEngine(): void
+    public function testDecimalAggregatesRenderAsDocumentedOnEachEngine(): void
     {
         $owner = DB::table('aggregate_owners')->insertGetId(['name' => 'Ada']);
 
@@ -161,7 +162,7 @@ final class AggregateWireFormatHttpTest extends TestCase
         self::assertIsFloat($aggregates['lines_avg_price']);
         self::assertEqualsWithDelta(0.15, $aggregates['lines_avg_price'], 1e-9);
         self::assertSame('0.10', $aggregates['lines_min_price']);
-        self::assertSame(AggregateLine::query()->orderByDesc('cost')->value('cost'), $aggregates['lines_max_cost']);
+        self::assertSame(DB::connection()->getDriverName() === 'sqlite' ? 0.2 : '0.20', $aggregates['lines_max_cost']);
     }
 
     /**
