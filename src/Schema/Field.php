@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
-use Carbon\CarbonInterface;
+use Carbon\Carbon;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Auth\Access\Gate;
 use Illuminate\Contracts\Support\Arrayable;
@@ -88,18 +88,16 @@ final class Field extends BaseDefinition
     /**
      * Define a timestamp field by name.
      *
+     * It reads only the column of that name, parsing the string an uncast
+     * column holds.
+     *
      * @param  string  $field
      * @param  string|null  $alias
      * @return self
      */
     public static function timestamp(string $field, ?string $alias = null): self
     {
-        $definition = self::accessor($field, static function ($resource) use ($field): ?string {
-
-            $value = data_get($resource, $field);
-
-            return $value instanceof CarbonInterface ? $value->toIso8601String() : null;
-        }, $alias);
+        $definition = self::accessor($field, static fn ($resource): ?string => Carbon::make(data_get($resource, $field))?->toIso8601String(), $alias)->needs($field);
 
         $definition->openapi()->type('string')->format('date-time')->nullable();
 
@@ -109,18 +107,16 @@ final class Field extends BaseDefinition
     /**
      * Define a date field by name.
      *
+     * It reads only the column of that name, parsing the string an uncast
+     * column holds.
+     *
      * @param  string  $field
      * @param  string|null  $alias
      * @return self
      */
     public static function date(string $field, ?string $alias = null): self
     {
-        $definition = self::accessor($field, static function ($resource) use ($field): ?string {
-
-            $value = data_get($resource, $field);
-
-            return $value instanceof CarbonInterface ? $value->toDateString() : null;
-        }, $alias);
+        $definition = self::accessor($field, static fn ($resource): ?string => Carbon::make(data_get($resource, $field))?->toDateString(), $alias)->needs($field);
 
         $definition->openapi()->type('string')->format('date')->nullable();
 

@@ -414,6 +414,9 @@ Field::accessor('initials', fn ($resource) => $resource->first_name[0] . $resour
     ->needs('first_name', 'last_name'),
 ```
 
+`Field::timestamp()` and `Field::date()` read the column of their name, cast or not, and declare it through `needs()`,
+so a guard or transformer on one that reads another column must add it.
+
 **Ability flags** - `Field::can('restore')` renders whether the current user passes a policy ability on each record, as
 the boolean `can_restore`. The key is `can_` and the snake-cased ability, so `Field::can('forceDelete')` is
 `can_force_delete`; pass an alias as the second argument for an ability with dots or hyphens, or one whose key would

@@ -9,6 +9,7 @@ use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\TestCase;
@@ -255,6 +256,24 @@ final class FieldColumnMapperTest extends TestCase
         self::assertTrue($map->isMapped('title'));
         self::assertFalse($map->isInferred('title'));
         self::assertSame(['title', 'slug'], $map->columnsFor('title'));
+    }
+
+    /**
+     * Test that the timestamp and date helpers map to their own column, under
+     * an alias too.
+     *
+     * @return void
+     */
+    public function testTimestampAndDateHelpersMapToTheirOwnColumn(): void
+    {
+        $map = FieldColumnMapper::for($this->makeResourceClass(Field::set(
+            Field::timestamp('created_at'),
+            Field::date('dob', 'birthday'),
+        )));
+
+        self::assertFalse($map->isInferred('created_at'));
+        self::assertSame(['created_at'], $map->columnsFor('created_at'));
+        self::assertSame(['dob'], $map->columnsFor('birthday'));
     }
 
     /**
