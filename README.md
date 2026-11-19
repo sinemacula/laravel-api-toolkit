@@ -747,8 +747,10 @@ rows wait for the next deferral outside a transaction or for the boundary flush,
 not undo them. A flush that does run inside an open transaction joins it: `flushWrites()` called there, or a boundary
 flush while an outer transaction is still open, such as a sync-queued job dispatched inside one. Each chunk then runs in
 its own savepoint, or each table with `deferred_writes.transactional`, so a failure rolls back only that chunk or table
-and the transaction stays usable. A deadlock is the exception: the database may already have rolled back the whole
-transaction.
+and the transaction stays usable. A deadlock or a lost connection ends the transaction instead, whatever `on_failure`
+says: the flush rethrows the error as is, so `DB::transaction()` retries a deadlock, and drops every row buffered for
+that connection. The retried closure defers its own rows again; rows deferred before the transaction opened are lost
+with it.
 
 `api-toolkit.deferred_writes.on_failure` picks what happens when a flush fails:
 
