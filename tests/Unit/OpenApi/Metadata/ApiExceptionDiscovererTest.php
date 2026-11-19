@@ -10,6 +10,8 @@ use SineMacula\ApiToolkit\Exceptions\NotFoundException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
 use Tests\Fixtures\Exceptions\ServiceExecutionException;
 use Tests\Fixtures\Exceptions\WidgetFailureException;
+use Tests\Fixtures\Exceptions\WidgetLockedException;
+use Tests\Fixtures\Exceptions\WidgetSealedException;
 use Tests\TestCase;
 
 /**
@@ -257,7 +259,7 @@ final class ApiExceptionDiscovererTest extends TestCase
 
         $discovered = (new ApiExceptionDiscoverer($prefixes, ['Absent\Package\\']))->discover();
 
-        self::assertSame([WidgetFailureException::class], $discovered);
+        self::assertSame([WidgetFailureException::class, WidgetLockedException::class, WidgetSealedException::class], $discovered);
     }
 
     /**
