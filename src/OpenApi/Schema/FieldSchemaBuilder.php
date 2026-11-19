@@ -321,8 +321,8 @@ final readonly class FieldSchemaBuilder
 
     /**
      * Apply a date_format token's formats: a date or date-time format when
-     * every listed format renders that form, and an example in the first that
-     * reads back what it renders.
+     * every listed format renders that form, and, unless the field lists its
+     * values, an example in the first that reads back what it renders.
      *
      * @param  array<string, mixed>  $schema
      * @param  list<string>  $tokens
@@ -342,6 +342,10 @@ final readonly class FieldSchemaBuilder
             $schema['format'] = 'date';
         } elseif (array_diff($formats, self::DATE_TIME_FORMATS) === []) {
             $schema['format'] = 'date-time';
+        }
+
+        if (array_key_exists('enum', $schema)) {
+            return;
         }
 
         $instant = new \DateTimeImmutable(self::EXAMPLE_INSTANT);

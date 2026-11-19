@@ -207,12 +207,13 @@ final class FieldSchemaBuilderTest extends TestCase
         yield 'unreadable format' => [['date_format:c'], ['type' => 'string']];
         yield 'unreadable then own format' => [['date_format:c,d/m/Y'], ['type' => 'string', 'examples' => ['01/01/2025']]];
         yield 'nullable' => [['nullable', 'date_format:Y-m-d'], ['type' => ['string', 'null'], 'format' => 'date', 'examples' => ['2025-01-01']]];
+        yield 'listed values' => [['string', 'in:2023,2024', 'date_format:Y'], ['type' => 'string', 'enum' => ['2023', '2024']]];
     }
 
     /**
      * Test that a date_format field takes the date or date-time format only
      * when every listed format renders that form, with an example in the first
-     * format that reads back what it renders.
+     * format that reads back what it renders unless it lists its values.
      *
      * @param  list<string>  $tokens
      * @param  array<string, mixed>  $expected
