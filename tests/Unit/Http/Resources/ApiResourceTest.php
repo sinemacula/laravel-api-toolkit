@@ -1638,13 +1638,13 @@ final class ApiResourceTest extends TestCase
 
     /**
      * Test that load_missing over a model without related rows renders the
-     * count as zero and omits the null sum.
+     * count as zero and the sum as null.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testConstructorWithLoadMissingRendersAZeroCountAndOmitsANullSum(): void
+    public function testConstructorWithLoadMissingRendersAZeroCountAndANullSum(): void
     {
         $user = User::create([
             'name'  => 'CountLoad',
@@ -1662,7 +1662,7 @@ final class ApiResourceTest extends TestCase
 
         $result = (new UserResource($user, true))->resolve();
 
-        self::assertSame(['posts_count' => 0], $result['aggregates']);
+        self::assertSame(['posts_count' => 0, 'posts_sum_id' => null], $result['aggregates']);
         self::assertArrayHasKey('aggregate_posts_sum_id', $user->getAttributes());
     }
 
@@ -2972,7 +2972,7 @@ final class ApiResourceTest extends TestCase
         $result = (new UserResource($model, true))->resolve();
 
         self::assertSame([[['posts as aggregate_posts_sum_id'], 'id', 'sum']], $model->calls);
-        self::assertSame(['posts_count' => 5, 'posts_sum_id' => 42.0], $result['aggregates']);
+        self::assertSame(['posts_count' => 5, 'posts_sum_id' => 42.0, 'posts_avg_id' => null], $result['aggregates']);
     }
 
     /**

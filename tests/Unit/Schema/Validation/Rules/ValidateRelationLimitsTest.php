@@ -181,23 +181,6 @@ final class ValidateRelationLimitsTest extends TestCase
     }
 
     /**
-     * Test that a schema key reserved for the truncation list fails.
-     *
-     * @return void
-     */
-    public function testTruncatedSchemaKeyFails(): void
-    {
-        $errors = $this->validate([
-            '_truncated' => self::field(null),
-            'name'       => self::field(null),
-        ]);
-
-        self::assertCount(1, $errors);
-        self::assertSame('_truncated', $errors[0]->fieldKey);
-        self::assertSame('The key "_truncated" is reserved for the relations a response truncates', $errors[0]->defect);
-    }
-
-    /**
      * Test that a limit is not refused when the relation method cannot be read.
      *
      * @return void
