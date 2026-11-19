@@ -98,6 +98,8 @@ Pull requests are compared with the latest master baseline in the Quality Gates 
 - New code ships with tests; the mutation gate (`composer test:mutation`) is the enforced floor. Cover behaviour that
   spans the request lifecycle (middleware, criteria, resources) with integration tests that use the package the way an
   application does.
+- A change to a rule that `resources/boost/skills/laravel-api-toolkit/SKILL.md` states updates the skill in the same
+  pull request.
 
 ## Pull Requests
 
