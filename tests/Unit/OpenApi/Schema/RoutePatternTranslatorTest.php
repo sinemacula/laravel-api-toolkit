@@ -108,6 +108,21 @@ final class RoutePatternTranslatorTest extends TestCase
     public function testLiteralAlternativesBecomeAnEnum(string $pattern, array $enum): void
     {
         self::assertSame(['type' => 'string', 'enum' => $enum], (new RoutePatternTranslator)->translate($pattern));
+        self::assertSame($enum, (new RoutePatternTranslator)->literals('^' . $pattern . '$'));
+    }
+
+    /**
+     * Test that a constraint that is not a list of literals lists no values.
+     *
+     * @return void
+     */
+    public function testPatternListsNoLiterals(): void
+    {
+        $translator = new RoutePatternTranslator;
+
+        self::assertNull($translator->literals('[0-9]+'));
+        self::assertNull($translator->literals('draft|'));
+        self::assertNull($translator->literals(''));
     }
 
     /**

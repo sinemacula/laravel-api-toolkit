@@ -12,6 +12,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
@@ -140,7 +141,7 @@ final class OctaneRequestIsolationTest extends TestCase
 
         self::assertNotNull($equal);
 
-        $registry->register('$starts', $equal);
+        $registry->register('$starts', $equal, Capability::RANGE);
 
         Relation::morphMap(['users' => User::class]);
 
@@ -152,7 +153,7 @@ final class OctaneRequestIsolationTest extends TestCase
         self::assertSame('value', $this->writer()->readMetadata($key));
 
         self::assertSame($registry, $app->make(OperatorRegistry::class));
-        self::assertTrue($registry->has('$starts'));
+        self::assertTrue($registry->admits('$starts', Capability::RANGE));
         self::assertSame(User::class, Relation::getMorphedModel('users'));
 
         $app->make(CacheManager::class)->invalidateMetadata();

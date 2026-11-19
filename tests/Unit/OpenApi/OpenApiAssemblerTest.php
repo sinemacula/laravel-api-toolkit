@@ -6,7 +6,9 @@ namespace Tests\Unit\OpenApi;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Route as RouteFacade;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
@@ -601,6 +603,29 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Test that a domain route's servers are built from its audience's own
+     * servers, which replace the global list.
+     *
+     * @return void
+     */
+    public function testDomainRouteServersFollowTheAudiencesServers(): void
+    {
+        RouteFacade::domain('{account}.example.com')->get('projects', [PathFixtureController::class, 'index']);
+
+        $this->config()->set('api-toolkit.openapi.servers', [['url' => 'https://api.example.com/v1']]);
+        $this->config()->set('api-toolkit.openapi.audiences', [
+            'public'  => [],
+            'partner' => ['servers' => [['url' => 'https://partners.example.com/v2']]],
+        ]);
+
+        $assembler = $this->makeAssembler();
+        $variables = ['account' => ['default' => 'account']];
+
+        self::assertSame([['url' => 'https://{account}.example.com/v2', 'variables' => $variables]], $assembler->assemble('partner')['paths']['/projects']['get']['servers']);
+        self::assertSame([['url' => 'https://{account}.example.com/v1', 'variables' => $variables]], $assembler->assemble('public')['paths']['/projects']['get']['servers']);
+    }
+
+    /**
      * Test that no servers key is exported when the list is empty.
      *
      * @return void
@@ -1091,6 +1116,9 @@ final class OpenApiAssemblerTest extends TestCase
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn($resourceMap);
         $catalogue->method('getOperatorTokens')->willReturn(['$eq', '$neq']);
+        $catalogue->method('getOperatorsFor')->willReturnCallback(
+            static fn (Capability $capability): array => array_values(array_intersect($capability->defaultOperators(), ['$eq', '$neq'])),
+        );
         $catalogue->method('getStructuralOperators')->willReturn(['$and', '$or']);
         $catalogue->method('getErrorCatalogue')->willReturn($this->app->make(ErrorCatalogueReader::class)->read());
 

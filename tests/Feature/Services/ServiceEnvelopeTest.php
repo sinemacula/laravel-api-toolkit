@@ -156,7 +156,8 @@ final class ServiceEnvelopeTest extends TestCase
     }
 
     /**
-     * Test that service lock contention renders the 429 envelope.
+     * Test that service lock contention renders the 429 envelope with no retry
+     * or rate-limit header, as the holder's remaining time is unknown.
      *
      * @return void
      */
@@ -172,6 +173,10 @@ final class ServiceEnvelopeTest extends TestCase
             $response->assertStatus(429);
             $response->assertJsonPath('error.status', 429);
             $response->assertJsonPath('error.code', 10107);
+            $response->assertHeaderMissing('Retry-After');
+            $response->assertHeaderMissing('X-RateLimit-Limit');
+            $response->assertHeaderMissing('X-RateLimit-Remaining');
+            $response->assertHeaderMissing('X-RateLimit-Reset');
         } finally {
             $lock->release();
         }

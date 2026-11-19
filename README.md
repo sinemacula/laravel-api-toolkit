@@ -264,7 +264,8 @@ GET /users?limit=25    // honoured as-is
 ```
 
 **Relation aggregates** - request declared aggregates per resource type by their keys. Requesting any aggregate replaces
-every default of that type, as `?fields` replaces `$default`, and the response renders them under the `aggregates` field:
+every default of that type, as `?fields` replaces `$default`. A type's aggregates apply wherever it renders, at the root
+or embedded, and render under its `aggregates` field when its field selection includes it:
 
 ```http
 GET /users?fields[users]=name,aggregates&aggregates[users]=posts_count,orders_sum_total,last_order_at
@@ -275,7 +276,7 @@ ApiQuery::getAggregates('users');      // ['posts_count', 'orders_sum_total', 'l
 ```
 
 An aggregate key the type does not declare is rejected with a 422 on `aggregates.{type}`, and `?aggregates[users]=`
-selects none.
+selects none. A resource embedded through a `MorphTo` relation or a `PolymorphicResource` loads no aggregates.
 
 ```json
 {
@@ -286,7 +287,14 @@ selects none.
 ```
 
 **Pagination** - `?pagination=cursor` (or any `?cursor` token) selects cursor pagination; offset pagination is used
-otherwise.
+otherwise. A non-empty offset page shorter than `limit`, or an empty first page, derives its total without a count.
+Any other page counts at most the rows through the last page `query_cost.max_offset` allows: past that, `meta.total` is
+those rows, `meta.total_capped` is `true` and `Total-Count` is absent, so read further with cursor pagination. That
+bounds the rows the count admits, not the rows it examines; set `max_offset` to `0` for exact, unbounded totals. A
+capped page is a `CappedLengthAwarePaginator`, which a container binding of `LengthAwarePaginator` does not replace. A
+`simplePaginate()` result renders the cursor envelope. Offset pages do not support an ungrouped aggregate projection
+such as `selectRaw('max(id) as id')`, which is one row rather than a pageable set, nor a `distinct` or union over a join
+without an explicit projection, which MySQL refuses to count.
 
 **Soft deletes** - `?trashed=with` or `?trashed=only`, read as a `TrashedState` from `ApiQuery::getTrashed()`. The
 criteria layer applies it only where the model uses `SoftDeletes` and the resource opts in by overriding
@@ -411,7 +419,7 @@ operators the column answers. Any other operator is refused with a `422`:
 | `Capability::DOCUMENT` | a JSON column behind a containment index                         | `$contains`                                                               |
 | `Capability::OPAQUE`   | a column with no access path the resource will vouch for         | `$eq`                                                                     |
 
-Operators your application registers under new tokens are not gated by capability (see
+These are the shipped defaults. An operator your application registers names the capabilities that admit it (see
 [Filter-Operator Registry](#filter-operator-registry)).
 
 **Model binding and discovery** - `#[ForModel(...)]` binds a resource to its model, and may be repeated to bind one
@@ -655,9 +663,9 @@ Two overrides cover what the catalogue cannot show:
 search relevance order, so a `sortable()` column named `relevance` cannot be ordered by; schema validation reports it.
 
 **Query cost caps** - `api-toolkit.query_cost` bounds the filter document's size and nesting, the keys and value-list
-items it dispatches, the sort keys and relation aggregates requested, and how deep a request pages. A request over a
-cap is rejected before any SQL is issued, with a `422` naming the parameter, the position within it, the cap, the
-limit and the value supplied. Set a cap to `0` to disable it.
+items it dispatches, the sort keys and relation aggregates requested across every resource type, and how deep a request
+pages. A request over a cap is rejected before any SQL is issued, with a `422` naming the parameter, the position within
+it, the cap, the limit and the value supplied. Set a cap to `0` to disable it.
 
 **Writes** - `persist($model, $attributes)` creates or updates the model from an array or collection of attributes.
 Each key is written through Eloquent's `setAttribute()`, so casts, both mutator styles and JSON paths such as
@@ -748,28 +756,37 @@ in-process signal that an auto-flush failed.
 
 ### Filter-Operator Registry
 
-The `OperatorRegistry` singleton maps tokens to `FilterOperator` handlers. Register custom operators in a service
-provider's `boot()` method:
+The `OperatorRegistry` singleton maps tokens to `FilterOperator` handlers and the capabilities that admit each. Register
+custom operators in a service provider's `boot()` method:
 
 ```php
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
-use SineMacula\ApiToolkit\Contracts\FilterOperator;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function boot(OperatorRegistry $registry): void
     {
-        $registry->register('$regex', new RegexOperator);
+        $registry->register('$starts', new StartsWithOperator, Capability::RANGE);
 
-        // Override an existing operator
+        // Replace a registered operator's handler
         $registry->override('$contains', new StrictContainsOperator);
     }
 }
 ```
 
 An operator is a class implementing `SineMacula\ApiToolkit\Contracts\FilterOperator`, or a closure with the same
-signature, `apply(Builder $query, string $column, mixed $value): void`. `register()` throws `InvalidArgumentException`
-if the token is already taken; `override()` replaces it unconditionally.
+signature, `apply(Builder $query, string $column, mixed $value): void`. A token is `$` followed by a letter, then
+letters, digits or underscores, and may not be `$and`, `$or`, `$has` or `$hasnt`. `register()` throws
+`InvalidArgumentException` for any other token, or one already taken.
+
+A token is answered only on columns declaring one of the capabilities it was registered with, so `$starts` above is
+refused with a `422` on an `EXACT` or `OPAQUE` column. The shipped tokens are registered with the defaults in
+[Query capabilities](#schema-driven-apiresource). `override()` replaces the handler of a registered token and keeps its
+capabilities, so a replacement `$contains` still serves only `DOCUMENT` columns; it throws `InvalidArgumentException`
+for an unregistered token. To change a token's capabilities, shipped or not, `remove()` it and `register()` it again.
+The bare shorthand `{"name":"Alice"}` runs the registered `$eq` handler, so overriding `$eq` changes both spellings,
+and removing it refuses both. A column whose capability admits no registered token refuses every filter on it.
 
 An operator adds AND-joined predicates for one column; the applier owns the grouping, so an operator never chooses the
 connective, and clauses an operator joins with OR are grouped on their own. One that refuses its operand throws a
@@ -786,10 +803,8 @@ An operator that expands one value into a predicate per item should also impleme
 checked against the `max_in_items` cap, so a delimited string is bounded the same as an array. An operator without
 the contract counts as one item per non-list value.
 
-The capability gate covers only the shipped tokens. A token registered under a new name is allowed on any declared
-column, since the package cannot know which access path it needs. Overriding a shipped token keeps that token's
-capability rules, so a replacement `$contains` is still served only on `DOCUMENT` columns. An unregistered token is
-rejected with a 422, under a column or on its own.
+An unregistered token is rejected with a 422, under a column or on its own. The operators each column answers in the
+exported document and the generated docs are the registered tokens its capability admits, custom ones included.
 
 ### Exception Handling
 
@@ -910,7 +925,8 @@ status for request-level error rates.
 - An exception implementing Symfony's `HttpExceptionInterface` is not reported when its status is a recognised client
   error (one the handler renders as a `4xx`) or `419`, even when it does not extend Symfony's `HttpException`. An
   unrecognised status such as `499` renders as a generic `500` and is reported.
-- `LockUnavailableException` (lock contention, rendered as `429`) is never reported, with or without `handles()`.
+- `LockUnavailableException` (lock contention, rendered as `429`) is never reported, with or without `handles()`. The
+  `429` carries no `Retry-After` or `X-RateLimit-*` header, since how long the holder keeps the lock is unknown.
 
 Other framework exceptions rendered as client errors, such as `ModelNotFoundException` (`404`) or
 `ValidationException` (`422`), are kept out of reports by Laravel's own don't-report list.
@@ -1043,7 +1059,8 @@ php artisan api-toolkit:export-openapi --all
 
 Without options the default audience is written to `api-toolkit.openapi.output`. `--audience` exports one named
 audience. `--all` exports every configured audience, each to its own file with the audience inserted before the
-extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`.
+extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`. Each file is staged beside its
+target and moved into place only once all are staged, so one that cannot be staged replaces none of them.
 
 Resources are optional: a route documented only through `#[RequestSchema]` and `#[ResponseSchema]` is exported with
 an empty resource map. Operations are not. Every target audience is built before anything is written, and if any of
@@ -1054,6 +1071,10 @@ exit successfully:
 ```bash
 php artisan api-toolkit:export-openapi --all --allow-empty
 ```
+
+Routes handled under a framework or tooling namespace (`api-toolkit.openapi.exclude.namespaces`) and `Route::fallback()`
+routes are left out. A closure in an application route file is documented, whether or not the routes are cached.
+Responses are documented as JSON; the formats the resource exporter negotiates, such as CSV, are not listed.
 
 List the hosts the API is served from under `api-toolkit.openapi.servers`, so interactive viewers call the API rather
 than the docs host and generated clients get a base URL. Each entry is an OpenAPI Server Object with a `url`, an
@@ -1068,18 +1089,32 @@ the export and is named:
 ],
 ```
 
+A route on a domain, such as `{account}.example.com`, lists servers of its own: each of the audience's servers with its
+host replaced by the domain, or `https://<domain>` when it has none, over `http` or `https` when the route is restricted
+to one. Each domain parameter is a server variable rather than a path parameter, listing the values of a `whereIn()`
+constraint or a bound string-backed enum and defaulting to the first, or else defaulting to its own name. A server that
+uses a variable named like a domain parameter outside its host fails the export. One controller action routed on several
+domains, with nothing else setting the routes apart, is one operation listing the servers of each.
+
 Each resource becomes a component schema, and each documented route an operation carrying the query parameters that
 action honours. Every queryable property carries an `x-query-surface` extension naming the key to send, the filter
 capability and the operators it answers, whether an index backs its sort (with the recorded reason where none does), its
 search strategy, and `conditional` on a filter or sort only some callers may use. The relations a filter may descend
 through are listed on the schema itself. All of this is read from the same compiled schema the request-time checks use,
-and the operators from the bound registry, so the document cannot offer a column the request would reject or an operator
-that is no longer registered. A column whose operators have all been removed from the registry is documented as
+and each column's operators from the tokens the bound registry admits on its capability, so the document cannot offer a
+column or an operator the request would reject. A column whose capability admits no registered token is documented as
 answering no filter.
 
 A resource schema requires only what every response carries: `_type`, and each fixed field read straight from its
 column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names
 none for that type and no parent relation pins them: the declared `$default` fields, then the fixed ones.
+
+A field read straight from its column is typed from the value Eloquent returns: by the model's cast when it has one,
+else by the column type. Date casts and the model's timestamps are a `date-time`, a `decimal:N` cast a string, and any
+other date-time or time column the driver's string. A value with no fixed shape is marked `x-undocumented`: an `array`,
+`json`, `collection` or `object` cast, a cast class other than an enum, `AsStringable` or `AsUri`, and an uncast
+decimal, binary or JSON column. On PostgreSQL before PHP 8.4, a float column is a string, as the driver returns it.
+Declare the field's `openapi()` schema to document any of these.
 
 A relation rendered through a child resource is typed from its Eloquent relation: a to-many relation as an array of the
 related schema, and a to-one relation as the related schema or `null`, since it renders `null` when the related row is
@@ -1089,7 +1124,7 @@ one is left undocumented; either still lists the relation in `_truncated` when i
 
 Every operation also lists the errors it can return, derived from the route: an unauthenticated request behind auth
 middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
-`AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the path
+`AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the route
 has parameters, a validation failure when the operation accepts a request body or the toolkit's query parameters, a
 refusal behind a rate limit, and an unhandled exception always. Each is documented as the exception map renders it: by
 default a `401`, `403`, `404`, `422`, `429` and `500`. A list operation also documents the query cost refusal under
@@ -1463,6 +1498,10 @@ $user = $result->output();
 `runOrFail()` is `run()->throw()->output()`. Both use the context given through `withContext()` and fire the same
 lifecycle events.
 
+A queued `ServiceCompleted` or `ServiceFailed` listener receives the result's exception and each side-effect error as a
+`SerializedException`, which keeps its message, code, file, line and previous chain and names its class through
+`originalClass()`, since an exception's trace and state, such as a validator, may not serialise.
+
 `dispatch()` runs `authorize()` and `validate()`, then queues the service. A refusal throws from `dispatch()`, so an
 HTTP action answers `403` or `422` and nothing is queued. The worker runs the whole lifecycle again with a `QUEUE`
 context, since state can change before the job runs, so both hooks must be repeatable. At dispatch they see the context
@@ -1527,11 +1566,12 @@ Laravel decides three things the toolkit leaves as they are:
 `afterCommit()` runs once the outermost transaction has committed. The transaction runs once: a deadlock or other
 concurrency error rolls it back and fails the run, firing `onFailure()` and `ServiceFailed`.
 
-`$transactionAttempts` (default `1`) lets a top-level run retry a concurrency error. Each retry re-runs the concerns,
-`prepare()` and `handle()` in full, but the rollback resets only the database: a model saved by the failed attempt still
-looks saved, so the retry can skip its write and report success. A service nested in another transaction never retries;
-it fails with a `DeadlockException`. On a transactional service a value below `1` fails the run with a `LogicException`.
-A service that sets it above `1` must:
+`$transactionAttempts` (default `1`) lets a top-level run retry a concurrency error, such as a deadlock, a PostgreSQL
+serialization failure or a MySQL lock wait timeout. Each retry re-runs the concerns, `prepare()` and `handle()` in full,
+but the rollback resets only the database: a model saved by the failed attempt still looks saved, so the retry can skip
+its write and report success. A service nested in another transaction never retries; it fails with a
+`DeadlockException`. On a transactional service a value below `1` fails the run with a `LogicException`. A service that
+sets it above `1` must:
 
 1. Load every model it writes inside the transaction, in `prepare()` or `handle()`, from keys in the input
    (`Order::query()->lockForUpdate()->findOrFail($this->input->orderId)`). Never write a model carried by the input or

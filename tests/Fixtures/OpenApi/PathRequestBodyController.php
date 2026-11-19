@@ -6,16 +6,18 @@ namespace Tests\Fixtures\OpenApi;
 
 use SineMacula\ApiToolkit\OpenApi\Attributes\RequestSchema;
 use Tests\Fixtures\Input\StorePayload;
+use Tests\Fixtures\Models\User;
 
 /**
  * Fixture non-resource controller exercising request-body discovery.
  *
  * Carries one action per discovery branch: a directive-named source, a
- * type-hinted rules source, a directive winning over a competing type-hint, a
- * source refusing some of its fields, a binary upload source, a throwing
- * FormRequest, a plainly readable FormRequest, a FormRequest that also declares
- * static rules, a FormRequest yielding a non-array, a non-named-type parameter,
- * and read-only actions that must never carry a body.
+ * type-hinted rules source, rules sources following a bound model or a scalar,
+ * a directive winning over a competing type-hint, a source refusing some of its
+ * fields, a binary upload source, a throwing FormRequest, a plainly readable
+ * FormRequest, a FormRequest with injected or no rules(), a FormRequest that
+ * also declares static rules, a FormRequest yielding a non-array, a
+ * non-named-type parameter, and read-only actions that must never carry a body.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -37,6 +39,24 @@ final class PathRequestBodyController
      * @return void
      */
     public function update(StorePayload $input): void {}
+
+    /**
+     * Update a bound user from a FormRequest following the model.
+     *
+     * @param  \Tests\Fixtures\Models\User  $user
+     * @param  \Tests\Fixtures\OpenApi\WorkingFormRequest  $request
+     * @return void
+     */
+    public function updateBound(User $user, WorkingFormRequest $request): void {}
+
+    /**
+     * Update a resource by id from a rules source following the id.
+     *
+     * @param  string  $id
+     * @param  \Tests\Fixtures\Input\StorePayload  $input
+     * @return void
+     */
+    public function updateScalar(string $id, StorePayload $input): void {}
 
     /**
      * Create a resource where the directive wins over the type-hinted source.
@@ -86,6 +106,22 @@ final class PathRequestBodyController
      * @return void
      */
     public function formRequest(WorkingFormRequest $request): void {}
+
+    /**
+     * Update a resource from a FormRequest whose rules() takes a dependency.
+     *
+     * @param  \Tests\Fixtures\OpenApi\InjectedRulesFormRequest  $request
+     * @return void
+     */
+    public function injected(InjectedRulesFormRequest $request): void {}
+
+    /**
+     * Update a resource from a FormRequest that declares no rules().
+     *
+     * @param  \Tests\Fixtures\OpenApi\RulelessFormRequest  $request
+     * @return void
+     */
+    public function ruleless(RulelessFormRequest $request): void {}
 
     /**
      * Create a resource from a FormRequest that also declares static rules.

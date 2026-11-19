@@ -50,8 +50,8 @@ final class NestedFanOutScaleTest extends TestCase
     private const int PEAK_CEILING = 40 * 1024 * 1024;
 
     /**
-     * Test that the page reads in one statement per level plus the count, and
-     * stays under the memory ceiling.
+     * Test that the page reads in one statement per level and stays under the
+     * memory ceiling.
      *
      * @return void
      */
@@ -72,7 +72,7 @@ final class NestedFanOutScaleTest extends TestCase
         });
         $peak = memory_get_peak_usage() - $baseline;
 
-        self::assertStatementCount(5, $statements);
+        self::assertStatementCount(4, $statements);
         self::assertLessThan(self::PEAK_CEILING, $peak);
 
         /** @var list<array{posts: list<array{tags: list<array<string, mixed>>}>}> $users */

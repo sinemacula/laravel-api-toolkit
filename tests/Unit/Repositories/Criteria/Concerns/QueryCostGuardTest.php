@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Resources\V1\UserResource as VersionedUserResource;
 use Tests\TestCase;
 
 /**
@@ -64,7 +65,7 @@ final class QueryCostGuardTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard(self::RESOURCE_TYPE);
+        $this->guard->guard();
     }
 
     /**
@@ -97,7 +98,7 @@ final class QueryCostGuardTest extends TestCase
 
     /**
      * Test that exactly the aggregate cap is accepted, counting each requested
-     * key.
+     * key once though two resources carry its type.
      *
      * @return void
      *
@@ -105,6 +106,7 @@ final class QueryCostGuardTest extends TestCase
      */
     public function testExactlyTheAggregateCapIsAccepted(): void
     {
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, VersionedUserResource::class]);
         Config::set('api-toolkit.query_cost.max_aggregates', 2);
 
         $this->parseQuery([
@@ -113,12 +115,11 @@ final class QueryCostGuardTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard(self::RESOURCE_TYPE);
+        $this->guard->guard();
     }
 
     /**
-     * Test that one aggregate key too many is rejected, while another type's
-     * keys are not charged.
+     * Test that one aggregate key too many is rejected.
      *
      * @return void
      */
@@ -127,8 +128,24 @@ final class QueryCostGuardTest extends TestCase
         Config::set('api-toolkit.query_cost.max_aggregates', 2);
 
         $this->parseQuery([
+            'aggregates' => [self::RESOURCE_TYPE => 'posts_count,posts_sum_id,posts_avg_id'],
+        ]);
+
+        $this->assertRejectedForCost('aggregates', QueryCostLimits::MAX_AGGREGATES, 2, 3);
+    }
+
+    /**
+     * Test that the keys of every resource type are charged against one cap.
+     *
+     * @return void
+     */
+    public function testAggregatesOfEveryTypeAreChargedTogether(): void
+    {
+        Config::set('api-toolkit.query_cost.max_aggregates', 2);
+
+        $this->parseQuery([
             'aggregates' => [
-                self::RESOURCE_TYPE => 'posts_count,posts_sum_id,posts_avg_id',
+                self::RESOURCE_TYPE => 'posts_count,posts_sum_id',
                 'organizations'     => 'users_count',
             ],
         ]);
@@ -137,110 +154,22 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
-     * Test that exactly the offset cap is accepted.
-     *
-     * The cap counts the rows skipped to reach the page.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testExactlyTheOffsetCapIsAccepted(): void
-    {
-        Config::set('api-toolkit.query_cost.max_offset', 100);
-
-        $this->parseQuery(['page' => '11', 'limit' => '10']);
-
-        $this->expectNotToPerformAssertions();
-
-        $this->guard->guard(self::RESOURCE_TYPE);
-    }
-
-    /**
-     * Test that the same page is bounded differently at a larger page size.
-     *
-     * @return void
-     */
-    public function testTheSamePageIsRejectedAtALargerPageSize(): void
-    {
-        Config::set('api-toolkit.query_cost.max_offset', 100);
-
-        $this->parseQuery(['page' => '11', 'limit' => '20']);
-
-        $this->assertRejectedForCost('page', QueryCostLimits::MAX_OFFSET, 6, 11);
-    }
-
-    /**
-     * Test that a cursor-paginated read is not charged an offset.
+     * Test that a page past the offset cap is left to the paginator, so a read
+     * that does not page is not refused.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testCursorPaginatedReadIsNotChargedAnOffset(): void
-    {
-        Config::set('api-toolkit.query_cost.max_offset', 10);
-
-        $this->parseQuery(['page' => '5000', 'limit' => '50', 'pagination' => 'cursor']);
-
-        $this->expectNotToPerformAssertions();
-
-        $this->guard->guard(self::RESOURCE_TYPE);
-    }
-
-    /**
-     * Test that a page beyond the offset cap is rejected, not clamped.
-     *
-     * @return void
-     */
-    public function testPageBeyondTheOffsetCapIsRejected(): void
+    public function testPagePastTheOffsetCapIsNotRefused(): void
     {
         Config::set('api-toolkit.query_cost.max_offset', 100);
 
         $this->parseQuery(['page' => '12', 'limit' => '10']);
 
-        // Reported in pages, the unit the caller supplied
-        $this->assertRejectedForCost('page', QueryCostLimits::MAX_OFFSET, 11, 12);
-
-        self::assertSame(12, ApiQuery::getPage());
-    }
-
-    /**
-     * Test that a cap of zero leaves the offset unbounded.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testACapOfZeroLeavesTheOffsetUnbounded(): void
-    {
-        Config::set('api-toolkit.query_cost.max_offset', 0);
-
-        $this->parseQuery(['page' => '100000', 'limit' => '100']);
-
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard(self::RESOURCE_TYPE);
-    }
-
-    /**
-     * Test that a missing page number leaves the offset cap nothing to measure.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testRequestWithoutAPageIsNotBoundedByTheOffsetCap(): void
-    {
-        Config::set('api-toolkit.query_cost.max_offset', 1);
-
-        ApiQuery::shouldReceive('getOrder')->andReturn([]);
-        ApiQuery::shouldReceive('getAggregates')->andReturn(null);
-        ApiQuery::shouldReceive('getPage')->andReturn(null);
-
-        $this->expectNotToPerformAssertions();
-
-        $this->guard->guard(self::RESOURCE_TYPE);
+        $this->guard->guard();
     }
 
     /**
@@ -256,7 +185,7 @@ final class QueryCostGuardTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard(null);
+        $this->guard->guard();
     }
 
     /**
@@ -271,7 +200,7 @@ final class QueryCostGuardTest extends TestCase
     private function assertRejectedForCost(string $parameter, string $reason, int $limit, int $actual): void
     {
         try {
-            $this->guard->guard(self::RESOURCE_TYPE);
+            $this->guard->guard();
 
             self::fail('Expected a rejection for the "' . $reason . '" cap.');
         } catch (QueryTooExpensiveException $exception) {

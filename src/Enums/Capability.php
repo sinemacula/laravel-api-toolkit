@@ -5,11 +5,13 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Enums;
 
 /**
- * The access path a filterable column declares, and so which operators it
- * answers.
+ * The access path a filterable column declares, and so which registered
+ * operators it answers.
  *
  * The claim is trusted, not checked against the index catalogue. There is no
- * text case: partial matching belongs to the search surface.
+ * text case: partial matching belongs to the search surface. Each operator is
+ * registered with the capabilities admitting it, the shipped ones with the
+ * defaults declared here.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -41,14 +43,14 @@ enum Capability: string
     private const array NULLITY = ['$null', '$notNull'];
 
     /**
-     * Return the filter operator tokens this capability permits.
+     * Return the shipped filter operator tokens this capability admits.
      *
      * Not-equal is limited to the small closed set, since the complement of one
      * value spans nearly the whole index.
      *
      * @return array<int, string>
      */
-    public function permittedOperators(): array
+    public function defaultOperators(): array
     {
         return match ($this) {
             self::EXACT    => [...self::EQUALITY, ...self::NULLITY],
@@ -60,34 +62,17 @@ enum Capability: string
     }
 
     /**
-     * Determine whether the matrix governs the given operator token at all.
-     *
-     * Application-registered operators are not governed, since the package
-     * cannot know which access path they need.
+     * Return the cases whose shipped operators include the given token, in case
+     * order.
      *
      * @param  string  $token
-     * @return bool
+     * @return list<self>
      */
-    public static function governs(string $token): bool
+    public static function admitting(string $token): array
     {
-        foreach (self::cases() as $case) {
-
-            if ($case->permits($token)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Determine whether this capability permits the given operator token.
-     *
-     * @param  string  $token
-     * @return bool
-     */
-    public function permits(string $token): bool
-    {
-        return in_array($token, $this->permittedOperators(), true);
+        return array_values(array_filter(
+            self::cases(),
+            static fn (self $case): bool => in_array($token, $case->defaultOperators(), true),
+        ));
     }
 }

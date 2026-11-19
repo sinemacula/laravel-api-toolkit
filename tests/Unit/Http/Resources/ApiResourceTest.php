@@ -2521,6 +2521,57 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
+     * Test that load_missing plans from pinned fields, loading and rendering
+     * the relation and the aggregates they select.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testConstructorWithLoadMissingLoadsThePinnedRelationAndAggregates(): void
+    {
+        $user = User::create(['name' => 'PinnedLoader', 'email' => 'pinnedloader@example.com']);
+
+        Post::create(['user_id' => $user->id, 'title' => 'Pinned', 'body' => 'Body']);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+        $parser->parse(Request::create('/', HttpMethod::GET->getVerb()));
+
+        $result = (new UserResource($user, true, ['posts', 'aggregates']))->resolve();
+
+        self::assertTrue($user->relationLoaded('posts'));
+        self::assertSame(1, $result['aggregates']['posts_count']);
+    }
+
+    /**
+     * Test that withAll() on an unpinned resource after its first resolution is
+     * honoured.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testWithAllAfterTheFirstResolutionIsHonoured(): void
+    {
+        $user = User::create(['name' => 'LateAll', 'email' => 'lateall@example.com', 'status' => 'active']);
+
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+        $parser->parse(Request::create('/', HttpMethod::GET->getVerb()));
+
+        $resource = new UserResource($user);
+        $first    = $resource->resolve();
+
+        self::assertArrayNotHasKey('status', $first);
+        self::assertArrayHasKey('status', $resource->withAll()->resolve());
+    }
+
+    /**
      * Test that load_missing loads the default aggregates and resolves them
      * into the aggregates payload when the aggregates field is requested.
      *

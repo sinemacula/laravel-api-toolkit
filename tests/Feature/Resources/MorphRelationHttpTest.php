@@ -137,7 +137,7 @@ final class MorphRelationHttpTest extends TestCase
     {
         $author = User::create(['name' => 'Author', 'email' => 'author@example.com']);
 
-        foreach ([5, 50] as $total) {
+        foreach ([5, 40] as $total) {
             for ($index = Note::query()->count(); $index < $total; $index++) {
                 $this->attachNote($this->createNoteable($author, $index), 'Note');
             }

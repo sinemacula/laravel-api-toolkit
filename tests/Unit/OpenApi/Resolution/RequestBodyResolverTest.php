@@ -72,6 +72,22 @@ final class RequestBodyResolverTest extends TestCase
     }
 
     /**
+     * Test that a rules source following a bound model or a scalar documents
+     * the body it documents alone.
+     *
+     * @return void
+     */
+    public function testRulesSourceAfterAnotherParameterIsDiscovered(): void
+    {
+        $resolver = $this->resolver();
+
+        self::assertNotNull($resolver->resolve(PathRequestBodyController::class, 'updateBound'));
+        self::assertSame($resolver->resolve(PathRequestBodyController::class, 'formRequest'), $resolver->resolve(PathRequestBodyController::class, 'updateBound'));
+        self::assertNotNull($resolver->resolve(PathRequestBodyController::class, 'updateScalar'));
+        self::assertSame($resolver->resolve(PathRequestBodyController::class, 'update'), $resolver->resolve(PathRequestBodyController::class, 'updateScalar'));
+    }
+
+    /**
      * Test that a directive wins over a competing type-hinted parameter.
      *
      * @return void
@@ -218,6 +234,38 @@ final class RequestBodyResolverTest extends TestCase
                 ],
             ],
         ], $body);
+    }
+
+    /**
+     * Test that a FormRequest whose rules() takes a dependency is read with it
+     * injected.
+     *
+     * @return void
+     */
+    public function testFormRequestWithInjectedRulesDependencyResolvesItsBody(): void
+    {
+        self::assertSame([
+            'required' => true,
+            'content'  => [
+                'application/json' => [
+                    'schema' => [
+                        'type'       => 'object',
+                        'properties' => ['nickname' => ['type' => 'string']],
+                        'required'   => ['nickname'],
+                    ],
+                ],
+            ],
+        ], $this->resolver()->resolve(PathRequestBodyController::class, 'injected'));
+    }
+
+    /**
+     * Test that a FormRequest declaring no rules() documents no body.
+     *
+     * @return void
+     */
+    public function testRulelessFormRequestResolvesToNull(): void
+    {
+        self::assertNull($this->resolver()->resolve(PathRequestBodyController::class, 'ruleless'));
     }
 
     /**
