@@ -185,6 +185,24 @@ final class PresenceConstraintBuilderTest extends TestCase
     }
 
     /**
+     * Test that an untyped declared confirmation names its field, and a
+     * confirmation of several fields leaves the next one marked.
+     *
+     * @return void
+     */
+    public function testEachConfirmationOfOneFieldNamesIt(): void
+    {
+        $schema = $this->builder()->build(
+            ['type' => 'object', 'properties' => ['a' => ['type' => 'string'], 'b' => ['type' => 'string'], 'pin' => ['type' => 'string'], 'pin_repeat' => []]],
+            '',
+            ['a' => ['confirmed:shared'], 'b' => ['confirmed:shared'], 'pin' => ['confirmed:pin_repeat'], 'pin_repeat' => []],
+        );
+
+        self::assertSame(['type' => 'string'], $schema['properties']['shared']);
+        self::assertSame(['x-confirms' => 'pin'], $schema['properties']['pin_repeat']);
+    }
+
+    /**
      * Test that a field confirmed twice into one sibling still names it.
      *
      * @return void

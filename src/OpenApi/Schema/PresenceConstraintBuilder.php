@@ -276,8 +276,7 @@ final readonly class PresenceConstraintBuilder
      * Fold the collected constraints into the object schema.
      *
      * A lone non-clashing condition is inlined; any others combine under allOf.
-     * A confirmation of a single field is marked with it, unless its type is
-     * left open for clashing.
+     * A confirmation of a single field is marked with it.
      *
      * @param  array<string, mixed>  $object
      * @param  Constraints  $constraints
@@ -321,7 +320,7 @@ final readonly class PresenceConstraintBuilder
 
             $originals = array_values(array_unique($originals));
 
-            if (count($originals) !== 1 || !is_array($properties[$target]) || $properties[$target] === []) {
+            if (count($originals) !== 1 || !is_array($properties[$target])) {
                 continue;
             }
 
