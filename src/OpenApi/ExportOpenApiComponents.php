@@ -5,7 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi;
 
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Examples\ExampleComposer;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
+use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 
 /**
  * Exports the toolkit's OpenAPI 3.1 document and summarises its contents.
@@ -23,6 +25,8 @@ final readonly class ExportOpenApiComponents
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\OpenApiAssembler  $assembler
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
+     * @param  \SineMacula\ApiToolkit\OpenApi\Examples\ExampleComposer  $examples
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration  $audiences
      */
     public function __construct(
 
@@ -31,17 +35,29 @@ final readonly class ExportOpenApiComponents
 
         /** The catalogue naming the resources whose schemas are counted. */
         private MetadataCatalogue $catalogue,
+
+        /** The composer validating and generating the document's examples. */
+        private ExampleComposer $examples = new ExampleComposer,
+
+        /** The configuration naming the default audience. */
+        private AudienceConfiguration $audiences = new AudienceConfiguration,
     ) {}
 
     /**
-     * Assemble the document for the given audience and summarise the emission.
+     * Assemble the document for the given audience, compose its examples and
+     * summarise the emission.
      *
      * @param  string|null  $audience
      * @return \SineMacula\ApiToolkit\OpenApi\ExportResult
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleGenerationException
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleMismatchException
      */
     public function export(?string $audience = null): ExportResult
     {
-        $document = $this->assembler->assemble($audience);
+        $audience    = $audience === null || $audience === '' ? $this->audiences->defaultAudience() : $audience;
+        $composition = $this->examples->compose($this->assembler->assemble($audience), $audience);
+        $document    = $composition->document;
 
         return new ExportResult(
             document         : $document,
@@ -49,6 +65,7 @@ final readonly class ExportOpenApiComponents
             resourceCount    : $this->countResourceSchemas($document),
             parameterCount   : $this->countComponents($document, 'parameters'),
             errorExampleCount: $this->countComponents($document, 'examples'),
+            skippedExamples  : $composition->skipped,
         );
     }
 

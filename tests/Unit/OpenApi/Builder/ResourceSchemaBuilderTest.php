@@ -32,6 +32,7 @@ use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AuthoredPostResource;
 use Tests\Fixtures\Resources\DeclaredOpenApiUserResource;
+use Tests\Fixtures\Resources\ExampledUserResource;
 use Tests\Fixtures\Resources\FixedFieldsUserResource;
 use Tests\Fixtures\Resources\GuardedQueryableUserResource;
 use Tests\Fixtures\Resources\GuardedUserResource;
@@ -695,9 +696,38 @@ final class ResourceSchemaBuilderTest extends TestCase
             'type'        => ['string', 'null'],
             'format'      => 'color',
             'enum'        => ['bronze', 'silver', 'gold'],
-            'example'     => 'gold',
+            'examples'    => ['gold'],
             'description' => 'The membership tier of the user',
         ], $schema['properties']['tier']);
+    }
+
+    /**
+     * Test that a declared example lays over the schema a field would have
+     * without it, inferred, self-declared or undocumented.
+     *
+     * @return void
+     */
+    public function testDeclaredExampleKeepsTheFieldsSchema(): void
+    {
+        $properties = $this->makeBuilder([User::class => ExampledUserResource::class])->build()['ExampledUser']['properties'];
+
+        self::assertSame(['type' => 'string', 'examples' => ['Ada Lovelace']], $properties['name']);
+        self::assertSame(['type' => ['string', 'null'], 'format' => 'date-time', 'examples' => ['2025-01-01T00:00:00Z']], $properties['created_at']);
+        self::assertSame(['x-undocumented' => true, 'examples' => ['AL']], $properties['initials']);
+    }
+
+    /**
+     * Test that a resource over a class that is no model leaves its fields
+     * undocumented, but for a declared shape, each keeping its example.
+     *
+     * @return void
+     */
+    public function testFieldsOfANonModelResourceAreUndocumentedButForADeclaredShape(): void
+    {
+        $properties = $this->makeBuilder([\stdClass::class => ExampledUserResource::class])->build()['ExampledUser']['properties'];
+
+        self::assertSame(['x-undocumented' => true, 'examples' => ['Ada Lovelace']], $properties['name']);
+        self::assertSame(['type' => ['string', 'null'], 'format' => 'date-time', 'examples' => ['2025-01-01T00:00:00Z']], $properties['created_at']);
     }
 
     /**

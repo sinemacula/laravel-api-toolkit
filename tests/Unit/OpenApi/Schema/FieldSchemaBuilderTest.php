@@ -122,7 +122,6 @@ final class FieldSchemaBuilderTest extends TestCase
             'ipv4 format'          => [['ipv4'], ['type' => 'string', 'format' => 'ipv4']],
             'ipv6 format'          => [['ipv6'], ['type' => 'string', 'format' => 'ipv6']],
             'date any string'      => [['date'], ['type' => 'string']],
-            'date_format format'   => [['date_format:Y-m-d H:i'], ['type' => 'string', 'format' => 'date-time']],
             'regex pattern'        => [['regex:/^a$/'], ['pattern' => '^a$']],
             'in enum'              => [['in:a,b,c'], ['enum' => ['a', 'b', 'c']]],
             'typed enum'           => [['string', 'in:a,b,c'], ['type' => 'string', 'enum' => ['a', 'b', 'c']]],
@@ -186,6 +185,42 @@ final class FieldSchemaBuilderTest extends TestCase
      */
     #[DataProvider('mappingProvider')]
     public function testTokensMapToSchemaFragment(array $tokens, array $expected): void
+    {
+        self::assertSame($expected, (new FieldSchemaBuilder)->build($tokens)['schema']);
+    }
+
+    /**
+     * Provide date_format rules and the schema each exports.
+     *
+     * @return iterable<string, array{list<string>, array<string, mixed>}>
+     */
+    public static function dateFormatProvider(): iterable
+    {
+        yield 'date' => [['date_format:Y-m-d'], ['type' => 'string', 'format' => 'date', 'examples' => ['2025-01-01']]];
+        yield 'atom date-time' => [['date_format:Y-m-d\TH:i:sP'], ['type' => 'string', 'format' => 'date-time', 'examples' => ['2025-01-01T00:00:00+00:00']]];
+        yield 'zulu date-time' => [['date_format:Y-m-d\TH:i:sp'], ['type' => 'string', 'format' => 'date-time', 'examples' => ['2025-01-01T00:00:00Z']]];
+        yield 'millisecond date-time' => [['date_format:Y-m-d\TH:i:s.vP'], ['type' => 'string', 'format' => 'date-time', 'examples' => ['2025-01-01T00:00:00.000+00:00']]];
+        yield 'microsecond date-time' => [['date_format:Y-m-d\TH:i:s.uP'], ['type' => 'string', 'format' => 'date-time', 'examples' => ['2025-01-01T00:00:00.000000+00:00']]];
+        yield 'two date-time forms' => [['date_format:Y-m-d\TH:i:sP,Y-m-d\TH:i:sp'], ['type' => 'string', 'format' => 'date-time', 'examples' => ['2025-01-01T00:00:00+00:00']]];
+        yield 'own format' => [['date_format:Y-m-d H:i'], ['type' => 'string', 'examples' => ['2025-01-01 00:00']]];
+        yield 'mixed forms' => [['date_format:Y-m-d,Y-m-d\TH:i:sP'], ['type' => 'string', 'examples' => ['2025-01-01']]];
+        yield 'unreadable format' => [['date_format:c'], ['type' => 'string']];
+        yield 'unreadable then own format' => [['date_format:c,d/m/Y'], ['type' => 'string', 'examples' => ['01/01/2025']]];
+        yield 'nullable' => [['nullable', 'date_format:Y-m-d'], ['type' => ['string', 'null'], 'format' => 'date', 'examples' => ['2025-01-01']]];
+        yield 'listed values' => [['string', 'in:2023,2024', 'date_format:Y'], ['type' => 'string', 'enum' => ['2023', '2024']]];
+    }
+
+    /**
+     * Test that a date_format field takes the date or date-time format only
+     * when every listed format renders that form, with an example in the first
+     * format that reads back what it renders unless it lists its values.
+     *
+     * @param  list<string>  $tokens
+     * @param  array<string, mixed>  $expected
+     * @return void
+     */
+    #[DataProvider('dateFormatProvider')]
+    public function testDateFormatExportsTheFormItsFormatsRender(array $tokens, array $expected): void
     {
         self::assertSame($expected, (new FieldSchemaBuilder)->build($tokens)['schema']);
     }

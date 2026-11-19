@@ -43,6 +43,7 @@ final class EnvelopeBuilderTest extends TestCase
                 'continue' => ['type' => 'boolean'],
             ],
             'required' => ['total', 'total_capped', 'count', 'continue'],
+            'examples' => [['total' => 1, 'total_capped' => false, 'count' => 1, 'continue' => false]],
         ], $schema);
     }
 
@@ -65,6 +66,13 @@ final class EnvelopeBuilderTest extends TestCase
                 'last'  => ['type' => 'string', 'format' => 'uri'],
             ],
             'required' => ['self', 'first', 'prev', 'next', 'last'],
+            'examples' => [[
+                'self'  => 'https://example.com/resources?page=1',
+                'first' => 'https://example.com/resources?page=1',
+                'prev'  => null,
+                'next'  => null,
+                'last'  => 'https://example.com/resources?page=1',
+            ]],
         ], $schema);
     }
 
@@ -83,6 +91,7 @@ final class EnvelopeBuilderTest extends TestCase
                 'continue' => ['type' => 'boolean'],
             ],
             'required' => ['continue'],
+            'examples' => [['continue' => false]],
         ], $schema);
     }
 
@@ -103,6 +112,7 @@ final class EnvelopeBuilderTest extends TestCase
                 'next' => $this->nullableUri(),
             ],
             'required' => ['self', 'prev', 'next'],
+            'examples' => [['self' => 'https://example.com/resources', 'prev' => null, 'next' => null]],
         ], $schema);
     }
 
@@ -193,6 +203,7 @@ final class EnvelopeBuilderTest extends TestCase
         $envelope = (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User');
 
         self::assertSame([
+            'title'      => 'Length-aware page',
             'type'       => 'object',
             'properties' => [
                 'data'  => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/User']],
@@ -201,6 +212,20 @@ final class EnvelopeBuilderTest extends TestCase
             ],
             'required' => ['data', 'meta', 'links'],
         ], $envelope);
+    }
+
+    /**
+     * Test that the collection envelope wraps any item schema.
+     *
+     * @return void
+     */
+    public function testCollectionEnvelopeWrapsAnyItemSchema(): void
+    {
+        $items    = ['oneOf' => [['$ref' => '#/components/schemas/A'], ['$ref' => '#/components/schemas/B']]];
+        $envelope = (new EnvelopeBuilder)->anyCollectionEnvelopeFor($items)['anyOf'][0];
+
+        self::assertSame('Length-aware page', $envelope['title']);
+        self::assertSame(['type' => 'array', 'items' => $items], $envelope['properties']['data']);
     }
 
     /**
@@ -213,6 +238,7 @@ final class EnvelopeBuilderTest extends TestCase
         $envelope = (new EnvelopeBuilder)->cursorCollectionEnvelope('#/components/schemas/User');
 
         self::assertSame([
+            'title'      => 'Cursor page',
             'type'       => 'object',
             'properties' => [
                 'data'  => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/User']],
@@ -252,6 +278,7 @@ final class EnvelopeBuilderTest extends TestCase
                 $builder->collectionEnvelope('#/components/schemas/User'),
                 $builder->cursorCollectionEnvelope('#/components/schemas/User'),
                 [
+                    'title'      => 'Unpaginated list',
                     'type'       => 'object',
                     'properties' => [
                         'data' => ['type' => 'array', 'items' => $items],

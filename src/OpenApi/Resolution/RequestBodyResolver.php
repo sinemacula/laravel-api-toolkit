@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 use Illuminate\Container\Container;
 use Illuminate\Foundation\Http\FormRequest;
 use SineMacula\ApiToolkit\OpenApi\Attributes\RequestSchema;
+use SineMacula\ApiToolkit\OpenApi\Schema\FieldExamples;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
 
@@ -28,11 +29,15 @@ final readonly class RequestBodyResolver
      * Constructor.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator  $translator
+     * @param  \SineMacula\ApiToolkit\OpenApi\Schema\FieldExamples  $examples
      */
     public function __construct(
 
         /** The translator turning a rules array into a schema fragment. */
         private RulesToSchemaTranslator $translator,
+
+        /** The writer of the example values the rules source gives its fields. */
+        private FieldExamples $examples = new FieldExamples,
     ) {}
 
     /**
@@ -41,16 +46,13 @@ final readonly class RequestBodyResolver
      * @param  class-string|null  $controllerClass
      * @param  string  $action
      * @return array<string, mixed>|null
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleDeclarationException
      */
     public function resolve(?string $controllerClass, string $action): ?array
     {
-        $rules = $this->rulesFor($controllerClass, $action);
-
-        if ($rules === null) {
-            return null;
-        }
-
-        $schema = $this->translator->translate($rules);
+        $source = $this->sourceFor($controllerClass, $action);
+        $schema = $source === null ? [] : $this->schemaFor($source);
 
         if (($schema['properties'] ?? []) === []) {
             return null;
@@ -60,6 +62,22 @@ final readonly class RequestBodyResolver
         $body  = ['content' => [$media => ['schema' => $schema]]];
 
         return $this->demandsBody($schema) ? ['required' => true, ...$body] : $body;
+    }
+
+    /**
+     * Translate the source's rules into the body schema, carrying the examples
+     * the source gives its fields, or none when it has no rules.
+     *
+     * @param  string  $source
+     * @return array<array-key, mixed>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleDeclarationException
+     */
+    private function schemaFor(string $source): array
+    {
+        $rules = $this->rulesFromSource($source);
+
+        return $rules === null ? [] : $this->examples->apply($this->translator->translate($rules), $source);
     }
 
     /**
@@ -85,22 +103,20 @@ final readonly class RequestBodyResolver
     }
 
     /**
-     * Resolve the rules array for the action from its discovered source.
+     * Discover the action's rules source.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
-     * @return array<array-key, mixed>|null
+     * @return string|null
      */
-    private function rulesFor(?string $controllerClass, string $action): ?array
+    private function sourceFor(?string $controllerClass, string $action): ?string
     {
         if ($controllerClass === null || !method_exists($controllerClass, $action)) {
             return null;
         }
 
-        $source = $this->attributeSource($controllerClass, $action)
+        return $this->attributeSource($controllerClass, $action)
             ?? $this->parameterSource($controllerClass, $action);
-
-        return $source === null ? null : $this->rulesFromSource($source);
     }
 
     /**

@@ -15,26 +15,11 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
  */
 final readonly class SchemaObjectNormaliser
 {
-    /** The keywords whose value is a single subschema */
-    private const array SCHEMA_KEYWORDS = [
-        'items', 'not', 'additionalProperties', 'contains', 'propertyNames', 'if', 'then', 'else',
-        'unevaluatedItems', 'unevaluatedProperties', 'contentSchema',
-    ];
-
-    /** The keywords whose value is a list of subschemas */
-    private const array SCHEMA_LIST_KEYWORDS = ['allOf', 'anyOf', 'oneOf', 'prefixItems'];
-
-    /** The keywords whose value is a map of named subschemas */
-    private const array SCHEMA_MAP_KEYWORDS = ['properties', 'patternProperties', 'dependentSchemas', '$defs'];
-
     /** The keywords whose value maps property names to lists of names */
     private const array NAME_MAP_KEYWORDS = ['dependentRequired'];
 
     /** The keyword whose mapping keys discriminator values to references */
     private const string DISCRIMINATOR_KEYWORD = 'discriminator';
-
-    /** The keywords holding example data rather than document structure */
-    private const array EXAMPLE_KEYWORDS = ['example', 'examples'];
 
     /** The keywords whose value maps names, never keywords, to objects */
     private const array NAMED_MAP_KEYWORDS = [
@@ -61,7 +46,7 @@ final readonly class SchemaObjectNormaliser
     private function components(array $components): array
     {
         foreach ($components as $key => $value) {
-            if (!is_array($value) || in_array($key, self::EXAMPLE_KEYWORDS, true)) {
+            if (!is_array($value) || in_array($key, SchemaKeywords::EXAMPLE, true)) {
                 continue;
             }
 
@@ -80,7 +65,7 @@ final readonly class SchemaObjectNormaliser
     private function walk(array $node): array
     {
         foreach ($node as $key => $value) {
-            if (!is_array($value) || in_array($key, self::EXAMPLE_KEYWORDS, true)) {
+            if (!is_array($value) || in_array($key, SchemaKeywords::EXAMPLE, true)) {
                 continue;
             }
 
@@ -124,12 +109,12 @@ final readonly class SchemaObjectNormaliser
             }
 
             $schema[$keyword] = match (true) {
-                in_array($keyword, self::SCHEMA_KEYWORDS, true)      => $this->schema($value),
-                in_array($keyword, self::SCHEMA_LIST_KEYWORDS, true) => array_map($this->subschema(...), $value),
-                in_array($keyword, self::SCHEMA_MAP_KEYWORDS, true)  => $this->schemaMap($value),
-                in_array($keyword, self::NAME_MAP_KEYWORDS, true)    => $this->nameMap($value),
-                $keyword === self::DISCRIMINATOR_KEYWORD             => $this->discriminator($value),
-                default                                              => $value,
+                in_array($keyword, SchemaKeywords::SCHEMA, true)      => $this->schema($value),
+                in_array($keyword, SchemaKeywords::SCHEMA_LIST, true) => array_map($this->subschema(...), $value),
+                in_array($keyword, SchemaKeywords::SCHEMA_MAP, true)  => $this->schemaMap($value),
+                in_array($keyword, self::NAME_MAP_KEYWORDS, true)     => $this->nameMap($value),
+                $keyword === self::DISCRIMINATOR_KEYWORD              => $this->discriminator($value),
+                default                                               => $value,
             };
         }
 
