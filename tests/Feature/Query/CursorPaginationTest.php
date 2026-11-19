@@ -97,6 +97,11 @@ final class CursorPaginationTest extends TestCase
         $response = $this->getJson('/users?pagination=cursor&limit=2');
 
         $response->assertOk();
+        $response->assertExactJsonStructure([
+            'data'  => ['*' => ['_type', 'id', 'email', 'name']],
+            'meta'  => ['continue'],
+            'links' => ['self', 'prev', 'next'],
+        ]);
         $response->assertJsonCount(2, 'data');
         $response->assertJsonPath('data.0.name', 'Anna');
         $response->assertJsonPath('data.1.name', 'Ben');
