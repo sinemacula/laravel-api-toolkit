@@ -32,7 +32,7 @@ final class ManualOrganizationResource extends ApiResource
     {
         return Field::set(
             Field::scalar('id'),
-            Field::scalar('name'),
+            Field::scalar('name')->sortable(),
         );
     }
 }

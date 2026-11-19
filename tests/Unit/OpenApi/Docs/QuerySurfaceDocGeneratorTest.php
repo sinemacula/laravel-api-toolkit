@@ -22,6 +22,7 @@ use Tests\Fixtures\OpenApi\MappedModuleResolver;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\PublicUserResource;
+use Tests\Fixtures\Resources\SortableUserResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -93,7 +94,7 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
 
         self::assertStringContainsString(
             'Every page is ordered by the key last, in the last direction, so tied rows never repeat or go missing; a cursor-paginated '
-            . 'read refuses random order and any column that admits null.',
+            . 'read refuses random order, an aggregate or relation key, and any column that admits null.',
             $markdown,
         );
     }
@@ -348,6 +349,26 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
 
         self::assertStringContainsString('| `status` | `status` | `enum` | `$neq`, `$starts` | Index-backed | - |', $markdown);
         self::assertStringContainsString('| `email` | `email` | - | - | Index-backed | - |', $markdown);
+    }
+
+    /**
+     * Test that a sortable aggregate and each column a sortable relation reads
+     * are tabled as unindexed orders with the declared reason.
+     *
+     * @return void
+     */
+    public function testAggregateAndRelationOrderKeysAreTabledAsUnindexed(): void
+    {
+        $surfaces = (new QuerySurfaceReader(app(SchemaIntrospectionProvider::class)))->read([User::class => SortableUserResource::class], app(OperatorRegistry::class));
+        $markdown = $this->combinedGenerator()->generate($surfaces, [], []);
+
+        self::assertStringContainsString(
+            "| `aggregates.posts_count` | `aggregates.posts_count` | - | - | Unindexed: Leaderboard over a few hundred authors | - |\n"
+            . "| `aggregates.published_posts` | `aggregates.published_posts` | - | - | Unindexed: Leaderboard over a few hundred authors | - |\n"
+            . "| `aggregates.article_views` | `aggregates.article_views` | - | - | Unindexed: Admin list of a few hundred authors | - |\n"
+            . '| `latestArticle.views` | `latestArticle.views` | - | - | Unindexed: Admin list of a few hundred authors | - |',
+            $markdown,
+        );
     }
 
     /**

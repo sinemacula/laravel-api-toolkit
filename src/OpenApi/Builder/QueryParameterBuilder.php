@@ -247,7 +247,9 @@ final readonly class QueryParameterBuilder
             . 'Any other direction, or a repeated field, is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
             . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read. order=relevance ranks rows by how '
             . 'closely they match search: the whole value, then the start, then the start of a word, then anywhere; it needs search and offset '
-            . 'pagination.',
+            . 'pagination. A sortable aggregate orders by aggregates.<key>, e.g. order=aggregates.posts_count:desc, and a sortable to-one '
+            . 'relation by a sortable column of the resource it renders, e.g. order=customer.name; neither can order a cursor-paginated read, '
+            . 'and a NULL value sorts where the database places NULL.',
             ['type' => 'string'],
         );
     }
