@@ -153,6 +153,52 @@ rather than dropped: a group that is not a non-empty list, an empty group docume
 column given an empty object, a list, or a key that is not a registered condition, and any entry that adds no
 condition, such as an empty `$has` list.
 
+**Named scopes** - a resource can let clients invoke its model's local scopes, a `scopeUpcoming()` or `#[Scope]`
+method, by name:
+
+```php
+use SineMacula\ApiToolkit\Schema\Scope;
+
+Field::set(
+    Field::scalar('visibility')->filterable(Capability::EXACT),
+    Scope::of('upcoming')->description('Events that have not started yet.'),
+    Scope::of('near')->parameters([
+        'lat' => ['required', 'numeric', 'between:-90,90'],
+        'lng' => ['required', 'numeric', 'between:-180,180'],
+        'km'  => ['required', 'integer', 'between:1,50'],
+    ])->description('Events within km kilometres of the point.'),
+    Scope::of('ownedByCaller', 'mine')->visibleTo(fn (?Request $request): bool => $request?->user() !== null),
+);
+```
+
+```json
+{"visibility":"public","$scope":"upcoming"}
+{"$scope":{"near":{"lat":51.5,"lng":-0.12,"km":5},"upcoming":{}}}
+{"$or":[{"$scope":"mine"},{"visibility":"public"}]}
+{"sessions":{"$scope":"upcoming"}}
+```
+
+`$scope` takes a name, a list of names, or names keyed to objects of arguments, `{}` for none. Scopes AND with the
+rest of their document, compose inside `$and` and `$or`, and in a relation body or under `$has` resolve against the
+related resource's scopes. Each scope counts toward `max_nodes`. `visibleTo()` hides a scope from a caller, to whom it
+answers as undeclared.
+
+`parameters()` takes rules keyed as in a form request. The validated arguments reach the method as named arguments, so
+the method's parameter names are the contract and key order does not matter. Values arrive as decoded JSON under PHP's
+coercive typing, so the rules must admit only what the parameter types accept. An undeclared argument, a failed rule,
+a required parameter a rule left unfilled, a `null` for a parameter refusing it and a `ValidationException` the scope
+throws are each a 422 keyed under the scope, such as `filters.$or.1.$scope.near.km`. `api-toolkit:validate-schemas`
+checks every declaration against its method.
+
+A scope may only add where clauses, and one adding none matches every row. A scope that returns another builder,
+eager loads, removes a global scope (`withTrashed()` included), or changes the query's columns, table, joins, orders,
+groups, limits, unions or lock throws a `LogicException`. Eloquent drops an order inside the scope's own nested
+`where()` closure, a global scope it registers and an `afterQuery()` callback unseen, so they are unsupported. Trashed
+rows stay with `?trashed`.
+
+Declarations and their rule objects are compiled once per worker, so they must not depend on the request and must
+validate repeatedly. What a scope reads about the caller or the clock is read when it runs, on a queue worker too.
+
 **Free-text search** - match a term against the fields a resource declares `searchable()`:
 
 ```http
@@ -1056,10 +1102,11 @@ Each resource becomes a component schema, and each documented route an operation
 action honours. Every queryable property carries an `x-query-surface` extension naming the key to send, the filter
 capability and the operators it answers, whether an index backs its sort (with the recorded reason where none does), its
 search strategy, and `conditional` on a filter or sort only some callers may use. The relations a filter may descend
-through are listed on the schema itself. All of this is read from the same compiled schema the request-time checks use,
-and each column's operators from the tokens the bound registry admits on its capability, so the document cannot offer a
-column or an operator the request would reject. A column whose capability admits no registered token is documented as
-answering no filter.
+through are listed on the schema itself, and its named scopes under `x-scopes`, each with its description, the JSON
+Schema of its arguments and `conditional` where only some callers may invoke it. All of this is read from the same
+compiled schema the request-time checks use, and each column's operators from the tokens the bound registry admits on
+its capability, so the document cannot offer a column or an operator the request would reject. A column whose capability
+admits no registered token is documented as answering no filter.
 
 A resource schema requires only what every response carries: `_type`, and each fixed field read straight from its
 column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names

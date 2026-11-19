@@ -45,10 +45,13 @@ use SineMacula\ApiToolkit\Search\SearchDriverRegistry;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Fixtures\Input\StorePayload;
+use Tests\Fixtures\Models\Gathering;
 use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\GatheringResource;
+use Tests\Fixtures\Resources\GatheringSessionResource;
 use Tests\Fixtures\Resources\MissingColumnQueryableResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -57,6 +60,7 @@ use Tests\Fixtures\Resources\SensitiveQueryableResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\TrailingIndexSortableResource;
 use Tests\Fixtures\Resources\UnbackedQueryableResource;
+use Tests\Fixtures\Resources\UnboundScopeResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\TestCase;
@@ -163,6 +167,36 @@ final class ContainerBindingRegistrarTest extends TestCase
         $this->expectException(InvalidSchemaException::class);
 
         $validator->validate([User::class => UnbackedQueryableResource::class]);
+    }
+
+    /**
+     * Test that the shipped rules accept scopes bound to their model and refuse
+     * one the model does not define.
+     *
+     * @return void
+     */
+    public function testRegisterBindsSchemaValidatorRefusingAScopeTheModelDoesNotDefine(): void
+    {
+        $app = $this->getApplication();
+
+        (new ContainerBindingRegistrar($app))->register();
+
+        SchemaCompiler::clearCache();
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [GatheringResource::class, GatheringSessionResource::class]);
+
+        $validator = $app->make(SchemaValidator::class);
+
+        $validator->validate([Gathering::class => GatheringResource::class]);
+
+        $this->expectException(InvalidSchemaException::class);
+        $this->expectExceptionMessage(sprintf(
+            "Schema validation failed with 1 error(s):\n  - [%s] Field \"__scope__:cancelled\": Scope \"cancelled\" is not a local scope of model \"%s\"",
+            UnboundScopeResource::class,
+            Gathering::class,
+        ));
+
+        $validator->validate([Gathering::class => UnboundScopeResource::class]);
     }
 
     /**

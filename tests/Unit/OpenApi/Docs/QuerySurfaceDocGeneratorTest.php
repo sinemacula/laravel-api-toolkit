@@ -13,6 +13,7 @@ use SineMacula\ApiToolkit\OpenApi\Docs\ModuleSectionGrouper;
 use SineMacula\ApiToolkit\OpenApi\Docs\QuerySurfaceDocGenerator;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QueryScopeDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
@@ -445,6 +446,51 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
         self::assertStringContainsString("\n\n## Organization\n", $markdown);
         self::assertStringContainsString("\nThis resource answers no filter, order, or search.\n", $markdown);
         self::assertStringNotContainsString('| Field | Key |', $markdown);
+    }
+
+    /**
+     * Test that a resource's scopes are tabled with their arguments, required
+     * ones marked, and the scope note is printed once any resource has one.
+     *
+     * @return void
+     */
+    public function testScopesAreTabledWithTheirArgumentsAndNoted(): void
+    {
+        $scopes = [
+            new QueryScopeDescriptor('near', 'Within km | of the point.', ['lat' => true, 'km' => false]),
+            new QueryScopeDescriptor('mine', conditional: true),
+        ];
+
+        $column   = new QueryColumnDescriptor(property: 'name', column: 'name', capability: Capability::EXACT, operators: ['$eq']);
+        $markdown = $this->combinedGenerator()->generate([new QuerySurfaceDescriptor(UserResource::class, [$column], [], $scopes)], [], []);
+
+        self::assertStringContainsString(
+            "| --- | --- | --- | --- | --- | --- |\n| `name` | `name` | `exact` | `\$eq` | - | - |\n\n| Scope | Arguments | Description |\n| --- | --- | --- |\n"
+            . "| `near` | `lat` (required), `km` | Within km \\| of the point. |\n| `mine` (conditional) | - | - |\n\nTraversable relations: none.\n",
+            $markdown,
+        );
+        self::assertStringContainsString(
+            "undeclared key.\n\nA scope is a predicate the server defines, invoked by name through `\$scope` in `filters`, alone or with "
+            . "an object of the arguments its table lists; a scope marked conditional is open only to callers the resource allows.\n\n## Request Limits",
+            $markdown,
+        );
+    }
+
+    /**
+     * Test that a resource answering scopes alone tables them without saying it
+     * answers nothing, and no scope note is printed where none is declared.
+     *
+     * @return void
+     */
+    public function testAResourceAnsweringScopesAloneIsNotSaidToAnswerNothing(): void
+    {
+        $scoped = $this->combinedGenerator()->generate([new QuerySurfaceDescriptor(UserResource::class, [], [], [new QueryScopeDescriptor('upcoming')])], [], []);
+        $plain  = $this->combinedGenerator()->generate([$this->surface(UserResource::class, [])], [], []);
+
+        self::assertStringContainsString("\n## User\n\n| Scope | Arguments | Description |\n", $scoped);
+        self::assertStringNotContainsString('answers no filter', $scoped);
+        self::assertStringNotContainsString('A scope is a predicate', $plain);
+        self::assertStringNotContainsString('| Scope |', $plain);
     }
 
     /**

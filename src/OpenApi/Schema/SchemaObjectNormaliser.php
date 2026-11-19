@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Schema;
 
+use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
+
 /**
  * Rewrites the empty schemas of an assembled document as empty objects.
  *
@@ -65,7 +67,7 @@ final readonly class SchemaObjectNormaliser
                 continue;
             }
 
-            $components[$key] = $key === 'schemas' ? $this->schemaMap($value) : array_map($this->entry(...), $value);
+            $components[$key] = $key === 'schemas' ? $this->schemaMap(array_map($this->scoped(...), $value)) : array_map($this->entry(...), $value);
         }
 
         return $components;
@@ -160,6 +162,37 @@ final readonly class SchemaObjectNormaliser
         }
 
         return $discriminator;
+    }
+
+    /**
+     * Normalise the argument schemas of a component's named scopes, which sit
+     * under an extension keyword the walk does not enter.
+     *
+     * @param  mixed  $component
+     * @return mixed
+     */
+    private function scoped(mixed $component): mixed
+    {
+        if (is_array($component) && is_array($component[ResourceSchemaBuilder::SCOPES_KEY] ?? null)) {
+            $component[ResourceSchemaBuilder::SCOPES_KEY] = array_map($this->scope(...), $component[ResourceSchemaBuilder::SCOPES_KEY]);
+        }
+
+        return $component;
+    }
+
+    /**
+     * Normalise one named scope's argument schema.
+     *
+     * @param  mixed  $scope
+     * @return mixed
+     */
+    private function scope(mixed $scope): mixed
+    {
+        if (is_array($scope) && is_array($scope['parameters'] ?? null)) {
+            $scope['parameters'] = $this->schema($scope['parameters']);
+        }
+
+        return $scope;
     }
 
     /**

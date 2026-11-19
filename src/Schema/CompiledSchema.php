@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema;
 
 /**
- * Typed value object holding compiled field and aggregate definitions.
+ * Typed value object holding compiled field, aggregate and scope definitions.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -25,6 +25,7 @@ final readonly class CompiledSchema
      * @param  array<string, list<string>>  $conditionalFilterKeys
      * @param  array<string, list<string>>  $conditionalSortKeys
      * @param  array<string, list<string>>  $conditionalTraversalKeys
+     * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledScopeDefinition>  $scopes
      */
     public function __construct(
 
@@ -57,6 +58,9 @@ final readonly class CompiledSchema
 
         /** Relation keys only caller-guarded fields declare, mapped to those fields */
         private array $conditionalTraversalKeys = [],
+
+        /** The named scopes keyed by the name a client invokes each by */
+        private array $scopes = [],
     ) {}
 
     /**
@@ -187,5 +191,15 @@ final readonly class CompiledSchema
     public function getConditionalTraversalKeys(): array
     {
         return $this->conditionalTraversalKeys;
+    }
+
+    /**
+     * Return the named scopes keyed by the name a client invokes each by.
+     *
+     * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledScopeDefinition>
+     */
+    public function getScopes(): array
+    {
+        return $this->scopes;
     }
 }

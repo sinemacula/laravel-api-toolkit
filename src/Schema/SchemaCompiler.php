@@ -103,6 +103,9 @@ final class SchemaCompiler
         /** @var array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition> $aggregates */
         $aggregates = [];
 
+        /** @var array<string, \SineMacula\ApiToolkit\Schema\CompiledScopeDefinition> $scopes */
+        $scopes = [];
+
         $filterable  = [];
         $sortable    = [];
         $traversable = [];
@@ -111,6 +114,12 @@ final class SchemaCompiler
         $declarers   = [];
 
         foreach ($rawSchema as $schemaKey => $definition) {
+
+            if (str_starts_with($schemaKey, Scope::KEY_PREFIX)) {
+                $scope                = CompiledScopeDefinition::fromRaw($schemaKey, $definition);
+                $scopes[$scope->name] = $scope;
+                continue;
+            }
 
             $function = self::resolveAggregateFunction($definition);
 
@@ -145,6 +154,7 @@ final class SchemaCompiler
             self::conditionalKeys($declarers['filter'] ?? []),
             self::conditionalKeys($declarers['sort'] ?? []),
             self::conditionalKeys($declarers['traversal'] ?? []),
+            $scopes,
         );
     }
 

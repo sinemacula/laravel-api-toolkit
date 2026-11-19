@@ -36,6 +36,9 @@ final readonly class ResourceSchemaBuilder
     /** The property an API resource's schema pins to its resource type */
     public const string TYPE_PROPERTY = '_type';
 
+    /** The schema extension describing the named scopes a filter may invoke */
+    public const string SCOPES_KEY = 'x-scopes';
+
     /** The property a resource's relation aggregates are rendered under */
     private const string AGGREGATES_PROPERTY = 'aggregates';
 
@@ -60,6 +63,7 @@ final readonly class ResourceSchemaBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue  $catalogue
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver  $resolver
      * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $introspector
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ScopeSchemaBuilder  $scopes
      */
     public function __construct(
 
@@ -71,6 +75,9 @@ final readonly class ResourceSchemaBuilder
 
         /** The provider used to resolve relation cardinality. */
         private SchemaIntrospectionProvider $introspector,
+
+        /** The builder describing each resource's named scopes. */
+        private ScopeSchemaBuilder $scopes,
     ) {}
 
     /**
@@ -158,7 +165,7 @@ final readonly class ResourceSchemaBuilder
         }
 
         if (!is_a($resourceClass, ApiResourceInterface::class, true)) {
-            return $this->wrapObjectSchema($properties, [], $compiled->getTraversableRelations());
+            return $this->wrapObjectSchema($properties, [], $compiled);
         }
 
         $fixed    = $resourceClass::getFixedFields();
@@ -168,7 +175,7 @@ final readonly class ResourceSchemaBuilder
         $properties = [self::TYPE_PROPERTY => $this->buildTypeProperty($resourceClass)] + $properties;
 
         return [
-            ...$this->wrapObjectSchema($properties, [self::TYPE_PROPERTY, ...$required], $compiled->getTraversableRelations()),
+            ...$this->wrapObjectSchema($properties, [self::TYPE_PROPERTY, ...$required], $compiled),
             self::DEFAULT_FIELDS_KEY => array_values(array_unique($defaults)),
         ];
     }
@@ -353,16 +360,18 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Wrap a property map, its required keys and traversable relations into an
-     * object schema.
+     * Wrap a property map and its required keys into an object schema, with the
+     * relations and scopes a filter may use.
      *
      * @param  array<string, array<string, mixed>>  $properties
      * @param  array<int, string>  $required
-     * @param  array<int, string>  $relations
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
      * @return array<string, mixed>
      */
-    private function wrapObjectSchema(array $properties, array $required, array $relations): array
+    private function wrapObjectSchema(array $properties, array $required, CompiledSchema $compiled): array
     {
+        $relations = $compiled->getTraversableRelations();
+
         $schema = [
             'type'       => 'object',
             'properties' => $properties,
@@ -374,6 +383,10 @@ final readonly class ResourceSchemaBuilder
 
         if ($relations !== []) {
             $schema[self::TRAVERSABLE_RELATIONS_KEY] = $relations;
+        }
+
+        if ($compiled->getScopes() !== []) {
+            $schema[self::SCOPES_KEY] = $this->scopes->build($compiled);
         }
 
         return $schema;

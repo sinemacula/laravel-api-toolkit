@@ -19,6 +19,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ScopeSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
@@ -327,7 +328,12 @@ final class ExportOpenApiComponentsTest extends TestCase
         );
 
         $assembler = new OpenApiAssembler(
-            new ResourceSchemaBuilder($catalogue, new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums), $introspector),
+            new ResourceSchemaBuilder(
+                $catalogue,
+                new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums),
+                $introspector,
+                new ScopeSchemaBuilder(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
+            ),
             new QueryParameterBuilder($catalogue),
             $errors,
             new PathBuilder(

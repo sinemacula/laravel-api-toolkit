@@ -15,9 +15,12 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\ScopeApplier;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Models\Gathering;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\GatheringResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -36,6 +39,7 @@ use Tests\TestCase;
 #[CoversClass(OrderApplier::class)]
 #[CoversClass(EagerLoadApplier::class)]
 #[CoversClass(LimitApplier::class)]
+#[CoversClass(ScopeApplier::class)]
 final class ApiCriteriaIntegrationTest extends TestCase
 {
     /**
@@ -401,6 +405,101 @@ final class ApiCriteriaIntegrationTest extends TestCase
         $results = $this->makeCriteria()->apply(new User)->orderBy('id')->get();
 
         self::assertSame($expected, $results->pluck('name')->all());
+    }
+
+    /**
+     * Test that a scope taking nothing and one taking arguments each read the
+     * rows they describe.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testNamedScopesReadTheRowsTheyDescribe(): void
+    {
+        $this->seedGatherings();
+
+        self::assertSame(['Launch', 'Retro'], $this->gatheringNames(['$scope' => 'upcoming']));
+        self::assertSame(['Launch', 'Workshop'], $this->gatheringNames(['$scope' => ['near' => ['km' => 10, 'lng' => -0.12, 'lat' => 51.5]]]));
+        self::assertSame(['Launch'], $this->gatheringNames(['$scope' => ['upcoming' => [], 'near' => ['lat' => 51.5, 'lng' => -0.12, 'km' => 10]]]));
+    }
+
+    /**
+     * Test that a caller-guarded scope reads the authenticated caller's rows
+     * inside $or.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testACallerGuardedScopeReadsTheCallersRowsInsideOr(): void
+    {
+        $this->seedGatherings();
+
+        $bob = User::query()->where('name', 'Bob')->firstOrFail();
+
+        $this->actingAs($bob);
+
+        self::assertSame(['Launch', 'Retro', 'Workshop'], $this->gatheringNames(['$or' => [['$scope' => 'mine'], ['visibility' => 'public']]]));
+    }
+
+    /**
+     * Test that a soft-deleted row stays hidden when a scope matches it.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testASoftDeletedRowStaysHiddenWhenAScopeMatchesIt(): void
+    {
+        $this->seedGatherings();
+
+        Gathering::query()->where('name', 'Retro')->firstOrFail()->delete();
+
+        self::assertSame(['Launch'], $this->gatheringNames(['$scope' => 'upcoming']));
+    }
+
+    /**
+     * Apply the filters to the gatherings, as the current request, and return
+     * the names read, in order.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return list<string>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    private function gatheringNames(array $filters): array
+    {
+        assert($this->app !== null);
+
+        $request = Request::create('/gatherings', HttpMethod::GET->getVerb(), ['filters' => json_encode($filters, JSON_THROW_ON_ERROR)]);
+
+        // Rebinding hands the request the authenticated user
+        $this->app->instance('request', $request);
+
+        ApiQuery::parse($request);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+
+        /** @var list<string> */
+        return $criteria->usingResource(GatheringResource::class)->apply(new Gathering)->orderBy('name')->pluck('name')->all();
+    }
+
+    /**
+     * Seed public and private gatherings, past and upcoming, in and out of
+     * London, one private one owned by Bob.
+     *
+     * @return void
+     */
+    private function seedGatherings(): void
+    {
+        $bob = User::query()->where('name', 'Bob')->firstOrFail();
+
+        Gathering::create(['name' => 'Launch', 'visibility' => 'public', 'starts_at' => now()->addWeek(), 'latitude' => 51.51, 'longitude' => -0.13]);
+        Gathering::create(['name' => 'Retro', 'visibility' => 'private', 'user_id' => $bob->id, 'starts_at' => now()->addDay(), 'latitude' => 48.85, 'longitude' => 2.35]);
+        Gathering::create(['name' => 'Workshop', 'visibility' => 'public', 'starts_at' => now()->subWeek(), 'latitude' => 51.49, 'longitude' => -0.1]);
+        Gathering::create(['name' => 'Offsite', 'visibility' => 'private', 'starts_at' => now()->subDay(), 'latitude' => 40.71, 'longitude' => -74.0]);
     }
 
     /**

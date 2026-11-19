@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Schema\Average;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledScopeDefinition;
 use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Exists;
 use SineMacula\ApiToolkit\Schema\Field;
@@ -23,6 +24,7 @@ use SineMacula\ApiToolkit\Schema\Min;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Schema\Scope;
 use SineMacula\ApiToolkit\Schema\Sum;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\TagResource;
@@ -470,6 +472,32 @@ final class SchemaCompilerTest extends TestCase
         self::assertSame('posts', $count->presentKey);
         self::assertSame('posts', $count->relation);
         self::assertTrue($count->isDefault);
+    }
+
+    /**
+     * Test that scopes compile to scope definitions keyed by client name and
+     * stay out of the field map.
+     *
+     * @return void
+     */
+    public function testCompileKeysScopeDefinitionsByClientNameApartFromTheFields(): void
+    {
+        $guard = static fn (): bool => true;
+        $rules = ['lat' => 'required|numeric', 'ids.*' => 'integer'];
+
+        $schema = SchemaCompiler::compile($this->createStubResourceClass(Field::set(
+            Field::scalar('name'),
+            Scope::of('ownedByCaller', 'mine')->visibleTo($guard),
+            Scope::of('near')->parameters($rules)->description('Near the point.'),
+            ['__scope__:legacy' => []],
+        )));
+
+        self::assertSame(['name'], $schema->getFieldKeys());
+        self::assertEquals([
+            'mine'   => new CompiledScopeDefinition('mine', 'ownedByCaller', callerGuards: [$guard]),
+            'near'   => new CompiledScopeDefinition('near', 'near', $rules, ['lat', 'ids'], 'Near the point.'),
+            'legacy' => new CompiledScopeDefinition('legacy', 'legacy'),
+        ], $schema->getScopes());
     }
 
     /**

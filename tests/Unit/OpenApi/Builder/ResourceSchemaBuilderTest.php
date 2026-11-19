@@ -10,10 +10,14 @@ use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\ScopeSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
+use SineMacula\ApiToolkit\OpenApi\Schema\FieldSchemaBuilder;
+use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
+use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
@@ -24,6 +28,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\AuthoredPost;
+use Tests\Fixtures\Models\Gathering;
 use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
@@ -33,6 +38,7 @@ use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AuthoredPostResource;
 use Tests\Fixtures\Resources\DeclaredOpenApiUserResource;
 use Tests\Fixtures\Resources\FixedFieldsUserResource;
+use Tests\Fixtures\Resources\GatheringResource;
 use Tests\Fixtures\Resources\GuardedQueryableUserResource;
 use Tests\Fixtures\Resources\GuardedUserResource;
 use Tests\Fixtures\Resources\NoteResource;
@@ -656,7 +662,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn(['GhostModel' => 'GhostResource']);
 
-        $ghost = (new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector()))->build()['Ghost'];
+        $ghost = (new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector(), $this->scopes()))->build()['Ghost'];
 
         self::assertIsArray($ghost['properties']);
         self::assertArrayNotHasKey('_type', $ghost['properties']);
@@ -1056,6 +1062,46 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
+     * Test that the schema describes each named scope with its translated
+     * argument schema, closed to other arguments, and marks a caller-guarded
+     * scope conditional.
+     *
+     * @return void
+     */
+    public function testNamedScopesAreDescribedOnTheSchema(): void
+    {
+        $schema = $this->makeBuilder([Gathering::class => GatheringResource::class])->build()['Gathering'];
+
+        self::assertSame([
+            'upcoming' => ['description' => 'Gatherings that have not started yet.', 'parameters' => ['type' => 'object', 'additionalProperties' => false]],
+            'near'     => [
+                'description' => 'Gatherings within km kilometres of the point.',
+                'parameters'  => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'lat' => ['type' => 'number', 'minimum' => -90, 'maximum' => 90],
+                        'lng' => ['type' => 'number', 'minimum' => -180, 'maximum' => 180],
+                        'km'  => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50],
+                    ],
+                    'required'             => ['lat', 'lng', 'km'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            'mine' => ['parameters' => ['type' => 'object', 'additionalProperties' => false], 'conditional' => true],
+        ], $schema['x-scopes']);
+    }
+
+    /**
+     * Test that a resource declaring no scope omits the key.
+     *
+     * @return void
+     */
+    public function testResourceWithoutScopesCarriesNoScopesKey(): void
+    {
+        self::assertArrayNotHasKey('x-scopes', $this->makeBuilder($this->fullResourceMap())->build()['User']);
+    }
+
+    /**
      * Test that a resource without traversable relations omits the key.
      *
      * @return void
@@ -1324,7 +1370,7 @@ final class ResourceSchemaBuilderTest extends TestCase
         $catalogue->method('getResourceMap')->willReturn($resourceMap);
         $catalogue->method('getOperatorsFor')->willReturnCallback($registry->tokensFor(...));
 
-        return new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector());
+        return new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector(), $this->scopes());
     }
 
     /**
@@ -1347,6 +1393,16 @@ final class ResourceSchemaBuilderTest extends TestCase
     private function registry(): OperatorRegistry
     {
         return app(OperatorRegistry::class);
+    }
+
+    /**
+     * Build the describer of each resource's named scopes.
+     *
+     * @return \SineMacula\ApiToolkit\OpenApi\Builder\ScopeSchemaBuilder
+     */
+    private function scopes(): ScopeSchemaBuilder
+    {
+        return new ScopeSchemaBuilder(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder));
     }
 
     /**
