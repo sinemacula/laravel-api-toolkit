@@ -292,6 +292,20 @@ GET /users?limit=200   // 422, the ceiling is 100
 GET /users?limit=25    // honoured as-is
 ```
 
+A resource whose rows are expensive can lower the ceiling for itself. Its pages default to the lower of
+`parser.defaults.limit` and its ceiling, and the exported `limit` parameter and query surface docs state both:
+
+```php
+public static function maxLimit(): ?int
+{
+    return 25;
+}
+```
+
+It can only lower the configured ceiling: a value above it changes nothing, it applies alone while the configured
+ceiling is `0`, and a value below 1 throws a `LogicException`. `paginate()` and `withApiCriteria()` refuse a `limit`
+over it with the same `422`, for the resource the repository resolves, including one named with `usingResource()`.
+
 **Relation aggregates** - request declared aggregates per resource type by their keys. Requesting any aggregate replaces
 every default of that type, as `?fields` replaces `$default`. A type's aggregates apply wherever it renders, at the root
 or embedded, and render under its `aggregates` field when its field selection includes it:

@@ -18,6 +18,7 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\ConfigMetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\EqualOperator;
@@ -26,6 +27,7 @@ use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -365,6 +367,18 @@ final class ConfigMetadataCatalogueTest extends TestCase
         Config::set('api-toolkit.parser.max_limit', null);
 
         self::assertSame(0, $this->makeCatalogue()->getQueryLimits()[QueryParameterValidator::MAX_LIMIT]);
+    }
+
+    /**
+     * Test that getPageSize returns the given resource's bounds, or the
+     * configured ones.
+     *
+     * @return void
+     */
+    public function testGetPageSizeReturnsTheResourceBoundsOrTheConfiguredOnes(): void
+    {
+        self::assertEquals(new PageSize(2, 2), $this->makeCatalogue()->getPageSize(CappedPageUserResource::class));
+        self::assertEquals(new PageSize(100, 50), $this->makeCatalogue()->getPageSize(null));
     }
 
     /**
