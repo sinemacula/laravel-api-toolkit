@@ -28,11 +28,13 @@ use Tests\Fixtures\OpenApi\InternalOnlyTagController;
 use Tests\Fixtures\OpenApi\PartnerOrganizationController;
 use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\OpenApi\PathTaggedController;
+use Tests\Fixtures\OpenApi\PathUnmappedController;
 use Tests\Fixtures\OpenApi\UndocumentedOrganizationController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\QueryableTagResource;
 use Tests\Fixtures\Resources\TagResource;
+use Tests\Fixtures\Resources\TraversingPostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -292,6 +294,34 @@ final class OpenApiAudienceExportTest extends TestCase
     }
 
     /**
+     * Test that an internal resource's filter document stays out of a public
+     * document until a public index filters into it.
+     *
+     * @return void
+     */
+    public function testAnInternalResourcesFilterDocumentReachesOnlyTheAudiencesThatFilterIntoIt(): void
+    {
+        $this->getConfig()->set('api-toolkit.openapi.audiences', ['public' => [], 'internal' => []]);
+        $this->getConfig()->set('api-toolkit.resources.resource_map', [Post::class => TraversingPostResource::class, Tag::class => QueryableTagResource::class]);
+
+        $this->router()->get('tags', [InternalOnlyTagController::class, 'index']);
+
+        self::assertArrayHasKey('QueryableTagFilters', $this->schemasOf($this->export('internal')->document));
+        self::assertArrayNotHasKey('QueryableTagFilters', $this->schemasOf($this->export('public')->document));
+
+        $this->router()->get('posts', [PathUnmappedController::class, 'index']);
+
+        $public  = $this->export('public')->document;
+        $schemas = $this->schemasOf($public);
+
+        self::assertSame(['/posts'], array_keys((array) $public['paths']));
+        self::assertSame('#/components/schemas/QueryableTagFilters', $schemas['TraversingPostFilters']['properties']['tags']['$ref'] ?? null);
+        self::assertArrayHasKey('QueryableTagFilters', $schemas);
+
+        $this->assertValidDocument($public);
+    }
+
+    /**
      * Test that the query surface reference reaches the documenting audience.
      *
      * @return void
@@ -344,6 +374,18 @@ final class OpenApiAudienceExportTest extends TestCase
 
         $this->assertValidDocument($public);
         $this->assertValidDocument($internal);
+    }
+
+    /**
+     * Read the component schemas of an exported document.
+     *
+     * @param  array<string, mixed>  $document
+     * @return array<string, array<string, mixed>>
+     */
+    private function schemasOf(array $document): array
+    {
+        /** @var array<string, array<string, mixed>> */
+        return $document['components']['schemas'];
     }
 
     /**

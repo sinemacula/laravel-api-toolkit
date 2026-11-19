@@ -16,6 +16,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\FilterSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
@@ -30,6 +31,8 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\OrphanedDocumentationException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
@@ -55,6 +58,8 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use SineMacula\ApiToolkit\Query\PageSize;
+use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use Tests\Concerns\CreatesDocumentTables;
 use Tests\Concerns\ValidatesOpenApiDocuments;
@@ -79,9 +84,11 @@ use Tests\Fixtures\OpenApi\SignedInShape;
 use Tests\Fixtures\OpenApi\StatusNamedShape;
 use Tests\Fixtures\OpenApi\UserNamedShape;
 use Tests\Fixtures\OpenApi\WidgetShape;
+use Tests\Fixtures\Resources\AliasedStatusUserResource;
 use Tests\Fixtures\Resources\DocumentResource;
 use Tests\Fixtures\Resources\EnvelopeNamedResource;
 use Tests\Fixtures\Resources\ErrorNamedResource;
+use Tests\Fixtures\Resources\FiltersNamedResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -463,7 +470,8 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the query-parameter vocabulary is emitted once.
+     * Test that the shared query parameters are emitted once, without the
+     * filters and order each index states for its own resource.
      *
      * @return void
      */
@@ -472,10 +480,72 @@ final class OpenApiAssemblerTest extends TestCase
         $parameters = $this->assemble()['components']['parameters'];
 
         self::assertIsArray($parameters);
-        self::assertArrayHasKey('Filters', $parameters);
         self::assertArrayHasKey('Fields', $parameters);
-        self::assertArrayHasKey('Order', $parameters);
         self::assertArrayHasKey('Trashed', $parameters);
+        self::assertArrayNotHasKey('Filters', $parameters);
+        self::assertArrayNotHasKey('Order', $parameters);
+    }
+
+    /**
+     * Test that the filter document of an index's resource is emitted with
+     * those of the resources its relations reach, and no other.
+     *
+     * @return void
+     */
+    public function testFilterDocumentsReachableFromAnIndexAreEmitted(): void
+    {
+        $this->router()->get('users', [PathFixtureController::class, 'index']);
+
+        $schemas = $this->assemble()['components']['schemas'];
+
+        self::assertIsArray($schemas);
+        self::assertSame(['OrganizationFilters', 'PostFilters', 'UserFilters'], $this->filterDocumentsIn($schemas));
+    }
+
+    /**
+     * Test that a document whose paths take no filters emits no filter
+     * document.
+     *
+     * @return void
+     */
+    public function testNoFilterDocumentIsEmittedWithoutAnIndex(): void
+    {
+        $this->router()->get('users/{user}', [PathFixtureController::class, 'show']);
+
+        $schemas = $this->assemble()['components']['schemas'];
+
+        self::assertIsArray($schemas);
+        self::assertSame([], $this->filterDocumentsIn($schemas));
+    }
+
+    /**
+     * Test that an enum only a filter value references is emitted.
+     *
+     * @return void
+     */
+    public function testAnEnumOnlyAFilterValueReferencesIsEmitted(): void
+    {
+        $this->router()->get('users', [PathFixtureController::class, 'index']);
+
+        $schemas = $this->makeAssembler([User::class => AliasedStatusUserResource::class])->assemble()['components']['schemas'];
+
+        self::assertIsArray($schemas);
+        self::assertStringNotContainsString('UserStatus', (string) json_encode($schemas['AliasedStatusUser']));
+        self::assertSame(['$ref' => '#/components/schemas/UserStatus'], $schemas['AliasedStatusUserFilters']['properties']['status']['anyOf'][0]);
+        self::assertSame(['type' => 'string', 'enum' => ['active', 'inactive', 'banned']], $schemas['UserStatus']);
+    }
+
+    /**
+     * Test that a resource named like another's filter document fails the
+     * export, naming both.
+     *
+     * @return void
+     */
+    public function testResourceNamedLikeAFilterDocumentFailsTheExport(): void
+    {
+        $this->expectCollision('UserFilters', FiltersNamedResource::class, UserResource::class);
+
+        $this->makeAssembler([...self::RESOURCE_MAP, Document::class => FiltersNamedResource::class])->assemble();
     }
 
     /**
@@ -1036,6 +1106,21 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * List the filter document components among the schemas, sorted.
+     *
+     * @param  array<array-key, mixed>  $schemas
+     * @return list<string>
+     */
+    private function filterDocumentsIn(array $schemas): array
+    {
+        $names = array_values(array_filter(array_map('strval', array_keys($schemas)), static fn (string $name): bool => str_ends_with($name, 'Filters')));
+
+        sort($names);
+
+        return $names;
+    }
+
+    /**
      * Assemble a document from real builders over a stubbed catalogue.
      *
      * @return array<string, mixed>
@@ -1120,6 +1205,12 @@ final class OpenApiAssemblerTest extends TestCase
             new DocumentedRouteCollector($this->router(), $catalogue, new AudienceResolver, new AudienceConfiguration, new DocumentableRouteFilter, new TagResolver),
             new OperationDescriptions,
             new TagList,
+            new FilterSchemaBuilder(
+                $catalogue,
+                new ColumnLiteral($this->app->make(SchemaIntrospector::class)),
+                $enums,
+                new ScopeSchemaBuilder(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
+            ),
         );
     }
 
@@ -1189,15 +1280,23 @@ final class OpenApiAssemblerTest extends TestCase
     {
         assert($this->app !== null);
 
+        $reader   = new QuerySurfaceReader($this->app->make(SchemaIntrospector::class));
+        $registry = $this->app->make(OperatorRegistry::class);
+
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn($resourceMap);
-        $catalogue->method('getOperatorTokens')->willReturn(['$eq', '$neq']);
         $catalogue->method('getOperatorsFor')->willReturnCallback(
             static fn (Capability $capability): array => array_values(array_intersect($capability->defaultOperators(), ['$eq', '$neq'])),
         );
-        $catalogue->method('getStructuralOperators')->willReturn(['$and', '$or']);
         $catalogue->method('getErrorCatalogue')->willReturn($this->app->make(ErrorCatalogueReader::class)->read());
         $catalogue->method('getPageSize')->willReturn(new PageSize(0, 50));
+        $catalogue->method('getQuerySurfaces')->willReturnCallback(static fn (): array => $reader->read($resourceMap, $registry));
+        $catalogue->method('getQuerySurface')->willReturnCallback(static function (string $resource, string $model) use ($reader, $resourceMap, $registry): QuerySurfaceDescriptor {
+
+            assert(class_exists($resource) && class_exists($model));
+
+            return $reader->readOne($resource, $model, $resourceMap, $registry);
+        });
 
         return $catalogue;
     }

@@ -4,21 +4,29 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Builder;
 
+use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
+use SineMacula\ApiToolkit\Enums\Capability;
+use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QueryScopeDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\CappedPageUserResource;
+use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
+use Tests\TestCase;
 
 /**
  * Tests for the QueryParameterBuilder.
@@ -31,17 +39,20 @@ use Tests\Fixtures\Resources\UserResource;
 #[CoversClass(QueryParameterBuilder::class)]
 final class QueryParameterBuilderTest extends TestCase
 {
-    /** @var array<int, string> The eleven registered operator tokens */
-    private const array OPERATOR_TOKENS = [
-        '$eq', '$neq', '$gt', '$lt', '$ge', '$le',
-        '$in', '$between', '$contains', '$null', '$notNull',
-    ];
-
-    /** @var array<int, string> The five structural operators */
-    private const array STRUCTURAL_OPERATORS = ['$and', '$or', '$has', '$hasnt', '$scope'];
+    /** @var string The grammar the filter parameter of every index states */
+    private const string FILTER_GRAMMAR = 'Filters: a JSON object, URL-encoded under the one key, e.g. filters={"status":{"$eq":"active"}}. '
+        . 'The entries of a document AND together. A field takes a value, matched for equality, or an object of operators. '
+        . '$and and $or take a non-empty list of filter documents, joined by AND or OR, '
+        . 'e.g. filters={"status":"active","$or":[{"role":"admin"},{"role":"owner"}]}. '
+        . 'A traversable relation key takes a filter document for the related resource. '
+        . '$has and $hasnt take a relation name, a list of names, or relation names keyed to filter documents. '
+        . '$scope invokes the named scopes the resource declares: a scope name, a list of names, or names keyed to objects of arguments, '
+        . 'e.g. filters={"$scope":{"near":{"lat":51.5,"lng":-0.12,"km":5}}}. '
+        . 'The schema lists the fields, operators and values this resource accepts; a date-time is sent in the form the field emits.';
 
     /**
-     * Test that the full shared query-parameter set is emitted.
+     * Test that the shared query-parameter set is emitted, without the filters
+     * and order each index states for its own resource.
      *
      * @return void
      */
@@ -49,11 +60,7 @@ final class QueryParameterBuilderTest extends TestCase
     {
         $parameters = $this->makeBuilder()->build();
 
-        foreach (['Fields', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Aggregates', 'Trashed'] as $name) {
-            self::assertArrayHasKey($name, $parameters);
-        }
-
-        self::assertCount(10, $parameters);
+        self::assertSame(['Fields', 'Search', 'Limit', 'Page', 'Cursor', 'Pagination', 'Aggregates', 'Trashed'], array_keys($parameters));
     }
 
     /**
@@ -67,177 +74,13 @@ final class QueryParameterBuilderTest extends TestCase
 
         self::assertSame('query', $parameters['Fields']['in']);
         self::assertSame('fields', $parameters['Fields']['name']);
-        self::assertSame('filters', $parameters['Filters']['name']);
         self::assertSame('search', $parameters['Search']['name']);
-        self::assertSame('order', $parameters['Order']['name']);
         self::assertSame('limit', $parameters['Limit']['name']);
         self::assertSame('page', $parameters['Page']['name']);
         self::assertSame('cursor', $parameters['Cursor']['name']);
         self::assertSame('pagination', $parameters['Pagination']['name']);
         self::assertSame('aggregates', $parameters['Aggregates']['name']);
         self::assertSame('trashed', $parameters['Trashed']['name']);
-    }
-
-    /**
-     * Test that the filter parameter documents every registered operator token.
-     *
-     * @return void
-     */
-    public function testFilterParameterCoversEveryRegisteredOperator(): void
-    {
-        $operators = $this->makeBuilder()->build()['Filters']['schema']['x-operators'];
-
-        self::assertIsIterable($operators);
-
-        foreach (self::OPERATOR_TOKENS as $token) {
-            self::assertContains($token, $operators);
-        }
-    }
-
-    /**
-     * Test that the filter parameter documents every structural operator.
-     *
-     * @return void
-     */
-    public function testFilterParameterCoversEveryStructuralOperator(): void
-    {
-        $operators = $this->makeBuilder()->build()['Filters']['schema']['x-operators'];
-
-        self::assertIsIterable($operators);
-
-        foreach (self::STRUCTURAL_OPERATORS as $token) {
-            self::assertContains($token, $operators);
-        }
-    }
-
-    /**
-     * Test that the filter enumerates the 11 registered and 5 structural ops.
-     *
-     * @return void
-     */
-    public function testFilterParameterEnumeratesTheFullElevenPlusFiveVocabulary(): void
-    {
-        $operators = $this->makeBuilder()->build()['Filters']['schema']['x-operators'];
-
-        self::assertIsArray($operators);
-        self::assertCount(16, $operators);
-    }
-
-    /**
-     * Test that the filter description names the operators.
-     *
-     * @return void
-     */
-    public function testFilterDescriptionNamesTheOperatorGrammar(): void
-    {
-        $filter = $this->makeBuilder()->build()['Filters'];
-
-        self::assertIsString($filter['description']);
-        self::assertStringContainsString('$eq', $filter['description']);
-        self::assertIsString($filter['description']);
-        self::assertStringContainsString('$and', $filter['description']);
-    }
-
-    /**
-     * Test that the filter description states the group grammar with an
-     * example.
-     *
-     * @return void
-     */
-    public function testFilterDescriptionStatesTheGroupGrammarWithAnExample(): void
-    {
-        $description = $this->makeBuilder()->build()['Filters']['description'];
-
-        self::assertIsString($description);
-        self::assertStringContainsString(
-            'The entries of a document AND together. $and and $or take a non-empty list of filter documents, joined by AND or OR, '
-            . 'e.g. filters={"status":"active","$or":[{"role":"admin"},{"role":"owner"}]}. '
-            . 'A traversable relation key takes a filter document for the related resource. '
-            . '$has and $hasnt take a relation name, a list of names, or relation names keyed to filter documents. ',
-            $description,
-        );
-    }
-
-    /**
-     * Test that the filter description states the scope grammar with an
-     * example.
-     *
-     * @return void
-     */
-    public function testFilterDescriptionStatesTheScopeGrammarWithAnExample(): void
-    {
-        $description = $this->makeBuilder()->build()['Filters']['description'];
-
-        self::assertIsString($description);
-        self::assertStringContainsString(
-            'relation names keyed to filter documents. '
-            . '$scope invokes the named scopes the resource declares: a scope name, a list of names, or names keyed to objects of arguments, '
-            . 'e.g. filters={"$scope":{"near":{"lat":51.5,"lng":-0.12,"km":5}}}. Each operator',
-            $description,
-        );
-    }
-
-    /**
-     * Test that the filter declares no closed per-resource field allow-list.
-     *
-     * @return void
-     */
-    public function testFilterParameterDeclaresNoPerResourceAllowList(): void
-    {
-        $schema = $this->makeBuilder()->build()['Filters']['schema'];
-
-        self::assertIsArray($schema);
-        self::assertArrayNotHasKey('enum', $schema);
-        self::assertIsArray($schema);
-        self::assertArrayNotHasKey('properties', $schema);
-    }
-
-    /**
-     * Test that the filter is a JSON string, not a bracketed deep object.
-     *
-     * @return void
-     */
-    public function testFilterParameterIsAJsonCarryingStringRatherThanADeepObject(): void
-    {
-        $filters = $this->makeBuilder()->build()['Filters'];
-
-        self::assertSame('string', $filters['schema']['type']);
-        self::assertSame('application/json', $filters['schema']['contentMediaType']);
-        self::assertArrayNotHasKey('style', $filters);
-        self::assertArrayNotHasKey('explode', $filters);
-    }
-
-    /**
-     * Test that the filter description states the grammar, then the fields.
-     *
-     * @return void
-     */
-    public function testFilterDescriptionStatesTheGrammarAndDefersFieldsToTheResource(): void
-    {
-        $description = $this->makeBuilder()->build()['Filters']['description'];
-
-        self::assertIsString($description);
-        self::assertStringStartsWith('Generic filter grammar. Filters are a URL-encoded JSON object keyed by field', $description);
-        self::assertIsString($description);
-        self::assertStringContainsString(' Each operator\'s value must fit its shape and the field\'s type, and a date-time is sent in the form the field emits. ', $description);
-        self::assertStringEndsWith('each resource accepts only the fields it declares filterable.', $description);
-    }
-
-    /**
-     * Test that the operator vocabulary reflects registry overrides.
-     *
-     * @return void
-     */
-    public function testOperatorVocabularyIsRegistryDriven(): void
-    {
-        $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getOperatorTokens')->willReturn(['$custom']);
-        $catalogue->method('getStructuralOperators')->willReturn(['$and']);
-        $catalogue->method('getPageSize')->willReturn(new PageSize(100, 50));
-
-        $operators = (new QueryParameterBuilder($catalogue))->build()['Filters']['schema']['x-operators'];
-
-        self::assertSame(['$custom', '$and'], $operators);
     }
 
     /**
@@ -359,8 +202,6 @@ final class QueryParameterBuilderTest extends TestCase
 
         self::assertIsString($parameters['Search']['description']);
         self::assertStringContainsString('search=John Smith', $parameters['Search']['description']);
-        self::assertIsString($parameters['Order']['description']);
-        self::assertStringContainsString('order=name,created_at:desc', $parameters['Order']['description']);
         self::assertSame(
             'Relation aggregates: request the keys of the resource\'s aggregates object per resource type, e.g. aggregates[users]=posts_count. '
             . 'Requesting any aggregate replaces the defaults of that type. A type\'s aggregates apply wherever it renders, at the root or '
@@ -368,8 +209,6 @@ final class QueryParameterBuilderTest extends TestCase
             . 'Unknown resource types and names are rejected.',
             $parameters['Aggregates']['description'],
         );
-        self::assertIsString($parameters['Filters']['description']);
-        self::assertStringContainsString('filters={"status":{"$eq":"active"}}', $parameters['Filters']['description']);
         self::assertIsString($parameters['Trashed']['description']);
         self::assertStringContainsString('trashed=with', $parameters['Trashed']['description']);
     }
@@ -400,14 +239,14 @@ final class QueryParameterBuilderTest extends TestCase
     public function testOrderDescriptionStatesItsDirectionsTiebreakerAndKeyForms(): void
     {
         self::assertSame(
-            'Ordering: a comma-separated list of fields, each optionally suffixed with :asc or :desc in any case, e.g. order=name,created_at:desc. '
-            . 'Any other direction, or a repeated field, is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
+            'Ordering: a comma-separated list of keys, each optionally suffixed with :asc or :desc in any case, e.g. order=name,created_at:desc. '
+            . 'Any other direction, or a repeated key, is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
             . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read. order=relevance ranks rows by how '
             . 'closely they match search: the whole value, then the start, then the start of a word, then anywhere; it needs search and offset '
             . 'pagination. A sortable aggregate orders by aggregates.<key>, e.g. order=aggregates.posts_count:desc, and a sortable to-one '
             . 'relation by a sortable column of the resource it renders, e.g. order=customer.name; neither can order a cursor-paginated read, '
             . 'and a NULL value sorts where the database places NULL.',
-            $this->makeBuilder()->build()['Order']['description'],
+            $this->parameterNamed('order', $this->indexOver($this->surface([$this->sortable('name')])))['description'],
         );
     }
 
@@ -423,29 +262,6 @@ final class QueryParameterBuilderTest extends TestCase
             . 'restart from the first page.',
             $this->makeBuilder()->build()['Cursor']['description'],
         );
-    }
-
-    /**
-     * Test that a parameter without a style omits style and explode.
-     *
-     * @return void
-     */
-    public function testNonStyledParametersOmitStyleAndExplode(): void
-    {
-        $order = $this->makeBuilder()->build()['Order'];
-
-        self::assertArrayNotHasKey('style', $order);
-        self::assertArrayNotHasKey('explode', $order);
-    }
-
-    /**
-     * Test that the ordering parameter is a plain string schema.
-     *
-     * @return void
-     */
-    public function testOrderParameterIsAPlainStringSchema(): void
-    {
-        self::assertSame(['type' => 'string'], $this->makeBuilder()->build()['Order']['schema']);
     }
 
     /**
@@ -520,19 +336,6 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that an index accepts the whole grammar, in operation order.
-     *
-     * @return void
-     */
-    public function testIndexAcceptsTheWholeGrammar(): void
-    {
-        self::assertSame(
-            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
-            $this->referencedNames('index', Article::class),
-        );
-    }
-
-    /**
      * Test that a show accepts single-record shaping and no selection grammar.
      *
      * @return void
@@ -553,7 +356,7 @@ final class QueryParameterBuilderTest extends TestCase
     public function testReadsOfAModelThatDoesNotSoftDeleteOmitVisibility(): void
     {
         self::assertSame(
-            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            ['Fields', 'Aggregates', 'Limit', 'Page', 'Cursor', 'Pagination'],
             $this->referencedNames('index', User::class),
         );
 
@@ -610,18 +413,184 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that every referenced name resolves to an emitted component.
+     * Test that an index states its resource's filters and order inline, and
+     * references search where a field is searchable, in operation order.
      *
      * @return void
      */
-    public function testEveryReferencedParameterIsAnEmittedComponent(): void
+    public function testAnIndexTakesItsResourcesFiltersSearchAndOrderInOperationOrder(): void
     {
-        $defined = array_keys($this->makeBuilder()->build());
+        $surface = $this->surface([$this->filterable('name', strategy: SearchStrategy::PREFIX), $this->sortable('created_at')]);
 
-        foreach (['index', 'show', 'store', 'update', 'destroy'] as $action) {
-            foreach ($this->referencedNames($action) as $name) {
-                self::assertContains($name, $defined, $action);
-            }
+        self::assertSame(
+            ['Fields', 'Aggregates', 'filters', 'Search', 'order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
+            $this->namesIn($this->makeBuilder(surface: $surface)->referencesFor('index', Article::class, UserResource::class)),
+        );
+    }
+
+    /**
+     * Test that an index whose resource has no query surface takes no filters,
+     * search or order.
+     *
+     * @return void
+     */
+    public function testAnIndexWithoutAQuerySurfaceTakesNoFiltersSearchOrOrder(): void
+    {
+        self::assertSame(
+            ['Fields', 'Aggregates', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            $this->namesIn($this->makeBuilder()->referencesFor('index', User::class, UserResource::class)),
+        );
+    }
+
+    /**
+     * Test that search is referenced only where a field is searchable.
+     *
+     * @return void
+     */
+    public function testSearchIsReferencedOnlyWhereAFieldIsSearchable(): void
+    {
+        $searched = new QueryColumnDescriptor('name', 'name', strategy: SearchStrategy::EXACT);
+
+        self::assertNotContains('Search', $this->namesIn($this->indexOver($this->surface([$this->filterable('name')]))));
+        self::assertContains(['$ref' => '#/components/parameters/Search'], $this->indexOver($this->surface([$searched])));
+    }
+
+    /**
+     * Test that the filter parameter carries its resource's filter document as
+     * JSON content, describing the grammar and each enabled cap.
+     *
+     * @return void
+     */
+    public function testTheFiltersParameterCarriesTheResourcesDocumentAsJsonContent(): void
+    {
+        $limits = [QueryCostLimits::MAX_BYTES => 4096, QueryCostLimits::MAX_PARSE_DEPTH => 8, QueryCostLimits::MAX_DEPTH => 2, QueryCostLimits::MAX_NODES => 50];
+        $caps   = ' A document is held to at most 4096 bytes encoded, 8 levels of JSON nesting, 2 levels of groups and relations, 50 keys in all.';
+
+        self::assertSame([
+            'name'        => 'filters',
+            'in'          => 'query',
+            'required'    => false,
+            'description' => self::FILTER_GRAMMAR . $caps,
+            'content'     => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/UserFilters']]],
+        ], $this->parameterNamed('filters', $this->indexUnder($limits, $this->surface([$this->filterable('name')]))));
+    }
+
+    /**
+     * Test that the filter description states only the enabled caps, and none
+     * when every cap is disabled.
+     *
+     * @return void
+     */
+    public function testTheFiltersDescriptionStatesOnlyTheEnabledCaps(): void
+    {
+        $surface = $this->surface([$this->filterable('name')]);
+
+        $partial = $this->indexUnder([QueryCostLimits::MAX_DEPTH => 3, QueryCostLimits::MAX_NODES => 0], $surface);
+        $none    = $this->indexUnder($this->caps(0), $surface);
+
+        self::assertSame(self::FILTER_GRAMMAR . ' A document is held to at most 3 levels of groups and relations.', $this->parameterNamed('filters', $partial)['description']);
+        self::assertSame(self::FILTER_GRAMMAR, $this->parameterNamed('filters', $none)['description']);
+    }
+
+    /**
+     * Test that the filter parameter is offered wherever a filter may name a
+     * column, a relation or a scope, and left out otherwise.
+     *
+     * @return void
+     */
+    public function testTheFiltersParameterIsOfferedWhereAFilterMayNameAnything(): void
+    {
+        self::assertContains('filters', $this->namesIn($this->indexOver($this->surface(relations: [new QueryRelationDescriptor('posts', PostResource::class)]))));
+        self::assertContains('filters', $this->namesIn($this->indexOver($this->surface(scopes: [new QueryScopeDescriptor('upcoming')]))));
+        self::assertNotContains('filters', $this->namesIn($this->indexOver($this->surface([$this->sortable('name')]))));
+    }
+
+    /**
+     * Test that the order lists each sortable key once, bare and with each
+     * direction, as a comma-separated list capped at the order key cap.
+     *
+     * @return void
+     */
+    public function testTheOrderListsEachSortableKeyWithEachDirection(): void
+    {
+        $surface = $this->surface([$this->sortable('name'), $this->sortable('name'), $this->filterable('email'), $this->sortable('aggregates.posts_count')]);
+        $order   = $this->parameterNamed('order', $this->indexUnder([QueryCostLimits::MAX_ORDER_KEYS => 2], $surface));
+
+        self::assertSame([
+            'type'     => 'array',
+            'items'    => ['type' => 'string', 'enum' => ['name', 'name:asc', 'name:desc', 'aggregates.posts_count', 'aggregates.posts_count:asc', 'aggregates.posts_count:desc']],
+            'maxItems' => 2,
+        ], $order['schema']);
+        self::assertSame(['order', 'query', false, 'form', false], [$order['name'], $order['in'], $order['required'], $order['style'], $order['explode']]);
+    }
+
+    /**
+     * Test that a disabled or unnamed order key cap leaves the order unbounded.
+     *
+     * @return void
+     */
+    public function testADisabledOrderKeyCapLeavesTheOrderUnbounded(): void
+    {
+        foreach ([$this->caps(0), []] as $limits) {
+
+            $order = $this->parameterNamed('order', $this->indexUnder($limits, $this->surface([$this->sortable('name')])));
+
+            self::assertSame(['type' => 'array', 'items' => ['type' => 'string', 'enum' => ['name', 'name:asc', 'name:desc']]], $order['schema']);
+        }
+    }
+
+    /**
+     * Test that relevance is listed, ascending only, where a field is
+     * searchable, and a column named like it is read as relevance.
+     *
+     * @return void
+     */
+    public function testRelevanceIsListedAscendingOnlyWhereAFieldIsSearchable(): void
+    {
+        $searchable = $this->surface([$this->sortable('relevance'), new QueryColumnDescriptor('name', 'name', strategy: SearchStrategy::SUBSTRING)]);
+
+        self::assertSame(['relevance', 'relevance:asc'], $this->orderKeysOf($searchable));
+        self::assertSame([], $this->orderKeysOf($this->surface([$this->sortable('relevance')])));
+    }
+
+    /**
+     * Test that random is listed only while random order is enabled, and a
+     * column named like it is then read as random order.
+     *
+     * @return void
+     */
+    public function testRandomIsListedOnlyWhileEnabledAndShadowsAColumnNamedLikeIt(): void
+    {
+        $surface = $this->surface([$this->sortable('random'), $this->sortable('name')]);
+
+        self::assertSame(['random', 'random:asc', 'random:desc', 'name', 'name:asc', 'name:desc'], $this->orderKeysOf($surface));
+
+        Config::set('api-toolkit.repositories.allow_random_order', true);
+
+        self::assertSame(['name', 'name:asc', 'name:desc', 'random'], $this->orderKeysOf($surface));
+    }
+
+    /**
+     * Test that the order is left out where no key is sortable.
+     *
+     * @return void
+     */
+    public function testTheOrderIsLeftOutWhereNoKeyIsSortable(): void
+    {
+        self::assertNotContains('order', $this->namesIn($this->indexOver($this->surface([$this->filterable('name')]))));
+    }
+
+    /**
+     * Test that only an index reads its resource's query surface.
+     *
+     * @return void
+     */
+    public function testOnlyAnIndexTakesItsResourcesFiltersAndOrder(): void
+    {
+        $builder = $this->makeBuilder(surface: $this->surface([$this->filterable('name', strategy: SearchStrategy::PREFIX), $this->sortable('name')]));
+
+        foreach (['show', 'store', 'update', 'destroy'] as $action) {
+            self::assertSame($this->makeBuilder()->referencesFor($action, User::class), $builder->referencesFor($action, User::class, UserResource::class), $action);
         }
     }
 
@@ -638,11 +607,11 @@ final class QueryParameterBuilderTest extends TestCase
 
         self::assertSame(
             [...$builder->build()['Limit'], 'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 2, 'default' => 2]],
-            $references[5],
+            $references[2],
         );
 
         self::assertSame(
-            [...$builder->referencesFor('index', User::class), 5 => $references[5]],
+            [...$builder->referencesFor('index', User::class), 2 => $references[2]],
             $references,
         );
     }
@@ -786,8 +755,6 @@ final class QueryParameterBuilderTest extends TestCase
     public function testACatalogueNamingNoLongestTermLeavesTheSearchUnbounded(): void
     {
         $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getOperatorTokens')->willReturn(self::OPERATOR_TOKENS);
-        $catalogue->method('getStructuralOperators')->willReturn(self::STRUCTURAL_OPERATORS);
         $catalogue->method('getQueryLimits')->willReturn([QueryParameterValidator::MAX_LIMIT => 100]);
         $catalogue->method('getPageSize')->willReturn(new PageSize(100, 50));
         $catalogue->method('getSearchBounds')->willReturn([]);
@@ -825,23 +792,130 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * List the component names the given action references, unprefixed.
+     * List the parameter names the given action takes, as namesIn() does.
      *
      * @param  string  $action
      * @param  class-string|null  $modelClass
-     * @return array<int, string>
+     * @return list<string>
      */
     private function referencedNames(string $action, ?string $modelClass = null): array
     {
-        return array_map(
-            static function (array $reference): string {
+        return $this->namesIn($this->makeBuilder()->referencesFor($action, $modelClass));
+    }
 
-                self::assertIsString($reference['$ref']);
+    /**
+     * Name each parameter: a shared one by its component, an inline one by the
+     * query parameter it carries.
+     *
+     * @param  list<array<string, mixed>>  $parameters
+     * @return list<string>
+     */
+    private function namesIn(array $parameters): array
+    {
+        return array_map(static function (array $parameter): string {
 
-                return str_replace('#/components/parameters/', '', $reference['$ref']);
-            },
-            $this->makeBuilder()->referencesFor($action, $modelClass),
-        );
+            $name = $parameter['$ref'] ?? $parameter['name'] ?? null;
+
+            self::assertIsString($name);
+
+            return str_replace('#/components/parameters/', '', $name);
+        }, $parameters);
+    }
+
+    /**
+     * Find the inline parameter carrying the given query parameter.
+     *
+     * @param  string  $name
+     * @param  list<array<string, mixed>>  $parameters
+     * @return array<string, mixed>
+     */
+    private function parameterNamed(string $name, array $parameters): array
+    {
+        foreach ($parameters as $parameter) {
+            if (($parameter['name'] ?? null) === $name) {
+                return $parameter;
+            }
+        }
+
+        self::fail(sprintf('No "%s" parameter is listed.', $name));
+    }
+
+    /**
+     * List the parameters an index over the given surface takes.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor  $surface
+     * @return list<array<string, mixed>>
+     */
+    private function indexOver(QuerySurfaceDescriptor $surface): array
+    {
+        return $this->makeBuilder(surface: $surface)->referencesFor('index', User::class, UserResource::class);
+    }
+
+    /**
+     * List the parameters an index over the given surface takes under the given
+     * bounds.
+     *
+     * @param  array<string, int>  $limits
+     * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor  $surface
+     * @return list<array<string, mixed>>
+     */
+    private function indexUnder(array $limits, QuerySurfaceDescriptor $surface): array
+    {
+        return $this->builderReporting($limits, surface: $surface)->referencesFor('index', User::class, UserResource::class);
+    }
+
+    /**
+     * List the order keys an index over the given surface accepts.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor  $surface
+     * @return list<string>
+     */
+    private function orderKeysOf(QuerySurfaceDescriptor $surface): array
+    {
+        foreach ($this->indexOver($surface) as $parameter) {
+            if (($parameter['name'] ?? null) === 'order') {
+                /** @var list<string> */
+                return $parameter['schema']['items']['enum'];
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Build a surface of the user resource.
+     *
+     * @param  list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor>  $columns
+     * @param  list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor>  $relations
+     * @param  list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryScopeDescriptor>  $scopes
+     * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
+     */
+    private function surface(array $columns = [], array $relations = [], array $scopes = []): QuerySurfaceDescriptor
+    {
+        return new QuerySurfaceDescriptor(UserResource::class, $columns, $relations, $scopes, models: [User::class]);
+    }
+
+    /**
+     * Build a column a filter may name.
+     *
+     * @param  string  $column
+     * @param  \SineMacula\ApiToolkit\Enums\SearchStrategy|null  $strategy
+     * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor
+     */
+    private function filterable(string $column, ?SearchStrategy $strategy = null): QueryColumnDescriptor
+    {
+        return new QueryColumnDescriptor($column, $column, Capability::EXACT, ['$eq'], strategy: $strategy);
+    }
+
+    /**
+     * Build a column an order may name.
+     *
+     * @param  string  $column
+     * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor
+     */
+    private function sortable(string $column): QueryColumnDescriptor
+    {
+        return new QueryColumnDescriptor($column, $column, sortable: true);
     }
 
     /**
@@ -870,29 +944,31 @@ final class QueryParameterBuilderTest extends TestCase
      *
      * @param  int  $ceiling
      * @param  int  $longest
+     * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor|null  $surface
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder
      */
-    private function makeBuilder(int $ceiling = 100, int $longest = 128): QueryParameterBuilder
+    private function makeBuilder(int $ceiling = 100, int $longest = 128, ?QuerySurfaceDescriptor $surface = null): QueryParameterBuilder
     {
-        return $this->builderReporting([QueryParameterValidator::MAX_LIMIT => $ceiling], $longest);
+        return $this->builderReporting([QueryParameterValidator::MAX_LIMIT => $ceiling], $longest, $surface);
     }
 
     /**
-     * Build a QueryParameterBuilder over a catalogue with the given bounds,
-     * under which the paged fixture resource lowers the page size to two.
+     * Build a QueryParameterBuilder over a catalogue with the given bounds and
+     * resource surface, under which the paged fixture resource lowers the page
+     * size to two.
      *
      * @param  array<string, int>  $limits
      * @param  int  $longest
+     * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor|null  $surface
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder
      */
-    private function builderReporting(array $limits, int $longest = 128): QueryParameterBuilder
+    private function builderReporting(array $limits, int $longest = 128, ?QuerySurfaceDescriptor $surface = null): QueryParameterBuilder
     {
         $configured = new PageSize($limits[QueryParameterValidator::MAX_LIMIT] ?? 0, 50);
 
         $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getOperatorTokens')->willReturn(self::OPERATOR_TOKENS);
-        $catalogue->method('getStructuralOperators')->willReturn(self::STRUCTURAL_OPERATORS);
         $catalogue->method('getQueryLimits')->willReturn($limits);
+        $catalogue->method('getQuerySurface')->willReturn($surface);
         $catalogue->method('getPageSize')->willReturnCallback(
             static fn (?string $resource): PageSize => $resource === CappedPageUserResource::class ? new PageSize(2, 2) : $configured,
         );

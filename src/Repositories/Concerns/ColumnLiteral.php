@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Enums\ColumnValueKind;
 use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
@@ -23,38 +24,11 @@ use SineMacula\ApiToolkit\Validation\Rejection;
  */
 final readonly class ColumnLiteral
 {
-    /** @var array<string, string> The kind of value each storage type compares, by catalogue type name */
-    private const array KINDS = [
-        'int2'        => 'integer',
-        'int4'        => 'integer',
-        'int8'        => 'integer',
-        'smallint'    => 'integer',
-        'int'         => 'integer',
-        'integer'     => 'integer',
-        'mediumint'   => 'integer',
-        'bigint'      => 'integer',
-        'tinyint'     => 'integer',
-        'decimal'     => 'number',
-        'numeric'     => 'number',
-        'float'       => 'number',
-        'float8'      => 'number',
-        'double'      => 'number',
-        'real'        => 'number',
-        'float4'      => 'number',
-        'bool'        => 'boolean',
-        'boolean'     => 'boolean',
-        'date'        => 'date',
-        'datetime'    => 'datetime',
-        'timestamp'   => 'datetime',
-        'timestamptz' => 'datetime',
-        'uuid'        => 'uuid',
-    ];
-
-    /** @var array<string, array{string, string}> The magnitude limits of the integer types that error out of range, negative then positive */
-    private const array INTEGER_LIMITS = [
-        'int2' => ['32768', '32767'],
-        'int4' => ['2147483648', '2147483647'],
-        'int8' => ['9223372036854775808', '9223372036854775807'],
+    /** @var array<string, array{int, int}> The range of each integer type that errors out of range, lowest then highest */
+    public const array INTEGER_BOUNDS = [
+        'int2' => [-32768, 32767],
+        'int4' => [-2147483648, 2147483647],
+        'int8' => [PHP_INT_MIN, PHP_INT_MAX],
     ];
 
     /** @var string A date, then optionally a time with an optional zone */
@@ -96,11 +70,11 @@ final readonly class ColumnLiteral
 
         $type = $this->typeOf($model, $column);
 
-        if ($type === null || $this->fits(self::KINDS[$type] ?? 'text', $type, $value)) {
+        if ($type === null || $this->fits(ColumnValueKind::of($type), $type, $value)) {
             return null;
         }
 
-        return $this->expectation(self::KINDS[$type] ?? 'text', $type);
+        return $this->expectation(ColumnValueKind::of($type), $type);
     }
 
     /**
@@ -139,7 +113,7 @@ final readonly class ColumnLiteral
     {
         $type = $this->typeOf($model, $column);
 
-        if (!is_string($value) || $type === null || (self::KINDS[$type] ?? null) !== 'datetime') {
+        if (!is_string($value) || ColumnValueKind::of($type) !== ColumnValueKind::DATETIME) {
             return $value;
         }
 
@@ -168,7 +142,7 @@ final readonly class ColumnLiteral
      * @param  string  $column
      * @return string|null
      */
-    private function typeOf(Model $model, string $column): ?string
+    public function typeOf(Model $model, string $column): ?string
     {
         return $this->introspector->getColumnDefinitions($model)[$column]->typeName ?? null;
     }
@@ -179,21 +153,21 @@ final readonly class ColumnLiteral
      * A boolean is refused outside integer and boolean columns, which bind it
      * as 0 or 1.
      *
-     * @param  string  $kind
+     * @param  \SineMacula\ApiToolkit\Enums\ColumnValueKind  $kind
      * @param  string  $type
      * @param  bool|float|int|string  $value
      * @return bool
      */
-    private function fits(string $kind, string $type, bool|float|int|string $value): bool
+    private function fits(ColumnValueKind $kind, string $type, bool|float|int|string $value): bool
     {
         return match ($kind) {
-            'integer'  => is_bool($value) || $this->isInteger($type, $value),
-            'number'   => !is_bool($value) && $this->isNumber($type, $value),
-            'boolean'  => in_array($value, [true, false, 0, 1, '0', '1'], true),
-            'date'     => is_string($value) && $this->isDate($value),
-            'datetime' => is_string($value) && $this->dateTimeParts($value) !== null,
-            'uuid'     => is_string($value) && Str::isUuid($value),
-            default    => !is_bool($value),
+            ColumnValueKind::INTEGER  => is_bool($value) || $this->isInteger($type, $value),
+            ColumnValueKind::NUMBER   => !is_bool($value) && $this->isNumber($type, $value),
+            ColumnValueKind::BOOLEAN  => in_array($value, [true, false, 0, 1, '0', '1'], true),
+            ColumnValueKind::DATE     => is_string($value) && $this->isDate($value),
+            ColumnValueKind::DATETIME => is_string($value) && $this->dateTimeParts($value) !== null,
+            ColumnValueKind::UUID     => is_string($value) && Str::isUuid($value),
+            default                   => !is_bool($value),
         };
     }
 
@@ -213,11 +187,11 @@ final readonly class ColumnLiteral
             return false;
         }
 
-        if (!isset(self::INTEGER_LIMITS[$type])) {
+        if (!isset(self::INTEGER_BOUNDS[$type])) {
             return true;
         }
 
-        $limit = self::INTEGER_LIMITS[$type][$parts[1] === '-' ? 0 : 1];
+        $limit = ltrim((string) self::INTEGER_BOUNDS[$type][$parts[1] === '-' ? 0 : 1], '-');
 
         return strlen($parts[2]) < strlen($limit) || (strlen($parts[2]) === strlen($limit) && strcmp($parts[2], $limit) <= 0);
     }
@@ -289,16 +263,16 @@ final readonly class ColumnLiteral
     /**
      * Describe the values the given kind of column compares.
      *
-     * @param  string  $kind
+     * @param  \SineMacula\ApiToolkit\Enums\ColumnValueKind  $kind
      * @param  string  $type
      * @return string
      */
-    private function expectation(string $kind, string $type): string
+    private function expectation(ColumnValueKind $kind, string $type): string
     {
-        if (isset(self::INTEGER_LIMITS[$type])) {
-            return Rejection::message('filters.expected.integer_between', ['min' => '-' . self::INTEGER_LIMITS[$type][0], 'max' => self::INTEGER_LIMITS[$type][1]]);
+        if (isset(self::INTEGER_BOUNDS[$type])) {
+            return Rejection::message('filters.expected.integer_between', ['min' => self::INTEGER_BOUNDS[$type][0], 'max' => self::INTEGER_BOUNDS[$type][1]]);
         }
 
-        return Rejection::message('filters.expected.' . ($type === 'float4' ? 'single' : $kind));
+        return Rejection::message('filters.expected.' . ($type === 'float4' ? 'single' : $kind->value));
     }
 }

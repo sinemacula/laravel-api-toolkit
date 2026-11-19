@@ -26,6 +26,7 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseHeaderCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ResponseStatusConflictException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
@@ -513,17 +514,18 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an index references the whole shared query grammar.
+     * Test that an index takes the shared query grammar and what its resource
+     * accepts.
      *
      * @return void
      */
-    public function testIndexReferencesTheWholeSharedQueryGrammar(): void
+    public function testIndexTakesTheSharedGrammarAndWhatItsResourceAccepts(): void
     {
         $this->registerRestRoutes();
         $this->registerSoftDeletingRoutes();
 
         self::assertSame(
-            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
+            ['Fields', 'Aggregates', 'order', 'Limit', 'Page', 'Cursor', 'Pagination', 'Trashed'],
             $this->referencedParameterNames($this->build()['/articles']['get']),
         );
     }
@@ -554,7 +556,7 @@ final class PathBuilderTest extends TestCase
             $paths['/users']['get']['parameters'],
         );
         self::assertSame(
-            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Page', 'Cursor', 'Pagination'],
+            ['Fields', 'Aggregates', 'filters', 'order', 'limit', 'Page', 'Cursor', 'Pagination'],
             $this->referencedParameterNames($paths['/users']['get']),
         );
         self::assertSame(['Fields', 'Aggregates'], $this->referencedParameterNames($paths['/users/{user}']['get']));
@@ -590,7 +592,7 @@ final class PathBuilderTest extends TestCase
         $paths = $this->build();
 
         self::assertSame(
-            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            ['Fields', 'Aggregates', 'filters', 'order', 'Limit', 'Page', 'Cursor', 'Pagination'],
             $this->referencedParameterNames($paths['/users']['get']),
         );
         self::assertSame(
@@ -1127,7 +1129,7 @@ final class PathBuilderTest extends TestCase
         self::assertSame($paths['/members']['get'], $operation);
         self::assertSame(['User'], $operation['tags']);
         self::assertSame(
-            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            ['Fields', 'Aggregates', 'filters', 'order', 'Limit', 'Page', 'Cursor', 'Pagination'],
             $this->referencedParameterNames($operation),
         );
         self::assertSame(
@@ -2365,7 +2367,8 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * List the shared query-parameter names the operation references, in order.
+     * List the query parameters the operation takes, in order: a shared one by
+     * its component name, an inline one by the query parameter it carries.
      *
      * @param  mixed  $operation
      * @return array<int, string>
@@ -2383,13 +2386,15 @@ final class PathBuilderTest extends TestCase
 
         foreach ($parameters as $parameter) {
 
-            $reference = is_array($parameter) ? $parameter['$ref'] ?? null : null;
-
-            if (!is_string($reference)) {
+            if (!is_array($parameter) || ($parameter['in'] ?? 'query') !== 'query') {
                 continue;
             }
 
-            $names[] = str_replace('#/components/parameters/', '', $reference);
+            $name = $parameter['$ref'] ?? $parameter['name'] ?? null;
+
+            self::assertIsString($name);
+
+            $names[] = str_replace('#/components/parameters/', '', $name);
         }
 
         return $names;
@@ -2574,7 +2579,7 @@ final class PathBuilderTest extends TestCase
 
     /**
      * Build a catalogue over the resource map, with the package's error
-     * catalogue and the configured query limits and page sizes.
+     * catalogue, query surfaces and the configured query limits and page sizes.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue
      */
@@ -2589,6 +2594,9 @@ final class PathBuilderTest extends TestCase
         $catalogue->method('getErrorCatalogue')->willReturn($app->make(ErrorCatalogueReader::class)->read());
         $catalogue->method('getQueryLimits')->willReturnCallback(static fn (): array => $app->make(MetadataCatalogue::class)->getQueryLimits());
         $catalogue->method('getPageSize')->willReturnCallback(PageSize::for(...));
+        $catalogue->method('getQuerySurface')->willReturnCallback(
+            static fn (?string $resource, ?string $model): ?QuerySurfaceDescriptor => $app->make(MetadataCatalogue::class)->getQuerySurface($resource, $model),
+        );
 
         return $catalogue;
     }

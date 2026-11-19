@@ -5,18 +5,22 @@ declare(strict_types = 1);
 namespace Tests\Feature\Query;
 
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Testing\TestResponse;
+use Opis\JsonSchema\Helper;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
+use SineMacula\ApiToolkit\OpenApi\Builder\FilterSchemaBuilder;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
 use Tests\Concerns\RegistersApiExceptionHandler;
+use Tests\Concerns\ValidatesOpenApiDocuments;
 use Tests\Fixtures\Models\Measurement;
 use Tests\Fixtures\Repositories\MeasurementRepository;
 use Tests\Fixtures\Resources\MeasurementResource;
@@ -38,9 +42,10 @@ use Tests\TestCase;
 #[CoversClass(FilterApplier::class)]
 #[CoversClass(FilterValueGuard::class)]
 #[CoversClass(ColumnLiteral::class)]
+#[CoversClass(FilterSchemaBuilder::class)]
 final class FilterValueEngineParityTest extends TestCase
 {
-    use RegistersApiExceptionHandler;
+    use RegistersApiExceptionHandler, ValidatesOpenApiDocuments;
 
     /** @var string */
     private const string FIRST_TOKEN = '123e4567-e89b-12d3-a456-426614174000';
@@ -237,6 +242,38 @@ final class FilterValueEngineParityTest extends TestCase
     }
 
     /**
+     * Test that the canonical value of the type each column exports, which the
+     * exported filter document accepts, is answered on every engine.
+     *
+     * @return void
+     */
+    public function testTheCanonicalValueOfEachExportedColumnTypeIsAnswered(): void
+    {
+        assert($this->app !== null);
+
+        Config::set('api-toolkit.resources.resource_map', [Measurement::class => MeasurementResource::class]);
+
+        $claimed  = [];
+        $document = ['components' => ['schemas' => $this->app->make(FilterSchemaBuilder::class)->build($claimed)]];
+
+        /** @var array<string, array{anyOf: array{array<string, mixed>}}> $properties */
+        $properties = $document['components']['schemas']['MeasurementFilters']['properties'];
+        $columns    = array_filter($properties, static fn (string $key): bool => !str_starts_with($key, '$'), ARRAY_FILTER_USE_KEY);
+
+        self::assertCount(10, $columns);
+
+        foreach ($columns as $column => $schema) {
+
+            $filters = [$column => $this->canonicalValue($schema['anyOf'][0])];
+            $result  = $this->validateAgainstExported($document, '/components/schemas/MeasurementFilters', Helper::toJSON($filters));
+
+            self::assertTrue($result->isValid(), $this->formatErrors($result));
+
+            $this->filter((string) json_encode($filters))->assertOk();
+        }
+    }
+
+    /**
      * Define the database migrations, adding the measurements table.
      *
      * @return void
@@ -258,6 +295,26 @@ final class FilterValueEngineParityTest extends TestCase
             $table->string('label');
             $table->timestamps();
         });
+    }
+
+    /**
+     * Return a canonical value of the exported value schema.
+     *
+     * @param  array<string, mixed>  $schema
+     * @return bool|float|int|string
+     */
+    private function canonicalValue(array $schema): bool|float|int|string
+    {
+        return match ([$schema['type'], $schema['format'] ?? null]) {
+            ['integer', null]       => 1,
+            ['number', null]        => 0.5,
+            ['number', 'float']     => 0.5,
+            ['boolean', null]       => true,
+            ['string', 'date']      => '2024-01-01',
+            ['string', 'date-time'] => '2024-01-01T10:00:00Z',
+            ['string', 'uuid']      => self::FIRST_TOKEN,
+            default                 => 'alpha',
+        };
     }
 
     /**

@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\PendingCommand;
 use Illuminate\Testing\TestResponse;
 use Illuminate\Validation\ValidationException;
+use Opis\JsonSchema\Helper;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
@@ -19,20 +20,25 @@ use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
+use SineMacula\ApiToolkit\OpenApi\Builder\FilterSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
-use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use SineMacula\ApiToolkit\Search\SearchPlan;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 use Tests\Concerns\RegistersApiExceptionHandler;
+use Tests\Concerns\ValidatesOpenApiDocuments;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Log;
+use Tests\Fixtures\Models\ManualUser;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
@@ -44,6 +50,8 @@ use Tests\Fixtures\Repositories\ArticleRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\AliasedSurfaceArticleResource;
 use Tests\Fixtures\Resources\CapabilitySpectrumLogResource;
+use Tests\Fixtures\Resources\GuardedQueryableUserResource;
+use Tests\Fixtures\Resources\ManualUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\SearchableFilterableUserResource;
@@ -64,11 +72,12 @@ use Tests\TestCase;
  */
 #[CoversClass(ResourceSchemaBuilder::class)]
 #[CoversClass(QueryParameterBuilder::class)]
+#[CoversClass(FilterSchemaBuilder::class)]
 #[CoversClass(QuerySurface::class)]
 #[CoversClass(Capability::class)]
 final class OpenApiQuerySurfaceContractTest extends TestCase
 {
-    use RegistersApiExceptionHandler;
+    use RegistersApiExceptionHandler, ValidatesOpenApiDocuments;
 
     /** @var string The pattern matching an operator-shaped token in any string the document carries. */
     private const string TOKEN_PATTERN = '/\$[A-Za-z][A-Za-z0-9_]*/';
@@ -159,7 +168,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Test that a dropped token leaves every column and the shared grammar.
+     * Test that a dropped token leaves every column and every filter document.
      *
      * @return void
      */
@@ -169,8 +178,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
 
         $this->registry()->remove('$in');
 
-        $document = $this->export();
-        $surfaces = $this->advertisedSurfaces($document);
+        $surfaces = $this->advertisedSurfaces($this->export());
 
         self::assertNotEmpty($surfaces);
 
@@ -182,10 +190,211 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
             );
         }
 
-        /** @var array<int, string> $vocabulary */
-        $vocabulary = $document['components']['parameters']['Filters']['schema']['x-operators'];
+        foreach ($this->filterDocuments() as $resource => $document) {
+            foreach ($this->filteredColumns($document) as $column => $tokens) {
+                self::assertNotContains('$in', $tokens, sprintf('The %s filter document offers "$in" on "%s".', $resource, $column));
+            }
+        }
+    }
 
-        self::assertNotContains('$in', $vocabulary);
+    /**
+     * Test that every column and token a filter document lists is admitted by
+     * the gate, and every column and token the gate admits is listed.
+     *
+     * @return void
+     */
+    public function testEveryFilterDocumentListsExactlyTheColumnsAndTokensTheGateAdmits(): void
+    {
+        $this->registerStartsWith();
+
+        $asserted = 0;
+
+        foreach ($this->filterDocuments() as $modelClass => $document) {
+
+            $gate     = $this->gateFor($modelClass);
+            $compiled = SchemaCompiler::compile($this->resourceMap()[$modelClass]);
+            $columns  = $this->filteredColumns($document);
+            $expected = array_filter(array_map($this->registry()->tokensFor(...), $compiled->getFilterableColumns()));
+
+            self::assertSame($expected, $columns, $modelClass);
+
+            foreach ($columns as $column => $tokens) {
+                foreach ($this->registry()->tokens() as $token) {
+                    self::assertSame(in_array($token, $tokens, true), $this->isAdmitted($gate, $column, $token), sprintf('%s on "%s"', $token, $column));
+                    $asserted++;
+                }
+            }
+        }
+
+        self::assertGreaterThan(0, $asserted);
+    }
+
+    /**
+     * Test that every relation a filter document lists is one the gate lets a
+     * filter descend through, and every such relation is listed.
+     *
+     * @return void
+     */
+    public function testEveryFilterDocumentListsExactlyTheRelationsTheGateAdmits(): void
+    {
+        $relations = 0;
+
+        foreach ($this->filterDocuments() as $modelClass => $document) {
+
+            $listed = array_keys(array_diff_key($document['properties'], $this->filteredColumns($document), array_flip(FilterApplier::STRUCTURAL_OPERATORS)));
+            $gate   = $this->gateFor($modelClass);
+
+            self::assertSame(SchemaCompiler::compile($this->resourceMap()[$modelClass])->getTraversableRelations(), $listed, $modelClass);
+
+            foreach ($listed as $relation) {
+                self::assertTrue($gate->isDeclaredRelation($relation), $relation);
+                $relations++;
+            }
+        }
+
+        self::assertGreaterThan(0, $relations);
+    }
+
+    /**
+     * Test that every key an index's order lists passes the gate, and every key
+     * the gate sorts by is listed.
+     *
+     * @return void
+     */
+    public function testEveryOrderListsExactlyTheKeysTheGateSortsBy(): void
+    {
+        Config::set('api-toolkit.repositories.allow_random_order', true);
+
+        $listed = 0;
+
+        foreach ($this->resourceMap() as $modelClass => $resourceClass) {
+
+            $compiled = SchemaCompiler::compile($resourceClass);
+            $keys     = array_values(array_unique(array_map(static fn (string $key): string => explode(':', $key)[0], $this->orderKeysOf($modelClass, $resourceClass))));
+            $sortable = [...$compiled->getSortableColumns(), ...array_keys($compiled->getSortableMetrics()), ...$this->relationSortKeys($compiled)];
+
+            self::assertSame([], array_values(array_diff($sortable, $keys)), $resourceClass);
+
+            foreach (array_diff($keys, ['random', 'relevance']) as $key) {
+                $this->gateFor($modelClass)->guardSort($key);
+                $listed++;
+            }
+
+            self::assertContains('random', $keys);
+            self::assertSame(!SearchPlan::for($resourceClass)->isEmpty(), in_array('relevance', $keys, true), $resourceClass);
+        }
+
+        self::assertGreaterThan(0, $listed);
+    }
+
+    /**
+     * Test that an index offers search exactly where its resource has a search
+     * plan.
+     *
+     * @return void
+     */
+    public function testAnIndexOffersSearchExactlyWhereItsResourceHasASearchPlan(): void
+    {
+        $map = [...$this->resourceMap(), User::class => SearchableFilterableUserResource::class];
+
+        foreach ($map as $modelClass => $resourceClass) {
+            self::assertSame(
+                !SearchPlan::for($resourceClass)->isEmpty(),
+                in_array('Search', $this->parametersFor('index', $modelClass, $resourceClass), true),
+                $resourceClass,
+            );
+        }
+    }
+
+    /**
+     * Test that a document over the node cap is refused though its schema
+     * accepts it.
+     *
+     * @return void
+     */
+    public function testADocumentOverTheNodeCapIsRefusedThoughItsSchemaAcceptsIt(): void
+    {
+        Config::set('api-toolkit.query_cost.max_nodes', 2);
+
+        $this->registerApiExceptionHandler();
+        $this->registerQueryRoute();
+
+        $filters = ['name' => 'Alice', 'email' => 'alice@example.com', 'id' => 1];
+
+        $this->assertFilterDocumentAccepts(UserResource::class, $filters);
+
+        $refused = $this->filtered($filters);
+
+        $refused->assertStatus(422);
+        $refused->assertJsonPath('error.code', ErrorCode::QUERY_TOO_EXPENSIVE->getCode());
+    }
+
+    /**
+     * Test that a key only some callers may filter by is described as such, and
+     * refused to a caller it does not admit.
+     *
+     * @return void
+     */
+    public function testAConditionalKeyIsDescribedAndRefusedToACallerItDoesNotAdmit(): void
+    {
+        Config::set('api-toolkit.resources.resource_map', [User::class => GuardedQueryableUserResource::class]);
+
+        $this->registerApiExceptionHandler();
+
+        Route::middleware(ParseApiQuery::class)->get('/guarded-users', function (UserRepository $repository): ApiResourceCollection {
+
+            $users = $repository->usingResource(GuardedQueryableUserResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($users, GuardedQueryableUserResource::class);
+        });
+
+        $filters = ['email' => 'alice@example.com'];
+
+        $this->assertFilterDocumentAccepts(GuardedQueryableUserResource::class, $filters);
+
+        self::assertSame(
+            'Refused, as an undeclared key is, for callers the resource does not admit.',
+            $this->builtFilterDocuments()['GuardedQueryableUserFilters']['properties']['email']['description'] ?? null,
+        );
+
+        $this->getJson('/guarded-users?filters=' . urlencode((string) json_encode($filters)))->assertStatus(422);
+    }
+
+    /**
+     * Test that an integer written with a fraction is refused though JSON
+     * Schema counts it as an integer.
+     *
+     * @return void
+     */
+    public function testAnIntegerWrittenWithAFractionIsRefusedThoughItsSchemaAcceptsIt(): void
+    {
+        $this->registerApiExceptionHandler();
+        $this->registerQueryRoute();
+
+        $result = $this->validateAgainstExported($this->documentOf(UserResource::class), '/components/schemas/UserFilters', json_decode('{"id":1.0}'));
+
+        self::assertTrue($result->isValid());
+
+        $this->getJson('/queried-users?filters=' . urlencode('{"id":1.0}'))->assertStatus(422);
+    }
+
+    /**
+     * Test that random order, which the order lists, is refused under cursor
+     * pagination.
+     *
+     * @return void
+     */
+    public function testRandomOrderIsRefusedUnderCursorPagination(): void
+    {
+        Config::set('api-toolkit.repositories.allow_random_order', true);
+
+        $this->registerApiExceptionHandler();
+        $this->registerQueryRoute();
+
+        self::assertContains('random', $this->orderKeysOf(User::class, UserResource::class));
+
+        $this->getJson('/queried-users?order=random')->assertOk();
+        $this->getJson('/queried-users?order=random&pagination=cursor')->assertStatus(422);
     }
 
     /**
@@ -493,9 +702,14 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     {
         $this->registerRoutes();
 
-        $manual = $this->manual();
-        $names  = $this->parameterNames($this->export());
-        $tabled = $this->tabledParameterNames();
+        $manual   = $this->manual();
+        $document = $this->export();
+        $shared   = array_keys($this->parameterNames($document, []));
+        $inline   = array_values(array_diff($this->parametersFor('index', ManualUser::class, ManualUserResource::class), $shared));
+        $names    = $this->parameterNames($document, $inline);
+        $tabled   = $this->tabledParameterNames();
+
+        self::assertSame(['filters', 'order'], $inline);
 
         self::assertNotEmpty($tabled);
         self::assertSame([], array_values(array_diff($tabled, array_values($names))));
@@ -518,15 +732,16 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     {
         $this->registerRoutes();
 
-        $names  = $this->parameterNames($this->export());
+        $names  = $this->parameterNames($this->export(), []);
         $tabled = $this->tabledParameterNames();
 
-        $shaping = $this->parametersFor('store', $names);
+        $shaping = $this->queryNames($this->parametersFor('store', ManualUser::class, ManualUserResource::class), $names);
 
         self::assertSame($shaping, array_slice($tabled, 0, count($shaping)));
 
         // Selection grammar next, holding back the two cursor-paging parameters
-        $selection = array_values(array_diff($this->parametersFor('index', $names), $shaping, ['cursor', 'pagination']));
+        $index     = $this->queryNames($this->parametersFor('index', ManualUser::class, ManualUserResource::class), $names);
+        $selection = array_values(array_diff($index, $shaping, ['cursor', 'pagination']));
 
         self::assertSame($selection, array_slice($tabled, count($shaping), count($selection)));
     }
@@ -542,10 +757,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
 
         sort($tabled);
 
-        /** @var \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue $catalogue */
-        $catalogue = $this->makeApplication()->make(MetadataCatalogue::class);
-
-        $registered = $catalogue->getOperatorTokens();
+        $registered = $this->registry()->tokens();
 
         sort($registered);
 
@@ -695,35 +907,201 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Map each parameter component name to the query parameter name it carries.
+     * Map each parameter component name to the query parameter name it carries,
+     * with each inline parameter's name beside them.
      *
      * @param  array<string, mixed>  $document
+     * @param  list<string>  $inline
      * @return array<string, string>
      */
-    private function parameterNames(array $document): array
+    private function parameterNames(array $document, array $inline): array
     {
         /** @var array<string, array{name: string}> $parameters */
         $parameters = $document['components']['parameters'];
 
-        return array_map(static fn (array $parameter): string => $parameter['name'], $parameters);
+        return [...array_map(static fn (array $parameter): string => $parameter['name'], $parameters), ...array_combine($inline, $inline)];
     }
 
     /**
-     * List the query parameter names an action carries.
+     * List the parameters an action over the resource takes: a shared one by
+     * its component name, an inline one by the query parameter it carries.
      *
      * @param  string  $action
-     * @param  array<string, string>  $names
+     * @param  class-string  $modelClass
+     * @param  class-string  $resourceClass
      * @return list<string>
      */
-    private function parametersFor(string $action, array $names): array
+    private function parametersFor(string $action, string $modelClass, string $resourceClass): array
     {
         /** @var \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder $builder */
         $builder = $this->makeApplication()->make(QueryParameterBuilder::class);
 
-        return array_values(array_map(
-            static fn (array $reference): string => $names[str_replace('#/components/parameters/', '', $reference['$ref'])],
-            $builder->referencesFor($action),
-        ));
+        return array_map(static function (array $parameter): string {
+
+            $name = $parameter['$ref'] ?? $parameter['name'] ?? null;
+
+            self::assertIsString($name);
+
+            return str_replace('#/components/parameters/', '', $name);
+        }, $builder->referencesFor($action, $modelClass, $resourceClass));
+    }
+
+    /**
+     * Name each listed parameter by the query parameter it carries.
+     *
+     * @param  list<string>  $parameters
+     * @param  array<string, string>  $names
+     * @return list<string>
+     */
+    private function queryNames(array $parameters, array $names): array
+    {
+        return array_map(static fn (string $parameter): string => $names[$parameter] ?? $parameter, $parameters);
+    }
+
+    /**
+     * List the order keys an index over the resource accepts.
+     *
+     * @param  class-string  $modelClass
+     * @param  class-string  $resourceClass
+     * @return list<string>
+     */
+    private function orderKeysOf(string $modelClass, string $resourceClass): array
+    {
+        /** @var \SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder $builder */
+        $builder = $this->makeApplication()->make(QueryParameterBuilder::class);
+
+        foreach ($builder->referencesFor('index', $modelClass, $resourceClass) as $parameter) {
+            if (($parameter['name'] ?? null) === 'order') {
+                /** @var list<string> */
+                return $parameter['schema']['items']['enum'];
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * List the order key of each sortable column of each sortable relation.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
+     * @return list<string>
+     */
+    private function relationSortKeys(CompiledSchema $compiled): array
+    {
+        $keys = [];
+
+        foreach (array_keys($compiled->getSortableRelations()) as $relation) {
+            foreach (SchemaCompiler::compile((string) $compiled->getTraversableResource($relation))->getSortableColumns() as $column) {
+                $keys[] = $relation . '.' . $column;
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
+     * Build the filter document of each resource in the fixture map, keyed by
+     * its model.
+     *
+     * @return array<class-string<\Illuminate\Database\Eloquent\Model>, array{properties: array<string, array<string, mixed>>}>
+     */
+    private function filterDocuments(): array
+    {
+        $built     = $this->builtFilterDocuments();
+        $documents = [];
+
+        foreach ($this->resourceMap() as $modelClass => $resourceClass) {
+            $documents[$modelClass] = $built[FilterSchemaBuilder::nameOf($resourceClass)];
+        }
+
+        return $documents;
+    }
+
+    /**
+     * Build the filter document of every configured resource, keyed by name.
+     *
+     * @return array<string, array{properties: array<string, array<string, mixed>>}>
+     */
+    private function builtFilterDocuments(): array
+    {
+        $claimed = [];
+
+        /** @var array<string, array{properties: array<string, array<string, mixed>>}> */
+        return $this->makeApplication()->make(FilterSchemaBuilder::class)->build($claimed);
+    }
+
+    /**
+     * List the tokens each column of a filter document takes, keyed by column.
+     *
+     * @param  array{properties: array<string, array<string, mixed>>}  $document
+     * @return array<string, list<string>>
+     */
+    private function filteredColumns(array $document): array
+    {
+        $columns = [];
+
+        foreach ($document['properties'] as $key => $schema) {
+
+            $operators = is_array($schema['anyOf'] ?? null) ? $schema['anyOf'][1] ?? null : $schema;
+
+            if (str_starts_with($key, '$') || !is_array($operators) || !isset($operators['minProperties']) || !is_array($operators['properties'] ?? null)) {
+                continue;
+            }
+
+            $columns[$key] = array_map('strval', array_keys($operators['properties']));
+        }
+
+        return $columns;
+    }
+
+    /**
+     * Determine whether the gate admits the token on the column.
+     *
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface  $gate
+     * @param  string  $column
+     * @param  string  $token
+     * @return bool
+     */
+    private function isAdmitted(QuerySurface $gate, string $column, string $token): bool
+    {
+        try {
+            $gate->guardFilterOperator($column, $token);
+        } catch (ValidationException) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Read the exported document over the given resource bound to the user
+     * model, as an index of it carries.
+     *
+     * @param  class-string  $resourceClass
+     * @return array<string, mixed>
+     */
+    private function documentOf(string $resourceClass): array
+    {
+        Config::set('api-toolkit.resources.resource_map', [User::class => $resourceClass]);
+
+        $this->router()->get('documented-users', [PathFixtureController::class, 'index']);
+
+        return $this->export();
+    }
+
+    /**
+     * Assert that the filter document the resource exports accepts the given
+     * filters.
+     *
+     * @param  class-string  $resourceClass
+     * @param  array<string, mixed>  $filters
+     * @return void
+     */
+    private function assertFilterDocumentAccepts(string $resourceClass, array $filters): void
+    {
+        $result = $this->validateAgainstExported($this->documentOf($resourceClass), '/components/schemas/' . FilterSchemaBuilder::nameOf($resourceClass), Helper::toJSON($filters));
+
+        self::assertTrue($result->isValid(), $this->formatErrors($result));
     }
 
     /**
@@ -963,10 +1341,7 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
      */
     private function vocabulary(): array
     {
-        /** @var \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue $catalogue */
-        $catalogue = $this->makeApplication()->make(MetadataCatalogue::class);
-
-        return [...$catalogue->getOperatorTokens(), ...$catalogue->getStructuralOperators()];
+        return [...$this->registry()->tokens(), ...FilterApplier::STRUCTURAL_OPERATORS];
     }
 
     /**

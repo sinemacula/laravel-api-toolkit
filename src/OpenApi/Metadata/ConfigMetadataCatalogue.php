@@ -4,14 +4,17 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
+use Illuminate\Database\Eloquent\Model;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Config\ResourceSettings;
+use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
+use SineMacula\ApiToolkit\Contracts\DeclaresValueShape;
 use SineMacula\ApiToolkit\Enums\Capability;
+use SineMacula\ApiToolkit\Enums\FilterValueShape;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
-use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Search\SearchTerm;
 
@@ -61,17 +64,6 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
     }
 
     /**
-     * Return the registered filter operator tokens.
-     *
-     * @return array<int, string>
-     */
-    #[\Override]
-    public function getOperatorTokens(): array
-    {
-        return $this->registry->tokens();
-    }
-
-    /**
      * Return the registered filter operator tokens a column declaring the
      * capability answers.
      *
@@ -85,14 +77,17 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
     }
 
     /**
-     * Return the structural filter operators the filter engine dispatches.
+     * Return the shape of the value the registered token's handler accepts.
      *
-     * @return array<int, string>
+     * @param  string  $token
+     * @return \SineMacula\ApiToolkit\Enums\FilterValueShape|null
      */
     #[\Override]
-    public function getStructuralOperators(): array
+    public function getOperatorShape(string $token): ?FilterValueShape
     {
-        return FilterApplier::STRUCTURAL_OPERATORS;
+        $handler = $this->registry->resolve($token);
+
+        return $handler instanceof DeclaresValueShape ? $handler->valueShape() : null;
     }
 
     /**
@@ -117,6 +112,25 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
     public function getQuerySurfaces(): array
     {
         return $this->surfaceReader->read($this->getResourceMap(), $this->registry);
+    }
+
+    /**
+     * Return the query surface the resource declares over the model.
+     *
+     * @param  string|null  $resourceClass
+     * @param  string|null  $modelClass
+     * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor|null
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
+     */
+    #[\Override]
+    public function getQuerySurface(?string $resourceClass, ?string $modelClass): ?QuerySurfaceDescriptor
+    {
+        if ($resourceClass === null || $modelClass === null || !is_subclass_of($resourceClass, ApiResourceInterface::class) || !is_subclass_of($modelClass, Model::class)) {
+            return null;
+        }
+
+        return $this->surfaceReader->readOne($resourceClass, $modelClass, $this->getResourceMap(), $this->registry);
     }
 
     /**

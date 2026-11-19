@@ -25,6 +25,7 @@ final readonly class QuerySurfaceDescriptor
      * @param  list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor>  $relations
      * @param  list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryScopeDescriptor>  $scopes
      * @param  \SineMacula\ApiToolkit\Query\PageSize|null  $pageSize
+     * @param  list<class-string>  $models
      */
     public function __construct(
 
@@ -42,5 +43,30 @@ final readonly class QuerySurfaceDescriptor
 
         /** The resource's own page size bounds, where they differ from the configured ones */
         public ?PageSize $pageSize = null,
+
+        /** The model classes the surface filters */
+        public array $models = [],
     ) {}
+
+    /**
+     * Determine whether a filter may name any key of the surface.
+     *
+     * @return bool
+     */
+    public function isFilterable(): bool
+    {
+        $filterable = array_filter($this->columns, static fn (QueryColumnDescriptor $column): bool => $column->capability !== null);
+
+        return $this->relations !== [] || $this->scopes !== [] || $filterable !== [];
+    }
+
+    /**
+     * Determine whether a free-text search matches any column of the surface.
+     *
+     * @return bool
+     */
+    public function isSearchable(): bool
+    {
+        return array_filter($this->columns, static fn (QueryColumnDescriptor $column): bool => $column->strategy !== null) !== [];
+    }
 }

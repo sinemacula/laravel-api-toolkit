@@ -5,6 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Contracts;
 
 use SineMacula\ApiToolkit\Enums\Capability;
+use SineMacula\ApiToolkit\Enums\FilterValueShape;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\Query\PageSize;
 
 /**
@@ -23,13 +25,6 @@ interface MetadataCatalogue
     public function getResourceMap(): array;
 
     /**
-     * Return the registered filter operator tokens.
-     *
-     * @return array<int, string>
-     */
-    public function getOperatorTokens(): array;
-
-    /**
      * Return the registered filter operator tokens a column declaring the
      * capability answers.
      *
@@ -39,11 +34,13 @@ interface MetadataCatalogue
     public function getOperatorsFor(Capability $capability): array;
 
     /**
-     * Return the structural filter operators applied outside the registry.
+     * Return the shape of the value the registered token's handler accepts, or
+     * null when it declares none.
      *
-     * @return array<int, string>
+     * @param  string  $token
+     * @return \SineMacula\ApiToolkit\Enums\FilterValueShape|null
      */
-    public function getStructuralOperators(): array;
+    public function getOperatorShape(string $token): ?FilterValueShape;
 
     /**
      * Return one error descriptor per defined error code.
@@ -58,6 +55,16 @@ interface MetadataCatalogue
      * @return array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>
      */
     public function getQuerySurfaces(): array;
+
+    /**
+     * Return the query surface the resource declares over the model, or null
+     * unless they are an API resource and a model.
+     *
+     * @param  string|null  $resourceClass
+     * @param  string|null  $modelClass
+     * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor|null
+     */
+    public function getQuerySurface(?string $resourceClass, ?string $modelClass): ?QuerySurfaceDescriptor;
 
     /**
      * Return the bounds a single query is held to, keyed by bound name.

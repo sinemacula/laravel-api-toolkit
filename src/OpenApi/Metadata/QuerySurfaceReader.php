@@ -61,7 +61,8 @@ final readonly class QuerySurfaceReader
     {
         $traversal = new RelationTraversal($this->introspector, $resourceMap);
         $queue     = [];
-        $surfaces  = [];
+        $edges     = [];
+        $models    = [];
 
         foreach ($resourceMap as $modelClass => $resourceClass) {
             $queue[] = [$resourceClass, $modelClass];
@@ -71,15 +72,15 @@ final readonly class QuerySurfaceReader
 
             [$resourceClass, $modelClass] = array_shift($queue);
 
-            if (isset($surfaces[$resourceClass])) {
+            $models[$resourceClass][$modelClass] = true;
+
+            if (isset($edges[$resourceClass])) {
                 continue;
             }
 
-            $edges = $traversal->edges($resourceClass, $modelClass);
+            $edges[$resourceClass] = $traversal->edges($resourceClass, $modelClass);
 
-            $surfaces[$resourceClass] = $this->readResource($resourceClass, $edges, $registry);
-
-            foreach ($edges as $edge) {
+            foreach ($edges[$resourceClass] as $edge) {
 
                 if ($edge->resource === null) {
                     continue;
@@ -89,7 +90,31 @@ final readonly class QuerySurfaceReader
             }
         }
 
-        return array_values($surfaces);
+        $surfaces = [];
+
+        foreach ($edges as $resourceClass => $resourceEdges) {
+            $surfaces[] = $this->readResource($resourceClass, $resourceEdges, $registry, array_keys($models[$resourceClass]));
+        }
+
+        return $surfaces;
+    }
+
+    /**
+     * Read the query surface one resource declares over the given model.
+     *
+     * @param  class-string  $resourceClass
+     * @param  class-string  $modelClass
+     * @param  array<class-string, class-string>  $resourceMap
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $registry
+     * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
+     */
+    public function readOne(string $resourceClass, string $modelClass, array $resourceMap, OperatorRegistry $registry): QuerySurfaceDescriptor
+    {
+        $edges = (new RelationTraversal($this->introspector, $resourceMap))->edges($resourceClass, $modelClass);
+
+        return $this->readResource($resourceClass, $edges, $registry, [$modelClass]);
     }
 
     /**
@@ -98,12 +123,13 @@ final readonly class QuerySurfaceReader
      * @param  class-string  $resourceClass
      * @param  list<\SineMacula\ApiToolkit\Schema\RelationEdge>  $edges
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $registry
+     * @param  list<class-string>  $models
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
      *
      * @throws \LogicException
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
-    private function readResource(string $resourceClass, array $edges, OperatorRegistry $registry): QuerySurfaceDescriptor
+    private function readResource(string $resourceClass, array $edges, OperatorRegistry $registry, array $models): QuerySurfaceDescriptor
     {
         $compiled = SchemaCompiler::compile($resourceClass);
         $columns  = [];
@@ -122,6 +148,7 @@ final readonly class QuerySurfaceReader
             $this->readRelations($compiled, $edges),
             array_values(array_map($this->readScope(...), $compiled->getScopes())),
             $pageSize->differsFrom(PageSize::for(null)) ? $pageSize : null,
+            $models,
         );
     }
 
@@ -250,7 +277,12 @@ final readonly class QuerySurfaceReader
 
             $edge = $keyed[$relation] ?? null;
 
-            $relations[] = new QueryRelationDescriptor($relation, $edge?->resource, $edge->polymorphic ?? false);
+            $relations[] = new QueryRelationDescriptor(
+                relation   : $relation,
+                resource   : $edge?->resource,
+                polymorphic: $edge->polymorphic ?? false,
+                conditional: array_key_exists($relation, $compiled->getConditionalTraversalKeys()),
+            );
         }
 
         return $relations;

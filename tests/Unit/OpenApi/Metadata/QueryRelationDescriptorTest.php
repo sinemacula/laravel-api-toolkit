@@ -27,16 +27,17 @@ final class QueryRelationDescriptorTest extends TestCase
      */
     public function testStoresAllProperties(): void
     {
-        $descriptor = new QueryRelationDescriptor('posts', PostResource::class, true);
+        $descriptor = new QueryRelationDescriptor('posts', PostResource::class, true, true);
 
         self::assertSame('posts', $descriptor->relation);
         self::assertSame(PostResource::class, $descriptor->resource);
         self::assertTrue($descriptor->polymorphic);
+        self::assertTrue($descriptor->conditional);
     }
 
     /**
-     * Test that a relation names no governing resource and no polymorphism by
-     * default.
+     * Test that a relation names no governing resource, no polymorphism and no
+     * caller guard by default.
      *
      * @return void
      */
@@ -46,5 +47,6 @@ final class QueryRelationDescriptorTest extends TestCase
 
         self::assertNull($descriptor->resource);
         self::assertFalse($descriptor->polymorphic);
+        self::assertFalse($descriptor->conditional);
     }
 }

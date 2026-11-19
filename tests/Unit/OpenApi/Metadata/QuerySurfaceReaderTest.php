@@ -28,11 +28,14 @@ use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Gathering;
 use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Organization;
+use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\TenantUser;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AliasedQueryableUserResource;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\GatheringResource;
+use Tests\Fixtures\Resources\GuardedQueryablePostResource;
 use Tests\Fixtures\Resources\GuardedQueryableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -181,6 +184,60 @@ final class QuerySurfaceReaderTest extends TestCase
         $surfaces = $this->reader()->read([User::class => $users::class], $this->registry());
 
         self::assertSame([$users::class, $posts::class], array_map(static fn (QuerySurfaceDescriptor $surface): string => $surface->resource, $surfaces));
+    }
+
+    /**
+     * Test that each surface lists every model it is bound to or reached
+     * through, once.
+     *
+     * @return void
+     */
+    public function testEachSurfaceListsEveryModelItFilters(): void
+    {
+        $surfaces = $this->reader()->read([
+            User::class         => UserResource::class,
+            TenantUser::class   => UserResource::class,
+            Organization::class => OrganizationResource::class,
+        ], $this->registry());
+
+        $models = [];
+
+        foreach ($surfaces as $surface) {
+            $models[$surface->resource] = $surface->models;
+        }
+
+        self::assertSame(
+            [UserResource::class => [User::class, TenantUser::class], OrganizationResource::class => [Organization::class], PostResource::class => [Post::class]],
+            $models,
+        );
+    }
+
+    /**
+     * Test that one resource is read over the given model alone, as the full
+     * read reads it.
+     *
+     * @return void
+     */
+    public function testReadOneReadsTheResourceOverTheGivenModelAlone(): void
+    {
+        $map     = [User::class => UserResource::class, Organization::class => OrganizationResource::class];
+        $surface = $this->reader()->readOne(UserResource::class, User::class, $map, $this->registry());
+
+        self::assertEquals($this->reader()->read($map, $this->registry())[0], $surface);
+        self::assertSame([User::class], $surface->models);
+    }
+
+    /**
+     * Test that a relation only some callers may traverse is reported as such.
+     *
+     * @return void
+     */
+    public function testARelationOnlySomeCallersMayTraverseIsReportedAsSuch(): void
+    {
+        self::assertEquals(
+            [new QueryRelationDescriptor('posts', GuardedQueryablePostResource::class, conditional: true)],
+            $this->surface(GuardedQueryableUserResource::class)->relations,
+        );
     }
 
     /**
