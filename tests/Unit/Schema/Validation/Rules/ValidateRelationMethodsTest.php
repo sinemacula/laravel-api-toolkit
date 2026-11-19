@@ -141,28 +141,6 @@ final class ValidateRelationMethodsTest extends TestCase
     }
 
     /**
-     * Test that null field definitions are skipped without errors.
-     *
-     * @return void
-     */
-    public function testSkipsNullFieldDefinitions(): void
-    {
-        $reflection = new \ReflectionClass(CompiledSchema::class);
-        $schema     = $reflection->newInstanceWithoutConstructor();
-
-        $reflection->getProperty('fields')->setValue($schema, ['ghost' => null]);
-        $reflection->getProperty('aggregates')->setValue($schema, []);
-
-        $rule   = new ValidateRelationMethods;
-        $errors = [];
-
-        $warnings = $this->captureWarnings(fn () => $rule->validate(UserResource::class, User::class, $schema), $errors);
-
-        self::assertSame([], $warnings);
-        self::assertSame([], $errors);
-    }
-
-    /**
      * Test that validation continues past fields without relations.
      *
      * @return void
@@ -817,32 +795,6 @@ final class ValidateRelationMethodsTest extends TestCase
         self::assertSame([], $rule->validate(UserResource::class, User::class, $this->sortableRelation('latestArticle')));
         self::assertSame([], $rule->validate(UserResource::class, User::class, $this->sortableRelation('profile', null)));
         self::assertSame([], $rule->validate(UserResource::class, RelationSignatures::class, $this->sortableRelation('profile')));
-    }
-
-    /**
-     * Run the given callback while capturing any raised PHP warnings.
-     *
-     * @param  callable(): array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>  $callback
-     * @param  array<int, \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError>  $errors
-     * @return array<int, string>
-     */
-    private function captureWarnings(callable $callback, array &$errors): array
-    {
-        $warnings = [];
-
-        set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
-            $warnings[] = $message;
-
-            return true;
-        });
-
-        try {
-            $errors = $callback();
-        } finally {
-            restore_error_handler();
-        }
-
-        return $warnings;
     }
 
     /**

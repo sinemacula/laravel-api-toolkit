@@ -63,11 +63,9 @@ final class ValidateRelationMethods implements SchemaValidationRule
     {
         $errors = [];
 
-        foreach ($schema->getFieldKeys() as $key) {
+        foreach ($schema->getFields() as $key => $field) {
 
-            $field = $schema->getField($key);
-
-            if ($field === null || $field->relation === null) {
+            if ($field->relation === null) {
                 continue;
             }
 

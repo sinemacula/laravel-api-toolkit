@@ -93,11 +93,9 @@ final readonly class ValidateSearchIndexes implements SchemaValidationRule
     {
         $declared = [];
 
-        foreach ($schema->getFieldKeys() as $key) {
+        foreach ($schema->getFields() as $key => $field) {
 
-            $field = $schema->getField($key);
-
-            if ($field === null || $field->searchable === null || $field->searchStrategy === null) {
+            if ($field->searchable === null || $field->searchStrategy === null) {
                 continue;
             }
 

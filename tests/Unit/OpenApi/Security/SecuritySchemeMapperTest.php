@@ -240,13 +240,16 @@ final class SecuritySchemeMapperTest extends TestCase
     }
 
     /**
-     * Test that definitionFor returns null for a name no mapped driver emits.
+     * Test that definitionFor refuses a name no mapped driver emits.
      *
      * @return void
      */
-    public function testDefinitionForReturnsNullForUnknownName(): void
+    public function testDefinitionForRefusesAnUnknownName(): void
     {
-        self::assertNull((new SecuritySchemeMapper)->definitionFor('nonexistentAuth'));
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('No security driver maps to the [nonexistentAuth] scheme');
+
+        (new SecuritySchemeMapper)->definitionFor('nonexistentAuth');
     }
 
     /**
