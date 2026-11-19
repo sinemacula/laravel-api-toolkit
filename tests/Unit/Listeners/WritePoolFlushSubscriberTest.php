@@ -479,8 +479,8 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Provide each form of a transaction-ending insert failure and the class
-     * of the error that reaches the boundary.
+     * Provide each form of a transaction-ending insert failure and the class of
+     * the error that reaches the boundary.
      *
      * @return iterable<string, array{\Throwable, class-string<\Throwable>}>
      */
