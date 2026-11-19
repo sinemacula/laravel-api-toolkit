@@ -1352,7 +1352,8 @@ php artisan api-toolkit:export-openapi --all
 Without options the default audience is written to `api-toolkit.openapi.output`. `--audience` exports one named
 audience. `--all` exports every configured audience, each to its own file with the audience inserted before the
 extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`. Each file is staged beside its
-target and moved into place only once all are staged, so one that cannot be staged replaces none of them.
+target and moved into place only once all are staged, so one that cannot be staged replaces none of them. Component
+schemas are listed by name, so reordering the resource map leaves a committed document unchanged.
 
 Resources are optional: a route documented only through `#[RequestSchema]` and `#[ResponseSchema]` is exported with
 an empty resource map. Operations are not. Every target audience is built before anything is written, and if any of

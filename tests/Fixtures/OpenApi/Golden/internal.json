@@ -1,0 +1,4252 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Example Internal API",
+        "version": "1.0.0",
+        "description": "# Introduction\n\nEvery request is authenticated with a bearer token."
+    },
+    "servers": [
+        {
+            "url": "https://internal.example.com"
+        }
+    ],
+    "paths": {
+        "/articles": {
+            "get": {
+                "tags": [
+                    "TaggedArticle"
+                ],
+                "operationId": "articles.index",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Fields"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Aggregates"
+                    },
+                    {
+                        "name": "filters",
+                        "in": "query",
+                        "required": false,
+                        "description": "Filters: a JSON object, URL-encoded under the one key, e.g. filters={\"status\":{\"$eq\":\"active\"}}. The entries of a document AND together. A field takes a value, matched for equality, or an object of operators. $and and $or take a non-empty list of filter documents, joined by AND or OR, e.g. filters={\"status\":\"active\",\"$or\":[{\"role\":\"admin\"},{\"role\":\"owner\"}]}. A traversable relation key takes a filter document for the related resource. $has and $hasnt take a relation name, a list of names, or relation names keyed to filter documents. $scope invokes the named scopes the resource declares: a scope name, a list of names, or names keyed to objects of arguments, e.g. filters={\"$scope\":{\"near\":{\"lat\":51.5,\"lng\":-0.12,\"km\":5}}}. The schema lists the fields, operators and values this resource accepts; a date-time is sent in the form the field emits. A document is held to at most 8192 bytes encoded, 16 levels of JSON nesting, 3 levels of groups and relations, 100 keys in all.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TaggedArticleFilters"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/Search"
+                    },
+                    {
+                        "name": "order",
+                        "in": "query",
+                        "required": false,
+                        "description": "Ordering: a comma-separated list of keys, each optionally suffixed with :asc or :desc in any case, e.g. order=name,created_at:desc. Any other direction, or a repeated key, is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing between pages. Random order and columns that admit null cannot order a cursor-paginated read. order=relevance ranks rows by how closely they match search: the whole value, then the start, then the start of a word, then anywhere; it needs search and offset pagination. A sortable aggregate orders by aggregates.<key>, e.g. order=aggregates.posts_count:desc, and a sortable to-one relation by a sortable column of the resource it renders, e.g. order=customer.name; neither can order a cursor-paginated read, and a NULL value sorts where the database places NULL.",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "views",
+                                    "views:asc",
+                                    "views:desc",
+                                    "relevance",
+                                    "relevance:asc"
+                                ]
+                            },
+                            "maxItems": 3
+                        },
+                        "style": "form",
+                        "explode": false
+                    },
+                    {
+                        "$ref": "#/components/parameters/Limit"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Page"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Cursor"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Pagination"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Trashed"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "A paginated collection of resources. Length-aware by default; sending ?cursor or ?pagination=cursor returns the cursor shape.",
+                        "headers": {
+                            "Total-Count": {
+                                "$ref": "#/components/headers/Total-Count"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "title": "Length-aware page",
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/TaggedArticle"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                },
+                                                "links": {
+                                                    "$ref": "#/components/schemas/PaginationLinks"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta",
+                                                "links"
+                                            ]
+                                        },
+                                        {
+                                            "title": "Cursor page",
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/TaggedArticle"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/CursorPaginationMeta"
+                                                },
+                                                "links": {
+                                                    "$ref": "#/components/schemas/CursorPaginationLinks"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta",
+                                                "links"
+                                            ]
+                                        }
+                                    ]
+                                },
+                                "examples": {
+                                    "Length-aware page": {
+                                        "value": {
+                                            "data": [
+                                                {
+                                                    "_type": "tagged_articles",
+                                                    "id": 1,
+                                                    "title": "string",
+                                                    "slug": "string",
+                                                    "status": "string"
+                                                }
+                                            ],
+                                            "meta": {
+                                                "total": 1,
+                                                "total_capped": false,
+                                                "count": 1,
+                                                "continue": false
+                                            },
+                                            "links": {
+                                                "self": "https://example.com/resources?page=1",
+                                                "first": "https://example.com/resources?page=1",
+                                                "prev": null,
+                                                "next": null,
+                                                "last": "https://example.com/resources?page=1"
+                                            }
+                                        }
+                                    },
+                                    "Cursor page": {
+                                        "value": {
+                                            "data": [
+                                                {
+                                                    "_type": "tagged_articles",
+                                                    "id": 1,
+                                                    "title": "string",
+                                                    "slug": "string",
+                                                    "status": "string"
+                                                }
+                                            ],
+                                            "meta": {
+                                                "continue": false
+                                            },
+                                            "links": {
+                                                "self": "https://example.com/resources",
+                                                "prev": null,
+                                                "next": null
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The request failed validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/Error10106"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/Error10201"
+                                        }
+                                    ]
+                                },
+                                "examples": {
+                                    "Error10106": {
+                                        "$ref": "#/components/examples/Error10106"
+                                    },
+                                    "Error10201": {
+                                        "$ref": "#/components/examples/Error10201"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "TaggedArticle"
+                ],
+                "description": "Creates an article by the caller.",
+                "operationId": "articles.store",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Fields"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Aggregates"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {
+                                        "type": "string"
+                                    },
+                                    "slug": {
+                                        "type": "string"
+                                    },
+                                    "body": {
+                                        "type": "string"
+                                    },
+                                    "summary": {
+                                        "type": "string"
+                                    },
+                                    "status": {
+                                        "enum": [
+                                            "draft",
+                                            "published"
+                                        ]
+                                    },
+                                    "tags": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "title",
+                                    "slug",
+                                    "body",
+                                    "summary"
+                                ]
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "title": "string",
+                                        "slug": "string",
+                                        "body": "string",
+                                        "summary": "string",
+                                        "status": "draft",
+                                        "tags": [
+                                            1
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "The newly created resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/TaggedArticle"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "data": {
+                                                "_type": "tagged_articles",
+                                                "id": 1,
+                                                "title": "string",
+                                                "slug": "string",
+                                                "status": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The request failed validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10106"
+                                },
+                                "examples": {
+                                    "Error10106": {
+                                        "$ref": "#/components/examples/Error10106"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/articles/{article}": {
+            "get": {
+                "tags": [
+                    "TaggedArticle"
+                ],
+                "operationId": "articles.show",
+                "parameters": [
+                    {
+                        "name": "article",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/Fields"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Aggregates"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Trashed"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The requested resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/TaggedArticle"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "data": {
+                                                "_type": "tagged_articles",
+                                                "id": 1,
+                                                "title": "string",
+                                                "slug": "string",
+                                                "status": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10103"
+                                },
+                                "examples": {
+                                    "Error10103": {
+                                        "$ref": "#/components/examples/Error10103"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The request failed validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10106"
+                                },
+                                "examples": {
+                                    "Error10106": {
+                                        "$ref": "#/components/examples/Error10106"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "TaggedArticle"
+                ],
+                "operationId": "articles.update",
+                "parameters": [
+                    {
+                        "name": "article",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/Fields"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Aggregates"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {
+                                        "type": "string"
+                                    },
+                                    "body": {
+                                        "type": "string"
+                                    },
+                                    "summary": {
+                                        "type": "string"
+                                    },
+                                    "status": {
+                                        "enum": [
+                                            "draft",
+                                            "published"
+                                        ]
+                                    },
+                                    "tags": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "title": "string",
+                                        "body": "string",
+                                        "summary": "string",
+                                        "status": "draft",
+                                        "tags": [
+                                            1
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The updated resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/TaggedArticle"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "data": {
+                                                "_type": "tagged_articles",
+                                                "id": 1,
+                                                "title": "string",
+                                                "slug": "string",
+                                                "status": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10103"
+                                },
+                                "examples": {
+                                    "Error10103": {
+                                        "$ref": "#/components/examples/Error10103"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The request failed validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10106"
+                                },
+                                "examples": {
+                                    "Error10106": {
+                                        "$ref": "#/components/examples/Error10106"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "TaggedArticle"
+                ],
+                "operationId": "articles.update.patch",
+                "parameters": [
+                    {
+                        "name": "article",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/Fields"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Aggregates"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {
+                                        "type": "string"
+                                    },
+                                    "body": {
+                                        "type": "string"
+                                    },
+                                    "summary": {
+                                        "type": "string"
+                                    },
+                                    "status": {
+                                        "enum": [
+                                            "draft",
+                                            "published"
+                                        ]
+                                    },
+                                    "tags": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "title": "string",
+                                        "body": "string",
+                                        "summary": "string",
+                                        "status": "draft",
+                                        "tags": [
+                                            1
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The updated resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/TaggedArticle"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "data": {
+                                                "_type": "tagged_articles",
+                                                "id": 1,
+                                                "title": "string",
+                                                "slug": "string",
+                                                "status": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10103"
+                                },
+                                "examples": {
+                                    "Error10103": {
+                                        "$ref": "#/components/examples/Error10103"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The request failed validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10106"
+                                },
+                                "examples": {
+                                    "Error10106": {
+                                        "$ref": "#/components/examples/Error10106"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "TaggedArticle"
+                ],
+                "operationId": "articles.destroy",
+                "parameters": [
+                    {
+                        "name": "article",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "The resource was deleted."
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10103"
+                                },
+                                "examples": {
+                                    "Error10103": {
+                                        "$ref": "#/components/examples/Error10103"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/users": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "operationId": "users.index",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Fields"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Aggregates"
+                    },
+                    {
+                        "name": "filters",
+                        "in": "query",
+                        "required": false,
+                        "description": "Filters: a JSON object, URL-encoded under the one key, e.g. filters={\"status\":{\"$eq\":\"active\"}}. The entries of a document AND together. A field takes a value, matched for equality, or an object of operators. $and and $or take a non-empty list of filter documents, joined by AND or OR, e.g. filters={\"status\":\"active\",\"$or\":[{\"role\":\"admin\"},{\"role\":\"owner\"}]}. A traversable relation key takes a filter document for the related resource. $has and $hasnt take a relation name, a list of names, or relation names keyed to filter documents. $scope invokes the named scopes the resource declares: a scope name, a list of names, or names keyed to objects of arguments, e.g. filters={\"$scope\":{\"near\":{\"lat\":51.5,\"lng\":-0.12,\"km\":5}}}. The schema lists the fields, operators and values this resource accepts; a date-time is sent in the form the field emits. A document is held to at most 8192 bytes encoded, 16 levels of JSON nesting, 3 levels of groups and relations, 100 keys in all.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserFilters"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "name": "order",
+                        "in": "query",
+                        "required": false,
+                        "description": "Ordering: a comma-separated list of keys, each optionally suffixed with :asc or :desc in any case, e.g. order=name,created_at:desc. Any other direction, or a repeated key, is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing between pages. Random order and columns that admit null cannot order a cursor-paginated read. order=relevance ranks rows by how closely they match search: the whole value, then the start, then the start of a word, then anywhere; it needs search and offset pagination. A sortable aggregate orders by aggregates.<key>, e.g. order=aggregates.posts_count:desc, and a sortable to-one relation by a sortable column of the resource it renders, e.g. order=customer.name; neither can order a cursor-paginated read, and a NULL value sorts where the database places NULL.",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "id",
+                                    "id:asc",
+                                    "id:desc",
+                                    "name",
+                                    "name:asc",
+                                    "name:desc",
+                                    "email",
+                                    "email:asc",
+                                    "email:desc",
+                                    "status",
+                                    "status:asc",
+                                    "status:desc",
+                                    "created_at",
+                                    "created_at:asc",
+                                    "created_at:desc",
+                                    "updated_at",
+                                    "updated_at:asc",
+                                    "updated_at:desc"
+                                ]
+                            },
+                            "maxItems": 3
+                        },
+                        "style": "form",
+                        "explode": false
+                    },
+                    {
+                        "$ref": "#/components/parameters/Limit"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Page"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Cursor"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Pagination"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "A paginated collection of resources. Length-aware by default; sending ?cursor or ?pagination=cursor returns the cursor shape.",
+                        "headers": {
+                            "Total-Count": {
+                                "$ref": "#/components/headers/Total-Count"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "title": "Length-aware page",
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/User"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                },
+                                                "links": {
+                                                    "$ref": "#/components/schemas/PaginationLinks"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta",
+                                                "links"
+                                            ]
+                                        },
+                                        {
+                                            "title": "Cursor page",
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/User"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/CursorPaginationMeta"
+                                                },
+                                                "links": {
+                                                    "$ref": "#/components/schemas/CursorPaginationLinks"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta",
+                                                "links"
+                                            ]
+                                        }
+                                    ]
+                                },
+                                "examples": {
+                                    "Length-aware page": {
+                                        "value": {
+                                            "data": [
+                                                {
+                                                    "_type": "users",
+                                                    "id": 1,
+                                                    "name": "string",
+                                                    "email": "string"
+                                                }
+                                            ],
+                                            "meta": {
+                                                "total": 1,
+                                                "total_capped": false,
+                                                "count": 1,
+                                                "continue": false
+                                            },
+                                            "links": {
+                                                "self": "https://example.com/resources?page=1",
+                                                "first": "https://example.com/resources?page=1",
+                                                "prev": null,
+                                                "next": null,
+                                                "last": "https://example.com/resources?page=1"
+                                            }
+                                        }
+                                    },
+                                    "Cursor page": {
+                                        "value": {
+                                            "data": [
+                                                {
+                                                    "_type": "users",
+                                                    "id": 1,
+                                                    "name": "string",
+                                                    "email": "string"
+                                                }
+                                            ],
+                                            "meta": {
+                                                "continue": false
+                                            },
+                                            "links": {
+                                                "self": "https://example.com/resources",
+                                                "prev": null,
+                                                "next": null
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The request failed validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/Error10106"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/Error10201"
+                                        }
+                                    ]
+                                },
+                                "examples": {
+                                    "Error10106": {
+                                        "$ref": "#/components/examples/Error10106"
+                                    },
+                                    "Error10201": {
+                                        "$ref": "#/components/examples/Error10201"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "User"
+                ],
+                "operationId": "users.store",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Fields"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Aggregates"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "The newly created resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/User"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "data": {
+                                                "_type": "users",
+                                                "id": 1,
+                                                "name": "string",
+                                                "email": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10108"
+                                },
+                                "examples": {
+                                    "Error10108": {
+                                        "$ref": "#/components/examples/Error10108"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The request failed validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10106"
+                                },
+                                "examples": {
+                                    "Error10106": {
+                                        "$ref": "#/components/examples/Error10106"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/users/{user}": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "operationId": "users.show",
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/Fields"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Aggregates"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The requested resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/User"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "data": {
+                                                "_type": "users",
+                                                "id": 1,
+                                                "name": "string",
+                                                "email": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10103"
+                                },
+                                "examples": {
+                                    "Error10103": {
+                                        "$ref": "#/components/examples/Error10103"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The request failed validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10106"
+                                },
+                                "examples": {
+                                    "Error10106": {
+                                        "$ref": "#/components/examples/Error10106"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "User"
+                ],
+                "operationId": "users.update",
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/Fields"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Aggregates"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The updated resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/User"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "data": {
+                                                "_type": "users",
+                                                "id": 1,
+                                                "name": "string",
+                                                "email": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10103"
+                                },
+                                "examples": {
+                                    "Error10103": {
+                                        "$ref": "#/components/examples/Error10103"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The request failed validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10106"
+                                },
+                                "examples": {
+                                    "Error10106": {
+                                        "$ref": "#/components/examples/Error10106"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "User"
+                ],
+                "operationId": "users.update.patch",
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/Fields"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Aggregates"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The updated resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/User"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "data": {
+                                                "_type": "users",
+                                                "id": 1,
+                                                "name": "string",
+                                                "email": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10103"
+                                },
+                                "examples": {
+                                    "Error10103": {
+                                        "$ref": "#/components/examples/Error10103"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The request failed validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10106"
+                                },
+                                "examples": {
+                                    "Error10106": {
+                                        "$ref": "#/components/examples/Error10106"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "User"
+                ],
+                "operationId": "users.destroy",
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "The resource was deleted."
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10103"
+                                },
+                                "examples": {
+                                    "Error10103": {
+                                        "$ref": "#/components/examples/Error10103"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/users/{user}/posts": {
+            "get": {
+                "tags": [
+                    "Post"
+                ],
+                "operationId": "users.posts.index",
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/Fields"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Aggregates"
+                    },
+                    {
+                        "name": "filters",
+                        "in": "query",
+                        "required": false,
+                        "description": "Filters: a JSON object, URL-encoded under the one key, e.g. filters={\"status\":{\"$eq\":\"active\"}}. The entries of a document AND together. A field takes a value, matched for equality, or an object of operators. $and and $or take a non-empty list of filter documents, joined by AND or OR, e.g. filters={\"status\":\"active\",\"$or\":[{\"role\":\"admin\"},{\"role\":\"owner\"}]}. A traversable relation key takes a filter document for the related resource. $has and $hasnt take a relation name, a list of names, or relation names keyed to filter documents. $scope invokes the named scopes the resource declares: a scope name, a list of names, or names keyed to objects of arguments, e.g. filters={\"$scope\":{\"near\":{\"lat\":51.5,\"lng\":-0.12,\"km\":5}}}. The schema lists the fields, operators and values this resource accepts; a date-time is sent in the form the field emits. A document is held to at most 8192 bytes encoded, 16 levels of JSON nesting, 3 levels of groups and relations, 100 keys in all.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PostFilters"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/Limit"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Page"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Cursor"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Pagination"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "A paginated collection of resources. Length-aware by default; sending ?cursor or ?pagination=cursor returns the cursor shape.",
+                        "headers": {
+                            "Total-Count": {
+                                "$ref": "#/components/headers/Total-Count"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "title": "Length-aware page",
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/Post"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                },
+                                                "links": {
+                                                    "$ref": "#/components/schemas/PaginationLinks"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta",
+                                                "links"
+                                            ]
+                                        },
+                                        {
+                                            "title": "Cursor page",
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/Post"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/CursorPaginationMeta"
+                                                },
+                                                "links": {
+                                                    "$ref": "#/components/schemas/CursorPaginationLinks"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta",
+                                                "links"
+                                            ]
+                                        }
+                                    ]
+                                },
+                                "examples": {
+                                    "Length-aware page": {
+                                        "value": {
+                                            "data": [
+                                                {
+                                                    "_type": "posts",
+                                                    "id": 1,
+                                                    "title": "string"
+                                                }
+                                            ],
+                                            "meta": {
+                                                "total": 1,
+                                                "total_capped": false,
+                                                "count": 1,
+                                                "continue": false
+                                            },
+                                            "links": {
+                                                "self": "https://example.com/resources?page=1",
+                                                "first": "https://example.com/resources?page=1",
+                                                "prev": null,
+                                                "next": null,
+                                                "last": "https://example.com/resources?page=1"
+                                            }
+                                        }
+                                    },
+                                    "Cursor page": {
+                                        "value": {
+                                            "data": [
+                                                {
+                                                    "_type": "posts",
+                                                    "id": 1,
+                                                    "title": "string"
+                                                }
+                                            ],
+                                            "meta": {
+                                                "continue": false
+                                            },
+                                            "links": {
+                                                "self": "https://example.com/resources",
+                                                "prev": null,
+                                                "next": null
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10103"
+                                },
+                                "examples": {
+                                    "Error10103": {
+                                        "$ref": "#/components/examples/Error10103"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The request failed validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/Error10106"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/Error10201"
+                                        }
+                                    ]
+                                },
+                                "examples": {
+                                    "Error10106": {
+                                        "$ref": "#/components/examples/Error10106"
+                                    },
+                                    "Error10201": {
+                                        "$ref": "#/components/examples/Error10201"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/users/{user}/posts/{post}": {
+            "get": {
+                "tags": [
+                    "Post"
+                ],
+                "operationId": "users.posts.show",
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "post",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/Fields"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Aggregates"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The requested resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Post"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "data": {
+                                                "_type": "posts",
+                                                "id": 1,
+                                                "title": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10103"
+                                },
+                                "examples": {
+                                    "Error10103": {
+                                        "$ref": "#/components/examples/Error10103"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The request failed validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10106"
+                                },
+                                "examples": {
+                                    "Error10106": {
+                                        "$ref": "#/components/examples/Error10106"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/tags": {
+            "get": {
+                "tags": [
+                    "Tag"
+                ],
+                "operationId": "tags.index",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Fields"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Aggregates"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Limit"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Page"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Cursor"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Pagination"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "A paginated collection of resources. Length-aware by default; sending ?cursor or ?pagination=cursor returns the cursor shape.",
+                        "headers": {
+                            "Total-Count": {
+                                "$ref": "#/components/headers/Total-Count"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "title": "Length-aware page",
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/Tag"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                },
+                                                "links": {
+                                                    "$ref": "#/components/schemas/PaginationLinks"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta",
+                                                "links"
+                                            ]
+                                        },
+                                        {
+                                            "title": "Cursor page",
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/Tag"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/CursorPaginationMeta"
+                                                },
+                                                "links": {
+                                                    "$ref": "#/components/schemas/CursorPaginationLinks"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta",
+                                                "links"
+                                            ]
+                                        }
+                                    ]
+                                },
+                                "examples": {
+                                    "Length-aware page": {
+                                        "value": {
+                                            "data": [
+                                                {
+                                                    "_type": "tags",
+                                                    "id": 1,
+                                                    "name": "string"
+                                                }
+                                            ],
+                                            "meta": {
+                                                "total": 1,
+                                                "total_capped": false,
+                                                "count": 1,
+                                                "continue": false
+                                            },
+                                            "links": {
+                                                "self": "https://example.com/resources?page=1",
+                                                "first": "https://example.com/resources?page=1",
+                                                "prev": null,
+                                                "next": null,
+                                                "last": "https://example.com/resources?page=1"
+                                            }
+                                        }
+                                    },
+                                    "Cursor page": {
+                                        "value": {
+                                            "data": [
+                                                {
+                                                    "_type": "tags",
+                                                    "id": 1,
+                                                    "name": "string"
+                                                }
+                                            ],
+                                            "meta": {
+                                                "continue": false
+                                            },
+                                            "links": {
+                                                "self": "https://example.com/resources",
+                                                "prev": null,
+                                                "next": null
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10101"
+                                },
+                                "examples": {
+                                    "Error10101": {
+                                        "$ref": "#/components/examples/Error10101"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10102"
+                                },
+                                "examples": {
+                                    "Error10102": {
+                                        "$ref": "#/components/examples/Error10102"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The request failed validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/Error10106"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/Error10201"
+                                        }
+                                    ]
+                                },
+                                "examples": {
+                                    "Error10106": {
+                                        "$ref": "#/components/examples/Error10106"
+                                    },
+                                    "Error10201": {
+                                        "$ref": "#/components/examples/Error10201"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "An unexpected server error occurred.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error10001"
+                                },
+                                "examples": {
+                                    "Error10001": {
+                                        "$ref": "#/components/examples/Error10001"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "CursorPaginationLinks": {
+                "type": "object",
+                "properties": {
+                    "self": {
+                        "type": "string",
+                        "format": "uri"
+                    },
+                    "prev": {
+                        "oneOf": [
+                            {
+                                "type": "string",
+                                "format": "uri"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "next": {
+                        "oneOf": [
+                            {
+                                "type": "string",
+                                "format": "uri"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "self",
+                    "prev",
+                    "next"
+                ],
+                "examples": [
+                    {
+                        "self": "https://example.com/resources",
+                        "prev": null,
+                        "next": null
+                    }
+                ]
+            },
+            "CursorPaginationMeta": {
+                "type": "object",
+                "properties": {
+                    "continue": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "continue"
+                ],
+                "examples": [
+                    {
+                        "continue": false
+                    }
+                ]
+            },
+            "Error10001": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "properties": {
+                            "status": {
+                                "type": "integer"
+                            },
+                            "code": {
+                                "type": "integer",
+                                "const": 10001
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "description": "Explains this occurrence: the code's catalogue text, or the detail the error was raised with, such as a policy denial's message."
+                            },
+                            "meta": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        },
+                        "required": [
+                            "status",
+                            "code",
+                            "detail"
+                        ]
+                    }
+                },
+                "required": [
+                    "error"
+                ]
+            },
+            "Error10101": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "properties": {
+                            "status": {
+                                "type": "integer"
+                            },
+                            "code": {
+                                "type": "integer",
+                                "const": 10101
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "description": "Explains this occurrence: the code's catalogue text, or the detail the error was raised with, such as a policy denial's message."
+                            },
+                            "meta": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        },
+                        "required": [
+                            "status",
+                            "code",
+                            "detail"
+                        ]
+                    }
+                },
+                "required": [
+                    "error"
+                ]
+            },
+            "Error10102": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "properties": {
+                            "status": {
+                                "type": "integer"
+                            },
+                            "code": {
+                                "type": "integer",
+                                "const": 10102
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "description": "Explains this occurrence: the code's catalogue text, or the detail the error was raised with, such as a policy denial's message."
+                            },
+                            "meta": {
+                                "type": "object",
+                                "properties": {
+                                    "reason": {
+                                        "type": [
+                                            "string",
+                                            "integer"
+                                        ]
+                                    }
+                                },
+                                "additionalProperties": false
+                            }
+                        },
+                        "required": [
+                            "status",
+                            "code",
+                            "detail"
+                        ]
+                    }
+                },
+                "required": [
+                    "error"
+                ]
+            },
+            "Error10103": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "properties": {
+                            "status": {
+                                "type": "integer"
+                            },
+                            "code": {
+                                "type": "integer",
+                                "const": 10103
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "description": "Explains this occurrence: the code's catalogue text, or the detail the error was raised with, such as a policy denial's message."
+                            },
+                            "meta": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        },
+                        "required": [
+                            "status",
+                            "code",
+                            "detail"
+                        ]
+                    }
+                },
+                "required": [
+                    "error"
+                ]
+            },
+            "Error10106": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "properties": {
+                            "status": {
+                                "type": "integer"
+                            },
+                            "code": {
+                                "type": "integer",
+                                "const": 10106
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "description": "Explains this occurrence: the code's catalogue text, or the detail the error was raised with, such as a policy denial's message."
+                            },
+                            "meta": {
+                                "type": "object",
+                                "minProperties": 1,
+                                "additionalProperties": {
+                                    "type": "array",
+                                    "minItems": 1,
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        },
+                        "required": [
+                            "status",
+                            "code",
+                            "detail"
+                        ]
+                    }
+                },
+                "required": [
+                    "error"
+                ]
+            },
+            "Error10108": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "properties": {
+                            "status": {
+                                "type": "integer"
+                            },
+                            "code": {
+                                "type": "integer",
+                                "const": 10108
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "description": "Explains this occurrence: the code's catalogue text, or the detail the error was raised with, such as a policy denial's message."
+                            },
+                            "meta": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        },
+                        "required": [
+                            "status",
+                            "code",
+                            "detail"
+                        ]
+                    }
+                },
+                "required": [
+                    "error"
+                ]
+            },
+            "Error10201": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "properties": {
+                            "status": {
+                                "type": "integer"
+                            },
+                            "code": {
+                                "type": "integer",
+                                "const": 10201
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "description": "Explains this occurrence: the code's catalogue text, or the detail the error was raised with, such as a policy denial's message."
+                            },
+                            "meta": {
+                                "type": "object",
+                                "properties": {
+                                    "parameter": {
+                                        "type": "string"
+                                    },
+                                    "pointer": {
+                                        "type": "string"
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "enum": [
+                                            "max_bytes",
+                                            "max_parse_depth",
+                                            "max_depth",
+                                            "max_nodes",
+                                            "max_in_items",
+                                            "max_order_keys",
+                                            "max_aggregates",
+                                            "max_offset",
+                                            "max_limit"
+                                        ]
+                                    },
+                                    "limit": {
+                                        "type": "integer"
+                                    },
+                                    "actual": {
+                                        "type": "integer"
+                                    }
+                                },
+                                "required": [
+                                    "parameter",
+                                    "pointer",
+                                    "reason",
+                                    "limit",
+                                    "actual"
+                                ],
+                                "additionalProperties": false
+                            }
+                        },
+                        "required": [
+                            "status",
+                            "code",
+                            "detail"
+                        ]
+                    }
+                },
+                "required": [
+                    "error"
+                ]
+            },
+            "Organization": {
+                "type": "object",
+                "properties": {
+                    "_type": {
+                        "type": "string",
+                        "const": "organizations"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "slug": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "aggregates": {
+                        "type": "object",
+                        "properties": {
+                            "users_count": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "_type",
+                    "id"
+                ],
+                "x-default-fields": [
+                    "id",
+                    "name",
+                    "slug"
+                ]
+            },
+            "OrganizationFilters": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            },
+            "PaginationLinks": {
+                "type": "object",
+                "properties": {
+                    "self": {
+                        "type": "string",
+                        "format": "uri"
+                    },
+                    "first": {
+                        "type": "string",
+                        "format": "uri"
+                    },
+                    "prev": {
+                        "oneOf": [
+                            {
+                                "type": "string",
+                                "format": "uri"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "next": {
+                        "oneOf": [
+                            {
+                                "type": "string",
+                                "format": "uri"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "last": {
+                        "type": "string",
+                        "format": "uri"
+                    }
+                },
+                "required": [
+                    "self",
+                    "first",
+                    "prev",
+                    "next",
+                    "last"
+                ],
+                "examples": [
+                    {
+                        "self": "https://example.com/resources?page=1",
+                        "first": "https://example.com/resources?page=1",
+                        "prev": null,
+                        "next": null,
+                        "last": "https://example.com/resources?page=1"
+                    }
+                ]
+            },
+            "PaginationMeta": {
+                "type": "object",
+                "properties": {
+                    "total": {
+                        "type": "integer",
+                        "description": "The records the query matches, or only those offset pagination can reach when the total is capped."
+                    },
+                    "total_capped": {
+                        "type": "boolean",
+                        "description": "Whether more records match than the total reports; read past it with cursor pagination."
+                    },
+                    "count": {
+                        "type": "integer"
+                    },
+                    "continue": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "total",
+                    "total_capped",
+                    "count",
+                    "continue"
+                ],
+                "examples": [
+                    {
+                        "total": 1,
+                        "total_capped": false,
+                        "count": 1,
+                        "continue": false
+                    }
+                ]
+            },
+            "Post": {
+                "type": "object",
+                "properties": {
+                    "_type": {
+                        "type": "string",
+                        "const": "posts"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string",
+                        "x-query-surface": {
+                            "filter": {
+                                "key": "title",
+                                "capability": "exact",
+                                "operators": [
+                                    "$eq",
+                                    "$in",
+                                    "$null",
+                                    "$notNull"
+                                ]
+                            }
+                        }
+                    },
+                    "body": {
+                        "type": "string"
+                    },
+                    "published": {
+                        "type": "boolean"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "user": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/User"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Tag"
+                        },
+                        "maxItems": 25
+                    },
+                    "aggregates": {
+                        "type": "object",
+                        "properties": {
+                            "tags_count": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        }
+                    },
+                    "_truncated": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "tags"
+                            ]
+                        },
+                        "uniqueItems": true,
+                        "minItems": 1
+                    }
+                },
+                "required": [
+                    "_type",
+                    "id"
+                ],
+                "x-default-fields": [
+                    "id",
+                    "title"
+                ]
+            },
+            "PostFilters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "$eq": {
+                                        "type": "string"
+                                    },
+                                    "$in": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "maxItems": 500
+                                    },
+                                    "$null": {
+                                        "const": true
+                                    },
+                                    "$notNull": {
+                                        "const": true
+                                    }
+                                },
+                                "minProperties": 1,
+                                "additionalProperties": false
+                            }
+                        ]
+                    },
+                    "$and": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PostFilters",
+                            "minProperties": 1
+                        },
+                        "minItems": 1
+                    },
+                    "$or": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PostFilters",
+                            "minProperties": 1
+                        },
+                        "minItems": 1
+                    }
+                },
+                "additionalProperties": false
+            },
+            "Tag": {
+                "type": "object",
+                "properties": {
+                    "_type": {
+                        "type": "string",
+                        "const": "tags"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "_type",
+                    "id"
+                ],
+                "x-default-fields": [
+                    "id",
+                    "name"
+                ]
+            },
+            "TagFilters": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            },
+            "TaggedArticle": {
+                "type": "object",
+                "properties": {
+                    "_type": {
+                        "type": "string",
+                        "const": "tagged_articles"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "slug": {
+                        "type": "string",
+                        "x-query-surface": {
+                            "search": {
+                                "key": "slug",
+                                "strategy": "exact"
+                            }
+                        }
+                    },
+                    "body": {
+                        "type": "string"
+                    },
+                    "summary": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string",
+                        "x-query-surface": {
+                            "filter": {
+                                "key": "status",
+                                "capability": "enum",
+                                "operators": [
+                                    "$eq",
+                                    "$in",
+                                    "$neq",
+                                    "$null",
+                                    "$notNull"
+                                ]
+                            }
+                        }
+                    },
+                    "views": {
+                        "type": "integer",
+                        "x-query-surface": {
+                            "filter": {
+                                "key": "views",
+                                "capability": "range",
+                                "operators": [
+                                    "$eq",
+                                    "$in",
+                                    "$gt",
+                                    "$ge",
+                                    "$lt",
+                                    "$le",
+                                    "$between",
+                                    "$null",
+                                    "$notNull"
+                                ]
+                            },
+                            "sort": {
+                                "key": "views",
+                                "indexed": true
+                            }
+                        }
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "author": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/User"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Tag"
+                        },
+                        "maxItems": 25
+                    },
+                    "aggregates": {
+                        "type": "object",
+                        "properties": {
+                            "tags_count": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        }
+                    },
+                    "_truncated": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "tags"
+                            ]
+                        },
+                        "uniqueItems": true,
+                        "minItems": 1
+                    }
+                },
+                "required": [
+                    "_type",
+                    "id"
+                ],
+                "x-traversable-relations": [
+                    "author",
+                    "tags"
+                ],
+                "x-default-fields": [
+                    "id",
+                    "title",
+                    "slug",
+                    "status"
+                ]
+            },
+            "TaggedArticleFilters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "$eq": {
+                                        "type": "string"
+                                    },
+                                    "$in": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "maxItems": 500
+                                    },
+                                    "$neq": {
+                                        "type": "string"
+                                    },
+                                    "$null": {
+                                        "const": true
+                                    },
+                                    "$notNull": {
+                                        "const": true
+                                    }
+                                },
+                                "minProperties": 1,
+                                "additionalProperties": false
+                            }
+                        ]
+                    },
+                    "views": {
+                        "anyOf": [
+                            {
+                                "type": "integer",
+                                "minimum": -9223372036854775808,
+                                "maximum": 9223372036854775807
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "$eq": {
+                                        "type": "integer",
+                                        "minimum": -9223372036854775808,
+                                        "maximum": 9223372036854775807
+                                    },
+                                    "$in": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer",
+                                            "minimum": -9223372036854775808,
+                                            "maximum": 9223372036854775807
+                                        },
+                                        "maxItems": 500
+                                    },
+                                    "$gt": {
+                                        "type": "integer",
+                                        "minimum": -9223372036854775808,
+                                        "maximum": 9223372036854775807
+                                    },
+                                    "$ge": {
+                                        "type": "integer",
+                                        "minimum": -9223372036854775808,
+                                        "maximum": 9223372036854775807
+                                    },
+                                    "$lt": {
+                                        "type": "integer",
+                                        "minimum": -9223372036854775808,
+                                        "maximum": 9223372036854775807
+                                    },
+                                    "$le": {
+                                        "type": "integer",
+                                        "minimum": -9223372036854775808,
+                                        "maximum": 9223372036854775807
+                                    },
+                                    "$between": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer",
+                                            "minimum": -9223372036854775808,
+                                            "maximum": 9223372036854775807
+                                        },
+                                        "minItems": 2,
+                                        "maxItems": 2
+                                    },
+                                    "$null": {
+                                        "const": true
+                                    },
+                                    "$notNull": {
+                                        "const": true
+                                    }
+                                },
+                                "minProperties": 1,
+                                "additionalProperties": false
+                            }
+                        ]
+                    },
+                    "author": {
+                        "$ref": "#/components/schemas/UserFilters"
+                    },
+                    "tags": {
+                        "$ref": "#/components/schemas/TagFilters"
+                    },
+                    "$and": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TaggedArticleFilters",
+                            "minProperties": 1
+                        },
+                        "minItems": 1
+                    },
+                    "$or": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TaggedArticleFilters",
+                            "minProperties": 1
+                        },
+                        "minItems": 1
+                    },
+                    "$has": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "author",
+                                    "tags"
+                                ]
+                            },
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": [
+                                        "author",
+                                        "tags"
+                                    ]
+                                },
+                                "minItems": 1
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "author": {
+                                        "$ref": "#/components/schemas/UserFilters"
+                                    },
+                                    "tags": {
+                                        "$ref": "#/components/schemas/TagFilters"
+                                    }
+                                },
+                                "minProperties": 1,
+                                "additionalProperties": false
+                            }
+                        ]
+                    },
+                    "$hasnt": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "author",
+                                    "tags"
+                                ]
+                            },
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": [
+                                        "author",
+                                        "tags"
+                                    ]
+                                },
+                                "minItems": 1
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "author": {
+                                        "$ref": "#/components/schemas/UserFilters"
+                                    },
+                                    "tags": {
+                                        "$ref": "#/components/schemas/TagFilters"
+                                    }
+                                },
+                                "minProperties": 1,
+                                "additionalProperties": false
+                            }
+                        ]
+                    }
+                },
+                "additionalProperties": false
+            },
+            "User": {
+                "type": "object",
+                "properties": {
+                    "_type": {
+                        "type": "string",
+                        "const": "users"
+                    },
+                    "id": {
+                        "type": "integer",
+                        "x-query-surface": {
+                            "filter": {
+                                "key": "id",
+                                "capability": "range",
+                                "operators": [
+                                    "$eq",
+                                    "$in",
+                                    "$gt",
+                                    "$ge",
+                                    "$lt",
+                                    "$le",
+                                    "$between",
+                                    "$null",
+                                    "$notNull"
+                                ]
+                            },
+                            "sort": {
+                                "key": "id",
+                                "indexed": true
+                            }
+                        }
+                    },
+                    "name": {
+                        "type": "string",
+                        "x-query-surface": {
+                            "filter": {
+                                "key": "name",
+                                "capability": "exact",
+                                "operators": [
+                                    "$eq",
+                                    "$in",
+                                    "$null",
+                                    "$notNull"
+                                ]
+                            },
+                            "sort": {
+                                "key": "name",
+                                "indexed": true
+                            }
+                        }
+                    },
+                    "email": {
+                        "type": "string",
+                        "x-query-surface": {
+                            "filter": {
+                                "key": "email",
+                                "capability": "exact",
+                                "operators": [
+                                    "$eq",
+                                    "$in",
+                                    "$null",
+                                    "$notNull"
+                                ]
+                            },
+                            "sort": {
+                                "key": "email",
+                                "indexed": true
+                            }
+                        }
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/UserStatus",
+                        "x-query-surface": {
+                            "filter": {
+                                "key": "status",
+                                "capability": "enum",
+                                "operators": [
+                                    "$eq",
+                                    "$in",
+                                    "$neq",
+                                    "$null",
+                                    "$notNull"
+                                ]
+                            },
+                            "sort": {
+                                "key": "status",
+                                "indexed": true
+                            }
+                        }
+                    },
+                    "organization_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "x-query-surface": {
+                            "filter": {
+                                "key": "organization_id",
+                                "capability": "exact",
+                                "operators": [
+                                    "$eq",
+                                    "$in",
+                                    "$null",
+                                    "$notNull"
+                                ]
+                            }
+                        }
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time",
+                        "x-query-surface": {
+                            "sort": {
+                                "key": "created_at",
+                                "indexed": true
+                            }
+                        }
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time",
+                        "x-query-surface": {
+                            "sort": {
+                                "key": "updated_at",
+                                "indexed": true
+                            }
+                        }
+                    },
+                    "full_label": {
+                        "x-undocumented": true
+                    },
+                    "display_label": {
+                        "x-undocumented": true
+                    },
+                    "organization": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/Organization"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "profile_bio": {
+                        "x-undocumented": true
+                    },
+                    "posts": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Post"
+                        },
+                        "maxItems": 25
+                    },
+                    "aggregates": {
+                        "type": "object",
+                        "properties": {
+                            "posts_count": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "posts_sum_id": {
+                                "type": [
+                                    "number",
+                                    "null"
+                                ]
+                            },
+                            "posts_avg_id": {
+                                "type": [
+                                    "number",
+                                    "null"
+                                ]
+                            }
+                        }
+                    },
+                    "_truncated": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "posts"
+                            ]
+                        },
+                        "uniqueItems": true,
+                        "minItems": 1
+                    }
+                },
+                "required": [
+                    "_type",
+                    "id"
+                ],
+                "x-traversable-relations": [
+                    "organization",
+                    "posts"
+                ],
+                "x-default-fields": [
+                    "id",
+                    "name",
+                    "email"
+                ]
+            },
+            "UserFilters": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "anyOf": [
+                            {
+                                "type": "integer",
+                                "minimum": -9223372036854775808,
+                                "maximum": 9223372036854775807
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "$eq": {
+                                        "type": "integer",
+                                        "minimum": -9223372036854775808,
+                                        "maximum": 9223372036854775807
+                                    },
+                                    "$in": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer",
+                                            "minimum": -9223372036854775808,
+                                            "maximum": 9223372036854775807
+                                        },
+                                        "maxItems": 500
+                                    },
+                                    "$gt": {
+                                        "type": "integer",
+                                        "minimum": -9223372036854775808,
+                                        "maximum": 9223372036854775807
+                                    },
+                                    "$ge": {
+                                        "type": "integer",
+                                        "minimum": -9223372036854775808,
+                                        "maximum": 9223372036854775807
+                                    },
+                                    "$lt": {
+                                        "type": "integer",
+                                        "minimum": -9223372036854775808,
+                                        "maximum": 9223372036854775807
+                                    },
+                                    "$le": {
+                                        "type": "integer",
+                                        "minimum": -9223372036854775808,
+                                        "maximum": 9223372036854775807
+                                    },
+                                    "$between": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer",
+                                            "minimum": -9223372036854775808,
+                                            "maximum": 9223372036854775807
+                                        },
+                                        "minItems": 2,
+                                        "maxItems": 2
+                                    },
+                                    "$null": {
+                                        "const": true
+                                    },
+                                    "$notNull": {
+                                        "const": true
+                                    }
+                                },
+                                "minProperties": 1,
+                                "additionalProperties": false
+                            }
+                        ]
+                    },
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "$eq": {
+                                        "type": "string"
+                                    },
+                                    "$in": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "maxItems": 500
+                                    },
+                                    "$null": {
+                                        "const": true
+                                    },
+                                    "$notNull": {
+                                        "const": true
+                                    }
+                                },
+                                "minProperties": 1,
+                                "additionalProperties": false
+                            }
+                        ]
+                    },
+                    "email": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "$eq": {
+                                        "type": "string"
+                                    },
+                                    "$in": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "maxItems": 500
+                                    },
+                                    "$null": {
+                                        "const": true
+                                    },
+                                    "$notNull": {
+                                        "const": true
+                                    }
+                                },
+                                "minProperties": 1,
+                                "additionalProperties": false
+                            }
+                        ]
+                    },
+                    "status": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/UserStatus"
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "$eq": {
+                                        "$ref": "#/components/schemas/UserStatus"
+                                    },
+                                    "$in": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/UserStatus"
+                                        },
+                                        "maxItems": 500
+                                    },
+                                    "$neq": {
+                                        "$ref": "#/components/schemas/UserStatus"
+                                    },
+                                    "$null": {
+                                        "const": true
+                                    },
+                                    "$notNull": {
+                                        "const": true
+                                    }
+                                },
+                                "minProperties": 1,
+                                "additionalProperties": false
+                            }
+                        ]
+                    },
+                    "organization_id": {
+                        "anyOf": [
+                            {
+                                "type": "integer",
+                                "minimum": -9223372036854775808,
+                                "maximum": 9223372036854775807
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "$eq": {
+                                        "type": "integer",
+                                        "minimum": -9223372036854775808,
+                                        "maximum": 9223372036854775807
+                                    },
+                                    "$in": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer",
+                                            "minimum": -9223372036854775808,
+                                            "maximum": 9223372036854775807
+                                        },
+                                        "maxItems": 500
+                                    },
+                                    "$null": {
+                                        "const": true
+                                    },
+                                    "$notNull": {
+                                        "const": true
+                                    }
+                                },
+                                "minProperties": 1,
+                                "additionalProperties": false
+                            }
+                        ]
+                    },
+                    "organization": {
+                        "$ref": "#/components/schemas/OrganizationFilters"
+                    },
+                    "posts": {
+                        "$ref": "#/components/schemas/PostFilters"
+                    },
+                    "$and": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/UserFilters",
+                            "minProperties": 1
+                        },
+                        "minItems": 1
+                    },
+                    "$or": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/UserFilters",
+                            "minProperties": 1
+                        },
+                        "minItems": 1
+                    },
+                    "$has": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "organization",
+                                    "posts"
+                                ]
+                            },
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": [
+                                        "organization",
+                                        "posts"
+                                    ]
+                                },
+                                "minItems": 1
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "organization": {
+                                        "$ref": "#/components/schemas/OrganizationFilters"
+                                    },
+                                    "posts": {
+                                        "$ref": "#/components/schemas/PostFilters"
+                                    }
+                                },
+                                "minProperties": 1,
+                                "additionalProperties": false
+                            }
+                        ]
+                    },
+                    "$hasnt": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "organization",
+                                    "posts"
+                                ]
+                            },
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": [
+                                        "organization",
+                                        "posts"
+                                    ]
+                                },
+                                "minItems": 1
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "organization": {
+                                        "$ref": "#/components/schemas/OrganizationFilters"
+                                    },
+                                    "posts": {
+                                        "$ref": "#/components/schemas/PostFilters"
+                                    }
+                                },
+                                "minProperties": 1,
+                                "additionalProperties": false
+                            }
+                        ]
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UserStatus": {
+                "type": "string",
+                "enum": [
+                    "active",
+                    "inactive",
+                    "banned"
+                ]
+            }
+        },
+        "parameters": {
+            "Fields": {
+                "name": "fields",
+                "in": "query",
+                "required": false,
+                "description": "Sparse fieldsets keyed by resource _type, e.g. fields[users]=id,name. Each value is a comma-separated list of that schema's property names, with aggregates selecting its aggregates payload, or :all to select every field. Unknown types and names are rejected. A type with no key selects its schema's x-default-fields, unless a parent relation pins its fields. A selected property may still be left out; only the required ones are always returned.",
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "style": "deepObject",
+                "explode": true
+            },
+            "Search": {
+                "name": "search",
+                "in": "query",
+                "required": false,
+                "description": "Free-text search across the fields a resource declares searchable, e.g. search=John Smith. It matches the requested resource only and never traverses a relation; a term carrying a word shorter than the configured minimum is rejected, as is one longer, or carrying more words, than the configured bounds allow. The length is counted once surrounding and repeated whitespace has been collapsed, so a term written with more characters than the maximum may still be accepted.",
+                "schema": {
+                    "type": "string",
+                    "maxLength": 128
+                }
+            },
+            "Limit": {
+                "name": "limit",
+                "in": "query",
+                "required": false,
+                "description": "Page size: the maximum number of records to return per page. A request above the ceiling is rejected rather than reduced to it.",
+                "schema": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 50
+                }
+            },
+            "Page": {
+                "name": "page",
+                "in": "query",
+                "required": false,
+                "description": "Page number for offset pagination.",
+                "schema": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            },
+            "Cursor": {
+                "name": "cursor",
+                "in": "query",
+                "required": false,
+                "description": "Opaque cursor token for cursor pagination. A token that does not decode, or does not match the requested order, is rejected; restart from the first page.",
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "Pagination": {
+                "name": "pagination",
+                "in": "query",
+                "required": false,
+                "description": "Pagination mode: set to cursor to switch from the default length-aware pagination to cursor pagination. Any other non-empty value is rejected.",
+                "schema": {
+                    "type": "string",
+                    "enum": [
+                        "cursor"
+                    ]
+                }
+            },
+            "Aggregates": {
+                "name": "aggregates",
+                "in": "query",
+                "required": false,
+                "description": "Relation aggregates: request the keys of the resource's aggregates object per resource type, e.g. aggregates[users]=posts_count. Requesting any aggregate replaces the defaults of that type. A type's aggregates apply wherever it renders, at the root or embedded, when its fields select aggregates, except under a relation whose resource type varies per record. Unknown resource types and names are rejected.",
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "style": "deepObject",
+                "explode": true
+            },
+            "Trashed": {
+                "name": "trashed",
+                "in": "query",
+                "required": false,
+                "description": "Soft-delete visibility: with returns soft-deleted records alongside the live ones and only returns the soft-deleted records alone, e.g. trashed=with. Omitting it returns live records only. An included relation follows it where its resource opts in and otherwise stays live. A resource that has not opted in to exposing its soft-deleted records, or a caller it does not permit, gets a 422.",
+                "schema": {
+                    "type": "string",
+                    "enum": [
+                        "with",
+                        "only"
+                    ]
+                }
+            }
+        },
+        "examples": {
+            "Error10001": {
+                "summary": "Unknown Error",
+                "value": {
+                    "error": {
+                        "status": 500,
+                        "code": 10001,
+                        "title": "Unknown Error",
+                        "detail": "Oh no! Something has gone wrong!"
+                    }
+                }
+            },
+            "Error10101": {
+                "summary": "Unauthenticated",
+                "value": {
+                    "error": {
+                        "status": 401,
+                        "code": 10101,
+                        "title": "Unauthenticated",
+                        "detail": "This request requires authentication"
+                    }
+                }
+            },
+            "Error10102": {
+                "summary": "Forbidden",
+                "value": {
+                    "error": {
+                        "status": 403,
+                        "code": 10102,
+                        "title": "Forbidden",
+                        "detail": "You do not have the necessary privileges to perform this action"
+                    }
+                }
+            },
+            "Error10103": {
+                "summary": "Not Found",
+                "value": {
+                    "error": {
+                        "status": 404,
+                        "code": 10103,
+                        "title": "Not Found",
+                        "detail": "The requested resource could not be found"
+                    }
+                }
+            },
+            "Error10106": {
+                "summary": "Invalid Input",
+                "value": {
+                    "error": {
+                        "status": 422,
+                        "code": 10106,
+                        "title": "Invalid Input",
+                        "detail": "The information supplied was invalid"
+                    }
+                }
+            },
+            "Error10108": {
+                "summary": "Conflict",
+                "value": {
+                    "error": {
+                        "status": 409,
+                        "code": 10108,
+                        "title": "Conflict",
+                        "detail": "The request could not be completed due to a conflict with the current state of the resource"
+                    }
+                }
+            },
+            "Error10201": {
+                "summary": "Query Too Expensive",
+                "value": {
+                    "error": {
+                        "status": 422,
+                        "code": 10201,
+                        "title": "Query Too Expensive",
+                        "detail": "The query exceeds a limit on how much work a single request may ask for, please narrow it and try again"
+                    }
+                }
+            }
+        },
+        "headers": {
+            "Total-Count": {
+                "description": "The total number of records across all pages of the length-aware collection, absent when the total is capped.",
+                "schema": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            },
+            "ETag": {
+                "description": "The weak entity tag of the stored resource, to send in If-Match on a write that must not overwrite a newer state.",
+                "schema": {
+                    "type": "string"
+                }
+            }
+        },
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Post"
+        },
+        {
+            "name": "Tag"
+        },
+        {
+            "name": "TaggedArticle",
+            "description": "Articles and the tags they carry."
+        },
+        {
+            "name": "User"
+        }
+    ]
+}

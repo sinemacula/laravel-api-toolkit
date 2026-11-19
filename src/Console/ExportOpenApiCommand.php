@@ -80,7 +80,7 @@ final class ExportOpenApiCommand extends Command
 
         $written = $this->keyByPath($exports);
 
-        $writer->write(array_map(static fn (array $export): string => json_encode($export[1]->document, self::JSON_FLAGS), $written));
+        $writer->write(array_map(static fn (array $export): string => json_encode($export[1]->document, self::JSON_FLAGS) . "\n", $written));
 
         foreach ($written as $path => [$audience, $result]) {
             $this->reportWritten($result, $path, $audience);
