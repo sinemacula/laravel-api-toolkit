@@ -31,6 +31,7 @@ final class HttpException extends ApiException
      * @param  array<string, mixed>|null  $meta
      * @param  array<string, mixed>|null  $headers
      * @param  \Throwable|null  $previous
+     * @param  string|null  $detail
      */
     public function __construct(
 
@@ -45,8 +46,11 @@ final class HttpException extends ApiException
 
         // The previous throwable
         ?\Throwable $previous = null,
+
+        // The detail of this occurrence
+        ?string $detail = null,
     ) {
-        parent::__construct($meta, $headers, $previous);
+        parent::__construct($meta, $headers, $previous, $detail);
     }
 
     /**

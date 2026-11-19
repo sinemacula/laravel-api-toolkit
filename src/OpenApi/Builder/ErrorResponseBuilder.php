@@ -37,6 +37,10 @@ final readonly class ErrorResponseBuilder
     /** The reference format of each per-code error-envelope schema */
     private const string ENVELOPE_SCHEMA_REF = '#/components/schemas/' . ErrorExampleBuilder::NAME_FORMAT;
 
+    /** The description of every envelope's detail */
+    private const string DETAIL_DESCRIPTION = 'Explains this occurrence: the code\'s catalogue text, or the detail the error was raised with, '
+        . 'such as a policy denial\'s message.';
+
     /** The media type every error response body is served under */
     private const string MEDIA_TYPE = SuccessResponseBuilder::MEDIA_TYPE;
 
@@ -275,7 +279,7 @@ final readonly class ErrorResponseBuilder
                         'status' => ['type' => 'integer'],
                         'code'   => ['type' => 'integer', 'const' => $descriptor->code],
                         'title'  => ['type' => 'string'],
-                        'detail' => ['type' => 'string'],
+                        'detail' => ['type' => 'string', 'description' => self::DETAIL_DESCRIPTION],
                         'meta'   => $descriptor->meta ?? ['type' => 'object', 'additionalProperties' => true],
                     ],
                     'required' => ['status', 'code', 'detail'],

@@ -10,6 +10,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Builder as SchemaBuilder;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Search\Drivers\PostgresTrigramSearchDriver;
@@ -273,6 +274,49 @@ final class PostgresTrigramSearchDriverTest extends TestCase
         $connection = $this->catalogue(['CREATE INDEX users_name_trgm ON public.users USING gist ("name" gist_trgm_ops)'], true);
 
         self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::PREFIX, ['name'], 'users', $connection));
+    }
+
+    /**
+     * Provide index definitions naming the trigram class through its schema.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function schemaQualifiedTrigramDefinitions(): iterable
+    {
+        yield 'bare schema' => ['CREATE INDEX users_name_trgm ON tenant_a.users USING gin (name public.gin_trgm_ops)'];
+        yield 'quoted schema' => ['CREATE INDEX users_name_trgm ON tenant_a.users USING gist (name "Shared Ext".gist_trgm_ops)'];
+    }
+
+    /**
+     * Test that a trigram class qualified by its schema proves a match.
+     *
+     * The catalogue qualifies a class the search path cannot see, as on a
+     * tenant path without the extension's schema.
+     *
+     * @param  string  $definition
+     * @return void
+     */
+    #[DataProvider('schemaQualifiedTrigramDefinitions')]
+    public function testAcceptsATrigramClassQualifiedByItsSchema(string $definition): void
+    {
+        $connection = $this->catalogue([$definition], true);
+
+        self::assertSame([], (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['name'], 'users', $connection));
+    }
+
+    /**
+     * Test that a declared column is matched literally, not as a pattern.
+     *
+     * @return void
+     */
+    public function testMatchesTheDeclaredColumnLiterally(): void
+    {
+        $connection = $this->catalogue(['CREATE INDEX users_name_trgm ON public.users USING gin (name gin_trgm_ops)'], true);
+
+        self::assertSame(
+            ['n.me' => ['Column "n.me" is declared searchable with the "substring" strategy, which needs a trigram index over that column on table "users"']],
+            (new PostgresTrigramSearchDriver)->indexDefects(SearchStrategy::SUBSTRING, ['n.me'], 'users', $connection),
+        );
     }
 
     /**

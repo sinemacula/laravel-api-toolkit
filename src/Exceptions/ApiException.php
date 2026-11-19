@@ -22,6 +22,7 @@ abstract class ApiException extends \Exception
      * @param  array<string, mixed>|null  $meta
      * @param  array<string, mixed>|null  $headers
      * @param  \Throwable|null  $previous
+     * @param  string|null  $detail
      */
     public function __construct(
 
@@ -33,17 +34,26 @@ abstract class ApiException extends \Exception
 
         // The previous throwable
         ?\Throwable $previous = null,
+
+        /** The detail of this occurrence, in place of the catalogue's */
+        private readonly ?string $detail = null,
     ) {
         parent::__construct($this->getCustomDetail(), $this->getStatusCode(), $previous);
     }
 
     /**
-     * Get the custom detail for the exception.
+     * Get the detail the exception was raised with, else its code's catalogue
+     * detail.
      *
      * @return string
      */
     public function getCustomDetail(): string
     {
+        // Unset on an instance built without its constructor
+        if (isset($this->detail) && $this->detail !== '') {
+            return $this->detail;
+        }
+
         $key = $this->getTranslationKey('detail');
 
         if (Lang::has($key)) {

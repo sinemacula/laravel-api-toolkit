@@ -27,7 +27,7 @@ final readonly class NarrowingDecision
         /** The column projection carried by a narrowing decision */
         private array $columns,
 
-        /** The field key that forced fall-back, for diagnostics */
+        /** The field or relation that forced fall-back, for diagnostics */
         private ?string $reason,
     ) {}
 
@@ -43,7 +43,7 @@ final readonly class NarrowingDecision
     }
 
     /**
-     * Build a fall-back decision carrying the field key that forced it.
+     * Build a fall-back decision carrying the field or relation that forced it.
      *
      * @param  string|null  $reason
      * @return self
@@ -74,7 +74,7 @@ final readonly class NarrowingDecision
     }
 
     /**
-     * Return the field key that forced the fall-back, or null when not set.
+     * Return the field or relation that forced the fall-back, or null if unset.
      *
      * @return string|null
      */

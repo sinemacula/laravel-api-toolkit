@@ -113,7 +113,7 @@ Each built-in operator takes a value of one shape:
 | `$in`                      | a list, empty allowed | equal to any item; an empty list matches none  |
 | `$between`                 | `[low, high]`         | from low to high inclusive                     |
 | `$null`, `$notNull`        | `true`                | missing, or holding, a value                   |
-| `$contains`                | any JSON              | whose JSON document contains it                |
+| `$contains`                | one value or a list   | whose JSON array holds it, or every item       |
 
 `null` is never a value: a missing value is matched by `{"name":{"$null":true}}`, so `{"name":null}` is refused. Every
 value is also checked against the column's type, read from the schema catalogue. An integer column takes an integer, a
@@ -123,6 +123,11 @@ A date-time with an offset is converted to the application timezone, so a timest
 back as it is. A column cast to an enum takes only its cases' values, or a pure enum's lowercase names. A value outside
 its shape or its column's type is rejected with a 422 at its position, naming the form expected. Where the catalogue
 cannot be read, only the shape is checked.
+
+`$contains` matches an element of a JSON array, or a whole scalar document, of the same JSON type, so `1` matches
+neither `"1"` nor `true`. Its list must not be empty, and its items are not checked against the column's type. A string
+is never decoded as JSON; a comma-separated string matches any of its items, each a string. On MySQL an item also
+matches an element of a nested array.
 
 The entries of a filter document AND together, at every depth. `$and` and `$or` take a non-empty list of filter
 documents, each grouped on its own and joined by AND or OR:
@@ -168,6 +173,11 @@ The minimum word length is three characters. Configuration can raise it, and ref
 MySQL matches nothing once a word is shorter than the n-gram token size, and PostgreSQL answers by reading the whole
 table. The minimum applies to each word, because a short word is dropped from a MySQL full-text phrase but kept by a
 PostgreSQL pattern match, so the two engines would return different rows.
+
+Each engine still compares text by its own rules. MySQL folds case and accents through the column's collation, and
+matches a multi-word term's words in order whatever whitespace separates them. PostgreSQL folds case but not accents,
+and SQLite folds only ASCII case. An `EXACT` match compares with `=`, so it ignores case only under a case-insensitive
+collation, such as MySQL's default.
 
 Drivers ship for MySQL, PostgreSQL and SQLite, registered under the driver name each connection reports. On MySQL the
 proof also checks that the planner can use the index, which the catalogue only reports from 8.0; on older versions
@@ -241,20 +251,57 @@ all. It is unsupported beside a repository scope that adds `distinct`, `group by
 GET /users?order=last_name,first_name:desc
 ```
 
-A direction is `asc` (the default) or `desc`, in any case; anything else, including an empty suffix, is rejected with
-a `422` on `order.{column}` rather than ignored. `paginate()` appends the model key in the last direction when the
-order does not already include it, so rows tied on the requested columns never repeat or go missing between pages. The
-appended key needs no `sortable()` declaration and does not count against `max_order_keys`. A grouped read takes its
-group columns instead; a read grouped by an expression, filtered by `having` without groups, `distinct` on columns, or
-`distinct` without selecting the columns it would take gets nothing appended and needs a unique order of its own. A
-`sortable()` field names a column of the model's table, so a select alias a repository scope adds cannot be ordered by.
+A direction is `asc` (the default) or `desc`, in any case; anything else, including an empty suffix, is rejected with a
+`422` on `order.{column}` rather than ignored, as is a column ordered by twice. `paginate()` appends the model key in
+the last direction when the order does not already include it, so rows tied on the requested columns never repeat or go
+missing between pages. The appended key needs no `sortable()` declaration and does not count against `max_order_keys`. A
+grouped read takes its group columns instead; a read grouped by an expression, filtered by `having` without groups,
+`distinct` on columns, or `distinct` without selecting the columns it would take gets nothing appended and needs a
+unique order of its own. A `sortable()` field names a column of the model's table, so a select alias a repository scope
+adds cannot be ordered by.
 
 A cursor can only seek by a column that holds a value in every row, so a cursor-paginated read rejects `random` and
 any column the cached column catalogue reports as nullable, such as the `created_at` that `timestamps()` creates;
 declare the column `NOT NULL` to cursor-page by it. Offset pagination sorts by either. Columns a repository scope
 orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, does not carry a value for every
 ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column cannot hold is rejected
-with a `422` on `cursor`; restart from the first page.
+with a `422` on `cursor`; restart from the first page. A cursor carries each ordered column as the row stores it, not as
+the model casts it, so a microsecond timestamp, an enum or a value object seeks from exactly where its page ended. A
+model whose table has no column for its key is offset-paged without the appended key, and refused cursor pagination with
+a `422` on `pagination` unless the read is grouped and ordered.
+
+Filters and sorts compare by each column's collation, and each engine places NULLs its own way; the toolkit normalises
+neither. With default settings, MySQL matches `{"name":"alice"}` to `Alice` and sorts `anna`, `Ben`, `cara`;
+PostgreSQL matches case exactly and sorts by the database locale (`anna`, `Ben`, `cara` under `en_US.UTF-8`); SQLite
+matches and sorts byte by byte (`Ben`, `anna`, `cara`). An ascending sort puts NULLs first on MySQL and SQLite and last
+on PostgreSQL, and a descending sort the reverse.
+
+**Sorting by aggregates and relations** - an aggregate or a to-one relation declared `sortable()` can order a read.
+No index serves an order by a correlated subquery, so the declaration takes the reason the order may run unindexed:
+
+```php
+Count::of('posts')->sortable('Leaderboard; the active filter bounds the set'),
+Sum::of('orders', 'total', 'spend')->sortable('Admin list of a few thousand accounts'),
+Relation::to('customer', CustomerResource::class)->sortable('Back-office order list'),
+```
+
+```http
+GET /users?order=aggregates.posts_count:desc
+GET /orders?order=customer.name
+```
+
+An aggregate is ordered by `aggregates.{key}`, the path its value renders under, whether or not the request selects
+it. A relation is ordered by `{relation}.{column}`: the Eloquent relation name and a `sortable()` column of the
+resource the relation renders, one hop deep. Only a `BelongsTo`, or a `HasOne`, `MorphOne` or `HasOneThrough` declared
+with `latestOfMany()` or `ofMany()`, may be sortable, so the order always reads the row the response renders; schema
+validation reports any other. A sortable relation renders a resource, takes no `constrain()` and no row guard, and
+caller guards on the relation, the column or the aggregate hide the key as they hide the field.
+
+The order reads the stored value before transformers, runs the aggregate's constraint, the related model's global scopes
+and the request's `trashed` state, and counts once against `max_order_keys`. A relation key orders a row with no related
+row, or one a `withDefault()` relation fills in, as `NULL`, and an aggregate key orders an empty sum, average, minimum
+or maximum as `NULL` and an empty count as `0`; the engine places `NULL` first ascending on MySQL and SQLite and last on
+PostgreSQL. These keys cannot order a cursor-paginated read, which is refused with a `422` on `order.{key}`.
 
 **Page-size ceiling** - a `?limit` above `api-toolkit.parser.max_limit` (default 100) is rejected with a `422` naming
 the ceiling and the requested size, not reduced to the ceiling. Set the ceiling to `0` to disable it:
@@ -263,6 +310,20 @@ the ceiling and the requested size, not reduced to the ceiling. Set the ceiling 
 GET /users?limit=200   // 422, the ceiling is 100
 GET /users?limit=25    // honoured as-is
 ```
+
+A resource whose rows are expensive can lower the ceiling for itself. Its pages default to the lower of
+`parser.defaults.limit` and its ceiling, and the exported `limit` parameter and query surface docs state both:
+
+```php
+public static function maxLimit(): ?int
+{
+    return 25;
+}
+```
+
+It can only lower the configured ceiling: a value above it changes nothing, it applies alone while the configured
+ceiling is `0`, and a value below 1 throws a `LogicException`. `paginate()` and `withApiCriteria()` refuse a `limit`
+over it with the same `422`, for the resource the repository resolves, including one named with `usingResource()`.
 
 **Relation aggregates** - request declared aggregates per resource type by their keys. Requesting any aggregate replaces
 every default of that type, as `?fields` replaces `$default`. A type's aggregates apply wherever it renders, at the root
@@ -287,15 +348,16 @@ selects none. A resource embedded through a `MorphTo` relation or a `Polymorphic
 }
 ```
 
-**Pagination** - `?pagination=cursor` (or any `?cursor` token) selects cursor pagination; offset pagination is used
-otherwise. A non-empty offset page shorter than `limit`, or an empty first page, derives its total without a count.
-Any other page counts at most the rows through the last page `query_cost.max_offset` allows: past that, `meta.total` is
-those rows, `meta.total_capped` is `true` and `Total-Count` is absent, so read further with cursor pagination. That
-bounds the rows the count admits, not the rows it examines; set `max_offset` to `0` for exact, unbounded totals. A
-capped page is a `CappedLengthAwarePaginator`, which a container binding of `LengthAwarePaginator` does not replace. A
-`simplePaginate()` result renders the cursor envelope. Offset pages do not support an ungrouped aggregate projection
-such as `selectRaw('max(id) as id')`, which is one row rather than a pageable set, nor a `distinct` or union over a join
-without an explicit projection, which MySQL refuses to count.
+**Pagination** - `?pagination=cursor` (or any `?cursor` token) selects cursor pagination, and offset pagination is used
+otherwise. An empty `pagination` reads as absent; any other value is rejected with a `422`. A non-empty offset page
+shorter than `limit`, or an empty first page, derives its total without a count. Any other page counts at most the rows
+through the last page `query_cost.max_offset` allows: past that, `meta.total` is those rows, `meta.total_capped` is
+`true` and `Total-Count` is absent, so read further with cursor pagination. That bounds the rows the count admits, not
+the rows it examines; set `max_offset` to `0` for exact, unbounded totals. A capped page is a
+`CappedLengthAwarePaginator`, which a container binding of `LengthAwarePaginator` does not replace. A `simplePaginate()`
+result renders the cursor envelope. Offset pages do not support an ungrouped aggregate projection such as
+`selectRaw('max(id) as id')`, which is one row rather than a pageable set, nor a `distinct` or union over a join without
+an explicit projection, which MySQL refuses to count.
 
 **Soft deletes** - `?trashed=with` or `?trashed=only`, read as a `TrashedState` from `ApiQuery::getTrashed()`. The
 criteria layer applies it only where the model uses `SoftDeletes` and the resource opts in by overriding
@@ -484,7 +546,8 @@ $with = UserResource::eagerLoadMapFor(UserResource::resolveFields());
 **Relation constraints and limits** - `constrain()` receives the relation itself, as a Laravel `with()` closure does, so
 `where()`, local scopes, `latest()` and pivot clauses such as `wherePivot()` all apply. A constraint may filter and
 order the relation but never bound it: a `limit()`, `take()` or `skip()` inside it that changes the relation's bound
-throws a `LogicException`. Bound a to-many relation with `limit()` instead:
+throws a `LogicException`, as does a `chaperone()` inside it while columns are narrowed; declare that on the relation
+method. Bound a to-many relation with `limit()` instead:
 
 ```php
 Relation::to('posts', PostResource::class)->limit(5)->constrain(fn ($query) => $query->latest()),
@@ -556,8 +619,8 @@ skips schema validation while this command runs, so the command reports everythi
 
 Filters and sorts never read the index catalogue while they are served; only validation checks their index backing. Two
 schema reads do sit on the request path, both cached in the shared store: search reads its index proof, and one read of
-the table's column definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks and
-a cursor-paginated sort's refusal of a nullable key.
+the table's column definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks, a
+paginated read's search for the key column and a cursor-paginated sort's refusal of a nullable key.
 
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
@@ -567,6 +630,15 @@ that column and the model reads it without an accessor, a public instance proper
 consult other attributes; Eloquent's built-in cast types, enums that do not name their own caster, and the casts under
 `Illuminate\Database\Eloquent\Casts` qualify. Any other field, such as one over an accessor or custom cast, or a
 computed, row-guarded or transformed field, leaves the select unnarrowed until it declares `needs()`.
+
+A relation field rendered by a child resource or a string accessor reads only its parent-side key, so it narrows with
+its parent. Each relation a repository read embeds selects the columns its child resource renders, plus its key, its
+soft-delete column and the keys it and the relations beneath it match on; a child field it cannot prove leaves that
+relation unnarrowed, as at the root. A relation stays unnarrowed when anything else may read its models: a field above
+it that leaves its own level unnarrowed, such as a compute without `needs()` or a scalar over a model accessor, a raw or
+accessor rendering of it, or an `extras()` path through it. A `MorphTo`, an unrecognised relation class and any graph
+holding a `chaperone()` relation are never narrowed, and a select a constraint or repository chose is kept. A
+`withDefault()` callback, model accessor or cast that reads an attribute the child does not render reads it as missing.
 
 An incomplete `needs()` returns wrong data rather than failing. Call
 `Model::preventAccessingMissingAttributes(! app()->isProduction())` in a service provider to catch it outside
@@ -700,6 +772,8 @@ Two overrides cover what the catalogue cannot show:
 - `indexed('users_lower_name_index')` names the index behind the column, such as an expression or partial index. The
   name must exist on the table; what it covers is not checked.
 - `unindexed('the table is bounded at a few hundred rows')` records a deliberate exemption. The reason is required.
+
+A sortable aggregate or relation is never index-backed, so its `sortable()` carries the exemption's reason itself.
 
 **Random ordering** - `?order=random` is disabled by default. Enable it with
 `api-toolkit.repositories.allow_random_order` (`API_TOOLKIT_REPOSITORIES_ALLOW_RANDOM_ORDER=true`); while disabled,
@@ -949,6 +1023,23 @@ Every error renders as one envelope:
 `meta` is the exception's own meta, always an object, and is left out when empty. With
 `api-toolkit.exceptions.include_debug_info` on (null follows `app.debug`), an error with an underlying exception adds
 that exception's message, class, file, line and trace under `error.debug`, beside the meta rather than inside it.
+
+`detail` is the code's catalogue text unless the exception is raised with its own, which the application translates:
+
+```php
+throw new ConflictException(detail: __('invitations.already_invited'));
+```
+
+A policy denial's message and code are client-facing. `Response::deny('Your trial has ended.', 'TRIAL_EXPIRED')` renders
+`403` with that `detail` and `meta.reason` `TRIAL_EXPIRED`; an int code is carried as an int and a backed enum as its
+value. A denial without a message keeps the catalogue detail, a `denyWithStatus()` denial keeps a known status, and one
+rendered as a server error carries neither. `denyAsNotFound()` answers exactly as a missing record, while
+`denyAsNotFound('...')` gives up that concealment for its message. `abort()` text is never the detail: throw an
+`ApiException` with `detail:` instead.
+
+A `ValidationException` raised with a standard client-error status other than `422`, such as `->status(429)`, renders
+with that status as `HTTP_ERROR` (`10113`), its field errors in `meta`. Any other status renders `422`, and an
+`api-toolkit.exceptions.map` target for `ValidationException` keeps its own status.
 
 An `ApiException` declares the shape of its meta by implementing `DefinesErrorMeta`, and the exported document types
 `error.meta` for its code with it. A subclass inherits the declaration with the code:

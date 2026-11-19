@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema;
 
 /**
- * Immutable description of one traversable relation of a resource.
+ * Immutable description of one traversable or sortable relation of a resource.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -22,7 +22,7 @@ final readonly class RelationEdge
      */
     public function __construct(
 
-        /** The relation name a filter descends through */
+        /** The relation name a filter descends or an order reads through */
         public string $relation,
 
         /** The related model the relation reaches */

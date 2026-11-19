@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Schema;
 
 use SineMacula\ApiToolkit\Enums\AggregateFunction;
+use SineMacula\ApiToolkit\Schema\Concerns\DeclaresUnindexedSort;
 use SineMacula\ApiToolkit\Schema\Concerns\HasMetricModifiers;
 
 /**
@@ -15,7 +16,7 @@ use SineMacula\ApiToolkit\Schema\Concerns\HasMetricModifiers;
  */
 abstract class AggregateDefinition extends BaseDefinition
 {
-    use HasMetricModifiers;
+    use DeclaresUnindexedSort, HasMetricModifiers;
 
     /** @var string The prefix every aggregate's raw schema key carries */
     public const string KEY_PREFIX = '__aggregate__:';
@@ -61,6 +62,7 @@ abstract class AggregateDefinition extends BaseDefinition
                 'constraint' => $this->constraint,
                 'default'    => $this->isDefault ? true : null,
                 'extras'     => $this->extras ?: null,
+                ...$this->sortAttributes(),
                 ...$this->commonAttributes(),
             ], static fn ($value) => $value !== null),
         ];

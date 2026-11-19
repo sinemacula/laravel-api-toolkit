@@ -53,7 +53,7 @@ final class RequestStatementBudgetTest extends TestCase
     private const array KINDS = [
         '/order by (?:users\.)?name asc, (?:users\.)?email asc, (?:users\.)?id desc limit /' => 'page',
         '/^select count\(\*\) as aggregate from \(select 1 from users /'                     => 'count',
-        '/^select \* from (\w+) where \1\.\w+ in /'                                          => 'eager load',
+        '/^select (?:\*|[\w., ]+) from (\w+) where \1\.\w+ in /'                             => 'eager load',
         '/ over \(partition by [^)]+\) as laravel_row from (\w+) /'                          => 'window',
     ];
 
@@ -101,12 +101,12 @@ final class RequestStatementBudgetTest extends TestCase
      * Provide each pagination mode and page size with the statements its warm
      * read runs.
      *
-     * @return iterable<string, array{0: string, 1: int, 2: array<int, string>}>
+     * @return iterable<string, array{0: ?string, 1: int, 2: array<int, string>}>
      */
     public static function readProvider(): iterable
     {
-        yield 'offset, partial page' => ['offset', 100, self::READ];
-        yield 'offset, full page' => ['offset', 5, [...self::READ, 'count']];
+        yield 'offset, partial page' => [null, 100, self::READ];
+        yield 'offset, full page' => [null, 5, [...self::READ, 'count']];
         yield 'cursor' => ['cursor', 100, self::READ];
     }
 
@@ -114,13 +114,13 @@ final class RequestStatementBudgetTest extends TestCase
      * Test that a warm read runs one statement per relation path, and a count
      * only for a full offset page, whether it reads five users or fifty.
      *
-     * @param  string  $pagination
+     * @param  string|null  $pagination
      * @param  int  $limit
      * @param  array<int, string>  $expected
      * @return void
      */
     #[DataProvider('readProvider')]
-    public function testWarmReadRunsTheSameStatementsForFiftyUsersAsForFive(string $pagination, int $limit, array $expected): void
+    public function testWarmReadRunsTheSameStatementsForFiftyUsersAsForFive(?string $pagination, int $limit, array $expected): void
     {
         $uri = $this->listingUri(['pagination' => $pagination, 'limit' => $limit]);
 

@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ProvidesApiEnvelope;
@@ -38,6 +40,7 @@ use Tests\TestCase;
 #[CoversClass(ApiResourceCollection::class)]
 #[CoversClass(OrderApplier::class)]
 #[CoversClass(PageOrder::class)]
+#[CoversClass(QueryParameterValidator::class)]
 #[CoversTrait(ProvidesApiEnvelope::class)]
 final class CursorPaginationTest extends TestCase
 {
@@ -94,6 +97,11 @@ final class CursorPaginationTest extends TestCase
         $response = $this->getJson('/users?pagination=cursor&limit=2');
 
         $response->assertOk();
+        $response->assertExactJsonStructure([
+            'data'  => ['*' => ['_type', 'id', 'email', 'name']],
+            'meta'  => ['continue'],
+            'links' => ['self', 'prev', 'next'],
+        ]);
         $response->assertJsonCount(2, 'data');
         $response->assertJsonPath('data.0.name', 'Anna');
         $response->assertJsonPath('data.1.name', 'Ben');
@@ -103,6 +111,35 @@ final class CursorPaginationTest extends TestCase
 
         self::assertNull($response->json('links.prev'));
         self::assertIsString($response->json('links.next'));
+    }
+
+    /**
+     * Provide pagination modes other than cursor.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function unknownPaginationModeProvider(): iterable
+    {
+        yield 'misspelt' => ['pagination=curser'];
+        yield 'list' => ['pagination[]=cursor'];
+        yield 'malformed' => ['pagination=%FF'];
+    }
+
+    /**
+     * Test that a pagination mode other than cursor is refused before any read
+     * rather than served by offset.
+     *
+     * @param  string  $query
+     * @return void
+     */
+    #[DataProvider('unknownPaginationModeProvider')]
+    public function testUnknownPaginationModeIsRefused(string $query): void
+    {
+        $statements = $this->recordStatements(fn () => $this->getJson('/users?' . $query . '&limit=2')
+            ->assertUnprocessable()
+            ->assertJsonPath('error.meta', ['pagination' => ['The selected pagination is invalid.']]));
+
+        self::assertSame([], $statements);
     }
 
     /**
@@ -122,10 +159,12 @@ final class CursorPaginationTest extends TestCase
 
         $statements = $this->recordStatements(fn () => $this->follow($third));
         $grammar    = DB::connection()->getQueryGrammar();
+        $name       = $grammar->wrap('users.name');
+        $key        = $grammar->wrap('users.id');
 
         self::assertStatementCount(1, $statements);
-        self::assertStringContainsString(sprintf('where (%1$s > ? or (%1$s = ? and (%2$s > ?)))', $grammar->wrap('users.name'), $grammar->wrap('users.id')), $statements[0]);
-        self::assertStringEndsWith(sprintf('order by %s asc, %s asc limit 6', $grammar->wrap('users.name'), $grammar->wrap('users.id')), $statements[0]);
+        self::assertStringContainsString(sprintf('where %1$s >= ? and (%1$s > ? or (%1$s = ? and (%2$s > ?)))', $name, $key), $statements[0]);
+        self::assertStringEndsWith(sprintf('order by %s asc, %s asc limit 6', $name, $key), $statements[0]);
         self::assertStringNotContainsString('count(', $statements[0]);
         self::assertStringNotContainsString('offset', $statements[0]);
     }

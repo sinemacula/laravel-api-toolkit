@@ -7,12 +7,15 @@ namespace Tests\Unit\Repositories\Criteria\Concerns;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\Fixtures\Resources\V1\UserResource as VersionedUserResource;
@@ -65,7 +68,7 @@ final class QueryCostGuardTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard();
+        $this->guard->guard(PageSize::for(null));
     }
 
     /**
@@ -115,7 +118,7 @@ final class QueryCostGuardTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard();
+        $this->guard->guard(PageSize::for(null));
     }
 
     /**
@@ -132,6 +135,39 @@ final class QueryCostGuardTest extends TestCase
         ]);
 
         $this->assertRejectedForCost('aggregates', QueryCostLimits::MAX_AGGREGATES, 2, 3);
+    }
+
+    /**
+     * Provide aggregate selections naming two distinct keys among repeated or
+     * empty names.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function redundantAggregateNamesProvider(): iterable
+    {
+        yield 'repeated name' => ['posts_count,posts_sum_id,posts_count'];
+        yield 'empty name' => ['posts_count,,posts_sum_id'];
+    }
+
+    /**
+     * Test that a repeated or empty aggregate name, which loads nothing more,
+     * is not charged against the cap.
+     *
+     * @param  string  $aggregates
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('redundantAggregateNamesProvider')]
+    public function testRedundantAggregateNamesAreNotCharged(string $aggregates): void
+    {
+        Config::set('api-toolkit.query_cost.max_aggregates', 2);
+
+        $this->parseQuery(['aggregates' => [self::RESOURCE_TYPE => $aggregates]]);
+
+        $this->expectNotToPerformAssertions();
+
+        $this->guard->guard(PageSize::for(null));
     }
 
     /**
@@ -154,6 +190,56 @@ final class QueryCostGuardTest extends TestCase
     }
 
     /**
+     * Test that a page size above the resource's ceiling is refused before the
+     * sort-key and aggregate caps.
+     *
+     * @return void
+     */
+    public function testPageSizeAboveTheResourceCeilingIsRefusedBeforeTheOtherCaps(): void
+    {
+        Config::set('api-toolkit.query_cost.max_order_keys', 1);
+        Config::set('api-toolkit.query_cost.max_aggregates', 1);
+
+        $this->parseQuery([
+            'limit'      => '3',
+            'order'      => 'name:asc,email:desc',
+            'aggregates' => [self::RESOURCE_TYPE => 'posts_count,posts_sum_id'],
+        ]);
+
+        $this->assertRejectedForCost('limit', 'max_limit', 2, 3, CappedPageUserResource::class);
+    }
+
+    /**
+     * Test that a cursor read is held to the resource's ceiling too.
+     *
+     * @return void
+     */
+    public function testCursorReadIsHeldToTheResourceCeiling(): void
+    {
+        $this->parseQuery(['limit' => '3', 'pagination' => 'cursor']);
+
+        $this->assertRejectedForCost('limit', 'max_limit', 2, 3, CappedPageUserResource::class);
+    }
+
+    /**
+     * Test that a page size at the resource's ceiling, or none, is accepted.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testPageSizeWithinTheResourceCeilingIsAccepted(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->parseQuery(['limit' => '2']);
+        $this->guard->guard(PageSize::for(CappedPageUserResource::class));
+
+        $this->parseQuery([]);
+        $this->guard->guard(PageSize::for(CappedPageUserResource::class));
+    }
+
+    /**
      * Test that a page past the offset cap is left to the paginator, so a read
      * that does not page is not refused.
      *
@@ -169,7 +255,7 @@ final class QueryCostGuardTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard();
+        $this->guard->guard(PageSize::for(null));
     }
 
     /**
@@ -185,7 +271,7 @@ final class QueryCostGuardTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        $this->guard->guard();
+        $this->guard->guard(PageSize::for(null));
     }
 
     /**
@@ -195,12 +281,13 @@ final class QueryCostGuardTest extends TestCase
      * @param  string  $reason
      * @param  int  $limit
      * @param  int  $actual
+     * @param  string|null  $resource
      * @return void
      */
-    private function assertRejectedForCost(string $parameter, string $reason, int $limit, int $actual): void
+    private function assertRejectedForCost(string $parameter, string $reason, int $limit, int $actual, ?string $resource = null): void
     {
         try {
-            $this->guard->guard();
+            $this->guard->guard(PageSize::for($resource));
 
             self::fail('Expected a rejection for the "' . $reason . '" cap.');
         } catch (QueryTooExpensiveException $exception) {
