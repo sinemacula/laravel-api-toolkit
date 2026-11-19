@@ -2547,6 +2547,27 @@ final class ApiResourceTest extends TestCase
     }
 
     /**
+     * Test that load_missing over a plain object selecting the aggregates loads
+     * nothing and renders no aggregates.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testConstructorWithLoadMissingOverAPlainObjectLoadsNoAggregates(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+        $parser->parse(Request::create('/', HttpMethod::GET->getVerb()));
+
+        $result = (new UserResource((object) ['id' => 7, 'name' => 'Plain'], true, ['name', 'aggregates']))->resolve();
+
+        self::assertSame(['_type' => 'users', 'id' => 7, 'name' => 'Plain'], $result);
+    }
+
+    /**
      * Test that withAll() on an unpinned resource after its first resolution is
      * honoured.
      *
