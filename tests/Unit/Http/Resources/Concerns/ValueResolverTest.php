@@ -7,7 +7,6 @@ namespace Tests\Unit\Http\Resources\Concerns;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -280,28 +279,25 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
-     * Test that clearing the cache empties the cast-accessor, related-model and
-     * pivot-accessor memos.
+     * Test that clearing the cache empties the cast-accessor and related-model
+     * memos.
      *
      * @return void
      */
-    public function testClearCacheEmptiesTheCastAccessorRelatedModelAndPivotAccessorMemos(): void
+    public function testClearCacheEmptiesTheCastAccessorAndRelatedModelMemos(): void
     {
         $this->setStaticProperty(ValueResolver::class, 'castAccessorCache', ['Foo' => ['bar' => true]]);
         $this->setStaticProperty(ValueResolver::class, 'relatedModelCache', ['Foo' => ['bar' => null]]);
-        $this->setStaticProperty(ValueResolver::class, 'pivotAccessorCache', ['Foo' => ['bar' => 'pivot']]);
 
         ValueResolver::clearCache();
 
         self::assertSame([], $this->getStaticProperty(ValueResolver::class, 'castAccessorCache'));
         self::assertSame([], $this->getStaticProperty(ValueResolver::class, 'relatedModelCache'));
-        self::assertSame([], $this->getStaticProperty(ValueResolver::class, 'pivotAccessorCache'));
     }
 
     /**
      * Test that a many-to-many relation declaring pivot columns hands each
-     * child the columns and the accessor its relation loads the pivot under,
-     * memoised per owner class and relation.
+     * child the columns and the accessor its relation loads the pivot under.
      *
      * @return void
      */
@@ -312,28 +308,11 @@ final class ValueResolverTest extends TestCase
 
         self::assertSame(['role' => 'primary'], $tags[0]['pivot']);
         self::assertSame(['role' => 'secondary'], $plain[0]['pivot']);
-        self::assertSame(['typedTags' => 'tagging', 'tags' => 'pivot'], $this->getStaticProperty(ValueResolver::class, 'pivotAccessorCache')[Post::class]);
-    }
-
-    /**
-     * Test that a memoised pivot accessor is honoured, so the owner's relation
-     * is not resolved again.
-     *
-     * @return void
-     */
-    public function testAMemoisedPivotAccessorIsHonoured(): void
-    {
-        $this->setStaticProperty(ValueResolver::class, 'pivotAccessorCache', [Post::class => ['tags' => 'membership']]);
-
-        $tags = $this->resolveTags($this->postWithTags('membership', ['role' => 'primary']), 'tags');
-
-        self::assertSame(['role' => 'primary'], $tags[0]['pivot']);
     }
 
     /**
      * Test that pivot columns on a loaded relation that is not many-to-many, or
-     * that the model does not declare, reach no child, and each miss is
-     * memoised.
+     * that the model does not declare, reach no child.
      *
      * @return void
      */
@@ -352,32 +331,6 @@ final class ValueResolverTest extends TestCase
             self::assertInstanceOf(ApiResourceCollection::class, $result);
             self::assertArrayNotHasKey('pivot', $result->resolve()[0]);
         }
-
-        self::assertSame(['posts' => null, 'drafts' => null], $this->getStaticProperty(ValueResolver::class, 'pivotAccessorCache')[User::class]);
-    }
-
-    /**
-     * Test that a many-to-many relation registered at runtime hands each child
-     * the accessor its pivot loads under.
-     *
-     * @return void
-     */
-    public function testADynamicManyToManyRelationRendersThePivotUnderItsAccessor(): void
-    {
-        $property = new \ReflectionProperty(Model::class, 'relationResolvers');
-        $original = $property->getValue();
-
-        try {
-            Post::resolveRelationUsing('labels', static fn (Post $post): BelongsToMany => $post->belongsToMany(Tag::class, 'post_tag')->as('labelling'));
-
-            $post = $this->postWithTags('labelling', ['role' => 'primary']);
-
-            $post->setRelation('labels', $post->getRelation('tags'));
-
-            self::assertSame(['role' => 'primary'], $this->resolveTags($post, 'labels')[0]['pivot']);
-        } finally {
-            $property->setValue(null, $original);
-        }
     }
 
     /**
@@ -393,51 +346,6 @@ final class ValueResolverTest extends TestCase
         self::assertInstanceOf(AnonymousResourceCollection::class, $result);
         self::assertInstanceOf(Collection::class, $result->collection);
         self::assertContainsOnlyInstancesOf(PlainJsonResource::class, $result->collection);
-    }
-
-    /**
-     * Test that the pivot payload reads each present column through the pivot's
-     * casts, a null included, omits an absent one and reduces a pure enum to
-     * its name.
-     *
-     * @return void
-     */
-    public function testPivotPayloadReadsEachPresentColumnThroughThePivotsCasts(): void
-    {
-        $pivot = new class extends Pivot {
-            /**
-             * Get the attributes that should be cast.
-             *
-             * @return array<string, string>
-             */
-            #[\Override]
-            protected function casts(): array
-            {
-                return ['platform' => Platform::class, 'status' => UserStatus::class];
-            }
-        };
-
-        $tag = (new Tag)->setRelation('membership', $pivot->setRawAttributes(['tag_id' => 1, 'platform' => 'MOBILE_APP', 'status' => 'active', 'note' => null]));
-
-        self::assertSame(
-            ['platform' => 'mobile_app', 'status' => UserStatus::ACTIVE, 'note' => null],
-            $this->resolver->resolvePivotPayload(new JsonResource($tag), 'membership', ['platform', 'status', 'note', 'joined_at']),
-        );
-    }
-
-    /**
-     * Test that a model without the pivot loaded, or a value that is not a
-     * model, has no pivot payload.
-     *
-     * @return void
-     */
-    public function testPivotPayloadIsEmptyWithoutALoadedPivot(): void
-    {
-        $tag = (new Tag)->setRelation('pivot', null);
-
-        self::assertSame([], $this->resolver->resolvePivotPayload(new Tag, 'pivot', ['role']));
-        self::assertSame([], $this->resolver->resolvePivotPayload($tag, 'pivot', ['role']));
-        self::assertSame([], $this->resolver->resolvePivotPayload(['pivot' => ['role' => 'primary']], 'pivot', ['role']));
     }
 
     /**

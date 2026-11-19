@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi\Resolution;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
@@ -133,12 +134,12 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that a pivot's column is typed from its own table and its pivot
-     * class's casts, an enum cast registering its component.
+     * Test that the pivot object types each column from the pivot table and the
+     * pivot class's casts, an enum cast registering its component.
      *
      * @return void
      */
-    public function testInferColumnTypesAPivotFromItsTableAndItsPivotClassCasts(): void
+    public function testResolvePivotTypesEachColumnFromThePivotTableAndItsPivotClassCasts(): void
     {
         $enums        = new EnumSchemaRegistry;
         $introspector = self::createStub(SchemaIntrospectionProvider::class);
@@ -149,19 +150,21 @@ final class FieldTypeResolverTest extends TestCase
         ] : []);
 
         $resolver = new FieldTypeResolver($introspector, new ColumnTypeMapper, $enums);
-        $typed    = (new PostTag)->setTable('post_tag');
-        $plain    = (new Pivot)->setTable('post_tag');
+        $typed    = self::createStub(BelongsToMany::class);
+        $plain    = self::createStub(BelongsToMany::class);
 
-        $role      = $resolver->inferColumn($typed, 'role');
-        $taggedAt  = $resolver->inferColumn($typed, 'tagged_at');
-        $plainRole = $resolver->inferColumn($plain, 'role');
+        $typed->method('newPivot')->willReturn((new PostTag)->setTable('post_tag'));
+        $plain->method('newPivot')->willReturn((new Pivot)->setTable('post_tag'));
 
-        self::assertSame('#/components/schemas/TagRole', $role->ref);
-        self::assertTrue($role->nullable);
+        self::assertSame(['type' => 'object', 'properties' => [
+            'role'      => ['anyOf' => [['$ref' => '#/components/schemas/TagRole'], ['type' => 'null']]],
+            'tagged_at' => ['type' => ['string', 'null'], 'format' => 'date-time'],
+        ]], $resolver->resolvePivot($typed, ['role', 'tagged_at']));
         self::assertSame([TagRole::class], $enums->classes());
-        self::assertSame(['string', 'date-time', true], [$taggedAt->type, $taggedAt->format, $taggedAt->nullable]);
-        self::assertSame(['string', null, true], [$plainRole->type, $plainRole->format, $plainRole->nullable]);
-        self::assertTrue($resolver->inferColumn($plain, 'rank')->undocumented);
+        self::assertSame(['type' => 'object', 'properties' => [
+            'role' => ['type' => ['string', 'null']],
+            'rank' => OpenApiFieldSchema::undocumented()->toArray(),
+        ]], $resolver->resolvePivot($plain, ['role', 'rank']));
     }
 
     /**

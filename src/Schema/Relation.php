@@ -194,8 +194,8 @@ final class Relation extends BaseDefinition
                 'fields'      => $this->fields,
                 'constraint'  => $this->constraint,
                 'limit'       => $this->limit,
-                ...$this->sortAttributes(),
                 'pivot'       => $this->pivot ?: null,
+                ...$this->sortAttributes(),
                 ...$this->commonAttributes(),
             ], static fn ($value) => $value !== null),
         ];

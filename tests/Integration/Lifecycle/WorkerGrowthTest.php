@@ -18,6 +18,7 @@ use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\PivotColumns;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
@@ -68,13 +69,13 @@ final class WorkerGrowthTest extends TestCase
         Payload::class . '::$bodyKeys',
         Payload::class . '::$sensitiveClasses',
         Payload::class . '::$summaryProperties',
+        PivotColumns::class . '::$accessorCache',
         ResourceTypeIndex::class . '::$classes',
         ResourceTypeIndex::class . '::$source',
         ResourceTypeIndex::class . '::$types',
         SchemaCompiler::class . '::$cache',
         SearchPlan::class . '::$cache',
         ValueResolver::class . '::$castAccessorCache',
-        ValueResolver::class . '::$pivotAccessorCache',
         ValueResolver::class . '::$relatedModelCache',
     ];
 

@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\AggregateFunction;
@@ -113,22 +114,26 @@ final readonly class FieldTypeResolver
     }
 
     /**
-     * Infer the schema of a column on the model from its definition and cast.
+     * Resolve the object schema of the pivot columns a many-to-many relation
+     * renders on each child, typed from the pivot table and the pivot class's
+     * casts.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $column
-     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
+     * None is required, since a column the pivot does not carry is omitted.
+     *
+     * @param  \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model>  $relation
+     * @param  array<int, string>  $columns
+     * @return array<string, mixed>
      */
-    public function inferColumn(Model $model, string $column): OpenApiFieldSchema
+    public function resolvePivot(BelongsToMany $relation, array $columns): array
     {
-        $definition = $this->introspector->getColumnDefinitions($model)[$column] ?? null;
-        $cast       = $this->resolveCast($model, $column);
+        $pivot      = $relation->newPivot();
+        $properties = [];
 
-        if ($cast !== null && enum_exists($cast)) {
-            return OpenApiFieldSchema::reference($this->enums->reference($cast), $definition !== null && $definition->nullable);
+        foreach ($columns as $column) {
+            $properties[$column] = $this->inferColumn($pivot, $column)->toArray();
         }
 
-        return $this->mapper->map($definition, $cast);
+        return ['type' => 'object', 'properties' => $properties];
     }
 
     /**
@@ -210,6 +215,25 @@ final readonly class FieldTypeResolver
     private function hasTransformers(CompiledFieldDefinition $field): bool
     {
         return $field->transformers !== [];
+    }
+
+    /**
+     * Infer the schema of a column on the model from its definition and cast.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $column
+     * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
+     */
+    private function inferColumn(Model $model, string $column): OpenApiFieldSchema
+    {
+        $definition = $this->introspector->getColumnDefinitions($model)[$column] ?? null;
+        $cast       = $this->resolveCast($model, $column);
+
+        if ($cast !== null && enum_exists($cast)) {
+            return OpenApiFieldSchema::reference($this->enums->reference($cast), $definition !== null && $definition->nullable);
+        }
+
+        return $this->mapper->map($definition, $cast);
     }
 
     /**

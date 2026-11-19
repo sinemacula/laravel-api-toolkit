@@ -235,10 +235,12 @@ final readonly class ResourceSchemaBuilder
             ? ['$ref' => self::SCHEMA_REF_PREFIX . SchemaComponentName::fromResource($childResource)]
             : ['type' => 'object', self::UNDOCUMENTED_KEY => true];
         $instance = $this->resolveRelation($relation, $modelClass);
-        $items    = $field->pivot !== [] && $instance instanceof BelongsToMany ? $this->withPivotProperty($target, $instance, $field->pivot) : $target;
-        $limit    = RelationLimit::for($field);
-        $array    = ['type' => 'array', 'items' => $items] + ($limit > 0 ? ['maxItems' => $limit] : []);
-        $null     = ['type' => 'null'];
+        $items    = $field->pivot !== [] && $instance instanceof BelongsToMany
+            ? ['allOf' => [$target, ['type' => 'object', 'properties' => [self::PIVOT_PROPERTY => $this->resolver->resolvePivot($instance, $field->pivot)]]]]
+            : $target;
+        $limit = RelationLimit::for($field);
+        $array = ['type' => 'array', 'items' => $items] + ($limit > 0 ? ['maxItems' => $limit] : []);
+        $null  = ['type' => 'null'];
 
         if ($instance === null) {
             return ['oneOf' => [$target, $array, $null], 'x-cardinality' => 'unknown'];
@@ -251,29 +253,6 @@ final readonly class ResourceSchemaBuilder
         $defaulted = (bool) (new \ReflectionProperty($instance, 'withDefault'))->getValue($instance);
 
         return $defaulted ? $target : ['oneOf' => [$target, $null]];
-    }
-
-    /**
-     * Extend the child schema with the pivot columns each item renders, typed
-     * from the pivot table and its pivot class's casts.
-     *
-     * None is required, since a column the pivot does not carry is omitted.
-     *
-     * @param  array<string, mixed>  $target
-     * @param  \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model>  $relation
-     * @param  array<int, string>  $columns
-     * @return array<string, mixed>
-     */
-    private function withPivotProperty(array $target, BelongsToMany $relation, array $columns): array
-    {
-        $pivot      = $relation->newPivot();
-        $properties = [];
-
-        foreach ($columns as $column) {
-            $properties[$column] = $this->resolver->inferColumn($pivot, $column)->toArray();
-        }
-
-        return ['allOf' => [$target, ['type' => 'object', 'properties' => [self::PIVOT_PROPERTY => ['type' => 'object', 'properties' => $properties]]]]];
     }
 
     /**

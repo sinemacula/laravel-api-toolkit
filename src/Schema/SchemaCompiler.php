@@ -320,14 +320,16 @@ final class SchemaCompiler
     }
 
     /**
-     * Return the string entries of the given list, reindexed.
+     * Return the string entries of the definition's list under the key,
+     * reindexed.
      *
-     * @param  array<array-key, mixed>  $values
+     * @param  array<string, mixed>  $definition
+     * @param  string  $key
      * @return list<string>
      */
-    private static function stringList(array $values): array
+    private static function stringList(array $definition, string $key): array
     {
-        return array_values(array_filter($values, is_string(...)));
+        return array_values(array_filter((array) ($definition[$key] ?? []), is_string(...)));
     }
 
     /**
@@ -360,10 +362,10 @@ final class SchemaCompiler
             compute          : $definition['compute']  ?? null,
             relation         : $relation,
             resource         : self::declaredColumn($definition, 'resource'),
-            fields           : is_array($definition['fields'] ?? null) ? self::stringList($definition['fields']) : null,
+            fields           : is_array($definition['fields'] ?? null) ? self::stringList($definition, 'fields') : null,
             constraint       : self::resolveFieldConstraint($definition),
-            extras           : self::stringList((array) ($definition['extras'] ?? [])),
-            needs            : self::stringList((array) ($definition['needs'] ?? [])),
+            extras           : self::stringList($definition, 'extras'),
+            needs            : self::stringList($definition, 'needs'),
             guards           : self::callableList($definition, 'guards'),
             transformers     : self::callableList($definition, 'transformers'),
             openApi          : self::resolveOpenApi($definition),
@@ -377,7 +379,7 @@ final class SchemaCompiler
             limit            : is_int($definition['limit'] ?? null) ? $definition['limit'] : null,
             callerGuards     : self::callableList($definition, 'caller_guards'),
             sortThroughReason: $sortThrough,
-            pivot            : self::stringList((array) ($definition['pivot'] ?? [])),
+            pivot            : self::stringList($definition, 'pivot'),
         );
     }
 

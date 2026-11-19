@@ -5,8 +5,6 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 
 use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -39,9 +37,6 @@ final class ValueResolver
     /** @var array<string, array<string, class-string<\Illuminate\Database\Eloquent\Model>|null>> Related model classes, keyed by [owner class][relation] */
     private static array $relatedModelCache = [];
 
-    /** @var array<string, array<string, string|null>> Pivot accessors of many-to-many relations, keyed by [owner class][relation] */
-    private static array $pivotAccessorCache = [];
-
     /**
      * Create a new value resolver instance.
      *
@@ -54,18 +49,17 @@ final class ValueResolver
     ) {}
 
     /**
-     * Clear the cast-accessor, related-model and pivot-accessor memos.
+     * Clear the cast-accessor reflection memo.
      *
-     * The memos live for the worker, so a lifecycle flush leaves them; this is
+     * The memo lives for the worker, so a lifecycle flush leaves it; this is
      * for test isolation.
      *
      * @return void
      */
     public static function clearCache(): void
     {
-        self::$castAccessorCache  = [];
-        self::$relatedModelCache  = [];
-        self::$pivotAccessorCache = [];
+        self::$castAccessorCache = [];
+        self::$relatedModelCache = [];
     }
 
     /**
@@ -102,35 +96,7 @@ final class ValueResolver
             $value = $this->applyTransformers($definition->transformers, $resource, $value);
         }
 
-        return $this->toWireValue($value);
-    }
-
-    /**
-     * Resolve the declared columns of the pivot loaded under the accessor.
-     *
-     * Each column is read through the pivot's casts; an absent one is omitted.
-     *
-     * @param  mixed  $resource
-     * @param  string  $accessor
-     * @param  array<int, string>  $columns
-     * @return array<string, mixed>
-     */
-    public function resolvePivotPayload(mixed $resource, string $accessor, array $columns): array
-    {
-        $model = $this->unwrapResource($resource);
-        $pivot = $model instanceof Model && $model->relationLoaded($accessor) ? $model->getRelation($accessor) : null;
-
-        if (!$pivot instanceof Model) {
-            return [];
-        }
-
-        $payload = [];
-
-        foreach (array_intersect($columns, array_keys($pivot->getAttributes())) as $column) {
-            $payload[$column] = $this->toWireValue($pivot->getAttribute($column));
-        }
-
-        return $payload;
+        return $value instanceof \UnitEnum && !$value instanceof \BackedEnum ? PureEnumName::of($value) : $value;
     }
 
     /**
@@ -378,43 +344,13 @@ final class ValueResolver
         $capped          = RelationLimit::cap($definition, $related);
         $this->truncated = $capped !== $related;
         $wrapped         = $this->wrapRelatedWithResource($capped, $childClass, $childFields);
-        $accessor        = $definition->pivot === [] ? null : $this->pivotAccessor($owner, (string) $definition->relation);
+        $accessor        = $definition->pivot === [] ? null : PivotColumns::accessor($owner, (string) $definition->relation);
 
         if ($accessor !== null && method_exists($wrapped, 'withPivot')) {
             $wrapped->withPivot($accessor, $definition->pivot);
         }
 
         return $wrapped;
-    }
-
-    /**
-     * Resolve the pivot accessor of the owner's many-to-many relation, or null
-     * when the relation is not one.
-     *
-     * @param  object  $owner
-     * @param  string  $relation
-     * @return string|null
-     */
-    private function pivotAccessor(object $owner, string $relation): ?string
-    {
-        if (!array_key_exists($relation, self::$pivotAccessorCache[$owner::class] ?? [])) {
-            $instance = $owner instanceof Model && $owner->isRelation($relation) ? $owner->{$relation}() : null; // @phpstan-ignore method.dynamicName
-
-            self::$pivotAccessorCache[$owner::class][$relation] = $instance instanceof BelongsToMany ? $instance->getPivotAccessor() : null;
-        }
-
-        return self::$pivotAccessorCache[$owner::class][$relation];
-    }
-
-    /**
-     * Reduce a pure enum, which has no backing value, to its lowercase name.
-     *
-     * @param  mixed  $value
-     * @return mixed
-     */
-    private function toWireValue(mixed $value): mixed
-    {
-        return $value instanceof \UnitEnum && !$value instanceof \BackedEnum ? PureEnumName::of($value) : $value;
     }
 
     /**

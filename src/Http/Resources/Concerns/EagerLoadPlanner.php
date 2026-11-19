@@ -395,7 +395,7 @@ final class EagerLoadPlanner
             }
 
             if ($pivot !== []) {
-                self::selectPivot($relation, $pivot, $owner);
+                PivotColumns::select($relation, $pivot, $owner);
             }
 
             if ($constraint !== null) {
@@ -406,25 +406,6 @@ final class EagerLoadPlanner
 
             RelationWindow::bound($relation, $limit);
         };
-    }
-
-    /**
-     * Select the pivot columns the relation renders on each child.
-     *
-     * @param  EagerRelation  $relation
-     * @param  list<string>  $pivot
-     * @param  string  $owner
-     * @return void
-     *
-     * @throws \LogicException
-     */
-    private static function selectPivot(EloquentRelation $relation, array $pivot, string $owner): void
-    {
-        if (!$relation instanceof BelongsToMany) {
-            throw new \LogicException(sprintf('The %s relation declares pivot columns but is not a many-to-many relation', $owner));
-        }
-
-        $relation->withPivot($pivot);
     }
 
     /**
