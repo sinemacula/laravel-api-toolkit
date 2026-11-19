@@ -6,6 +6,7 @@ namespace Tests\Integration\OpenApi;
 
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\PendingCommand;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -124,6 +125,10 @@ final class OpenApiGoldenDocumentTest extends TestCase
      */
     public function testExportMatchesTheGoldenDocuments(): void
     {
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            self::markTestSkipped('The golden documents record the column types the default engine reports.');
+        }
+
         foreach ($this->exportDocuments() as $audience => $document) {
 
             $result = $this->validateJson($document);
