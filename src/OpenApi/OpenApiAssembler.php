@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Docs\DocManualAssembler;
 use SineMacula\ApiToolkit\OpenApi\Docs\OperationDescriptions;
 use SineMacula\ApiToolkit\OpenApi\Docs\TagList;
+use SineMacula\ApiToolkit\OpenApi\Examples\ExampleFileAudit;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaNameCollisionGuard;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector;
@@ -67,6 +68,7 @@ final readonly class OpenApiAssembler
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector  $routes
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\OperationDescriptions  $descriptions
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\TagList  $tags
+     * @param  \SineMacula\ApiToolkit\OpenApi\Examples\ExampleFileAudit  $exampleFiles
      */
     public function __construct(
 
@@ -111,6 +113,9 @@ final readonly class OpenApiAssembler
 
         /** The builder of the top-level tags list. */
         private TagList $tags,
+
+        /** The audit of the declared response example files. */
+        private ExampleFileAudit $exampleFiles = new ExampleFileAudit,
     ) {
         $this->envelopeBuilder = new EnvelopeBuilder;
         $this->reachability    = new ReachableSchemaResolver;
@@ -121,12 +126,13 @@ final readonly class OpenApiAssembler
     /**
      * Assemble the OpenAPI 3.1 document for the given audience.
      *
-     * The description and tag files of every exported audience are audited, so
-     * a file describing nothing fails every export.
+     * The description, tag and example files of every exported audience are
+     * audited, so a file describing nothing fails every export.
      *
      * @param  string|null  $audience
      * @return array<string, mixed>
      *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleDeclarationException
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\OperationIdCollisionException
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\OrphanedDocumentationException
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException
@@ -159,6 +165,8 @@ final readonly class OpenApiAssembler
         if ($tags !== null) {
             $document['tags'] = $tags;
         }
+
+        $this->exampleFiles->assert($routes);
 
         return $this->schemaObjects->normalise($document);
     }

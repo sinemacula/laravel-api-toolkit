@@ -23,18 +23,20 @@ final readonly class ExampleValidator
     public const string MISMATCH_MESSAGE = 'The %s example [%s] for %s in the [%s] audience does not match its schema %s';
 
     /**
-     * Validate every example of the registered document.
+     * Validate every example of the document against its registration.
      *
+     * The examples are read from the document itself, where an empty JSON
+     * object is still an object.
+     *
+     * @param  array<array-key, mixed>  $document
      * @param  \SineMacula\ApiToolkit\OpenApi\Examples\SchemaDocument  $schemas
      * @param  string  $audience
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleMismatchException
      */
-    public function validate(SchemaDocument $schemas, string $audience): void
+    public function validate(array $document, SchemaDocument $schemas, string $audience): void
     {
-        $document = (array) $schemas->node('');
-
         foreach (Body::in($document) as $body) {
             foreach ($this->mediaExamples($schemas, $body->media) as $name => [$kind, $value]) {
 
@@ -136,6 +138,8 @@ final readonly class ExampleValidator
 
         foreach ($schema as $keyword => $value) {
 
+            $value = self::members($value);
+
             if (!is_array($value)) {
                 continue;
             }
@@ -167,11 +171,25 @@ final readonly class ExampleValidator
     {
         foreach ($schemas as $key => $schema) {
 
+            $schema = self::members($schema);
+
             if (!is_array($schema)) {
                 continue;
             }
 
             yield from $this->examplesIn($schema, SchemaDocument::append($pointer, $key));
         }
+    }
+
+    /**
+     * Read an object as the array of its members, such as a list-keyed schema
+     * map the document writes as an object, leaving any other value as is.
+     *
+     * @param  mixed  $value
+     * @return mixed
+     */
+    private static function members(mixed $value): mixed
+    {
+        return $value instanceof \stdClass ? (array) $value : $value;
     }
 }

@@ -65,7 +65,7 @@ final readonly class ExampleComposer
         $skipped   = [];
         $opaque    = $this->envelopes->undocumentedEnvelope();
 
-        $this->validator->validate($schemas, $audience);
+        $this->validator->validate($document, $schemas, $audience);
 
         foreach (Body::in((array) $schemas->node('')) as $body) {
 

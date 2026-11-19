@@ -96,6 +96,7 @@ final readonly class PathBuilder
      * @param  list<array<string, mixed>>  $servers
      * @return array<string, array<string, array<string, mixed>>>
      *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleDeclarationException
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException
      */
     public function build(array $routes, array $descriptions, string $audience, array $servers): array
@@ -125,6 +126,28 @@ final readonly class PathBuilder
 
                 $claims[$path][$verb] = [$route, $built, $hosts];
                 $paths[$path][$verb]  = $hosts === [] ? $built : $built + ['servers' => $hosts];
+            }
+        }
+
+        return $this->withExamples($paths, $claims, $audience);
+    }
+
+    /**
+     * Attach each operation's declared response examples, once every claim is
+     * settled so that only surviving operations read theirs.
+     *
+     * @param  array<string, array<string, array<string, mixed>>>  $paths
+     * @param  array<string, array<string, array{\SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute, array<string, mixed>, list<array<string, mixed>>}>>  $claims
+     * @param  string  $audience
+     * @return array<string, array<string, array<string, mixed>>>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleDeclarationException
+     */
+    private function withExamples(array $paths, array $claims, string $audience): array
+    {
+        foreach ($claims as $path => $verbs) {
+            foreach ($verbs as $verb => [$route]) {
+                $paths[$path][$verb] = $this->successResponse->withExamples($paths[$path][$verb], $route->controllerClass, $route->action, $audience);
             }
         }
 
