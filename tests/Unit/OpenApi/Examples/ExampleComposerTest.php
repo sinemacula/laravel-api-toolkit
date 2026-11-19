@@ -60,8 +60,8 @@ final class ExampleComposerTest extends TestCase
     }
 
     /**
-     * Test that a body needing an undocumented field is reported, while one
-     * whose whole payload is undocumented is left quietly.
+     * Test that a body needing an undocumented field is reported, while the
+     * envelope of a wholly undocumented body is left quietly.
      *
      * @return void
      */
@@ -71,9 +71,12 @@ final class ExampleComposerTest extends TestCase
         $partly = ['type' => 'object', 'properties' => ['data' => $data], 'required' => ['data']];
         $wholly = ['type' => 'object', 'properties' => ['data' => ['x-undocumented' => true]], 'required' => ['data']];
 
+        $beside = ['type' => 'object', 'properties' => ['data' => ['x-undocumented' => true], 'id' => ['type' => 'integer']], 'required' => ['data']];
+
         $composition = (new ExampleComposer)->compose(['paths' => [
             '/partly' => ['get' => ['responses' => [200 => ['content' => ['application/json' => ['schema' => $partly]]]]]],
             '/wholly' => ['get' => ['responses' => [200 => ['content' => ['application/json' => ['schema' => $wholly]]]]]],
+            '/beside' => ['post' => ['requestBody' => ['content' => ['application/json' => ['schema' => $beside]]]]],
             '/fully'  => ['get' => ['responses' => [200 => ['content' => ['application/json' => ['schema' => ['type' => 'boolean']]]]]]],
         ]], 'public');
 
@@ -81,6 +84,8 @@ final class ExampleComposerTest extends TestCase
             [
                 'No example for GET /partly response 200 in the [public] audience: the value at'
                 . ' #/paths/~1partly/get/responses/200/content/application~1json/schema/properties/data/properties/meta is undocumented.',
+                'No example for POST /beside request body in the [public] audience: the value at'
+                . ' #/paths/~1beside/post/requestBody/content/application~1json/schema/properties/data is undocumented.',
             ],
             $composition->skipped,
         );

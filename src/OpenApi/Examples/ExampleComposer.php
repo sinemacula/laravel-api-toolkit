@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Examples;
 
+use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Examples\Enums\ExampleScope;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleGenerationException;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleMismatchException;
@@ -12,8 +13,8 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleMismatchException;
  * Validates the examples an assembled document carries, then generates one for
  * every JSON request body and success body that has none.
  *
- * A body needing an undocumented value gets no example and is reported, unless
- * its whole payload is undocumented.
+ * A body needing an undocumented value gets no example and is reported; the
+ * envelope of a wholly undocumented body gets none silently.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -36,11 +37,15 @@ final readonly class ExampleComposer
      * Constructor.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Examples\ExampleValidator  $validator
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder  $envelopes
      */
     public function __construct(
 
         /** The validator of the examples the document already carries. */
         private ExampleValidator $validator = new ExampleValidator,
+
+        /** The builder of the envelope wrapping an undocumented body. */
+        private EnvelopeBuilder $envelopes = new EnvelopeBuilder,
     ) {}
 
     /**
@@ -58,19 +63,20 @@ final readonly class ExampleComposer
         $schemas   = SchemaDocument::of($document);
         $generator = new ExampleGenerator($schemas);
         $skipped   = [];
+        $opaque    = $this->envelopes->undocumentedEnvelope();
 
         $this->validator->validate($schemas, $audience);
 
         foreach (Body::in((array) $schemas->node('')) as $body) {
 
-            if ($body->scope === null) {
+            if ($body->scope === null || $schemas->node($body->schemaPointer()) === $opaque) {
                 continue;
             }
 
             $examples = $generator->generate($body->schemaPointer(), $body->scope);
 
             if ($examples instanceof MissingValue) {
-                $skipped = [...$skipped, ...$this->skip($body, $examples, $audience)];
+                $skipped[] = $this->skip($body, $examples, $audience);
 
                 continue;
             }
@@ -84,17 +90,17 @@ final readonly class ExampleComposer
     }
 
     /**
-     * Report a body left without an example, failing when its value is not
-     * undocumented.
+     * Report a body left without an example for an undocumented value, failing
+     * when the value is not undocumented.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Examples\Body  $body
      * @param  \SineMacula\ApiToolkit\OpenApi\Examples\MissingValue  $missing
      * @param  string  $audience
-     * @return list<string>
+     * @return string
      *
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleGenerationException
      */
-    private function skip(Body $body, MissingValue $missing, string $audience): array
+    private function skip(Body $body, MissingValue $missing, string $audience): string
     {
         if (!$missing->undocumented) {
             $remedy = $body->scope === ExampleScope::REQUEST ? self::REQUEST_REMEDY : self::RESPONSE_REMEDY;
@@ -102,11 +108,7 @@ final readonly class ExampleComposer
             throw new ExampleGenerationException(sprintf(self::UNSATISFIED_MESSAGE, $body->target, $audience, $missing->pointer, $remedy));
         }
 
-        if ($missing->pointer === SchemaDocument::append(SchemaDocument::append($body->schemaPointer(), 'properties'), 'data')) {
-            return [];
-        }
-
-        return [sprintf(self::SKIPPED_MESSAGE, $body->target, $audience, $missing->pointer)];
+        return sprintf(self::SKIPPED_MESSAGE, $body->target, $audience, $missing->pointer);
     }
 
     /**
