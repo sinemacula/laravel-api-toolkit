@@ -1053,8 +1053,11 @@ final class ResourceSchemaBuilderTest extends TestCase
         ]);
 
         $this->expectException(SchemaNameCollisionException::class);
-        $this->expectExceptionMessage(V1UserResource::class);
-        $this->expectExceptionMessage(V2UserResource::class);
+        $this->expectExceptionMessage(sprintf(
+            'The OpenAPI component schema name "User" is derived by both [%s] and [%s]. Disambiguate one with the #[SchemaName] attribute.',
+            V1UserResource::class,
+            V2UserResource::class,
+        ));
 
         $builder->build();
     }
