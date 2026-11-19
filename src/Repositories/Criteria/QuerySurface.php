@@ -29,6 +29,7 @@ final readonly class QuerySurface
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema|null  $schema
      * @param  \SineMacula\ApiToolkit\Schema\RelationTraversal  $traversal
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission  $admission
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $operators
      */
     public function __construct(
 
@@ -40,6 +41,9 @@ final readonly class QuerySurface
 
         /** Admits the request to caller-guarded keys at every level */
         private CallerAdmission $admission,
+
+        /** Decides which operators each capability admits */
+        private OperatorRegistry $operators,
     ) {}
 
     /**
@@ -56,7 +60,7 @@ final readonly class QuerySurface
     {
         $resource = $this->schema === null ? null : $this->traversal->governingResource($this->schema, $relation, $related, $polymorphic);
 
-        return new self($resource === null ? null : SchemaCompiler::compile($resource), $this->traversal, $this->admission);
+        return new self($resource === null ? null : SchemaCompiler::compile($resource), $this->traversal, $this->admission, $this->operators);
     }
 
     /**
@@ -75,8 +79,6 @@ final readonly class QuerySurface
     /**
      * Guard a filter operator against the declaring column's capability.
      *
-     * Tokens the capability matrix does not govern are left to the application.
-     *
      * @param  string  $column
      * @param  string  $operator
      * @return void
@@ -91,12 +93,18 @@ final readonly class QuerySurface
             throw Rejection::at('filters.' . $column, 'query.undeclared_key', ['key' => $column]);
         }
 
-        if (Capability::governs($operator) && !$capability->permits($operator)) {
-
-            $accepts = implode(', ', $capability->permittedOperators());
-
-            throw Rejection::at('filters.' . $column . '.' . $operator, 'filters.unpermitted_operator', ['operator' => $operator, 'key' => $column, 'accepts' => $accepts]);
+        if ($this->operators->admits($operator, $capability)) {
+            return;
         }
+
+        $accepts  = $this->operators->tokensFor($capability);
+        $position = 'filters.' . $column . '.' . $operator;
+
+        if ($accepts === []) {
+            throw Rejection::at($position, 'filters.no_operators', ['key' => $column]);
+        }
+
+        throw Rejection::at($position, 'filters.unpermitted_operator', ['operator' => $operator, 'key' => $column, 'accepts' => implode(', ', $accepts)]);
     }
 
     /**

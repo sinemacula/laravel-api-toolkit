@@ -24,6 +24,7 @@ return [
     'filters' => [
         'not_object'           => 'The filters parameter must be a JSON object.',
         'unpermitted_operator' => 'The ":operator" operator is not permitted on the ":key" key for this resource, which accepts :accepts.',
+        'no_operators'         => 'The ":key" key accepts no registered filter operators.',
         'unnamed_key'          => 'The :position filter must name a field or a condition. To match any of several values, give the field a condition such as $in.',
         'not_document'         => 'The :position filter must be a document of conditions.',
         'empty_document'       => 'The :position filter must carry at least one condition.',

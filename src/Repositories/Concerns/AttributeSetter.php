@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Collection;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Contracts\Versioned;
 use SineMacula\ApiToolkit\Support\PureEnumCast;
 use SineMacula\ApiToolkit\Support\PureEnumName;
 
@@ -55,13 +56,15 @@ final readonly class AttributeSetter
      *
      * Every key is classified before any is assigned, so a key naming a
      * relation that cannot be written leaves the model untouched. A cancelled
-     * save syncs nothing and returns false.
+     * save syncs nothing and returns false. A versioned model whose relations
+     * alone changed is saved again to advance its version.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  array<string, mixed>  $attributes
      * @return bool
      *
      * @throws \InvalidArgumentException
+     * @throws \LogicException
      * @throws \ValueError
      */
     public function persist(Model $model, array $attributes): bool
@@ -85,18 +88,71 @@ final readonly class AttributeSetter
             $this->write($model, $attribute, $attributes[$attribute], $write);
         }
 
-        return $model->getConnection()->transaction(function () use ($model, $attributes, $syncs): bool {
+        return $model->getConnection()->transaction(fn (): bool => $this->saveAndSync($model, $attributes, $syncs));
+    }
 
-            if (!$model->save()) {
-                return false;
-            }
+    /**
+     * Save the model, then sync its relations, advancing the version of a
+     * versioned model whose relations alone changed.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, Synchronisation>  $syncs
+     * @return bool
+     *
+     * @throws \InvalidArgumentException
+     * @throws \LogicException
+     */
+    private function saveAndSync(Model $model, array $attributes, array $syncs): bool
+    {
+        $version = $this->storedVersion($model);
 
-            foreach ($syncs as $attribute => $relation) {
-                $this->sync($model, $attribute, $attributes[$attribute], $relation);
-            }
+        if (!$model->save()) {
+            return false;
+        }
 
-            return true;
-        });
+        $synced = false;
+
+        foreach ($syncs as $attribute => $relation) {
+            $synced = $this->sync($model, $attribute, $attributes[$attribute], $relation) || $synced;
+        }
+
+        if ($synced && $model instanceof Versioned && $this->storedVersion($model) === $version) {
+            $this->recordRelationChange($model);
+        }
+
+        return true;
+    }
+
+    /**
+     * Read the stored version of a versioned model as a string, so an integer
+     * and a driver's numeric string compare alike.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return string|null
+     */
+    private function storedVersion(Model $model): ?string
+    {
+        $version = $model instanceof Versioned ? $model->getRawOriginal($model->getVersionColumn()) : null;
+
+        return is_scalar($version) ? (string) $version : null;
+    }
+
+    /**
+     * Advance the version of a model whose relations alone changed.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model&\SineMacula\ApiToolkit\Contracts\Versioned  $model
+     * @return void
+     *
+     * @throws \LogicException
+     */
+    private function recordRelationChange(Model&Versioned $model): void
+    {
+        $model->markVersionChanged();
+
+        if (!$model->save()) {
+            throw new \LogicException(sprintf('%s refused the save that records its relation change, so the change is rolled back.', $model::class));
+        }
     }
 
     /**
@@ -241,17 +297,18 @@ final readonly class AttributeSetter
     }
 
     /**
-     * Sync a many-to-many relation from keys, a model or a model collection.
+     * Sync a many-to-many relation from keys, a model or a model collection,
+     * returning whether its membership changed.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @param  string  $attribute
      * @param  mixed  $value
      * @param  Synchronisation  $relation
-     * @return void
+     * @return bool
      *
      * @throws \InvalidArgumentException
      */
-    private function sync(Model $model, string $attribute, mixed $value, BelongsToMany $relation): void
+    private function sync(Model $model, string $attribute, mixed $value, BelongsToMany $relation): bool
     {
         if ($value instanceof Model) {
             $value = collect([$value]);
@@ -265,6 +322,6 @@ final readonly class AttributeSetter
             throw new \InvalidArgumentException(sprintf('Attribute "%s" on %s must be given models or their keys', $attribute, $model::class));
         }
 
-        $relation->sync($value);
+        return array_filter($relation->sync($value)) !== [];
     }
 }

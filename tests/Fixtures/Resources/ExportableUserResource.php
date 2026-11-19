@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Fixtures\Resources;
 
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\DerivesTabularSchema;
 use SineMacula\ApiToolkit\Schema\Field;
@@ -43,7 +44,7 @@ final class ExportableUserResource extends ApiResource implements ProvidesTabula
     {
         return Field::set(
             Field::scalar('id'),
-            Field::scalar('name'),
+            Field::scalar('name')->filterable(Capability::EXACT)->sortable(),
             Field::scalar('email'),
             Field::timestamp('created_at'),
             Field::compute('label', static function ($resource): string {

@@ -14,11 +14,14 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
+use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Exceptions\ServiceUnavailableException;
+use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ErrorCatalogueMismatchException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
@@ -27,6 +30,7 @@ use Tests\Fixtures\Controllers\ClassAuthorizedController;
 use Tests\Fixtures\Controllers\CustomActionController;
 use Tests\Fixtures\Middleware\EnforceQuota;
 use Tests\Fixtures\Middleware\RequireSubscription;
+use Tests\Fixtures\OpenApi\CodelessApiException;
 use Tests\Fixtures\OpenApi\PathErrorController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
 use Tests\Fixtures\OpenApi\PathPlainController;
@@ -363,19 +367,67 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that a thrown exception without an error code keeps its status and
-     * headers but lists no example.
+     * Test that a thrown exception without an error code, which the handler
+     * cannot render, fails.
      *
      * @return void
      */
-    public function testThrownExceptionWithoutACodeListsNoExample(): void
+    public function testThrownExceptionWithoutACodeFails(): void
     {
-        $responses = $this->build($this->router()->post('release', [PathRouteFactsController::class, 'release']));
+        $this->expectException(ErrorCatalogueMismatchException::class);
+        $this->expectExceptionMessage(sprintf(
+            '[%s] declares no error code, so the handler cannot render it; give it a CODE constant.',
+            CodelessApiException::class,
+        ));
 
-        self::assertSame([409, 500], array_keys($responses));
-        self::assertSame($this->response('Conflict.', [], [
-            'X-Hold-Id' => ['description' => 'The identifier of the hold that blocked the release.', 'schema' => ['type' => 'string']],
-        ]), $responses[409]);
+        $this->build($this->router()->post('release', [PathRouteFactsController::class, 'release']));
+    }
+
+    /**
+     * Test that a status carrying one code references that code's envelope.
+     *
+     * @return void
+     */
+    public function testStatusCarryingOneCodeReferencesItsEnvelope(): void
+    {
+        $responses = $this->build($this->router()->get('users/{user}', [PathPlainController::class, 'report']));
+
+        self::assertSame(['$ref' => '#/components/schemas/Error10103'], $responses[404]['content']['application/json']['schema']);
+    }
+
+    /**
+     * Test that a status carrying several codes is any one of their envelopes,
+     * ascending by code whatever order the examples follow.
+     *
+     * @return void
+     */
+    public function testStatusCarryingSeveralCodesIsAOneOfAscendingByCode(): void
+    {
+        $spend   = $this->build($this->router()->post('spend', [PathRouteFactsController::class, 'spend'])->middleware('throttle:60,1'))[429];
+        $refused = $this->build($this->router()->get('users', [PathPlainController::class, 'index']), [ValidationException::class, QueryTooExpensiveException::class])[422];
+
+        self::assertIsArray($spend['content']['application/json']['examples']);
+        self::assertSame(['Error20002', 'Error10107'], array_keys($spend['content']['application/json']['examples']));
+        self::assertSame(
+            ['oneOf' => [['$ref' => '#/components/schemas/Error10107'], ['$ref' => '#/components/schemas/Error20002']]],
+            $spend['content']['application/json']['schema'],
+        );
+        self::assertSame(
+            ['oneOf' => [['$ref' => '#/components/schemas/Error10106'], ['$ref' => '#/components/schemas/Error10201']]],
+            $refused['content']['application/json']['schema'],
+        );
+    }
+
+    /**
+     * Test that a code several sources share is referenced once.
+     *
+     * @return void
+     */
+    public function testCodeSharedBySeveralSourcesIsReferencedOnce(): void
+    {
+        $response = $this->build($this->router()->post('quota', [PathResponseHeaderController::class, 'quota'])->middleware('throttle:60,1'))[429];
+
+        self::assertSame(['$ref' => '#/components/schemas/Error10107'], $response['content']['application/json']['schema']);
     }
 
     /**
@@ -503,6 +555,17 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
+     * Test that middleware documented from its route fact is not read for its
+     * throws, so its refusal stays off the verbs it lets through.
+     *
+     * @return void
+     */
+    public function testFactMiddlewareThrowsAreNotDocumented(): void
+    {
+        self::assertSame([500], array_keys($this->build($this->router()->get('reports', [PathPlainController::class, 'report'])->middleware(RequireIfMatch::class))));
+    }
+
+    /**
      * Test that global middleware throws are not documented.
      *
      * @return void
@@ -601,39 +664,61 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Test that the envelope schema describes the error payload shape.
+     * Test that only the envelopes of the referenced codes are built, ordered
+     * by code.
      *
      * @return void
      */
-    public function testEnvelopeSchemaDescribesTheErrorPayload(): void
+    public function testEnvelopeSchemasAreBuiltForTheReferencedCodesInCodeOrder(): void
     {
-        self::assertSame([
+        $route = $this->router()->get('users', [PathPlainController::class, 'index']);
+        $paths = ['/users' => ['get' => ['responses' => $this->build($route, [QueryTooExpensiveException::class, ValidationException::class])]]];
+
+        self::assertSame(['Error10001', 'Error10106', 'Error10201'], array_keys($this->builder()->buildEnvelopeSchemas($paths)));
+        self::assertSame([], $this->builder()->buildEnvelopeSchemas([]));
+    }
+
+    /**
+     * Test that each envelope pins its code and types its meta as declared,
+     * else as an open object.
+     *
+     * @return void
+     */
+    public function testEnvelopeSchemaPinsTheCodeAndTypesTheDeclaredMeta(): void
+    {
+        $route   = $this->router()->get('users', [PathPlainController::class, 'index']);
+        $schemas = $this->builder()->buildEnvelopeSchemas(['/users' => ['get' => ['responses' => $this->build($route, [ValidationException::class])]]]);
+
+        self::assertSame($this->envelope(10001, ['type' => 'object', 'additionalProperties' => true]), $schemas['Error10001']);
+        self::assertSame($this->envelope(10106, InvalidInputException::metaSchema()), $schemas['Error10106']);
+    }
+
+    /**
+     * Build the expected envelope of an error code.
+     *
+     * @param  int  $code
+     * @param  array<string, mixed>  $meta
+     * @return array<string, mixed>
+     */
+    private function envelope(int $code, array $meta): array
+    {
+        return [
             'type'       => 'object',
             'properties' => [
                 'error' => [
                     'type'       => 'object',
                     'properties' => [
                         'status' => ['type' => 'integer'],
-                        'code'   => ['type' => 'integer'],
+                        'code'   => ['type' => 'integer', 'const' => $code],
                         'title'  => ['type' => 'string'],
                         'detail' => ['type' => 'string'],
-                        'meta'   => ['type' => 'object', 'additionalProperties' => true],
+                        'meta'   => $meta,
                     ],
                     'required' => ['status', 'code', 'detail'],
                 ],
             ],
             'required' => ['error'],
-        ], $this->builder()->buildEnvelopeSchema());
-    }
-
-    /**
-     * Test that the envelope schema component name is the conventional one.
-     *
-     * @return void
-     */
-    public function testEnvelopeSchemaNameIsErrorEnvelope(): void
-    {
-        self::assertSame('ErrorEnvelope', ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME);
+        ];
     }
 
     /**
@@ -661,8 +746,13 @@ final class ErrorResponseBuilderTest extends TestCase
      */
     private function response(string $description, array $examples, array $headers = []): array
     {
-        $media    = ['schema' => ['$ref' => '#/components/schemas/ErrorEnvelope']];
-        $response = ['description' => $description];
+        $names = $examples;
+
+        sort($names);
+
+        $references = array_map(static fn (string $name): array => ['$ref' => '#/components/schemas/' . $name], $names);
+        $media      = ['schema' => count($references) === 1 ? $references[0] : ['oneOf' => $references]];
+        $response   = ['description' => $description];
 
         foreach ($examples as $name) {
             $media['examples'][$name] = ['$ref' => '#/components/examples/' . $name];

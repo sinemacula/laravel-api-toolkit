@@ -8,10 +8,12 @@ use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Exceptions\ApiException;
+use SineMacula\ApiToolkit\OpenApi\Contracts\DefinesErrorMeta;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException;
 
 /**
- * Resolves every documented error code to its HTTP status, title and detail.
+ * Resolves every documented error code to its HTTP status, title, detail and
+ * meta schema.
  *
  * Status comes from the owning exception class so it matches what the handler
  * renders.
@@ -26,6 +28,9 @@ final class ErrorCatalogueReader
 
     /** @var string The filesystem path to the toolkit Exceptions directory */
     private const string EXCEPTIONS_DIR = __DIR__ . '/../../Exceptions';
+
+    /** @var string The message for a meta schema that is not an object */
+    private const string META_SCHEMA_MESSAGE = 'The meta schema of [%s] must be a JSON-Schema object.';
 
     /** @var array<int, class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>> Memoised code-to-class map. */
     private array $exceptionMap = [];
@@ -151,17 +156,21 @@ final class ErrorCatalogueReader
      * @param  \SineMacula\ApiToolkit\Enums\ErrorCode  $errorCode
      * @param  array<int, class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>  $map
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException
      */
     private function resolveToolkitDescriptor(ErrorCode $errorCode, array $map): ErrorDescriptor
     {
         $intCode = $errorCode->getCode();
+        $source  = $map[$intCode] ?? null;
 
         return new ErrorDescriptor(
             code      : $intCode,
-            httpStatus: $this->resolveHttpStatus($map[$intCode] ?? null),
+            httpStatus: $this->resolveHttpStatus($source),
             title     : $this->resolveTitle($intCode),
             detail    : $this->resolveDetail($intCode),
-            source    : $map[$intCode] ?? null,
+            source    : $source,
+            meta      : $this->resolveMeta($source),
         );
     }
 
@@ -170,6 +179,8 @@ final class ErrorCatalogueReader
      *
      * @param  array<int, class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>>  $map
      * @return array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException
      */
     private function resolveApplicationDescriptors(array $map): array
     {
@@ -198,6 +209,8 @@ final class ErrorCatalogueReader
      * @param  class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>  $class
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor
      *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException
+     *
      * @SuppressWarnings("php:S3011")
      */
     private function resolveApplicationDescriptor(int $intCode, string $class): ErrorDescriptor
@@ -210,7 +223,31 @@ final class ErrorCatalogueReader
             title     : $exception->getCustomTitle(),
             detail    : $exception->getCustomDetail(),
             source    : $class,
+            meta      : $this->resolveMeta($class),
         );
+    }
+
+    /**
+     * Resolve the meta schema the given exception class declares, if any.
+     *
+     * @param  class-string<\SineMacula\ApiToolkit\Exceptions\ApiException>|null  $exceptionClass
+     * @return array<string, mixed>|null
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\MetadataReadException
+     */
+    private function resolveMeta(?string $exceptionClass): ?array
+    {
+        if ($exceptionClass === null || !is_a($exceptionClass, DefinesErrorMeta::class, true)) {
+            return null;
+        }
+
+        $schema = $exceptionClass::metaSchema();
+
+        if (!is_string(array_key_first($schema))) {
+            throw new MetadataReadException(sprintf(self::META_SCHEMA_MESSAGE, $exceptionClass));
+        }
+
+        return $schema;
     }
 
     /**

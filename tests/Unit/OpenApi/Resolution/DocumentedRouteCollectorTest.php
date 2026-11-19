@@ -218,6 +218,22 @@ final class DocumentedRouteCollectorTest extends TestCase
     }
 
     /**
+     * Test that a fallback route is left out of every audience.
+     *
+     * @return void
+     */
+    public function testFallbackRouteJoinsNoAudience(): void
+    {
+        $this->router()->get('plain', [PathPlainController::class, 'index']);
+        $this->router()->fallback([PathPlainController::class, 'report']);
+
+        $routes = $this->collect(['public', 'internal']);
+
+        self::assertSame(['/plain'], $this->paths($routes->in('public')));
+        self::assertSame(['/plain'], $this->paths($routes->in('internal')));
+    }
+
+    /**
      * Test that a route without a documentable verb is dropped before it is
      * resolved, and excluded verbs are dropped from the rest.
      *

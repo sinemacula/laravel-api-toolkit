@@ -4,12 +4,23 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\OpenApi\Resolution;
 
+use Illuminate\Database\Eloquent\Casts\AsArrayObject;
+use Illuminate\Database\Eloquent\Casts\AsCollection;
+use Illuminate\Database\Eloquent\Casts\AsEncryptedArrayObject;
+use Illuminate\Database\Eloquent\Casts\AsEncryptedCollection;
+use Illuminate\Database\Eloquent\Casts\AsEnumCollection;
+use Illuminate\Database\Eloquent\Casts\AsFluent;
+use Illuminate\Database\Eloquent\Casts\AsStringable;
+use Illuminate\Database\Eloquent\Casts\AsUri;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
+use Tests\Fixtures\Casts\PostalAddress;
+use Tests\Fixtures\Casts\SluggedTitleCast;
+use Tests\Fixtures\Enums\Platform;
 
 /**
  * Tests for the ColumnTypeMapper.
@@ -30,14 +41,15 @@ final class ColumnTypeMapperTest extends TestCase
     public static function typeNameProvider(): iterable
     {
         yield 'char string' => ['char', 'string', null];
+        yield 'bpchar string' => ['bpchar', 'string', null];
         yield 'varchar string' => ['varchar', 'string', null];
         yield 'text string' => ['text', 'string', null];
         yield 'tinytext string' => ['tinytext', 'string', null];
         yield 'mediumtext string' => ['mediumtext', 'string', null];
         yield 'longtext string' => ['longtext', 'string', null];
-        yield 'string string' => ['string', 'string', null];
         yield 'enum string' => ['enum', 'string', null];
         yield 'set string' => ['set', 'string', null];
+        yield 'money string' => ['money', 'string', null];
         yield 'uuid format' => ['uuid', 'string', 'uuid'];
         yield 'bigint integer' => ['bigint', 'integer', null];
         yield 'int integer' => ['int', 'integer', null];
@@ -45,26 +57,20 @@ final class ColumnTypeMapperTest extends TestCase
         yield 'mediumint integer' => ['mediumint', 'integer', null];
         yield 'smallint integer' => ['smallint', 'integer', null];
         yield 'tinyint integer' => ['tinyint', 'integer', null];
-        yield 'serial integer' => ['serial', 'integer', null];
-        yield 'bigserial integer' => ['bigserial', 'integer', null];
-        yield 'decimal number' => ['decimal', 'number', null];
-        yield 'numeric number' => ['numeric', 'number', null];
+        yield 'int2 integer' => ['int2', 'integer', null];
+        yield 'int4 integer' => ['int4', 'integer', null];
+        yield 'int8 integer' => ['int8', 'integer', null];
         yield 'float number' => ['float', 'number', null];
         yield 'double number' => ['double', 'number', null];
         yield 'real number' => ['real', 'number', null];
-        yield 'money number' => ['money', 'number', null];
         yield 'boolean boolean' => ['boolean', 'boolean', null];
         yield 'bool boolean' => ['bool', 'boolean', null];
         yield 'date format' => ['date', 'string', 'date'];
-        yield 'datetime format' => ['datetime', 'string', 'date-time'];
-        yield 'timestamp format' => ['timestamp', 'string', 'date-time'];
-        yield 'datetimetz format' => ['datetimetz', 'string', 'date-time'];
-        yield 'timestamptz format' => ['timestamptz', 'string', 'date-time'];
-        yield 'time format' => ['time', 'string', 'time'];
-        yield 'timetz format' => ['timetz', 'string', 'time'];
-        yield 'binary byte' => ['binary', 'string', 'byte'];
-        yield 'blob byte' => ['blob', 'string', 'byte'];
-        yield 'bytea byte' => ['bytea', 'string', 'byte'];
+        yield 'datetime string' => ['datetime', 'string', null];
+        yield 'timestamp string' => ['timestamp', 'string', null];
+        yield 'timestamptz string' => ['timestamptz', 'string', null];
+        yield 'time string' => ['time', 'string', null];
+        yield 'timetz string' => ['timetz', 'string', null];
     }
 
     /**
@@ -130,6 +136,11 @@ final class ColumnTypeMapperTest extends TestCase
         yield 'unknown point' => ['point'];
         yield 'json' => ['json'];
         yield 'jsonb' => ['jsonb'];
+        yield 'decimal' => ['decimal'];
+        yield 'numeric' => ['numeric'];
+        yield 'binary' => ['binary'];
+        yield 'blob' => ['blob'];
+        yield 'bytea' => ['bytea'];
     }
 
     /**
@@ -181,51 +192,45 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that a datetime cast resolves to a date-time format.
+     * Provide each PostgreSQL float type under each fetch mode, with the type
+     * its value fetches as.
      *
-     * @return void
+     * @return iterable<string, array{0: string, 1: bool, 2: string}>
      */
-    public function testDatetimeCastResolvesToDateTimeFormat(): void
+    public static function postgresFloatProvider(): iterable
     {
-        $mapper = new ColumnTypeMapper;
-        $column = new ColumnDefinition(name: 'verified_at', typeName: 'varchar', nullable: true);
-
-        $schema = $mapper->map($column, 'datetime');
-
-        self::assertSame('string', $schema->type);
-        self::assertSame('date-time', $schema->format);
-        self::assertTrue($schema->nullable);
+        yield 'float4 fetched natively' => ['float4', true, 'number'];
+        yield 'float8 fetched natively' => ['float8', true, 'number'];
+        yield 'float4 fetched as a string' => ['float4', false, 'string'];
+        yield 'float8 fetched as a string' => ['float8', false, 'string'];
     }
 
     /**
-     * Test that an immutable datetime cast resolves to a date-time format.
+     * Test that a PostgreSQL float column takes the type its value fetches as.
      *
+     * @param  string  $typeName
+     * @param  bool  $fetchesNativeFloats
+     * @param  string  $type
      * @return void
      */
-    public function testImmutableDatetimeCastResolvesToDateTimeFormat(): void
+    #[DataProvider('postgresFloatProvider')]
+    public function testPostgresFloatTakesTheTypeItFetchesAs(string $typeName, bool $fetchesNativeFloats, string $type): void
     {
-        $mapper = new ColumnTypeMapper;
-        $column = new ColumnDefinition(name: 'created_at', typeName: 'varchar', nullable: false);
+        $column = new ColumnDefinition(name: 'ratio', typeName: $typeName, nullable: false);
 
-        $schema = $mapper->map($column, 'immutable_datetime');
-
-        self::assertSame('date-time', $schema->format);
+        self::assertSame(['type' => $type], (new ColumnTypeMapper($fetchesNativeFloats))->map($column)->toArray());
     }
 
     /**
-     * Test that a date cast resolves to a date format.
+     * Test that PostgreSQL floats fetch natively from PHP 8.4 by default.
      *
      * @return void
      */
-    public function testDateCastResolvesToDateFormat(): void
+    public function testPostgresFloatsFetchNativelyFromPhp84ByDefault(): void
     {
-        $mapper = new ColumnTypeMapper;
-        $column = new ColumnDefinition(name: 'dob', typeName: 'varchar', nullable: false);
+        $column = new ColumnDefinition(name: 'ratio', typeName: 'float8', nullable: false);
 
-        $schema = $mapper->map($column, 'date');
-
-        self::assertSame('string', $schema->type);
-        self::assertSame('date', $schema->format);
+        self::assertSame(PHP_VERSION_ID >= 80400 ? 'number' : 'string', (new ColumnTypeMapper)->map($column)->type);
     }
 
     /**
@@ -244,96 +249,6 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Test that an encrypted array cast resolves off the full cast token.
-     *
-     * @return void
-     */
-    public function testEncryptedArrayCastResolvesToArray(): void
-    {
-        $mapper = new ColumnTypeMapper;
-        $column = new ColumnDefinition(name: 'meta', typeName: 'varchar', nullable: false);
-
-        $schema = $mapper->map($column, 'encrypted:array');
-
-        self::assertSame('array', $schema->type);
-    }
-
-    /**
-     * Test that a datetime cast with a format still resolves to date-time.
-     *
-     * @return void
-     */
-    public function testDatetimeCastWithFormatArgumentResolvesToDateTime(): void
-    {
-        $mapper = new ColumnTypeMapper;
-        $column = new ColumnDefinition(name: 'published_at', typeName: 'varchar', nullable: false);
-
-        $schema = $mapper->map($column, 'datetime:Y-m-d H:i:s');
-
-        self::assertSame('date-time', $schema->format);
-    }
-
-    /**
-     * Test that an array cast beats a json column.
-     *
-     * @return void
-     */
-    public function testArrayCastResolvesToArray(): void
-    {
-        $mapper = new ColumnTypeMapper;
-        $column = new ColumnDefinition(name: 'meta', typeName: 'json', nullable: false);
-
-        $schema = $mapper->map($column, 'array');
-
-        self::assertSame('array', $schema->type);
-    }
-
-    /**
-     * Test that a collection cast resolves to an array schema.
-     *
-     * @return void
-     */
-    public function testCollectionCastResolvesToArray(): void
-    {
-        $mapper = new ColumnTypeMapper;
-        $column = new ColumnDefinition(name: 'tags', typeName: 'text', nullable: false);
-
-        $schema = $mapper->map($column, 'collection');
-
-        self::assertSame('array', $schema->type);
-    }
-
-    /**
-     * Test that an object cast resolves to an object schema.
-     *
-     * @return void
-     */
-    public function testObjectCastResolvesToObject(): void
-    {
-        $mapper = new ColumnTypeMapper;
-        $column = new ColumnDefinition(name: 'payload', typeName: 'json', nullable: false);
-
-        $schema = $mapper->map($column, 'object');
-
-        self::assertSame('object', $schema->type);
-    }
-
-    /**
-     * Test that an unrecognised cast falls back to the column type mapping.
-     *
-     * @return void
-     */
-    public function testUnrecognisedCastFallsBackToColumnType(): void
-    {
-        $mapper = new ColumnTypeMapper;
-        $column = new ColumnDefinition(name: 'status', typeName: 'varchar', nullable: false);
-
-        $schema = $mapper->map($column, 'App\Casts\StatusCast');
-
-        self::assertSame('string', $schema->type);
-    }
-
-    /**
      * Test that the mapper returns an OpenApiFieldSchema instance.
      *
      * @return void
@@ -344,22 +259,6 @@ final class ColumnTypeMapperTest extends TestCase
         $column = new ColumnDefinition(name: 'id', typeName: 'bigint', nullable: false);
 
         self::assertInstanceOf(OpenApiFieldSchema::class, $mapper->map($column));
-    }
-
-    /**
-     * Test that a mappable cast resolves without a column, non-nullable.
-     *
-     * @return void
-     */
-    public function testMapsFromCastWhenColumnAbsent(): void
-    {
-        $mapper = new ColumnTypeMapper;
-
-        $schema = $mapper->map(null, 'boolean');
-
-        self::assertSame('boolean', $schema->type);
-        self::assertFalse($schema->nullable);
-        self::assertFalse($schema->undocumented);
     }
 
     /**
@@ -378,36 +277,114 @@ final class ColumnTypeMapperTest extends TestCase
     }
 
     /**
-     * Provide each scalar cast and the type it maps to.
+     * Provide each documented cast and the schema of the value it returns.
      *
-     * @return iterable<string, array{0: string, 1: string}>
+     * @return iterable<string, array{0: string, 1: array<string, string>}>
      */
-    public static function scalarCastProvider(): iterable
+    public static function documentedCastProvider(): iterable
     {
-        yield 'bool' => ['bool', 'boolean'];
-        yield 'boolean' => ['boolean', 'boolean'];
-        yield 'int' => ['int', 'integer'];
-        yield 'integer' => ['integer', 'integer'];
-        yield 'uppercase integer' => ['INTEGER', 'integer'];
-        yield 'float' => ['float', 'number'];
-        yield 'double' => ['double', 'number'];
-        yield 'real' => ['real', 'number'];
-        yield 'string' => ['string', 'string'];
+        yield 'bool' => ['bool', ['type' => 'boolean']];
+        yield 'boolean' => ['boolean', ['type' => 'boolean']];
+        yield 'int' => ['int', ['type' => 'integer']];
+        yield 'integer' => ['integer', ['type' => 'integer']];
+        yield 'uppercase integer' => ['INTEGER', ['type' => 'integer']];
+        yield 'padded integer' => [' integer ', ['type' => 'integer']];
+        yield 'timestamp' => ['timestamp', ['type' => 'integer']];
+        yield 'float' => ['float', ['type' => 'number']];
+        yield 'double' => ['double', ['type' => 'number']];
+        yield 'real' => ['real', ['type' => 'number']];
+        yield 'string' => ['string', ['type' => 'string']];
+        yield 'encrypted' => ['encrypted', ['type' => 'string']];
+        yield 'hashed' => ['hashed', ['type' => 'string']];
+        yield 'decimal' => ['decimal:2', ['type' => 'string']];
+        yield 'stringable' => [AsStringable::class, ['type' => 'string']];
+        yield 'uri' => [AsUri::class, ['type' => 'string']];
+        yield 'date' => ['date', ['type' => 'string', 'format' => 'date-time']];
+        yield 'datetime' => ['datetime', ['type' => 'string', 'format' => 'date-time']];
+        yield 'immutable date' => ['immutable_date', ['type' => 'string', 'format' => 'date-time']];
+        yield 'immutable datetime' => ['immutable_datetime', ['type' => 'string', 'format' => 'date-time']];
+        yield 'uppercase datetime' => ['DATETIME', ['type' => 'string', 'format' => 'date-time']];
+        yield 'formatted date' => ['date:Y-m-d', ['type' => 'string', 'format' => 'date-time']];
+        yield 'formatted datetime' => ['datetime:Y-m-d H:i:s', ['type' => 'string', 'format' => 'date-time']];
+        yield 'formatted immutable date' => ['immutable_date:Y-m-d', ['type' => 'string', 'format' => 'date-time']];
+        yield 'formatted immutable datetime' => ['immutable_datetime:Y-m-d H:i', ['type' => 'string', 'format' => 'date-time']];
     }
 
     /**
-     * Test that a scalar cast maps without a column, non-nullable.
+     * Test that a documented cast decides the schema, with or without a column
+     * of another type.
      *
      * @param  string  $cast
-     * @param  string  $type
+     * @param  array<string, string>  $expected
      * @return void
      */
-    #[DataProvider('scalarCastProvider')]
-    public function testScalarCastMapsWithoutAColumn(string $cast, string $type): void
+    #[DataProvider('documentedCastProvider')]
+    public function testDocumentedCastDecidesTheSchema(string $cast, array $expected): void
     {
-        $schema = (new ColumnTypeMapper)->map(null, $cast);
+        $column = new ColumnDefinition(name: 'value', typeName: 'json', nullable: false);
 
-        self::assertSame(['type' => $type], $schema->toArray());
+        self::assertSame($expected, (new ColumnTypeMapper)->map(null, $cast)->toArray());
+        self::assertSame($expected, (new ColumnTypeMapper)->map($column, $cast)->toArray());
+    }
+
+    /**
+     * Provide each cast whose value has no fixed shape, or is decided by a
+     * class the mapper does not know.
+     *
+     * @return iterable<string, array{0: string}>
+     */
+    public static function undocumentedCastProvider(): iterable
+    {
+        yield 'array' => ['array'];
+        yield 'json' => ['json'];
+        yield 'unicode json' => ['json:unicode'];
+        yield 'collection' => ['collection'];
+        yield 'object' => ['object'];
+        yield 'encrypted array' => ['encrypted:array'];
+        yield 'encrypted collection' => ['encrypted:collection'];
+        yield 'encrypted json' => ['encrypted:json'];
+        yield 'encrypted object' => ['encrypted:object'];
+        yield 'array object class' => [AsArrayObject::class];
+        yield 'collection class' => [AsCollection::class];
+        yield 'encrypted array object class' => [AsEncryptedArrayObject::class];
+        yield 'encrypted collection class' => [AsEncryptedCollection::class];
+        yield 'enum collection class' => [AsEnumCollection::of(Platform::class)];
+        yield 'fluent class' => [AsFluent::class];
+        yield 'custom cast class' => [SluggedTitleCast::class];
+        yield 'castable class' => [PostalAddress::class];
+        yield 'parameterised integer lookalike' => ['integer:strict'];
+        yield 'parameterised string lookalike' => ['string:trimmed'];
+        yield 'capitalised formatted date' => ['Date:Y-m-d'];
+        yield 'capitalised decimal' => ['Decimal:2'];
+    }
+
+    /**
+     * Test that a cast the mapper cannot resolve is undocumented, never read
+     * from the column.
+     *
+     * @param  string  $cast
+     * @return void
+     */
+    #[DataProvider('undocumentedCastProvider')]
+    public function testUnresolvedCastIsUndocumentedWhateverTheColumn(string $cast): void
+    {
+        $column = new ColumnDefinition(name: 'value', typeName: 'integer', nullable: false);
+
+        self::assertTrue((new ColumnTypeMapper)->map(null, $cast)->undocumented);
+        self::assertTrue((new ColumnTypeMapper)->map($column, $cast)->undocumented);
+    }
+
+    /**
+     * Test that a cast documents a column type whose own value is undocumented.
+     *
+     * @return void
+     */
+    public function testCastDocumentsAnUndocumentedColumnType(): void
+    {
+        $column = new ColumnDefinition(name: 'price', typeName: 'decimal', nullable: true);
+
+        self::assertSame(['type' => ['string', 'null']], (new ColumnTypeMapper)->map($column, 'decimal:2')->toArray());
+        self::assertSame(['type' => ['number', 'null']], (new ColumnTypeMapper)->map($column, 'float')->toArray());
     }
 
     /**
@@ -442,32 +419,8 @@ final class ColumnTypeMapperTest extends TestCase
      */
     public function testCastFormatWinsOverAColumnOfTheSameType(): void
     {
-        $column = new ColumnDefinition(name: 'born_on', typeName: 'datetime', nullable: false);
+        $column = new ColumnDefinition(name: 'born_on', typeName: 'date', nullable: false);
 
-        self::assertSame(['type' => 'string', 'format' => 'date'], (new ColumnTypeMapper)->map($column, 'date')->toArray());
-    }
-
-    /**
-     * Test that a decimal cast is still read from the column.
-     *
-     * @return void
-     */
-    public function testDecimalCastIsReadFromTheColumn(): void
-    {
-        $column = new ColumnDefinition(name: 'price', typeName: 'decimal', nullable: false);
-
-        self::assertSame(['type' => 'number'], (new ColumnTypeMapper)->map($column, 'decimal:2')->toArray());
-        self::assertTrue((new ColumnTypeMapper)->map(null, 'decimal:2')->undocumented);
-    }
-
-    /**
-     * Test that a parameterised cast named like a scalar cast is not mapped.
-     *
-     * @return void
-     */
-    public function testParameterisedScalarLookalikeIsNotMapped(): void
-    {
-        self::assertTrue((new ColumnTypeMapper)->map(null, 'integer:strict')->undocumented);
-        self::assertTrue((new ColumnTypeMapper)->map(null, 'string:trimmed')->undocumented);
+        self::assertSame(['type' => 'string', 'format' => 'date-time'], (new ColumnTypeMapper)->map($column, 'date')->toArray());
     }
 }

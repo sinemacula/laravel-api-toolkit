@@ -256,8 +256,8 @@ final class SearchDeploymentFailureHttpTest extends TestCase
         $response->assertJsonPath('error.code', 10001);
         $response->assertJsonPath('error.title', 'Unknown Error');
         $response->assertJsonPath('error.detail', 'Oh no! Something has gone wrong!');
-        $response->assertJsonPath('error.meta.exception', $exception);
-        $response->assertJsonPath('error.meta.message', $message);
+        $response->assertJsonPath('error.debug.exception', $exception);
+        $response->assertJsonPath('error.debug.message', $message);
 
         $this->assertCarriesNoRows($response);
     }
