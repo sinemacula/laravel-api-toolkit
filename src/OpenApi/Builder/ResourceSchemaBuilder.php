@@ -144,7 +144,7 @@ final readonly class ResourceSchemaBuilder
         }
 
         if ($compiled->getAggregateDefinitions() !== []) {
-            $properties[self::AGGREGATES_PROPERTY] ??= $this->buildAggregatesProperty($compiled, $modelClass);
+            $properties[self::AGGREGATES_PROPERTY] = $this->buildAggregatesProperty($compiled, $modelClass);
         }
 
         if ($limited !== []) {

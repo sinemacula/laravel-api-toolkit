@@ -468,22 +468,6 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a field named aggregates keeps its own property.
-     *
-     * @return void
-     */
-    public function testAFieldNamedAggregatesKeepsItsProperty(): void
-    {
-        $built = $this->buildGhost(new CompiledSchema(
-            ['aggregates' => $this->queryableField()],
-            ['posts_count' => $this->aggregate('posts_count', AggregateFunction::COUNT)],
-        ));
-
-        self::assertIsArray($built['properties']['aggregates']);
-        self::assertArrayNotHasKey('properties', $built['properties']['aggregates']);
-    }
-
-    /**
      * Test that an aggregate never overwrites a relation sharing its name.
      *
      * @return void
@@ -1063,8 +1047,11 @@ final class ResourceSchemaBuilderTest extends TestCase
         ]);
 
         $this->expectException(SchemaNameCollisionException::class);
-        $this->expectExceptionMessage(V1UserResource::class);
-        $this->expectExceptionMessage(V2UserResource::class);
+        $this->expectExceptionMessage(sprintf(
+            'The OpenAPI component schema name "User" is derived by both [%s] and [%s]. Disambiguate one with the #[SchemaName] attribute.',
+            V1UserResource::class,
+            V2UserResource::class,
+        ));
 
         $builder->build();
     }

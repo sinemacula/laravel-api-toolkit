@@ -28,7 +28,6 @@ use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\ApiServiceProvider;
-use SineMacula\ApiToolkit\Exceptions\ApiException;
 use SineMacula\ApiToolkit\Exceptions\ApiExceptionHandler;
 use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use SineMacula\ApiToolkit\Exceptions\ConflictException;
@@ -41,12 +40,15 @@ use SineMacula\ApiToolkit\Exceptions\UnhandledException;
 use SineMacula\Http\Enums\HttpMethod;
 use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException as SymfonyHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface as SymfonyHttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\PreconditionFailedHttpException;
+use Symfony\Component\HttpKernel\Exception\PreconditionRequiredHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
@@ -71,6 +73,9 @@ final class ApiExceptionHandlerTest extends TestCase
 
     /** @var string Generic error message used in test fixtures. */
     private const string GENERIC_ERROR_MESSAGE = 'Something went wrong';
+
+    /** @var \Illuminate\Foundation\Exceptions\Handler|null The handler the toolkit is registered against */
+    private ?Handler $handler = null;
 
     /**
      * Provide exception mapping test cases.
@@ -133,6 +138,18 @@ final class ApiExceptionHandlerTest extends TestCase
             10110,
         ];
 
+        yield 'PreconditionFailedHttpException -> 412' => [
+            new PreconditionFailedHttpException,
+            412,
+            10114,
+        ];
+
+        yield 'PreconditionRequiredHttpException -> 428' => [
+            new PreconditionRequiredHttpException,
+            428,
+            10115,
+        ];
+
         yield 'abort(400) -> 400' => [
             new SymfonyHttpException(400),
             400,
@@ -169,6 +186,12 @@ final class ApiExceptionHandlerTest extends TestCase
             10104,
         ];
 
+        yield 'abort(412) -> 412' => [
+            new SymfonyHttpException(412),
+            412,
+            10114,
+        ];
+
         yield 'abort(413) -> 413' => [
             new SymfonyHttpException(413),
             413,
@@ -179,6 +202,12 @@ final class ApiExceptionHandlerTest extends TestCase
             new SymfonyHttpException(419),
             419,
             10105,
+        ];
+
+        yield 'abort(428) -> 428' => [
+            new SymfonyHttpException(428),
+            428,
+            10115,
         ];
 
         yield 'abort(429) -> 429' => [
@@ -241,8 +270,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         config()->set('app.debug', false);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, $inputException, $request);
+        $response = $this->render($inputException, $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame($expectedHttpCode, $response->getStatusCode());
@@ -267,8 +295,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         config()->set('app.debug', false);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new SymfonyHttpException(409), $request);
+        $response = $this->render(new SymfonyHttpException(409), $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(409, $response->getStatusCode());
@@ -309,8 +336,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $exception = new SymfonyHttpException($status, 'Slow down', null, ['Retry-After' => '120']);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, $exception, $request);
+        $response = $this->render($exception, $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame('120', $response->headers->get('Retry-After'));
@@ -335,8 +361,7 @@ final class ApiExceptionHandlerTest extends TestCase
             new \RuntimeException('Duplicate entry'),
         );
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, $exception, $request);
+        $response = $this->render($exception, $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(500, $response->getStatusCode());
@@ -354,8 +379,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         config()->set('app.debug', false);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new LockUnavailableException, $request);
+        $response = $this->render(new LockUnavailableException, $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(429, $response->getStatusCode());
@@ -379,8 +403,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         config()->set('app.debug', false);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new NotFoundHttpException, $request);
+        $response = $this->render(new NotFoundHttpException, $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
 
@@ -409,8 +432,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $original = new \RuntimeException(self::GENERIC_ERROR_MESSAGE);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, $original, $request);
+        $response = $this->render($original, $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
 
@@ -425,21 +447,20 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that non-JSON request in debug mode returns null.
+     * Test that a non-JSON request in debug mode is left to Laravel's renderer.
      *
      * @return void
      */
-    public function testNonJsonRequestInDebugModeReturnsNull(): void
+    public function testNonJsonRequestInDebugModeIsLeftToLaravel(): void
     {
         $request = Request::create('/test', HttpMethod::GET->getVerb());
         $request->headers->set('Accept', 'text/html');
 
         config()->set('app.debug', true);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new \RuntimeException('error'), $request);
+        $response = $this->render(new \RuntimeException('error'), $request);
 
-        self::assertNull($response);
+        self::assertLaravelHtmlServerError($response);
     }
 
     /**
@@ -456,8 +477,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $exception = new BadRequestException(['field' => 'value']);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, $exception, $request);
+        $response = $this->render($exception, $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(400, $response->getStatusCode());
@@ -484,8 +504,7 @@ final class ApiExceptionHandlerTest extends TestCase
         $validator = new Validator(app(Translator::class), [], []);
         $exception = new ValidationException($validator);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, $exception, $request);
+        $response = $this->render($exception, $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(422, $response->getStatusCode());
@@ -506,10 +525,9 @@ final class ApiExceptionHandlerTest extends TestCase
     {
         config()->set('app.debug', false);
 
-        $exception  = ValidationException::withMessages(['title' => ['The title field is required.']])->status(409);
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
+        $exception = ValidationException::withMessages(['title' => ['The title field is required.']])->status(409);
 
-        $response = $reflection->invoke(null, $exception, self::precognitiveRequest(self::ACCEPT_JSON));
+        $response = $this->render($exception, self::precognitiveRequest(self::ACCEPT_JSON));
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(409, $response->getStatusCode());
@@ -521,7 +539,7 @@ final class ApiExceptionHandlerTest extends TestCase
         $request = Request::create(self::API_PATH, HttpMethod::POST->getVerb());
         $request->headers->set('Accept', self::ACCEPT_JSON);
 
-        $response = $reflection->invoke(null, $exception, $request);
+        $response = $this->render($exception, $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(['title' => ['The title field is required.']], $response->getData(true)['error']['meta']);
@@ -537,8 +555,7 @@ final class ApiExceptionHandlerTest extends TestCase
     {
         config()->set('app.debug', false);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new ConflictException(['key' => 'value']), self::precognitiveRequest(self::ACCEPT_JSON));
+        $response = $this->render(new ConflictException(['key' => 'value']), self::precognitiveRequest(self::ACCEPT_JSON));
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(409, $response->getStatusCode());
@@ -555,10 +572,10 @@ final class ApiExceptionHandlerTest extends TestCase
     {
         config()->set('api-toolkit.exceptions.render_strategy', 'json_when_expected');
 
-        $exception  = ValidationException::withMessages(['title' => ['The title field is required.']]);
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
+        $exception = ValidationException::withMessages(['title' => ['The title field is required.']]);
+        $response  = $this->render($exception, self::precognitiveRequest('text/html'));
 
-        self::assertNull($reflection->invoke(null, $exception, self::precognitiveRequest('text/html')));
+        self::assertTrue($response->isRedirect());
     }
 
     /**
@@ -572,9 +589,8 @@ final class ApiExceptionHandlerTest extends TestCase
         config()->set('app.debug', true);
         config()->set('api-toolkit.exceptions.render_strategy', 'always_json');
 
-        $exception  = ValidationException::withMessages(['title' => ['The title field is required.']]);
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, $exception, self::precognitiveRequest('text/html'));
+        $exception = ValidationException::withMessages(['title' => ['The title field is required.']]);
+        $response  = $this->render($exception, self::precognitiveRequest('text/html'));
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(422, $response->getStatusCode());
@@ -582,12 +598,12 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Test that the json_when_expected strategy returns null for requests that
-     * do not expect JSON.
+     * Test that the json_when_expected strategy leaves a request that does not
+     * expect JSON to Laravel's renderer.
      *
      * @return void
      */
-    public function testJsonWhenExpectedStrategyReturnsNullForNonJsonRequests(): void
+    public function testJsonWhenExpectedStrategyLeavesNonJsonRequestsToLaravel(): void
     {
         $request = Request::create('/test', HttpMethod::GET->getVerb());
         $request->headers->set('Accept', 'text/html');
@@ -595,10 +611,9 @@ final class ApiExceptionHandlerTest extends TestCase
         config()->set('app.debug', false);
         config()->set('api-toolkit.exceptions.render_strategy', 'json_when_expected');
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new \RuntimeException('error'), $request);
+        $response = $this->render(new \RuntimeException('error'), $request);
 
-        self::assertNull($response);
+        self::assertLaravelHtmlServerError($response);
     }
 
     /**
@@ -615,8 +630,7 @@ final class ApiExceptionHandlerTest extends TestCase
         config()->set('app.debug', false);
         config()->set('api-toolkit.exceptions.render_strategy', 'json_when_expected');
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new \RuntimeException('error'), $request);
+        $response = $this->render(new \RuntimeException('error'), $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(500, $response->getStatusCode());
@@ -636,8 +650,7 @@ final class ApiExceptionHandlerTest extends TestCase
         config()->set('app.debug', false);
         config()->set('api-toolkit.exceptions.render_strategy', 'auto');
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new \RuntimeException('error'), $request);
+        $response = $this->render(new \RuntimeException('error'), $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(500, $response->getStatusCode());
@@ -656,8 +669,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         config()->set('app.debug', false);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new NotFoundHttpException, $request);
+        $response = $this->render(new NotFoundHttpException, $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
 
@@ -807,8 +819,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         config()->set('app.debug', false);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new NotFoundHttpException, $request);
+        $response = $this->render(new NotFoundHttpException, $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
 
@@ -833,8 +844,7 @@ final class ApiExceptionHandlerTest extends TestCase
         config()->set('app.debug', false);
         config()->set('api-toolkit.exceptions.include_debug_info', true);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new \RuntimeException(self::GENERIC_ERROR_MESSAGE), $request);
+        $response = $this->render(new \RuntimeException(self::GENERIC_ERROR_MESSAGE), $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
 
@@ -861,8 +871,7 @@ final class ApiExceptionHandlerTest extends TestCase
         config()->set('app.debug', true);
         config()->set('api-toolkit.exceptions.include_debug_info', false);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, new \RuntimeException(self::GENERIC_ERROR_MESSAGE), $request);
+        $response = $this->render(new \RuntimeException(self::GENERIC_ERROR_MESSAGE), $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
 
@@ -889,8 +898,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         $exception = new BadRequestException(['custom' => 'value']);
 
-        $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-        $response   = $reflection->invoke(null, $exception, $request);
+        $response = $this->render($exception, $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
 
@@ -998,8 +1006,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
             self::assertNotEmpty($framesWithArgs);
 
-            $reflection = new \ReflectionMethod(ApiExceptionHandler::class, 'render');
-            $response   = $reflection->invoke(null, $previous, $request);
+            $response = $this->render($previous, $request);
 
             self::assertInstanceOf(JsonResponse::class, $response);
 
@@ -1182,7 +1189,7 @@ final class ApiExceptionHandlerTest extends TestCase
         config()->set('app.debug', false);
         config()->set('api-toolkit.exceptions.map', [TooManyRequestsHttpException::class => ConflictException::class]);
 
-        $response = (new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new TooManyRequestsHttpException(30), $request);
+        $response = $this->render(new TooManyRequestsHttpException(30), $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(409, $response->getStatusCode());
@@ -1208,7 +1215,7 @@ final class ApiExceptionHandlerTest extends TestCase
         config()->set('app.debug', false);
         config()->set('api-toolkit.exceptions.map', [NotFoundHttpException::class => GoneException::class]);
 
-        $response = (new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new SymfonyHttpException(404), $request);
+        $response = $this->render(new SymfonyHttpException(404), $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(410, $response->getStatusCode());
@@ -1242,7 +1249,7 @@ final class ApiExceptionHandlerTest extends TestCase
         config()->set('app.debug', false);
         config()->set('api-toolkit.exceptions.map', [$key => GoneException::class]);
 
-        $response = (new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new SymfonyHttpException(404), $request);
+        $response = $this->render(new SymfonyHttpException(404), $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(410, $response->getStatusCode());
@@ -1256,6 +1263,10 @@ final class ApiExceptionHandlerTest extends TestCase
      */
     public function testInvalidMapIsReportedAndLeavesRenderingToLaravel(): void
     {
+        config()->set('app.debug', false);
+
+        $this->registeredHandler();
+
         ExceptionsFacade::fake();
 
         $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
@@ -1263,7 +1274,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         config()->set('api-toolkit.exceptions.map', [\stdClass::class => ConflictException::class]);
 
-        self::assertNull((new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new \RuntimeException, $request));
+        self::assertLaravelJsonServerError($this->render(new \RuntimeException, $request));
 
         ExceptionsFacade::assertReportedCount(1);
         ExceptionsFacade::assertReported(static fn (InvalidConfigurationException $exception): bool => $exception->getMessage()
@@ -1278,6 +1289,10 @@ final class ApiExceptionHandlerTest extends TestCase
      */
     public function testInvalidConfigurationFailureIsLeftToLaravelUnreported(): void
     {
+        config()->set('app.debug', false);
+
+        $this->registeredHandler();
+
         ExceptionsFacade::fake();
 
         $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
@@ -1286,7 +1301,7 @@ final class ApiExceptionHandlerTest extends TestCase
         config()->set('api-toolkit.exceptions.render_strategy', 'bogus');
         config()->set('api-toolkit.exceptions.map', [\stdClass::class => ConflictException::class]);
 
-        self::assertNull((new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, InvalidConfigurationException::because('Invalid.'), $request));
+        self::assertLaravelJsonServerError($this->render(InvalidConfigurationException::because('Invalid.'), $request));
 
         ExceptionsFacade::assertNothingReported();
     }
@@ -1323,6 +1338,10 @@ final class ApiExceptionHandlerTest extends TestCase
     #[DataProvider('invalidRenderingSettingProvider')]
     public function testInvalidRenderingSettingIsReportedAndLeavesRenderingToLaravel(string $setting, mixed $value, string $message): void
     {
+        config()->set('app.debug', false);
+
+        $this->registeredHandler();
+
         ExceptionsFacade::fake();
 
         $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
@@ -1330,7 +1349,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
         config()->set('api-toolkit.exceptions.' . $setting, $value);
 
-        self::assertNull((new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, new ConflictException, $request));
+        self::assertLaravelJsonServerError($this->render(new ConflictException, $request));
 
         ExceptionsFacade::assertReportedCount(1);
         ExceptionsFacade::assertReported(static fn (InvalidConfigurationException $exception): bool => $exception->getMessage() === $message);
@@ -1423,17 +1442,11 @@ final class ApiExceptionHandlerTest extends TestCase
     {
         $exception = self::httpExceptionImplementor($status);
 
-        $mapped = (new \ReflectionMethod(ApiExceptionHandler::class, 'mapApiException'))->invoke(null, ExceptionMap::fromConfig(), $exception);
+        self::assertTrue($this->exceptionHandler()[0]->shouldReport($exception));
 
-        self::assertInstanceOf(ApiException::class, $mapped);
-        self::assertSame($expectedStatus, $mapped->getStatusCode());
+        $handler = $this->registeredHandler();
 
-        [$handler, $exceptions] = $this->exceptionHandler();
-
-        self::assertTrue($handler->shouldReport($exception));
-
-        ApiExceptionHandler::handles($exceptions);
-
+        self::assertSame($expectedStatus, $handler->render(self::jsonRequest(), $exception)->getStatusCode());
         self::assertSame($expectedReported, $handler->shouldReport($exception));
     }
 
@@ -1511,6 +1524,18 @@ final class ApiExceptionHandlerTest extends TestCase
             413,
         ];
 
+        yield 'precondition failed http' => [
+            PreconditionFailedHttpException::class,
+            static fn (): \Throwable => new PreconditionFailedHttpException,
+            412,
+        ];
+
+        yield 'precondition required http' => [
+            PreconditionRequiredHttpException::class,
+            static fn (): \Throwable => new PreconditionRequiredHttpException,
+            428,
+        ];
+
         yield 'symfony http exception' => [
             SymfonyHttpExceptionInterface::class,
             static fn (): \Throwable => self::httpExceptionImplementor(409),
@@ -1534,22 +1559,17 @@ final class ApiExceptionHandlerTest extends TestCase
         $sample = $factory();
 
         self::assertInstanceOf($source, $sample);
-        self::assertSame($sample, $this->prepare($sample));
 
-        $mapped = (new \ReflectionMethod(ApiExceptionHandler::class, 'mapApiException'))->invoke(null, ExceptionMap::fromConfig(), $sample);
+        [$arrived, $response] = $this->renderObservingArrival($sample);
 
-        self::assertInstanceOf(ApiException::class, $mapped);
-        self::assertSame($expectedStatus, $mapped->getStatusCode());
+        self::assertSame($sample, $arrived);
+        self::assertSame($expectedStatus, $response->getStatusCode());
 
         if ($expectedStatus >= 500) {
             return;
         }
 
-        [$handler, $exceptions] = $this->exceptionHandler();
-
-        ApiExceptionHandler::handles($exceptions);
-
-        self::assertFalse($handler->shouldReport($sample));
+        self::assertFalse($this->registeredHandler()->shouldReport($sample));
     }
 
     /**
@@ -1614,13 +1634,11 @@ final class ApiExceptionHandlerTest extends TestCase
         $sample = $factory();
 
         self::assertInstanceOf($source, $sample);
-        self::assertNotSame($sample, $this->prepare($sample));
 
-        [$handler, $exceptions] = $this->exceptionHandler();
+        [$arrived] = $this->renderObservingArrival($sample);
 
-        ApiExceptionHandler::handles($exceptions);
-
-        self::assertFalse($handler->shouldReport($sample));
+        self::assertNotSame($sample, $arrived);
+        self::assertFalse($this->registeredHandler()->shouldReport($sample));
     }
 
     /**
@@ -1671,21 +1689,81 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
-     * Pass the exception through the application handler's preparation, as
-     * rendering does before any render callback runs.
+     * Render the exception through the application's exception handler,
+     * returning the exception its render callbacks received and the response.
      *
      * @param  \Throwable  $exception
-     * @return \Throwable
+     * @return array{\Throwable|null, \Symfony\Component\HttpFoundation\Response}
      */
-    private function prepare(\Throwable $exception): \Throwable
+    private function renderObservingArrival(\Throwable $exception): array
     {
-        [$handler] = $this->exceptionHandler();
+        [, $exceptions] = $this->exceptionHandler();
 
-        $prepared = (new \ReflectionMethod($handler, 'prepareException'))->invoke($handler, $exception);
+        $arrived = null;
 
-        assert($prepared instanceof \Throwable);
+        $exceptions->render(static function (\Throwable $received) use (&$arrived): void {
+            $arrived = $received;
+        });
 
-        return $prepared;
+        $response = $this->render($exception, self::jsonRequest());
+
+        return [$arrived, $response];
+    }
+
+    /**
+     * Render the exception through the application's exception handler, with
+     * the toolkit registered against it.
+     *
+     * @param  \Throwable  $exception
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Symfony\Component\HttpFoundation\Response
+     */
+    private function render(\Throwable $exception, Request $request): Response
+    {
+        return $this->registeredHandler()->render($request, $exception);
+    }
+
+    /**
+     * Resolve the application's exception handler, registering the toolkit
+     * against it once.
+     *
+     * @return \Illuminate\Foundation\Exceptions\Handler
+     */
+    private function registeredHandler(): Handler
+    {
+        if ($this->handler === null) {
+
+            [$this->handler, $exceptions] = $this->exceptionHandler();
+
+            ApiExceptionHandler::handles($exceptions);
+        }
+
+        return $this->handler;
+    }
+
+    /**
+     * Assert the response is Laravel's own JSON server error, not the toolkit
+     * envelope.
+     *
+     * @param  \Symfony\Component\HttpFoundation\Response  $response
+     * @return void
+     */
+    private static function assertLaravelJsonServerError(Response $response): void
+    {
+        self::assertSame(500, $response->getStatusCode());
+        self::assertSame(['message' => 'Server Error'], json_decode((string) $response->getContent(), true));
+    }
+
+    /**
+     * Assert the response is Laravel's own HTML server error page.
+     *
+     * @param  \Symfony\Component\HttpFoundation\Response  $response
+     * @return void
+     */
+    private static function assertLaravelHtmlServerError(Response $response): void
+    {
+        self::assertSame(500, $response->getStatusCode());
+        self::assertStringStartsWith('text/html', (string) $response->headers->get('Content-Type'));
     }
 
     /**
@@ -1697,7 +1775,7 @@ final class ApiExceptionHandlerTest extends TestCase
      */
     private function renderToJson(\Throwable $exception, Request $request): JsonResponse
     {
-        $response = (new \ReflectionMethod(ApiExceptionHandler::class, 'render'))->invoke(null, $exception, $request);
+        $response = $this->render($exception, $request);
 
         self::assertInstanceOf(JsonResponse::class, $response);
 

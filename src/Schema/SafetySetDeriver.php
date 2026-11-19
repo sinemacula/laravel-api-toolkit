@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Schema;
 
 use Illuminate\Database\Eloquent\Model;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Contracts\Versioned;
 
 /**
  * Derives the columns a narrowed query must always retain.
@@ -42,6 +43,10 @@ final readonly class SafetySetDeriver
 
         if ($softDeleteColumn !== null) {
             $columns[] = $softDeleteColumn;
+        }
+
+        if ($model instanceof Versioned) {
+            $columns[] = $model->getVersionColumn();
         }
 
         $columns = array_merge($columns, $this->relationParentKeys($model, $eagerLoadedRelations));
