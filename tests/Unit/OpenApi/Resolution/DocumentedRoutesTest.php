@@ -61,6 +61,43 @@ final class DocumentedRoutesTest extends TestCase
     }
 
     /**
+     * Test that a form omitting optional parameters only claims a path and verb
+     * no other route claims, whichever is registered first.
+     *
+     * @return void
+     */
+    public function testShorterFormOnlyClaimsAnUnclaimedPathAndVerb(): void
+    {
+        $explicit      = self::documentedRoute('/reports');
+        [$bare, $full] = self::documentedForms('reports/{period?}', ['get', 'post']);
+
+        foreach ([[$explicit, $bare, $full], [$bare, $full, $explicit]] as $order) {
+
+            $operations = (new DocumentedRoutes(['public' => $order], false))->operations('public');
+
+            self::assertSame($explicit, $operations['/reports']['get']);
+            self::assertSame($bare, $operations['/reports']['post']);
+            self::assertSame(['get' => $full, 'post' => $full], $operations['/reports/{period}']);
+        }
+    }
+
+    /**
+     * Test that the description keys keep the primary id every form shares when
+     * another route shadows the shortest form.
+     *
+     * @return void
+     */
+    public function testDescriptionKeysKeepTheSharedPrimaryOfAShadowedShortestForm(): void
+    {
+        $routes = new DocumentedRoutes(['public' => [
+            self::documentedRoute('/reports', operationIds: ['get' => 'reports.index']),
+            ...self::documentedForms('reports/{period?}', operationIds: [['get' => 'reports.show'], ['get' => 'reports.show.period']]),
+        ]], true);
+
+        self::assertSame(['reports.index', 'reports.show.period', 'reports.show'], $routes->descriptionKeys('public'));
+    }
+
+    /**
      * Test that the description keys cover each exported id and the primary id
      * of its route, even when the primary verb is shadowed.
      *

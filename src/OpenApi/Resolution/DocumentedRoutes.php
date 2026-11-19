@@ -8,7 +8,8 @@ namespace SineMacula\ApiToolkit\OpenApi\Resolution;
  * The documentable routes of every exported audience.
  *
  * Two routes may claim one path and verb; as in the built paths, the later
- * route owns the operation and the path and verb keep their first position.
+ * route owns the operation and the path and verb keep their first position. A
+ * form omitting optional parameters only claims a path and verb left unclaimed.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -63,7 +64,12 @@ final readonly class DocumentedRoutes
 
         foreach ($this->in($audience) as $route) {
             foreach ($route->verbs as $verb) {
-                $operations[$route->path][$verb] = $route;
+
+                if (!$route->form->full && isset($operations[$route->form->path][$verb])) {
+                    continue;
+                }
+
+                $operations[$route->form->path][$verb] = $route;
             }
         }
 
@@ -86,7 +92,7 @@ final readonly class DocumentedRoutes
         foreach ($this->operations($audience) as $verbs) {
             foreach ($verbs as $verb => $route) {
                 $keys[] = $route->operationIds[$verb] ?? null;
-                $keys[] = $route->primaryOperationId();
+                $keys[] = $route->primaryOperationId;
             }
         }
 
