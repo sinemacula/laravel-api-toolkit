@@ -8,9 +8,11 @@ use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\MissingValue;
@@ -31,11 +33,14 @@ use Tests\Fixtures\Models\AggregateCapturingModel;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
+use Tests\Fixtures\Models\PostTag;
 use Tests\Fixtures\Models\Profile;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Policies\ArticlePolicy;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\OwnPostResource;
+use Tests\Fixtures\Resources\PivotPostResource;
 use Tests\Fixtures\Resources\PostOwnerResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\RestorableArticleResource;
@@ -648,6 +653,61 @@ final class ApiResourceTest extends TestCase
 
         self::assertSame('mobile_app', $result['platform']);
         self::assertStringContainsString('"platform":"mobile_app"', json_encode($result, JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Test that a resource given the pivot renders each declared column its
+     * loaded pivot carries, a present null included, and returns itself.
+     *
+     * @return void
+     */
+    public function testWithPivotRendersTheDeclaredColumnsThePivotCarries(): void
+    {
+        $resource = new TagResource($this->tagWithPivot(['post_id' => 1, 'tag_id' => 1, 'role' => 'primary', 'tagged_at' => null]));
+
+        self::assertSame($resource, $resource->withPivot('pivot', ['role', 'tagged_at', 'rank']));
+        self::assertSame(['role' => 'primary', 'tagged_at' => null], $resource->resolve()['pivot']);
+    }
+
+    /**
+     * Test that the same model rendered without the pivot, or with a pivot
+     * carrying none of the declared columns, has no pivot key.
+     *
+     * @return void
+     */
+    public function testNoPivotKeyWithoutADeclaredColumnToRender(): void
+    {
+        $tag  = $this->tagWithPivot(['post_id' => 1, 'tag_id' => 1, 'role' => 'primary']);
+        $bare = $this->tagWithPivot(['post_id' => 1, 'tag_id' => 1]);
+
+        self::assertArrayNotHasKey('pivot', (new TagResource($tag))->resolve());
+        self::assertArrayNotHasKey('pivot', (new TagResource($bare))->withPivot('pivot', ['role'])->resolve());
+    }
+
+    /**
+     * Test that a child reached through a relation loading a casting pivot
+     * under its own accessor renders the cast columns under the pivot key.
+     *
+     * @return void
+     */
+    public function testACastingPivotUnderItsOwnAccessorRendersUnderThePivotKey(): void
+    {
+        $post = (new Post)->forceFill(['id' => 1]);
+        $tag  = (new Tag)->forceFill(['id' => 2, 'name' => 'php'])->setRelation('tagging', PostTag::fromRawAttributes($post, [
+            'post_id'   => 1,
+            'tag_id'    => 2,
+            'role'      => 'primary',
+            'tagged_at' => '2026-01-01 10:00:00',
+        ], 'post_tag', true));
+
+        $post->setRelation('typedTags', new EloquentCollection([$tag]));
+
+        $rendered = json_decode((string) json_encode((new PivotPostResource($post))->withFields(['typed_tags'])), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame(
+            [['_type' => 'tags', 'id' => 2, 'name' => 'php', 'pivot' => ['role' => 'primary', 'tagged_at' => '2026-01-01T10:00:00.000000Z']]],
+            $rendered['typed_tags'],
+        );
     }
 
     /**
@@ -3259,6 +3319,17 @@ final class ApiResourceTest extends TestCase
                 );
             }
         };
+    }
+
+    /**
+     * Build a tag carrying a pivot of the given attributes.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return \Tests\Fixtures\Models\Tag
+     */
+    private function tagWithPivot(array $attributes): Tag
+    {
+        return (new Tag)->forceFill(['id' => 1, 'name' => 'php'])->setRelation('pivot', Pivot::fromRawAttributes(new Post, $attributes, 'post_tag', true));
     }
 
     /**

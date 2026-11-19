@@ -58,6 +58,7 @@ use Tests\Fixtures\Resources\MissingAggregateColumnResource;
 use Tests\Fixtures\Resources\MissingColumnQueryableResource;
 use Tests\Fixtures\Resources\MissingComputeMethodResource;
 use Tests\Fixtures\Resources\MissingNeedsColumnResource;
+use Tests\Fixtures\Resources\MissingPivotColumnResource;
 use Tests\Fixtures\Resources\MissingRelationClassResource;
 use Tests\Fixtures\Resources\NonResourceRelationResource;
 use Tests\Fixtures\Resources\OrganizationResource;
@@ -253,6 +254,14 @@ final class ContainerBindingRegistrarTest extends TestCase
             TrailingIndexSortableResource::class,
             'created_at',
             'Field is declared sortable against "created_at", and no ordered index on table "logs" leads with that column',
+        ];
+
+        yield 'pivot columns' => [
+            Post::class,
+            MissingPivotColumnResource::class,
+            'tags',
+            'Field declares pivot column "missing", and pivot table "post_tag" carries no such column',
+            [ResourceDiscovery::RESOURCES_KEY => [OrganizationResource::class, TagResource::class]],
         ];
 
         yield 'searchable fields' => [

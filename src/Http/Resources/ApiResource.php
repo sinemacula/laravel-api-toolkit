@@ -16,6 +16,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GatesTrashedVisibility;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\RendersPivotColumns;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\RestrictsVisibleRows;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter;
@@ -36,7 +37,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
  */
 abstract class ApiResource extends ToolkitResource implements ApiResourceInterface
 {
-    use GatesTrashedVisibility, OrdersFields, RestrictsVisibleRows;
+    use GatesTrashedVisibility, OrdersFields, RendersPivotColumns, RestrictsVisibleRows;
 
     /** @var array<int, string> Default fields to include if no specific fields are requested */
     protected static array $default = [];
@@ -131,6 +132,8 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
         if ($truncated !== []) {
             $data[RelationLimit::TRUNCATED_KEY] = $truncated;
         }
+
+        $data = array_replace($data, $this->pivotPayload());
 
         if (in_array('aggregates', $fields, true)) {
             $this->appendAggregatesPayload($data, $schema, $request);

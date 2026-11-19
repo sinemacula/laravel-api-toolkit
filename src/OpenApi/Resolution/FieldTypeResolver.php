@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\AggregateFunction;
@@ -62,7 +63,7 @@ final readonly class FieldTypeResolver
             return OpenApiFieldSchema::undocumented();
         }
 
-        return $this->inferScalar($fieldKey, $modelClass);
+        return $this->inferColumn(new $modelClass, $fieldKey);
     }
 
     /**
@@ -108,7 +109,30 @@ final readonly class FieldTypeResolver
             return $field->openApi;
         }
 
-        return $this->inferScalar($column, $modelClass);
+        return $this->inferColumn(new $modelClass, $column);
+    }
+
+    /**
+     * Resolve the object schema of the pivot columns a many-to-many relation
+     * renders on each child, typed from the pivot table and the pivot class's
+     * casts.
+     *
+     * None is required, since a column the pivot does not carry is omitted.
+     *
+     * @param  \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model>  $relation
+     * @param  array<int, string>  $columns
+     * @return array<string, mixed>
+     */
+    public function resolvePivot(BelongsToMany $relation, array $columns): array
+    {
+        $pivot      = $relation->newPivot();
+        $properties = [];
+
+        foreach ($columns as $column) {
+            $properties[$column] = $this->inferColumn($pivot, $column)->toArray();
+        }
+
+        return ['type' => 'object', 'properties' => $properties];
     }
 
     /**
@@ -150,7 +174,8 @@ final readonly class FieldTypeResolver
             return OpenApiFieldSchema::undocumented();
         }
 
-        $schema = $this->inferScalar($definition->column, $relation->getRelated()::class);
+        $related = $relation->getRelated()::class;
+        $schema  = $this->inferColumn(new $related, $definition->column);
 
         return match (true) {
             $schema->undocumented => $schema,
@@ -214,28 +239,22 @@ final readonly class FieldTypeResolver
     }
 
     /**
-     * Infer a plain scalar field's schema from its backing column and model
-     * cast.
+     * Infer the schema of a column on the model from its definition and cast.
      *
-     * @param  string  $fieldKey
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $column
      * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema
      */
-    private function inferScalar(string $fieldKey, string $modelClass): OpenApiFieldSchema
+    private function inferColumn(Model $model, string $column): OpenApiFieldSchema
     {
-        $model  = new $modelClass;
-        $column = $this->introspector->getColumnDefinitions($model)[$fieldKey] ?? null;
-        $cast   = $this->resolveCast($model, $fieldKey);
+        $definition = $this->introspector->getColumnDefinitions($model)[$column] ?? null;
+        $cast       = $this->resolveCast($model, $column);
 
         if ($cast !== null && enum_exists($cast)) {
-            return OpenApiFieldSchema::reference($this->enums->reference($cast), $column !== null && $column->nullable);
+            return OpenApiFieldSchema::reference($this->enums->reference($cast), $definition !== null && $definition->nullable);
         }
 
-        if ($column === null && $cast === null) {
-            return OpenApiFieldSchema::undocumented();
-        }
-
-        return $this->mapper->map($column, $cast);
+        return $this->mapper->map($definition, $cast);
     }
 
     /**

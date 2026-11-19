@@ -1579,7 +1579,7 @@ final class ApiExceptionHandlerTest extends TestCase
 
     /**
      * Test that an invalid rendering setting is reported once and leaves the
-     * rendering, of an ApiException too, to Laravel.
+     * rendering, of an ApiException too, to Laravel, which keeps its status.
      *
      * @param  string  $setting
      * @param  mixed  $value
@@ -1600,7 +1600,11 @@ final class ApiExceptionHandlerTest extends TestCase
 
         config()->set('api-toolkit.exceptions.' . $setting, $value);
 
-        self::assertLaravelJsonServerError($this->render(new ConflictException, $request));
+        $exception = new ConflictException;
+        $response  = $this->render($exception, $request);
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame(['message' => $exception->getMessage()], json_decode((string) $response->getContent(), true));
 
         ExceptionsFacade::assertReportedCount(1);
         ExceptionsFacade::assertReported(static fn (InvalidConfigurationException $exception): bool => $exception->getMessage() === $message);

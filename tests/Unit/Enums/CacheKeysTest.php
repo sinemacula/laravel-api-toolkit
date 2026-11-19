@@ -30,8 +30,8 @@ final class CacheKeysTest extends TestCase
      */
     public static function caseProvider(): iterable
     {
-        yield 'MODEL_SCHEMA_COLUMN_DEFINITIONS' => [CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS, 'model-schema-column-definitions:%s:%s'];
-        yield 'MODEL_SCHEMA_INDEXES' => [CacheKeys::MODEL_SCHEMA_INDEXES, 'model-schema-indexes:%s:%s'];
+        yield 'MODEL_SCHEMA_COLUMN_DEFINITIONS' => [CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS, 'model-schema-column-definitions:%s:%s:%s'];
+        yield 'MODEL_SCHEMA_INDEXES' => [CacheKeys::MODEL_SCHEMA_INDEXES, 'model-schema-indexes:%s:%s:%s'];
         yield 'MODEL_RELATIONS' => [CacheKeys::MODEL_RELATIONS, 'model-relations:%s:%s'];
         yield 'MODEL_RESOURCES' => [CacheKeys::MODEL_RESOURCES, 'model-resources:%s'];
         yield 'SEARCH_INDEX_PROOF' => [CacheKeys::SEARCH_INDEX_PROOF, 'search-index-proof:%s:%s'];

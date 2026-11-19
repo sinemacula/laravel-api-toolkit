@@ -27,6 +27,9 @@ use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Concerns\SwapsExceptionHandler;
 use Tests\Fixtures\Exceptions\ServiceExecutionException;
 use Tests\Fixtures\Services\AuthorizingService;
+use Tests\Fixtures\Services\ConcernedService;
+use Tests\Fixtures\Services\Concerns\ShortCircuitConcern;
+use Tests\Fixtures\Services\Concerns\WrappingConcern;
 use Tests\Fixtures\Services\ContextRecordingService;
 use Tests\Fixtures\Services\Input\ScrubbedInput;
 use Tests\Fixtures\Services\Input\SensitiveInput;
@@ -737,6 +740,63 @@ final class ServiceRunnerTest extends TestCase
         (new ServiceRunner)->run($service, ServiceContext::for(new AnonymousActor));
 
         self::assertSame(['A:before', 'B:before', 'B:after', 'A:after'], iterator_to_array($callOrder));
+    }
+
+    /**
+     * Test that a concern returning without calling the rest of the pipeline
+     * skips prepare() and handle() and supplies the output.
+     *
+     * @return void
+     */
+    public function testShortCircuitingConcernSkipsPrepareAndHandleAndSuppliesTheOutput(): void
+    {
+        $service = new ConcernedService([ShortCircuitConcern::class, WrappingConcern::class]);
+
+        $result = (new ServiceRunner)->run($service, ServiceContext::for(new StubActor));
+
+        self::assertSame('stored', $result->output());
+        self::assertSame(['afterCommit'], $service->calls);
+        self::assertSame('stored', $service->committedOutput);
+        self::assertSame(0, DB::table('users')->count());
+    }
+
+    /**
+     * Test that a concern's return value becomes the output afterCommit() and
+     * the completed event receive.
+     *
+     * @return void
+     */
+    public function testConcernReturnValueBecomesTheOutput(): void
+    {
+        Event::fake([ServiceCompleted::class]);
+
+        $service = new ConcernedService([WrappingConcern::class]);
+
+        $result = (new ServiceRunner)->run($service, ServiceContext::for(new StubActor));
+
+        self::assertSame(['wrapped' => 'handled'], $result->output());
+        self::assertSame(['prepare', 'handle', 'afterCommit'], $service->calls);
+        self::assertSame(['wrapped' => 'handled'], $service->committedOutput);
+
+        Event::assertDispatched(ServiceCompleted::class, static fn (ServiceCompleted $event): bool => $event->result->output() === ['wrapped' => 'handled']);
+    }
+
+    /**
+     * Test that a concern class that does not implement the contract fails the
+     * run with a TypeError before prepare(), without run() throwing.
+     *
+     * @return void
+     */
+    public function testNonConcernClassFailsTheRun(): void
+    {
+        $service = new ConcernedService([\stdClass::class]); // @phpstan-ignore argument.type
+
+        $result = (new ServiceRunner)->run($service, ServiceContext::for(new StubActor));
+
+        self::assertTrue($result->failed());
+        self::assertInstanceOf(\TypeError::class, $result->exception);
+        self::assertSame(['onFailure'], $service->calls);
+        self::assertSame(0, DB::table('users')->count());
     }
 
     /**

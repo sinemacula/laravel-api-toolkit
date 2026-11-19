@@ -257,6 +257,38 @@ final class MaintenanceModeTest extends TestCase
     }
 
     /**
+     * Provide each strategy that defers a non-JSON request to Laravel's
+     * renderer, with the debug mode it defers under.
+     *
+     * @return iterable<string, array{string, bool}>
+     */
+    public static function deferringStrategyProvider(): iterable
+    {
+        yield 'json_when_expected' => ['json_when_expected', false];
+        yield 'auto in debug' => ['auto', true];
+    }
+
+    /**
+     * Test that a non-JSON request deferred to Laravel's renderer during
+     * maintenance mode is answered 503 with Retry-After.
+     *
+     * @param  string  $strategy
+     * @param  bool  $debug
+     * @return void
+     */
+    #[DataProvider('deferringStrategyProvider')]
+    public function testNonJsonRequestDuringMaintenanceIsServiceUnavailable(string $strategy, bool $debug): void
+    {
+        Config::set('api-toolkit.exceptions.render_strategy', $strategy);
+        Config::set('app.debug', $debug);
+
+        $response = $this->duringMaintenance(fn () => $this->get('/data', ['Accept' => 'text/html']), ['retry' => 60]);
+
+        $response->assertStatus(503);
+        $response->assertHeader('Retry-After', '60');
+    }
+
+    /**
      * Test that visiting the maintenance secret issues a valid bypass cookie.
      *
      * @return void
