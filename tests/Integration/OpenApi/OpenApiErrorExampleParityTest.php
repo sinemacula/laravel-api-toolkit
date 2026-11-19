@@ -20,16 +20,23 @@ use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
+use SineMacula\ApiToolkit\OpenApi\Exceptions\ErrorCatalogueMismatchException;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Concerns\RegistersApiExceptionHandler;
+use Tests\Concerns\ValidatesOpenApiDocuments;
+use Tests\Fixtures\Middleware\EnforceQuota;
+use Tests\Fixtures\Middleware\RequireSubscription;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\CodelessApiException;
 use Tests\Fixtures\OpenApi\ErrorParityController;
 use Tests\Fixtures\OpenApi\ParityRequestBodyController;
 use Tests\Fixtures\OpenApi\ParityUserController;
 use Tests\Fixtures\OpenApi\PathArticleController;
 use Tests\Fixtures\OpenApi\PathPlainController;
+use Tests\Fixtures\OpenApi\PathResponseHeaderController;
+use Tests\Fixtures\OpenApi\PathRouteFactsController;
 use Tests\Fixtures\OpenApi\SlowDownException;
 use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -39,7 +46,8 @@ use Tests\TestCase;
  * Parity test between the documented error responses and the rendered ones.
  *
  * Each route fails through the HTTP kernel, and the response must carry the
- * status, headers and error the document gives for it.
+ * status, headers and error the document gives for it, in a body the schema
+ * documented for that status accepts.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -52,7 +60,7 @@ use Tests\TestCase;
 #[CoversClass(ErrorExampleBuilder::class)]
 final class OpenApiErrorExampleParityTest extends TestCase
 {
-    use RegistersApiExceptionHandler;
+    use RegistersApiExceptionHandler, ValidatesOpenApiDocuments;
 
     /** @var string The prefix of a reference to an example component */
     private const string EXAMPLE_PREFIX = '#/components/examples/';
@@ -91,6 +99,9 @@ final class OpenApiErrorExampleParityTest extends TestCase
         $router->get('fail', [ErrorParityController::class, 'fail']);
         $router->get('members', [ParityUserController::class, 'index'])->middleware(ParseApiQuery::class);
         $router->get('members/{user}', [ParityUserController::class, 'show'])->middleware([ParseApiQuery::class, SubstituteBindings::class]);
+        $router->post('holds', [PathResponseHeaderController::class, 'bare']);
+        $router->get('quota', [PathPlainController::class, 'report'])->middleware(EnforceQuota::class);
+        $router->get('subscribed', [PathPlainController::class, 'report'])->middleware(RequireSubscription::class);
     }
 
     /**
@@ -107,6 +118,9 @@ final class OpenApiErrorExampleParityTest extends TestCase
         yield 'invalid input' => ['POST', '/articles', '/articles', 422];
         yield 'too many requests' => ['GET', '/limited', '/limited', 429, self::THROTTLE_HEADERS];
         yield 'unhandled' => ['GET', '/fail', '/fail', 500];
+        yield 'thrown by the action' => ['POST', '/holds', '/holds', 409];
+        yield 'thrown by middleware with its headers' => ['GET', '/quota', '/quota', 429, ['Retry-After', 'X-Quota-Reset']];
+        yield 'application code without a detail' => ['GET', '/subscribed', '/subscribed', 402, ['X-Upgrade-Url']];
     }
 
     /**
@@ -137,6 +151,7 @@ final class OpenApiErrorExampleParityTest extends TestCase
         yield 'undeclared order key' => ['/members?order=nope:desc', '/members', 10106];
         yield 'refused trashed' => ['/articles?trashed=everything', '/articles', 10106];
         yield 'limit above the ceiling' => ['/members?limit=101', '/members', 10201];
+        yield 'filters over the byte budget' => ['/members?filters=' . rawurlencode(self::oversizedFilters()), '/members', 10201];
         yield 'page below one' => ['/members?page=0', '/members', 10106];
         yield 'malformed cursor' => ['/members?cursor=malformed', '/members', 10106];
         yield 'non-string fields member' => ['/members/999?fields[users][]=name', '/members/{user}', 10106];
@@ -158,6 +173,65 @@ final class OpenApiErrorExampleParityTest extends TestCase
         $response->assertJsonPath('error.code', $code);
 
         $this->assertAnswersAsDocumented($response, 'GET', $path, 422, []);
+    }
+
+    /**
+     * Provide a failing request whose body is documented whatever the debug
+     * setting, with whether it carries debug details.
+     *
+     * @return iterable<string, array{0: string, 1: string, 2: string, 3: int, 4: bool}>
+     */
+    public static function debuggedRequestProvider(): iterable
+    {
+        yield 'invalid input' => ['POST', '/articles', '/articles', 422, false];
+        yield 'filters over the byte budget' => ['GET', '/members?filters=' . rawurlencode(self::oversizedFilters()), '/members', 422, false];
+        yield 'limit above the ceiling' => ['GET', '/members?limit=101', '/members', 422, false];
+        yield 'missing model' => ['GET', '/users/999', '/users/{user}', 404, true];
+        yield 'unhandled' => ['GET', '/fail', '/fail', 500, true];
+    }
+
+    /**
+     * Test that a failing request answers as documented with debug details
+     * included.
+     *
+     * @param  string  $method
+     * @param  string  $uri
+     * @param  string  $path
+     * @param  int  $status
+     * @param  bool  $debugged
+     * @return void
+     */
+    #[DataProvider('debuggedRequestProvider')]
+    public function testFailingRequestWithDebugInfoAnswersAsDocumented(string $method, string $uri, string $path, int $status, bool $debugged): void
+    {
+        config()->set('api-toolkit.exceptions.include_debug_info', true);
+
+        $response = $this->sendFailing($method, $uri);
+
+        self::assertSame($debugged, $response->json('error.debug') !== null);
+
+        $this->assertAnswersAsDocumented($response, $method, $path, $status, []);
+    }
+
+    /**
+     * Test that an action throwing an exception without an error code, which
+     * the handler cannot render, fails the export.
+     *
+     * @return void
+     */
+    public function testActionThrowingACodelessExceptionFailsTheExport(): void
+    {
+        $this->router()->post('holds/release', [PathRouteFactsController::class, 'release']);
+
+        $this->expectException(ErrorCatalogueMismatchException::class);
+        $this->expectExceptionMessage(sprintf(
+            '[%s] declares no error code, so the handler cannot render it; give it a CODE constant.',
+            CodelessApiException::class,
+        ));
+
+        assert($this->app !== null);
+
+        $this->app->make(ExportOpenApiComponents::class)->export();
     }
 
     /**
@@ -217,7 +291,8 @@ final class OpenApiErrorExampleParityTest extends TestCase
 
     /**
      * Assert the response carries the status, headers and error the document
-     * gives for the operation, and the document lists the forwarded headers.
+     * gives for the operation, in a body its schema accepts, and the document
+     * lists the forwarded headers.
      *
      * @param  \Illuminate\Testing\TestResponse<\Symfony\Component\HttpFoundation\Response>  $response
      * @param  string  $method
@@ -268,11 +343,26 @@ final class OpenApiErrorExampleParityTest extends TestCase
             $document['components']['examples'][$name]['value']['error'],
             Arr::only((array) $response->json('error'), ['status', 'code', 'title', 'detail']),
         );
+
+        $pointer = sprintf('/paths/%s/%s/responses/%d/content/application~1json/schema', rawurlencode(str_replace('/', '~1', $path)), strtolower($method), $status);
+        $result  = $this->validateAgainstExported($document, $pointer, json_decode((string) $response->baseResponse->getContent(), false, 512, JSON_THROW_ON_ERROR));
+
+        self::assertTrue($result->isValid(), sprintf('The %d body must validate against its documented schema: %s', $status, $this->formatErrors($result)));
     }
 
     /**
-     * Send the request, first spending the one request the throttled route
-     * allows.
+     * Build a filters document longer than the default byte budget allows.
+     *
+     * @return string
+     */
+    private static function oversizedFilters(): string
+    {
+        return (string) json_encode(['name' => ['$eq' => str_repeat('a', 8192)]]);
+    }
+
+    /**
+     * Send the request as a caller whose quota is spent, first spending the one
+     * request the throttled route allows.
      *
      * @param  string  $method
      * @param  string  $uri
@@ -284,7 +374,7 @@ final class OpenApiErrorExampleParityTest extends TestCase
             $this->json($method, $uri)->assertSuccessful();
         }
 
-        return $this->json($method, $uri);
+        return $this->json($method, $uri, [], [EnforceQuota::HEADER => 'true']);
     }
 
     /**

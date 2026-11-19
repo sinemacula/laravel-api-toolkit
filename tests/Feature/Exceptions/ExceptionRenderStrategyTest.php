@@ -77,16 +77,16 @@ final class ExceptionRenderStrategyTest extends TestCase
         $response = $this->getJson('/unhandled');
 
         $response->assertStatus(500);
-        $response->assertJsonPath('error.meta.message', 'Something broke internally');
-        $response->assertJsonPath('error.meta.exception', \RuntimeException::class);
+        $response->assertJsonPath('error.debug.message', 'Something broke internally');
+        $response->assertJsonPath('error.debug.exception', \RuntimeException::class);
 
-        $meta = $response->json('error.meta');
+        $debug = $response->json('error.debug');
 
-        self::assertIsArray($meta);
-        self::assertArrayHasKey('file', $meta);
-        self::assertArrayHasKey('line', $meta);
-        self::assertArrayHasKey('trace', $meta);
-        self::assertIsArray($meta['trace']);
+        self::assertIsArray($debug);
+        self::assertArrayHasKey('file', $debug);
+        self::assertArrayHasKey('line', $debug);
+        self::assertArrayHasKey('trace', $debug);
+        self::assertIsArray($debug['trace']);
     }
 
     /**
