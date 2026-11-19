@@ -42,6 +42,7 @@ final class SortableUserResource extends ApiResource
             })->sortable('Leaderboard over a few hundred authors'),
             Sum::of('articles', 'views', 'article_views')->sortable('Admin list of a few hundred authors'),
             Relation::to('latestArticle', ArticleResource::class)->sortable('Admin list of a few hundred authors'),
+            Relation::to('latestPost', SortableAuthoredPostResource::class)->sortable('Admin list of a few hundred authors'),
         );
     }
 }

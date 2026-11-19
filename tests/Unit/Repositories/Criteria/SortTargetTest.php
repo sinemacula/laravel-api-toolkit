@@ -53,16 +53,16 @@ final class SortTargetTest extends TestCase
     }
 
     /**
-     * Test that a related target reads the greatest value of the related column
-     * through a to-one relation.
+     * Test that a related target reads the related column as stored through a
+     * to-one relation.
      *
      * @return void
      */
-    public function testRelatedTargetReadsTheGreatestValueThroughAToOneRelation(): void
+    public function testRelatedTargetReadsTheStoredColumnThroughAToOneRelation(): void
     {
         $target = SortTarget::related('customer', 'name');
 
-        self::assertSame(['name', 'customer', AggregateFunction::MAX, null, true], $this->describe($target));
+        self::assertSame(['name', 'customer', null, null, true], $this->describe($target));
         self::assertTrue($target->isAggregate());
     }
 

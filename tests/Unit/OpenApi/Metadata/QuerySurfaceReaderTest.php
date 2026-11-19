@@ -32,6 +32,7 @@ use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\PublicUserResource;
 use Tests\Fixtures\Resources\SharedColumnMarkerResource;
+use Tests\Fixtures\Resources\SortableAuthoredPostResource;
 use Tests\Fixtures\Resources\SortableUserResource;
 use Tests\Fixtures\Resources\SplitColumnMarkerResource;
 use Tests\Fixtures\Resources\UndeclaredQueryMarkerResource;
@@ -507,13 +508,14 @@ final class QuerySurfaceReaderTest extends TestCase
             $orders[$column->property] = [$column->column, $column->sortable, $column->unindexedReason];
         }
 
-        self::assertSame([SortableUserResource::class, ArticleResource::class], array_map(static fn (QuerySurfaceDescriptor $surface): string => $surface->resource, $surfaces));
+        self::assertSame([SortableUserResource::class, ArticleResource::class, SortableAuthoredPostResource::class], array_map(static fn (QuerySurfaceDescriptor $surface): string => $surface->resource, $surfaces));
         self::assertSame([
             'name'                       => ['name', true, null],
             'aggregates.posts_count'     => ['aggregates.posts_count', true, 'Leaderboard over a few hundred authors'],
             'aggregates.published_posts' => ['aggregates.published_posts', true, 'Leaderboard over a few hundred authors'],
             'aggregates.article_views'   => ['aggregates.article_views', true, 'Admin list of a few hundred authors'],
             'latestArticle.views'        => ['latestArticle.views', true, 'Admin list of a few hundred authors'],
+            'latestPost.published'       => ['latestPost.published', true, 'Admin list of a few hundred authors'],
         ], $orders);
         self::assertSame([], $surfaces[0]->relations);
     }

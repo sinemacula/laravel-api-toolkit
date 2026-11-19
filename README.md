@@ -278,10 +278,10 @@ validation reports any other. A sortable relation renders a resource, takes no `
 caller guards on the relation, the column or the aggregate hide the key as they hide the field.
 
 The order reads the stored value before transformers, runs the aggregate's constraint, the related model's global scopes
-and the request's `trashed` state, and counts once against `max_order_keys`. A row with no related row, or one a
-`withDefault()` relation fills in, orders as `NULL`, as does a `NULL` sum, average, minimum or maximum; the engine
-places `NULL` first ascending on MySQL and SQLite and last on PostgreSQL. These keys cannot order a cursor-paginated
-read, which is refused with a `422` on `order.{key}`.
+and the request's `trashed` state, and counts once against `max_order_keys`. A relation key orders a row with no related
+row, or one a `withDefault()` relation fills in, as `NULL`, and an aggregate key orders an empty sum, average, minimum
+or maximum as `NULL` and an empty count as `0`; the engine places `NULL` first ascending on MySQL and SQLite and last on
+PostgreSQL. These keys cannot order a cursor-paginated read, which is refused with a `422` on `order.{key}`.
 
 **Page-size ceiling** - a `?limit` above `api-toolkit.parser.max_limit` (default 100) is rejected with a `422` naming
 the ceiling and the requested size, not reduced to the ceiling. Set the ceiling to `0` to disable it:

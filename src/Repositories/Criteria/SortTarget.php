@@ -33,7 +33,7 @@ final readonly class SortTarget
         /** The relation an aggregate reads through, or null for a root column */
         public ?string $relation = null,
 
-        /** The function an aggregate applies, or null for a root column */
+        /** The function an aggregate applies, or null for a root or to-one column */
         public ?AggregateFunction $function = null,
 
         /** The constraint an aggregate applies to the related rows */
@@ -68,15 +68,13 @@ final readonly class SortTarget
     /**
      * Order by a column of the single row a to-one relation renders.
      *
-     * The greatest value guards against a relation matching several rows.
-     *
      * @param  string  $relation
      * @param  string  $column
      * @return self
      */
     public static function related(string $relation, string $column): self
     {
-        return new self($column, $relation, AggregateFunction::MAX, null, true);
+        return new self($column, $relation, toOne: true);
     }
 
     /**
@@ -85,7 +83,6 @@ final readonly class SortTarget
      * @return bool
      *
      * @phpstan-assert-if-true !null $this->relation
-     * @phpstan-assert-if-true !null $this->function
      */
     public function isAggregate(): bool
     {

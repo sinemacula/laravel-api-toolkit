@@ -145,6 +145,16 @@ final class User extends Model implements AuthenticatableContract
     }
 
     /**
+     * Get the user's most recent post.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasOne<\Tests\Fixtures\Models\AuthoredPost, $this>
+     */
+    public function latestPost(): HasOne
+    {
+        return $this->hasOne(AuthoredPost::class, 'user_id')->latestOfMany();
+    }
+
+    /**
      * Get the user's comments.
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Comment, $this>

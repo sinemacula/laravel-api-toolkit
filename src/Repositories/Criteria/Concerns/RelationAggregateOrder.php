@@ -89,17 +89,12 @@ final readonly class RelationAggregateOrder
             throw new \LogicException(sprintf('A relation aggregate cannot order a query over "%s" that reads another table or a union', $model::class));
         }
 
-        $probe = $model->newModelQuery();
-
-        if ($target->toOne && !self::rendersOneRow($probe->getRelation($target->relation))) {
-            $defect = 'A sortable relation must be a BelongsTo, or a HasOne, MorphOne or HasOneThrough declared with latestOfMany() or ofMany()';
-
-            throw new InvalidSchemaException([new SchemaValidationError($resourceClass, $target->relation, $defect)]);
-        }
+        $probe  = $model->newModelQuery();
+        $column = $target->toOne ? self::relatedColumn($probe, $target->relation, $target->column, $resourceClass) : $target->column;
 
         $constraint = $this->trashedGate->gatedConstraint($target->constraint, ApiQuery::getTrashed());
 
-        $probe->withAggregate([$target->relation . ' as ' . self::ALIAS => $constraint], $target->column, $target->function->value);
+        $probe->withAggregate([$target->relation . ' as ' . self::ALIAS => $constraint], $column, $target->function?->value);
 
         $columns = $probe->getQuery()->getColumns();
         $select  = (string) end($columns);
@@ -111,5 +106,38 @@ final readonly class RelationAggregateOrder
 
         $base->orderBy(new Expression(substr($select, 0, -strlen($suffix))), $direction); // @phpstan-ignore argument.type
         $base->addBinding($probe->getQuery()->getRawBindings()['select'], 'order');
+    }
+
+    /**
+     * Name the column of the single row a to-one relation renders.
+     *
+     * The column is read as stored, so every type orders, and is qualified by
+     * its table unless the relation reaches the model's own table, whose alias
+     * the subquery then resolves.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $probe
+     * @param  string  $relation
+     * @param  string  $column
+     * @param  string  $resourceClass
+     * @return \Illuminate\Database\Query\Expression
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
+     */
+    private static function relatedColumn(Builder $probe, string $relation, string $column, string $resourceClass): Expression
+    {
+        $instance = $probe->getRelation($relation);
+
+        if (!self::rendersOneRow($instance)) {
+            $defect = 'A sortable relation must be a BelongsTo, or a HasOne, MorphOne or HasOneThrough declared with latestOfMany() or ofMany()';
+
+            throw new InvalidSchemaException([new SchemaValidationError($resourceClass, $relation, $defect)]);
+        }
+
+        $related = $instance->getRelated();
+        $name    = $related->getTable() === $probe->getModel()->getTable() ? $column : $related->qualifyColumn($column);
+
+        return new Expression($probe->getQuery()->getGrammar()->wrap($name));
     }
 }

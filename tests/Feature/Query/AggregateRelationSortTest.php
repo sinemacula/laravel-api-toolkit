@@ -153,6 +153,21 @@ final class AggregateRelationSortTest extends TestCase
     }
 
     /**
+     * Test that a relation orders by a boolean column of the row it renders,
+     * which no aggregate function reads on every engine.
+     *
+     * @return void
+     */
+    public function testRelationOrdersByABooleanColumnOfTheRowItRenders(): void
+    {
+        $response = $this->getJson('/users?order=latestPost.published:desc,name&fields[sortable_users]=name');
+
+        $response->assertOk();
+
+        self::assertSame(['Bea', 'Cy', 'Ada'], $response->json('data.*.name'));
+    }
+
+    /**
      * Test that a belongs-to relation orders by the related column, a post
      * whose author is missing, and so rendered as the default, sorting as NULL.
      *

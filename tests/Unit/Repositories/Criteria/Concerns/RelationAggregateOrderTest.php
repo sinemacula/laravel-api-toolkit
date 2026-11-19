@@ -7,7 +7,9 @@ namespace Tests\Unit\Repositories\Criteria\Concerns;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Query\Expression;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
@@ -89,14 +91,50 @@ final class RelationAggregateOrderTest extends TestCase
     }
 
     /**
-     * Test that a one-of-many relation orders by the subselect withMax() builds
-     * over the row it renders.
+     * Test that a one-of-many relation orders by the stored column of the row
+     * it renders, as a column subselect over that row.
      *
      * @return void
      */
-    public function testOneOfManyRelationMatchesWithMax(): void
+    public function testOneOfManyRelationOrdersByTheStoredColumnOfItsRow(): void
     {
-        $this->assertOrdersLike(User::query(), SortTarget::related('latestArticle', 'views'), User::query()->withMax('latestArticle', 'views'));
+        $reference = User::query()->withAggregate('latestArticle', new Expression('"articles"."views"'));
+
+        $this->assertOrdersLike(User::query(), SortTarget::related('latestArticle', 'views'), $reference);
+    }
+
+    /**
+     * Test that a belongs-to relation reads the related column qualified by its
+     * table, and a relation to the model's own table reads it through the
+     * subquery's alias.
+     *
+     * @return void
+     */
+    public function testToOneColumnIsQualifiedUnlessTheRelationReachesItsOwnTable(): void
+    {
+        $model = new #[Table('users')] class extends Model {
+            /**
+             * Get the parent user.
+             *
+             * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Illuminate\Database\Eloquent\Model, $this>
+             */
+            public function parent(): BelongsTo
+            {
+                return $this->belongsTo(self::class, 'organization_id');
+            }
+        };
+
+        $post = Post::query();
+        $self = $model->newQuery();
+
+        $this->order()->apply($post, SortTarget::related('user', 'name'), 'asc', UserResource::class);
+        $this->order()->apply($self, SortTarget::related('parent', 'name'), 'asc', UserResource::class);
+
+        self::assertSame('(select "users"."name" from "users" where "posts"."user_id" = "users"."id" limit 1)', $this->orderSql($post));
+        self::assertSame(
+            '(select "name" from "users" as "laravel_reserved_0" where "laravel_reserved_0"."id" = "users"."organization_id" limit 1)',
+            $this->orderSql($self),
+        );
     }
 
     /**

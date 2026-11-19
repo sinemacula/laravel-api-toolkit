@@ -9,7 +9,8 @@ use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
 
 /**
- * Fixture post resource ordered by its author, who may be missing.
+ * Fixture post resource ordered by its author, who may be missing, or by
+ * whether it is published.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -33,6 +34,7 @@ final class SortableAuthoredPostResource extends ApiResource
         return Field::set(
             Field::scalar('id'),
             Field::scalar('title'),
+            Field::scalar('published')->sortable(),
             Relation::to('author', SortableUserResource::class)->sortable('Back-office post list'),
         );
     }
