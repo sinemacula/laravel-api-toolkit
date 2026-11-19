@@ -7,6 +7,7 @@ namespace Tests\Integration\Providers\Registrars;
 use Illuminate\Cache\DatabaseStore;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Events\MigrationsEnded;
+use Illuminate\Database\Events\SchemaLoaded;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Events\RequestHandled;
@@ -181,7 +182,8 @@ final class LifecycleRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the migration invalidation listener is wired when enabled.
+     * Test that the migration invalidation listener is wired to migration runs
+     * and schema loads when enabled.
      *
      * @return void
      */
@@ -199,6 +201,7 @@ final class LifecycleRegistrarTest extends TestCase
         $events = $this->getApplication()->make('events');
 
         self::assertTrue($events->hasListeners(MigrationsEnded::class));
+        self::assertTrue($events->hasListeners(SchemaLoaded::class));
     }
 
     /**
@@ -240,6 +243,7 @@ final class LifecycleRegistrarTest extends TestCase
         $events = $this->getApplication()->make('events');
 
         self::assertFalse($events->hasListeners(MigrationsEnded::class));
+        self::assertFalse($events->hasListeners(SchemaLoaded::class));
     }
 
     /**

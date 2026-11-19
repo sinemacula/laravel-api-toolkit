@@ -21,18 +21,20 @@ final class UnreachableCacheStore
     public const string MESSAGE = 'The cache store is unreachable.';
 
     /**
-     * Make the unreachable store the default cache store of the application.
+     * Make the unreachable store the default cache store of the application,
+     * failing every operation with the given throwable.
      *
      * @param  \Illuminate\Contracts\Foundation\Application  $app
+     * @param  \Throwable|null  $failure
      * @return void
      */
-    public static function install(Application $app): void
+    public static function install(Application $app, ?\Throwable $failure = null): void
     {
         $store = \Mockery::mock(Store::class);
 
         $store->shouldReceive('getPrefix')->andReturn('');
         $store->shouldReceive('get', 'many', 'put', 'putMany', 'increment', 'decrement', 'forever', 'touch', 'forget', 'flush')
-            ->andThrow(new \RuntimeException(self::MESSAGE));
+            ->andThrow($failure ?? new \RuntimeException(self::MESSAGE));
 
         /** @var \Illuminate\Cache\CacheManager $cache */
         $cache = $app->make('cache');
