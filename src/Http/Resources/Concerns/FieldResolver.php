@@ -83,6 +83,19 @@ final class FieldResolver
     }
 
     /**
+     * Resolve the selected fields after exclusions, without the fixed fields.
+     *
+     * @param  class-string<\SineMacula\ApiToolkit\Contracts\ApiResourceInterface>  $resourceClass
+     * @return array<int, string>
+     */
+    public function getSelectedFields(string $resourceClass): array
+    {
+        $fields = self::effectiveFields($resourceClass, $this->fields, $this->all);
+
+        return array_values(array_unique(array_diff($fields, $this->excludedFields ?? [])));
+    }
+
+    /**
      * Resolve the fields a resource selects before exclusions and fixed fields.
      *
      * Pinned fields win, then all fields with the aggregates payload, then the

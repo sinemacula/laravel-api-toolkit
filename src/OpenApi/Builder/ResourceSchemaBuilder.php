@@ -13,7 +13,6 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
-use SineMacula\ApiToolkit\OpenApi\Metadata\DispatchableOperators;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaComponentName;
 use SineMacula\ApiToolkit\OpenApi\Naming\SchemaNameCollisionGuard;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
@@ -436,7 +435,7 @@ final readonly class ResourceSchemaBuilder
         }
 
         $capability = $columns[$field->filterable];
-        $operators  = DispatchableOperators::forCapability($capability, $this->catalogue->getOperatorTokens());
+        $operators  = $this->catalogue->getOperatorsFor($capability);
 
         if ($operators === []) {
             return null;

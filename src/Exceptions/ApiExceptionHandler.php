@@ -205,40 +205,46 @@ final class ApiExceptionHandler
     /**
      * Convert the given API exception to an array.
      *
+     * The detail is always present; the title, the meta, rendered as an object,
+     * and the debug details are left out when empty.
+     *
      * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
      * @param  bool  $includeDebug
      * @return array<string, array<string, mixed>>
      */
     private static function convertApiExceptionToArray(ApiException $exception, bool $includeDebug): array
     {
+        $title = $exception->getCustomTitle();
+        $meta  = $exception->getCustomMeta() ?? [];
+
         return [
             'error' => array_filter([
                 'status' => $exception->getStatusCode(),
                 'code'   => $exception::getInternalErrorCode(),
-                'title'  => $exception->getCustomTitle(),
+                'title'  => $title === '' ? null : $title,
                 'detail' => $exception->getCustomDetail(),
-                'meta'   => self::getApiExceptionMeta($exception, $includeDebug),
-            ], static fn ($value): bool => (bool) $value),
+                'meta'   => $meta === [] ? null : (object) $meta,
+                'debug'  => $includeDebug ? self::getDebugInfo($exception) : null,
+            ], static fn (mixed $value): bool => $value !== null),
         ];
     }
 
     /**
-     * Extracts meta information for an API exception.
+     * Describe the throwable the API exception was mapped from, if any.
      *
      * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $exception
-     * @param  bool  $includeDebug
      * @return array<string, mixed>|null
      */
-    private static function getApiExceptionMeta(ApiException $exception, bool $includeDebug): ?array
+    private static function getDebugInfo(ApiException $exception): ?array
     {
         $previous = $exception->getPrevious();
 
-        return $includeDebug && $previous !== null ? array_merge($exception->getCustomMeta() ?? [], [
+        return $previous === null ? null : [
             'message'   => $previous->getMessage(),
             'exception' => $previous::class,
             'file'      => $previous->getFile(),
             'line'      => $previous->getLine(),
             'trace'     => collect($previous->getTrace())->map(fn ($trace) => Arr::except($trace, ['args']))->all(),
-        ]) : $exception->getCustomMeta();
+        ];
     }
 }

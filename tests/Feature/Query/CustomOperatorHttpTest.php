@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
@@ -45,12 +46,12 @@ final class CustomOperatorHttpTest extends TestCase
 
         $this->registerApiExceptionHandler();
 
-        app(OperatorRegistry::class)->override('$starts', static function (Builder $query, string $column, mixed $value): void {
+        app(OperatorRegistry::class)->register('$starts', static function (Builder $query, string $column, mixed $value): void {
 
             $term = is_scalar($value) ? (string) $value : '';
 
             $query->where($column, 'like', $term . '%');
-        });
+        }, Capability::EXACT);
 
         Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
 
@@ -83,5 +84,26 @@ final class CustomOperatorHttpTest extends TestCase
         $names = array_column((array) $response->json('data'), 'name');
 
         self::assertEqualsCanonicalizing(['Alice', 'Alan'], $names);
+    }
+
+    /**
+     * Test that the custom operator is refused on a column whose capability it
+     * was not registered with.
+     *
+     * @return void
+     */
+    public function testCustomOperatorIsRefusedOnAColumnItsCapabilitiesDoNotAdmit(): void
+    {
+        $filters = json_encode(['id' => ['$starts' => '1']]);
+
+        $response = $this->getJson('/users?filters=' . urlencode((string) $filters));
+
+        $accepts = '$eq, $in, $gt, $ge, $lt, $le, $between, $null, $notNull';
+
+        $response->assertStatus(422);
+        $response->assertJsonPath(
+            'error.meta',
+            ['filters.id.$starts' => ['The "$starts" operator is not permitted on the "id" key for this resource, which accepts ' . $accepts . '.']],
+        );
     }
 }

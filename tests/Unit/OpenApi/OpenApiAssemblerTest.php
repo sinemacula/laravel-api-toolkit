@@ -8,6 +8,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route as RouteFacade;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
@@ -71,6 +72,7 @@ use Tests\Fixtures\OpenApi\StatusNamedShape;
 use Tests\Fixtures\OpenApi\UserNamedShape;
 use Tests\Fixtures\OpenApi\WidgetShape;
 use Tests\Fixtures\Resources\EnvelopeNamedResource;
+use Tests\Fixtures\Resources\ErrorNamedResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -286,11 +288,12 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that reachable resource schemas appear beside the error envelope.
+     * Test that reachable resource schemas appear beside the envelope of each
+     * referenced error code, and no shared error envelope.
      *
      * @return void
      */
-    public function testResourceAndEnvelopeSchemasArePresent(): void
+    public function testResourceAndErrorEnvelopeSchemasArePresent(): void
     {
         $this->registerUserRoutes();
 
@@ -299,7 +302,8 @@ final class OpenApiAssemblerTest extends TestCase
         self::assertIsArray($schemas);
         self::assertArrayHasKey('User', $schemas);
         self::assertArrayHasKey('Organization', $schemas);
-        self::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
+        self::assertArrayHasKey('Error10001', $schemas);
+        self::assertArrayNotHasKey('ErrorEnvelope', $schemas);
     }
 
     /**
@@ -521,16 +525,35 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
-     * Test that the error envelope is kept even without any paths.
+     * Test that a document without paths carries no error envelope.
      *
      * @return void
      */
-    public function testSharedErrorEnvelopeSurvivesWithoutPaths(): void
+    public function testDocumentWithoutPathsCarriesNoErrorEnvelope(): void
     {
         $schemas = $this->assembleEmptyAudience()['components']['schemas'];
 
         self::assertIsArray($schemas);
-        self::assertArrayHasKey(ErrorResponseBuilder::ENVELOPE_SCHEMA_NAME, $schemas);
+        self::assertSame([], preg_grep('/^Error/', array_map(strval(...), array_keys($schemas))));
+    }
+
+    /**
+     * Test that a resource named like an error envelope collides only once a
+     * path references its code.
+     *
+     * @return void
+     */
+    public function testResourceNamedLikeAnErrorEnvelopeCollidesOnceItsCodeIsReferenced(): void
+    {
+        $this->router()->get('users/{user}', [PathFixtureController::class, 'show']);
+
+        $this->makeAssembler([Organization::class => ErrorNamedResource::class])->assemble();
+
+        $this->router()->post('users', [PathRequestBodyController::class, 'formRequest']);
+
+        $this->expectCollision('Error10106', ErrorNamedResource::class, ErrorResponseBuilder::class);
+
+        $this->makeAssembler([Organization::class => ErrorNamedResource::class])->assemble();
     }
 
     /**
@@ -1093,6 +1116,9 @@ final class OpenApiAssemblerTest extends TestCase
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn($resourceMap);
         $catalogue->method('getOperatorTokens')->willReturn(['$eq', '$neq']);
+        $catalogue->method('getOperatorsFor')->willReturnCallback(
+            static fn (Capability $capability): array => array_values(array_intersect($capability->defaultOperators(), ['$eq', '$neq'])),
+        );
         $catalogue->method('getStructuralOperators')->willReturn(['$and', '$or']);
         $catalogue->method('getErrorCatalogue')->willReturn($this->app->make(ErrorCatalogueReader::class)->read());
 

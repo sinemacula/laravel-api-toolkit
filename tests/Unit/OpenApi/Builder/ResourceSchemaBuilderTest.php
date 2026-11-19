@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\SchemaNameCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
@@ -803,15 +804,16 @@ final class ResourceSchemaBuilderTest extends TestCase
             conditionalSortKeys  : ['name' => ['name']],
         );
 
-        $properties = $this->buildGhost($schema, ['$eq'])['properties'];
+        $properties = $this->buildGhost($schema)['properties'];
+        $operators  = ['$eq', '$in', '$null', '$notNull'];
 
         self::assertSame([
-            'filter' => ['key' => 'email', 'capability' => 'exact', 'operators' => ['$eq'], 'conditional' => true],
+            'filter' => ['key' => 'email', 'capability' => 'exact', 'operators' => $operators, 'conditional' => true],
             'sort'   => ['key' => 'email', 'indexed' => true],
         ], $properties['email']['x-query-surface']);
 
         self::assertSame([
-            'filter' => ['key' => 'name', 'capability' => 'exact', 'operators' => ['$eq']],
+            'filter' => ['key' => 'name', 'capability' => 'exact', 'operators' => $operators],
             'sort'   => ['key' => 'name', 'indexed' => true, 'conditional' => true],
         ], $properties['name']['x-query-surface']);
     }
@@ -929,17 +931,41 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that an operator gone from the vocabulary is dropped.
+     * Test that a registered token is documented on the columns its
+     * capabilities admit, and only those.
      *
      * @return void
      */
-    public function testAnOperatorTheVocabularyNoLongerHoldsIsNotDocumented(): void
+    public function testARegisteredTokenIsDocumentedOnlyOnTheColumnsItsCapabilitiesAdmit(): void
+    {
+        $schema = new CompiledSchema(
+            ['id' => $this->queryableField(filterable: 'id', capability: Capability::RANGE), 'email' => $this->queryableField(filterable: 'email', capability: Capability::EXACT)],
+            [],
+            ['id' => Capability::RANGE, 'email' => Capability::EXACT],
+        );
+
+        $this->registry()->register('$starts', static function (): void {}, Capability::RANGE);
+
+        $properties = $this->buildGhost($schema)['properties'];
+
+        self::assertSame(['$eq', '$in', '$gt', '$ge', '$lt', '$le', '$between', '$null', '$notNull', '$starts'], $properties['id']['x-query-surface']['filter']['operators']);
+        self::assertSame(['$eq', '$in', '$null', '$notNull'], $properties['email']['x-query-surface']['filter']['operators']);
+    }
+
+    /**
+     * Test that an operator removed from the registry is not documented.
+     *
+     * @return void
+     */
+    public function testARemovedOperatorIsNotDocumented(): void
     {
         $field  = $this->queryableField(filterable: 'id', capability: Capability::RANGE);
         $schema = new CompiledSchema(['id' => $field], [], ['id' => Capability::RANGE]);
 
-        $vocabulary = array_values(array_diff($this->vocabulary(), ['$in', '$between']));
-        $properties = $this->buildGhost($schema, $vocabulary)['properties'];
+        $this->registry()->remove('$in');
+        $this->registry()->remove('$between');
+
+        $properties = $this->buildGhost($schema)['properties'];
 
         self::assertSame([
             'key'        => 'id',
@@ -963,8 +989,9 @@ final class ResourceSchemaBuilderTest extends TestCase
             ['payload'],
         );
 
-        $vocabulary = array_values(array_diff($this->vocabulary(), ['$contains']));
-        $surface    = $this->buildGhost($schema, $vocabulary)['properties']['payload']['x-query-surface'];
+        $this->registry()->remove('$contains');
+
+        $surface = $this->buildGhost($schema)['properties']['payload']['x-query-surface'];
 
         self::assertIsArray($surface);
         self::assertArrayNotHasKey('filter', $surface);
@@ -1169,15 +1196,14 @@ final class ResourceSchemaBuilderTest extends TestCase
      * table.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $schema
-     * @param  array<int, string>|null  $vocabulary
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
      * @return array<string, mixed>
      */
-    private function buildGhost(CompiledSchema $schema, ?array $vocabulary = null, string $modelClass = User::class): array
+    private function buildGhost(CompiledSchema $schema, string $modelClass = User::class): array
     {
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
 
-        return $this->makeGhostBuilder([$modelClass => 'GhostResource'], $vocabulary)->build()['Ghost'];
+        return $this->makeGhostBuilder([$modelClass => 'GhostResource'])->build()['Ghost'];
     }
 
     /**
@@ -1273,14 +1299,14 @@ final class ResourceSchemaBuilderTest extends TestCase
      * Build a ResourceSchemaBuilder over the given resource map.
      *
      * @param  array<class-string, class-string>  $resourceMap
-     * @param  array<int, string>|null  $vocabulary
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder
      */
-    private function makeBuilder(array $resourceMap, ?array $vocabulary = null): ResourceSchemaBuilder
+    private function makeBuilder(array $resourceMap): ResourceSchemaBuilder
     {
+        $registry  = $this->registry();
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn($resourceMap);
-        $catalogue->method('getOperatorTokens')->willReturn($vocabulary ?? $this->vocabulary());
+        $catalogue->method('getOperatorsFor')->willReturnCallback($registry->tokensFor(...));
 
         return new ResourceSchemaBuilder($catalogue, $this->resolver(), $this->introspector());
     }
@@ -1289,23 +1315,22 @@ final class ResourceSchemaBuilderTest extends TestCase
      * Build a builder over a stubbed compiled schema keyed by an unmapped name.
      *
      * @param  array<string, string>  $resourceMap
-     * @param  array<int, string>|null  $vocabulary
      * @return \SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder
      */
-    private function makeGhostBuilder(array $resourceMap, ?array $vocabulary = null): ResourceSchemaBuilder
+    private function makeGhostBuilder(array $resourceMap): ResourceSchemaBuilder
     {
         /** @var array<class-string, class-string> $resourceMap */
-        return $this->makeBuilder($resourceMap, $vocabulary);
+        return $this->makeBuilder($resourceMap);
     }
 
     /**
-     * The operator tokens the package registers by default.
+     * Return the bound operator registry, seeded with the shipped operators.
      *
-     * @return array<int, string>
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry
      */
-    private function vocabulary(): array
+    private function registry(): OperatorRegistry
     {
-        return ['$eq', '$neq', '$gt', '$lt', '$ge', '$le', '$in', '$between', '$contains', '$null', '$notNull'];
+        return app(OperatorRegistry::class);
     }
 
     /**
