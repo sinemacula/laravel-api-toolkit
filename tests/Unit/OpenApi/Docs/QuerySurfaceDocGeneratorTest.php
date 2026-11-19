@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\OpenApi\Docs;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\OpenApi\Docs\Module;
@@ -13,6 +14,9 @@ use SineMacula\ApiToolkit\OpenApi\Docs\QuerySurfaceDocGenerator;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
+use Tests\Fixtures\Models\User;
 use Tests\Fixtures\OpenApi\MappedModuleResolver;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -300,6 +304,29 @@ final class QuerySurfaceDocGeneratorTest extends TestCase
             '| `status` | `status` | `enum` | `$eq`, `$in`, `$neq`, `$null`, `$notNull` | - | - |',
             $markdown,
         );
+    }
+
+    /**
+     * Test that each column is tabled with the registered operators its
+     * capability admits, and with no filter once it admits none.
+     *
+     * @return void
+     */
+    public function testColumnsAreTabledWithTheRegisteredOperatorsTheirCapabilityAdmits(): void
+    {
+        $registry = app(OperatorRegistry::class);
+
+        $registry->register('$starts', static function (): void {}, Capability::ENUM);
+
+        foreach (['$eq', '$in', '$null', '$notNull'] as $token) {
+            $registry->remove($token);
+        }
+
+        $surfaces = (new QuerySurfaceReader(app(SchemaIntrospectionProvider::class)))->read([User::class => UserResource::class], $registry);
+        $markdown = $this->combinedGenerator()->generate($surfaces, [], []);
+
+        self::assertStringContainsString('| `status` | `status` | `enum` | `$neq`, `$starts` | Index-backed | - |', $markdown);
+        self::assertStringContainsString('| `email` | `email` | - | - | Index-backed | - |', $markdown);
     }
 
     /**

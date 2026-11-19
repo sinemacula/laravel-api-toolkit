@@ -20,7 +20,7 @@ use SineMacula\ApiToolkit\Enums\Capability;
 #[CoversClass(Capability::class)]
 final class CapabilityTest extends TestCase
 {
-    /** @var array<string, array<int, string>> The permitted matrix restated by token, independent of the enum */
+    /** @var array<string, array<int, string>> The default matrix restated by token, in case order, independent of the enum */
     private const array MATRIX = [
         '$eq'       => ['exact', 'enum', 'range', 'opaque'],
         '$neq'      => ['enum'],
@@ -77,11 +77,11 @@ final class CapabilityTest extends TestCase
     }
 
     /**
-     * Provide every case with the exact operator tokens it permits.
+     * Provide every case with the exact operator tokens it holds by default.
      *
      * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\Capability, array<int, string>}>
      */
-    public static function permittedOperatorProvider(): iterable
+    public static function defaultOperatorProvider(): iterable
     {
         yield 'exact' => [Capability::EXACT, ['$eq', '$in', '$null', '$notNull']];
         yield 'enum' => [Capability::ENUM, ['$eq', '$in', '$neq', '$null', '$notNull']];
@@ -91,129 +91,71 @@ final class CapabilityTest extends TestCase
     }
 
     /**
-     * Test that each case permits exactly the operator tokens its access path
+     * Test that each case holds exactly the operator tokens its access path
      * serves.
      *
      * @param  \SineMacula\ApiToolkit\Enums\Capability  $capability
      * @param  array<int, string>  $expected
      * @return void
      */
-    #[DataProvider('permittedOperatorProvider')]
-    public function testPermittedOperatorsAreExactlyTheDeclaredTokens(Capability $capability, array $expected): void
+    #[DataProvider('defaultOperatorProvider')]
+    public function testDefaultOperatorsAreExactlyTheDeclaredTokens(Capability $capability, array $expected): void
     {
-        self::assertSame($expected, $capability->permittedOperators());
+        self::assertSame($expected, $capability->defaultOperators());
     }
 
     /**
-     * Provide every capability paired with every shipped operator token and
-     * whether it is permitted.
+     * Provide every shipped operator token with the cases admitting it.
      *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\Capability, string, bool}>
+     * @return iterable<string, array{string, array<int, \SineMacula\ApiToolkit\Enums\Capability>}>
      */
-    public static function matrixProvider(): iterable
+    public static function admittingProvider(): iterable
     {
-        foreach (self::MATRIX as $token => $permitted) {
-            foreach (Capability::cases() as $capability) {
-                yield $capability->value . ' ' . $token => [$capability, $token, in_array($capability->value, $permitted, true)];
-            }
+        foreach (self::MATRIX as $token => $admitting) {
+            yield $token => [$token, array_map(Capability::from(...), $admitting)];
         }
     }
 
     /**
-     * Test that every capability permits and refuses each shipped token as the
-     * matrix says.
+     * Test that each shipped token is admitted by exactly the cases whose
+     * defaults hold it, in case order.
      *
-     * @param  \SineMacula\ApiToolkit\Enums\Capability  $capability
      * @param  string  $token
-     * @param  bool  $expected
+     * @param  array<int, \SineMacula\ApiToolkit\Enums\Capability>  $expected
      * @return void
      */
-    #[DataProvider('matrixProvider')]
-    public function testPermitsAnswersEveryTokenAsTheMatrixSays(Capability $capability, string $token, bool $expected): void
+    #[DataProvider('admittingProvider')]
+    public function testAdmittingListsTheCasesWhoseDefaultsHoldTheToken(string $token, array $expected): void
     {
-        self::assertSame($expected, $capability->permits($token));
+        self::assertSame($expected, Capability::admitting($token));
     }
 
     /**
-     * Provide every case with a token no operator ships under.
+     * Provide tokens no case holds by default.
      *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Enums\Capability, string}>
+     * @return iterable<string, array{string}>
      */
     public static function unknownTokenProvider(): iterable
     {
-        foreach (Capability::cases() as $capability) {
-            yield $capability->value . ' like' => [$capability, '$like'];
-            yield $capability->value . ' bare' => [$capability, 'eq'];
-            yield $capability->value . ' empty' => [$capability, ''];
-        }
-    }
-
-    /**
-     * Test that a token outside the shipped vocabulary is refused by every
-     * capability.
-     *
-     * @param  \SineMacula\ApiToolkit\Enums\Capability  $capability
-     * @param  string  $token
-     * @return void
-     */
-    #[DataProvider('unknownTokenProvider')]
-    public function testUnknownTokenIsRefusedByEveryCapability(Capability $capability, string $token): void
-    {
-        self::assertFalse($capability->permits($token));
-    }
-
-    /**
-     * Provide every shipped operator token.
-     *
-     * @return iterable<string, array{string}>
-     */
-    public static function shippedTokenProvider(): iterable
-    {
-        foreach (array_keys(self::MATRIX) as $token) {
-            yield $token => [$token];
-        }
-    }
-
-    /**
-     * Test that the matrix reports itself as governing every token it ships.
-     *
-     * @param  string  $token
-     * @return void
-     */
-    #[DataProvider('shippedTokenProvider')]
-    public function testGovernsEveryShippedToken(string $token): void
-    {
-        self::assertTrue(Capability::governs($token));
-    }
-
-    /**
-     * Provide tokens no capability mentions.
-     *
-     * @return iterable<string, array{string}>
-     */
-    public static function ungovernedTokenProvider(): iterable
-    {
         yield 'application registered' => ['$starts'];
-        yield 'deleted from the package' => ['$like'];
         yield 'bare' => ['eq'];
         yield 'empty' => [''];
     }
 
     /**
-     * Test that a token no capability mentions is reported as ungoverned,
-     * leaving it to the application.
+     * Test that a token no case holds by default is admitted by none.
      *
      * @param  string  $token
      * @return void
      */
-    #[DataProvider('ungovernedTokenProvider')]
-    public function testDoesNotGovernATokenNoCapabilityMentions(string $token): void
+    #[DataProvider('unknownTokenProvider')]
+    public function testAdmittingIsEmptyForATokenNoCaseHolds(string $token): void
     {
-        self::assertFalse(Capability::governs($token));
+        self::assertSame([], Capability::admitting($token));
     }
 
     /**
-     * Test that every shipped token is permitted by at least one capability.
+     * Test that every shipped token is held by at least one capability.
      *
      * @return void
      */
@@ -222,7 +164,7 @@ final class CapabilityTest extends TestCase
         $reachable = [];
 
         foreach (Capability::cases() as $capability) {
-            $reachable = [...$reachable, ...$capability->permittedOperators()];
+            $reachable = [...$reachable, ...$capability->defaultOperators()];
         }
 
         $reachable = array_values(array_unique($reachable));

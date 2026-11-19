@@ -7,6 +7,7 @@ namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Config\ResourceSettings;
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
@@ -71,6 +72,19 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
     }
 
     /**
+     * Return the registered filter operator tokens a column declaring the
+     * capability answers.
+     *
+     * @param  \SineMacula\ApiToolkit\Enums\Capability  $capability
+     * @return array<int, string>
+     */
+    #[\Override]
+    public function getOperatorsFor(Capability $capability): array
+    {
+        return $this->registry->tokensFor($capability);
+    }
+
+    /**
      * Return the structural filter operators the filter engine dispatches.
      *
      * @return array<int, string>
@@ -102,7 +116,7 @@ final readonly class ConfigMetadataCatalogue implements MetadataCatalogue
     #[\Override]
     public function getQuerySurfaces(): array
     {
-        return $this->surfaceReader->read($this->getResourceMap(), $this->getOperatorTokens());
+        return $this->surfaceReader->read($this->getResourceMap(), $this->registry);
     }
 
     /**

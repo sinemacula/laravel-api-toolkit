@@ -679,8 +679,8 @@ abstract class TestCase extends OrchestraTestCase
     }
 
     /**
-     * Create the typed widgets table, holding one column per common column type
-     * and cast, each with a nullable twin.
+     * Create the typed widgets table, holding one column per column type and
+     * cast, the common ones with a nullable twin.
      *
      * @return void
      */
@@ -711,6 +711,49 @@ abstract class TestCase extends OrchestraTestCase
                     $column->nullable($nullable);
                 }
             }
+
+            $table->bigInteger('type_big_integer');
+            $table->integer('type_integer');
+            $table->mediumInteger('type_medium_integer');
+            $table->smallInteger('type_small_integer');
+            $table->tinyInteger('type_tiny_integer');
+            $table->float('type_float');
+            $table->float('type_real', 24);
+            $table->double('type_double');
+            $table->char('type_char', 3);
+            $table->string('type_string');
+            $table->tinyText('type_tiny_text');
+            $table->text('type_text');
+            $table->mediumText('type_medium_text');
+            $table->longText('type_long_text');
+            $table->enum('type_enum', ['small', 'large']);
+            $table->json('type_json');
+            $table->jsonb('type_jsonb');
+            $table->ulid('type_ulid');
+            $table->date('type_date');
+            $table->dateTimeTz('type_date_time_tz');
+            $table->timeTz('type_time_tz');
+            $table->timestamp('type_timestamp');
+            $table->timestampTz('type_timestamp_tz');
+            $table->binary('type_binary')->nullable();
+
+            $table->string('cast_integer');
+            $table->decimal('cast_float', 8, 2);
+            $table->integer('cast_string');
+            $table->dateTime('cast_timestamp');
+            $table->dateTime('cast_datetime');
+            $table->date('cast_immutable_date');
+            $table->date('cast_formatted_date');
+            $table->dateTime('cast_formatted_immutable_datetime');
+            $table->text('cast_encrypted');
+            $table->string('cast_hashed');
+            $table->string('cast_stringable');
+            $table->string('cast_uri');
+            $table->json('cast_json');
+            $table->json('cast_object');
+            $table->text('cast_encrypted_object');
+            $table->json('cast_array_object');
+            $table->string('cast_custom');
 
             $table->timestamps();
 

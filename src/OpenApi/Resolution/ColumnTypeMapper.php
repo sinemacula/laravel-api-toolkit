@@ -4,44 +4,55 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
+use Illuminate\Database\Eloquent\Casts\AsStringable;
+use Illuminate\Database\Eloquent\Casts\AsUri;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
 
 /**
- * Maps a column definition and optional model cast to an OpenAPI field schema.
+ * Maps a column definition and optional model cast to the OpenAPI schema of the
+ * value Eloquent returns for it.
  *
- * A cast wins over the column type, except where the column adds a format to a
- * cast of the same type; an unresolved type is flagged undocumented, never
+ * A present cast decides, though the column may add a format to a cast of the
+ * same type; a value with no fixed shape is flagged undocumented, never
  * guessed.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ColumnTypeMapper
+final readonly class ColumnTypeMapper
 {
-    /** Scalar cast names and the schema type each resolves to */
+    /** Cast names and the schema type of the value each returns */
     private const array SCALAR_CASTS = [
-        'bool'    => 'boolean',
-        'boolean' => 'boolean',
-        'int'     => 'integer',
-        'integer' => 'integer',
-        'float'   => 'number',
-        'double'  => 'number',
-        'real'    => 'number',
-        'string'  => 'string',
+        'bool'      => 'boolean',
+        'boolean'   => 'boolean',
+        'int'       => 'integer',
+        'integer'   => 'integer',
+        'timestamp' => 'integer',
+        'float'     => 'number',
+        'double'    => 'number',
+        'real'      => 'number',
+        'string'    => 'string',
+        'encrypted' => 'string',
+        'hashed'    => 'string',
     ];
 
-    /** Cast names that resolve to a date-time schema */
-    private const array DATE_TIME_CASTS = ['datetime', 'immutable_datetime', 'timestamp'];
+    /** Cast names, bare or before a format, that return a Carbon instance */
+    private const array DATE_CASTS = ['date', 'datetime', 'immutable_date', 'immutable_datetime'];
 
-    /** Cast names that resolve to a date schema */
-    private const array DATE_CASTS = ['date', 'immutable_date'];
+    /** Cast classes whose value serialises to a string */
+    private const array STRING_CLASS_CASTS = [AsStringable::class, AsUri::class];
 
-    /** Cast names that resolve to an array schema */
-    private const array ARRAY_CASTS = ['array', 'json', 'collection', 'encrypted:array', 'encrypted:collection', 'asarrayobject', 'ascollection'];
+    /**
+     * Constructor.
+     *
+     * @param  bool  $fetchesNativeFloats
+     */
+    public function __construct(
 
-    /** Cast names that resolve to an object schema */
-    private const array OBJECT_CASTS = ['object'];
+        /** Whether PostgreSQL float4 and float8 columns fetch as floats, as they do from PHP 8.4 */
+        private bool $fetchesNativeFloats = PHP_VERSION_ID >= 80400,
+    ) {}
 
     /**
      * Map a column definition (with an optional cast) to a resolved schema.
@@ -55,9 +66,9 @@ final class ColumnTypeMapper
      */
     public function map(?ColumnDefinition $column, ?string $cast = null): OpenApiFieldSchema
     {
-        $fromCast   = $this->resolveFromCast($cast);
         $fromColumn = $column !== null ? $this->resolveFromTypeName($column->typeName) : null;
-        $resolved   = $this->refines($fromColumn, $fromCast) ? $fromColumn : $fromCast ?? $fromColumn;
+        $fromCast   = $cast   !== null ? $this->resolveFromCast($cast) : null;
+        $resolved   = $cast === null || $this->refines($fromColumn, $fromCast) ? $fromColumn : $fromCast;
 
         if ($resolved === null) {
             return OpenApiFieldSchema::undocumented();
@@ -87,27 +98,23 @@ final class ColumnTypeMapper
     }
 
     /**
-     * Resolve a schema shape from a model cast.
+     * Resolve a schema shape from a model cast, read as Eloquent reads it: a
+     * bare name in any case and trimmed, a date or decimal argument after a
+     * lower-case prefix.
      *
-     * @param  string|null  $cast
+     * @param  string  $cast
      * @return array{type: string, format?: string}|null
      */
-    private function resolveFromCast(?string $cast): ?array
+    private function resolveFromCast(string $cast): ?array
     {
-        if ($cast === null) {
-            return null;
-        }
-
-        $normalised = strtolower($cast);
-        $base       = strtok($normalised, ':') ?: $normalised;
+        $normalised = trim(strtolower($cast));
 
         return match (true) {
-            isset(self::SCALAR_CASTS[$normalised])       => ['type' => self::SCALAR_CASTS[$normalised]],
-            in_array($base, self::DATE_TIME_CASTS, true) => ['type' => 'string', 'format' => 'date-time'],
-            in_array($base, self::DATE_CASTS, true)      => ['type' => 'string', 'format' => 'date'],
-            in_array($normalised, self::ARRAY_CASTS, true)
-                || in_array($base, self::ARRAY_CASTS, true) => ['type' => 'array'],
-            in_array($base, self::OBJECT_CASTS, true)       => ['type' => 'object'],
+            isset(self::SCALAR_CASTS[$normalised]) => ['type' => self::SCALAR_CASTS[$normalised]],
+            in_array($normalised, self::DATE_CASTS, true),
+            in_array(strstr($cast, ':', true), self::DATE_CASTS, true) => ['type' => 'string', 'format' => 'date-time'],
+            str_starts_with($cast, 'decimal:'),
+            in_array($cast, self::STRING_CLASS_CASTS, true) => ['type' => 'string'],
             default                                         => null,
         };
     }
@@ -122,63 +129,47 @@ final class ColumnTypeMapper
     {
         $normalised = strtolower($typeName);
 
-        return $this->resolveScalarType($normalised)
-            ?? $this->resolveTemporalType($normalised)
-            ?? $this->resolveStructuredType($normalised);
+        return $this->resolveTextType($normalised) ?? $this->resolveNumericType($normalised);
     }
 
     /**
-     * Resolve string, integer, number and boolean column types.
+     * Resolve the column types fetched as strings.
+     *
+     * A date-time or time is the driver's own string, which no format
+     * describes.
      *
      * @param  string  $typeName
      * @return array{type: string, format?: string}|null
      */
-    private function resolveScalarType(string $typeName): ?array
+    private function resolveTextType(string $typeName): ?array
     {
         return match ($typeName) {
-            'char', 'varchar', 'text', 'tinytext', 'mediumtext',
-            'longtext', 'string', 'enum', 'set' => ['type' => 'string'],
-            'uuid'                              => ['type' => 'string', 'format' => 'uuid'],
-            'bigint', 'int', 'integer', 'mediumint', 'smallint',
-            'tinyint', 'serial', 'bigserial' => ['type' => 'integer'],
-            'decimal', 'numeric', 'float', 'double',
-            'real', 'money'   => ['type' => 'number'],
-            'boolean', 'bool' => ['type' => 'boolean'],
-            default           => null,
-        };
-    }
-
-    /**
-     * Resolve date, date-time and time column types.
-     *
-     * @param  string  $typeName
-     * @return array{type: string, format?: string}|null
-     */
-    private function resolveTemporalType(string $typeName): ?array
-    {
-        return match ($typeName) {
-            'date' => ['type' => 'string', 'format' => 'date'],
-            'datetime', 'timestamp', 'datetimetz',
-            'timestamptz'    => ['type' => 'string', 'format' => 'date-time'],
-            'time', 'timetz' => ['type' => 'string', 'format' => 'time'],
+            'char', 'bpchar', 'varchar', 'tinytext', 'text', 'mediumtext', 'longtext',
+            'enum', 'set', 'money', 'datetime', 'timestamp', 'timestamptz',
+            'time', 'timetz' => ['type' => 'string'],
+            'uuid'           => ['type' => 'string', 'format' => 'uuid'],
+            'date'           => ['type' => 'string', 'format' => 'date'],
             default          => null,
         };
     }
 
     /**
-     * Resolve binary column types.
+     * Resolve the column types fetched as integers, floats or booleans.
      *
-     * An uncast json column is left unresolved, since Eloquent returns it as a
-     * raw string.
+     * PostgreSQL's float4 and float8 fetch as numeric strings before PHP 8.4.
      *
      * @param  string  $typeName
      * @return array{type: string, format?: string}|null
      */
-    private function resolveStructuredType(string $typeName): ?array
+    private function resolveNumericType(string $typeName): ?array
     {
         return match ($typeName) {
-            'binary', 'blob', 'bytea' => ['type' => 'string', 'format' => 'byte'],
-            default                   => null,
+            'tinyint', 'smallint', 'mediumint', 'int', 'integer',
+            'bigint', 'int2', 'int4', 'int8' => ['type' => 'integer'],
+            'float', 'double', 'real'        => ['type' => 'number'],
+            'float4', 'float8'               => ['type' => $this->fetchesNativeFloats ? 'number' : 'string'],
+            'boolean', 'bool'                => ['type' => 'boolean'],
+            default                          => null,
         };
     }
 }
