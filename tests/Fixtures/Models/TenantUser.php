@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Tests\Fixtures\Support\CurrentTenant;
 
 /**
@@ -20,6 +21,7 @@ use Tests\Fixtures\Support\CurrentTenant;
  * @property int|null $organization_id
  * @property string $name
  * @property string $email
+ * @property \Illuminate\Database\Eloquent\Collection<int, \Tests\Fixtures\Models\TenantPost> $posts
  *
  * @method static static create(array<string, mixed> $attributes = [])
  *
@@ -30,6 +32,16 @@ use Tests\Fixtures\Support\CurrentTenant;
 #[Table('users')]
 final class TenantUser extends Model
 {
+    /**
+     * Get the user's posts.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\TenantPost, $this>
+     */
+    public function posts(): HasMany
+    {
+        return $this->hasMany(TenantPost::class, 'user_id');
+    }
+
     /**
      * Register the tenant global scope.
      *
