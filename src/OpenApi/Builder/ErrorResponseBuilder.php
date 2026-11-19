@@ -160,7 +160,8 @@ final readonly class ErrorResponseBuilder
 
     /**
      * List the ApiExceptions the throws tags name, the action's first and then
-     * each route middleware's in dispatch order.
+     * each route middleware's in dispatch order, but for middleware documented
+     * from its route fact.
      *
      * @param  class-string|null  $controllerClass
      * @param  string  $action
@@ -171,7 +172,7 @@ final readonly class ErrorResponseBuilder
     {
         $exceptions = $controllerClass === null ? [] : $this->throws->resolve($controllerClass, $action);
 
-        foreach ($this->middleware->classes($route) as $middleware) {
+        foreach (array_diff($this->middleware->classes($route), RouteMiddlewareResolver::FACT_MIDDLEWARE) as $middleware) {
             array_push($exceptions, ...$this->throws->resolve($middleware, method_exists($middleware, 'handle') ? 'handle' : '__invoke'));
         }
 

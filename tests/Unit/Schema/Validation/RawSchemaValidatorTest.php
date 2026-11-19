@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\Scope;
+use SineMacula\ApiToolkit\Schema\Sum;
 use SineMacula\ApiToolkit\Schema\Validation\RawSchemaValidator;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 use Tests\Fixtures\Resources\BoundedPostResource;
@@ -210,6 +211,105 @@ final class RawSchemaValidatorTest extends TestCase
             [self::RESOURCE, '__aggregate__:aliased', 'Aggregate key "post:count" may hold only letters, digits and underscores'],
             [self::RESOURCE, "bad\xff", "Aggregate key \"bad\xff\" may hold only letters, digits and underscores"],
         ], $errors);
+    }
+
+    /**
+     * Test that a key PHP stores as an integer is rejected, since it can turn
+     * the payload into a JSON list, while a digit string PHP keeps passes.
+     *
+     * @return void
+     */
+    public function testRejectsAKeyThatReadsAsAnInteger(): void
+    {
+        $errors = $this->collectErrors([
+            ...Field::set(Count::of('posts', '0'), Sum::of('posts', 'id', '12'), Count::of('posts', '01'), Count::of('posts', '+1')),
+            '__aggregate__:3'   => ['metric' => 'count', 'relation' => 'posts'],
+            '__aggregate__:-3'  => ['metric' => 'count', 'relation' => 'posts'],
+            '__aggregate__:1.0' => ['metric' => 'count', 'relation' => 'posts'],
+        ]);
+
+        $integer = 'Aggregate key "%s" reads as an integer, which can turn the aggregates object into a JSON list';
+        $word    = 'Aggregate key "%s" may hold only letters, digits and underscores';
+
+        self::assertSame([
+            [self::RESOURCE, '__aggregate__:0', sprintf($integer, '0')],
+            [self::RESOURCE, '__aggregate__:12', sprintf($integer, '12')],
+            [self::RESOURCE, '__aggregate__:+1', sprintf($word, '+1')],
+            [self::RESOURCE, '__aggregate__:3', sprintf($integer, '3')],
+            [self::RESOURCE, '__aggregate__:-3', sprintf($word, '-3')],
+            [self::RESOURCE, '__aggregate__:-3', sprintf($integer, '-3')],
+            [self::RESOURCE, '__aggregate__:1.0', sprintf($word, '1.0')],
+        ], $errors);
+    }
+
+    /**
+     * Provide each schema declaring a field under a key the response writes
+     * itself, with that key and its defect.
+     *
+     * @return iterable<string, array{array<string, array<string, mixed>>, string, string}>
+     */
+    public static function reservedKeyProvider(): iterable
+    {
+        $aggregate = ['__aggregate__:posts_count' => ['metric' => 'count', 'relation' => 'posts']];
+
+        yield 'the type' => [['_type' => ['accessor' => 'kind']], '_type', 'The key "_type" is reserved for the resource type'];
+        yield 'the truncated relations' => [['_truncated' => ['accessor' => 'cut']], '_truncated', 'The key "_truncated" is reserved for the relations a response truncates'];
+        yield 'the aggregates beside an aggregate' => [
+            ['aggregates' => ['accessor' => 'totals'], ...$aggregate],
+            'aggregates',
+            'The key "aggregates" is reserved for the relation aggregates the resource declares',
+        ];
+        yield 'the aggregates as an unrecognised metric' => [
+            [...$aggregate, 'aggregates' => ['metric' => 'median']],
+            'aggregates',
+            'The key "aggregates" is reserved for the relation aggregates the resource declares',
+        ];
+    }
+
+    /**
+     * Test that a field under a key the rendered resource writes itself is
+     * rejected, as the response would silently overwrite it.
+     *
+     * @param  array<string, array<string, mixed>>  $schema
+     * @param  string  $key
+     * @param  string  $defect
+     * @return void
+     */
+    #[DataProvider('reservedKeyProvider')]
+    public function testRefusesAFieldUnderAKeyTheResponseWrites(array $schema, string $key, string $defect): void
+    {
+        self::assertSame([[self::RESOURCE, $key, $defect]], $this->collectErrors($schema));
+    }
+
+    /**
+     * Test that every reserved key one schema declares is reported.
+     *
+     * @return void
+     */
+    public function testRefusesEveryReservedKeyOfOneSchema(): void
+    {
+        $errors = $this->collectErrors([
+            '_type'                     => ['accessor' => 'kind'],
+            'aggregates'                => ['accessor' => 'totals'],
+            '_truncated'                => ['accessor' => 'cut'],
+            '__aggregate__:posts_count' => ['metric' => 'count', 'relation' => 'posts'],
+        ]);
+
+        self::assertSame(['_type', '_truncated', 'aggregates'], array_column($errors, 1));
+    }
+
+    /**
+     * Test that a field keyed aggregates passes where no aggregate is declared,
+     * an unrecognised metric included, as does an aggregate under that key.
+     *
+     * @return void
+     */
+    public function testAcceptsAnAggregatesKeyThePayloadNeverWrites(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        RawSchemaValidator::assertValid(['aggregates' => ['accessor' => 'totals'], 'score' => ['metric' => 'median']], self::RESOURCE);
+        RawSchemaValidator::assertValid(['aggregates' => ['metric' => 'count', 'relation' => 'posts']], self::RESOURCE);
     }
 
     /**

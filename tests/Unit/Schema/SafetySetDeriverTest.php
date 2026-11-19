@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
+use Tests\Fixtures\Models\Document;
 use Tests\TestCase;
 
 /**
@@ -94,6 +95,20 @@ final class SafetySetDeriverTest extends TestCase
         $columns = $this->deriver->derive($model, [], []);
 
         self::assertNotContains('deleted_at', $columns);
+    }
+
+    /**
+     * Test that a versioned model keeps its version column beside its key, so a
+     * narrowed read can still tag the response.
+     *
+     * @return void
+     */
+    public function testKeepsTheVersionColumnOfAVersionedModel(): void
+    {
+        $this->introspector->method('getDeletedAtColumn')->willReturn(null);
+        $this->introspector->method('getColumns')->willReturn(['id', 'title', 'version']);
+
+        self::assertSame(['id', 'version'], $this->deriver->derive(new Document, [], []));
     }
 
     /**

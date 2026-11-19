@@ -1525,6 +1525,34 @@ final class SchemaCompilerTest extends TestCase
     }
 
     /**
+     * Test that an aggregate's declared OpenAPI contract reaches its compiled
+     * definition, and that an undeclared one compiles without one.
+     *
+     * @return void
+     */
+    public function testCompileCarriesAnAggregatesDeclaredContract(): void
+    {
+        $resourceClass = $this->createStubResourceClass(Field::set(
+            Count::of('posts')->openapi()->type('string')->end(),
+            Sum::of('orders', 'total')->openapi()->type('string')->format('decimal')->end(),
+            Average::of('orders', 'total')->openapi()->type('integer')->end(),
+            Max::of('orders', 'total'),
+        ));
+
+        $contracts = array_map(
+            static fn (CompiledAggregateDefinition $definition): ?array => $definition->openApi?->toArray(),
+            SchemaCompiler::compile($resourceClass)->getAggregateDefinitions(),
+        );
+
+        self::assertSame([
+            'posts_count'      => ['type' => 'string'],
+            'orders_sum_total' => ['type' => 'string', 'format' => 'decimal'],
+            'orders_avg_total' => ['type' => 'integer'],
+            'orders_max_total' => null,
+        ], $contracts);
+    }
+
+    /**
      * Test that a raw definition with an unrecognised metric and no aggregate
      * prefix compiles as a plain field.
      *

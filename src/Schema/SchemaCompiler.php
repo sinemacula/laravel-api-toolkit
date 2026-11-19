@@ -238,6 +238,7 @@ final class SchemaCompiler
             guards      : self::callableList($definition, 'guards'),
             transformers: self::callableList($definition, 'transformers'),
             callerGuards: self::callableList($definition, 'caller_guards'),
+            openApi     : self::resolveOpenApi($definition),
         );
     }
 
@@ -364,7 +365,7 @@ final class SchemaCompiler
             needs           : self::stringList((array) ($definition['needs'] ?? [])),
             guards          : self::callableList($definition, 'guards'),
             transformers    : self::callableList($definition, 'transformers'),
-            openApi         : self::resolveFieldOpenApi($definition),
+            openApi         : self::resolveOpenApi($definition),
             filterable      : self::declaredColumn($definition, 'filterable'),
             filterCapability: self::resolveCapability($definition),
             sortable        : self::declaredColumn($definition, 'sortable'),
@@ -416,12 +417,13 @@ final class SchemaCompiler
     }
 
     /**
-     * Resolve the declared OpenAPI contract for a field definition.
+     * Resolve the declared OpenAPI contract for a field or aggregate
+     * definition.
      *
      * @param  array<string, mixed>  $definition
      * @return \SineMacula\ApiToolkit\Schema\OpenApiFieldSchema|null
      */
-    private static function resolveFieldOpenApi(array $definition): ?OpenApiFieldSchema
+    private static function resolveOpenApi(array $definition): ?OpenApiFieldSchema
     {
         $openApi = $definition['openapi'] ?? null;
 

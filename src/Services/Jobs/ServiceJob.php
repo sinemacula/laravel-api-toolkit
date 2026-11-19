@@ -27,6 +27,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Illuminate\Validation\ValidationException;
+use SineMacula\ApiToolkit\Exceptions\PreconditionFailedException;
 use SineMacula\ApiToolkit\Exceptions\ServiceFailedException;
 use SineMacula\ApiToolkit\Services\Contracts\ServiceInput;
 use SineMacula\ApiToolkit\Services\Enums\ServiceSource;
@@ -150,7 +151,7 @@ final class ServiceJob implements ShouldQueue
     {
         return [
             new SkipIfBatchCancelled,
-            new FailOnException([AuthorizationException::class, ValidationException::class]),
+            new FailOnException([AuthorizationException::class, ValidationException::class, PreconditionFailedException::class]),
         ];
     }
 

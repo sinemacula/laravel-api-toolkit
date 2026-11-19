@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace Tests\Unit\Http\Middleware;
 
 use Illuminate\Contracts\Foundation\MaintenanceMode;
-use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as LaravelMiddleware;
 use Illuminate\Http\Request;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -13,7 +12,6 @@ use SineMacula\ApiToolkit\ApiServiceProvider;
 use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use SineMacula\ApiToolkit\Http\Middleware\PreventRequestsDuringMaintenance;
 use SineMacula\Http\Enums\HttpMethod;
-use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Support\ArrayMaintenanceMode;
 
 /**
@@ -27,52 +25,30 @@ use Tests\Fixtures\Support\ArrayMaintenanceMode;
 #[CoversClass(PreventRequestsDuringMaintenance::class)]
 final class PreventRequestsDuringMaintenanceTest extends TestCase
 {
-    use InteractsWithNonPublicMembers;
-
     /**
-     * Test that the middleware extends Laravel's
-     * PreventRequestsDuringMaintenance.
+     * Test that the paths the configuration excepts pass through during
+     * maintenance mode.
      *
      * @return void
-     */
-    public function testExtendsLaravelMiddleware(): void
-    {
-        self::assertContains(LaravelMiddleware::class, class_parents(PreventRequestsDuringMaintenance::class) ?: []);
-    }
-
-    /**
-     * Test that the constructor sets except from config.
      *
-     * @return void
+     * @throws \SineMacula\ApiToolkit\Exceptions\MaintenanceModeException
      */
-    public function testConstructorSetsExceptFromConfig(): void
+    public function testConfiguredExceptPathsPassThroughDuringMaintenance(): void
     {
         config()->set('api-toolkit.maintenance_mode.except', ['/health', '/status']);
 
-        assert($this->app !== null);
-
-        $middleware = new PreventRequestsDuringMaintenance($this->app);
-        $except     = $this->getProperty($middleware, 'except');
-
-        self::assertSame(['/health', '/status'], $except);
-    }
-
-    /**
-     * Test that the constructor uses an empty array when config returns
-     * default.
-     *
-     * @return void
-     */
-    public function testConstructorUsesEmptyArrayWhenConfigReturnsDefault(): void
-    {
-        config()->set('api-toolkit.maintenance_mode.except', []);
+        $this->activateMaintenance();
 
         assert($this->app !== null);
 
         $middleware = new PreventRequestsDuringMaintenance($this->app);
-        $except     = $this->getProperty($middleware, 'except');
 
-        self::assertSame([], $except);
+        foreach (['/health', '/status'] as $path) {
+
+            $request = Request::create($path, HttpMethod::GET->getVerb());
+
+            self::assertSame('ok', $middleware->handle($request, static fn (): string => 'ok'));
+        }
     }
 
     /**
@@ -176,6 +152,30 @@ final class PreventRequestsDuringMaintenanceTest extends TestCase
      */
     private function handleDuringMaintenance(array $overrides = []): MaintenanceModeException
     {
+        $this->activateMaintenance($overrides);
+
+        assert($this->app !== null);
+
+        $middleware = new PreventRequestsDuringMaintenance($this->app);
+        $request    = Request::create('/test', HttpMethod::GET->getVerb());
+
+        try {
+            $middleware->handle($request, static fn (): string => 'ok');
+
+            self::fail('Expected a MaintenanceModeException to be thrown.');
+        } catch (MaintenanceModeException $exception) {
+            return $exception;
+        }
+    }
+
+    /**
+     * Activate maintenance mode with the given payload overrides.
+     *
+     * @param  array<string, mixed>  $overrides
+     * @return void
+     */
+    private function activateMaintenance(array $overrides = []): void
+    {
         assert($this->app !== null);
 
         $maintenance = new ArrayMaintenanceMode;
@@ -191,16 +191,5 @@ final class PreventRequestsDuringMaintenanceTest extends TestCase
             'status'   => 503,
             'template' => null,
         ], $overrides));
-
-        $middleware = new PreventRequestsDuringMaintenance($this->app);
-        $request    = Request::create('/test', HttpMethod::GET->getVerb());
-
-        try {
-            $middleware->handle($request, static fn (): string => 'ok');
-
-            self::fail('Expected a MaintenanceModeException to be thrown.');
-        } catch (MaintenanceModeException $exception) {
-            return $exception;
-        }
     }
 }

@@ -7,6 +7,7 @@ namespace Tests\Unit\Listeners;
 use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Queue\Job;
+use Illuminate\Database\DeadlockException;
 use Illuminate\Database\QueryException;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Http\Events\RequestHandled;
@@ -29,6 +30,7 @@ use SineMacula\ApiToolkit\Listeners\WritePoolFlushSubscriber;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
+use Tests\Concerns\CreatesDeferredWriteTargets;
 use Tests\Concerns\SwapsExceptionHandler;
 use Tests\TestCase;
 
@@ -43,7 +45,10 @@ use Tests\TestCase;
 #[CoversClass(WritePoolFlushSubscriber::class)]
 final class WritePoolFlushSubscriberTest extends TestCase
 {
-    use SwapsExceptionHandler;
+    use CreatesDeferredWriteTargets, SwapsExceptionHandler;
+
+    /** @var string The message MySQL raises for a deadlock */
+    private const string DEADLOCK = 'SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock';
 
     /**
      * Set up the test environment.
@@ -443,6 +448,96 @@ final class WritePoolFlushSubscriberTest extends TestCase
         self::assertInstanceOf(QueryException::class, $thrown->getPrevious());
         Exceptions::assertNothingReported();
         Event::assertDispatched(WritePoolFlushFailed::class, fn (WritePoolFlushFailed $event): bool => $event->flushResult === $thrown->flushResult());
+    }
+
+    /**
+     * Test that a deadlock ending a transaction the boundary flush joined is
+     * rethrown unreported, so the transaction's retry writes the row once.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testHandleFlushRethrowsADeadlockEndingTheTransactionItJoinedUnreported(): void
+    {
+        Exceptions::fake();
+
+        $pool       = $this->poolFailingOnTheAuditConnection(new QueryException('audit', 'insert', [], new \PDOException(self::DEADLOCK)));
+        $subscriber = $this->subscriberFlushing($pool);
+        $attempts   = 0;
+
+        DB::connection('audit')->transaction(static function () use ($pool, $subscriber, &$attempts): void {
+            $attempts++;
+
+            $pool->add('audit', 'audit_entries', ['action' => 'joined']);
+            $subscriber->handleFlush();
+        }, 2);
+
+        self::assertSame(2, $attempts);
+        self::assertSame(['joined'], DB::connection('audit')->table('audit_entries')->pluck('action')->all());
+        Exceptions::assertNothingReported();
+    }
+
+    /**
+     * Provide each form of a transaction-ending insert failure and the class of
+     * the error that reaches the boundary.
+     *
+     * @return iterable<string, array{\Throwable, class-string<\Throwable>}>
+     */
+    public static function transactionEndingFailureProvider(): iterable
+    {
+        yield 'deadlock' => [new QueryException('audit', 'insert', [], new \PDOException(self::DEADLOCK)), DeadlockException::class];
+        yield 'lost connection warning' => [new \ErrorException('PDO::exec(): MySQL server has gone away'), \ErrorException::class];
+    }
+
+    /**
+     * Test that an error ending a transaction the flush after a job timeout
+     * joined is reported instead, so the worker still stops the job.
+     *
+     * @param  \Throwable  $failure
+     * @param  class-string<\Throwable>  $reported
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    #[DataProvider('transactionEndingFailureProvider')]
+    public function testHandleTimedOutFlushReportsAnErrorEndingTheTransactionItJoined(\Throwable $failure, string $reported): void
+    {
+        Exceptions::fake();
+
+        $pool       = $this->poolFailingOnTheAuditConnection($failure);
+        $subscriber = $this->subscriberFlushing($pool);
+
+        DB::connection('audit')->transaction(static function () use ($pool, $subscriber): void {
+            $pool->add('audit', 'audit_entries', ['action' => 'timed out']);
+            $subscriber->handleTimedOutFlush();
+        });
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported($reported);
+        self::assertTrue($pool->isEmpty());
+    }
+
+    /**
+     * Build a pool whose first insert on the audit connection fails with the
+     * given error.
+     *
+     * @param  \Throwable  $failure
+     * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePool
+     */
+    private function poolFailingOnTheAuditConnection(\Throwable $failure): WritePool
+    {
+        $this->useAuditConnection();
+
+        $inserts = 0;
+
+        DB::connection('audit')->beforeExecuting(static function (string $query) use ($failure, &$inserts): void {
+            if (str_starts_with($query, 'insert') && ++$inserts === 1) {
+                throw $failure;
+            }
+        });
+
+        return new WritePool(500, 10000);
     }
 
     /**

@@ -9,12 +9,15 @@ use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Cache\CacheManager;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Cache\MetadataGeneration;
+use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
@@ -22,7 +25,6 @@ use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Exceptions\GoneException;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
 use SineMacula\ApiToolkit\Exceptions\NotFoundException;
-use SineMacula\ApiToolkit\Http\Resources\ApiResource;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\OpenApi\Contracts\DocumentWriter;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -34,8 +36,6 @@ use SineMacula\ApiToolkit\Providers\Registrars\ContainerBindingRegistrar;
 use SineMacula\ApiToolkit\Repositories\Concerns\WritePool;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
-use SineMacula\ApiToolkit\Schema\Field;
-use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidator;
 use SineMacula\ApiToolkit\Search\Drivers\MySqlNgramSearchDriver;
@@ -47,21 +47,26 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Fixtures\Input\StorePayload;
 use Tests\Fixtures\Models\Gathering;
 use Tests\Fixtures\Models\Log;
-use Tests\Fixtures\Models\Organization;
-use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\BrokenResource;
+use Tests\Fixtures\Resources\EmptyAccessorResource;
 use Tests\Fixtures\Resources\GatheringResource;
 use Tests\Fixtures\Resources\GatheringSessionResource;
+use Tests\Fixtures\Resources\MissingAggregateColumnResource;
 use Tests\Fixtures\Resources\MissingColumnQueryableResource;
+use Tests\Fixtures\Resources\MissingComputeMethodResource;
+use Tests\Fixtures\Resources\MissingNeedsColumnResource;
+use Tests\Fixtures\Resources\MissingRelationClassResource;
+use Tests\Fixtures\Resources\NonResourceRelationResource;
 use Tests\Fixtures\Resources\OrganizationResource;
-use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\SearchableComputedResource;
 use Tests\Fixtures\Resources\SensitiveQueryableResource;
-use Tests\Fixtures\Resources\TagResource;
+use Tests\Fixtures\Resources\ToOneLimitedRelationResource;
 use Tests\Fixtures\Resources\TrailingIndexSortableResource;
-use Tests\Fixtures\Resources\UnbackedQueryableResource;
 use Tests\Fixtures\Resources\UnboundScopeResource;
-use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Resources\UndeclaredDefaultFieldResource;
+use Tests\Fixtures\Resources\UnprovenSearchResource;
+use Tests\Fixtures\Search\PatternSearchDriver;
 use Tests\Fixtures\Services\Input\Enums\StubStatusEnum;
 use Tests\TestCase;
 
@@ -150,11 +155,134 @@ final class ContainerBindingRegistrarTest extends TestCase
     }
 
     /**
-     * Test that the bound schema validator carries the shipped rule set.
+     * Provide, for each shipped schema rule, the model, a resource only that
+     * rule refuses, the field and defect it reports and any settings it needs.
      *
+     * @return iterable<string, array{0: class-string, 1: class-string, 2: string, 3: string, 4?: array<string, mixed>}>
+     */
+    public static function shippedRuleProvider(): iterable
+    {
+        yield 'relation classes' => [
+            User::class,
+            MissingRelationClassResource::class,
+            'organization',
+            'Relation resource class "Tests\Fixtures\Resources\MissingResource" does not exist',
+        ];
+
+        yield 'relation interfaces' => [
+            User::class,
+            NonResourceRelationResource::class,
+            'organization',
+            sprintf('Relation resource class "stdClass" does not implement %s', ApiResourceInterface::class),
+        ];
+
+        yield 'relation methods' => [
+            User::class,
+            BrokenResource::class,
+            'nonExistentRelation',
+            sprintf('Relation method "nonExistentRelation" does not exist on model "%s"', User::class),
+        ];
+
+        yield 'relation limits' => [
+            User::class,
+            ToOneLimitedRelationResource::class,
+            'organization',
+            'Relation "organization" declares a limit but its method returns a to-one relation',
+        ];
+
+        yield 'computed fields' => [
+            User::class,
+            MissingComputeMethodResource::class,
+            'label',
+            'Computed field value is not callable and does not reference an existing method on the resource class',
+        ];
+
+        yield 'accessors' => [
+            User::class,
+            EmptyAccessorResource::class,
+            'label',
+            'Accessor path must not be empty',
+        ];
+
+        yield 'field selections' => [
+            User::class,
+            UndeclaredDefaultFieldResource::class,
+            'nickname',
+            sprintf('Default field "nickname" is not declared on %s', UndeclaredDefaultFieldResource::class),
+        ];
+
+        yield 'queryable fields' => [
+            User::class,
+            MissingColumnQueryableResource::class,
+            'nickname',
+            'Field is declared filterable against "nickname", and table "users" carries no such column',
+        ];
+
+        yield 'aggregate columns' => [
+            User::class,
+            MissingAggregateColumnResource::class,
+            'posts_sum_missing',
+            'Aggregate column "missing" does not exist on table "posts"',
+        ];
+
+        yield 'needs columns' => [
+            User::class,
+            MissingNeedsColumnResource::class,
+            'nickname',
+            'Field declares needs() on "missing", and table "users" carries no such column',
+        ];
+
+        yield 'index backing' => [
+            Log::class,
+            TrailingIndexSortableResource::class,
+            'created_at',
+            'Field is declared sortable against "created_at", and no ordered index on table "logs" leads with that column',
+        ];
+
+        yield 'searchable fields' => [
+            User::class,
+            SearchableComputedResource::class,
+            'full_name',
+            'Field is declared searchable but is computed, so there is no "full_name" column to search',
+            ['api-toolkit.search.unverified_connections' => ['testing']],
+        ];
+
+        yield 'search indexes' => [
+            User::class,
+            UnprovenSearchResource::class,
+            'email',
+            'Field is declared searchable with the "substring" strategy, and the driver serving the "testing" connection cannot prove an index serves it. '
+            . 'List that connection under api-toolkit.search.unverified_connections to serve it regardless',
+        ];
+
+        yield 'scopes' => [
+            Gathering::class,
+            UnboundScopeResource::class,
+            '__scope__:cancelled',
+            sprintf('Scope "cancelled" is not a local scope of model "%s"', Gathering::class),
+        ];
+
+        yield 'sensitive columns' => [
+            User::class,
+            SensitiveQueryableResource::class,
+            'password',
+            'Field is declared filterable against "password", which is configured as a sensitive column and may never be queried',
+        ];
+    }
+
+    /**
+     * Test that the bound schema validator runs every shipped rule, each
+     * refusing the one defect only it detects.
+     *
+     * @param  class-string  $model
+     * @param  class-string  $resource
+     * @param  string  $field
+     * @param  string  $defect
+     * @param  array<string, mixed>  $config
      * @return void
      */
-    public function testRegisterBindsSchemaValidatorWithTheShippedRuleSet(): void
+    #[DataProvider('shippedRuleProvider')]
+    public function testRegisterBindsSchemaValidatorRunningEveryShippedRule(string $model, string $resource, string $field, string $defect, array $config = []): void
     {
         $app = $this->getApplication();
 
@@ -162,20 +290,27 @@ final class ContainerBindingRegistrarTest extends TestCase
 
         SchemaCompiler::clearCache();
 
-        $validator = $app->make(SchemaValidator::class);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [OrganizationResource::class]);
+        Config::set($config);
 
-        $this->expectException(InvalidSchemaException::class);
+        // Engines prove search indexes differently; this driver proves none
+        $app->make(SearchDriverRegistry::class)->override(DB::connection()->getDriverName(), new PatternSearchDriver);
 
-        $validator->validate([User::class => UnbackedQueryableResource::class]);
+        try {
+            $app->make(SchemaValidator::class)->validate([$model => $resource]);
+
+            self::fail('The shipped rules accepted a defective schema.');
+        } catch (InvalidSchemaException $exception) {
+            self::assertSame(sprintf("Schema validation failed with 1 error(s):\n  - [%s] Field \"%s\": %s", $resource, $field, $defect), $exception->getMessage());
+        }
     }
 
     /**
-     * Test that the shipped rules accept scopes bound to their model and refuse
-     * one the model does not define.
+     * Test that the shipped rules accept scopes bound to their model.
      *
      * @return void
      */
-    public function testRegisterBindsSchemaValidatorRefusingAScopeTheModelDoesNotDefine(): void
+    public function testRegisterBindsSchemaValidatorAcceptingScopesTheModelDefines(): void
     {
         $app = $this->getApplication();
 
@@ -185,187 +320,9 @@ final class ContainerBindingRegistrarTest extends TestCase
 
         Config::set(ResourceDiscovery::RESOURCES_KEY, [GatheringResource::class, GatheringSessionResource::class]);
 
-        $validator = $app->make(SchemaValidator::class);
+        $this->expectNotToPerformAssertions();
 
-        $validator->validate([Gathering::class => GatheringResource::class]);
-
-        $this->expectException(InvalidSchemaException::class);
-        $this->expectExceptionMessage(sprintf(
-            "Schema validation failed with 1 error(s):\n  - [%s] Field \"__scope__:cancelled\": Scope \"cancelled\" is not a local scope of model \"%s\"",
-            UnboundScopeResource::class,
-            Gathering::class,
-        ));
-
-        $validator->validate([Gathering::class => UnboundScopeResource::class]);
-    }
-
-    /**
-     * Test that the shipped rules refuse a filter on a column the table lacks.
-     *
-     * @return void
-     */
-    public function testRegisterBindsSchemaValidatorRefusingAColumnTheTableDoesNotCarry(): void
-    {
-        $app = $this->getApplication();
-
-        (new ContainerBindingRegistrar($app))->register();
-
-        SchemaCompiler::clearCache();
-
-        $validator = $app->make(SchemaValidator::class);
-
-        $this->expectException(InvalidSchemaException::class);
-        $this->expectExceptionMessage(sprintf(
-            "Schema validation failed with 1 error(s):\n  - [%s] Field \"nickname\": Field is declared filterable against \"nickname\", and table \"users\" carries no such column",
-            MissingColumnQueryableResource::class,
-        ));
-
-        $validator->validate([User::class => MissingColumnQueryableResource::class]);
-    }
-
-    /**
-     * Test that the shipped rules refuse a limit on a to-one relation.
-     *
-     * @return void
-     */
-    public function testRegisterBindsSchemaValidatorRefusingALimitOnAToOneRelation(): void
-    {
-        $app = $this->getApplication();
-
-        (new ContainerBindingRegistrar($app))->register();
-
-        SchemaCompiler::clearCache();
-
-        $resource = new class (null) extends ApiResource {
-            /** @var string */
-            public const string RESOURCE_TYPE = 'limited_to_one_users';
-
-            /**
-             * Return the resource schema.
-             *
-             * @return array<string, array<string, mixed>>
-             */
-            #[\Override]
-            public static function schema(): array
-            {
-                return Field::set(
-                    Field::scalar('id'),
-                    Relation::to('organization', OrganizationResource::class)->limit(2),
-                );
-            }
-        };
-
-        Config::set(ResourceDiscovery::RESOURCES_KEY, [OrganizationResource::class]);
-
-        $validator = $app->make(SchemaValidator::class);
-
-        $this->expectException(InvalidSchemaException::class);
-        $this->expectExceptionMessage(sprintf(
-            "Schema validation failed with 1 error(s):\n  - [%s] Field \"organization\": Relation \"organization\" declares a limit but its method returns a to-one relation",
-            $resource::class,
-        ));
-
-        $validator->validate([User::class => $resource::class]);
-    }
-
-    /**
-     * Test that the shipped rules refuse a relation child whose type cannot be
-     * selected.
-     *
-     * @return void
-     */
-    public function testRegisterBindsSchemaValidatorRefusingAnUncataloguedRelationChild(): void
-    {
-        $app = $this->getApplication();
-
-        (new ContainerBindingRegistrar($app))->register();
-
-        SchemaCompiler::clearCache();
-
-        $validator = $app->make(SchemaValidator::class);
-
-        $this->expectException(InvalidSchemaException::class);
-        $this->expectExceptionMessage(sprintf(
-            "Schema validation failed with 1 error(s):\n  - [%s] Field \"tags\": Relation \"tags\" renders %s, "
-            . 'which is neither mapped nor under resources.paths, so its type cannot be selected',
-            PostResource::class,
-            TagResource::class,
-        ));
-
-        $map = [
-            Organization::class => OrganizationResource::class,
-            Post::class         => PostResource::class,
-            User::class         => UserResource::class,
-        ];
-
-        Config::set('api-toolkit.resources.resource_map', $map);
-
-        $validator->validate($map);
-    }
-
-    /**
-     * Test that the shipped rules refuse a filterable sensitive column.
-     *
-     * @return void
-     */
-    public function testRegisterBindsSchemaValidatorRefusingASensitiveColumnDeclaration(): void
-    {
-        $app = $this->getApplication();
-
-        (new ContainerBindingRegistrar($app))->register();
-
-        SchemaCompiler::clearCache();
-
-        $validator = $app->make(SchemaValidator::class);
-
-        $this->expectException(InvalidSchemaException::class);
-
-        $validator->validate([User::class => SensitiveQueryableResource::class]);
-    }
-
-    /**
-     * Test that the shipped rules refuse a sort no index leads with.
-     *
-     * @return void
-     */
-    public function testRegisterBindsSchemaValidatorRefusingASortNoIndexLeadsWith(): void
-    {
-        $app = $this->getApplication();
-
-        (new ContainerBindingRegistrar($app))->register();
-
-        SchemaCompiler::clearCache();
-
-        $validator = $app->make(SchemaValidator::class);
-
-        $this->expectException(InvalidSchemaException::class);
-        $this->expectExceptionMessage(sprintf(
-            "Schema validation failed with 1 error(s):\n  - [%s] Field \"created_at\": Field is declared sortable "
-            . 'against "created_at", and no ordered index on table "logs" leads with that column',
-            TrailingIndexSortableResource::class,
-        ));
-
-        $validator->validate([Log::class => TrailingIndexSortableResource::class]);
-    }
-
-    /**
-     * Test that the shipped rules refuse a searchable computed field.
-     *
-     * @return void
-     */
-    public function testRegisterBindsSchemaValidatorRefusingAnUnbackedSearchDeclaration(): void
-    {
-        $app = $this->getApplication();
-
-        (new ContainerBindingRegistrar($app))->register();
-
-        SchemaCompiler::clearCache();
-
-        $validator = $app->make(SchemaValidator::class);
-
-        $this->expectException(InvalidSchemaException::class);
-
-        $validator->validate([User::class => SearchableComputedResource::class]);
+        $app->make(SchemaValidator::class)->validate([Gathering::class => GatheringResource::class]);
     }
 
     /**
