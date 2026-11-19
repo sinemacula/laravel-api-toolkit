@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria;
 
 use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
@@ -700,13 +699,14 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that eager loads are added from the resource schema.
+     * Test that the requested relation is eager loaded from the resource
+     * schema, and nothing else.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyEagerLoadingAddsEagerLoadsFromResource(): void
+    public function testApplyEagerLoadsTheRequestedRelation(): void
     {
         Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
 
@@ -719,9 +719,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $eagerLoads = $query->getEagerLoads();
-
-        self::assertNotEmpty($eagerLoads);
+        self::assertSame(['organization'], array_keys($query->getEagerLoads()));
     }
 
     /**
@@ -770,13 +768,13 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that eager loading uses getAllFields when ':all' is requested.
+     * Test that the ':all' token eager loads every declared relation.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyEagerLoadingUsesGetAllFieldsWhenAllRequested(): void
+    public function testApplyEagerLoadsEveryDeclaredRelationUnderTheAllToken(): void
     {
         Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
 
@@ -789,8 +787,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        self::assertNotNull($query->getQuery());
-        self::assertInstanceOf(Builder::class, $query);
+        self::assertEqualsCanonicalizing(['organization', 'posts', 'profile'], array_keys($query->getEagerLoads()));
     }
 
     /**

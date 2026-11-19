@@ -4,10 +4,14 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Repositories\Criteria\Concerns;
 
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\TrashedState;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
@@ -23,6 +27,8 @@ use Tests\TestCase;
 
 /**
  * Tests for the RelationTrashedGate.
+ *
+ * @phpstan-import-type AggregateLoad from \SineMacula\ApiToolkit\Contracts\ApiResourceInterface
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -135,6 +141,23 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
+     * Test that an opted-in relation under Only keeps an OR-joined constraint
+     * apart from the trashed condition.
+     *
+     * @return void
+     */
+    public function testOnlyTrashedStaysOutsideAnOrJoinedConstraint(): void
+    {
+        $existing = static function (Builder $query): void {
+            $query->where('status', 'published')->orWhere('views', '>', 5);
+        };
+
+        $result = $this->gate()->decorate(['articles' => $existing], new User, TrashedState::ONLY);
+
+        self::assertSame('select * from "articles" where ("status" = ? or "views" > ?) and "articles"."deleted_at" is not null', $this->sqlAfter($result['articles']));
+    }
+
+    /**
      * Test that an existing relation constraint is composed with the gate.
      *
      * @return void
@@ -192,12 +215,154 @@ final class RelationTrashedGateTest extends TestCase
 
         $result = $this->gate()->decorate(['comments' => $existing], new User, TrashedState::WITH);
 
-        self::assertSame($existing, $result['comments']);
-
         $sql = $this->sqlAfter($result['comments']);
 
         self::assertStringContainsString('status', $sql);
         self::assertStringContainsString('is null', $sql);
+    }
+
+    /**
+     * Test that a constraint is handed the aggregate decorator even where its
+     * own relation stays live, so the aggregates it loads are gated.
+     *
+     * @return void
+     */
+    public function testConstraintOfALiveRelationIsHandedTheAggregateDecorator(): void
+    {
+        $existing = static function (Builder $query, \Closure $decorate): void {
+            foreach ($decorate([self::countEntry('siblingArticles as siblings_count')]) as $entry) {
+                $query->withAggregate($entry['relation'], $entry['column'], $entry['function']);
+            }
+        };
+
+        $result = $this->gate()->decorate(['comments' => $existing], new User, TrashedState::WITH);
+
+        $sql = $this->sqlAfter($result['comments']);
+
+        self::assertStringContainsString('as "siblings_count"', $sql);
+        self::assertSame(1, substr_count($sql, 'deleted_at'));
+    }
+
+    /**
+     * Test that the None state returns the aggregate entries unchanged.
+     *
+     * @return void
+     */
+    public function testNoneStateReturnsAggregatesUnchanged(): void
+    {
+        $entries = [self::countEntry('articles as articles_count'), self::countEntry('comments as comments_count')];
+
+        self::assertSame($entries, $this->gate()->decorateAggregates($entries, TrashedState::NONE));
+    }
+
+    /**
+     * Provide aggregate relations under each state with the subquery each
+     * compiles to.
+     *
+     * @return iterable<string, array{AggregateLoad, \SineMacula\ApiToolkit\Enums\TrashedState, string}>
+     */
+    public static function aggregateEntryProvider(): iterable
+    {
+        $articles  = '"articles" where "users"."id" = "articles"."user_id"';
+        $comments  = '"comments" where "users"."id" = "comments"."user_id"';
+        $published = static function (Builder $query): void {
+            $query->where('status', 'published');
+        };
+        $either = static function (Builder $query): void {
+            $query->where('status', 'published')->orWhere('views', '>', 5);
+        };
+
+        yield 'opted in, with trashed' => [self::countEntry('articles as total'), TrashedState::WITH, $articles . ') as "total"'];
+        yield 'opted in, only trashed' => [self::countEntry('articles as total'), TrashedState::ONLY, $articles . ' and "articles"."deleted_at" is not null) as "total"'];
+        yield 'opted in, constrained' => [self::countEntry(['articles as published' => $published]), TrashedState::WITH, $articles . ' and "status" = ?) as "published"'];
+        yield 'opted in, or-joined' => [
+            self::countEntry(['articles as either' => $either]),
+            TrashedState::ONLY,
+            $articles . ' and ("status" = ? or "views" > ?) and "articles"."deleted_at" is not null) as "either"',
+        ];
+        yield 'closed, with trashed' => [self::countEntry('comments as total'), TrashedState::WITH, $comments . ' and "comments"."deleted_at" is null) as "total"'];
+    }
+
+    /**
+     * Test that an aggregate subquery follows the state only where its relation
+     * opts in, keeping its alias and constraint.
+     *
+     * @param  AggregateLoad  $entry
+     * @param  \SineMacula\ApiToolkit\Enums\TrashedState  $state
+     * @param  string  $subquery
+     * @return void
+     */
+    #[DataProvider('aggregateEntryProvider')]
+    public function testAggregateSubqueryFollowsTheStateWhereItsRelationOptsIn(array $entry, TrashedState $state, string $subquery): void
+    {
+        [$entry] = $this->gate()->decorateAggregates([$entry], $state);
+
+        $query = User::query()->withAggregate($entry['relation'], $entry['column'], $entry['function']);
+
+        self::assertSame('select "users".*, (select count(*) from ' . $subquery . ' from "users"', $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that Only still narrows a relation declared with its trashed rows,
+     * whose removed scope Eloquent strips again when it merges the relation.
+     *
+     * @return void
+     */
+    public function testOnlyTrashedNarrowsARelationDeclaredWithTrashedRows(): void
+    {
+        $user = new #[Table('users')] class extends Model {
+            /**
+             * Return every article of the user, trashed ones included.
+             *
+             * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Tests\Fixtures\Models\Article, $this>
+             */
+            public function everyArticle(): HasMany
+            {
+                return $this->hasMany(Article::class, 'user_id')->withTrashed(); // @phpstan-ignore method.notFound
+            }
+        };
+
+        $gate     = $this->gate();
+        [$entry]  = $gate->decorateAggregates([self::countEntry('everyArticle as total')], TrashedState::ONLY);
+        $subquery = 'from "articles" where "users"."id" = "articles"."user_id" and "articles"."deleted_at" is not null)';
+
+        $counted  = $user->newQuery()->withAggregate($entry['relation'], $entry['column'], $entry['function']);
+        $filtered = $user->newQuery()->whereHas('everyArticle', static fn (Builder $query) => $gate->constrain($query, TrashedState::ONLY));
+
+        self::assertSame('select "users".*, (select count(*) ' . $subquery . ' as "total" from "users"', $counted->toSql());
+        self::assertSame('select * from "users" where exists (select * ' . $subquery, $filtered->toSql());
+    }
+
+    /**
+     * Provide related models under each state with the SQL each compiles to.
+     *
+     * @return iterable<string, array{class-string<\Illuminate\Database\Eloquent\Model>, \SineMacula\ApiToolkit\Enums\TrashedState, string}>
+     */
+    public static function constrainedSubqueryProvider(): iterable
+    {
+        yield 'opted in, live only' => [Article::class, TrashedState::NONE, 'select * from "articles" where "articles"."deleted_at" is null'];
+        yield 'opted in, with trashed' => [Article::class, TrashedState::WITH, 'select * from "articles"'];
+        yield 'opted in, only trashed' => [Article::class, TrashedState::ONLY, 'select * from "articles" where "articles"."deleted_at" is not null'];
+        yield 'closed, with trashed' => [Comment::class, TrashedState::WITH, 'select * from "comments" where "comments"."deleted_at" is null'];
+    }
+
+    /**
+     * Test that a relation subquery takes the state only where its related
+     * model opts in.
+     *
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
+     * @param  \SineMacula\ApiToolkit\Enums\TrashedState  $state
+     * @param  string  $sql
+     * @return void
+     */
+    #[DataProvider('constrainedSubqueryProvider')]
+    public function testConstrainAppliesTheStateWhereTheRelatedModelOptsIn(string $model, TrashedState $state, string $sql): void
+    {
+        $query = $model::query();
+
+        $this->gate()->constrain($query, $state);
+
+        self::assertSame($sql, $query->toSql()); // @phpstan-ignore staticMethod.dynamicCall
     }
 
     /**
@@ -238,6 +403,17 @@ final class RelationTrashedGateTest extends TestCase
         self::assertStringNotContainsString('deleted_at', $root->toSql()); // @phpstan-ignore staticMethod.dynamicCall
         self::assertInstanceOf(\Closure::class, $result['author.articles']);
         self::assertStringNotContainsString('deleted_at', $this->sqlAfter($result['author.articles']));
+    }
+
+    /**
+     * Build a count aggregate entry over the given relation.
+     *
+     * @param  AggregateLoad['relation']  $relation
+     * @return AggregateLoad
+     */
+    private static function countEntry(array|string $relation): array
+    {
+        return ['relation' => $relation, 'column' => '*', 'function' => 'count'];
     }
 
     /**
