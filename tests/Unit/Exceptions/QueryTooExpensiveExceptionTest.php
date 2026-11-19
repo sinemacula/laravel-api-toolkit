@@ -70,4 +70,29 @@ final class QueryTooExpensiveExceptionTest extends TestCase
             'actual'    => 4,
         ], $exception->getCustomMeta());
     }
+
+    /**
+     * Test that the meta schema closes the meta over its five fields, the
+     * reason naming a cost cap or the page size ceiling.
+     *
+     * @return void
+     */
+    public function testMetaSchemaClosesTheMetaOverItsFiveFields(): void
+    {
+        self::assertSame([
+            'type'       => 'object',
+            'properties' => [
+                'parameter' => ['type' => 'string'],
+                'pointer'   => ['type' => 'string'],
+                'reason'    => [
+                    'type' => 'string',
+                    'enum' => ['max_bytes', 'max_parse_depth', 'max_depth', 'max_nodes', 'max_in_items', 'max_order_keys', 'max_aggregates', 'max_offset', 'max_limit'],
+                ],
+                'limit'  => ['type' => 'integer'],
+                'actual' => ['type' => 'integer'],
+            ],
+            'required'             => ['parameter', 'pointer', 'reason', 'limit', 'actual'],
+            'additionalProperties' => false,
+        ], QueryTooExpensiveException::metaSchema());
+    }
 }

@@ -30,7 +30,7 @@ final class EnforceQuota
     public function __invoke(Request $request, \Closure $next): mixed
     {
         if ($request->headers->has(self::HEADER)) {
-            throw new QuotaExceededException;
+            throw new QuotaExceededException(null, ['Retry-After' => 3600, 'X-Quota-Reset' => 1767225600]);
         }
 
         return $next($request);
