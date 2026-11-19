@@ -1081,7 +1081,7 @@ one is left undocumented; either still lists the relation in `_truncated` when i
 Every operation also lists the errors it can return, derived from the route: an unauthenticated request behind auth
 middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
 `AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the route
-has parameters, a validation failure when the operation accepts a request body or the toolkit's query parameters, a
+binds a parameter, a validation failure when the operation accepts a request body or the toolkit's query parameters, a
 refusal behind a rate limit, and an unhandled exception always. Each is documented as the exception map renders it: by
 default a `401`, `403`, `404`, `422`, `429` and `500`. A list operation also documents the query cost refusal under
 `422` while any query cost cap is enabled. The unhandled exception is looked up as a `Throwable`, so a `Throwable` key
@@ -1112,6 +1112,12 @@ field that emits that column unchanged, with no model accessor, takes precedence
 enum leaves the parameter a string. A constraint outside the syntax PHP and JavaScript read alike is not exported, so
 the binding types the parameter, or it stays a string: `\d`, `\w` and an unescaped `.` match more characters in PHP, so
 write `[0-9]` or `whereNumber()` to export the constraint.
+
+A route with optional parameters exports a path for each URL it matches, every parameter in it required:
+`reports/{period?}` exports `/reports` and `/reports/{period}`. As the router matches it, only the trailing run of
+optional parameters can be left out, so `{locale?}/reports` exports `/{locale}/reports` alone. A shorter path documents
+a missing record only when the route's domain has parameters or a route default fills one it leaves out, and is left to
+any other route exporting it under the same method.
 
 Every enum the document references, through a model cast, a request field validated by `Rule::enum()` or `PureEnum`, or
 a string-backed enum bound to a route parameter, becomes one named component listing its values under `enum`: the
@@ -1254,7 +1260,10 @@ of:
 A route with several methods keeps the id on its first method and appends each later method to it, in the order the
 route declares them: a `PUT|PATCH` route named `users.update` exports `users.update` and `users.update.patch`, so
 reordering a `match()` changes its ids. An id taken from the method and path already starts with its method, and is not
-suffixed. Ids must be unique across every audience; two operations claiming one id fail the export, naming both.
+suffixed. The paths of a route with optional parameters share its id: the shortest keeps it and each longer path appends
+the optional parameters it adds, ahead of any method, so a `GET|POST` route named `reports.show` on `reports/{period?}`
+exports `reports.show`, `reports.show.post`, `reports.show.period` and `reports.show.period.post`. Ids must be unique
+across every audience; two operations claiming one id fail the export, naming both.
 
 `#[Operation]` declares an action's `id`, its `summary`, or both. The summary is exported whether or not ids are on:
 
@@ -1267,9 +1276,10 @@ public function update(UpdateUserRequest $request): JsonResponse {}
 
 An operation's description is read from `<docs_path>/operations/<id>.md`, and `audiences/<name>/operations/<id>.md`
 replaces it for that audience; an empty file blanks it. A later method without its own file takes the first method's, so
-`users.update.md` describes both methods unless `users.update.patch.md` exists. Filenames are matched byte for byte, so
-ids differing only in case cannot share a case-insensitive filesystem. Files and directories whose names start with `.`
-are ignored. Every export checks the files of every audience, and fails on an operation file while ids are off, on one
+`users.update.md` describes both methods unless `users.update.patch.md` exists. Every path of a route with optional
+parameters falls back the same way to its shortest path's first method. Filenames are matched byte for byte, so ids
+differing only in case cannot share a case-insensitive filesystem. Files and directories whose names start with `.` are
+ignored. Every export checks the files of every audience, and fails on an operation file while ids are off, on one
 matching no exported operation, and on one under the directory of an audience that is not configured.
 
 #### Tags

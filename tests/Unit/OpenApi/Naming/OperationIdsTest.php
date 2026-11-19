@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\OpenApi\Naming\OperationIds;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathForm;
 use Tests\Fixtures\OpenApi\Naming\APIKeyController;
 use Tests\Fixtures\OpenApi\Naming\Controller;
 use Tests\Fixtures\OpenApi\Naming\OAuth2CallbackController;
@@ -35,7 +36,7 @@ final class OperationIdsTest extends TestCase
     {
         self::assertSame(
             ['get' => 'reports.latest'],
-            OperationIds::derive($this->route('reports.index'), PathPlainController::class, 'report', ['get'], '/reports', 'reports.latest'),
+            OperationIds::derive($this->route('reports.index'), PathPlainController::class, 'report', ['get'], self::form('/reports'), 'reports.latest'),
         );
     }
 
@@ -48,7 +49,7 @@ final class OperationIdsTest extends TestCase
     {
         self::assertSame(
             ['get' => 'reports.index'],
-            OperationIds::derive($this->route('reports.index'), PathPlainController::class, 'report', ['get'], '/reports', null),
+            OperationIds::derive($this->route('reports.index'), PathPlainController::class, 'report', ['get'], self::form('/reports'), null),
         );
     }
 
@@ -62,7 +63,7 @@ final class OperationIdsTest extends TestCase
     {
         self::assertSame(
             ['get' => 'path-plain.report'],
-            OperationIds::derive($this->route(), PathPlainController::class, 'report', ['get'], '/reports', null),
+            OperationIds::derive($this->route(), PathPlainController::class, 'report', ['get'], self::form('/reports'), null),
         );
     }
 
@@ -75,7 +76,7 @@ final class OperationIdsTest extends TestCase
     {
         self::assertSame(
             ['get' => 'get.users.user.avatar'],
-            OperationIds::derive($this->route(), null, \Closure::class, ['get'], '/users/{user}/avatar', null),
+            OperationIds::derive($this->route(), null, \Closure::class, ['get'], self::form('/users/{user}/avatar'), null),
         );
     }
 
@@ -105,7 +106,7 @@ final class OperationIdsTest extends TestCase
     {
         self::assertSame(
             ['get' => 'path-plain.report'],
-            OperationIds::derive($this->route($name), PathPlainController::class, 'report', ['get'], '/reports', null),
+            OperationIds::derive($this->route($name), PathPlainController::class, 'report', ['get'], self::form('/reports'), null),
         );
     }
 
@@ -119,11 +120,11 @@ final class OperationIdsTest extends TestCase
     {
         self::assertSame(
             ['get' => 'api-key.show-all'],
-            OperationIds::derive($this->route(), APIKeyController::class, 'showAll', ['get'], '/keys', null),
+            OperationIds::derive($this->route(), APIKeyController::class, 'showAll', ['get'], self::form('/keys'), null),
         );
         self::assertSame(
             ['get' => 'o-auth2-callback.handle-http-response'],
-            OperationIds::derive($this->route(), OAuth2CallbackController::class, 'handleHTTPResponse', ['get'], '/callback', null),
+            OperationIds::derive($this->route(), OAuth2CallbackController::class, 'handleHTTPResponse', ['get'], self::form('/callback'), null),
         );
     }
 
@@ -136,7 +137,7 @@ final class OperationIdsTest extends TestCase
     {
         self::assertSame(
             ['get' => 'path-invokable'],
-            OperationIds::derive($this->route(), PathInvokableController::class, '__invoke', ['get'], '/widgets', null),
+            OperationIds::derive($this->route(), PathInvokableController::class, '__invoke', ['get'], self::form('/widgets'), null),
         );
     }
 
@@ -149,13 +150,13 @@ final class OperationIdsTest extends TestCase
     {
         self::assertSame(
             ['get' => 'controller.index'],
-            OperationIds::derive($this->route(), Controller::class, 'index', ['get'], '/items', null),
+            OperationIds::derive($this->route(), Controller::class, 'index', ['get'], self::form('/items'), null),
         );
     }
 
     /**
-     * Test that the closure segments drop braces, optional markers and empty
-     * segments, and the root path keeps the verb alone.
+     * Test that the closure segments drop braces and empty segments, and the
+     * root path keeps the verb alone.
      *
      * @return void
      */
@@ -163,9 +164,9 @@ final class OperationIdsTest extends TestCase
     {
         self::assertSame(
             ['get' => 'get.users.user.avatar'],
-            OperationIds::derive($this->route(), null, \Closure::class, ['get'], '/users/{user?}//avatar/', null),
+            OperationIds::derive($this->route(), null, \Closure::class, ['get'], self::form('/users/{user}//avatar/'), null),
         );
-        self::assertSame(['get' => 'get'], OperationIds::derive($this->route(), null, \Closure::class, ['get'], '/', null));
+        self::assertSame(['get' => 'get'], OperationIds::derive($this->route(), null, \Closure::class, ['get'], self::form('/'), null));
     }
 
     /**
@@ -177,11 +178,11 @@ final class OperationIdsTest extends TestCase
     {
         self::assertSame(
             ['put' => 'users.update', 'patch' => 'users.update.patch'],
-            OperationIds::derive($this->route('users.update'), PathPlainController::class, 'update', ['put', 'patch'], '/users/{user}', null),
+            OperationIds::derive($this->route('users.update'), PathPlainController::class, 'update', ['put', 'patch'], self::form('/users/{user}'), null),
         );
         self::assertSame(
             ['patch' => 'users.update', 'put' => 'users.update.put'],
-            OperationIds::derive($this->route('users.update'), PathPlainController::class, 'update', ['patch', 'put'], '/users/{user}', null),
+            OperationIds::derive($this->route('users.update'), PathPlainController::class, 'update', ['patch', 'put'], self::form('/users/{user}'), null),
         );
     }
 
@@ -194,7 +195,7 @@ final class OperationIdsTest extends TestCase
     {
         self::assertSame(
             ['get' => 'ping', 'post' => 'ping.post'],
-            OperationIds::derive($this->route('ping'), null, \Closure::class, ['get', 'post'], '/ping', null),
+            OperationIds::derive($this->route('ping'), null, \Closure::class, ['get', 'post'], self::form('/ping'), null),
         );
     }
 
@@ -208,8 +209,46 @@ final class OperationIdsTest extends TestCase
     {
         self::assertSame(
             ['get' => 'get.ping', 'post' => 'post.ping'],
-            OperationIds::derive($this->route(), null, \Closure::class, ['get', 'post'], '/ping', null),
+            OperationIds::derive($this->route(), null, \Closure::class, ['get', 'post'], self::form('/ping'), null),
         );
+    }
+
+    /**
+     * Test that a path form appends the optional parameters it includes to the
+     * base id, ahead of any verb suffix.
+     *
+     * @return void
+     */
+    public function testFormAppendsItsOptionalParametersAheadOfTheVerbSuffix(): void
+    {
+        self::assertSame(
+            ['get' => 'reports.show', 'post' => 'reports.show.post'],
+            OperationIds::derive($this->route('reports.show'), PathPlainController::class, 'report', ['get', 'post'], self::form('/reports'), null),
+        );
+        self::assertSame(
+            ['get' => 'reports.show.period', 'post' => 'reports.show.period.post'],
+            OperationIds::derive($this->route('reports.show'), PathPlainController::class, 'report', ['get', 'post'], self::form('/reports/{period}', 'period'), null),
+        );
+        self::assertSame(
+            ['get' => 'reports.show.period.post'],
+            OperationIds::derive($this->route('reports.show'), PathPlainController::class, 'report', ['get'], self::form('/reports/{period}/{post}', 'period', 'post'), null),
+        );
+    }
+
+    /**
+     * Test that a declared id and a controller id are suffixed by the form, and
+     * an id taken from the method and path is not.
+     *
+     * @return void
+     */
+    public function testDeclaredAndControllerIdsAreSuffixedButPathIdsAreNot(): void
+    {
+        $form  = self::form('/reports/{period}', 'period');
+        $named = $this->route('reports.show');
+
+        self::assertSame(['get' => 'reports.latest.period'], OperationIds::derive($named, PathPlainController::class, 'report', ['get'], $form, 'reports.latest'));
+        self::assertSame(['get' => 'path-plain.report.period'], OperationIds::derive($this->route(), PathPlainController::class, 'report', ['get'], $form, null));
+        self::assertSame(['get' => 'get.reports.period'], OperationIds::derive($this->route(), null, \Closure::class, ['get'], $form, null));
     }
 
     /**
@@ -223,5 +262,19 @@ final class OperationIdsTest extends TestCase
         $route = new Route(['GET'], 'stub', static fn (): null => null);
 
         return $name === null ? $route : $route->name($name);
+    }
+
+    /**
+     * Build a path form of the template, including the optional parameters.
+     *
+     * @param  string  $path
+     * @param  string  ...$optional
+     * @return \SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathForm
+     */
+    private static function form(string $path, string ...$optional): RoutePathForm
+    {
+        preg_match_all('/\{(\w+)\}/', $path, $matches);
+
+        return new RoutePathForm($path, $matches[1], array_values($optional), true);
     }
 }

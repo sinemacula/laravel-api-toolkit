@@ -91,7 +91,7 @@ final readonly class DocumentedRouteCollector
             }
 
             foreach ($collected['audiences'] as $audience) {
-                $byAudience[$audience][] = $collected['route'];
+                array_push($byAudience[$audience], ...$collected['routes']);
             }
         }
 
@@ -124,15 +124,15 @@ final readonly class DocumentedRouteCollector
     }
 
     /**
-     * Resolve the route and the audiences it joins, or null when it is not
-     * documentable or joins none.
+     * Resolve the route's path forms and the audiences it joins, or null when
+     * it is not documentable or joins none.
      *
      * A fallback route answers unmatched paths, so it is never an operation.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @param  array<string, \SineMacula\ApiToolkit\Enums\AudiencePosture>  $postures
      * @param  bool  $idsEnabled
-     * @return array{route: \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute, audiences: non-empty-list<string>}|null
+     * @return array{routes: non-empty-list<\SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute>, audiences: non-empty-list<string>}|null
      */
     private function collectRoute(Route $route, array $postures, bool $idsEnabled): ?array
     {
@@ -155,38 +155,47 @@ final readonly class DocumentedRouteCollector
             $members[] = $audience;
         }
 
-        return $members === [] ? null : ['route' => $this->documentRoute($route, $controllerClass, $action, $verbs, $idsEnabled), 'audiences' => $members];
+        return $members === [] ? null : ['routes' => $this->documentRoute($route, $controllerClass, $action, $verbs, $idsEnabled), 'audiences' => $members];
     }
 
     /**
-     * Resolve the resource, tag, summary and operationIds of a documentable
-     * route.
+     * Resolve the resource, tag and summary of a documentable route once, and
+     * document each of its path forms, shortest first.
+     *
+     * Every form falls back to the shortest form's first-verb operationId.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @param  class-string|null  $controllerClass
      * @param  string  $action
      * @param  non-empty-list<string>  $verbs
      * @param  bool  $idsEnabled
-     * @return \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute
+     * @return non-empty-list<\SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute>
      */
-    private function documentRoute(Route $route, ?string $controllerClass, string $action, array $verbs, bool $idsEnabled): DocumentedRoute
+    private function documentRoute(Route $route, ?string $controllerClass, string $action, array $verbs, bool $idsEnabled): array
     {
         $resource  = $this->resourceFor($controllerClass, $action);
         $operation = $this->operationOf($controllerClass, $action);
-        $path      = $this->pathTemplate($route);
+        $tag       = $this->tags->resolve($controllerClass, $action, $route, $resource['schema'] ?? null);
+        $forms     = (new RoutePathFormResolver)->resolve($route);
+        $ids       = array_map(
+            static fn (RoutePathForm $form): array => $idsEnabled ? OperationIds::derive($route, $controllerClass, $action, $verbs, $form, $operation?->id) : [],
+            $forms,
+        );
 
-        return new DocumentedRoute(
+        return array_map(static fn (RoutePathForm $form, array $formIds): DocumentedRoute => new DocumentedRoute(
             $route,
             $controllerClass,
             $action,
-            $path,
+            $form,
             $verbs,
             $resource,
-            $this->tags->resolve($controllerClass, $action, $route, $resource['schema'] ?? null),
-            $idsEnabled ? OperationIds::derive($route, $controllerClass, $action, $verbs, $path, $operation?->id) : [],
+            $tag,
+            $formIds,
             $operation?->summary,
             $operation?->id !== null,
-        );
+            $forms[0]->path,
+            $ids[0][$verbs[0]] ?? null,
+        ), $forms, $ids);
     }
 
     /**
@@ -261,17 +270,6 @@ final readonly class DocumentedRouteCollector
         } catch (\LogicException) {
             return null;
         }
-    }
-
-    /**
-     * Convert the route URI to an OpenAPI path template.
-     *
-     * @param  \Illuminate\Routing\Route  $route
-     * @return string
-     */
-    private function pathTemplate(Route $route): string
-    {
-        return str_replace('?}', '}', '/' . ltrim($route->uri(), '/'));
     }
 
     /**
