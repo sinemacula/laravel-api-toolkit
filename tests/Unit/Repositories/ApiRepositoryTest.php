@@ -116,17 +116,22 @@ final class ApiRepositoryTest extends TestCase
     }
 
     /**
-     * Test that withApiFilters after withApiCriteria leaves only the
-     * filters-only criteria on the handle.
+     * Test that the last of withApiCriteria and withApiFilters called on a
+     * handle leaves the only API criteria.
      *
      * @return void
      */
-    public function testWithApiFiltersReplacesTheApiCriteria(): void
+    public function testTheLastApiCompositionReplacesTheOther(): void
     {
-        $scoped = $this->repository->withApiCriteria()->withApiFilters();
+        $filtered = $this->repository->withApiCriteria()->withApiFilters();
 
-        self::assertCount(1, $scoped->getCriteria());
-        self::assertTrue($this->getProperty($this->apiCriteriaOf($scoped), 'filtersOnly'));
+        self::assertCount(1, $filtered->getCriteria());
+        self::assertTrue($this->getProperty($this->apiCriteriaOf($filtered), 'filtersOnly'));
+
+        $paged = $this->repository->withApiFilters()->withApiCriteria();
+
+        self::assertCount(1, $paged->getCriteria());
+        self::assertFalse($this->getProperty($this->apiCriteriaOf($paged), 'filtersOnly'));
     }
 
     /**

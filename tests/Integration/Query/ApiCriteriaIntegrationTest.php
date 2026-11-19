@@ -589,17 +589,23 @@ final class ApiCriteriaIntegrationTest extends TestCase
      * @return void
      */
     #[Group('pgsql')]
-    public function testGroupedFacetIsRefusedThroughTheFullCriteriaOnPostgres(): void
+    public function testGroupedFacetUnderAClientOrderIsRefusedThroughTheFullCriteriaOnPostgres(): void
     {
         if (DB::connection()->getDriverName() !== 'pgsql') {
             self::markTestSkipped('The refused grouped facet is asserted on PostgreSQL only.');
         }
 
+        Config::set('api-toolkit.resources.narrow_columns', false);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
+
         $this->seedOrganization();
-        $this->parseQuery(['filters' => self::ORGANIZATION, 'order' => 'created_at']);
+
+        // Selects no columns, so the order is the only ungrouped reference
+        $this->parseQuery(['filters' => self::ORGANIZATION, 'order' => 'created_at', 'fields' => ['users' => 'name']]);
 
         try {
-            $this->statusFacet($this->users()->withApiCriteria());
+            // A savepoint, so the refusal leaves the outer transaction usable
+            DB::transaction(fn (): array => $this->statusFacet($this->users()->withApiCriteria()));
             self::fail('Expected the grouped facet to be refused.');
         } catch (QueryException $exception) {
             self::assertSame('42803', $exception->getCode());

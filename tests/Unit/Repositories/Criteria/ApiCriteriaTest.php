@@ -1439,6 +1439,22 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
+     * Test that filters-only criteria refuse to apply when no API query is
+     * parsed, rather than select every row.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testFiltersOnlyRefusesAnUnparsedQuery(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage(self::UNPARSED);
+
+        $this->filtersOnlyCriteria(UserResource::class)->apply(new User);
+    }
+
+    /**
      * Test that filters-only criteria refuse an undeclared filter key.
      *
      * @return void

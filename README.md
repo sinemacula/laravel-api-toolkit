@@ -597,10 +597,10 @@ if ($caller->isExternal()) {
 $users = $scoped->paginate();
 ```
 
-**Working on the filtered set** - `withApiFilters()` applies only the request's `filters`, `search` and `trashed`,
-under the same allowlist and filter cost budget. `order`, `limit`, `fields` and `aggregates` are neither applied nor
-checked, so a bulk action sent the list screen's query string acts on every matching row. Persistent criteria,
-repository scopes, global scopes and a model's `$with` still apply, and the last of `withApiCriteria()` and
+**Working on the filtered set** - `withApiFilters()` applies only the request's `filters`, `search` and `trashed`, under
+the same allowlist and filter cost budget. `order`, `limit`, `fields` and `aggregates` are not applied, and only the
+query parser checks them, so a bulk action sent the list screen's query string acts on every matching row. Persistent
+criteria, repository scopes, global scopes and a model's `$with` still apply, and the last of `withApiCriteria()` and
 `withApiFilters()` called on a handle wins. A terminal operation consumes the composition, so start each from its own
 call:
 
