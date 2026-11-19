@@ -574,6 +574,101 @@ final class PageOrderTest extends TestCase
     }
 
     /**
+     * Provide leading orders and cursor directions with the bound each implies.
+     *
+     * @return iterable<string, array{'asc'|'desc', bool, string}>
+     */
+    public static function seekBoundProvider(): iterable
+    {
+        yield 'ascending, next page' => ['asc', true, '>='];
+        yield 'descending, next page' => ['desc', true, '<='];
+        yield 'ascending, previous page' => ['asc', false, '<='];
+        yield 'descending, previous page' => ['desc', false, '>='];
+    }
+
+    /**
+     * Test that a cursor bounds the leading order column at its boundary, on
+     * the side the read moves towards.
+     *
+     * The key runs the other way, so only the leading direction decides.
+     *
+     * @param  'asc'|'desc'  $direction
+     * @param  bool  $next
+     * @param  string  $operator
+     * @return void
+     */
+    #[DataProvider('seekBoundProvider')]
+    public function testCursorBoundsTheLeadingColumnOnTheSideTheReadMovesTowards(string $direction, bool $next, string $operator): void
+    {
+        $query = $this->users(static fn (QueryBuilder $query) => $query->orderBy('users.name', $direction)->orderBy(self::KEY, $direction === 'asc' ? 'desc' : 'asc'));
+
+        $this->pageOrder->seek($query, new Cursor(['users.name' => 'Ann', self::KEY => 3], $next));
+
+        self::assertSame(
+            [['type' => 'Basic', 'column' => 'users.name', 'operator' => $operator, 'value' => 'Ann', 'boolean' => 'and']],
+            $query->getQuery()->wheres,
+        );
+    }
+
+    /**
+     * Provide orders whose leading entry no where clause can bound.
+     *
+     * @return iterable<string, array{\Closure(\Illuminate\Database\Query\Builder): mixed}>
+     */
+    public static function unboundableOrderProvider(): iterable
+    {
+        yield 'raw' => [static fn (QueryBuilder $query) => $query->orderByRaw('lower(name)')->orderBy(self::KEY)];
+        yield 'expression' => [static fn (QueryBuilder $query) => $query->orderBy(new Expression('lower(name)'))->orderBy(self::KEY)];
+        yield 'unqualified' => [static fn (QueryBuilder $query) => $query->orderBy('name')->orderBy(self::KEY)];
+        yield 'another table' => [static fn (QueryBuilder $query) => $query->orderBy('users_archive.name')->orderBy(self::KEY)];
+        yield 'union' => [static fn (QueryBuilder $query) => $query->orderBy('users.name')->orderBy(self::KEY)->union(User::query()->getQuery())];
+    }
+
+    /**
+     * Test that a leading order no where clause can name is left unbounded.
+     *
+     * @param  \Closure(\Illuminate\Database\Query\Builder): mixed  $shape
+     * @return void
+     */
+    #[DataProvider('unboundableOrderProvider')]
+    public function testLeadingOrderNoWhereClauseCanNameIsLeftUnbounded(\Closure $shape): void
+    {
+        $query = $this->users($shape);
+
+        $this->pageOrder->seek($query, new Cursor(['users.name' => 'Ann', 'users_archive.name' => 'Ann', 'name' => 'Ann', self::KEY => 3]));
+
+        self::assertSame([], $query->getQuery()->wheres);
+    }
+
+    /**
+     * Test that a lone ordered column is left unbounded, since its seek is
+     * already a range.
+     *
+     * @return void
+     */
+    public function testALoneOrderedColumnIsLeftUnbounded(): void
+    {
+        $query = $this->users(static fn (QueryBuilder $query) => $query->orderBy('users.name'));
+
+        $this->pageOrder->seek($query, new Cursor(['users.name' => 'Ann']));
+
+        self::assertSame([], $query->getQuery()->wheres);
+    }
+
+    /**
+     * Test that the first page is left unbounded.
+     *
+     * @return void
+     */
+    public function testFirstPageIsLeftUnbounded(): void
+    {
+        $query = $this->users(static fn (QueryBuilder $query) => $query->orderBy('users.name')->orderBy(self::KEY));
+
+        self::assertSame($query, $this->pageOrder->seek($query, null));
+        self::assertSame([], $query->getQuery()->wheres);
+    }
+
+    /**
      * Encode the payload as a cursor token, whatever its shape.
      *
      * @param  mixed  $payload

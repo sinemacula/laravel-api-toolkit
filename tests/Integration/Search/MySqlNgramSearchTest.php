@@ -34,6 +34,50 @@ final class MySqlNgramSearchTest extends EngineSearchTestCase
     }
 
     /**
+     * Return the rows the anywhere-match finds for "ann smith".
+     *
+     * The n-gram phrase matches the words' tokens in order, whatever whitespace
+     * separates them.
+     *
+     * @return array<int, string>
+     */
+    #[\Override]
+    protected function multiWordMatches(): array
+    {
+        return ['Ann Smith', 'ANN SMITH', 'Ann  Smith'];
+    }
+
+    /**
+     * Return, keyed by term, the rows each accented or upper-case term finds.
+     *
+     * The column's accent- and case-insensitive collation folds both.
+     *
+     * @return array<string, array<int, string>>
+     */
+    #[\Override]
+    protected function foldedMatches(): array
+    {
+        return [
+            'élise' => ['Élise Müller', 'Elise Martin'],
+            'ÉLISE' => ['Élise Müller', 'Elise Martin'],
+            'ELISE' => ['Élise Müller', 'Elise Martin'],
+        ];
+    }
+
+    /**
+     * Return the rows an equality match finds for "smith" beside "Smith".
+     *
+     * The column's case-insensitive collation folds the comparison.
+     *
+     * @return array<int, string>
+     */
+    #[\Override]
+    protected function caseFoldedEqualityMatches(): array
+    {
+        return ['Smith'];
+    }
+
+    /**
      * Assert that the engine answers the query through its full-text index.
      *
      * This engine resolves a full-text match from its index only outside a
@@ -80,6 +124,32 @@ final class MySqlNgramSearchTest extends EngineSearchTestCase
     {
         return 'The columns declared with the "substring" strategy ("name", "email") are matched together, '
             . 'so table "users" needs one full-text index over exactly that column list, created with the ngram parser';
+    }
+
+    /**
+     * Rebuild the full-text index over the same columns with the default
+     * parser, which matches whole words only.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function makeAnywhereMatchIndexUnusable(): void
+    {
+        $this->dropAnywhereMatchIndex();
+
+        DB::statement('alter table `users` add fulltext index `users_search_ngram` (`name`, `email`)');
+    }
+
+    /**
+     * Rebuild the full-text index with the n-gram parser.
+     *
+     * @return void
+     */
+    #[\Override]
+    protected function makeAnywhereMatchIndexUsable(): void
+    {
+        $this->dropAnywhereMatchIndex();
+        $this->createAnywhereMatchIndex();
     }
 
     /**

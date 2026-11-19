@@ -170,7 +170,8 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
     /**
      * Determine whether a definition indexes the column with a trigram opclass.
      *
-     * A differently collated key breaks the adjacency, so it never matches.
+     * A differently collated key breaks the adjacency, so it never matches. The
+     * operator class is schema-qualified when the search path cannot see it.
      *
      * @param  string  $column
      * @param  array<int, string>  $definitions
@@ -178,7 +179,7 @@ final class PostgresTrigramSearchDriver extends EngineSearchDriver
      */
     private function hasTrigramIndex(string $column, array $definitions): bool
     {
-        $pattern = sprintf('/[(,]\s*"?%s"?\s+(?:gin|gist)_trgm_ops\s*[,)]/i', preg_quote($column, '/'));
+        $pattern = sprintf('/[(,]\s*"?%s"?\s+(?:(?:"[^"]+"|\w+)\.)?(?:gin|gist)_trgm_ops\s*[,)]/i', preg_quote($column, '/'));
 
         foreach ($definitions as $definition) {
 
