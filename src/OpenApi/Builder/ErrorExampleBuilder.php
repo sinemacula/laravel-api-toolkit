@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
+use SineMacula\ApiToolkit\OpenApi\Contracts\DefinesErrorMeta;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ErrorCatalogueMismatchException;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
@@ -20,17 +21,23 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor;
  */
 final class ErrorExampleBuilder
 {
+    /** The component name of each per-code error example and envelope schema */
+    public const string NAME_FORMAT = 'Error%d';
+
     /** The path prefix under which example components are referenced */
     private const string REFERENCE_PREFIX = '#/components/examples/';
-
-    /** The component name of each per-code error example */
-    private const string NAME_FORMAT = 'Error%d';
 
     /** The message for a code the error catalogue does not hold */
     private const string UNCATALOGUED_MESSAGE = 'The error code %d of [%s] is not in the error catalogue; add its namespace to api-toolkit.openapi.exception_namespaces.';
 
+    /** The message for an exception the handler cannot render for want of a code */
+    private const string CODELESS_MESSAGE = '[%s] declares no error code, so the handler cannot render it; give it a CODE constant.';
+
     /** The message for a status the error catalogue documents otherwise */
     private const string STATUS_MESSAGE = '[%1$s] answers %2$d with error code %3$d, which the error catalogue documents for [%4$s] as %5$d; give [%1$s] its own error code.';
+
+    /** The message for a meta the error catalogue documents otherwise */
+    private const string META_MESSAGE = '[%1$s] declares a different meta for error code %2$d than [%3$s] does; give [%1$s] its own error code.';
 
     /** @var array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>|null The catalogue indexed by code, once read. */
     private ?array $descriptors = null;
@@ -57,7 +64,7 @@ final class ErrorExampleBuilder
     public function reference(string $exceptionClass): array
     {
         if (!defined($exceptionClass . '::CODE')) {
-            return [];
+            throw new ErrorCatalogueMismatchException(sprintf(self::CODELESS_MESSAGE, $exceptionClass));
         }
 
         $code       = $exceptionClass::getInternalErrorCode();
@@ -67,6 +74,12 @@ final class ErrorExampleBuilder
 
         if ($descriptor->httpStatus !== $status) {
             throw new ErrorCatalogueMismatchException(sprintf(self::STATUS_MESSAGE, $exceptionClass, $status, $code, $descriptor->source, $descriptor->httpStatus));
+        }
+
+        $meta = is_a($exceptionClass, DefinesErrorMeta::class, true) ? $exceptionClass::metaSchema() : null;
+
+        if ($meta !== $descriptor->meta) {
+            throw new ErrorCatalogueMismatchException(sprintf(self::META_MESSAGE, $exceptionClass, $code, $descriptor->source));
         }
 
         $name = sprintf(self::NAME_FORMAT, $code);
@@ -82,21 +95,33 @@ final class ErrorExampleBuilder
      */
     public function build(array $paths): array
     {
-        $referenced = $this->referencedNames($paths);
-        $examples   = [];
+        return array_map(fn (ErrorDescriptor $descriptor): array => $this->example($descriptor), $this->referenced($paths));
+    }
+
+    /**
+     * Resolve the descriptor of each code whose example the paths reference,
+     * keyed by its component name and ordered by code.
+     *
+     * @param  array<string, array<string, mixed>>  $paths
+     * @return array<string, \SineMacula\ApiToolkit\OpenApi\Metadata\ErrorDescriptor>
+     */
+    public function referenced(array $paths): array
+    {
+        $names       = $this->referencedNames($paths);
+        $descriptors = [];
 
         foreach ($this->descriptors() as $code => $descriptor) {
 
             $name = sprintf(self::NAME_FORMAT, $code);
 
-            if (!($referenced[$name] ?? false)) {
+            if (!($names[$name] ?? false)) {
                 continue;
             }
 
-            $examples[$name] = $this->example($descriptor);
+            $descriptors[$name] = $descriptor;
         }
 
-        return $examples;
+        return $descriptors;
     }
 
     /**
