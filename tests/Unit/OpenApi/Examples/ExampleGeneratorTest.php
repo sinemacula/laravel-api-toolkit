@@ -232,6 +232,8 @@ final class ExampleGeneratorTest extends TestCase
         self::assertSame(['string', 'string2', 'string3'], $this->value([...$list, 'minItems' => 3, 'items' => ['type' => 'string']]));
         self::assertSame([10, 15], $this->value([...$list, 'minItems' => 2, 'items' => ['type' => 'integer', 'minimum' => 7, 'multipleOf' => 5]]));
         self::assertSame([true, false], $this->value([...$list, 'minItems' => 2, 'items' => ['type' => 'boolean']]));
+        self::assertSame([1, 2], $this->value([...$list, 'minItems' => 2, 'items' => ['allOf' => [['type' => 'integer']]]]));
+        self::assertEquals(new MissingValue(self::BODY), $this->generate([...$list, 'minItems' => PHP_INT_MAX, 'items' => ['type' => 'boolean']]));
     }
 
     /**
@@ -336,6 +338,25 @@ final class ExampleGeneratorTest extends TestCase
                 'password_confirmation' => ['type' => 'string', 'minLength' => 8, 'x-confirms' => 'password'],
             ],
             'required' => ['password', 'password_confirmation'],
+        ]));
+    }
+
+    /**
+     * Test that every confirmation of a field repeats the one value the field
+     * ends with.
+     *
+     * @return void
+     */
+    public function testEveryConfirmationRepeatsTheFieldsFinalValue(): void
+    {
+        self::assertSame(['p' => 'stringxx', 'c1' => 'stringxx', 'c2' => 'stringxx'], $this->value([
+            'type'       => 'object',
+            'properties' => [
+                'p'  => ['type' => 'string'],
+                'c1' => ['type' => 'string', 'x-confirms' => 'p'],
+                'c2' => ['type' => 'string', 'minLength' => 8, 'x-confirms' => 'p'],
+            ],
+            'required' => ['p', 'c1', 'c2'],
         ]));
     }
 
@@ -496,7 +517,12 @@ final class ExampleGeneratorTest extends TestCase
         $examples = $this->generate(
             ['type' => 'object', 'properties' => [
                 'data' => ['allOf' => [['$ref' => '#/components/schemas/Base'], ['oneOf' => [['$ref' => '#/components/schemas/A'], ['$ref' => '#/components/schemas/B']]]]],
-                'meta' => ['type' => 'object', 'properties' => ['v' => ['type' => 'integer']], 'required' => ['v'], 'anyOf' => [['type' => 'null'], ['$ref' => '#/components/schemas/C']]],
+                'meta' => [
+                    'type'       => 'object',
+                    'properties' => ['v' => ['type' => 'integer']],
+                    'required'   => ['v'],
+                    'anyOf'      => [['type' => 'null'], ['$ref' => '#/components/schemas/C']],
+                ],
             ], 'required' => ['data', 'meta']],
             ExampleScope::RESPONSE,
             [
@@ -595,7 +621,8 @@ final class ExampleGeneratorTest extends TestCase
     }
 
     /**
-     * Test that an alternative without a value leaves the body without one.
+     * Test that a shape without a value leaves the body without one, on an
+     * object too.
      *
      * @return void
      */
@@ -604,6 +631,13 @@ final class ExampleGeneratorTest extends TestCase
         self::assertEquals(
             new MissingValue(self::BODY . '/oneOf/1', true),
             $this->generate(['oneOf' => [['type' => 'integer'], ['type' => 'object', 'x-undocumented' => true]]]),
+        );
+        self::assertEquals(
+            new MissingValue(self::BODY . '/oneOf/1', true),
+            $this->generate(['type' => 'object', 'properties' => ['id' => ['type' => 'integer']], 'oneOf' => [
+                ['properties' => ['a' => ['type' => 'string']], 'required' => ['a']],
+                ['type' => 'object', 'x-undocumented' => true, 'not' => ['required' => ['a']]],
+            ]]),
         );
     }
 

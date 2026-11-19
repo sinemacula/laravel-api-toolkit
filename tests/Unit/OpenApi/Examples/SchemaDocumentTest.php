@@ -48,6 +48,44 @@ final class SchemaDocumentTest extends TestCase
     }
 
     /**
+     * Test that a pointer resolves to the schema its node references, else to
+     * itself.
+     *
+     * @return void
+     */
+    public function testPointerResolvesToTheSchemaItReferences(): void
+    {
+        $document = SchemaDocument::of(['components' => ['schemas' => ['A' => ['$ref' => '#/components/schemas/B'], 'B' => ['type' => 'string']]]]);
+
+        self::assertSame('/components/schemas/B', $document->target('/components/schemas/A'));
+        self::assertSame('/components/schemas/B', $document->target('/components/schemas/B'));
+        self::assertSame('/components/schemas/C', $document->target('/components/schemas/C'));
+    }
+
+    /**
+     * Test that a schema's conjuncts are collected depth first, a referencing
+     * one as its target, each once, onto those already collected.
+     *
+     * @return void
+     */
+    public function testConjunctsAreCollectedThroughTheirReferences(): void
+    {
+        $base     = ['type' => 'object', 'allOf' => [['$ref' => '#/components/schemas/Body']]];
+        $body     = ['allOf' => [['$ref' => '#/components/schemas/Base'], ['required' => ['id']], 'none', ['$ref' => '#/components/schemas/Missing']]];
+        $document = SchemaDocument::of(['components' => ['schemas' => ['Body' => $body, 'Base' => $base]]]);
+
+        self::assertSame([
+            '/components/schemas/Body'         => $body,
+            '/components/schemas/Base'         => $base,
+            '/components/schemas/Body/allOf/1' => ['required' => ['id']],
+        ], $document->conjuncts('/components/schemas/Body', $body));
+        self::assertSame(
+            ['/x' => [], '/components/schemas/Base' => $base, '/components/schemas/Body' => $body, '/components/schemas/Body/allOf/1' => ['required' => ['id']]],
+            $document->conjuncts('/components/schemas/Base', $base, ['/x' => []]),
+        );
+    }
+
+    /**
      * Test that a valid value has no mismatch, its references followed across
      * components.
      *

@@ -94,6 +94,47 @@ final readonly class SchemaDocument
     }
 
     /**
+     * Resolve a node's pointer to that of the schema it references, if any.
+     *
+     * @param  string  $pointer
+     * @return string
+     */
+    public function target(string $pointer): string
+    {
+        $reference = $this->node(self::append($pointer, '$ref'));
+
+        return is_string($reference) ? substr($reference, 1) : $pointer;
+    }
+
+    /**
+     * Collect a schema and the conjuncts its allOf names, a referencing one as
+     * its target, keyed by pointer, onto those already collected.
+     *
+     * @param  string  $pointer
+     * @param  array<array-key, mixed>  $schema
+     * @param  array<string, array<array-key, mixed>>  $parts
+     * @return array<string, array<array-key, mixed>>
+     */
+    public function conjuncts(string $pointer, array $schema, array $parts = []): array
+    {
+        $parts[$pointer] = $schema;
+
+        foreach (array_keys(is_array($schema['allOf'] ?? null) ? $schema['allOf'] : []) as $index) {
+
+            $conjunct = $this->target(self::append(self::append($pointer, 'allOf'), $index));
+            $node     = $this->node($conjunct);
+
+            if (!is_array($node) || array_key_exists($conjunct, $parts)) {
+                continue;
+            }
+
+            $parts = $this->conjuncts($conjunct, $node, $parts);
+        }
+
+        return $parts;
+    }
+
+    /**
      * Describe where and why a value fails the schema at a JSON pointer, or
      * return null when it validates.
      *

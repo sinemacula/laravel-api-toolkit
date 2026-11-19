@@ -89,6 +89,24 @@ final class ShapeUnionFinderTest extends TestCase
     }
 
     /**
+     * Test that a union's value alternatives leave out null and presence-only
+     * ones, oneOf before anyOf.
+     *
+     * @return void
+     */
+    public function testValueAlternativesLeaveOutNullAndPresenceOnlyOnes(): void
+    {
+        self::assertSame(
+            [self::BODY . '/oneOf/1', self::BODY . '/anyOf/0', self::BODY . '/anyOf/3'],
+            $this->finder([])->valueAlternatives(self::BODY, [
+                'anyOf' => [['type' => 'string'], ['required' => ['a']], ['dependentRequired' => ['a' => ['b']], 'maxProperties' => 2], []],
+                'oneOf' => [['type' => 'null'], ['$ref' => '#/components/schemas/Shape']],
+            ]),
+        );
+        self::assertSame([], $this->finder([])->valueAlternatives(self::BODY, ['oneOf' => 'none']));
+    }
+
+    /**
      * Test that a shape is named by its title, its target's title or component
      * name, else its position, with an ordinal when taken.
      *

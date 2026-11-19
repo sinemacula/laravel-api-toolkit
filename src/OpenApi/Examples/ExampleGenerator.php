@@ -21,9 +21,6 @@ use SineMacula\ApiToolkit\OpenApi\Schema\PresenceConstraintBuilder;
  */
 final class ExampleGenerator
 {
-    /** The keywords an alternative carrying only presence rules is made of */
-    private const array PRESENCE_KEYWORDS = ['required', 'dependentRequired', 'minProperties', 'maxProperties'];
-
     /** The keywords whose alternatives offer a value each */
     private const array UNION_KEYWORDS = ['oneOf', 'anyOf'];
 
@@ -162,9 +159,12 @@ final class ExampleGenerator
     private function candidates(string $pointer, array $node, array $stack): iterable
     {
         if ($this->held !== null && $this->held[0] === $pointer) {
-            yield $this->value($this->held[1], $stack);
 
-            if ($this->isObject($this->parts($pointer, $node, []))) {
+            $shape = $this->value($this->held[1], $stack);
+
+            yield $shape;
+
+            if (!($shape instanceof MissingValue && $shape->undocumented) && $this->isObject($this->schemas->conjuncts($pointer, $node))) {
                 yield from $this->typed($pointer, $node, $stack);
             }
 
@@ -179,9 +179,9 @@ final class ExampleGenerator
             return;
         }
 
-        $target = is_string($node['$ref'] ?? null) ? substr($node['$ref'], 1) : null;
+        $target = $this->schemas->target($pointer);
 
-        if ($target !== null) {
+        if ($target !== $pointer) {
             yield in_array($target, $stack, true) ? new MissingValue($target) : $this->value($target, [...$stack, $target]);
         }
 
@@ -200,15 +200,8 @@ final class ExampleGenerator
      */
     private function alternatives(string $pointer, array $node, array $stack): iterable
     {
-        foreach (self::UNION_KEYWORDS as $keyword) {
-            foreach (is_array($node[$keyword] ?? null) ? $node[$keyword] : [] as $index => $alternative) {
-
-                if (!$this->constrainsValue($alternative)) {
-                    continue;
-                }
-
-                yield $this->value(SchemaDocument::append(SchemaDocument::append($pointer, $keyword), $index), $stack);
-            }
+        foreach ($this->unions->valueAlternatives($pointer, $node) as $alternative) {
+            yield $this->value($alternative, $stack);
         }
 
         if (!in_array(self::NULL_SCHEMA, [...(array) ($node['oneOf'] ?? []), ...(array) ($node['anyOf'] ?? [])], true)) {
@@ -229,7 +222,7 @@ final class ExampleGenerator
      */
     private function typed(string $pointer, array $node, array $stack): iterable
     {
-        $parts  = $this->parts($pointer, $node, []);
+        $parts  = $this->schemas->conjuncts($pointer, $node);
         $object = $this->isObject($parts);
 
         foreach ($object ? [] : array_slice($parts, 1, null, true) as $conjunct => $part) {
@@ -267,34 +260,6 @@ final class ExampleGenerator
         $values = array_values(array_diff($types, ['null']));
 
         return in_array('null', $types, true) ? [...$values, 'null'] : $values;
-    }
-
-    /**
-     * Collect the node and the conjuncts its allOf names, a referencing one as
-     * its target, keyed by pointer.
-     *
-     * @param  string  $pointer
-     * @param  array<array-key, mixed>  $node
-     * @param  array<string, array<array-key, mixed>>  $parts
-     * @return array<string, array<array-key, mixed>>
-     */
-    private function parts(string $pointer, array $node, array $parts): array
-    {
-        $parts[$pointer] = $node;
-
-        foreach (array_keys(is_array($node['allOf'] ?? null) ? $node['allOf'] : []) as $index) {
-
-            $conjunct = $this->target(SchemaDocument::append(SchemaDocument::append($pointer, 'allOf'), $index));
-            $schema   = $this->schemas->node($conjunct);
-
-            if (!is_array($schema) || array_key_exists($conjunct, $parts)) {
-                continue;
-            }
-
-            $parts = $this->parts($conjunct, $schema, $parts);
-        }
-
-        return $parts;
     }
 
     /**
@@ -348,43 +313,23 @@ final class ExampleGenerator
     {
         foreach ($parts as $pointer => $part) {
 
-            $alternative = $this->held !== null && $this->held[0] === $pointer ? $this->held[1] : $this->firstAlternative($pointer, $part);
+            $alternative = $this->held !== null && $this->held[0] === $pointer ? $this->held[1] : $this->unions->valueAlternatives($pointer, $part)[0] ?? null;
 
             if ($alternative === null) {
                 continue;
             }
 
-            $alternative = $this->target($alternative);
+            $alternative = $this->schemas->target($alternative);
             $schema      = $this->schemas->node($alternative);
 
-            if (is_array($schema)) {
-                $parts = $this->parts($alternative, $schema, $parts);
+            if (!is_array($schema)) {
+                continue;
             }
+
+            $parts = $this->schemas->conjuncts($alternative, $schema, $parts);
         }
 
         return $parts;
-    }
-
-    /**
-     * Find the pointer of a node's first union alternative that constrains a
-     * value.
-     *
-     * @param  string  $pointer
-     * @param  array<array-key, mixed>  $node
-     * @return string|null
-     */
-    private function firstAlternative(string $pointer, array $node): ?string
-    {
-        foreach (self::UNION_KEYWORDS as $keyword) {
-            foreach (is_array($node[$keyword] ?? null) ? $node[$keyword] : [] as $index => $alternative) {
-
-                if ($this->constrainsValue($alternative)) {
-                    return SchemaDocument::append(SchemaDocument::append($pointer, $keyword), $index);
-                }
-            }
-        }
-
-        return null;
     }
 
     /**
@@ -444,8 +389,8 @@ final class ExampleGenerator
     }
 
     /**
-     * Resolve the value of each named property, in order, a confirmation taking
-     * the value of the field it confirms.
+     * Resolve the value of each named property, in order, a confirmation
+     * sharing one value with the field it confirms.
      *
      * @param  list<string>  $names
      * @param  array<array-key, string>  $properties
@@ -500,9 +445,9 @@ final class ExampleGenerator
     }
 
     /**
-     * Give each confirmation and the field it confirms one value, where that
-     * field has one: the field's, unless only the confirmation's own value
-     * suits both.
+     * Give each confirmation the value of the field it confirms, where that
+     * field has one, first giving the field a confirmation's own value when
+     * only that value suits both.
      *
      * @param  array<array-key, mixed>  $values
      * @param  array<array-key, string>  $confirmations
@@ -511,20 +456,24 @@ final class ExampleGenerator
      */
     private function withConfirmations(array $values, array $confirmations, array $properties): array
     {
+        $confirmations = array_filter($confirmations, static fn (string $original): bool => array_key_exists($original, $values) && !$values[$original] instanceof MissingValue);
+
         foreach ($confirmations as $name => $original) {
 
-            if (!array_key_exists($original, $values) || $values[$original] instanceof MissingValue) {
+            $own  = $values[$name];
+            $kept = $own instanceof MissingValue
+                || $this->schemas->mismatch($values[$original], $properties[$name]) === null
+                || $this->schemas->mismatch($own, $properties[$original]) !== null;
+
+            if ($kept) {
                 continue;
             }
 
-            $shared = $values[$original];
-            $own    = $values[$name];
+            $values[$original] = $own;
+        }
 
-            if ($this->schemas->mismatch($shared, $properties[$name]) !== null && !$own instanceof MissingValue && $this->schemas->mismatch($own, $properties[$original]) === null) {
-                $shared = $own;
-            }
-
-            $values[$name] = $values[$original] = $shared;
+        foreach ($confirmations as $name => $original) {
+            $values[$name] = $values[$original];
         }
 
         return $values;
@@ -596,7 +545,7 @@ final class ExampleGenerator
 
     /**
      * Yield the candidates of an items schema, or of the schema it references,
-     * then a variant of each scalar type it admits for every further item, none
+     * then the variants of each scalar type it or its conjuncts admit, none
      * when the walk is already inside that schema.
      *
      * @param  string  $items
@@ -606,33 +555,20 @@ final class ExampleGenerator
      */
     private function itemCandidates(string $items, int $count, array $stack): iterable
     {
-        $source = $this->target($items);
+        $source = $this->schemas->target($items);
         $schema = $this->schemas->node($source);
 
         if (!is_array($schema) || in_array($source, $stack, true)) {
-            return;
+            return [];
         }
 
         yield from $this->candidates($source, $schema, [...$stack, $source]);
 
-        foreach ($this->types($schema, false) as $type) {
-            for ($ordinal = 1; $ordinal < $count; $ordinal++) {
-                yield $this->literals->scalar($type, $schema, $ordinal);
+        foreach ($this->schemas->conjuncts($source, $schema) as $part) {
+            foreach ($this->types($part, false) as $type) {
+                yield from $this->literals->variants($type, $part, $count);
             }
         }
-    }
-
-    /**
-     * Resolve a node's pointer to that of the schema it references, if any.
-     *
-     * @param  string  $pointer
-     * @return string
-     */
-    private function target(string $pointer): string
-    {
-        $reference = $this->schemas->node(SchemaDocument::append($pointer, '$ref'));
-
-        return is_string($reference) ? substr($reference, 1) : $pointer;
     }
 
     /**
@@ -656,30 +592,5 @@ final class ExampleGenerator
     private function isObject(array $parts): bool
     {
         return array_filter($parts, static fn (array $part): bool => array_key_exists('properties', $part) || in_array('object', (array) ($part['type'] ?? []), true)) !== [];
-    }
-
-    /**
-     * Determine whether a union alternative constrains a value, being neither
-     * null alone nor presence rules alone.
-     *
-     * @param  mixed  $alternative
-     * @return bool
-     */
-    private function constrainsValue(mixed $alternative): bool
-    {
-        return $alternative !== self::NULL_SCHEMA && !$this->isPresenceOnly($alternative);
-    }
-
-    /**
-     * Determine whether a schema carries only presence rules.
-     *
-     * @param  mixed  $schema
-     * @return bool
-     */
-    private function isPresenceOnly(mixed $schema): bool
-    {
-        return is_array($schema)
-            && $schema !== []
-            && array_diff_key($schema, array_flip(self::PRESENCE_KEYWORDS)) === [];
     }
 }

@@ -85,6 +85,10 @@ final class LiteralValuesTest extends TestCase
         yield 'number exclusive bounds' => ['number', ['exclusiveMinimum' => 2.25, 'exclusiveMaximum' => 4], 3];
         yield 'range narrower than a unit' => ['number', ['minimum' => 1, 'exclusiveMaximum' => 1.5], 1.25];
         yield 'exclusive range of a unit' => ['number', ['exclusiveMinimum' => 0, 'exclusiveMaximum' => 1], 0.5];
+        yield 'multiple inside a narrow range' => ['number', ['minimum' => 1, 'exclusiveMaximum' => 1.5, 'multipleOf' => 1], 1.0];
+        yield 'integer inside a narrow range' => ['integer', ['minimum' => 1, 'exclusiveMaximum' => 1.5], 1];
+        yield 'range at the float limit' => ['number', ['exclusiveMinimum' => 1e308, 'maximum' => 1.1e308], 1.05e308];
+        yield 'multiple past a lone upper bound' => ['number', ['maximum' => 1.2, 'multipleOf' => 1], 2.0];
         yield 'number multiple' => ['number', ['multipleOf' => 0.5, 'minimum' => 1.75], 2.0];
         yield 'boolean' => ['boolean', [], true];
         yield 'null' => ['null', [], null];
@@ -121,8 +125,8 @@ final class LiteralValuesTest extends TestCase
     }
 
     /**
-     * Test that a later ordinal varies a plain string, a number by its step
-     * and a boolean, leaving a formatted string as it is.
+     * Test that a later ordinal varies a plain string, a number by its step and
+     * a boolean, leaving a formatted string as it is.
      *
      * @param  string  $type
      * @param  array<string, mixed>  $node
@@ -134,5 +138,21 @@ final class LiteralValuesTest extends TestCase
     public function testLaterOrdinalVariesTheValue(string $type, array $node, int $ordinal, mixed $expected): void
     {
         self::assertSame($expected, (new LiteralValues)->scalar($type, $node, $ordinal));
+    }
+
+    /**
+     * Test that the variants after a first value stop once a value repeats or
+     * the count is reached.
+     *
+     * @return void
+     */
+    public function testVariantsStopOnceAValueRepeats(): void
+    {
+        $values = new LiteralValues;
+
+        self::assertSame([false], iterator_to_array($values->variants('boolean', [], PHP_INT_MAX), false));
+        self::assertSame([], iterator_to_array($values->variants('string', ['format' => 'email'], 3), false));
+        self::assertSame([], iterator_to_array($values->variants('string', ['maxLength' => 3], 3), false));
+        self::assertSame([15, 20], iterator_to_array($values->variants('integer', ['minimum' => 7, 'multipleOf' => 5], 3), false));
     }
 }

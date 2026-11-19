@@ -5,8 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\OpenApi\Examples;
 
 /**
- * Finds the first union of a body that offers several value shapes, and names
- * its shapes.
+ * Finds the first union of a body that offers several value shapes, names its
+ * shapes, and lists the alternatives of a union that constrain a value.
  *
  * A union whose alternatives carry only presence rules, or that only adds null,
  * offers one shape.
@@ -24,6 +24,9 @@ final readonly class ShapeUnionFinder
 
     /** The schema admitting only null */
     private const array NULL_SCHEMA = ['type' => 'null'];
+
+    /** The keywords an alternative carrying only presence rules is made of */
+    private const array PRESENCE_KEYWORDS = ['required', 'dependentRequired', 'minProperties', 'maxProperties'];
 
     /**
      * Constructor.
@@ -60,6 +63,32 @@ final readonly class ShapeUnionFinder
         }
 
         return $union;
+    }
+
+    /**
+     * List the pointers of a node's union alternatives that constrain a value,
+     * being neither null alone nor presence rules alone.
+     *
+     * @param  string  $pointer
+     * @param  array<array-key, mixed>  $node
+     * @return list<string>
+     */
+    public function valueAlternatives(string $pointer, array $node): array
+    {
+        $alternatives = [];
+
+        foreach (self::UNION_KEYWORDS as $keyword) {
+            foreach (is_array($node[$keyword] ?? null) ? $node[$keyword] : [] as $index => $alternative) {
+
+                if ($alternative === self::NULL_SCHEMA || $this->isPresenceOnly($alternative)) {
+                    continue;
+                }
+
+                $alternatives[] = SchemaDocument::append(SchemaDocument::append($pointer, $keyword), $index);
+            }
+        }
+
+        return $alternatives;
     }
 
     /**
@@ -202,5 +231,18 @@ final readonly class ShapeUnionFinder
         }
 
         return $properties;
+    }
+
+    /**
+     * Determine whether a schema carries only presence rules.
+     *
+     * @param  mixed  $schema
+     * @return bool
+     */
+    private function isPresenceOnly(mixed $schema): bool
+    {
+        return is_array($schema)
+            && $schema !== []
+            && array_diff_key($schema, array_flip(self::PRESENCE_KEYWORDS)) === [];
     }
 }

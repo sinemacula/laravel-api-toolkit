@@ -74,11 +74,36 @@ final readonly class LiteralValues
     {
         return match ($type) {
             'string'  => $this->string($node, $ordinal),
-            'integer' => (int) ceil($this->number($node, 1)) + $ordinal * $this->step($node),
-            'number'  => $this->number($node, 1.5) + $ordinal * $this->step($node),
+            'integer' => $this->varied($this->number($node, 1, true), $node, $ordinal),
+            'number'  => $this->varied($this->number($node, 1.5, false), $node, $ordinal),
             'boolean' => $ordinal === 0,
             default   => null,
         };
+    }
+
+    /**
+     * Yield the values of a scalar type after its first, for items that must
+     * differ, stopping once a value repeats or the count is reached.
+     *
+     * @param  string  $type
+     * @param  array<array-key, mixed>  $node
+     * @param  int  $count
+     * @return iterable<mixed>
+     */
+    public function variants(string $type, array $node, int $count): iterable
+    {
+        $previous = $this->scalar($type, $node);
+
+        for ($ordinal = 1; $ordinal < $count; $ordinal++) {
+
+            $variant = $this->scalar($type, $node, $ordinal);
+
+            if ($variant === $previous) {
+                return [];
+            }
+
+            yield $previous = $variant;
+        }
     }
 
     /**
@@ -103,42 +128,84 @@ final readonly class LiteralValues
 
     /**
      * Clamp a number into the node's bounds, stepping a whole unit inside an
-     * exclusive bound, or to the middle of a range narrower than that, then
-     * raise it to the next multiple the node requires.
+     * exclusive bound, and raise it to the next multiple the node requires, an
+     * integer one for an integer; else take the middle of a bounded range.
      *
      * @param  array<array-key, mixed>  $node
      * @param  float|int  $value
+     * @param  bool  $integer
      * @return float|int
      */
-    private function number(array $node, float|int $value): float|int
+    private function number(array $node, float|int $value, bool $integer): float|int
     {
-        $minimum = $this->bound($node, 'minimum');
-        $maximum = $this->bound($node, 'maximum');
-        $above   = $this->bound($node, 'exclusiveMinimum');
-        $below   = $this->bound($node, 'exclusiveMaximum');
-        $value   = max($value, $minimum ?? $value, ($above ?? $value - 1) + 1);
-        $value   = min($value, $maximum ?? $value, ($below ?? $value + 1) - 1);
+        $value  = max($value, $this->bound($node, 'minimum') ?? $value, ($this->bound($node, 'exclusiveMinimum') ?? $value - 1) + 1);
+        $value  = min($value, $this->bound($node, 'maximum') ?? $value, ($this->bound($node, 'exclusiveMaximum') ?? $value + 1) - 1);
+        $value  = $this->rounded($node, $value, $integer);
+        $middle = $this->fits($node, $value) ? null : $this->middle($node);
 
-        if ($value < ($minimum ?? -INF) || $value <= ($above ?? -INF)) {
-            $value = (max($minimum ?? -INF, $above ?? -INF) + min($maximum ?? INF, $below ?? INF)) / 2;
-        }
-
-        $step = $this->bound($node, 'multipleOf');
-
-        return $step === null || $step <= 0 ? $value : ceil($value / $step) * $step;
+        return $middle === null ? $value : $this->rounded($node, $middle, $integer);
     }
 
     /**
-     * Read the step between a node's values: its multiple, else one.
+     * Raise a number to the next multiple the node requires, then to the next
+     * integer for an integer.
      *
      * @param  array<array-key, mixed>  $node
+     * @param  float|int  $value
+     * @param  bool  $integer
      * @return float|int
      */
-    private function step(array $node): float|int
+    private function rounded(array $node, float|int $value, bool $integer): float|int
+    {
+        $step  = $this->bound($node, 'multipleOf');
+        $value = $step === null || $step <= 0 ? $value : ceil($value / $step) * $step;
+
+        return $integer ? (int) ceil($value) : $value;
+    }
+
+    /**
+     * Determine whether a number lies within the node's bounds.
+     *
+     * @param  array<array-key, mixed>  $node
+     * @param  float|int  $value
+     * @return bool
+     */
+    private function fits(array $node, float|int $value): bool
+    {
+        return $value >= ($this->bound($node, 'minimum') ?? $value)
+            && $value <= ($this->bound($node, 'maximum') ?? $value)
+            && $value > ($this->bound($node, 'exclusiveMinimum') ?? $value - 1)
+            && $value < ($this->bound($node, 'exclusiveMaximum') ?? $value + 1);
+    }
+
+    /**
+     * Find the middle of the range the node's bounds leave, null when a side is
+     * unbounded.
+     *
+     * @param  array<array-key, mixed>  $node
+     * @return float|int|null
+     */
+    private function middle(array $node): float|int|null
+    {
+        $lower = max($this->bound($node, 'minimum') ?? -INF, $this->bound($node, 'exclusiveMinimum') ?? -INF);
+        $upper = min($this->bound($node, 'maximum') ?? INF, $this->bound($node, 'exclusiveMaximum') ?? INF);
+
+        return is_infinite($lower) || is_infinite($upper) ? null : $lower + ($upper - $lower) / 2;
+    }
+
+    /**
+     * Vary a number by its ordinal, in steps of the node's multiple, else one.
+     *
+     * @param  float|int  $value
+     * @param  array<array-key, mixed>  $node
+     * @param  int  $ordinal
+     * @return float|int
+     */
+    private function varied(float|int $value, array $node, int $ordinal): float|int
     {
         $step = $this->bound($node, 'multipleOf');
 
-        return $step === null || $step <= 0 ? 1 : $step;
+        return $value + $ordinal * ($step === null || $step <= 0 ? 1 : $step);
     }
 
     /**
