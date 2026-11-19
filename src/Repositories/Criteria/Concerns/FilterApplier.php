@@ -322,7 +322,7 @@ final class FilterApplier
             $operand = $this->guard->resolve($model, $column, $token, $handler->valueShape(), $operand, $position);
         }
 
-        $handler->apply($query, $column, PureEnumFilterValue::resolve($model, $column, $operand));
+        $handler->apply($query, $query->qualifyColumn($column), PureEnumFilterValue::resolve($model, $column, $operand));
     }
 
     /**
