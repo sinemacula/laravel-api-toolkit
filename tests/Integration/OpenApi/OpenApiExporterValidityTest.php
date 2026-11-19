@@ -305,6 +305,38 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
+     * Test that a document with optional route parameters stays valid, with a
+     * path item per form declaring exactly its template's parameters.
+     *
+     * @return void
+     */
+    public function testDocumentWithOptionalRouteParametersValidatesAsOpenApiThreeOne(): void
+    {
+        $this->getConfig()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->router()->get('reports/{a?}/{b?}', [PathPlainController::class, 'report'])->name('reports.show');
+        $this->router()->get('files/{name}.{ext?}', [PathPlainController::class, 'index']);
+        $this->router()->get('{locale?}/news', [PathPlainController::class, 'report']);
+
+        $document = $this->export()->document;
+        $result   = $this->validateDocument($document);
+        $paths    = $document['paths'];
+
+        self::assertIsArray($paths);
+        self::assertSame(['/reports', '/reports/{a}', '/reports/{a}/{b}', '/files/{name}', '/files/{name}.{ext}', '/{locale}/news'], array_keys($paths));
+
+        foreach ($paths as $template => $item) {
+
+            preg_match_all('/\{(\w+)\}/', (string) $template, $names);
+
+            self::assertIsArray($item['get']);
+            self::assertSame($names[1], array_column((array) ($item['get']['parameters'] ?? []), 'name'), (string) $template);
+        }
+
+        self::assertTrue($result->isValid(), 'A document with optional route parameters must validate as OpenAPI 3.1: ' . $this->formatErrors($result));
+    }
+
+    /**
      * Test that the document declares a 3.1.x version and populated components.
      *
      * @return void

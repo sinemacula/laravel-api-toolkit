@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\OpenApi\Builder\DomainServerBuilder;
 use SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathForm;
 use Tests\Fixtures\OpenApi\PathPlainController;
 
 /**
@@ -285,8 +286,10 @@ final class DomainServerBuilderTest extends TestCase
 
         $route->setAction([...$route->action, ...$schemes])->domain($domain);
 
+        $form = new RoutePathForm('/projects', [], [], true);
+
         return (new DomainServerBuilder)->build(
-            new DocumentedRoute($route, PathPlainController::class, 'index', '/projects', ['get'], null, 'Project', [], null, false),
+            new DocumentedRoute($route, PathPlainController::class, 'index', $form, ['get'], null, 'Project', [], null, false, '/projects', null),
             $variables,
             $servers,
             'partner',
