@@ -18,6 +18,8 @@ use SineMacula\ApiToolkit\Exceptions\MaintenanceModeException;
 use SineMacula\ApiToolkit\Exceptions\NotAllowedException;
 use SineMacula\ApiToolkit\Exceptions\NotFoundException;
 use SineMacula\ApiToolkit\Exceptions\PayloadTooLargeException;
+use SineMacula\ApiToolkit\Exceptions\PreconditionFailedException;
+use SineMacula\ApiToolkit\Exceptions\PreconditionRequiredException;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Exceptions\ServiceUnavailableException;
 use SineMacula\ApiToolkit\Exceptions\TokenMismatchException;
@@ -43,6 +45,8 @@ use SineMacula\ApiToolkit\Exceptions\UnhandledException;
 #[CoversClass(NotAllowedException::class)]
 #[CoversClass(NotFoundException::class)]
 #[CoversClass(PayloadTooLargeException::class)]
+#[CoversClass(PreconditionFailedException::class)]
+#[CoversClass(PreconditionRequiredException::class)]
 #[CoversClass(QueryTooExpensiveException::class)]
 #[CoversClass(ServiceUnavailableException::class)]
 #[CoversClass(TokenMismatchException::class)]
@@ -68,6 +72,8 @@ final class ConcreteExceptionsTest extends TestCase
         yield 'NotAllowedException' => [NotAllowedException::class, 10104, 405];
         yield 'NotFoundException' => [NotFoundException::class, 10103, 404];
         yield 'PayloadTooLargeException' => [PayloadTooLargeException::class, 10110, 413];
+        yield 'PreconditionFailedException' => [PreconditionFailedException::class, 10114, 412];
+        yield 'PreconditionRequiredException' => [PreconditionRequiredException::class, 10115, 428];
         yield 'QueryTooExpensiveException' => [QueryTooExpensiveException::class, 10201, 422];
         yield 'ServiceUnavailableException' => [ServiceUnavailableException::class, 10112, 503];
         yield 'TokenMismatchException' => [TokenMismatchException::class, 10105, 419];

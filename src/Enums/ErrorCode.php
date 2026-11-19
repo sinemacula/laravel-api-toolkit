@@ -36,6 +36,10 @@ enum ErrorCode: int implements ErrorCodeInterface
     case SERVICE_UNAVAILABLE = 10112;
     case HTTP_ERROR          = 10113;
 
+    // Precondition errors
+    case PRECONDITION_FAILED   = 10114;
+    case PRECONDITION_REQUIRED = 10115;
+
     // API errors
     case MAINTENANCE_MODE    = 10200;
     case QUERY_TOO_EXPENSIVE = 10201;

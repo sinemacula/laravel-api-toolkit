@@ -6,15 +6,21 @@ namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
 use Illuminate\Routing\Route;
 use Illuminate\Validation\ValidationException;
+use SineMacula\ApiToolkit\Contracts\Versioned;
+use SineMacula\ApiToolkit\Exceptions\PreconditionRequiredException;
+use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
+use SineMacula\Http\Enums\HttpHeader;
 
 /**
  * Builds the OpenAPI paths object from an audience's documented routes.
  *
  * A resource action keeps the full resource contract; any other route still
- * documents an operation with an undocumented body.
+ * documents an operation with an undocumented body. A verb that replaces,
+ * modifies or deletes documents its If-Match precondition.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -46,6 +52,7 @@ final readonly class PathBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder  $pathParameters
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder  $errors
      * @param  \SineMacula\ApiToolkit\OpenApi\Builder\SuccessResponseBuilder  $successResponse
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver  $middleware
      */
     public function __construct(
 
@@ -69,6 +76,9 @@ final readonly class PathBuilder
 
         /** The builder applying what an action declares about its success. */
         private SuccessResponseBuilder $successResponse,
+
+        /** The resolver reading whether a route requires If-Match. */
+        private RouteMiddlewareResolver $middleware,
     ) {
         $this->domainServers = new DomainServerBuilder;
     }
@@ -95,10 +105,13 @@ final readonly class PathBuilder
 
         foreach ($routes as $route) {
 
-            $operation = $this->resolveOperation($route);
-            $domain    = $this->domainServersOf($route, $servers, $audience);
+            $resolved = [];
+            $domain   = $this->domainServersOf($route, $servers, $audience);
 
             foreach ($route->verbs as $verb) {
+
+                $conditional = in_array(strtoupper($verb), RequireIfMatch::METHODS, true);
+                $operation   = $resolved[$conditional] ??= $this->resolveOperation($route, $conditional);
 
                 $built = ['tags' => [$route->tag]] + $this->documentation($route, $verb, $descriptions) + $operation;
                 $claim = $claims[$route->path][$verb] ?? null;
@@ -202,12 +215,14 @@ final readonly class PathBuilder
     }
 
     /**
-     * Resolve the operation object shared by every verb of the route.
+     * Resolve the operation object shared by the route's conditional verbs, or
+     * by its other verbs.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
+     * @param  bool  $conditional
      * @return array<string, mixed>
      */
-    private function resolveOperation(DocumentedRoute $route): array
+    private function resolveOperation(DocumentedRoute $route, bool $conditional): array
     {
         $controllerClass = $route->controllerClass;
         $action          = $route->action;
@@ -215,7 +230,7 @@ final readonly class PathBuilder
 
         $contract = $resource === null || $this->successResponse->replacesResource($controllerClass, $action, $resource['resource'], $action === 'index')
             ? null
-            : $this->responsesForAction($action, self::SCHEMA_REF_PREFIX . $resource['schema']);
+            : $this->responsesForAction($action, self::SCHEMA_REF_PREFIX . $resource['schema'], is_a($resource['model'], Versioned::class, true));
 
         $responses   = $this->successResponse->declare($contract ?? $this->declaredResponses($controllerClass, $action), $controllerClass, $action);
         $requestBody = array_intersect($route->verbs, self::BODY_VERBS) === []
@@ -227,9 +242,47 @@ final readonly class PathBuilder
             ? [[], []]
             : [$this->queryParameters->referencesFor($action, $resource['model']), $this->queryParameters->exceptionsFor($action, $resource['model'])];
 
-        $responses += $this->errors->build($controllerClass, $action, $route->route, [...$bodyExceptions, ...$queryExceptions]);
+        $inputExceptions = [...$bodyExceptions, ...$queryExceptions, ...$this->preconditionExceptions($route, $conditional)];
 
-        return $this->assembleOperation($responses, $route->route, $requestBody, $queryParameters);
+        $responses += $this->errors->build($controllerClass, $action, $route->route, $inputExceptions);
+
+        return $this->assembleOperation($responses, $route->route, $requestBody, $queryParameters, $conditional ? $this->ifMatchParameters($responses) : []);
+    }
+
+    /**
+     * List the exceptions a conditional verb raises before its action runs.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
+     * @param  bool  $conditional
+     * @return list<class-string<\Throwable>>
+     */
+    private function preconditionExceptions(DocumentedRoute $route, bool $conditional): array
+    {
+        return $conditional && $this->middleware->requiresIfMatch($route->route) ? [PreconditionRequiredException::class] : [];
+    }
+
+    /**
+     * Build the If-Match header parameter of a conditional write, required
+     * where its absence is refused and optional where a mismatch is.
+     *
+     * @param  array<int|string, mixed>  $responses
+     * @return list<array<string, mixed>>
+     */
+    private function ifMatchParameters(array $responses): array
+    {
+        $required = array_key_exists(428, $responses);
+
+        if (!$required && !array_key_exists(412, $responses)) {
+            return [];
+        }
+
+        return [[
+            'name'        => HttpHeader::IF_MATCH->getName(),
+            'in'          => 'header',
+            'description' => 'The entity tag of the resource as last read. The write is refused with a 412 when the resource has changed since.',
+            'required'    => $required,
+            'schema'      => ['type' => 'string'],
+        ]];
     }
 
     /**
@@ -256,12 +309,13 @@ final readonly class PathBuilder
      * @param  \Illuminate\Routing\Route  $route
      * @param  array<string, mixed>  $requestBody
      * @param  array<int, array<string, string>>  $queryParameters
+     * @param  array<int, array<string, mixed>>  $headerParameters
      * @return array<string, mixed>
      */
-    private function assembleOperation(array $responses, Route $route, array $requestBody = [], array $queryParameters = []): array
+    private function assembleOperation(array $responses, Route $route, array $requestBody = [], array $queryParameters = [], array $headerParameters = []): array
     {
         $operation  = [];
-        $parameters = array_merge($this->pathParameters->build($route), $queryParameters);
+        $parameters = array_merge($this->pathParameters->build($route), $queryParameters, $headerParameters);
 
         if ($parameters !== []) {
             $operation['parameters'] = $parameters;
@@ -282,15 +336,16 @@ final readonly class PathBuilder
      *
      * @param  string  $method
      * @param  string  $ref
+     * @param  bool  $versioned
      * @return array<int|string, array<string, mixed>>
      */
-    private function responsesForAction(string $method, string $ref): array
+    private function responsesForAction(string $method, string $ref, bool $versioned): array
     {
         return match ($method) {
             'index'  => $this->collectionResponse($ref),
-            'show'   => $this->singleResponse('200', $ref, 'The requested resource.'),
-            'store'  => $this->singleResponse('201', $ref, 'The newly created resource.'),
-            'update' => $this->singleResponse('200', $ref, 'The updated resource.'),
+            'show'   => $this->singleResponse('200', $ref, 'The requested resource.', $versioned),
+            'store'  => $this->singleResponse('201', $ref, 'The newly created resource.', $versioned),
+            'update' => $this->singleResponse('200', $ref, 'The updated resource.', $versioned),
             default  => $this->noContentResponse(),
         };
     }
@@ -328,19 +383,27 @@ final readonly class PathBuilder
     }
 
     /**
-     * Build a single-resource response under the given status code.
+     * Build a single-resource response under the given status code, tagged when
+     * the resource is versioned.
      *
      * @param  string  $status
      * @param  string  $ref
      * @param  string  $description
+     * @param  bool  $versioned
      * @return array<int|string, array<string, mixed>>
      */
-    private function singleResponse(string $status, string $ref, string $description): array
+    private function singleResponse(string $status, string $ref, string $description, bool $versioned): array
     {
+        $response = ['description' => $description];
+
+        if ($versioned) {
+            $response['headers'] = [EnvelopeBuilder::ETAG_HEADER_NAME => ['$ref' => self::HEADER_REF_PREFIX . EnvelopeBuilder::ETAG_HEADER_NAME]];
+        }
+
         return [
             $status => [
-                'description' => $description,
-                'content'     => [
+                ...$response,
+                'content' => [
                     self::MEDIA_TYPE => ['schema' => $this->envelope->singleEnvelope($ref)],
                 ],
             ],
