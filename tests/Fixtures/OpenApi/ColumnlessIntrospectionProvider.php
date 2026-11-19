@@ -111,12 +111,24 @@ final readonly class ColumnlessIntrospectionProvider implements SchemaIntrospect
      * Get the parent-side key columns for the given relation.
      *
      * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
-     * @return array<int, string>
+     * @return array<int, string>|null
      */
     #[\Override]
-    public function parentKeysFor(Relation $relation): array
+    public function parentKeysFor(Relation $relation): ?array
     {
         return $this->inner->parentKeysFor($relation);
+    }
+
+    /**
+     * Get the related-side key columns for the given relation.
+     *
+     * @param  \Illuminate\Database\Eloquent\Relations\Relation<\Illuminate\Database\Eloquent\Model, \Illuminate\Database\Eloquent\Model, mixed>  $relation
+     * @return array<int, string>|null
+     */
+    #[\Override]
+    public function relatedKeysFor(Relation $relation): ?array
+    {
+        return $this->inner->relatedKeysFor($relation);
     }
 
     /**

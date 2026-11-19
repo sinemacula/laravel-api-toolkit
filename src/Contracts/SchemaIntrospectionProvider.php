@@ -72,16 +72,29 @@ interface SchemaIntrospectionProvider
 
     /**
      * Get the parent-side key columns for the given relation, including morph
-     * type/id columns.
+     * type/id columns, or null for an unrecognised relation class.
      *
      * @template TRelated of \Illuminate\Database\Eloquent\Model
      * @template TDeclaring of \Illuminate\Database\Eloquent\Model
      * @template TResult
      *
      * @param  \Illuminate\Database\Eloquent\Relations\Relation<TRelated, TDeclaring, TResult>  $relation
-     * @return array<int, string>
+     * @return array<int, string>|null
      */
-    public function parentKeysFor(Relation $relation): array;
+    public function parentKeysFor(Relation $relation): ?array;
+
+    /**
+     * Get the related-side key columns the relation matches its results on, or
+     * null for a MorphTo or an unrecognised relation class.
+     *
+     * @template TRelated of \Illuminate\Database\Eloquent\Model
+     * @template TDeclaring of \Illuminate\Database\Eloquent\Model
+     * @template TResult
+     *
+     * @param  \Illuminate\Database\Eloquent\Relations\Relation<TRelated, TDeclaring, TResult>  $relation
+     * @return array<int, string>|null
+     */
+    public function relatedKeysFor(Relation $relation): ?array;
 
     /**
      * Clear all internally cached schema data.

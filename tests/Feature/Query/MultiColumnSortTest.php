@@ -7,6 +7,7 @@ namespace Tests\Feature\Query;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\ApiQueryParser;
+use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
@@ -25,6 +26,7 @@ use Tests\TestCase;
  * @internal
  */
 #[CoversClass(ApiQueryParser::class)]
+#[CoversClass(QueryParameterExtractor::class)]
 #[CoversClass(OrderApplier::class)]
 final class MultiColumnSortTest extends TestCase
 {
@@ -75,5 +77,20 @@ final class MultiColumnSortTest extends TestCase
         $response->assertJsonPath('data.1.email', 'mia-first@example.com');
 
         self::assertGreaterThan($response->json('data.1.id'), $response->json('data.0.id'));
+    }
+
+    /**
+     * Test that a column ordered by twice is refused on its key rather than
+     * sorted by its last direction.
+     *
+     * @return void
+     */
+    public function testColumnOrderedByTwiceIsRefused(): void
+    {
+        $response = $this->getJson('/users?order=name,name:desc');
+
+        $response->assertUnprocessable();
+
+        self::assertSame(['order.name' => ['The "name" key may appear in the order only once.']], $response->json('error.meta'));
     }
 }

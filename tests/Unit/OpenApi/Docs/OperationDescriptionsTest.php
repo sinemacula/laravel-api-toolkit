@@ -81,4 +81,32 @@ final class OperationDescriptionsTest extends TestCase
         self::assertSame(['users.index' => 'Lists the users.', 'users.update' => 'Updates a user.'], (new OperationDescriptions)->for('public', $routes));
         self::assertSame(['staff.index' => 'Lists the staff.'], (new OperationDescriptions)->for('internal', $routes));
     }
+
+    /**
+     * Test that a route's shared description and a per-form description both
+     * match its forms, even when another route shadows the shortest form.
+     *
+     * @return void
+     */
+    public function testSharedAndPerFormDescriptionsMatchTheForms(): void
+    {
+        $this->useDocsDirectory([
+            'operations/reports.show.md'        => 'Shows a report.',
+            'operations/reports.show.period.md' => 'Shows a report for a period.',
+        ]);
+
+        $forms = self::documentedForms('reports/{period?}', operationIds: [['get' => 'reports.show'], ['get' => 'reports.show.period']]);
+
+        self::assertSame(
+            ['reports.show' => 'Shows a report.', 'reports.show.period' => 'Shows a report for a period.'],
+            (new OperationDescriptions)->for('public', new DocumentedRoutes(['public' => $forms], true)),
+        );
+
+        $shadowed = new DocumentedRoutes(['public' => [self::documentedRoute('/reports', operationIds: ['get' => 'reports.index']), ...$forms]], true);
+
+        self::assertSame(
+            ['reports.show.period' => 'Shows a report for a period.', 'reports.show' => 'Shows a report.'],
+            (new OperationDescriptions)->for('public', $shadowed),
+        );
+    }
 }

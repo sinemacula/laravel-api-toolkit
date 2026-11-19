@@ -8,6 +8,7 @@ use Illuminate\Routing\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathForm;
 use Tests\Concerns\BuildsDocumentedRoutes;
 use Tests\Fixtures\OpenApi\PathPlainController;
 
@@ -44,7 +45,8 @@ final class DocumentedRouteTest extends TestCase
      */
     public function testLabelsAClosureRoute(): void
     {
-        $route = new DocumentedRoute(new Route(['GET'], 'health', static fn (): null => null), null, \Closure::class, '/health', ['get'], null, 'health', [], null, false);
+        $closure = new Route(['GET'], 'health', static fn (): null => null);
+        $route   = new DocumentedRoute($closure, null, \Closure::class, new RoutePathForm('/health', [], [], true), ['get'], null, 'health', [], null, false, '/health', null);
 
         self::assertSame('GET /health (Closure)', $route->label('get'));
     }
@@ -61,19 +63,5 @@ final class DocumentedRouteTest extends TestCase
         $route->route->domain('https://api.example.com');
 
         self::assertSame(sprintf('GET api.example.com/users (%s::report)', PathPlainController::class), $route->label('get'));
-    }
-
-    /**
-     * Test that the primary id is the first verb's, and null while ids are off.
-     *
-     * @return void
-     */
-    public function testPrimaryOperationIdIsTheFirstVerbs(): void
-    {
-        self::assertSame(
-            'users.update',
-            self::documentedRoute('/users/{user}', ['patch', 'put'], ['put' => 'users.update.put', 'patch' => 'users.update'])->primaryOperationId(),
-        );
-        self::assertNull(self::documentedRoute('/users/{user}', ['put', 'patch'])->primaryOperationId());
     }
 }

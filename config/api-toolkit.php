@@ -128,10 +128,11 @@ return [
             'email_verified_at',
         ],
 
-        // Select only the columns the resolved fields need, falling back to
-        // SELECT * when any field's column reads are unknown. Declare them with
-        // needs() on a field over an accessor or custom cast. Disable it if
-        // code reads attributes outside the declared fields
+        // Select only the columns the rendered fields need, at the root and in
+        // each embedded relation, falling back to SELECT * when any field's
+        // column reads are unknown. Declare them with needs() on a field over
+        // an accessor or custom cast. Disable it if code reads attributes
+        // outside the rendered fields
         'narrow_columns' => env('API_TOOLKIT_RESOURCES_NARROW_COLUMNS', true),
 
         // The most related records a to-many relation renders per parent when
