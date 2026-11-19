@@ -72,7 +72,7 @@ final readonly class ColumnProjectionApplier
         $decision     = (new ColumnNarrower)->decide(FieldColumnMapper::for($resourceClass), $fields, $safety, $model, $columns);
 
         if ($decision->shouldNarrow()) {
-            $query->getQuery()->select($decision->columns());
+            $query->getQuery()->select($model->qualifyColumns($decision->columns()));
         } elseif ($decision->reason() !== null) {
             Log::debug('Column narrowing fell back to a full select', [
                 'model'    => $model::class,

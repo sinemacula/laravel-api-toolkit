@@ -83,7 +83,7 @@ final class OrderApplierTest extends TestCase
         $orders = $result->getQuery()->orders ?? [];
 
         self::assertCount(1, $orders);
-        self::assertSame('name', $orders[0]['column']);
+        self::assertSame('users.name', $orders[0]['column']);
         self::assertSame('asc', $orders[0]['direction']);
     }
 
@@ -100,9 +100,9 @@ final class OrderApplierTest extends TestCase
         $orders = $result->getQuery()->orders ?? [];
 
         self::assertCount(2, $orders);
-        self::assertSame('name', $orders[0]['column']);
+        self::assertSame('users.name', $orders[0]['column']);
         self::assertSame('asc', $orders[0]['direction']);
-        self::assertSame('email', $orders[1]['column']);
+        self::assertSame('users.email', $orders[1]['column']);
         self::assertSame('desc', $orders[1]['direction']);
     }
 
@@ -197,7 +197,7 @@ final class OrderApplierTest extends TestCase
 
         self::assertCount(2, $orders);
         self::assertSame('RANDOM()', $orders[0]['sql'] ?? $orders[0]['column'] ?? '');
-        self::assertSame('name', $orders[1]['column']);
+        self::assertSame('users.name', $orders[1]['column']);
         self::assertSame('desc', $orders[1]['direction']);
     }
 
@@ -250,7 +250,7 @@ final class OrderApplierTest extends TestCase
 
         $result = $this->applier->apply((new User)->newQuery(), ['name' => 'desc'], $this->surface());
 
-        self::assertSame([['column' => 'name', 'direction' => 'desc']], $result->getQuery()->orders);
+        self::assertSame([['column' => 'users.name', 'direction' => 'desc']], $result->getQuery()->orders);
     }
 
     /**
@@ -267,7 +267,7 @@ final class OrderApplierTest extends TestCase
 
         $result = (new OrderApplier($introspector, $this->searchApplier()))->apply((new User)->newQuery(), ['email' => 'asc'], $this->surface());
 
-        self::assertSame([['column' => 'email', 'direction' => 'asc']], $result->getQuery()->orders);
+        self::assertSame([['column' => 'users.email', 'direction' => 'asc']], $result->getQuery()->orders);
     }
 
     /**
@@ -290,7 +290,7 @@ final class OrderApplierTest extends TestCase
         $orders = $result->getQuery()->orders ?? [];
 
         self::assertCount(2, $orders);
-        self::assertSame(['column' => 'created_at', 'direction' => 'desc'], $orders[1]);
+        self::assertSame(['column' => 'users.created_at', 'direction' => 'desc'], $orders[1]);
     }
 
     /**
@@ -318,7 +318,7 @@ final class OrderApplierTest extends TestCase
         $this->applier->apply($query, $order, $this->surface(), SearchTerm::from('smith'), SearchableFilterableUserResource::class);
 
         self::assertMatchesRegularExpression(
-            '/^select \* from "users" order by "name" asc, case when "users"\."name" like \? .* end asc, "email" desc$/',
+            '/^select \* from "users" order by "users"\."name" asc, case when "users"\."name" like \? .* end asc, "users"\."email" desc$/',
             $query->toSql(), // @phpstan-ignore staticMethod.dynamicCall
         );
     }
