@@ -227,6 +227,30 @@ final class ApiResourceCollectionTest extends TestCase
     }
 
     /**
+     * Test that a simple paginator renders the cursor envelope and no total.
+     *
+     * @return void
+     */
+    public function testSimplePaginatorRendersTheCursorEnvelopeWithoutATotal(): void
+    {
+        User::create(['name' => 'Alice', 'email' => 'alice@example.com']);
+        User::create(['name' => 'Bob', 'email' => 'bob@example.com']);
+
+        $request    = Request::create('/users', HttpMethod::GET->getVerb());
+        $collection = new ApiResourceCollection(User::query()->simplePaginate(1, ['*'], 'page', 1), UserResource::class);
+        $response   = $collection->toResponse($request);
+
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(['continue' => true], $response->getData(true)['meta']);
+        self::assertSame([
+            'self' => 'http://localhost?page=1',
+            'prev' => null,
+            'next' => 'http://localhost?page=2',
+        ], $response->getData(true)['links']);
+        self::assertFalse($response->headers->has('Total-Count'));
+    }
+
+    /**
      * Test that paginationInformation for non-paginator returns empty array.
      *
      * @return void
@@ -270,31 +294,6 @@ final class ApiResourceCollectionTest extends TestCase
     }
 
     /**
-     * Test that toArray resolves a raw model item using the collection's
-     * resource class.
-     *
-     * The constructor always wraps items, so the raw item is injected via
-     * reflection.
-     *
-     * @return void
-     */
-    public function testToArrayResolvesRawModelItemViaResourceClass(): void
-    {
-        $user = User::create(['name' => 'Raw', 'email' => 'raw@example.com']);
-
-        $collection = new ApiResourceCollection(collect([]), UserResource::class);
-
-        $reflection = new \ReflectionProperty($collection, 'collection');
-        $reflection->setValue($collection, collect([$user]));
-
-        $request = Request::create('/', HttpMethod::GET->getVerb());
-        $result  = $collection->toArray($request);
-
-        self::assertCount(1, $result);
-        self::assertSame('users', $result[0]['_type']);
-    }
-
-    /**
      * Test that toArray resolves pre-wrapped items using their own field
      * configuration rather than re-wrapping them.
      *
@@ -315,50 +314,6 @@ final class ApiResourceCollectionTest extends TestCase
         self::assertCount(1, $result);
         self::assertArrayHasKey('name', $result[0]);
         self::assertArrayNotHasKey('email', $result[0]);
-    }
-
-    /**
-     * Test that toArray does not eager load missing relations when wrapping raw
-     * model items.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
-     */
-    public function testToArrayDoesNotEagerLoadRelationsForRawItems(): void
-    {
-        $organization = Organization::create([
-            'name' => 'Raw Corp',
-            'slug' => 'raw-corp',
-        ]);
-
-        $user = User::create([
-            'name'            => 'RawRelation',
-            'email'           => 'rawrelation@example.com',
-            'organization_id' => $organization->id,
-        ]);
-
-        assert($this->app !== null);
-
-        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
-        $parser  = $this->app->make('api.query');
-        $request = Request::create('/', HttpMethod::GET->getVerb(), [
-            'fields' => ['users' => 'id,name,organization'],
-        ]);
-
-        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
-
-        $parser->parse($request);
-
-        $collection = new ApiResourceCollection(collect([]), UserResource::class);
-
-        $reflection = new \ReflectionProperty($collection, 'collection');
-        $reflection->setValue($collection, collect([$user]));
-
-        $result = $collection->toArray($request);
-
-        self::assertFalse($user->relationLoaded('organization'));
-        self::assertArrayNotHasKey('organization', $result[0]);
     }
 
     /**
@@ -411,6 +366,56 @@ final class ApiResourceCollectionTest extends TestCase
         foreach ($users as $user) {
             self::assertFalse($user->relationLoaded('organization'));
         }
+    }
+
+    /**
+     * Test that an item wrapped at a non-zero key loads neither its relations
+     * nor its aggregates.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testItemAtALaterKeyLoadsNothing(): void
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\ApiQueryParser $parser */
+        $parser = $this->app->make('api.query');
+
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
+
+        $parser->parse(Request::create('/', HttpMethod::GET->getVerb(), ['fields' => ['users' => 'id,name,organization,aggregates']]));
+
+        $spy = new class {
+            /** @var list<string> The load methods called on the item. */
+            public array $loads = [];
+
+            /**
+             * @param  mixed  $relations
+             * @return void
+             */
+            public function loadMissing(mixed $relations): void
+            {
+                $this->loads[] = 'loadMissing';
+            }
+
+            /**
+             * @param  mixed  $relations
+             * @param  mixed  $column
+             * @param  mixed  $function
+             * @return void
+             */
+            public function loadAggregate(mixed $relations, mixed $column, mixed $function = null): void
+            {
+                $this->loads[] = 'loadAggregate';
+            }
+        };
+
+        $collection = new ApiResourceCollection([new User, $spy], UserResource::class);
+
+        self::assertCount(2, $collection->toArray(Request::create('/')));
+        self::assertSame([], $spy->loads);
     }
 
     /**

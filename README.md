@@ -264,7 +264,8 @@ GET /users?limit=25    // honoured as-is
 ```
 
 **Relation aggregates** - request declared aggregates per resource type by their keys. Requesting any aggregate replaces
-every default of that type, as `?fields` replaces `$default`, and the response renders them under the `aggregates` field:
+every default of that type, as `?fields` replaces `$default`. A type's aggregates apply wherever it renders, at the root
+or embedded, and render under its `aggregates` field when its field selection includes it:
 
 ```http
 GET /users?fields[users]=name,aggregates&aggregates[users]=posts_count,orders_sum_total,last_order_at
@@ -275,7 +276,7 @@ ApiQuery::getAggregates('users');      // ['posts_count', 'orders_sum_total', 'l
 ```
 
 An aggregate key the type does not declare is rejected with a 422 on `aggregates.{type}`, and `?aggregates[users]=`
-selects none.
+selects none. A resource embedded through a `MorphTo` relation or a `PolymorphicResource` loads no aggregates.
 
 ```json
 {
@@ -286,7 +287,14 @@ selects none.
 ```
 
 **Pagination** - `?pagination=cursor` (or any `?cursor` token) selects cursor pagination; offset pagination is used
-otherwise.
+otherwise. A non-empty offset page shorter than `limit`, or an empty first page, derives its total without a count.
+Any other page counts at most the rows through the last page `query_cost.max_offset` allows: past that, `meta.total` is
+those rows, `meta.total_capped` is `true` and `Total-Count` is absent, so read further with cursor pagination. That
+bounds the rows the count admits, not the rows it examines; set `max_offset` to `0` for exact, unbounded totals. A
+capped page is a `CappedLengthAwarePaginator`, which a container binding of `LengthAwarePaginator` does not replace. A
+`simplePaginate()` result renders the cursor envelope. Offset pages do not support an ungrouped aggregate projection
+such as `selectRaw('max(id) as id')`, which is one row rather than a pageable set, nor a `distinct` or union over a join
+without an explicit projection, which MySQL refuses to count.
 
 **Soft deletes** - `?trashed=with` or `?trashed=only`, read as a `TrashedState` from `ApiQuery::getTrashed()`. The
 criteria layer applies it only where the model uses `SoftDeletes` and the resource opts in by overriding
@@ -351,23 +359,34 @@ exported schema. The key defaults to Laravel's own attribute name and `as()` or 
 | `Min::of('variants', 'price')`    | `variants_min_price`    | the column's value                    |
 | `Max::of('orders', 'created_at')` | `orders_max_created_at` | the column's value                    |
 
-`constrain()` narrows the related rows, `default()` includes the aggregate when the request names none, and `guard()`
-and `transform()` work as on fields. A minimum or maximum is read the way the related model reads that column, so a
-timestamp renders as ISO 8601 and a cast enum as its value. Sum, average, minimum and maximum over zero related rows are
-omitted. `api-toolkit:schemas:validate` rejects an aggregate over a sensitive or missing column, a sum or average over a
-non-numeric column, a minimum or maximum the related model would read back through an accessor or a non-scalar cast, a
-`MorphTo` relation, and an `aggregate_<key>` attribute the owner model already uses as a column, cast or setter.
+`constrain()` narrows the related rows, `default()` includes the aggregate when the request names none, and `guard()`,
+`visibleTo()` and `transform()` work as on fields. A minimum or maximum is read the way the related model reads that
+column, so a timestamp renders as ISO 8601 and a cast enum as its value. Sum, average, minimum and maximum over zero
+related rows are omitted. `api-toolkit:schemas:validate` rejects an aggregate over a sensitive or missing column, a sum
+or average over a non-numeric column, a minimum or maximum the related model would read back through an accessor or a
+non-scalar cast, a `MorphTo` relation, and an `aggregate_<key>` attribute the owner model already uses as a column, cast
+or setter.
 
 Only fields marked `filterable()` or `sortable()` can be queried, and `?search=` matches only fields marked
-`searchable()`. Relations marked `traversable()` can be targeted by nested filters. `$default` lists the fields
-returned when the client sends no `?fields`, and the static `$fixed` the fields added to every selection, after those
-in `resources.fixed_fields`. Schema validation rejects a default or fixed field the resource does not declare.
+`searchable()`. Relations marked `traversable()` can be targeted by nested filters. A column declared filterable with
+two capabilities fails to compile. `$default` lists the fields returned when the client sends no `?fields`, and the
+static `$fixed` the fields added to every selection, after those in `resources.fixed_fields`. Schema validation rejects
+a default or fixed field the resource does not declare.
+
+**Guards** - `guard(fn ($resource, $request) => ...)` is a row guard and `visibleTo(fn ($request) => ...)` a caller
+guard; either hides the field, aggregate or relation when it returns exactly `false`. A query cannot honour a row guard
+without revealing what it hides, so a row-guarded field that is `filterable()`, `sortable()`, `searchable()` or
+`traversable()` fails to compile. A caller guard reads only the request, so its field stays queryable by the callers it
+admits; any other caller is refused with the same 422 as an undeclared key, and the OpenAPI export marks the key
+`conditional`. A search matches the same columns for every caller, so a caller-guarded field may not be `searchable()`.
+A column everyone may query but only some may see is declared queryable on an unguarded field as well. A tabular export
+refuses a row-guarded field with `PerItemGuardedFieldException` and drops a caller-guarded column it hides.
 
 **Schema lifetime** - `schema()` runs once per resource class per worker, and its result is shared by every request
 the worker serves, under Octane and on queue workers alike. It must not read or capture the request, the user, the
 tenant, the query parser, the clock or runtime config, and the closures it declares must not retain them. Read
-per-request values when a closure runs instead: guards, accessors and compute closures receive the resource and the
-request, constraints the query, and transformers the resource and the value.
+per-request values when a closure runs instead: row guards, accessors and compute closures receive the resource and
+the request, caller guards the request, constraints the query, and transformers the resource and the value.
 
 **Declared column reads** - `needs()` names the base-table columns a field reads. Declare it on any field whose value
 does not come straight from the column of the same name, such as one over an Eloquent accessor or custom cast, or an
@@ -534,7 +553,7 @@ the table. A plain field without `needs()` is taken to read the column of its ow
 that column and the model reads it without an accessor, a public instance property of the same name or a cast that could
 consult other attributes; Eloquent's built-in cast types, enums that do not name their own caster, and the casts under
 `Illuminate\Database\Eloquent\Casts` qualify. Any other field, such as one over an accessor or custom cast, or a
-computed, guarded or transformed field, leaves the select unnarrowed until it declares `needs()`.
+computed, row-guarded or transformed field, leaves the select unnarrowed until it declares `needs()`.
 
 An incomplete `needs()` returns wrong data rather than failing. Call
 `Model::preventAccessingMissingAttributes(! app()->isProduction())` in a service provider to catch it outside
@@ -610,8 +629,8 @@ return ApiQuery::using($this->input->query->without('order', 'fields'), function
   rendered later reads the restored query, and a resource resolves its fields once, so build it where it renders.
 - Work that changes which rows match iterates with `lazyById()` on a snapshot `without('order')`. Keyset iteration
   after a client order skips rows, and so does offset `lazy()` as the set changes.
-- `allowsTrashed()` and request-based field guards see the worker's console request, which is not reconstructed, so a
-  carried `trashed` the worker's gate refuses fails the job.
+- `allowsTrashed()` and field guards see the worker's console request, which is not reconstructed, so a carried
+  `trashed` the worker's gate refuses, or a carried key a caller guard hides, fails the job.
 
 **Allowlist** - only schema fields declared `filterable()`, `sortable()`, or `traversable()` are accepted, and any
 other key is rejected with a validation error. There is no opt-out: a resource that declares nothing is queryable by
@@ -644,9 +663,9 @@ Two overrides cover what the catalogue cannot show:
 search relevance order, so a `sortable()` column named `relevance` cannot be ordered by; schema validation reports it.
 
 **Query cost caps** - `api-toolkit.query_cost` bounds the filter document's size and nesting, the keys and value-list
-items it dispatches, the sort keys and relation aggregates requested, and how deep a request pages. A request over a
-cap is rejected before any SQL is issued, with a `422` naming the parameter, the position within it, the cap, the
-limit and the value supplied. Set a cap to `0` to disable it.
+items it dispatches, the sort keys and relation aggregates requested across every resource type, and how deep a request
+pages. A request over a cap is rejected before any SQL is issued, with a `422` naming the parameter, the position within
+it, the cap, the limit and the value supplied. Set a cap to `0` to disable it.
 
 **Writes** - `persist($model, $attributes)` creates or updates the model from an array or collection of attributes.
 Each key is written through Eloquent's `setAttribute()`, so casts, both mutator styles and JSON paths such as
@@ -709,16 +728,21 @@ does not redirect it. Timestamps follow the model: none when it has timestamps d
 `CREATED_AT` and `UPDATED_AT` columns in its date format, and a timestamp you pass is kept. Rows are inserted in
 consecutive runs of one column set, so a row may leave out optional columns and they keep their database default.
 Each connection flushes its tables in the order they joined the buffer, and a table keeps its place while it holds rows,
-so defer a parent before the rows that reference it.
+so defer a parent before the rows that reference it. An `INSERT` carries at most `deferred_writes.chunk_size` rows and
+never more than 32766 bound values, so a wide table is written in smaller chunks.
 
 Reaching `deferred_writes.pool_limit` flushes automatically, but never on a connection with an open transaction: those
 rows wait for the next deferral outside a transaction or for the boundary flush, so rolling the transaction back does
 not undo them. A flush that does run inside an open transaction joins it: `flushWrites()` called there, or a boundary
-flush while an outer transaction is still open, such as a sync-queued job dispatched inside one.
+flush while an outer transaction is still open, such as a sync-queued job dispatched inside one. Each chunk then runs in
+its own savepoint, or each table with `deferred_writes.transactional`, so a failure rolls back only that chunk or table
+and the transaction stays usable. A deadlock is the exception: the database may already have rolled back the whole
+transaction.
 
 `api-toolkit.deferred_writes.on_failure` picks what happens when a flush fails:
 
-- `collect` (default) - failed records are kept for the next flush.
+- `collect` (default) - failed records are kept for the next flush. They do not count toward `pool_limit`, so they are
+  retried when their connection next flushes automatically, or at the boundary, rather than on every deferral.
 - `throw` - raises a `WritePoolFlushException`, for callers that flush explicitly.
 - `log` - failed records are dropped. Use it only for disposable writes such as telemetry.
 
@@ -850,7 +874,8 @@ status for request-level error rates.
 - An exception implementing Symfony's `HttpExceptionInterface` is not reported when its status is a recognised client
   error (one the handler renders as a `4xx`) or `419`, even when it does not extend Symfony's `HttpException`. An
   unrecognised status such as `499` renders as a generic `500` and is reported.
-- `LockUnavailableException` (lock contention, rendered as `429`) is never reported, with or without `handles()`.
+- `LockUnavailableException` (lock contention, rendered as `429`) is never reported, with or without `handles()`. The
+  `429` carries no `Retry-After` or `X-RateLimit-*` header, since how long the holder keeps the lock is unknown.
 
 Other framework exceptions rendered as client errors, such as `ModelNotFoundException` (`404`) or
 `ValidationException` (`422`), are kept out of reports by Laravel's own don't-report list.
@@ -1013,13 +1038,21 @@ the export and is named:
 ],
 ```
 
+A route on a domain, such as `{account}.example.com`, lists servers of its own: each of the audience's servers with its
+host replaced by the domain, or `https://<domain>` when it has none, over `http` or `https` when the route is restricted
+to one. Each domain parameter is a server variable rather than a path parameter, listing the values of a `whereIn()`
+constraint or a bound string-backed enum and defaulting to the first, or else defaulting to its own name. A server that
+uses a variable named like a domain parameter outside its host fails the export. One controller action routed on several
+domains, with nothing else setting the routes apart, is one operation listing the servers of each.
+
 Each resource becomes a component schema, and each documented route an operation carrying the query parameters that
 action honours. Every queryable property carries an `x-query-surface` extension naming the key to send, the filter
-capability and the operators it answers, whether an index backs its sort (with the recorded reason where none does),
-and its search strategy. The relations a filter may descend through are listed on the schema itself. All of this is
-read from the same compiled schema the request-time checks use, and the operators from the bound registry, so the
-document cannot offer a column the request would reject or an operator that is no longer registered. A column whose
-operators have all been removed from the registry is documented as answering no filter.
+capability and the operators it answers, whether an index backs its sort (with the recorded reason where none does), its
+search strategy, and `conditional` on a filter or sort only some callers may use. The relations a filter may descend
+through are listed on the schema itself. All of this is read from the same compiled schema the request-time checks use,
+and the operators from the bound registry, so the document cannot offer a column the request would reject or an operator
+that is no longer registered. A column whose operators have all been removed from the registry is documented as
+answering no filter.
 
 A resource schema requires only what every response carries: `_type`, and each fixed field read straight from its
 column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names
@@ -1033,7 +1066,7 @@ one is left undocumented; either still lists the relation in `_truncated` when i
 
 Every operation also lists the errors it can return, derived from the route: an unauthenticated request behind auth
 middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
-`AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the path
+`AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the route
 has parameters, a validation failure when the operation accepts a request body or the toolkit's query parameters, a
 refusal behind a rate limit, and an unhandled exception always. Each is documented as the exception map renders it: by
 default a `401`, `403`, `404`, `422`, `429` and `500`. A list operation also documents the query cost refusal under
@@ -1404,6 +1437,10 @@ $user = $result->output();
 `runOrFail()` is `run()->throw()->output()`. Both use the context given through `withContext()` and fire the same
 lifecycle events.
 
+A queued `ServiceCompleted` or `ServiceFailed` listener receives the result's exception and each side-effect error as a
+`SerializedException`, which keeps its message, code, file, line and previous chain and names its class through
+`originalClass()`, since an exception's trace and state, such as a validator, may not serialise.
+
 `dispatch()` runs `authorize()` and `validate()`, then queues the service. A refusal throws from `dispatch()`, so an
 HTTP action answers `403` or `422` and nothing is queued. The worker runs the whole lifecycle again with a `QUEUE`
 context, since state can change before the job runs, so both hooks must be repeatable. At dispatch they see the context
@@ -1468,11 +1505,12 @@ Laravel decides three things the toolkit leaves as they are:
 `afterCommit()` runs once the outermost transaction has committed. The transaction runs once: a deadlock or other
 concurrency error rolls it back and fails the run, firing `onFailure()` and `ServiceFailed`.
 
-`$transactionAttempts` (default `1`) lets a top-level run retry a concurrency error. Each retry re-runs the concerns,
-`prepare()` and `handle()` in full, but the rollback resets only the database: a model saved by the failed attempt still
-looks saved, so the retry can skip its write and report success. A service nested in another transaction never retries;
-it fails with a `DeadlockException`. On a transactional service a value below `1` fails the run with a `LogicException`.
-A service that sets it above `1` must:
+`$transactionAttempts` (default `1`) lets a top-level run retry a concurrency error, such as a deadlock, a PostgreSQL
+serialization failure or a MySQL lock wait timeout. Each retry re-runs the concerns, `prepare()` and `handle()` in full,
+but the rollback resets only the database: a model saved by the failed attempt still looks saved, so the retry can skip
+its write and report success. A service nested in another transaction never retries; it fails with a
+`DeadlockException`. On a transactional service a value below `1` fails the run with a `LogicException`. A service that
+sets it above `1` must:
 
 1. Load every model it writes inside the transaction, in `prepare()` or `handle()`, from keys in the input
    (`Order::query()->lockForUpdate()->findOrFail($this->input->orderId)`). Never write a model carried by the input or

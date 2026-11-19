@@ -281,21 +281,35 @@ final class FieldTypeResolverTest extends TestCase
     }
 
     /**
-     * Test that an undeclared guarded field is flagged undocumented.
+     * Test that a guarded field is typed from its column, since a guard decides
+     * only whether the value is present.
      *
      * @return void
      */
-    public function testGuardedFieldIsFlaggedUndocumented(): void
+    public function testGuardedFieldIsTypedFromItsColumn(): void
     {
         $resolver = $this->makeResolver([
             'email' => new ColumnDefinition(name: 'email', typeName: 'varchar', nullable: false),
         ]);
 
-        $field = $this->field(guards: [static fn () => true]);
+        $field = new CompiledFieldDefinition(
+            accessor    : null,
+            compute     : null,
+            relation    : null,
+            resource    : null,
+            fields      : null,
+            constraint  : null,
+            extras      : [],
+            needs       : [],
+            guards      : [static fn () => true],
+            transformers: [],
+            callerGuards: [static fn () => true],
+        );
 
         $schema = $resolver->resolve('email', $field, User::class);
 
-        $this->assertFlagged($schema);
+        self::assertSame('string', $schema->type);
+        self::assertFalse($schema->undocumented);
     }
 
     /**
@@ -363,7 +377,6 @@ final class FieldTypeResolverTest extends TestCase
             'accessor'    => $this->field(accessor: 'name'),
             'compute'     => $this->field(compute: static fn () => 1),
             'relation'    => $this->field(relation: 'posts', resource: 'PostResource'),
-            'guard'       => $this->field(guards: [static fn () => true]),
             'transformer' => $this->field(transformers: [static fn ($resource, $value) => $value]),
         ];
 

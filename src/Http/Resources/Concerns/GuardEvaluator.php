@@ -15,7 +15,7 @@ use Illuminate\Http\Request;
 final class GuardEvaluator
 {
     /**
-     * Determine whether all guards pass, i.e. none returns exactly false.
+     * Determine whether all row guards pass, i.e. none returns exactly false.
      *
      * @param  array<int, mixed>  $guards
      * @param  mixed  $resource
@@ -26,6 +26,25 @@ final class GuardEvaluator
     {
         foreach ($guards as $guard) {
             if (is_callable($guard) && $guard($resource, $request) === false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Determine whether all caller guards pass, i.e. none returns exactly
+     * false.
+     *
+     * @param  array<int, mixed>  $guards
+     * @param  \Illuminate\Http\Request|null  $request
+     * @return bool
+     */
+    public function passesCallerGuards(array $guards, ?Request $request): bool
+    {
+        foreach ($guards as $guard) {
+            if (is_callable($guard) && $guard($request) === false) {
                 return false;
             }
         }

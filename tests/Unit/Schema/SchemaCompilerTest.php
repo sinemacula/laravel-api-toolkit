@@ -21,8 +21,11 @@ use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Max;
 use SineMacula\ApiToolkit\Schema\Min;
 use SineMacula\ApiToolkit\Schema\OpenApiFieldSchema;
+use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Schema\Sum;
+use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\TagResource;
 use Tests\Fixtures\Resources\UserResource;
 
 /**
@@ -218,7 +221,7 @@ final class SchemaCompilerTest extends TestCase
 
     /**
      * Test that duplicate markers are de-duplicated into zero-based lists and a
-     * column declared filterable twice keeps the last capability.
+     * column declared filterable twice is keyed once.
      *
      * A non-trailing duplicate leaves a key gap, so the reindex is observable.
      *
@@ -228,11 +231,11 @@ final class SchemaCompilerTest extends TestCase
     {
         $schema = SchemaCompiler::compile($this->createStubResourceClass([
             'status_a' => ['filterable' => 'status', 'capability' => Capability::EXACT, 'sortable' => 'status', 'traversable' => 'posts'],
-            'status_b' => ['filterable' => 'status', 'capability' => Capability::ENUM, 'sortable' => 'status', 'traversable' => 'posts'],
+            'status_b' => ['filterable' => 'status', 'capability' => Capability::EXACT, 'sortable' => 'status', 'traversable' => 'posts'],
             'email'    => ['filterable' => 'email', 'capability' => Capability::EXACT, 'sortable' => 'created_at', 'traversable' => 'tags'],
         ]));
 
-        self::assertSame(['status' => Capability::ENUM, 'email' => Capability::EXACT], $schema->getFilterableColumns());
+        self::assertSame(['status' => Capability::EXACT, 'email' => Capability::EXACT], $schema->getFilterableColumns());
         self::assertSame(['status', 'created_at'], $schema->getSortableColumns());
         self::assertSame(['posts', 'tags'], $schema->getTraversableRelations());
     }
@@ -547,6 +550,107 @@ final class SchemaCompilerTest extends TestCase
         self::assertInstanceOf(CompiledFieldDefinition::class, $field);
         self::assertSame([$guard], $field->guards);
         self::assertSame([$transformer], $field->transformers);
+    }
+
+    /**
+     * Test that caller guards are compiled onto field and aggregate definitions
+     * apart from the row guards.
+     *
+     * @return void
+     */
+    public function testCompileCarriesCallerGuardsApartFromRowGuards(): void
+    {
+        $guard       = static fn (): bool => true;
+        $callerGuard = static fn (): bool => false;
+
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'secret'                 => ['guards' => [$guard], 'caller_guards' => ['visible' => $callerGuard]],
+            '__aggregate__:comments' => ['metric' => 'count', 'relation' => 'comments', 'caller_guards' => [$callerGuard]],
+        ]));
+
+        self::assertSame([$guard], $schema->getField('secret')?->guards);
+        self::assertSame([$callerGuard], $schema->getField('secret')->callerGuards);
+        self::assertSame([], $schema->getAggregateDefinitions()['comments']->guards);
+        self::assertSame([$callerGuard], $schema->getAggregateDefinitions()['comments']->callerGuards);
+    }
+
+    /**
+     * Test that each filter, sort and relation key only caller-guarded fields
+     * declare is recorded per kind with its declaring fields.
+     *
+     * @return void
+     */
+    public function testCompileRecordsConditionalKeysPerKindWithTheirDeclaringFields(): void
+    {
+        $visible = static fn (): bool => true;
+
+        $schema = SchemaCompiler::compile($this->createStubResourceClass(Field::set(
+            Field::scalar('salary')->visibleTo($visible)->filterable(Capability::RANGE),
+            Field::scalar('salary', 'pay')->visibleTo($visible)->filterable(Capability::RANGE)->sortable(),
+            Field::scalar('name')->filterable(Capability::EXACT)->sortable(),
+            Relation::to('posts', PostResource::class)->visibleTo($visible)->traversable(),
+            Relation::to('tags', TagResource::class)->traversable(),
+        )));
+
+        self::assertSame(['salary' => ['salary', 'pay']], $schema->getConditionalFilterKeys());
+        self::assertSame(['salary' => ['pay']], $schema->getConditionalSortKeys());
+        self::assertSame(['posts' => ['posts']], $schema->getConditionalTraversalKeys());
+    }
+
+    /**
+     * Test that a key any field declares without a caller guard is open to
+     * every caller, while a declaration without a capability opens no filter.
+     *
+     * @return void
+     */
+    public function testCompileLeavesAKeyWithAnUnguardedDeclarerUnconditional(): void
+    {
+        $visible = static fn (): bool => true;
+
+        $schema = SchemaCompiler::compile($this->createStubResourceClass([
+            'email'   => ['filterable' => 'email', 'capability' => Capability::EXACT, 'sortable' => 'email', 'caller_guards' => [$visible]],
+            'contact' => ['filterable' => 'email', 'capability' => Capability::EXACT, 'sortable' => 'email'],
+            'salary'  => ['filterable' => 'salary', 'capability' => Capability::RANGE, 'caller_guards' => [$visible]],
+            'pay'     => ['filterable' => 'salary', 'sortable' => 'salary', 'traversable' => 'posts'],
+            'posts'   => ['relation' => 'posts', 'traversable' => 'posts', 'caller_guards' => [$visible]],
+        ]));
+
+        self::assertSame(['salary' => ['salary']], $schema->getConditionalFilterKeys());
+        self::assertSame([], $schema->getConditionalSortKeys());
+        self::assertSame([], $schema->getConditionalTraversalKeys());
+    }
+
+    /**
+     * Test that a field with a row guard is refused on the query surface when
+     * it compiles, whether or not schema validation runs.
+     *
+     * @return void
+     */
+    public function testCompileRefusesARowGuardedQueryableField(): void
+    {
+        $this->expectException(InvalidSchemaException::class);
+        $this->expectExceptionMessage('A field with a row guard may not be filterable');
+
+        SchemaCompiler::compile($this->createStubResourceClass(Field::set(
+            Field::scalar('salary')->guard(static fn (): bool => true)->filterable(Capability::RANGE),
+        )));
+    }
+
+    /**
+     * Test that one column filterable with two capabilities fails to compile,
+     * whichever is declared first.
+     *
+     * @return void
+     */
+    public function testCompileRefusesOneColumnFilterableWithTwoCapabilities(): void
+    {
+        $this->expectException(InvalidSchemaException::class);
+        $this->expectExceptionMessage('Field "pay": Field is declared filterable against "salary" with the "exact" capability');
+
+        SchemaCompiler::compile($this->createStubResourceClass(Field::set(
+            Field::scalar('salary')->visibleTo(static fn (): bool => true)->filterable(Capability::RANGE),
+            Field::scalar('salary', 'pay')->filterable(Capability::EXACT),
+        )));
     }
 
     /**

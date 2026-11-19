@@ -22,6 +22,9 @@ final readonly class CompiledSchema
      * @param  array<int, string>  $traversableRelations
      * @param  array<string, \SineMacula\ApiToolkit\Enums\SearchStrategy>  $searchableColumns
      * @param  array<string, string>  $traversableResources
+     * @param  array<string, list<string>>  $conditionalFilterKeys
+     * @param  array<string, list<string>>  $conditionalSortKeys
+     * @param  array<string, list<string>>  $conditionalTraversalKeys
      */
     public function __construct(
 
@@ -45,6 +48,15 @@ final readonly class CompiledSchema
 
         /** Traversable relation names mapped to the child resource declared over them */
         private array $traversableResources = [],
+
+        /** Filter keys only caller-guarded fields declare, mapped to those fields */
+        private array $conditionalFilterKeys = [],
+
+        /** Sort keys only caller-guarded fields declare, mapped to those fields */
+        private array $conditionalSortKeys = [],
+
+        /** Relation keys only caller-guarded fields declare, mapped to those fields */
+        private array $conditionalTraversalKeys = [],
     ) {}
 
     /**
@@ -144,5 +156,36 @@ final readonly class CompiledSchema
     public function getSearchableColumns(): array
     {
         return $this->searchableColumns;
+    }
+
+    /**
+     * Return the filter keys a caller must be admitted to, by declaring field.
+     *
+     * @return array<string, list<string>>
+     */
+    public function getConditionalFilterKeys(): array
+    {
+        return $this->conditionalFilterKeys;
+    }
+
+    /**
+     * Return the sort keys a caller must be admitted to, by declaring field.
+     *
+     * @return array<string, list<string>>
+     */
+    public function getConditionalSortKeys(): array
+    {
+        return $this->conditionalSortKeys;
+    }
+
+    /**
+     * Return the relation keys a caller must be admitted to, by declaring
+     * field.
+     *
+     * @return array<string, list<string>>
+     */
+    public function getConditionalTraversalKeys(): array
+    {
+        return $this->conditionalTraversalKeys;
     }
 }

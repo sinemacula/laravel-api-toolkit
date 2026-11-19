@@ -108,6 +108,7 @@ final class SchemaCompiler
         $traversable = [];
         $searchable  = [];
         $resources   = [];
+        $declarers   = [];
 
         foreach ($rawSchema as $schemaKey => $definition) {
 
@@ -120,6 +121,7 @@ final class SchemaCompiler
             }
 
             self::collectQueryMarkers($definition, $filterable, $sortable, $traversable, $searchable);
+            self::collectDeclarers($schemaKey, $definition, $declarers);
 
             $field = self::buildFieldDefinition($definition);
 
@@ -140,7 +142,53 @@ final class SchemaCompiler
             $traversable,
             $searchable,
             array_intersect_key($resources, array_flip($traversable)),
+            self::conditionalKeys($declarers['filter'] ?? []),
+            self::conditionalKeys($declarers['sort'] ?? []),
+            self::conditionalKeys($declarers['traversal'] ?? []),
         );
+    }
+
+    /**
+     * Record whether each field declaring a filter, sort or relation key is
+     * caller-guarded.
+     *
+     * @param  string  $schemaKey
+     * @param  array<string, mixed>  $definition
+     * @param  array<string, array<string, array<string, bool>>>  $declarers
+     * @return void
+     */
+    private static function collectDeclarers(string $schemaKey, array $definition, array &$declarers): void
+    {
+        $guarded = self::callableList($definition, 'caller_guards') !== [];
+
+        $keys = [
+            'filter'    => self::resolveCapability($definition) === null ? null : ($definition['filterable'] ?? null),
+            'sort'      => $definition['sortable']    ?? null,
+            'traversal' => $definition['traversable'] ?? null,
+        ];
+
+        foreach ($keys as $kind => $key) {
+
+            if (!is_string($key)) {
+                continue;
+            }
+
+            $declarers[$kind][$key][$schemaKey] = $guarded;
+        }
+    }
+
+    /**
+     * Return the keys only caller-guarded fields declare, mapped to those
+     * fields.
+     *
+     * @param  array<string, array<string, bool>>  $declarers
+     * @return array<string, list<string>>
+     */
+    private static function conditionalKeys(array $declarers): array
+    {
+        $conditional = array_filter($declarers, static fn (array $guarded): bool => array_filter($guarded) === $guarded);
+
+        return array_map(array_keys(...), $conditional);
     }
 
     /**
@@ -179,6 +227,7 @@ final class SchemaCompiler
             isDefault   : (bool) ($definition['default'] ?? false),
             guards      : self::callableList($definition, 'guards'),
             transformers: self::callableList($definition, 'transformers'),
+            callerGuards: self::callableList($definition, 'caller_guards'),
         );
     }
 
@@ -276,8 +325,8 @@ final class SchemaCompiler
      * Return the callable entries of a guard or transformer list, reindexed.
      *
      * @param  array<string, mixed>  $definition
-     * @param  'guards'|'transformers'  $list
-     * @return ($list is 'guards' ? list<callable(mixed, mixed): bool> : list<callable(mixed, mixed): mixed>)
+     * @param  'caller_guards'|'guards'|'transformers'  $list
+     * @return ($list is 'guards' ? list<callable(mixed, mixed): bool> : ($list is 'caller_guards' ? list<callable(mixed): bool> : list<callable(mixed, mixed): mixed>))
      */
     private static function callableList(array $definition, string $list): array
     {
@@ -314,6 +363,7 @@ final class SchemaCompiler
             searchable      : self::declaredColumn($definition, 'searchable'),
             searchStrategy  : self::resolveSearchStrategy($definition),
             limit           : is_int($definition['limit'] ?? null) ? $definition['limit'] : null,
+            callerGuards    : self::callableList($definition, 'caller_guards'),
         );
     }
 

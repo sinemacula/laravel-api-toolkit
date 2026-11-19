@@ -16,8 +16,11 @@ use Illuminate\Contracts\Support\Arrayable;
  */
 abstract class BaseDefinition implements Arrayable
 {
-    /** @var array<int, callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): bool> Guards for conditional inclusion */
+    /** @var array<int, callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): bool> Row guards for conditional inclusion */
     protected array $guards = [];
+
+    /** @var array<int, callable(\Illuminate\Http\Request|null): bool> Caller guards for conditional inclusion */
+    protected array $callerGuards = [];
 
     /** @var array<int, callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, mixed): mixed> Transformers for modifying resolved values */
     protected array $transformers = [];
@@ -32,7 +35,10 @@ abstract class BaseDefinition implements Arrayable
     protected array $needs = [];
 
     /**
-     * Add a guard; returning false suppresses the field.
+     * Add a row guard; returning false hides the field from that row.
+     *
+     * A row guard may read the row, so a query cannot honour it, and the field
+     * may not be filterable, sortable, searchable or traversable.
      *
      * @param  callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): bool  $guard
      * @return static
@@ -45,13 +51,39 @@ abstract class BaseDefinition implements Arrayable
     }
 
     /**
-     * Get the guards attached to this definition.
+     * Get the row guards attached to this definition.
      *
      * @return array<int, callable(\SineMacula\ApiToolkit\Http\Resources\ApiResource, \Illuminate\Http\Request|null): bool>
      */
     public function getGuards(): array
     {
         return $this->guards;
+    }
+
+    /**
+     * Add a caller guard; returning false hides the field from that request.
+     *
+     * It reads the request alone, so a query key the field declares is refused
+     * to a caller it hides the field from.
+     *
+     * @param  callable(\Illuminate\Http\Request|null): bool  $guard
+     * @return static
+     */
+    public function visibleTo(callable $guard): static
+    {
+        $this->callerGuards[] = $guard;
+
+        return $this;
+    }
+
+    /**
+     * Get the caller guards attached to this definition.
+     *
+     * @return array<int, callable(\Illuminate\Http\Request|null): bool>
+     */
+    public function getCallerGuards(): array
+    {
+        return $this->callerGuards;
     }
 
     /**
@@ -139,9 +171,10 @@ abstract class BaseDefinition implements Arrayable
     protected function commonAttributes(): array
     {
         return [
-            'guards'       => $this->getGuards() ?: null,
-            'transformers' => $this->getTransformers() ?: null,
-            'openapi'      => $this->getOpenApiDeclaration()?->toSchema(),
+            'guards'        => $this->getGuards() ?: null,
+            'caller_guards' => $this->getCallerGuards() ?: null,
+            'transformers'  => $this->getTransformers() ?: null,
+            'openapi'       => $this->getOpenApiDeclaration()?->toSchema(),
         ];
     }
 }

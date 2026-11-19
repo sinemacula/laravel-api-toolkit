@@ -16,7 +16,7 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
 
 /**
  * Builds a route's path parameters, typed from what the router enforces on each
- * segment.
+ * segment, and the server variables of its domain.
  *
  * A parameter takes its `where` constraint, else the string-backed enum or
  * model the action binds, else a string. An explicit binder owns the lookup, so
@@ -54,7 +54,7 @@ final readonly class PathParameterBuilder
     ) {}
 
     /**
-     * Build the path parameter list in the order the route declares it.
+     * Build the path parameter list in the order the route's URI declares it.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @return list<array{name: string, in: 'path', required: true, schema: array<string, mixed>}>
@@ -64,7 +64,7 @@ final readonly class PathParameterBuilder
         $bound      = $this->boundClasses($route);
         $parameters = [];
 
-        foreach ($route->parameterNames() as $name) {
+        foreach ($this->namesIn($route->uri()) as $name) {
             $parameters[] = [
                 'name'     => $name,
                 'in'       => 'path',
@@ -74,6 +74,84 @@ final readonly class PathParameterBuilder
         }
 
         return $parameters;
+    }
+
+    /**
+     * Build a server variable for each parameter of the route's domain, in the
+     * order the domain declares them.
+     *
+     * A variable has no schema, so only a `where` list of literals or a bound
+     * string-backed enum narrows it, to an enum defaulting to its first value.
+     * A name also in the URI takes the URI's value, so only its constraint
+     * applies.
+     *
+     * @param  \Illuminate\Routing\Route  $route
+     * @return array<string, array{enum?: non-empty-list<string>, default: string}>
+     */
+    public function hostVariables(Route $route): array
+    {
+        $bound     = $this->boundClasses($route);
+        $uri       = $this->namesIn($route->uri());
+        $variables = [];
+
+        foreach ($this->namesIn((string) $route->getDomain()) as $name) {
+
+            $class  = in_array($name, $uri, true) ? null : ($bound[$name] ?? null);
+            $values = $this->constraintValues($route, $name) ?? $this->enumValues($name, $class);
+
+            $variables[$name] = $values === null ? ['default' => $name] : ['enum' => $values, 'default' => $values[0]];
+        }
+
+        return $variables;
+    }
+
+    /**
+     * List the parameter names a route template declares, as the router
+     * compiles them.
+     *
+     * @param  string  $template
+     * @return list<string>
+     */
+    private function namesIn(string $template): array
+    {
+        preg_match_all('/\{(.*?)\}/', $template, $matches);
+
+        return array_map(static fn (string $name): string => trim($name, '?'), $matches[1]);
+    }
+
+    /**
+     * List the values a parameter's `where` constraint accepts when it is a
+     * list of literals.
+     *
+     * @param  \Illuminate\Routing\Route  $route
+     * @param  string  $name
+     * @return non-empty-list<string>|null
+     */
+    private function constraintValues(Route $route, string $name): ?array
+    {
+        $constraint = $route->wheres[$name] ?? null;
+
+        return is_string($constraint) ? $this->patterns->literals($constraint) : null;
+    }
+
+    /**
+     * List the values of the string-backed enum the action binds to a parameter
+     * no explicit binder owns.
+     *
+     * @param  string  $name
+     * @param  class-string|null  $class
+     * @return non-empty-list<string>|null
+     */
+    private function enumValues(string $name, ?string $class): ?array
+    {
+        if ($class === null || !is_subclass_of($class, \BackedEnum::class) || $this->router->getBindingCallback($name) !== null) {
+            return null;
+        }
+
+        /** @var list<string> $values */
+        $values = array_column($class::cases(), 'value');
+
+        return $values === [] ? null : $values;
     }
 
     /**
