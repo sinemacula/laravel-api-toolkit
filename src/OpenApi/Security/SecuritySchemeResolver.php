@@ -64,9 +64,11 @@ final readonly class SecuritySchemeResolver
      * Resolve the definition for a referenced scheme name.
      *
      * @param  string  $name
-     * @return array<string, mixed>|null
+     * @return array<string, mixed>
+     *
+     * @throws \LogicException
      */
-    public function definitionFor(string $name): ?array
+    public function definitionFor(string $name): array
     {
         return $this->mapper->definitionFor($name);
     }

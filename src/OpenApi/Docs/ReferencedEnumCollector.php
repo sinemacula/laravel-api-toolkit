@@ -41,7 +41,7 @@ final readonly class ReferencedEnumCollector
     /**
      * Collect the distinct enum classes referenced across every audience.
      *
-     * @return list<class-string>
+     * @return list<class-string<\UnitEnum>>
      */
     public function collect(): array
     {
