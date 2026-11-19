@@ -20,6 +20,7 @@ final readonly class ErrorDescriptor
      * @param  string|null  $title
      * @param  string  $detail
      * @param  string|null  $source
+     * @param  array<string, mixed>|null  $meta
      */
     public function __construct(
 
@@ -37,5 +38,8 @@ final readonly class ErrorDescriptor
 
         /** The owning exception class, or null when none is known */
         public ?string $source = null,
+
+        /** The JSON-Schema of the error meta, or null when none is declared */
+        public ?array $meta = null,
     ) {}
 }
