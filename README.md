@@ -1058,6 +1058,13 @@ A resource schema requires only what every response carries: `_type`, and each f
 column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names
 none for that type and no parent relation pins them: the declared `$default` fields, then the fixed ones.
 
+A field read straight from its column is typed from the value Eloquent returns: by the model's cast when it has one,
+else by the column type. Date casts and the model's timestamps are a `date-time`, a `decimal:N` cast a string, and any
+other date-time or time column the driver's string. A value with no fixed shape is marked `x-undocumented`: an `array`,
+`json`, `collection` or `object` cast, a cast class other than an enum, `AsStringable` or `AsUri`, and an uncast
+decimal, binary or JSON column. On PostgreSQL before PHP 8.4, a float column is a string, as the driver returns it.
+Declare the field's `openapi()` schema to document any of these.
+
 A relation rendered through a child resource is typed from its Eloquent relation: a to-many relation as an array of the
 related schema, and a to-one relation as the related schema or `null`, since it renders `null` when the related row is
 absent. A to-one relation with a default model from `withDefault()` never does, so it is the related schema alone. A
