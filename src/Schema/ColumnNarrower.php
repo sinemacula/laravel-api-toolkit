@@ -99,40 +99,42 @@ final class ColumnNarrower
             return true;
         }
 
-        return !$model->hasAnyGetMutator($field)
-            && !$this->declaresPublicProperty($model, $field)
-            && $this->readsOnlyItsOwnColumn($model, $field);
+        [$column] = $columns;
+
+        return !$model->hasAnyGetMutator($column)
+            && !$this->declaresPublicProperty($model, $column)
+            && $this->readsOnlyItsOwnColumn($model, $column);
     }
 
     /**
-     * Determine whether a public instance property shadows the field's
+     * Determine whether a public instance property shadows the column's
      * attribute.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $field
+     * @param  string  $column
      * @return bool
      */
-    private function declaresPublicProperty(Model $model, string $field): bool
+    private function declaresPublicProperty(Model $model, string $column): bool
     {
-        if (!property_exists($model, $field)) {
+        if (!property_exists($model, $column)) {
             return false;
         }
 
-        $property = new \ReflectionProperty($model, $field);
+        $property = new \ReflectionProperty($model, $column);
 
         return $property->isPublic() && !$property->isStatic();
     }
 
     /**
-     * Determine whether the field's cast, if any, reads only its own column.
+     * Determine whether the column's cast, if any, reads only that column.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $field
+     * @param  string  $column
      * @return bool
      */
-    private function readsOnlyItsOwnColumn(Model $model, string $field): bool
+    private function readsOnlyItsOwnColumn(Model $model, string $column): bool
     {
-        $cast = $model->getCasts()[$field] ?? null;
+        $cast = $model->getCasts()[$column] ?? null;
 
         if (!is_string($cast)) {
             return true;

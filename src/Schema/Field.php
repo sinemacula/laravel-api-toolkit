@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema;
 
-use Carbon\CarbonInterface;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Auth\Access\Gate;
 use Illuminate\Contracts\Support\Arrayable;
@@ -94,12 +93,7 @@ final class Field extends BaseDefinition
      */
     public static function timestamp(string $field, ?string $alias = null): self
     {
-        $definition = self::accessor($field, static function ($resource) use ($field): ?string {
-
-            $value = data_get($resource, $field);
-
-            return $value instanceof CarbonInterface ? $value->toIso8601String() : null;
-        }, $alias);
+        $definition = self::accessor($field, DateAccessor::timestamp($field), $alias);
 
         $definition->openapi()->type('string')->format('date-time')->nullable();
 
@@ -115,12 +109,7 @@ final class Field extends BaseDefinition
      */
     public static function date(string $field, ?string $alias = null): self
     {
-        $definition = self::accessor($field, static function ($resource) use ($field): ?string {
-
-            $value = data_get($resource, $field);
-
-            return $value instanceof CarbonInterface ? $value->toDateString() : null;
-        }, $alias);
+        $definition = self::accessor($field, DateAccessor::date($field), $alias);
 
         $definition->openapi()->type('string')->format('date')->nullable();
 

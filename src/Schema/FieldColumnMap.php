@@ -16,7 +16,7 @@ final readonly class FieldColumnMap
      * Create a new field-column map.
      *
      * @param  array<string, array<int, string>>  $declared
-     * @param  array<int, string>  $inferred
+     * @param  array<string, string>  $inferred
      * @param  array<int, string>  $names
      */
     private function __construct(
@@ -24,7 +24,7 @@ final readonly class FieldColumnMap
         /** Field key to the columns its needs() declaration reads */
         private array $declared,
 
-        /** Plain field keys whose column is taken to be the key itself */
+        /** Field key to the column it is taken to read straight off the model */
         private array $inferred,
 
         /** The names the schema declares, so the resource renders */
@@ -32,11 +32,11 @@ final readonly class FieldColumnMap
     ) {}
 
     /**
-     * Build a map from the declared column reads, the inferred plain keys and
+     * Build a map from the declared column reads, the inferred column reads and
      * the names the schema declares.
      *
      * @param  array<string, array<int, string>>  $declared
-     * @param  array<int, string>  $inferred
+     * @param  array<string, string>  $inferred
      * @param  array<int, string>  $names
      * @return self
      */
@@ -65,7 +65,7 @@ final readonly class FieldColumnMap
      */
     public function columnsFor(string $field): ?array
     {
-        return $this->declared[$field] ?? ($this->isInferred($field) ? [$field] : null);
+        return $this->declared[$field] ?? (isset($this->inferred[$field]) ? [$this->inferred[$field]] : null);
     }
 
     /**
@@ -80,13 +80,13 @@ final readonly class FieldColumnMap
     }
 
     /**
-     * Determine whether the field's column is inferred from its own key.
+     * Determine whether the field's column is inferred rather than declared.
      *
      * @param  string  $field
      * @return bool
      */
     public function isInferred(string $field): bool
     {
-        return in_array($field, $this->inferred, true);
+        return array_key_exists($field, $this->inferred);
     }
 }

@@ -22,11 +22,14 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
+use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Profile;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Repositories\LogRepository;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\LogResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\RequestOrderedUserResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -63,7 +66,12 @@ final class ResourceResponseShapeTest extends TestCase
     {
         parent::setUp();
 
-        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class, PostResource::class, RequestOrderedUserResource::class]);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [
+            LogResource::class,
+            UserResource::class,
+            PostResource::class,
+            RequestOrderedUserResource::class,
+        ]);
 
         $this->registerApiExceptionHandler();
 
@@ -180,6 +188,30 @@ final class ResourceResponseShapeTest extends TestCase
         self::assertArrayHasKey('profile_bio', $users['Bob']);
         self::assertNull($users['Bob']['organization']);
         self::assertNull($users['Bob']['profile_bio']);
+    }
+
+    /**
+     * Test that a timestamp field over a column the model does not cast renders
+     * the stored date-time rather than null.
+     *
+     * @return void
+     */
+    public function testATimestampOverAnUncastColumnRendersTheStoredDateTime(): void
+    {
+        Route::middleware(ParseApiQuery::class)->get('/logs', static function (LogRepository $repository): ApiResourceCollection {
+
+            $logs = $repository->usingResource(LogResource::class)->withApiCriteria()->paginate();
+
+            return new ApiResourceCollection($logs, LogResource::class);
+        });
+
+        Log::create(['level' => 'info', 'message' => 'Booted', 'created_at' => '2026-07-15 09:30:00.123456']);
+
+        self::assertIsString(Log::query()->firstOrFail()->getAttribute('created_at'));
+
+        $this->getJson('/logs?fields[logs]=created_at')
+            ->assertOk()
+            ->assertJsonPath('data.0.created_at', '2026-07-15T09:30:00+00:00');
     }
 
     /**
