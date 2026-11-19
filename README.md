@@ -254,7 +254,10 @@ any column the cached column catalogue reports as nullable, such as the `created
 declare the column `NOT NULL` to cursor-page by it. Offset pagination sorts by either. Columns a repository scope
 orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, does not carry a value for every
 ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column cannot hold is rejected
-with a `422` on `cursor`; restart from the first page.
+with a `422` on `cursor`; restart from the first page. A cursor carries each ordered column as the row stores it, not as
+the model casts it, so a microsecond timestamp, an enum or a value object seeks from exactly where its page ended. A
+model whose table has no column for its key is offset-paged without the appended key and refused cursor pagination with
+a `422` on `pagination`.
 
 **Page-size ceiling** - a `?limit` above `api-toolkit.parser.max_limit` (default 100) is rejected with a `422` naming
 the ceiling and the requested size, not reduced to the ceiling. Set the ceiling to `0` to disable it:
@@ -546,8 +549,8 @@ skips schema validation while this command runs, so the command reports everythi
 
 The index catalogue is read only during validation, never while a filter or sort is served. Three schema reads do sit
 on the request path, all cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads
-the table's column listing, search reads its index proof, and a cursor-paginated sort reads the column definitions to
-refuse a nullable key.
+the table's column listing, search reads its index proof, and a paginated read reads the column definitions to find
+its key column and, by cursor, to refuse a nullable key.
 
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded

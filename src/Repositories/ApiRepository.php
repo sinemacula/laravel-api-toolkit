@@ -18,6 +18,7 @@ use SineMacula\ApiToolkit\Repositories\Concerns\OffsetPaginator;
 use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
 use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
+use SineMacula\ApiToolkit\Repositories\Pagination\RawCursorPaginator;
 use SineMacula\Repositories\Repository;
 
 /**
@@ -128,7 +129,7 @@ abstract class ApiRepository extends Repository
 
             if ($cursor) {
                 // A null cursor would make the paginator re-read the request
-                $results = $query->cursorPaginate($limit, '*', 'cursor', $this->pageOrder->cursor($query, ApiQuery::getCursor() ?? '') ?? '');
+                $results = RawCursorPaginator::of($query->cursorPaginate($limit, '*', 'cursor', $this->pageOrder->cursor($query, ApiQuery::getCursor() ?? '') ?? ''));
             } else {
                 $results = $this->offsetPaginator->paginate($query, $page, $limit);
             }
@@ -209,7 +210,7 @@ abstract class ApiRepository extends Repository
     {
         $introspector = $this->app->make(SchemaIntrospectionProvider::class);
 
-        $this->pageOrder       = new PageOrder(new ColumnLiteral($introspector));
+        $this->pageOrder       = new PageOrder(new ColumnLiteral($introspector), $introspector);
         $this->offsetPaginator = new OffsetPaginator;
         $this->attributeSetter = new AttributeSetter($introspector);
     }

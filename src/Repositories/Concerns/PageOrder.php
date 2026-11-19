@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Str;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
@@ -26,11 +27,15 @@ final readonly class PageOrder
      * Create a new page order.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral  $literal
+     * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $introspector
      */
     public function __construct(
 
         /** Checks each cursor boundary against its column's storage type */
         private ColumnLiteral $literal,
+
+        /** Reports whether the model's table holds its key column */
+        private SchemaIntrospectionProvider $introspector,
     ) {}
 
     /**
@@ -73,6 +78,10 @@ final readonly class PageOrder
      */
     public function cursor(Builder $query, string $token): ?Cursor
     {
+        $model = $query->getModel();
+
+        $this->guardKeyed($model);
+
         if ($token === '') {
             return null;
         }
@@ -84,7 +93,6 @@ final readonly class PageOrder
             throw Rejection::at('cursor', 'cursor.malformed');
         }
 
-        $model   = $query->getModel();
         $columns = array_unique($this->seekColumns($query->getQuery(), $model));
 
         if (count($parameters) !== count($columns) + 1) {
@@ -101,6 +109,22 @@ final readonly class PageOrder
         }
 
         return $cursor;
+    }
+
+    /**
+     * Refuse a cursor over a table without its key column, which has no unique
+     * order to seek by.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function guardKeyed(Model $model): void
+    {
+        if (!$this->storesKey($model)) {
+            throw Rejection::at('pagination', 'cursor.keyless');
+        }
     }
 
     /**
@@ -131,7 +155,8 @@ final readonly class PageOrder
     }
 
     /**
-     * Resolve the model key as the tiebreaker, unless the query cannot take it.
+     * Resolve the model key as the tiebreaker, unless the query cannot take it
+     * or the table has no such column.
      *
      * @param  \Illuminate\Database\Query\Builder  $base
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -142,11 +167,25 @@ final readonly class PageOrder
         $ordered = $this->columnsOf($base->orders ?? []);
         $keyed   = in_array($model->getKeyName(), $ordered, true) || in_array($model->getQualifiedKeyName(), $ordered, true);
 
-        if ($keyed || !empty($base->havings)) {
+        if ($keyed || !empty($base->havings) || !$this->storesKey($model)) {
             return [];
         }
 
         return [$model->getQualifiedKeyName()];
+    }
+
+    /**
+     * Determine whether the model's table holds its key column, assuming so
+     * where the catalogue cannot tell.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return bool
+     */
+    private function storesKey(Model $model): bool
+    {
+        $columns = $this->introspector->getColumnDefinitions($model);
+
+        return $columns === [] || array_key_exists($model->getKeyName(), $columns);
     }
 
     /**
