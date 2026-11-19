@@ -40,8 +40,8 @@ final readonly class QuerySurfaceDocGenerator
     /** The fixed note saying what an index-backed order claims and how pages stay whole. */
     private const string ORDERS = 'An order reads as Index-backed where the resource recorded no exemption for it; the index itself is proven by '
         . 'schema validation, which reads the catalogue behind the model where a connection can be inspected. Every page is ordered by '
-        . 'the key last, in the last direction, so tied rows never repeat or go missing; a cursor-paginated read refuses random order '
-        . 'and any column that admits null.';
+        . 'the key last, in the last direction, so tied rows never repeat or go missing; a cursor-paginated read refuses random order, '
+        . 'an aggregate or relation key, and any column that admits null.';
 
     /** The fixed note saying what the relevance order ranks by and needs. */
     private const string RELEVANCE = '`order=relevance` ranks rows by how closely they match `search`: the whole value, then the start, then the '

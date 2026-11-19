@@ -8,11 +8,14 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
+use SineMacula\ApiToolkit\Repositories\Criteria\SortTarget;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
@@ -25,6 +28,7 @@ use Tests\Fixtures\Resources\GuardedQueryablePostResource;
 use Tests\Fixtures\Resources\GuardedQueryableUserResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\PublicUserResource;
+use Tests\Fixtures\Resources\SortableUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -246,6 +250,8 @@ final class QuerySurfaceTest extends TestCase
         $this->assertRejects(fn () => $surface->guardFilter('title'), 'filters.title');
         $this->assertRejects(fn () => $surface->guardFilterOperator('title', '$eq'), 'filters.title');
         $this->assertRejects(fn () => $surface->guardSort('title'), 'order.title');
+        $this->assertRejects(fn () => $surface->guardSort('aggregates.tags_count'), 'order.aggregates.tags_count');
+        $this->assertRejects(fn () => $surface->guardSort('user.name'), 'order.user.name');
         $this->assertRejects(fn () => $surface->guardRelation('user'), 'filters.user');
         $this->assertRejects(fn () => $surface->through('user', new User, false)->guardFilter('name'), 'filters.name');
     }
@@ -433,6 +439,134 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
+     * Test that a column, an aggregate key and a relation key each resolve to
+     * what they order by.
+     *
+     * @return void
+     */
+    public function testResolvesEachOrderKeyFormToItsTarget(): void
+    {
+        $schema  = SchemaCompiler::compile(SortableUserResource::class);
+        $surface = new QuerySurface($schema, $this->traversal([]), $this->admission(), $this->operators());
+
+        self::assertEquals(SortTarget::column('name'), $surface->guardSort('name'));
+        self::assertEquals(SortTarget::aggregate($schema->getSortableMetrics()['aggregates.published_posts']), $surface->guardSort('aggregates.published_posts'));
+        self::assertEquals(SortTarget::related('latestArticle', 'views'), $surface->guardSort('latestArticle.views'));
+    }
+
+    /**
+     * Test that a key naming no sortable aggregate, relation or child column,
+     * or reaching past one hop, is refused as undeclared.
+     *
+     * @return void
+     */
+    public function testRefusesUnreachableAggregateAndRelationKeysAsUndeclared(): void
+    {
+        $surface = new QuerySurface(SchemaCompiler::compile(SortableUserResource::class), $this->traversal([]), $this->admission(), $this->operators());
+
+        foreach (['aggregates.comments_count', 'aggregates', 'posts.title', 'latestArticle.title', 'latestArticle.views.total', 'latestArticle'] as $key) {
+            $this->assertRejectsWith(fn () => $surface->guardSort($key), $this->undeclared('order', $key));
+        }
+    }
+
+    /**
+     * Test that a sortable root column wins over an aggregate of the same key,
+     * and an aggregate over a relation whose prefix it shares.
+     *
+     * @return void
+     */
+    public function testResolvesARootColumnThenAnAggregateThenARelation(): void
+    {
+        $aggregate = new CompiledAggregateDefinition('name', 'posts', AggregateFunction::COUNT, null, null, false, [], unindexedReason: 'Leaderboard');
+        $relation  = new CompiledFieldDefinition(null, null, 'aggregates', SortableUserResource::class, null, null, [], [], [], [], sortThroughReason: 'Admin list');
+        $surface   = fn (array $columns): QuerySurface => new QuerySurface(
+            new CompiledSchema(
+                fields              : ['aggregates' => $relation],
+                aggregates          : ['name' => $aggregate],
+                sortableColumns     : $columns,
+                traversableResources: ['aggregates' => SortableUserResource::class],
+                sortableRelations   : ['aggregates' => ['aggregates']],
+            ),
+            $this->traversal([]),
+            $this->admission(),
+            $this->operators(),
+        );
+
+        self::assertEquals(SortTarget::column('aggregates.name'), $surface(['aggregates.name'])->guardSort('aggregates.name'));
+        self::assertEquals(SortTarget::aggregate($aggregate), $surface([])->guardSort('aggregates.name'));
+    }
+
+    /**
+     * Test that a caller-guarded aggregate, relation or child column is refused
+     * as undeclared to a caller the guards hide it from, and admitted to one
+     * they pass.
+     *
+     * @return void
+     */
+    public function testGatesAggregateAndRelationKeysByEveryCallerGuardOnTheirPath(): void
+    {
+        $guest = $this->guardedSorts(asAdmin: false);
+        $admin = $this->guardedSorts(asAdmin: true);
+
+        foreach (['aggregates.posts_count', 'user.name', 'author.email'] as $key) {
+            $this->assertRejectsWith(fn () => $guest->guardSort($key), $this->undeclared('order', $key));
+            $this->assertPermits(fn () => $admin->guardSort($key), $key);
+        }
+
+        $this->assertPermits(fn () => $guest->guardSort('author.name'), 'author.name');
+    }
+
+    /**
+     * Test that a sortable relation whose declared resource is no API resource
+     * orders by nothing.
+     *
+     * @return void
+     */
+    public function testRefusesARelationKeyWhoseResourceIsNoApiResource(): void
+    {
+        $schema  = new CompiledSchema([], traversableResources: ['user' => \stdClass::class], sortableRelations: ['user' => ['user']]);
+        $surface = new QuerySurface($schema, $this->traversal([]), $this->admission(), $this->operators());
+
+        $this->assertRejectsWith(fn () => $surface->guardSort('user.name'), $this->undeclared('order', 'user.name'));
+    }
+
+    /**
+     * Build a surface whose count, relation and related column only an admin
+     * may order by, for a guest or for the admin.
+     *
+     * @param  bool  $asAdmin
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface
+     */
+    private function guardedSorts(bool $asAdmin): QuerySurface
+    {
+        $admin = static fn (mixed $request): bool => $request instanceof Request && data_get($request->user(), 'is_admin') === true;
+        $field = static fn (string $relation, array $guards): CompiledFieldDefinition => new CompiledFieldDefinition(
+            accessor         : null,
+            compute          : null,
+            relation         : $relation,
+            resource         : GuardedQueryableUserResource::class,
+            fields           : null,
+            constraint       : null,
+            extras           : [],
+            needs            : [],
+            guards           : [],
+            transformers     : [],
+            callerGuards     : $guards,
+            sortThroughReason: 'Admin list',
+        );
+
+        $count  = new CompiledAggregateDefinition('posts_count', 'posts', AggregateFunction::COUNT, null, null, false, [], callerGuards: [$admin], unindexedReason: 'Leaderboard');
+        $schema = new CompiledSchema(
+            fields              : ['user' => $field('user', [$admin]), 'author' => $field('author', [])],
+            aggregates          : ['posts_count' => $count],
+            traversableResources: ['user' => GuardedQueryableUserResource::class, 'author' => GuardedQueryableUserResource::class],
+            sortableRelations   : ['user' => ['user'], 'author' => ['author']],
+        );
+
+        return new QuerySurface($schema, $this->traversal([]), $this->admission($asAdmin), $this->operators());
+    }
+
+    /**
      * Build a query surface over the given declarations.
      *
      * @param  array<string, \SineMacula\ApiToolkit\Enums\Capability>  $filterable
@@ -535,7 +669,7 @@ final class QuerySurfaceTest extends TestCase
     /**
      * Assert that invoking the guard permits the key.
      *
-     * @param  callable(): void  $guard
+     * @param  callable(): mixed  $guard
      * @param  string  $key
      * @return void
      */
@@ -555,7 +689,7 @@ final class QuerySurfaceTest extends TestCase
     /**
      * Assert that the guard rejects with exactly the given errors.
      *
-     * @param  callable(): void  $guard
+     * @param  callable(): mixed  $guard
      * @param  array<string, array<int, string>>  $errors
      * @return void
      */
@@ -572,7 +706,7 @@ final class QuerySurfaceTest extends TestCase
     /**
      * Assert that the guard rejects with a ValidationException for the key.
      *
-     * @param  callable(): void  $guard
+     * @param  callable(): mixed  $guard
      * @param  string  $errorKey
      * @return void
      */
