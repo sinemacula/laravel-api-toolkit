@@ -109,6 +109,7 @@ final class SchemaCompiler
         $searchable  = [];
         $resources   = [];
         $declarers   = [];
+        $sorted      = [];
 
         foreach ($rawSchema as $schemaKey => $definition) {
 
@@ -129,6 +130,10 @@ final class SchemaCompiler
                 $resources[$field->relation] = $field->resource;
             }
 
+            if ($field->relation !== null && $field->sortThroughReason !== null) {
+                $sorted[$field->relation][] = $schemaKey;
+            }
+
             $fields[$schemaKey] = $field;
         }
 
@@ -141,10 +146,11 @@ final class SchemaCompiler
             array_values(array_unique($sortable)),
             $traversable,
             $searchable,
-            array_intersect_key($resources, array_flip($traversable)),
+            array_intersect_key($resources, array_flip($traversable) + $sorted),
             self::conditionalKeys($declarers['filter'] ?? []),
             self::conditionalKeys($declarers['sort'] ?? []),
             self::conditionalKeys($declarers['traversal'] ?? []),
+            $sorted,
         );
     }
 
@@ -215,20 +221,22 @@ final class SchemaCompiler
     private static function buildAggregateDefinition(string $schemaKey, array $definition, AggregateFunction $function): CompiledAggregateDefinition
     {
         $presentKey = self::resolveAggregateKey($schemaKey, $definition);
+        $relation   = self::stringOr($definition['relation'] ?? null, $presentKey);
         $constraint = $definition['constraint'] ?? null;
         $column     = $definition['column']     ?? null;
 
         return new CompiledAggregateDefinition(
-            presentKey  : $presentKey,
-            relation    : self::stringOr($definition['relation'] ?? null, $presentKey),
-            function    : $function,
-            column      : is_string($column) ? $column : null,
-            constraint  : $constraint instanceof \Closure ? $constraint : null,
-            isDefault   : (bool) ($definition['default'] ?? false),
-            guards      : self::callableList($definition, 'guards'),
-            transformers: self::callableList($definition, 'transformers'),
-            callerGuards: self::callableList($definition, 'caller_guards'),
-            openApi     : self::resolveOpenApi($definition),
+            presentKey     : $presentKey,
+            relation       : $relation,
+            function       : $function,
+            column         : is_string($column) ? $column : null,
+            constraint     : $constraint instanceof \Closure ? $constraint : null,
+            isDefault      : (bool) ($definition['default'] ?? false),
+            guards         : self::callableList($definition, 'guards'),
+            transformers   : self::callableList($definition, 'transformers'),
+            callerGuards   : self::callableList($definition, 'caller_guards'),
+            openApi        : self::resolveOpenApi($definition),
+            unindexedReason: self::sortThroughReason($definition, $relation),
         );
     }
 
@@ -344,28 +352,45 @@ final class SchemaCompiler
      */
     private static function buildFieldDefinition(array $definition): CompiledFieldDefinition
     {
+        $relation    = self::resolveFieldRelation($definition);
+        $sortThrough = self::sortThroughReason($definition, $relation);
+
         return new CompiledFieldDefinition(
-            accessor        : $definition['accessor'] ?? null,
-            compute         : $definition['compute']  ?? null,
-            relation        : self::resolveFieldRelation($definition),
-            resource        : self::resolveFieldResource($definition),
-            fields          : is_array($definition['fields'] ?? null) ? self::stringList($definition['fields']) : null,
-            constraint      : self::resolveFieldConstraint($definition),
-            extras          : self::stringList((array) ($definition['extras'] ?? [])),
-            needs           : self::stringList((array) ($definition['needs'] ?? [])),
-            guards          : self::callableList($definition, 'guards'),
-            transformers    : self::callableList($definition, 'transformers'),
-            openApi         : self::resolveOpenApi($definition),
-            filterable      : self::declaredColumn($definition, 'filterable'),
-            filterCapability: self::resolveCapability($definition),
-            sortable        : self::declaredColumn($definition, 'sortable'),
-            indexedBy       : self::declaredColumn($definition, 'indexed'),
-            unindexedReason : self::declaredColumn($definition, 'unindexed'),
-            searchable      : self::declaredColumn($definition, 'searchable'),
-            searchStrategy  : self::resolveSearchStrategy($definition),
-            limit           : is_int($definition['limit'] ?? null) ? $definition['limit'] : null,
-            callerGuards    : self::callableList($definition, 'caller_guards'),
+            accessor         : $definition['accessor'] ?? null,
+            compute          : $definition['compute']  ?? null,
+            relation         : $relation,
+            resource         : self::declaredColumn($definition, 'resource'),
+            fields           : is_array($definition['fields'] ?? null) ? self::stringList($definition['fields']) : null,
+            constraint       : self::resolveFieldConstraint($definition),
+            extras           : self::stringList((array) ($definition['extras'] ?? [])),
+            needs            : self::stringList((array) ($definition['needs'] ?? [])),
+            guards           : self::callableList($definition, 'guards'),
+            transformers     : self::callableList($definition, 'transformers'),
+            openApi          : self::resolveOpenApi($definition),
+            filterable       : self::declaredColumn($definition, 'filterable'),
+            filterCapability : self::resolveCapability($definition),
+            sortable         : self::declaredColumn($definition, 'sortable'),
+            indexedBy        : self::declaredColumn($definition, 'indexed'),
+            unindexedReason  : $sortThrough === null ? self::declaredColumn($definition, 'unindexed') : null,
+            searchable       : self::declaredColumn($definition, 'searchable'),
+            searchStrategy   : self::resolveSearchStrategy($definition),
+            limit            : is_int($definition['limit'] ?? null) ? $definition['limit'] : null,
+            callerGuards     : self::callableList($definition, 'caller_guards'),
+            sortThroughReason: $sortThrough,
         );
+    }
+
+    /**
+     * Resolve why a sortable relation or aggregate may order unindexed, or null
+     * when the definition is not sortable through one.
+     *
+     * @param  array<string, mixed>  $definition
+     * @param  string|null  $relation
+     * @return string|null
+     */
+    private static function sortThroughReason(array $definition, ?string $relation): ?string
+    {
+        return $relation !== null && ($definition['sortable'] ?? null) === true ? self::declaredColumn($definition, 'unindexed') : null;
     }
 
     /**
@@ -380,17 +405,6 @@ final class SchemaCompiler
         $value = $definition[$key] ?? null;
 
         return is_string($value) ? $value : null;
-    }
-
-    /**
-     * Resolve the child resource class for a field definition.
-     *
-     * @param  array<string, mixed>  $definition
-     * @return string|null
-     */
-    private static function resolveFieldResource(array $definition): ?string
-    {
-        return isset($definition['resource']) && is_string($definition['resource']) ? $definition['resource'] : null;
     }
 
     /**

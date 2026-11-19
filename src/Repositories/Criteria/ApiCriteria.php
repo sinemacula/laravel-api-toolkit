@@ -24,6 +24,7 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationAggregateOrder;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationColumnNarrower;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\SearchApplier;
@@ -119,7 +120,7 @@ final class ApiCriteria implements CriteriaInterface
         $this->relationTrashedGate         = new RelationTrashedGate($this->schemaIntrospector, $this->request, ResourceSettings::resourceMap());
         $this->filterApplier               = new FilterApplier(new FilterValueGuard(new ColumnLiteral($this->schemaIntrospector)), $this->relationTrashedGate);
         $this->searchApplier               = new SearchApplier($this->searchDriverRegistry, new IndexProof($this->metadataCacheWriter));
-        $this->orderApplier                = new OrderApplier($this->schemaIntrospector, $this->searchApplier);
+        $this->orderApplier                = new OrderApplier($this->schemaIntrospector, $this->searchApplier, new RelationAggregateOrder($this->relationTrashedGate));
         $this->eagerLoadApplier            = new EagerLoadApplier;
         $this->limitApplier                = new LimitApplier;
         $safetySetDeriver                  = new SafetySetDeriver($this->schemaIntrospector);
