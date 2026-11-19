@@ -211,7 +211,7 @@ final readonly class OpenApiAssembler
      * Build the components block, pruning the schemas, examples and security
      * schemes to those the paths reach.
      *
-     * @param  array<string, array<string, mixed>>  $paths
+     * @param  array<string, array<string, array<string, mixed>>>  $paths
      * @return array<string, mixed>
      */
     private function buildComponents(array $paths): array
@@ -242,7 +242,7 @@ final readonly class OpenApiAssembler
      * Build the securitySchemes block from the scheme names the paths
      * reference.
      *
-     * @param  array<string, array<string, mixed>>  $paths
+     * @param  array<string, array<string, array<string, mixed>>>  $paths
      * @return array<string, array<string, mixed>>
      */
     private function buildSecuritySchemes(array $paths): array
@@ -250,14 +250,7 @@ final readonly class OpenApiAssembler
         $schemes = [];
 
         foreach ($this->referencedSchemeNames($paths) as $name) {
-
-            $definition = $this->security->definitionFor($name);
-
-            if ($definition === null) {
-                continue;
-            }
-
-            $schemes[$name] = $definition;
+            $schemes[$name] = $this->security->definitionFor($name);
         }
 
         return $schemes;
@@ -267,7 +260,7 @@ final readonly class OpenApiAssembler
      * Collect the distinct security scheme names referenced across every
      * operation's security requirements.
      *
-     * @param  array<string, array<string, mixed>>  $paths
+     * @param  array<string, array<string, array<string, mixed>>>  $paths
      * @return list<string>
      */
     private function referencedSchemeNames(array $paths): array
@@ -280,24 +273,20 @@ final readonly class OpenApiAssembler
             }
         }
 
-        return array_keys($names);
+        // A numeric name comes back from the keys as an integer
+        return array_map('strval', array_keys($names));
     }
 
     /**
      * Yield each operation object across the assembled paths.
      *
-     * @param  array<string, array<string, mixed>>  $paths
-     * @return iterable<array<mixed, mixed>>
+     * @param  array<string, array<string, array<string, mixed>>>  $paths
+     * @return iterable<array<string, mixed>>
      */
     private function operations(array $paths): iterable
     {
         foreach ($paths as $operations) {
             foreach ($operations as $operation) {
-
-                if (!is_array($operation)) {
-                    continue;
-                }
-
                 yield $operation;
             }
         }
@@ -307,20 +296,15 @@ final readonly class OpenApiAssembler
      * List the security scheme names named by a single operation's security
      * requirements.
      *
-     * @param  array<mixed, mixed>  $operation
-     * @return list<string>
+     * @param  array<string, mixed>  $operation
+     * @return list<array-key>
      */
     private function schemeNamesIn(array $operation): array
     {
         $names = [];
 
         foreach ((array) ($operation['security'] ?? []) as $requirement) {
-
-            if (!is_array($requirement)) {
-                continue;
-            }
-
-            $names = array_merge($names, array_map('strval', array_keys($requirement)));
+            $names = array_merge($names, array_keys((array) $requirement));
         }
 
         return $names;
@@ -331,7 +315,7 @@ final readonly class OpenApiAssembler
      *
      * Resource schemas are built first so their enum references are registered.
      *
-     * @param  array<string, array<string, mixed>>  $paths
+     * @param  array<string, array<string, array<string, mixed>>>  $paths
      * @return array<string, array<string, mixed>>
      */
     private function buildSchemas(array $paths): array

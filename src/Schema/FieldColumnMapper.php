@@ -39,13 +39,7 @@ final class FieldColumnMapper
         $declared = [];
         $inferred = [];
 
-        foreach ($schema->getFieldKeys() as $field) {
-            $definition = $schema->getField($field);
-
-            if ($definition === null) {
-                continue;
-            }
-
+        foreach ($schema->getFields() as $field => $definition) {
             if ($definition->needs !== []) {
                 $declared[$field] = $definition->needs;
             } elseif (self::isPlain($definition)) {

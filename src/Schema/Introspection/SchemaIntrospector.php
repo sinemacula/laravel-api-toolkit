@@ -30,9 +30,6 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  */
 final class SchemaIntrospector implements SchemaIntrospectionProvider
 {
-    /** @var array<string, array<int, string>> */
-    private array $columns = [];
-
     /** @var array<string, array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>> */
     private array $columnDefinitions = [];
 
@@ -54,7 +51,8 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     /**
      * Get the database columns for the given model.
      *
-     * Empty listings are not shared: a table not yet created reads as empty.
+     * The names come from the column definitions, so one catalogue read serves
+     * both.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return array<int, string>
@@ -62,13 +60,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     #[\Override]
     public function getColumns(Model $model): array
     {
-        $connection = $this->connectionOf($model);
-
-        if ($connection === null) {
-            return [];
-        }
-
-        return $this->columns[$this->memoKey($connection, $model)] ??= $this->resolveColumns($model, $connection);
+        return array_column($this->getColumnDefinitions($model), 'name');
     }
 
     /**
@@ -242,7 +234,6 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     #[\Override]
     public function flush(): void
     {
-        $this->columns           = [];
         $this->columnDefinitions = [];
         $this->indexes           = [];
     }
@@ -280,39 +271,6 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         }
 
         return $definitions;
-    }
-
-    /**
-     * Read the model's column listing, sharing only a non-empty one.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
-     */
-    private function resolveColumns(Model $model, Connection $connection): array
-    {
-        $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of($connection), $model::class]);
-
-        /** @var array<int, string> $cached */
-        $cached = $this->metadataCacheWriter->readMetadata($cacheKey, []);
-
-        if ($cached !== []) {
-            return $cached;
-        }
-
-        try {
-            $columns = $connection->getSchemaBuilder()->getColumnListing($model->getTable());
-        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
-
-            // No live connection: degrade to an empty listing
-            $columns = [];
-        }
-
-        if ($columns !== []) {
-            $this->metadataCacheWriter->storeMetadataForever($cacheKey, $columns);
-        }
-
-        return $columns;
     }
 
     /**

@@ -196,14 +196,13 @@ final class ValidateRelationLimitsTest extends TestCase
     }
 
     /**
-     * Test that every defect is reported, past a missing field definition.
+     * Test that every defect is reported, not only the first.
      *
      * @return void
      */
-    public function testEveryDefectIsReportedPastAMissingDefinition(): void
+    public function testEveryDefectIsReported(): void
     {
-        $schema = new CompiledSchema(fields: [ // @phpstan-ignore argument.type
-            'ghost'        => null,
+        $schema = new CompiledSchema(fields: [
             'organization' => self::field('organization', limit: 5, resource: OrganizationResource::class),
             'post_titles'  => self::field('posts', limit: 5, resource: null, accessor: 'title'),
         ], aggregates: []);

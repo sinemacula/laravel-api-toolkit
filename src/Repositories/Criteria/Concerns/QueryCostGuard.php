@@ -32,8 +32,9 @@ final class QueryCostGuard
     }
 
     /**
-     * Count the relation aggregates the request asks for across every resource
-     * type, rendered or not.
+     * Count the distinct relation aggregates the request asks for across every
+     * resource type, rendered or not, since a repeated or empty name loads
+     * nothing more.
      *
      * The parser refuses a type no catalogued resource carries, so the
      * catalogue names every type requested.
@@ -44,6 +45,6 @@ final class QueryCostGuard
     {
         $types = array_unique(array_map(static fn (string $resource): string => $resource::getResourceType(), ResourceTypeIndex::all()));
 
-        return array_sum(array_map(static fn (string $type): int => count(ApiQuery::getAggregates($type) ?? []), $types));
+        return array_sum(array_map(static fn (string $type): int => count(array_diff(array_unique(ApiQuery::getAggregates($type) ?? []), [''])), $types));
     }
 }

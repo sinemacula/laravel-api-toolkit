@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\OperationIdCollisionException;
 use SineMacula\ApiToolkit\OpenApi\Naming\OperationIdCollisionGuard;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoutes;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathFormResolver;
 use Tests\Concerns\BuildsDocumentedRoutes;
 use Tests\Fixtures\OpenApi\PathOperationController;
 use Tests\Fixtures\OpenApi\PathPlainController;
@@ -286,6 +287,43 @@ final class OperationIdCollisionGuardTest extends TestCase
     }
 
     /**
+     * Test that the path forms of one route sharing its primary id, which their
+     * descriptions fall back to, pass.
+     *
+     * @return void
+     */
+    public function testFormsOfOneRouteSharingTheirPrimaryIdPass(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        (new OperationIdCollisionGuard)->assertUnique([
+            'public' => $this->operations(...self::documentedForms('reports/{period?}', ['get', 'post'], [
+                ['get' => 'reports.show', 'post' => 'reports.show.post'],
+                ['get' => 'reports.show.period', 'post' => 'reports.show.period.post'],
+            ])),
+        ]);
+    }
+
+    /**
+     * Test that another route claiming the primary id of a route whose shortest
+     * form is shadowed fails, naming the form falling back to it.
+     *
+     * @return void
+     */
+    public function testShadowedShortestFormsIdClaimedByAnotherRouteThrows(): void
+    {
+        $routes = [
+            ...self::documentedForms('reports/{period?}', operationIds: [['get' => 'reports.show'], ['get' => 'reports.show.period']]),
+            self::documentedRoute('/reports', operationIds: ['get' => 'reports.index']),
+            self::documentedRoute('/summaries', operationIds: ['get' => 'reports.show']),
+        ];
+
+        $this->expectCollision('reports.show', 'GET /reports/{period}', 'GET /summaries');
+
+        (new OperationIdCollisionGuard)->assertUnique(['public' => $this->operations(...$routes)]);
+    }
+
+    /**
      * Expect a collision on the declared widgets.listing id between the
      * labelled operations.
      *
@@ -341,8 +379,9 @@ final class OperationIdCollisionGuardTest extends TestCase
     {
         $verbs = array_keys($operationIds);
         $route = new Route(array_map(strtoupper(...), $verbs), ltrim($path, '/'), $controllerClass === null ? static fn (): null => null : [$controllerClass, $action]);
+        $form  = (new RoutePathFormResolver)->resolve($route)[0];
 
-        return new DocumentedRoute($route, $controllerClass, $action, $path, $verbs, null, 'Widget', $operationIds, null, $declared);
+        return new DocumentedRoute($route, $controllerClass, $action, $form, $verbs, null, 'Widget', $operationIds, null, $declared, $path, $operationIds[$verbs[0]]);
     }
 
     /**

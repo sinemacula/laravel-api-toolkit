@@ -5,27 +5,31 @@ declare(strict_types = 1);
 namespace Tests\Integration\Query;
 
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
+use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Concerns\OffsetPaginator;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\QueryCostGuard;
+use Tests\Concerns\RecordsStatements;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\AggregatingUserResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
+use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -50,9 +54,9 @@ use Tests\TestCase;
 #[CoversClass(QueryTooExpensiveException::class)]
 final class QueryCostRejectionTest extends TestCase
 {
-    use RegistersApiExceptionHandler;
+    use RecordsStatements, RegistersApiExceptionHandler;
 
-    /** @var array<int, array<string, mixed>> The statements the recorded request issued */
+    /** @var list<string> The statements the recorded request issued */
     private array $queries = [];
 
     /**
@@ -68,7 +72,13 @@ final class QueryCostRejectionTest extends TestCase
     {
         parent::setUp();
 
-        Config::set(ResourceDiscovery::RESOURCES_KEY, [AggregatingUserResource::class, FilterableUserResource::class, PostResource::class, UserResource::class]);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [
+            AggregatingUserResource::class,
+            FilterableUserResource::class,
+            OrganizationResource::class,
+            PostResource::class,
+            UserResource::class,
+        ]);
 
         $this->registerApiExceptionHandler();
 
@@ -156,13 +166,13 @@ final class QueryCostRejectionTest extends TestCase
 
         $filters = json_encode(['$has' => array_fill(0, 99, 'posts')]);
 
-        $response = $this->recordQueries('/users?filters=' . urlencode((string) $filters));
+        $response = $this->recordWarmQueries('/users?filters=' . urlencode((string) $filters));
 
         $response->assertOk();
         $response->assertJsonCount(1, 'data');
         $response->assertJsonPath('data.0.name', 'Carol');
 
-        self::assertNotEmpty($this->queries);
+        self::assertStatementCount(1, $this->queries);
     }
 
     /**
@@ -188,12 +198,12 @@ final class QueryCostRejectionTest extends TestCase
     {
         $filters = json_encode(['id' => ['$in' => range(1, 500)]]);
 
-        $response = $this->recordQueries('/users?filters=' . urlencode((string) $filters));
+        $response = $this->recordWarmQueries('/users?filters=' . urlencode((string) $filters));
 
         $response->assertOk();
         $response->assertJsonCount(2, 'data');
 
-        self::assertNotEmpty($this->queries);
+        self::assertStatementCount(1, $this->queries);
     }
 
     /**
@@ -289,6 +299,33 @@ final class QueryCostRejectionTest extends TestCase
         ]));
 
         $this->assertRejectionEnvelope($response, 'aggregates', '', 'max_aggregates', 2, 3);
+    }
+
+    /**
+     * Test that an aggregate requested twice is charged once against the cap
+     * and loaded once.
+     *
+     * @return void
+     */
+    public function testRepeatedAggregateIsChargedAndLoadedOnce(): void
+    {
+        Config::set('api-toolkit.query_cost.max_aggregates', 1);
+
+        $expected = $this->seedAuthorWithPosts();
+
+        $response = $this->recordQueries('/aggregate-users?' . http_build_query([
+            'fields'     => [UserResource::RESOURCE_TYPE => 'name,aggregates'],
+            'filters'    => json_encode(['name' => 'Carol']),
+            'aggregates' => [UserResource::RESOURCE_TYPE => 'posts_avg_id,posts_avg_id'],
+        ]));
+
+        $response->assertOk();
+        $response->assertJsonPath('data.0.aggregates', ['posts_avg_id' => $expected]);
+
+        $statements = $this->aggregateStatements();
+
+        self::assertCount(1, $statements);
+        self::assertSame(1, substr_count($statements[0], 'aggregate_posts_avg_id'));
     }
 
     /**
@@ -404,20 +441,60 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Test that a request within every cap is answered.
+     * Test that a request at every cap is answered by its page select and the
+     * count, with the aggregates folded into the select.
      *
      * @return void
      */
-    public function testRequestWithinEveryCapIsAnswered(): void
+    public function testRequestAtEveryCapIsAnsweredInTwoStatements(): void
     {
-        $filters = json_encode(['$or' => [['$and' => [['name' => 'Alice']]]]]);
-
-        $response = $this->recordQueries('/users?filters=' . urlencode((string) $filters));
+        $response = $this->recordWarmQueries($this->uriAtEveryCap());
 
         $response->assertOk();
-        $response->assertJsonCount(1, 'data');
+        $response->assertJsonCount(0, 'data');
+        $response->assertJsonPath('meta.total', 2);
 
-        self::assertNotEmpty($this->queries);
+        self::assertStatementCount(2, $this->queries);
+        self::assertStringContainsString('aggregate_posts_count', $this->queries[0]);
+        self::assertStringContainsString('aggregate_posts_sum_id', $this->queries[0]);
+        self::assertStringContainsString('aggregate_posts_avg_id', $this->queries[0]);
+        self::assertStringStartsWith('select count(*)', $this->queries[1]);
+    }
+
+    /**
+     * Provide the setting behind every cap the request at every cap reaches,
+     * with the reason a refusal on it names.
+     *
+     * @return iterable<string, array{0: string, 1: string}>
+     */
+    public static function capsReachedProvider(): iterable
+    {
+        foreach (array_diff(QueryCostLimits::NAMES, [QueryCostLimits::MAX_PARSE_DEPTH]) as $cap) {
+            yield $cap => ['api-toolkit.query_cost.' . $cap, $cap];
+        }
+
+        yield 'max_limit' => ['api-toolkit.parser.max_limit', 'max_limit'];
+    }
+
+    /**
+     * Test that the request at every cap is refused once any cap it reaches is
+     * lowered by one.
+     *
+     * @param  string  $setting
+     * @param  string  $reason
+     * @return void
+     */
+    #[DataProvider('capsReachedProvider')]
+    public function testRequestAtEveryCapIsRefusedOnceAnyCapIsLoweredByOne(string $setting, string $reason): void
+    {
+        $uri = $this->uriAtEveryCap();
+
+        Config::set($setting, Config::integer($setting) - 1);
+
+        $response = $this->getJson($uri);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.meta.reason', $reason);
     }
 
     /**
@@ -436,26 +513,50 @@ final class QueryCostRejectionTest extends TestCase
     }
 
     /**
-     * Return the recorded statements carrying the posts-average subquery.
+     * Build a users request sitting exactly on every cost cap but the parse
+     * depth, and on the page-size ceiling.
      *
-     * @return array<int, string>
+     * @return string
+     */
+    private function uriAtEveryCap(): string
+    {
+        $limits = QueryCostLimits::fromConfig();
+        $limit  = QuerySettings::maxLimit();
+
+        // Besides the names: $or, id, $in, $and, posts and title
+        $filters = (string) json_encode(['$or' => [
+            ['id' => ['$in' => range(1, $limits->limit(QueryCostLimits::MAX_IN_ITEMS))]],
+            ['$and' => [['posts' => ['title' => '']], ...array_fill(0, $limits->limit(QueryCostLimits::MAX_NODES) - 6, ['name' => 'Alice'])]],
+        ]]);
+
+        $filters = str_replace('"title":""', '"title":"' . str_repeat('a', $limits->limit(QueryCostLimits::MAX_BYTES) - strlen($filters)) . '"', $filters);
+
+        return '/aggregate-users?' . http_build_query([
+            'fields' => [
+                UserResource::RESOURCE_TYPE         => 'name,organization,posts,aggregates',
+                PostResource::RESOURCE_TYPE         => 'title,aggregates',
+                OrganizationResource::RESOURCE_TYPE => 'name,aggregates',
+            ],
+            'aggregates' => [
+                UserResource::RESOURCE_TYPE         => 'posts_count,posts_sum_id,posts_avg_id',
+                PostResource::RESOURCE_TYPE         => 'tags_count',
+                OrganizationResource::RESOURCE_TYPE => 'users_count',
+            ],
+            'filters' => $filters,
+            'order'   => 'name:asc,email:desc,id:asc',
+            'limit'   => $limit,
+            'page'    => intdiv($limits->limit(QueryCostLimits::MAX_OFFSET), $limit) + 1,
+        ]);
+    }
+
+    /**
+     * Return the recorded statements computing a posts aggregate.
+     *
+     * @return list<string>
      */
     private function aggregateStatements(): array
     {
-        $statements = [];
-
-        foreach ($this->queries as $query) {
-
-            $sql = $query['query'] ?? null;
-
-            if (!is_string($sql) || !str_contains($sql, 'aggregate_posts_avg_id')) {
-                continue;
-            }
-
-            $statements[] = $sql;
-        }
-
-        return $statements;
+        return array_values(array_filter($this->queries, static fn (string $sql): bool => str_contains($sql, 'aggregate_posts_')));
     }
 
     /**
@@ -466,16 +567,29 @@ final class QueryCostRejectionTest extends TestCase
      */
     private function recordQueries(string $uri): TestResponse
     {
-        DB::flushQueryLog();
-        DB::enableQueryLog();
+        $response = null;
 
-        $response = $this->getJson($uri);
+        $this->queries = $this->recordStatements(function () use ($uri, &$response): void {
+            $response = $this->getJson($uri);
+        });
 
-        $this->queries = DB::getQueryLog();
-
-        DB::disableQueryLog();
+        assert($response instanceof TestResponse);
 
         return $response;
+    }
+
+    /**
+     * Dispatch the request once to warm the schema metadata, then again
+     * recording every statement it issued.
+     *
+     * @param  string  $uri
+     * @return \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>
+     */
+    private function recordWarmQueries(string $uri): TestResponse
+    {
+        $this->getJson($uri)->assertOk();
+
+        return $this->recordQueries($uri);
     }
 
     /**

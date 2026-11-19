@@ -73,24 +73,27 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a second getColumns call is served from cache.
+     * Test that the columns and their definitions share one catalogue read.
      *
      * @return void
      */
-    public function testGetColumnsReturnsCachedResultOnSecondCall(): void
+    public function testColumnsAndDefinitionsShareOneCatalogueRead(): void
     {
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::once())
+            ->method('getColumns')
+            ->willReturn([
+                ['name' => 'id', 'type_name' => 'integer', 'nullable' => false],
+                ['name' => 'name', 'type_name' => 'varchar', 'nullable' => true],
+            ]);
+
         $introspector = $this->makeIntrospector();
-        $model        = new User;
+        $model        = $this->modelReadingFrom($builder);
 
-        $first  = $introspector->getColumns($model);
-        $second = $introspector->getColumns($model);
-
-        self::assertSame($first, $second);
-
-        $instanceCache = $this->getProperty($introspector, 'columns');
-
-        self::assertIsArray($instanceCache);
-        self::assertArrayHasKey(SchemaIdentity::of(DB::connection('testing')) . '|' . User::class, $instanceCache);
+        self::assertSame(['id', 'name'], $introspector->getColumns($model));
+        self::assertSame(['id', 'name'], array_keys($introspector->getColumnDefinitions($model)));
+        self::assertSame(['id', 'name'], ($this->makeIntrospector())->getColumns($model));
     }
 
     /**
@@ -103,8 +106,8 @@ final class SchemaIntrospectorTest extends TestCase
         $builder = self::createMock(SchemaBuilder::class);
 
         $builder->expects(self::once())
-            ->method('getColumnListing')
-            ->willReturn(['id', 'name']);
+            ->method('getColumns')
+            ->willReturn([['name' => 'id', 'type_name' => 'integer', 'nullable' => false]]);
 
         $introspector = $this->makeIntrospector();
         $model        = $this->modelReadingFrom($builder);
@@ -117,35 +120,13 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that an empty column listing is not stored.
+     * Test that a stored empty set of definitions is read as a miss.
      *
      * @return void
      */
-    public function testGetColumnsDoesNotStoreAnEmptyListing(): void
+    public function testGetColumnsReadsAStoredEmptySetAsAMiss(): void
     {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
-
-        $builder = self::createMock(SchemaBuilder::class);
-
-        $builder->expects(self::exactly(2))
-            ->method('getColumnListing')
-            ->willReturnOnConsecutiveCalls([], ['id']);
-
-        $model = $this->modelReadingFrom($builder);
-
-        self::assertSame([], ($this->makeIntrospector())->getColumns($model));
-        self::assertNull(Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]))));
-        self::assertSame(['id'], ($this->makeIntrospector())->getColumns($model));
-    }
-
-    /**
-     * Test that a stored empty listing is read as a miss.
-     *
-     * @return void
-     */
-    public function testGetColumnsReadsAStoredEmptyListingAsAMiss(): void
-    {
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
         Cache::memo()->rememberForever($key, fn (): array => []);
 
@@ -200,23 +181,6 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that getColumns memoises under a model- and connection-scoped key.
-     *
-     * @return void
-     */
-    public function testGetColumnsStoresResultInMemoCacheUnderModelKey(): void
-    {
-        $introspector = $this->makeIntrospector();
-        $model        = new User;
-
-        $columns = $introspector->getColumns($model);
-
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
-
-        self::assertSame($columns, Cache::memo()->get($key));
-    }
-
-    /**
      * Test that getColumns keeps different models' columns separate.
      *
      * @return void
@@ -246,7 +210,7 @@ final class SchemaIntrospectorTest extends TestCase
         self::assertNotSame(['handle'], Schema::getColumnListing('users'));
         self::assertSame(
             ['handle'],
-            Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of(DB::connection('secondary')), $model::class]))),
+            $this->storedColumnNames(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('secondary')), $model::class])),
         );
     }
 
@@ -280,8 +244,8 @@ final class SchemaIntrospectorTest extends TestCase
         self::assertSame(['beta'], array_keys($introspector->getColumnDefinitions($this->tenantModel())));
 
         self::assertNotSame($identityA, $identityB);
-        self::assertSame(['alpha'], Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$identityA, $this->tenantModel()::class]))));
-        self::assertSame(['beta'], Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$identityB, $this->tenantModel()::class]))));
+        self::assertSame(['alpha'], $this->storedColumnNames(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$identityA, $this->tenantModel()::class])));
+        self::assertSame(['beta'], $this->storedColumnNames(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$identityB, $this->tenantModel()::class])));
     }
 
     /**
@@ -320,7 +284,7 @@ final class SchemaIntrospectorTest extends TestCase
         $introspector->getIndexes($this->tenantModel());
         $after = SchemaIdentity::of(DB::connection('tenant'));
 
-        $columns = $this->getProperty($introspector, 'columns');
+        $columns = $this->getProperty($introspector, 'columnDefinitions');
         $indexes = $this->getProperty($introspector, 'indexes');
 
         self::assertIsArray($columns);
@@ -331,7 +295,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         foreach ([$before, $after] as $identity) {
             self::assertArrayHasKey($identity . '|' . $this->tenantModel()::class, $columns);
-            self::assertIsArray(Cache::memo()->get($this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([$identity, $this->tenantModel()::class]))));
+            self::assertSame(['alpha'], $this->storedColumnNames(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$identity, $this->tenantModel()::class])));
         }
     }
 
@@ -662,7 +626,7 @@ final class SchemaIntrospectorTest extends TestCase
             ->method('getIndexes')
             ->willReturn([]);
 
-        $builder->method('getColumnListing')->willReturn(['id']);
+        $builder->method('getColumns')->willReturn([['name' => 'id', 'type_name' => 'integer', 'nullable' => false]]);
 
         $model = $this->modelReadingFrom($builder);
 
@@ -1103,9 +1067,12 @@ final class SchemaIntrospectorTest extends TestCase
         $builder = self::createMock(SchemaBuilder::class);
 
         $builder->expects(self::exactly(2))
-            ->method('getColumnListing')
+            ->method('getColumns')
             ->with('widgets')
-            ->willReturnOnConsecutiveCalls(['id', 'name'], ['id', 'name', 'extra_column']);
+            ->willReturnOnConsecutiveCalls(
+                [['name' => 'id', 'type_name' => 'integer', 'nullable' => false]],
+                [['name' => 'id', 'type_name' => 'integer', 'nullable' => false], ['name' => 'extra_column', 'type_name' => 'varchar', 'nullable' => true]],
+            );
 
         $introspector = $this->makeIntrospector();
         $model        = $this->modelReadingFrom($builder);
@@ -1119,7 +1086,7 @@ final class SchemaIntrospectorTest extends TestCase
 
         $refreshedColumns = $introspector->getColumns($model);
 
-        self::assertSame(['id', 'name', 'extra_column'], $refreshedColumns);
+        self::assertSame(['id', 'extra_column'], $refreshedColumns);
         self::assertNotSame($originalColumns, $refreshedColumns);
     }
 
@@ -1134,8 +1101,8 @@ final class SchemaIntrospectorTest extends TestCase
 
         $introspector->flush();
 
-        self::assertSame([], $this->getProperty($introspector, 'columns'));
         self::assertSame([], $this->getProperty($introspector, 'columnDefinitions'));
+        self::assertSame([], $this->getProperty($introspector, 'indexes'));
     }
 
     /**
@@ -1421,15 +1388,18 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that a column listing another process wrote is served warm.
+     * Test that the columns are served from definitions another process wrote.
      *
      * @return void
      */
-    public function testGetColumnsServesAListingAnotherProcessWrote(): void
+    public function testGetColumnsServesDefinitionsAnotherProcessWrote(): void
     {
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
+        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class]));
 
-        Cache::memo()->rememberForever($key, fn (): array => ['id', 'name']);
+        Cache::memo()->rememberForever($key, fn (): array => [
+            ['name' => 'id', 'type_name' => 'integer', 'nullable' => false],
+            ['name' => 'name', 'type_name' => 'varchar', 'nullable' => false],
+        ]);
 
         self::assertSame(['id', 'name'], $this->makeIntrospector()->getColumns(new User));
     }
@@ -1738,34 +1708,10 @@ final class SchemaIntrospectorTest extends TestCase
         $builder = self::createMock(SchemaBuilder::class);
 
         $builder->expects(self::once())
-            ->method('getColumnListing')
+            ->method('getColumns')
             ->willThrowException(new \RuntimeException('No database connection'));
 
         self::assertSame([], ($this->makeIntrospector())->getColumns($this->modelReadingFrom($builder)));
-    }
-
-    /**
-     * Test that a failed getColumns lookup is not persisted.
-     *
-     * @return void
-     */
-    public function testGetColumnsDoesNotCacheEmptyResultOnFailure(): void
-    {
-        Cache::memo()->flush(); // @phpstan-ignore method.notFound, staticMethod.dynamicCall
-
-        $builder = self::createMock(SchemaBuilder::class);
-
-        $builder->expects(self::once())
-            ->method('getColumnListing')
-            ->willThrowException(new \RuntimeException('No database connection'));
-
-        $model = $this->modelReadingFrom($builder);
-
-        ($this->makeIntrospector())->getColumns($model);
-
-        $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]));
-
-        self::assertNull(Cache::memo()->get($key));
     }
 
     /**
@@ -1808,6 +1754,21 @@ final class SchemaIntrospectorTest extends TestCase
         $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of($model->getConnection()), $model::class]));
 
         self::assertNull(Cache::memo()->get($key));
+    }
+
+    /**
+     * Return the column names stored under the given definitions key.
+     *
+     * @param  string  $key
+     * @return array<int, mixed>
+     */
+    private function storedColumnNames(string $key): array
+    {
+        $stored = Cache::memo()->get($this->metadataStorageKey($key));
+
+        self::assertIsArray($stored);
+
+        return array_column($stored, 'name');
     }
 
     /**

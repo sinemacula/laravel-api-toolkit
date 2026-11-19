@@ -113,15 +113,122 @@ final class DocumentedRouteCollectorTest extends TestCase
     }
 
     /**
-     * Test that an optional route parameter renders without its marker.
+     * Test that a route with an optional parameter is collected once per path
+     * form, shortest first, each form sharing the route's metadata and the
+     * shortest form's path and primary id.
      *
      * @return void
      */
-    public function testOptionalParameterRendersWithoutMarker(): void
+    public function testOptionalParameterIsCollectedOncePerPathForm(): void
     {
-        $this->router()->get('users/{user?}', [PathFixtureController::class, 'show']);
+        $this->config()->set('api-toolkit.openapi.operation_ids', true);
 
-        self::assertSame('/users/{user}', $this->route('/users/{user}')->path);
+        $this->router()->match(['GET', 'POST'], 'users/{user?}', [PathFixtureController::class, 'show'])->name('users.show');
+
+        [$bare, $full] = $this->collect(['public'])->in('public');
+
+        self::assertSame(['/users', '/users/{user}'], [$bare->form->path, $full->form->path]);
+        self::assertSame(['get' => 'users.show', 'post' => 'users.show.post'], $bare->operationIds);
+        self::assertSame(['get' => 'users.show.user', 'post' => 'users.show.user.post'], $full->operationIds);
+
+        foreach ([$bare, $full] as $form) {
+            self::assertSame('/users', $form->primaryPath);
+            self::assertSame('users.show', $form->primaryOperationId);
+            self::assertSame('User', $form->tag);
+            self::assertSame(['get', 'post'], $form->verbs);
+        }
+    }
+
+    /**
+     * Test that each path form of an unnamed closure falls back to its own
+     * method-and-path id, which names that form alone.
+     *
+     * @return void
+     */
+    public function testFormsOfAnUnnamedClosureFallBackToTheirOwnPathIds(): void
+    {
+        $this->config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->router()->match(['GET', 'POST'], 'reports/{period?}', static fn (): null => null);
+
+        [$bare, $full] = $this->collect(['public'])->in('public');
+
+        self::assertSame(['get' => 'get.reports', 'post' => 'post.reports'], $bare->operationIds);
+        self::assertSame(['get' => 'get.reports.period', 'post' => 'post.reports.period'], $full->operationIds);
+        self::assertSame(['/reports', 'get.reports'], [$bare->primaryPath, $bare->primaryOperationId]);
+        self::assertSame(['/reports/{period}', 'get.reports.period'], [$full->primaryPath, $full->primaryOperationId]);
+    }
+
+    /**
+     * Test that an unnamed closure on the path a shorter form also matches
+     * keeps its method-and-path id without a collision.
+     *
+     * @return void
+     */
+    public function testUnnamedClosureOnAShorterFormsPathKeepsItsPathId(): void
+    {
+        $this->config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->router()->get('reports', static fn (): null => null);
+        $this->router()->get('reports/{period?}', static fn (): null => null);
+
+        $operations = $this->collect(['public'])->operations('public');
+
+        self::assertSame(['get' => 'get.reports'], $operations['/reports']['get']->operationIds);
+        self::assertSame('reports', $operations['/reports']['get']->route->uri());
+        self::assertSame(['get' => 'get.reports.period'], $operations['/reports/{period}']['get']->operationIds);
+    }
+
+    /**
+     * Test that the primary id is null for every form while ids are off.
+     *
+     * @return void
+     */
+    public function testPrimaryIdIsNullWhileIdsAreOff(): void
+    {
+        $this->router()->get('reports/{period?}', static fn (): null => null)->name('reports.show');
+
+        foreach ($this->collect(['public'])->in('public') as $form) {
+            self::assertSame([], $form->operationIds);
+            self::assertNull($form->primaryOperationId);
+        }
+    }
+
+    /**
+     * Test that another route named after a longer form's id fails the
+     * collection.
+     *
+     * @return void
+     */
+    public function testRouteNamedAfterALongerFormsIdThrows(): void
+    {
+        $this->config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->router()->get('reports/{period?}', static fn (): null => null)->name('reports.show');
+        $this->router()->get('periods', static fn (): null => null)->name('reports.show.period');
+
+        $this->expectException(OperationIdCollisionException::class);
+        $this->expectExceptionMessage('The operationId "reports.show.period" is claimed by both [GET /reports/{period} (Closure)] and [GET /periods (Closure)].');
+
+        $this->collect(['public']);
+    }
+
+    /**
+     * Test that one route's form and verb suffixes producing one id fail the
+     * collection.
+     *
+     * @return void
+     */
+    public function testFormAndVerbSuffixesProducingOneIdThrow(): void
+    {
+        $this->config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->router()->match(['GET', 'POST'], 'x/{period?}/{post?}', static fn (): null => null)->name('base');
+
+        $this->expectException(OperationIdCollisionException::class);
+        $this->expectExceptionMessage('The operationId "base.period.post" is claimed by both [POST /x/{period} (Closure)] and [GET /x/{period}/{post} (Closure)].');
+
+        $this->collect(['public']);
     }
 
     /**
@@ -133,7 +240,7 @@ final class DocumentedRouteCollectorTest extends TestCase
     {
         $this->router()->get('/', [PathPlainController::class, 'index']);
 
-        self::assertSame('/', $this->route('/')->path);
+        self::assertSame('/', $this->route('/')->form->path);
     }
 
     /**
@@ -475,7 +582,7 @@ final class DocumentedRouteCollectorTest extends TestCase
      */
     private function paths(array $routes): array
     {
-        return array_map(static fn (DocumentedRoute $route): string => $route->path, $routes);
+        return array_map(static fn (DocumentedRoute $route): string => $route->form->path, $routes);
     }
 
     /**

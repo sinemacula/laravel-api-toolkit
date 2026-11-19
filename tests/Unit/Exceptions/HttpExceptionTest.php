@@ -79,4 +79,17 @@ final class HttpExceptionTest extends TestCase
         self::assertSame(['field' => 'value'], $exception->getCustomMeta());
         self::assertSame(['Retry-After' => '60'], $exception->getHeaders());
     }
+
+    /**
+     * Test that a detail the exception is raised with is carried through the
+     * constructor.
+     *
+     * @return void
+     */
+    public function testRaisedDetailIsCarried(): void
+    {
+        $exception = new HttpException(HttpStatus::CONFLICT, detail: 'Order already shipped');
+
+        self::assertSame('Order already shipped', $exception->getCustomDetail());
+    }
 }

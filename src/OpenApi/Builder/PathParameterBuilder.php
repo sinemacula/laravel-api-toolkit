@@ -54,17 +54,19 @@ final readonly class PathParameterBuilder
     ) {}
 
     /**
-     * Build the path parameter list in the order the route's URI declares it.
+     * Build the route's named path parameters, each required, in the given
+     * order.
      *
      * @param  \Illuminate\Routing\Route  $route
+     * @param  list<string>  $names
      * @return list<array{name: string, in: 'path', required: true, schema: array<string, mixed>}>
      */
-    public function build(Route $route): array
+    public function build(Route $route, array $names): array
     {
         $bound      = $this->boundClasses($route);
         $parameters = [];
 
-        foreach ($this->namesIn($route->uri()) as $name) {
+        foreach ($names as $name) {
             $parameters[] = [
                 'name'     => $name,
                 'in'       => 'path',
