@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ColumnTypeMapper;
 use SineMacula\ApiToolkit\OpenApi\Resolution\FieldTypeResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteKeySchemaResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathFormResolver;
 use SineMacula\ApiToolkit\OpenApi\Schema\EnumSchemaRegistry;
 use SineMacula\ApiToolkit\OpenApi\Schema\RoutePatternTranslator;
 use Tests\Fixtures\Enums\Caseless;
@@ -71,7 +72,7 @@ final class PathParameterBuilderTest extends TestCase
         self::assertSame([
             ['name' => 'user', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
             ['name' => 'ticket', 'in' => 'path', 'required' => true, 'schema' => self::UUID],
-        ], $this->builder()->build($route));
+        ], $this->build($route));
     }
 
     /**
@@ -81,7 +82,7 @@ final class PathParameterBuilderTest extends TestCase
      */
     public function testRouteWithoutParametersListsNone(): void
     {
-        self::assertSame([], $this->builder()->build($this->router()->get('users', [PathBindingController::class, 'user'])));
+        self::assertSame([], $this->build($this->router()->get('users', [PathBindingController::class, 'user'])));
     }
 
     /**
@@ -291,7 +292,20 @@ final class PathParameterBuilderTest extends TestCase
     {
         $route = $this->router()->get('users/{user}/{value?}', [PathBindingController::class, 'value'])->domain('{account}.{user}.example.com');
 
-        self::assertSame(['user', 'value'], array_column($this->builder()->build($route), 'name'));
+        self::assertSame(['user', 'value'], array_column($this->build($route), 'name'));
+    }
+
+    /**
+     * Test that only the given names are built, as a form omitting an optional
+     * parameter names them.
+     *
+     * @return void
+     */
+    public function testBuildsOnlyTheGivenNames(): void
+    {
+        $route = $this->router()->get('users/{user}/{value?}', [PathBindingController::class, 'value']);
+
+        self::assertSame(['user'], array_column($this->builder()->build($route, ['user']), 'name'));
     }
 
     /**
@@ -415,11 +429,24 @@ final class PathParameterBuilderTest extends TestCase
      */
     private function schemaOf(Route $route): array
     {
-        $parameters = $this->builder()->build($route);
+        $parameters = $this->build($route);
 
         self::assertCount(1, $parameters);
 
         return $parameters[0]['schema'];
+    }
+
+    /**
+     * Build the path parameters of the route's longest path form.
+     *
+     * @param  \Illuminate\Routing\Route  $route
+     * @return list<array{name: string, in: 'path', required: true, schema: array<string, mixed>}>
+     */
+    private function build(Route $route): array
+    {
+        $forms = (new RoutePathFormResolver)->resolve($route);
+
+        return $this->builder()->build($route, $forms[count($forms) - 1]->parameters);
     }
 
     /**

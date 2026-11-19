@@ -125,6 +125,20 @@ final class SearchHttpTest extends TestCase
     }
 
     /**
+     * Test that a multibyte term crosses the query string intact and matches
+     * only the row carrying it.
+     *
+     * @return void
+     */
+    public function testMultibyteTermMatchesOnlyTheRowCarryingIt(): void
+    {
+        User::create(['name' => '東京都庁', 'email' => 'tocho@example.org', 'status' => 'active']);
+        User::create(['name' => '京都府', 'email' => 'kyoto@example.org', 'status' => 'active']);
+
+        self::assertSame(['東京都庁'], $this->names($this->search('東京都')));
+    }
+
+    /**
      * Test that the search narrows a request carrying a root-level filter
      * disjunction.
      *

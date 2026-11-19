@@ -14,7 +14,8 @@ use Illuminate\Support\Str;
  * Narrows only when every resolved field reads columns the table carries. A
  * declared column must exist; an inferred one must also be read by the model
  * without an accessor, a shadowing public property or a cast that may consult
- * other attributes.
+ * other attributes. A name the schema does not declare renders nothing, so it
+ * reads nothing.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -62,6 +63,8 @@ final class ColumnNarrower
      */
     public function decide(FieldColumnMap $map, array $resolvedFields, array $safetySetColumns, Model $model, array $realColumns): NarrowingDecision
     {
+        $resolvedFields = array_filter($resolvedFields, $map->declares(...));
+
         foreach ($resolvedFields as $field) {
             if (!$this->isProven($map, $field, $model, $realColumns)) {
                 return NarrowingDecision::fallback($field);

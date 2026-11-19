@@ -6,8 +6,7 @@ namespace SineMacula\ApiToolkit\Concerns;
 
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
-use SineMacula\ApiToolkit\Config\QuerySettings;
-use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Validation\Rejection;
 
@@ -39,6 +38,7 @@ final class QueryParameterValidator
         'cursor'       => 'string',
         'search'       => 'string',
         'trashed'      => 'filled|in:with,only',
+        'pagination'   => 'nullable|in:cursor',
     ];
 
     /**
@@ -182,12 +182,7 @@ final class QueryParameterValidator
      */
     private function guardPageSize(mixed $limit): void
     {
-        $ceiling   = QuerySettings::maxLimit();
-        $requested = is_numeric($limit) ? (int) $limit : 0;
-
-        if ($ceiling > 0 && $requested > $ceiling) {
-            throw QueryTooExpensiveException::exceeded('limit', '', self::MAX_LIMIT, $ceiling, $requested);
-        }
+        PageSize::for(null)->resolve(is_numeric($limit) ? (int) $limit : null);
     }
 
     /**

@@ -39,6 +39,23 @@ final class MySqlSortIndexEligibilityTest extends EngineSortIndexEligibilityTest
     }
 
     /**
+     * Test that an index led by an expression is refused for the column after
+     * it.
+     *
+     * The shared catalogue drops the expression key, so the index reads as if
+     * it led with that column.
+     *
+     * @return void
+     */
+    public function testRefusesAnIndexLedByAnExpression(): void
+    {
+        DB::statement('create index sort_eligibility_rows_label_index on sort_eligibility_rows ((lower(body)), label)');
+
+        self::assertTrue($this->eligibility()->keysAnExpression(self::INDEX));
+        self::assertSame([self::DEFECT], $this->defects());
+    }
+
+    /**
      * Test that a prefix key after the leading one keeps the leading order.
      *
      * @return void

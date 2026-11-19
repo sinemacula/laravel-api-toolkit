@@ -4,11 +4,13 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\Exceptions;
 
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Exceptions\Handler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Validation\ValidationException;
 use Opis\JsonSchema\Helper;
 use Opis\JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -95,6 +97,10 @@ final class ExceptionRenderingTest extends TestCase
             };
         });
 
+        Route::get('/denied', static function (): never {
+            throw new AuthorizationException('Your trial has ended.', 'TRIAL_EXPIRED');
+        });
+
         Route::get('/unhandled', static function (): never {
             throw new \RuntimeException('Something broke internally');
         });
@@ -161,6 +167,25 @@ final class ExceptionRenderingTest extends TestCase
 
         self::assertIsArray($errors);
         self::assertNotEmpty($errors);
+    }
+
+    /**
+     * Test that a ValidationException raised with another client-error status
+     * renders with that status as a generic HTTP error, keeping its errors.
+     *
+     * @return void
+     */
+    public function testValidationExceptionKeepsAClientErrorStatus(): void
+    {
+        Route::get('/validate-status', static function (): never {
+            throw ValidationException::withMessages(['a' => 'The a field is invalid.'])->status(400);
+        });
+
+        $response = $this->getJson('/validate-status');
+
+        $response->assertStatus(400);
+        $response->assertJsonPath('error.code', 10113);
+        $response->assertJsonPath('error.meta.a', ['The a field is invalid.']);
     }
 
     /**
@@ -236,6 +261,7 @@ final class ExceptionRenderingTest extends TestCase
         assert($this->app !== null);
 
         $schemas = $this->app->make(ErrorResponseBuilder::class)->buildEnvelopeSchemas(['/errors' => ['get' => ['responses' => [
+            403 => ['content' => ['application/json' => ['examples' => ['Error10102' => ['$ref' => '#/components/examples/Error10102']]]]],
             409 => ['content' => ['application/json' => ['examples' => ['Error10108' => ['$ref' => '#/components/examples/Error10108']]]]],
             500 => ['content' => ['application/json' => ['examples' => ['Error10001' => ['$ref' => '#/components/examples/Error10001']]]]],
         ]]]]);
@@ -244,7 +270,13 @@ final class ExceptionRenderingTest extends TestCase
 
         self::assertEqualsCanonicalizing(array_keys((array) data_get($schemas, 'Error10108.properties.error.properties')), array_keys($full));
 
-        foreach (['Error10108' => $full, 'Error10001' => (array) $this->getJson('/unhandled')->json('error')] as $name => $payload) {
+        $payloads = [
+            'Error10102' => (array) $this->getJson('/denied')->json('error'),
+            'Error10108' => $full,
+            'Error10001' => (array) $this->getJson('/unhandled')->json('error'),
+        ];
+
+        foreach ($payloads as $name => $payload) {
 
             $envelope = Helper::toJSON($schemas[$name]);
 

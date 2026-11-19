@@ -7,7 +7,9 @@ namespace SineMacula\ApiToolkit\Schema\Introspection;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOneOrMany;
+use Illuminate\Database\Eloquent\Relations\HasOneOrManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphOneOrMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -28,9 +30,6 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  */
 final class SchemaIntrospector implements SchemaIntrospectionProvider
 {
-    /** @var array<string, array<int, string>> */
-    private array $columns = [];
-
     /** @var array<string, array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>> */
     private array $columnDefinitions = [];
 
@@ -52,7 +51,8 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     /**
      * Get the database columns for the given model.
      *
-     * Empty listings are not shared: a table not yet created reads as empty.
+     * The names come from the column definitions, so one catalogue read serves
+     * both.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return array<int, string>
@@ -60,13 +60,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     #[\Override]
     public function getColumns(Model $model): array
     {
-        $connection = $this->connectionOf($model);
-
-        if ($connection === null) {
-            return [];
-        }
-
-        return $this->columns[$this->memoKey($connection, $model)] ??= $this->resolveColumns($model, $connection);
+        return array_column($this->getColumnDefinitions($model), 'name');
     }
 
     /**
@@ -178,27 +172,58 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Get the relation's parent-side key columns, including morph type and id.
+     * Get the relation's parent-side key columns, including morph type and id,
+     * or null for an unrecognised relation class.
      *
      * @template TRelated of \Illuminate\Database\Eloquent\Model
      * @template TDeclaring of \Illuminate\Database\Eloquent\Model
      * @template TResult
      *
      * @param  \Illuminate\Database\Eloquent\Relations\Relation<TRelated, TDeclaring, TResult>  $relation
-     * @return array<int, string>
+     * @return array<int, string>|null
      */
     #[\Override]
-    public function parentKeysFor(Relation $relation): array
+    public function parentKeysFor(Relation $relation): ?array
     {
         $keys = match (true) {
-            $relation instanceof MorphTo        => [$relation->getForeignKeyName(), $relation->getMorphType()],
-            $relation instanceof BelongsTo      => [$relation->getForeignKeyName()],
-            $relation instanceof MorphOneOrMany => [$relation->getLocalKeyName()],
-            $relation instanceof HasOneOrMany   => [$relation->getLocalKeyName()],
-            default                             => [],
+            $relation instanceof MorphTo             => [$relation->getForeignKeyName(), $relation->getMorphType()],
+            $relation instanceof BelongsTo           => [$relation->getForeignKeyName()],
+            $relation instanceof HasOneOrMany        => [$relation->getLocalKeyName()],
+            $relation instanceof BelongsToMany       => [$relation->getParentKeyName()],
+            $relation instanceof HasOneOrManyThrough => [$relation->getLocalKeyName()],
+            default                                  => null,
         };
 
-        return array_values(array_unique(array_filter($keys, static fn (string $key): bool => $key !== '')));
+        return $keys === null ? null : $this->presentKeys($keys);
+    }
+
+    /**
+     * Get the related-side key columns the relation matches its results on, or
+     * null for a MorphTo or an unrecognised relation class.
+     *
+     * A through relation selects its own matching key, so it needs none.
+     *
+     * @template TRelated of \Illuminate\Database\Eloquent\Model
+     * @template TDeclaring of \Illuminate\Database\Eloquent\Model
+     * @template TResult
+     *
+     * @param  \Illuminate\Database\Eloquent\Relations\Relation<TRelated, TDeclaring, TResult>  $relation
+     * @return array<int, string>|null
+     */
+    #[\Override]
+    public function relatedKeysFor(Relation $relation): ?array
+    {
+        $keys = match (true) {
+            $relation instanceof MorphTo             => null,
+            $relation instanceof BelongsTo           => [$relation->getOwnerKeyName()],
+            $relation instanceof MorphOneOrMany      => [$relation->getForeignKeyName(), $relation->getMorphType()],
+            $relation instanceof HasOneOrMany        => [$relation->getForeignKeyName()],
+            $relation instanceof BelongsToMany       => [$relation->getRelatedKeyName()],
+            $relation instanceof HasOneOrManyThrough => [],
+            default                                  => null,
+        };
+
+        return $keys === null ? null : $this->presentKeys($keys);
     }
 
     /**
@@ -209,9 +234,19 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     #[\Override]
     public function flush(): void
     {
-        $this->columns           = [];
         $this->columnDefinitions = [];
         $this->indexes           = [];
+    }
+
+    /**
+     * Drop empty key names and de-duplicate the rest into a list.
+     *
+     * @param  array<int, string>  $keys
+     * @return array<int, string>
+     */
+    private function presentKeys(array $keys): array
+    {
+        return array_values(array_unique(array_filter($keys, static fn (string $key): bool => $key !== '')));
     }
 
     /**
@@ -236,39 +271,6 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         }
 
         return $definitions;
-    }
-
-    /**
-     * Read the model's column listing, sharing only a non-empty one.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  \Illuminate\Database\Connection  $connection
-     * @return array<int, string>
-     */
-    private function resolveColumns(Model $model, Connection $connection): array
-    {
-        $cacheKey = CacheKeys::MODEL_SCHEMA_COLUMNS->resolveKey([SchemaIdentity::of($connection), $model::class]);
-
-        /** @var array<int, string> $cached */
-        $cached = $this->metadataCacheWriter->readMetadata($cacheKey, []);
-
-        if ($cached !== []) {
-            return $cached;
-        }
-
-        try {
-            $columns = $connection->getSchemaBuilder()->getColumnListing($model->getTable());
-        } catch (\Throwable) { // @phpstan-ignore catch.neverThrown
-
-            // No live connection: degrade to an empty listing
-            $columns = [];
-        }
-
-        if ($columns !== []) {
-            $this->metadataCacheWriter->storeMetadataForever($cacheKey, $columns);
-        }
-
-        return $columns;
     }
 
     /**

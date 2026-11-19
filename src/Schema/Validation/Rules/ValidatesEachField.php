@@ -29,14 +29,7 @@ abstract class ValidatesEachField implements SchemaValidationRule
     {
         $errors = [];
 
-        foreach ($schema->getFieldKeys() as $key) {
-
-            $field = $schema->getField($key);
-
-            if ($field === null) {
-                continue;
-            }
-
+        foreach ($schema->getFields() as $key => $field) {
             $errors = array_merge($errors, $this->checkField($resourceClass, $key, $field));
         }
 

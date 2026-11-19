@@ -39,21 +39,23 @@ final class FieldColumnMapper
         $declared = [];
         $inferred = [];
 
-        foreach ($schema->getFieldKeys() as $field) {
-            $definition = $schema->getField($field);
-
-            if ($definition === null) {
-                continue;
-            }
-
+        foreach ($schema->getFields() as $field => $definition) {
             if ($definition->needs !== []) {
                 $declared[$field] = $definition->needs;
             } elseif (self::isPlain($definition)) {
                 $inferred[] = $field;
+            } elseif (self::readsOnlyTheRelated($definition)) {
+                $declared[$field] = [];
             }
         }
 
-        return FieldColumnMap::make($declared, $inferred);
+        $aggregates = $schema->getAggregateDefinitions();
+
+        if ($aggregates !== [] && self::readsNoColumn($aggregates)) {
+            $declared['aggregates'] = [];
+        }
+
+        return FieldColumnMap::make($declared, $inferred, $aggregates === [] ? $schema->getFieldKeys() : [...$schema->getFieldKeys(), 'aggregates']);
     }
 
     /**
@@ -82,5 +84,39 @@ final class FieldColumnMapper
         }
 
         return $definition->guards === [] && $definition->transformers === [];
+    }
+
+    /**
+     * Determine whether a relation field reads only the related models, whose
+     * parent-side key the safety set keeps.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $definition
+     * @return bool
+     */
+    private static function readsOnlyTheRelated(CompiledFieldDefinition $definition): bool
+    {
+        if ($definition->relation === null || $definition->compute !== null || !is_string($definition->accessor ?? '')) {
+            return false;
+        }
+
+        return $definition->guards === [] && $definition->transformers === [];
+    }
+
+    /**
+     * Determine whether the aggregates payload reads no column, since a guard
+     * or transformer receives the resource.
+     *
+     * @param  array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition>  $aggregates
+     * @return bool
+     */
+    private static function readsNoColumn(array $aggregates): bool
+    {
+        foreach ($aggregates as $aggregate) {
+            if ($aggregate->guards !== [] || $aggregate->transformers !== []) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

@@ -20,13 +20,13 @@ final class EnumSchemaRegistry
     /** The path prefix under which component schemas are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
 
-    /** @var array<class-string, true> */
+    /** @var array<class-string<\UnitEnum>, true> */
     private array $enums = [];
 
     /**
      * Register an enum class as referenced by the document.
      *
-     * @param  class-string  $enum
+     * @param  class-string<\UnitEnum>  $enum
      * @return void
      */
     public function register(string $enum): void
@@ -37,7 +37,7 @@ final class EnumSchemaRegistry
     /**
      * Register an enum class and return the $ref to its component schema.
      *
-     * @param  class-string  $enum
+     * @param  class-string<\UnitEnum>  $enum
      * @return string
      */
     public function reference(string $enum): string
@@ -50,7 +50,7 @@ final class EnumSchemaRegistry
     /**
      * List the distinct enum classes registered so far.
      *
-     * @return list<class-string>
+     * @return list<class-string<\UnitEnum>>
      */
     public function classes(): array
     {

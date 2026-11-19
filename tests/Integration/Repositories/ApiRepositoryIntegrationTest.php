@@ -8,6 +8,7 @@ use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
@@ -15,9 +16,11 @@ use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Country;
+use Tests\Fixtures\Models\ImportRow;
 use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\CountryRepository;
+use Tests\Fixtures\Repositories\ImportRowRepository;
 use Tests\Fixtures\Repositories\LogRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\LogResource;
@@ -320,6 +323,47 @@ final class ApiRepositoryIntegrationTest extends TestCase
 
         self::assertInstanceOf(LengthAwarePaginator::class, $results);
         self::assertCount(2, $results->items());
+    }
+
+    /**
+     * Test that a model whose table lacks its key column is offset paged
+     * without the key.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testModelWithoutAKeyColumnOffsetPagesWithoutTheKey(): void
+    {
+        ImportRow::query()->insert([['reference' => 'r-1', 'payload' => 'p'], ['reference' => 'r-2', 'payload' => 'p'], ['reference' => 'r-3', 'payload' => 'p']]);
+
+        ApiQuery::parse(Request::create('/test', HttpMethod::GET->getVerb(), ['limit' => '2', 'page' => '2']));
+
+        $results = app(ImportRowRepository::class)->paginate();
+
+        self::assertInstanceOf(LengthAwarePaginator::class, $results);
+        self::assertCount(1, $results->items());
+        self::assertSame(3, $results->total());
+    }
+
+    /**
+     * Test that a model whose table lacks its key column is refused cursor
+     * pagination, which needs a unique order to seek by.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testModelWithoutAKeyColumnIsRefusedCursorPagination(): void
+    {
+        ApiQuery::parse(Request::create('/test', HttpMethod::GET->getVerb(), ['pagination' => 'cursor']));
+
+        try {
+            app(ImportRowRepository::class)->paginate();
+            self::fail('Expected cursor pagination to be refused.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['pagination' => ['This collection has no key to page by cursor; use offset pagination.']], $exception->errors());
+        }
     }
 
     /**
