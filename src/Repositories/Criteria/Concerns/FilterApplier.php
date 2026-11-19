@@ -9,6 +9,8 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
 use SineMacula\ApiToolkit\Contracts\DeclaresValueShape;
 use SineMacula\ApiToolkit\Contracts\ExpandsValueList;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
+use SineMacula\ApiToolkit\Enums\TrashedState;
+use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
@@ -19,7 +21,9 @@ use SineMacula\ApiToolkit\Validation\Rejection;
  *
  * The entries of a document AND together, and every key at every depth is
  * routed the same way. An entry that adds no condition is refused, as dropping
- * it would widen the result set, and so is a value its operator cannot take.
+ * it would widen the result set, and so is a value its operator cannot take. A
+ * relation filter sees the rows its relation would embed under the trashed
+ * state.
  *
  * @SuppressWarnings("php:S1448")
  *
@@ -49,15 +53,22 @@ final class FilterApplier
     /** @var \SineMacula\ApiToolkit\Query\QueryCostLimits */
     private QueryCostLimits $limits;
 
+    /** @var \SineMacula\ApiToolkit\Enums\TrashedState */
+    private TrashedState $trashed;
+
     /**
      * Create a new filter applier.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard  $guard
+     * @param  \SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate  $trashedGate
      */
     public function __construct(
 
         /** Checks each value against its operator's shape and its column's type */
         private readonly FilterValueGuard $guard,
+
+        /** Applies each relation's soft-delete visibility to its subqueries */
+        private readonly RelationTrashedGate $trashedGate,
     ) {}
 
     /**
@@ -78,6 +89,7 @@ final class FilterApplier
     {
         $this->operatorRegistry = $operatorRegistry;
         $this->limits           = QueryCostLimits::fromConfig();
+        $this->trashed          = ApiQuery::getTrashed();
 
         $this->applyDocument($query, $filters ?? [], FilterContext::root(new FilterCostBudget($this->limits)), $querySurface);
 
@@ -421,7 +433,9 @@ final class FilterApplier
 
                 $surface->guardRelation($relation);
 
-                $this->applyRelationalMethod($query, $method, $relation);
+                $this->applyRelationalMethod($query, $method, $relation, function (Builder $query): void {
+                    $this->trashedGate->constrain($query, $this->trashed);
+                });
 
                 continue;
             }
@@ -455,6 +469,9 @@ final class FilterApplier
         $nested = $context->descend($relation);
 
         $this->applyRelationalMethod($query, $method, $relation, function (Builder $query, ?string $type = null) use ($document, $nested, $surface, $relation): void {
+
+            $this->trashedGate->constrain($query, $this->trashed);
+
             $this->applyDocument($query, $document, $nested, $surface->through($relation, $query->getModel(), $type !== null));
         });
     }
@@ -467,10 +484,10 @@ final class FilterApplier
      * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
      * @param  string  $method
      * @param  string  $relation
-     * @param  (\Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>, string|null=): void)|null  $callback
+     * @param  \Closure(\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>, string|null=): void  $callback
      * @return void
      */
-    private function applyRelationalMethod(Builder $query, string $method, string $relation, ?\Closure $callback = null): void
+    private function applyRelationalMethod(Builder $query, string $method, string $relation, \Closure $callback): void
     {
         if ($method === 'whereDoesntHave') {
             $query->whereDoesntHave($relation, $callback);
