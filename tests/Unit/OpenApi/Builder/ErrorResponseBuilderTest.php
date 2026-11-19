@@ -25,6 +25,7 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\ErrorCatalogueMismatchException;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ClassNameResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ResponseHeaderResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathFormResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\ThrowsErrorResolver;
 use Tests\Fixtures\Controllers\ClassAuthorizedController;
 use Tests\Fixtures\Controllers\CustomActionController;
@@ -186,6 +187,36 @@ final class ErrorResponseBuilderTest extends TestCase
         $route = $this->router()->get('items/{item}', static fn (): null => null)->middleware('auth');
 
         self::assertSame([401, 404, 500], array_keys($this->build($route)));
+    }
+
+    /**
+     * Test that a path form omitting an optional parameter infers a 404 only
+     * when the request still binds a parameter, through its path, its domain or
+     * a default.
+     *
+     * @return void
+     */
+    public function testFormOmittingAnOptionalParameterInfersA404OnlyWhenItStillBinds(): void
+    {
+        $route = fn (string $uri): Route => $this->router()->get($uri, [PathPlainController::class, 'report']);
+
+        self::assertSame([500], array_keys($this->build($route('reports/{period?}'), shortest: true)));
+        self::assertSame([404, 500], array_keys($this->build($route('{locale}/reports/{period?}'), shortest: true)));
+        self::assertSame([404, 500], array_keys($this->build($route('reports/{period?}'))));
+        self::assertSame([404, 500], array_keys($this->build($route('users/{user?}')->defaults('user', 1), shortest: true)));
+        self::assertSame([500], array_keys($this->build($route('users/{user?}')->defaults('user', null), shortest: true)));
+        self::assertSame([500], array_keys($this->build($route('users/{user?}')->defaults('format', 'json'), shortest: true)));
+        self::assertSame([404, 500], array_keys($this->build($route('reports/{period?}')->domain('{account}.example.com'), shortest: true)));
+    }
+
+    /**
+     * Test that a declared 404 is documented on a form binding no parameter.
+     *
+     * @return void
+     */
+    public function testDeclared404SurvivesOnAFormBindingNoParameter(): void
+    {
+        self::assertSame([403, 404, 500], array_keys($this->build($this->router()->get('users/{user?}', [PathFixtureController::class, 'show']), shortest: true)));
     }
 
     /**
@@ -722,18 +753,21 @@ final class ErrorResponseBuilderTest extends TestCase
     }
 
     /**
-     * Build the error responses of the given route.
+     * Build the error responses of the given route on its longest path form, or
+     * its shortest.
      *
      * @param  \Illuminate\Routing\Route  $route
      * @param  list<class-string<\Throwable>>  $inputExceptions
+     * @param  bool  $shortest
      * @return array<int, array<string, mixed>>
      */
-    private function build(Route $route, array $inputExceptions = []): array
+    private function build(Route $route, array $inputExceptions = [], bool $shortest = false): array
     {
         /** @var class-string|null $controllerClass */
         $controllerClass = $route->getControllerClass();
+        $forms           = (new RoutePathFormResolver)->resolve($route);
 
-        return $this->builder()->build($controllerClass, $route->getActionMethod(), $route, $inputExceptions);
+        return $this->builder()->build($controllerClass, $route->getActionMethod(), $route, $forms[$shortest ? 0 : count($forms) - 1], $inputExceptions);
     }
 
     /**

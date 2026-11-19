@@ -388,6 +388,39 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
+     * Test that a field of an uninstantiable owner has only the schema it
+     * declares, and is undocumented when it declares none.
+     *
+     * @return void
+     */
+    public function testFieldOfAnUninstantiableOwnerHasOnlyItsDeclaredSchema(): void
+    {
+        $field = static fn (?OpenApiFieldSchema $openApi): CompiledFieldDefinition => new CompiledFieldDefinition(
+            accessor    : null,
+            compute     : null,
+            relation    : null,
+            resource    : null,
+            fields      : null,
+            constraint  : null,
+            extras      : [],
+            needs       : [],
+            guards      : [],
+            transformers: [],
+            openApi     : $openApi,
+        );
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => new CompiledSchema([
+            'email' => $field(new OpenApiFieldSchema(type: 'string', format: 'email')),
+            'name'  => $field(null),
+        ])]);
+
+        $properties = $this->makeGhostBuilder(['GhostModel' => 'GhostResource'])->build()['Ghost']['properties'];
+
+        self::assertSame(['type' => 'string', 'format' => 'email'], $properties['email']);
+        self::assertSame(['x-undocumented' => true], $properties['name']);
+    }
+
+    /**
      * Test that a projection without a child resource is undocumented.
      *
      * @return void

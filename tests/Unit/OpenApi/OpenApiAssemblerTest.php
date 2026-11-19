@@ -561,6 +561,26 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Test that a configured scheme with a numeric name is defined under that
+     * name, although PHP keys the requirement naming it by integer.
+     *
+     * @return void
+     */
+    public function testNumericSchemeNameIsDefined(): void
+    {
+        $this->config()->set('auth.guards.partner', ['driver' => 'partner']);
+        $this->config()->set('api-toolkit.openapi.security.drivers', [
+            'partner' => ['name' => '2024', 'definition' => ['type' => 'apiKey', 'in' => 'header', 'name' => 'X-Partner']],
+        ]);
+
+        $this->router()->get('reports', [PathFixtureController::class, 'index'])->middleware('auth:partner');
+
+        $schemes = $this->assemble()['components']['securitySchemes'];
+
+        self::assertSame(['2024' => ['type' => 'apiKey', 'in' => 'header', 'name' => 'X-Partner']], $schemes);
+    }
+
+    /**
      * Test that a document without paths carries no error envelope.
      *
      * @return void

@@ -105,14 +105,7 @@ final readonly class QuerySurfaceReader
         $compiled = SchemaCompiler::compile($resourceClass);
         $columns  = [];
 
-        foreach ($compiled->getFieldKeys() as $property) {
-
-            $field = $compiled->getField($property);
-
-            if ($field === null) {
-                continue;
-            }
-
+        foreach ($compiled->getFields() as $property => $field) {
             $columns = [...$columns, ...$this->readColumns($property, $field, $compiled, $registry)];
         }
 

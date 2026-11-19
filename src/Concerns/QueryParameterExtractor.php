@@ -125,6 +125,8 @@ final class QueryParameterExtractor
     /**
      * Extract the order parameters from the query string.
      *
+     * A repeated column is rejected, since its directions may disagree.
+     *
      * @param  string  $query
      * @return array<string, 'asc'|'desc'>
      *
@@ -140,6 +142,10 @@ final class QueryParameterExtractor
 
             if ($column === '') {
                 continue;
+            }
+
+            if (array_key_exists($column, $order)) {
+                throw Rejection::at('order.' . $column, 'order.repeated_key', ['key' => $column]);
             }
 
             $order[$column] = $this->parseDirection($column, $parts[1] ?? 'asc');

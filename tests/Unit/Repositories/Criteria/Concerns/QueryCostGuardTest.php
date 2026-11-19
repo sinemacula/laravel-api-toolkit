@@ -7,6 +7,7 @@ namespace Tests\Unit\Repositories\Criteria\Concerns;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
@@ -132,6 +133,39 @@ final class QueryCostGuardTest extends TestCase
         ]);
 
         $this->assertRejectedForCost('aggregates', QueryCostLimits::MAX_AGGREGATES, 2, 3);
+    }
+
+    /**
+     * Provide aggregate selections naming two distinct keys among repeated or
+     * empty names.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function redundantAggregateNamesProvider(): iterable
+    {
+        yield 'repeated name' => ['posts_count,posts_sum_id,posts_count'];
+        yield 'empty name' => ['posts_count,,posts_sum_id'];
+    }
+
+    /**
+     * Test that a repeated or empty aggregate name, which loads nothing more,
+     * is not charged against the cap.
+     *
+     * @param  string  $aggregates
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('redundantAggregateNamesProvider')]
+    public function testRedundantAggregateNamesAreNotCharged(string $aggregates): void
+    {
+        Config::set('api-toolkit.query_cost.max_aggregates', 2);
+
+        $this->parseQuery(['aggregates' => [self::RESOURCE_TYPE => $aggregates]]);
+
+        $this->expectNotToPerformAssertions();
+
+        $this->guard->guard();
     }
 
     /**

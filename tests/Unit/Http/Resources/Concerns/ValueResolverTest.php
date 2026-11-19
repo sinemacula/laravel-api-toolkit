@@ -1252,6 +1252,21 @@ final class ValueResolverTest extends TestCase
     }
 
     /**
+     * Test that a relation field naming neither an accessor nor a resource
+     * resolves to the loaded related value as it is.
+     *
+     * @return void
+     */
+    public function testResolveFieldValueReturnsTheLoadedRelationWithoutAResource(): void
+    {
+        $related = (object) ['label' => 'Related'];
+
+        $result = $this->resolver->resolveFieldValue('thing', $this->makeFieldDefinition(relation: 'thing'), new JsonResource($this->makeRelationOwner($related)), null);
+
+        self::assertSame($related, $result);
+    }
+
+    /**
      * Test that a relation field carrying a non-string, non-callable accessor
      * resolves to null rather than erroring.
      *

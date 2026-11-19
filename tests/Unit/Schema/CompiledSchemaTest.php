@@ -103,6 +103,31 @@ final class CompiledSchemaTest extends TestCase
     }
 
     /**
+     * Test that getFields returns every field definition keyed by its field.
+     *
+     * @return void
+     */
+    public function testCompiledSchemaGetFieldsReturnsEveryDefinitionByField(): void
+    {
+        $field = static fn (string $accessor): CompiledFieldDefinition => new CompiledFieldDefinition(
+            accessor    : $accessor,
+            compute     : null,
+            relation    : null,
+            resource    : null,
+            fields      : null,
+            constraint  : null,
+            extras      : [],
+            needs       : [],
+            guards      : [],
+            transformers: [],
+        );
+
+        $fields = ['name' => $field('name'), 'email' => $field('email')];
+
+        self::assertSame($fields, (new CompiledSchema($fields, []))->getFields());
+    }
+
+    /**
      * Test that the selectable fields are the field keys and the type, with the
      * aggregates object only where an aggregate is declared.
      *

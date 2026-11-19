@@ -6,6 +6,7 @@ namespace Tests\Concerns;
 
 use Illuminate\Routing\Route;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute;
+use SineMacula\ApiToolkit\OpenApi\Resolution\RoutePathFormResolver;
 use Tests\Fixtures\OpenApi\PathPlainController;
 
 /**
@@ -28,8 +29,43 @@ trait BuildsDocumentedRoutes
      */
     private static function documentedRoute(string $path, array $verbs = ['get'], array $operationIds = [], string $tag = 'Widget', ?string $summary = null): DocumentedRoute
     {
-        $route = new Route(array_map(strtoupper(...), $verbs), ltrim($path, '/'), [PathPlainController::class, 'report']);
+        return self::documentedForms($path, $verbs, [$operationIds], $tag, $summary)[0];
+    }
 
-        return new DocumentedRoute($route, PathPlainController::class, 'report', $path, $verbs, null, $tag, $operationIds, $summary, false);
+    /**
+     * Build a documented route for each path form of the URI, shortest first,
+     * each form taking its own operationIds.
+     *
+     * @param  string  $uri
+     * @param  non-empty-list<string>  $verbs
+     * @param  non-empty-list<array<string, string>>  $operationIds
+     * @param  string  $tag
+     * @param  string|null  $summary
+     * @return non-empty-list<\SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute>
+     */
+    private static function documentedForms(string $uri, array $verbs = ['get'], array $operationIds = [[]], string $tag = 'Widget', ?string $summary = null): array
+    {
+        $route = new Route(array_map(strtoupper(...), $verbs), ltrim($uri, '/'), [PathPlainController::class, 'report']);
+        $forms = (new RoutePathFormResolver)->resolve($route);
+        $built = [];
+
+        foreach ($forms as $index => $form) {
+            $built[] = new DocumentedRoute(
+                $route,
+                PathPlainController::class,
+                'report',
+                $form,
+                $verbs,
+                null,
+                $tag,
+                $operationIds[$index] ?? [],
+                $summary,
+                false,
+                $forms[0]->path,
+                $operationIds[0][$verbs[0]] ?? null,
+            );
+        }
+
+        return $built;
     }
 }

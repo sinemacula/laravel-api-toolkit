@@ -32,9 +32,10 @@ final readonly class OperationIdCollisionGuard
      * Assert that no two operations claim one id.
      *
      * Each exported verb claims its own id and its route's primary id, which
-     * its description falls back to. An operation is its verb, path and
-     * handler: a controller action is one handler however many routes and
-     * audiences export it, and a closure is a handler of its route alone.
+     * its description falls back to, as the primary operation's claim. An
+     * operation is its verb, path and handler: a controller action is one
+     * handler however many routes and audiences export it, and a closure is a
+     * handler of its route alone.
      *
      * @param  array<string, array<string, array<string, \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute>>>  $operations
      * @return void
@@ -45,15 +46,13 @@ final readonly class OperationIdCollisionGuard
     {
         $claims = [];
 
-        foreach ($this->claimsOf($operations) as [$claimed, $exported, $route]) {
-
-            $id = $route->operationIds[$claimed] ?? null;
+        foreach ($this->claimsOf($operations) as [$id, $operation, $verb, $route]) {
 
             if ($id === null) {
                 continue;
             }
 
-            $claims[$id][$this->operationOf($claimed, $route)] ??= [$route->label($exported), $route->operationIdDeclared];
+            $claims[$id][$operation] ??= [$route->label($verb), $route->operationIdDeclared];
 
             if (count($claims[$id]) > 1) {
                 throw $this->collision($id, ...array_values($claims[$id]));
@@ -78,36 +77,37 @@ final readonly class OperationIdCollisionGuard
     }
 
     /**
-     * Identify the operation the route exports under the verb.
+     * Identify the operation the route exports under the verb and path.
      *
      * @param  string  $verb
+     * @param  string  $path
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
      * @return string
      */
-    private function operationOf(string $verb, DocumentedRoute $route): string
+    private function operationOf(string $verb, string $path, DocumentedRoute $route): string
     {
         $handler = $route->controllerClass === null
             ? [spl_object_id($route->route)]
             : [$route->controllerClass, $route->action];
 
-        return implode(' ', [$verb, $route->path, ...$handler]);
+        return implode(' ', [$verb, $path, ...$handler]);
     }
 
     /**
-     * Yield the verb of each id an operation claims, the exported verb claiming
-     * it, and the owning route: the operation's own verb, then its route's
-     * primary verb, which its description falls back to.
+     * Yield each id an operation claims, the operation claiming it, and the
+     * exported verb and route to name it by: the operation's own id, then its
+     * route's primary id, claimed by the route's primary operation.
      *
      * @param  array<string, array<string, array<string, \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute>>>  $operations
-     * @return iterable<array{string, string, \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute}>
+     * @return iterable<array{string|null, string, string, \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute}>
      */
     private function claimsOf(array $operations): iterable
     {
         foreach ($operations as $paths) {
             foreach ($paths as $verbs) {
                 foreach ($verbs as $verb => $route) {
-                    yield [$verb, $verb, $route];
-                    yield [$route->verbs[0], $verb, $route];
+                    yield [$route->operationIds[$verb] ?? null, $this->operationOf($verb, $route->form->path, $route), $verb, $route];
+                    yield [$route->primaryOperationId, $this->operationOf($route->verbs[0], $route->primaryPath, $route), $verb, $route];
                 }
             }
         }

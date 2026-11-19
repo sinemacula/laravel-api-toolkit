@@ -124,8 +124,9 @@ the query is built, so a rejected request reads nothing.
 
 ### Logical operators
 
-Two logical operators combine conditions: `$and` and `$or`. When multiple
-fields are supplied without a wrapper, they are combined with `$and` by default.
+Two logical operators combine a list of conditions: `$and` and `$or`. When
+multiple fields are supplied without a wrapper, they are combined with `$and` by
+default.
 
 ### Relationship filters
 
@@ -224,18 +225,22 @@ takes a two-element range, and `$in` takes an array:
 ```
 
 Multiple fields are combined with `$and` by default. To combine with `$or`
-instead, wrap the conditions:
+instead, list the conditions:
 
 ```json
 {
-  "$or": {
-    "first_name": {
-      "$in": ["Ben", "John"]
+  "$or": [
+    {
+      "first_name": {
+        "$in": ["Ben", "John"]
+      }
     },
-    "last_name": {
-      "$eq": "Smith"
+    {
+      "last_name": {
+        "$eq": "Smith"
+      }
     }
-  }
+  ]
 }
 ```
 

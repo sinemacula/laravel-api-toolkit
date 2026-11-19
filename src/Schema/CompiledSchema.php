@@ -85,6 +85,17 @@ final readonly class CompiledSchema
     }
 
     /**
+     * Return the field definitions keyed by field, excluding aggregate
+     * definitions.
+     *
+     * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition>
+     */
+    public function getFields(): array
+    {
+        return $this->fields;
+    }
+
+    /**
      * Return the names a fieldset may select: every field key, the type and,
      * where an aggregate is declared, the aggregates object.
      *

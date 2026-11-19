@@ -65,6 +65,22 @@ final class UnservableSearchExceptionTest extends TestCase
     }
 
     /**
+     * Test that a connection reporting no name explains why no waiver applies.
+     *
+     * @return void
+     */
+    public function testUnnamedConnectionExplainsWhyNoWaiverApplies(): void
+    {
+        $exception = UnservableSearchException::unnamedConnection(SearchStrategy::PREFIX);
+
+        self::assertSame(
+            'The connection serving this resource reports no name, so the search driver cannot prove an index serves the "prefix" match '
+            . 'strategy and the proof cannot be waived either, since the waiver is a list of connection names.',
+            $exception->getMessage(),
+        );
+    }
+
+    /**
      * Test that an unservable combination names the connection and carries the
      * driver's whole reason.
      *

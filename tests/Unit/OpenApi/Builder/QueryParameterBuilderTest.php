@@ -291,10 +291,10 @@ final class QueryParameterBuilderTest extends TestCase
         $pagination = $this->makeBuilder()->build()['Pagination'];
 
         self::assertSame(['type' => 'string', 'enum' => ['cursor']], $pagination['schema']);
-        self::assertIsString($pagination['description']);
-        self::assertStringContainsString('length-aware', $pagination['description']);
-        self::assertIsString($pagination['description']);
-        self::assertStringContainsString('cursor', $pagination['description']);
+        self::assertSame(
+            'Pagination mode: set to cursor to switch from the default length-aware pagination to cursor pagination. Any other non-empty value is rejected.',
+            $pagination['description'],
+        );
     }
 
     /**
@@ -398,7 +398,7 @@ final class QueryParameterBuilderTest extends TestCase
     {
         self::assertSame(
             'Ordering: a comma-separated list of fields, each optionally suffixed with :asc or :desc in any case, e.g. order=name,created_at:desc. '
-            . 'Any other direction is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
+            . 'Any other direction, or a repeated field, is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
             . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read. order=relevance ranks rows by how '
             . 'closely they match search: the whole value, then the start, then the start of a word, then anywhere; it needs search and offset '
             . 'pagination.',
