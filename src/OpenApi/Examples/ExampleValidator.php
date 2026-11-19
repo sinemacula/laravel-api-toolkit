@@ -23,18 +23,20 @@ final readonly class ExampleValidator
     public const string MISMATCH_MESSAGE = 'The %s example [%s] for %s in the [%s] audience does not match its schema %s';
 
     /**
-     * Validate every example of the registered document.
+     * Validate every example of the document against its registration.
      *
+     * The examples are read from the document itself, where an empty JSON
+     * object is still an object.
+     *
+     * @param  array<array-key, mixed>  $document
      * @param  \SineMacula\ApiToolkit\OpenApi\Examples\SchemaDocument  $schemas
      * @param  string  $audience
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleMismatchException
      */
-    public function validate(SchemaDocument $schemas, string $audience): void
+    public function validate(array $document, SchemaDocument $schemas, string $audience): void
     {
-        $document = (array) $schemas->node('');
-
         foreach (Body::in($document) as $body) {
             foreach ($this->mediaExamples($schemas, $body->media) as $name => [$kind, $value]) {
 

@@ -1530,6 +1530,22 @@ final class RedeemVoucher implements DefinesFieldExamples, DefinesInputSchema
 }
 ```
 
+A `#[ResponseSchema]` body of `DefinesSchema` shapes, one or a `oneOf` of several, may show hand-written examples
+instead. `#[ResponseExample]` names the success status, the example's name and a JSON file holding the body as sent,
+envelope included. The file is relative to `<docs_path>/examples/`, and an `audiences/<name>/examples/` copy replaces it
+for that audience. Declared examples replace the generated one, in declaration order. Every other body is derived, so
+an example declared on one fails the export, as does one naming another status or a status without a body, a name
+declared twice, and an example file no exported operation names. A `oneOf` example must match exactly one shape:
+
+```php
+use SineMacula\ApiToolkit\OpenApi\Attributes\ResponseExample;
+
+#[ResponseSchema([SignedIn::class, MfaChallenge::class])]
+#[ResponseExample(HttpStatus::OK, 'signed-in', 'auth/signed-in.json')]
+#[ResponseExample(HttpStatus::OK, 'mfa-challenge', 'auth/mfa-challenge.json')]
+public function signIn(): JsonResponse {}
+```
+
 Every example the document carries, generated, declared or an error example, is validated against the schema beside it,
 offline. A mismatch fails the export, naming the example and where it fails, and so does a required field the exporter
 finds no value for. A body needing an undocumented field, such as an uncast column exported without a database, gets no

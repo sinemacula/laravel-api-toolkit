@@ -985,6 +985,26 @@ final class OpenApiAssemblerTest extends TestCase
     }
 
     /**
+     * Test that one audience's export fails on another audience's orphaned
+     * example file.
+     *
+     * @return void
+     */
+    public function testExportFailsOnAnotherAudiencesOrphanedExampleFile(): void
+    {
+        $this->config()->set('api-toolkit.openapi.audiences', ['public' => [], 'internal' => []]);
+
+        $dir = $this->useDocsDirectory(['audiences/internal/examples/user.json' => '{}']);
+
+        $this->registerUserRoutes();
+
+        $this->expectException(OrphanedDocumentationException::class);
+        $this->expectExceptionMessage(sprintf('The example file [%s/audiences/internal/examples/user.json] is named by no #[ResponseExample] in the [internal] audience.', $dir));
+
+        $this->makeAssembler()->assemble('public');
+    }
+
+    /**
      * Test that the undeclared default audience's files pass on another
      * audience's export.
      *
