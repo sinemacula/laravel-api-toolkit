@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation as EloquentRelation;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Http\Request;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\TrashedState;
@@ -263,7 +264,11 @@ final readonly class RelationTrashedGate
         }
 
         if ($state === TrashedState::ONLY) {
-            $builder->onlyTrashed(); // @phpstan-ignore method.notFound
+
+            // Swapped in as the scope so a constraint's OR stays grouped apart
+            $builder->withGlobalScope(SoftDeletingScope::class, static function (Builder $query): void {
+                $query->whereNotNull($query->getModel()->getQualifiedDeletedAtColumn()); // @phpstan-ignore method.notFound
+            });
 
             return;
         }

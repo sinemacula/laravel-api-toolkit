@@ -300,9 +300,9 @@ without an explicit projection, which MySQL refuses to count.
 criteria layer applies it only where the model uses `SoftDeletes` and the resource opts in by overriding
 `allowsTrashed()`; anywhere else the request is refused with a 422 on `trashed`, as is any value other than `with` or
 `only`, so a client never mistakes live records for the ones it asked for. On a read through the criteria, a relation
-follows the state where its own resource opts in and otherwise stays live, whether it is included, aggregated or
-filtered on, `$has` and `$hasnt` included, so its aggregates and filters see the rows it embeds. A read that applies no
-criteria, such as implicit route-model binding, only checks the value.
+follows the state where its own resource opts in and otherwise stays live, wherever it is included, aggregated or
+filtered on (`$has` and `$hasnt` too). A read that applies no criteria, such as implicit route-model binding, only
+checks the value.
 
 ### Schema-Driven ApiResource
 

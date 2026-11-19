@@ -138,6 +138,23 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
+     * Test that an opted-in relation under Only keeps an OR-joined constraint
+     * apart from the trashed condition.
+     *
+     * @return void
+     */
+    public function testOnlyTrashedStaysOutsideAnOrJoinedConstraint(): void
+    {
+        $existing = static function (Builder $query): void {
+            $query->where('status', 'published')->orWhere('views', '>', 5);
+        };
+
+        $result = $this->gate()->decorate(['articles' => $existing], new User, TrashedState::ONLY);
+
+        self::assertSame('select * from "articles" where ("status" = ? or "views" > ?) and "articles"."deleted_at" is not null', $this->sqlAfter($result['articles']));
+    }
+
+    /**
      * Test that an existing relation constraint is composed with the gate.
      *
      * @return void
@@ -248,10 +265,18 @@ final class RelationTrashedGateTest extends TestCase
         $published = static function (Builder $query): void {
             $query->where('status', 'published');
         };
+        $either = static function (Builder $query): void {
+            $query->where('status', 'published')->orWhere('views', '>', 5);
+        };
 
         yield 'opted in, with trashed' => [self::countEntry('articles as total'), TrashedState::WITH, $articles . ') as "total"'];
         yield 'opted in, only trashed' => [self::countEntry('articles as total'), TrashedState::ONLY, $articles . ' and "articles"."deleted_at" is not null) as "total"'];
         yield 'opted in, constrained' => [self::countEntry(['articles as published' => $published]), TrashedState::WITH, $articles . ' and "status" = ?) as "published"'];
+        yield 'opted in, or-joined' => [
+            self::countEntry(['articles as either' => $either]),
+            TrashedState::ONLY,
+            $articles . ' and ("status" = ? or "views" > ?) and "articles"."deleted_at" is not null) as "either"',
+        ];
         yield 'closed, with trashed' => [self::countEntry('comments as total'), TrashedState::WITH, $comments . ' and "comments"."deleted_at" is null) as "total"'];
     }
 

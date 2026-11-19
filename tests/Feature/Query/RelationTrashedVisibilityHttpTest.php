@@ -199,6 +199,7 @@ final class RelationTrashedVisibilityHttpTest extends TestCase
         $response = $this->getJson('/articles?fields[trashed_cascade_articles]=title,siblingArticles,authorComments,aggregates' . $query);
 
         $response->assertOk();
+        $response->assertJsonCount($articles, 'data');
 
         foreach ((array) $response->json('data') as $article) {
 

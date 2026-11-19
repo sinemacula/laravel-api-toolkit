@@ -393,16 +393,16 @@ final class BoundedRelationHttpTest extends TestCase
     }
 
     /**
-     * Provide each trashed state with the sibling slugs inside the bound and
-     * whether the bound cuts them.
+     * Provide each trashed state with the root count, the sibling slugs inside
+     * the bound and whether the bound cuts them.
      *
-     * @return iterable<string, array{string, array<int, string>, bool}>
+     * @return iterable<string, array{string, int, array<int, string>, bool}>
      */
     public static function trashedBoundProvider(): iterable
     {
-        yield 'live only' => ['', ['first', 'second'], false];
-        yield 'with trashed' => ['&trashed=with', ['removed', 'first'], true];
-        yield 'only trashed' => ['&trashed=only', ['removed'], false];
+        yield 'live only' => ['', 2, ['first', 'second'], false];
+        yield 'with trashed' => ['&trashed=with', 3, ['removed', 'first'], true];
+        yield 'only trashed' => ['&trashed=only', 1, ['removed'], false];
     }
 
     /**
@@ -410,12 +410,13 @@ final class BoundedRelationHttpTest extends TestCase
      * bound under each state of a trashed-widened root.
      *
      * @param  string  $trashed
+     * @param  int  $roots
      * @param  array<int, string>  $slugs
      * @param  bool  $truncated
      * @return void
      */
     #[DataProvider('trashedBoundProvider')]
-    public function testTrashedRowsCountInsideTheBoundOfAnOptedInRelation(string $trashed, array $slugs, bool $truncated): void
+    public function testTrashedRowsCountInsideTheBoundOfAnOptedInRelation(string $trashed, int $roots, array $slugs, bool $truncated): void
     {
         $author = User::create(['name' => 'Author', 'email' => 'author@example.com']);
 
@@ -428,6 +429,7 @@ final class BoundedRelationHttpTest extends TestCase
         $response = $this->getJson('/articles?fields[articles]=slug' . $trashed);
 
         $response->assertOk();
+        $response->assertJsonCount($roots, 'data');
 
         foreach (self::rows($response->json('data')) as $article) {
 

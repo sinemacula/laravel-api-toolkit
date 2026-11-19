@@ -68,7 +68,7 @@ final class FilterApplier
         /** Checks each value against its operator's shape and its column's type */
         private readonly FilterValueGuard $guard,
 
-        /** Widens each relation subquery where its relation opts in to trashed rows */
+        /** Applies each relation's soft-delete visibility to its subqueries */
         private readonly RelationTrashedGate $trashedGate,
     ) {}
 
