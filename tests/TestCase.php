@@ -307,6 +307,7 @@ abstract class TestCase extends OrchestraTestCase
         $this->createCountryPostTable();
         $this->createLogsTable();
         $this->createArticlesTable();
+        $this->createArticleTagTable();
         $this->createCommentsTable();
         $this->createDevicesTable();
         $this->createImportRowsTable();
@@ -581,6 +582,21 @@ abstract class TestCase extends OrchestraTestCase
             $table->index('user_id');
             $table->index('views');
             $table->index(['status', 'views']);
+        });
+    }
+
+    /**
+     * Create the article_tag pivot table.
+     *
+     * @return void
+     */
+    private function createArticleTagTable(): void
+    {
+        Schema::dropIfExists('article_tag');
+        Schema::create('article_tag', function (Blueprint $table): void {
+            $table->unsignedBigInteger('article_id');
+            $table->unsignedBigInteger('tag_id');
+            $table->primary(['article_id', 'tag_id']);
         });
     }
 
