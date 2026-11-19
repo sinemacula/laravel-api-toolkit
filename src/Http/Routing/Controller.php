@@ -10,6 +10,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Facades\Response;
 use SineMacula\Http\Enums\HttpStatus;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 /**
  * Base API controller.
@@ -37,28 +38,45 @@ abstract class Controller
     }
 
     /**
-     * Respond with a JSON resource representing a single item.
+     * Respond with a resource representing a single item, or the export the
+     * request negotiates.
      *
      * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
      * @param  \SineMacula\Http\Enums\HttpStatus  $status
      * @param  array<string, string>  $headers
-     * @return \Illuminate\Http\JsonResponse
+     * @return \Symfony\Component\HttpFoundation\Response
      */
-    protected function respondWithItem(JsonResource $resource, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
+    protected function respondWithItem(JsonResource $resource, HttpStatus $status = HttpStatus::OK, array $headers = []): HttpResponse
     {
-        return $resource->response()->setStatusCode($status->getCode())->withHeaders($headers);
+        return $this->respondWith($resource->response(), $status, $headers);
     }
 
     /**
-     * Respond with a JSON resource collection.
+     * Respond with a resource collection, or the export the request negotiates.
      *
      * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
      * @param  \SineMacula\Http\Enums\HttpStatus  $status
      * @param  array<string, string>  $headers
-     * @return \Illuminate\Http\JsonResponse
+     * @return \Symfony\Component\HttpFoundation\Response
      */
-    protected function respondWithCollection(ResourceCollection $collection, HttpStatus $status = HttpStatus::OK, array $headers = []): JsonResponse
+    protected function respondWithCollection(ResourceCollection $collection, HttpStatus $status = HttpStatus::OK, array $headers = []): HttpResponse
     {
-        return $collection->response()->setStatusCode($status->getCode())->withHeaders($headers);
+        return $this->respondWith($collection->response(), $status, $headers);
+    }
+
+    /**
+     * Apply the status and headers to a resource's response.
+     *
+     * @param  \Symfony\Component\HttpFoundation\Response  $response
+     * @param  \SineMacula\Http\Enums\HttpStatus  $status
+     * @param  array<string, string>  $headers
+     * @return \Symfony\Component\HttpFoundation\Response
+     */
+    private function respondWith(HttpResponse $response, HttpStatus $status, array $headers): HttpResponse
+    {
+        $response->setStatusCode($status->getCode());
+        $response->headers->add($headers);
+
+        return $response;
     }
 }

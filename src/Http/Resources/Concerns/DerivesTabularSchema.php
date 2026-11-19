@@ -7,7 +7,6 @@ namespace SineMacula\ApiToolkit\Http\Resources\Concerns;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\MissingValue;
 use SineMacula\ApiToolkit\Exceptions\PerItemGuardedFieldException;
-use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Support\PureEnumName;
@@ -27,7 +26,7 @@ use SineMacula\Exporter\Schema\TabularSchema;
 trait DerivesTabularSchema
 {
     /**
-     * Derive the tabular schema from the resource's compiled field definitions.
+     * Derive the tabular schema from the fields the resource selects.
      *
      * Relation fields are skipped as they have no scalar cell form.
      *
@@ -41,14 +40,10 @@ trait DerivesTabularSchema
         /** @var class-string<\SineMacula\ApiToolkit\Http\Resources\ApiResource> $resourceClass */
         $resourceClass = static::class;
 
-        $schema    = SchemaCompiler::compile($resourceClass);
-        $requested = ApiQuery::getFields(static::getResourceType());
-        $allKeys   = $schema->getFieldKeys();
-        $fieldKeys = $requested !== null ? array_values(array_intersect($requested, $allKeys)) : $allKeys;
-
+        $schema  = SchemaCompiler::compile($resourceClass);
         $columns = [];
 
-        foreach ($fieldKeys as $key) {
+        foreach ($this->selectedFields() as $key) {
 
             $definition = $schema->getField($key);
 

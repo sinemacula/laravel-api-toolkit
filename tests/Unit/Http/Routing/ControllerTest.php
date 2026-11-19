@@ -10,6 +10,7 @@ use Illuminate\Http\Resources\Json\ResourceCollection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Routing\Controller;
 use SineMacula\Http\Enums\HttpStatus;
+use Symfony\Component\HttpFoundation\Response;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Controllers\TestingController;
 use Tests\TestCase;
@@ -287,18 +288,18 @@ final class ControllerTest extends TestCase
 
             /**
              * @param  \Illuminate\Http\Resources\Json\JsonResource  $resource
-             * @return \Illuminate\Http\JsonResponse
+             * @return \Symfony\Component\HttpFoundation\Response
              */
-            public function callItem(JsonResource $resource): JsonResponse
+            public function callItem(JsonResource $resource): Response
             {
                 return $this->respondWithItem($resource);
             }
 
             /**
              * @param  \Illuminate\Http\Resources\Json\ResourceCollection  $collection
-             * @return \Illuminate\Http\JsonResponse
+             * @return \Symfony\Component\HttpFoundation\Response
              */
-            public function callCollection(ResourceCollection $collection): JsonResponse
+            public function callCollection(ResourceCollection $collection): Response
             {
                 return $this->respondWithCollection($collection);
             }
