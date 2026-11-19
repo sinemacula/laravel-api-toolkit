@@ -113,7 +113,7 @@ Each built-in operator takes a value of one shape:
 | `$in`                      | a list, empty allowed | equal to any item; an empty list matches none  |
 | `$between`                 | `[low, high]`         | from low to high inclusive                     |
 | `$null`, `$notNull`        | `true`                | missing, or holding, a value                   |
-| `$contains`                | any JSON              | whose JSON document contains it                |
+| `$contains`                | one value or a list   | whose JSON array holds it, or every item       |
 
 `null` is never a value: a missing value is matched by `{"name":{"$null":true}}`, so `{"name":null}` is refused. Every
 value is also checked against the column's type, read from the schema catalogue. An integer column takes an integer, a
@@ -123,6 +123,11 @@ A date-time with an offset is converted to the application timezone, so a timest
 back as it is. A column cast to an enum takes only its cases' values, or a pure enum's lowercase names. A value outside
 its shape or its column's type is rejected with a 422 at its position, naming the form expected. Where the catalogue
 cannot be read, only the shape is checked.
+
+`$contains` matches an element of a JSON array, or a whole scalar document, of the same JSON type, so `1` matches
+neither `"1"` nor `true`. Its list must not be empty, and its items are not checked against the column's type. A string
+is never decoded as JSON; a comma-separated string matches any of its items, each a string. On MySQL an item also
+matches an element of a nested array.
 
 The entries of a filter document AND together, at every depth. `$and` and `$or` take a non-empty list of filter
 documents, each grouped on its own and joined by AND or OR:
@@ -255,7 +260,16 @@ any column the cached column catalogue reports as nullable, such as the `created
 declare the column `NOT NULL` to cursor-page by it. Offset pagination sorts by either. Columns a repository scope
 orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, does not carry a value for every
 ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column cannot hold is rejected
-with a `422` on `cursor`; restart from the first page.
+with a `422` on `cursor`; restart from the first page. A cursor carries each ordered column as the row stores it, not as
+the model casts it, so a microsecond timestamp, an enum or a value object seeks from exactly where its page ended. A
+model whose table has no column for its key is offset-paged without the appended key, and refused cursor pagination with
+a `422` on `pagination` unless the read is grouped and ordered.
+
+Filters and sorts compare by each column's collation, and each engine places NULLs its own way; the toolkit normalises
+neither. With default settings, MySQL matches `{"name":"alice"}` to `Alice` and sorts `anna`, `Ben`, `cara`;
+PostgreSQL matches case exactly and sorts by the database locale (`anna`, `Ben`, `cara` under `en_US.UTF-8`); SQLite
+matches and sorts byte by byte (`Ben`, `anna`, `cara`). An ascending sort puts NULLs first on MySQL and SQLite and last
+on PostgreSQL, and a descending sort the reverse.
 
 **Sorting by aggregates and relations** - an aggregate or a to-one relation declared `sortable()` can order a read.
 No index serves an order by a correlated subquery, so the declaration takes the reason the order may run unindexed:
@@ -291,6 +305,20 @@ the ceiling and the requested size, not reduced to the ceiling. Set the ceiling 
 GET /users?limit=200   // 422, the ceiling is 100
 GET /users?limit=25    // honoured as-is
 ```
+
+A resource whose rows are expensive can lower the ceiling for itself. Its pages default to the lower of
+`parser.defaults.limit` and its ceiling, and the exported `limit` parameter and query surface docs state both:
+
+```php
+public static function maxLimit(): ?int
+{
+    return 25;
+}
+```
+
+It can only lower the configured ceiling: a value above it changes nothing, it applies alone while the configured
+ceiling is `0`, and a value below 1 throws a `LogicException`. `paginate()` and `withApiCriteria()` refuse a `limit`
+over it with the same `422`, for the resource the repository resolves, including one named with `usingResource()`.
 
 **Relation aggregates** - request declared aggregates per resource type by their keys. Requesting any aggregate replaces
 every default of that type, as `?fields` replaces `$default`. A type's aggregates apply wherever it renders, at the root
@@ -606,8 +634,8 @@ skips schema validation while this command runs, so the command reports everythi
 
 Filters and sorts never read the index catalogue while they are served; only validation checks their index backing. Two
 schema reads do sit on the request path, both cached in the shared store: search reads its index proof, and one read of
-the table's column definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks and
-a cursor-paginated sort's refusal of a nullable key.
+the table's column definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks, a
+paginated read's search for the key column and a cursor-paginated sort's refusal of a nullable key.
 
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded

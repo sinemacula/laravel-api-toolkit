@@ -265,8 +265,8 @@ final readonly class QuerySurfaceDocGenerator
     }
 
     /**
-     * Render one resource as a subsection heading, its column table, and the
-     * relations a filter may descend through.
+     * Render one resource as a subsection heading, its column table, its own
+     * page size bounds, and the relations a filter may descend through.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor  $surface
      * @param  string  $level
@@ -276,6 +276,10 @@ final readonly class QuerySurfaceDocGenerator
     {
         $lines = ['', $level . ' ' . SchemaComponentName::fromResource($surface->resource), ''];
         $lines = array_merge($lines, $this->columnTable($surface->columns));
+
+        if ($surface->pageSize !== null) {
+            $lines = array_merge($lines, ['', sprintf('Pagination: at most %d per page; default page size %d.', $surface->pageSize->ceiling, $surface->pageSize->default)]);
+        }
 
         return array_merge($lines, ['', $this->relationsLine($surface->relations)]);
     }

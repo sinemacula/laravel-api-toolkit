@@ -164,6 +164,19 @@ abstract class ApiResource extends ToolkitResource implements ApiResourceInterfa
     }
 
     /**
+     * Return the largest page size this resource serves, or null to keep the
+     * configured ceiling.
+     *
+     * It can only lower the configured ceiling, never raise it.
+     *
+     * @return int|null
+     */
+    public static function maxLimit(): ?int
+    {
+        return null;
+    }
+
+    /**
      * Get the resource type.
      *
      * @return string

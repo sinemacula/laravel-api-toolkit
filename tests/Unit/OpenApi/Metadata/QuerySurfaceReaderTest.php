@@ -14,6 +14,7 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
@@ -27,6 +28,7 @@ use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AliasedQueryableUserResource;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\GuardedQueryableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -69,6 +71,18 @@ final class QuerySurfaceReaderTest extends TestCase
             [UserResource::class, OrganizationResource::class, PostResource::class],
             array_map(static fn (QuerySurfaceDescriptor $surface): string => $surface->resource, $surfaces),
         );
+    }
+
+    /**
+     * Test that only a resource whose page size bounds differ from the
+     * configured ones carries them.
+     *
+     * @return void
+     */
+    public function testOnlyAResourceWithItsOwnPageSizeCarriesIt(): void
+    {
+        self::assertEquals(new PageSize(2, 2), $this->surface(CappedPageUserResource::class)->pageSize);
+        self::assertNull($this->surface(UserResource::class)->pageSize);
     }
 
     /**

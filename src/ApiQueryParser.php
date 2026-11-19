@@ -8,7 +8,6 @@ use Illuminate\Http\Request;
 use SineMacula\ApiToolkit\Concerns\QueryParameterExtractor;
 use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Concerns\QuerySelectionValidator;
-use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Enums\TrashedState;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\EagerLoadPlanner;
 use SineMacula\ApiToolkit\Query\ApiQuerySnapshot;
@@ -143,19 +142,6 @@ class ApiQueryParser
         $page = is_numeric($page) ? (int) $page : 0;
 
         return $page > 0 ? $page : 1;
-    }
-
-    /**
-     * Return the page size the read will use, falling back to the configured
-     * default.
-     *
-     * Shared by the cost guard and the query so the two cannot disagree.
-     *
-     * @return int
-     */
-    public function getResolvedLimit(): int
-    {
-        return $this->getLimit() ?? QuerySettings::defaultLimit();
     }
 
     /**

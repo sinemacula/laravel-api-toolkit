@@ -37,6 +37,7 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Profile;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\BulkArticleResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\FilterableUserResource;
 use Tests\Fixtures\Resources\LogResource;
 use Tests\Fixtures\Resources\OwnPostResource;
@@ -956,13 +957,13 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that $contains with an array value uses whereJsonContains.
+     * Test that $contains with a list value adds a containment clause.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testContainsWithArrayValueUsesWhereJsonContains(): void
+    public function testContainsWithListValueAddsAContainmentClause(): void
     {
         $this->parseRequest(new Request([
             'filters' => json_encode(['context' => [self::OPERATOR_CONTAINS => ['php']]]),
@@ -992,13 +993,13 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that $contains with a plain scalar string uses whereJsonContains.
+     * Test that $contains with a plain string adds a containment clause.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testContainsWithPlainStringUsesWhereJsonContains(): void
+    public function testContainsWithPlainStringAddsAContainmentClause(): void
     {
         $this->parseRequest(new Request([
             'filters' => json_encode(['context' => [self::OPERATOR_CONTAINS => 'php']]),
@@ -1030,21 +1031,27 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that $contains with a null value is handled without error.
+     * Test that $contains with a null value is refused.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testContainsWithNullValueIsHandledGracefully(): void
+    public function testContainsWithNullValueIsRefused(): void
     {
+        $message = 'The $contains condition on "context" cannot be null; $null matches a missing value and $notNull a present one.';
+
         $this->parseRequest(new Request([
             'filters' => json_encode(['context' => [self::OPERATOR_CONTAINS => null]]),
         ]));
 
-        $query = $this->documentCriteria()->apply(new Log);
+        try {
+            $this->documentCriteria()->apply(new Log);
 
-        self::assertIsArray($query->getQuery()->wheres);
+            self::fail('A null $contains must be refused.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['filters.context.$contains' => [$message]], $exception->errors());
+        }
     }
 
     /**
@@ -1358,6 +1365,45 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
+     * Test that a page size above the resource's own ceiling is refused.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testApplyRefusesAPageSizeAboveTheResourceCeiling(): void
+    {
+        $this->parseRequest(new Request(['limit' => '3']));
+
+        try {
+            $this->pagedCriteria()->apply(new User);
+
+            self::fail('Expected a rejection for a page size beyond the resource ceiling.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame(['parameter' => 'limit', 'pointer' => '', 'reason' => 'max_limit', 'limit' => 2, 'actual' => 3], $exception->getCustomMeta());
+        }
+    }
+
+    /**
+     * Test that the resource's own ceiling bounds the size asked for, not the
+     * rows a read without one returns.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testApplyUnderTheResourceCeilingLimitsOnlyWhatIsAskedFor(): void
+    {
+        $this->parseRequest(new Request(['limit' => '2']));
+
+        self::assertSame(2, $this->pagedCriteria()->apply(new User)->getQuery()->limit);
+
+        $this->parseRequest(new Request);
+
+        self::assertNull($this->pagedCriteria()->apply(new User)->getQuery()->limit);
+    }
+
+    /**
      * Test that filters-only criteria apply the search, the filters and the
      * trashed scope of a request that also orders, limits, eager loads and
      * selects aggregates, and nothing else.
@@ -1613,6 +1659,21 @@ final class ApiCriteriaTest extends TestCase
         $criteria = $this->app->make(ApiCriteria::class, ['filtersOnly' => true]);
 
         return $criteria->usingResource($resourceClass);
+    }
+
+    /**
+     * Build a criteria bound to a resource serving at most two records a page.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
+     */
+    private function pagedCriteria(): ApiCriteria
+    {
+        assert($this->app !== null);
+
+        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria $criteria */
+        $criteria = $this->app->make(ApiCriteria::class);
+
+        return $criteria->usingResource(CappedPageUserResource::class);
     }
 
     /**

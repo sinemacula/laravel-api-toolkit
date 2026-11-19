@@ -39,6 +39,9 @@ final class PageOrderTest extends TestCase
     /** @var string */
     private const string MALFORMED = 'The cursor could not be read; restart from the first page.';
 
+    /** @var string */
+    private const string KEYLESS = 'This collection has no key to page by cursor; use offset pagination.';
+
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\PageOrder */
     private PageOrder $pageOrder;
 
@@ -54,7 +57,9 @@ final class PageOrderTest extends TestCase
 
         assert($this->app !== null);
 
-        $this->pageOrder = new PageOrder(new ColumnLiteral($this->app->make(SchemaIntrospectionProvider::class)));
+        $introspector = $this->app->make(SchemaIntrospectionProvider::class);
+
+        $this->pageOrder = new PageOrder(new ColumnLiteral($introspector), $introspector);
     }
 
     /**
@@ -443,15 +448,78 @@ final class PageOrderTest extends TestCase
      */
     public function testDateBoundaryWrittenFromADateCastIsAccepted(): void
     {
-        $introspector = self::createStub(SchemaIntrospectionProvider::class);
-        $introspector->method('getColumnDefinitions')->willReturn(['day' => new ColumnDefinition('day', 'date', false)]);
-
-        $pageOrder = new PageOrder(new ColumnLiteral($introspector));
+        $pageOrder = $this->overCatalogue(['id' => new ColumnDefinition('id', 'integer', false), 'day' => new ColumnDefinition('day', 'date', false)]);
         $query     = $pageOrder->complete($this->users(static fn (QueryBuilder $query) => $query->orderBy('day')));
 
         self::assertInstanceOf(Cursor::class, $pageOrder->cursor($query, (new Cursor(['day' => (string) CarbonImmutable::parse('2024-01-01'), self::KEY => 1]))->encode()));
 
         $this->assertCursorRejected(fn () => $pageOrder->cursor($query, (new Cursor(['day' => '2024-02-30 00:00:00', self::KEY => 1]))->encode()), self::MISMATCH);
+    }
+
+    /**
+     * Test that a table without the key column takes no key tiebreaker.
+     *
+     * @return void
+     */
+    public function testTableWithoutTheKeyColumnTakesNoKeyTiebreaker(): void
+    {
+        $pageOrder = $this->overCatalogue(['name' => new ColumnDefinition('name', 'varchar', false)]);
+
+        self::assertSame([['name', 'asc']], $this->orders($pageOrder->complete($this->users(static fn (QueryBuilder $query) => $query->orderBy('name')))));
+    }
+
+    /**
+     * Test that a table the catalogue cannot describe still takes the key.
+     *
+     * @return void
+     */
+    public function testUndescribedTableStillTakesTheKey(): void
+    {
+        self::assertSame([[self::KEY, 'asc']], $this->orders($this->overCatalogue([])->complete(User::query())));
+    }
+
+    /**
+     * Test that a table without the key column is refused a cursor, on the
+     * first page and on a later one.
+     *
+     * @return void
+     */
+    public function testTableWithoutTheKeyColumnIsRefusedACursor(): void
+    {
+        $pageOrder = $this->overCatalogue(['name' => new ColumnDefinition('name', 'varchar', false)]);
+        $query     = $this->users(static fn (QueryBuilder $query) => $query->orderBy('name'));
+
+        $this->assertCursorRejected(fn () => $pageOrder->cursor($query, ''), self::KEYLESS, 'pagination');
+        $this->assertCursorRejected(fn () => $pageOrder->cursor($query, (new Cursor(['name' => 'Ann']))->encode()), self::KEYLESS, 'pagination');
+    }
+
+    /**
+     * Test that a grouped read of a table without the key column takes a cursor
+     * over its group columns.
+     *
+     * @return void
+     */
+    public function testGroupedReadOfATableWithoutTheKeyColumnTakesACursor(): void
+    {
+        $pageOrder = $this->overCatalogue(['status' => new ColumnDefinition('status', 'varchar', false)]);
+        $query     = $pageOrder->complete($this->users(static fn (QueryBuilder $query) => $query->select('status')->groupBy('status')));
+
+        self::assertNull($pageOrder->cursor($query, ''));
+        self::assertSame(['active'], $pageOrder->cursor($query, (new Cursor(['status' => 'active']))->encode())?->parameters(['status']));
+    }
+
+    /**
+     * Test that an unordered grouped read of a table without the key column is
+     * refused a cursor, which would seek by the missing key.
+     *
+     * @return void
+     */
+    public function testUnorderedGroupedReadOfATableWithoutTheKeyColumnIsRefusedACursor(): void
+    {
+        $pageOrder = $this->overCatalogue(['name' => new ColumnDefinition('name', 'varchar', false)]);
+        $query     = $pageOrder->complete($this->users(static fn (QueryBuilder $query) => $query->selectRaw('lower(name) as name')->groupByRaw('lower(name)')));
+
+        $this->assertCursorRejected(fn () => $pageOrder->cursor($query, ''), self::KEYLESS, 'pagination');
     }
 
     /**
@@ -517,6 +585,20 @@ final class PageOrderTest extends TestCase
     }
 
     /**
+     * Build a page order over a catalogue reporting the given columns.
+     *
+     * @param  array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>  $columns
+     * @return \SineMacula\ApiToolkit\Repositories\Concerns\PageOrder
+     */
+    private function overCatalogue(array $columns): PageOrder
+    {
+        $introspector = self::createStub(SchemaIntrospectionProvider::class);
+        $introspector->method('getColumnDefinitions')->willReturn($columns);
+
+        return new PageOrder(new ColumnLiteral($introspector), $introspector);
+    }
+
+    /**
      * Build a users query shaped by the given callback.
      *
      * @param  \Closure(\Illuminate\Database\Query\Builder): mixed  $shape
@@ -546,19 +628,21 @@ final class PageOrderTest extends TestCase
     }
 
     /**
-     * Assert that reading the cursor rejects it with the given message.
+     * Assert that reading the cursor rejects it with the given message, keyed
+     * by the given parameter.
      *
      * @param  callable(): mixed  $read
      * @param  string  $message
+     * @param  string  $parameter
      * @return void
      */
-    private function assertCursorRejected(callable $read, string $message): void
+    private function assertCursorRejected(callable $read, string $message, string $parameter = 'cursor'): void
     {
         try {
             $read();
             self::fail('Expected a ValidationException for the cursor.');
         } catch (ValidationException $exception) {
-            self::assertSame(['cursor' => [$message]], $exception->errors());
+            self::assertSame([$parameter => [$message]], $exception->errors());
         }
     }
 }

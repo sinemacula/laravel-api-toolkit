@@ -278,7 +278,10 @@ final readonly class PathBuilder
 
         [$queryParameters, $queryExceptions] = $contract === null
             ? [[], []]
-            : [$this->queryParameters->referencesFor($action, $resource['model']), $this->queryParameters->exceptionsFor($action, $resource['model'])];
+            : [
+                $this->queryParameters->referencesFor($action, $resource['model'], $resource['resource']),
+                $this->queryParameters->exceptionsFor($action, $resource['model'], $resource['resource']),
+            ];
 
         $inputExceptions = [...$bodyExceptions, ...$queryExceptions, ...$this->preconditionExceptions($route, $conditional)];
 
@@ -346,7 +349,7 @@ final readonly class PathBuilder
      * @param  array<int|string, mixed>  $responses
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
      * @param  array<string, mixed>  $requestBody
-     * @param  array<int, array<string, string>>  $queryParameters
+     * @param  array<int, array<string, mixed>>  $queryParameters
      * @param  array<int, array<string, mixed>>  $headerParameters
      * @return array<string, mixed>
      */
