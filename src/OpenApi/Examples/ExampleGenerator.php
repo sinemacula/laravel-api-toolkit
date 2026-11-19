@@ -175,29 +175,14 @@ final class ExampleGenerator
             return;
         }
 
-        if (is_string($node['$ref'] ?? null)) {
-            yield $this->referenced(substr($node['$ref'], 1), $stack);
+        $target = is_string($node['$ref'] ?? null) ? substr($node['$ref'], 1) : null;
+
+        if ($target !== null) {
+            yield in_array($target, $stack, true) ? new MissingValue($target) : $this->value($target, [...$stack, $target]);
         }
 
         yield from $this->alternatives($pointer, $node, $stack);
         yield from $this->typed($pointer, $node, $stack);
-    }
-
-    /**
-     * Resolve the value of a referenced node, which has none when the walk is
-     * already inside it.
-     *
-     * @param  string  $target
-     * @param  list<string>  $stack
-     * @return mixed
-     */
-    private function referenced(string $target, array $stack): mixed
-    {
-        if (in_array($target, $stack, true)) {
-            return new MissingValue($target);
-        }
-
-        return $this->value($target, [...$stack, $target]);
     }
 
     /**
@@ -241,7 +226,7 @@ final class ExampleGenerator
     private function typed(string $pointer, array $node, array $stack): iterable
     {
         $parts  = $this->parts($pointer, $node, []);
-        $object = $this->isObject($parts);
+        $object = array_filter($parts, static fn (array $part): bool => array_key_exists('properties', $part) || in_array('object', (array) ($part['type'] ?? []), true)) !== [];
 
         foreach ($object ? [] : array_slice($parts, 1, null, true) as $conjunct => $part) {
             yield from $this->candidates($conjunct, $part, $stack);
@@ -308,23 +293,6 @@ final class ExampleGenerator
         }
 
         return $parts;
-    }
-
-    /**
-     * Determine whether a node or one of its conjuncts describes an object.
-     *
-     * @param  array<string, array<array-key, mixed>>  $parts
-     * @return bool
-     */
-    private function isObject(array $parts): bool
-    {
-        foreach ($parts as $part) {
-            if (array_key_exists('properties', $part) || in_array('object', (array) ($part['type'] ?? []), true)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -531,8 +499,7 @@ final class ExampleGenerator
     }
 
     /**
-     * Build a list of distinct items its items accept, from the candidates of
-     * the items schema or of the one it references, or report the list when
+     * Build a list of distinct items its items accept, or report the list when
      * too few differ.
      *
      * @param  string  $pointer
@@ -542,13 +509,10 @@ final class ExampleGenerator
      */
     private function distinctItems(string $pointer, int $count, array $stack): array|MissingValue
     {
-        $items     = SchemaDocument::append($pointer, 'items');
-        $reference = $this->schemas->node(SchemaDocument::append($items, '$ref'));
-        $source    = is_string($reference) ? substr($reference, 1) : $items;
-        $schema    = $this->schemas->node($source);
-        $distinct  = [];
+        $items    = SchemaDocument::append($pointer, 'items');
+        $distinct = [];
 
-        foreach (is_array($schema) && !in_array($source, $stack, true) ? $this->candidates($source, $schema, [...$stack, $source]) : [] as $candidate) {
+        foreach ($this->itemCandidates($items, $stack) as $candidate) {
 
             if ($candidate instanceof MissingValue && $candidate->undocumented) {
                 return $candidate;
@@ -566,6 +530,27 @@ final class ExampleGenerator
         }
 
         return new MissingValue($pointer);
+    }
+
+    /**
+     * Yield the candidates of an items schema, or of the schema it references,
+     * none when the walk is already inside that schema.
+     *
+     * @param  string  $items
+     * @param  list<string>  $stack
+     * @return iterable<mixed>
+     */
+    private function itemCandidates(string $items, array $stack): iterable
+    {
+        $reference = $this->schemas->node(SchemaDocument::append($items, '$ref'));
+        $source    = is_string($reference) ? substr($reference, 1) : $items;
+        $schema    = $this->schemas->node($source);
+
+        if (!is_array($schema) || in_array($source, $stack, true)) {
+            return [];
+        }
+
+        return $this->candidates($source, $schema, [...$stack, $source]);
     }
 
     /**

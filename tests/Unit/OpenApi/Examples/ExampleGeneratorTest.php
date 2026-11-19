@@ -177,8 +177,9 @@ final class ExampleGeneratorTest extends TestCase
 
     /**
      * Test that unique items take distinct candidates the items accept, those
-     * of a referenced schema included, and a list with too few is reported, as
-     * undocumented when its items are.
+     * of a referenced schema included, and a list with too few, or whose items
+     * the walk is already inside, is reported, as undocumented when its items
+     * are.
      *
      * @return void
      */
@@ -193,6 +194,12 @@ final class ExampleGeneratorTest extends TestCase
         ));
         self::assertEquals(new MissingValue(self::BODY), $this->generate([...$list, 'items' => ['type' => 'string']]));
         self::assertEquals(new MissingValue(self::BODY), $this->generate($list));
+        self::assertEquals(new MissingValue(self::BODY), $this->generate([...$list, 'items' => false]));
+        self::assertEquals(new MissingValue('/components/schemas/Node/properties/children'), $this->generate(
+            ['$ref' => '#/components/schemas/Node'],
+            ExampleScope::RESPONSE,
+            ['Node' => ['type' => 'object', 'properties' => ['children' => [...$list, 'items' => ['$ref' => '#/components/schemas/Node']]], 'required' => ['children']]],
+        ));
         self::assertEquals(new MissingValue(self::BODY . '/items', true), $this->generate([...$list, 'items' => ['x-undocumented' => true]]));
     }
 
