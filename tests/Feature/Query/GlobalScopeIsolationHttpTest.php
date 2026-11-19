@@ -146,6 +146,7 @@ final class GlobalScopeIsolationHttpTest extends TestCase
     {
         yield 'nested filter on a hidden post' => ['{"posts":{"title":{"$eq":"leaked"}}}', []];
         yield 'nested filter on a visible post' => ['{"posts":{"title":{"$eq":"alpha"}}}', ['alice']];
+        yield 'nested filter on another tenant\'s user' => ['{"posts":{"title":{"$eq":"crossed"}}}', []];
         yield 'has posts' => ['{"$has":["posts"]}', ['alice']];
         yield 'has no posts' => ['{"$hasnt":["posts"]}', ['bob']];
         yield 'has a hidden post' => ['{"$has":{"posts":{"title":{"$eq":"foreign"}}}}', []];
@@ -253,8 +254,8 @@ final class GlobalScopeIsolationHttpTest extends TestCase
     }
 
     /**
-     * Seed tenant one's alice and bob and tenant two's carol, attaching tenant
-     * two's posts to tenant one's users.
+     * Seed tenant one's alice and bob and tenant two's carol, each carrying a
+     * post of the other tenant.
      *
      * @return void
      */
@@ -273,6 +274,7 @@ final class GlobalScopeIsolationHttpTest extends TestCase
             ['two', 'alice', 'leaked', 100],
             ['two', 'bob', 'foreign', 50],
             ['two', 'carol', 'carols', 7],
+            ['one', 'carol', 'crossed', 20],
         ];
 
         foreach ($posts as [$tenant, $author, $title, $words]) {

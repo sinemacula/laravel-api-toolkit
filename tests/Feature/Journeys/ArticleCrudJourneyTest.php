@@ -224,6 +224,7 @@ final class ArticleCrudJourneyTest extends TestCase
         $this->article('high', views: 9);
         $this->article('middle', views: 5);
         $this->article('hidden', status: 'draft', views: 7);
+        $this->article('foreign', views: 8, author: ActorUser::create(['name' => 'Bob', 'email' => 'bob@example.com']));
 
         $this->actingAs($this->author);
 
@@ -259,10 +260,10 @@ final class ArticleCrudJourneyTest extends TestCase
 
             $page = $this->getJson($url)->assertOk()->assertHeaderMissing('Total-Count');
 
-            self::assertSame(['continue'], array_keys((array) $page->json('meta')));
-
             $slugs = [...$slugs, ...(array) $page->json('data.*.slug')];
             $url   = $page->json('links.next');
+
+            $page->assertJsonPath('meta', ['continue' => is_string($url)]);
         }
 
         self::assertSame(['a', 'b', 'c'], $slugs);
@@ -290,6 +291,10 @@ final class ArticleCrudJourneyTest extends TestCase
         $response->assertJsonPath('data.title', 'Replaced');
         $response->assertJsonPath('data.tags.*.name', ['ops']);
         $response->assertJsonPath('data.aggregates.tags_count', 1);
+
+        $fresh = Article::query()->findOrFail($article->id);
+
+        self::assertSame(['Replaced', 'Replaced body', 'Replaced summary', 'draft'], [$fresh->title, $fresh->body, $fresh->summary, $fresh->status]);
         self::assertSame([$this->tags['ops']], $this->tagKeysOf($article->id));
     }
 
@@ -384,17 +389,17 @@ final class ArticleCrudJourneyTest extends TestCase
     public function testThePolicyRefusesTheActionBeforeItRuns(string $actor, string $method, string $uri): void
     {
         $draft     = $this->article('draft', status: 'draft');
-        $published = $this->article('published');
-        $before    = DB::table('articles')->orderBy('id')->get()->toArray();
+        $published = $this->article('published', tags: ['news']);
+        $before    = $this->snapshot();
 
         $acting = ActorUser::create(['name' => 'Bob', 'email' => 'bob@example.com', 'status' => $actor === 'suspended' ? 'suspended' : 'active']);
         $uri    = strtr($uri, ['{draft}' => (string) $draft->id, '{published}' => (string) $published->id]);
 
-        $response = $this->actingAs($acting)->json($method, $uri, $this->storeBody(['slug' => 'refused']));
+        $response = $this->actingAs($acting)->json($method, $uri, $this->storeBody(['slug' => 'refused', 'tags' => [$this->tags['ops']]]));
 
         $response->assertForbidden();
         $response->assertJsonPath('error.code', 10102);
-        self::assertEquals($before, DB::table('articles')->orderBy('id')->get()->toArray());
+        self::assertEquals($before, $this->snapshot());
     }
 
     /**
@@ -419,18 +424,20 @@ final class ArticleCrudJourneyTest extends TestCase
     }
 
     /**
-     * Create an article by the author with the given tags.
+     * Create an article with the given tags, by the author unless another is
+     * given.
      *
      * @param  string  $slug
      * @param  string  $status
      * @param  int  $views
      * @param  list<string>  $tags
+     * @param  \Tests\Fixtures\Actors\ActorUser|null  $author
      * @return \Tests\Fixtures\Models\Article
      */
-    private function article(string $slug, string $status = 'published', int $views = 0, array $tags = []): Article
+    private function article(string $slug, string $status = 'published', int $views = 0, array $tags = [], ?ActorUser $author = null): Article
     {
         $article = Article::create([
-            'user_id' => $this->author->id,
+            'user_id' => ($author ?? $this->author)->id,
             'title'   => 'Title ' . $slug,
             'slug'    => $slug,
             'body'    => 'Body ' . $slug,
@@ -442,6 +449,19 @@ final class ArticleCrudJourneyTest extends TestCase
         $article->tags()->attach(array_map(fn (string $name): int => $this->tags[$name], $tags));
 
         return $article;
+    }
+
+    /**
+     * Return every article row and tag attachment.
+     *
+     * @return array{array<int, \stdClass>, array<int, \stdClass>}
+     */
+    private function snapshot(): array
+    {
+        return [
+            DB::table('articles')->orderBy('id')->get()->all(),
+            DB::table('article_tag')->orderBy('article_id')->orderBy('tag_id')->get()->all(),
+        ];
     }
 
     /**

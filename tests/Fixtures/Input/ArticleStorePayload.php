@@ -22,7 +22,7 @@ final class ArticleStorePayload extends Payload
      * @param  string  $slug
      * @param  string  $body
      * @param  string  $summary
-     * @param  string  $status
+     * @param  string|null  $status
      * @param  list<int>  $tags
      */
     public function __construct(
@@ -39,8 +39,8 @@ final class ArticleStorePayload extends Payload
         /** The summary */
         public readonly string $summary,
 
-        /** The publication status */
-        public readonly string $status = 'draft',
+        /** The publication status, if one was sent */
+        public readonly ?string $status = null,
 
         /** The keys of the tags to attach */
         public readonly array $tags = [],

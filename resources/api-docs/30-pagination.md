@@ -16,7 +16,7 @@ size with `limit`:
 ?page=2&limit=25
 ```
 
-A length-aware response looks like this:
+A length-aware response looks like this, its `data` cut to the first record:
 
 ```json
 {
@@ -60,9 +60,9 @@ The `links` object provides `self`, `first`, `prev`, `next`, and `last`. The
 Length-aware collection responses also carry a `Total-Count` header echoing the
 total record count.
 
-Counting stops at the deepest page length-aware pagination can reach. Past it,
-`total` reports only the records up to that page, `total_capped` is `true`, and
-the `Total-Count` header is absent. Use cursor pagination to read further.
+When more records match than length-aware pagination can reach, `total` counts
+only the records up to its deepest page, `total_capped` is `true`, and the
+`Total-Count` header is absent. Use cursor pagination to read further.
 
 ## Cursor pagination
 
@@ -80,7 +80,7 @@ returns an opaque cursor pointing at the next slice. Request it either with the
 ```
 
 A cursor response omits the total and the first/last links, since neither can be
-known without counting the set:
+known without counting the set. Again only the first record is shown:
 
 ```json
 {
