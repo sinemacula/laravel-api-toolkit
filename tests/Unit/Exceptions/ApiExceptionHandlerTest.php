@@ -1028,7 +1028,9 @@ final class ApiExceptionHandlerTest extends TestCase
         yield 'default message' => [new AuthorizationException, 403, 10102, self::FORBIDDEN_DETAIL, null];
         yield 'default message and a code' => [new AuthorizationException(null, 'TRIAL_EXPIRED'), 403, 10102, self::FORBIDDEN_DETAIL, ['reason' => 'TRIAL_EXPIRED']];
         yield 'empty message' => [new AuthorizationException(''), 403, 10102, self::FORBIDDEN_DETAIL, null];
-        yield 'denial deeper in the chain' => [new AccessDeniedHttpException('', new \RuntimeException('', 0, new AuthorizationException(self::DENIAL))), 403, 10102, self::FORBIDDEN_DETAIL, null];
+        yield 'denial deeper in the chain' => [
+            new AccessDeniedHttpException('', new \RuntimeException('', 0, new AuthorizationException(self::DENIAL))), 403, 10102, self::FORBIDDEN_DETAIL, null,
+        ];
         yield 'status standing for a key' => [(new AuthorizationException(self::DENIAL, 'HIDDEN'))->withStatus(404), 404, 10103, self::DENIAL, ['reason' => 'HIDDEN']];
         yield 'token mismatch status' => [(new AuthorizationException(self::DENIAL, 'STALE'))->withStatus(419), 419, 10105, self::DENIAL, ['reason' => 'STALE']];
         yield 'generic client status' => [(new AuthorizationException(self::DENIAL, 'SHIPPED'))->withStatus(409), 409, 10113, self::DENIAL, ['reason' => 'SHIPPED']];

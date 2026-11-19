@@ -923,7 +923,7 @@ throw new ConflictException(detail: __('invitations.already_invited'));
 
 A policy denial's message and code are client-facing. `Response::deny('Your trial has ended.', 'TRIAL_EXPIRED')` renders
 `403` with that `detail` and `meta.reason` `TRIAL_EXPIRED`; an int code is carried as an int and a backed enum as its
-value. A denial without a message keeps the catalogue detail, a `denyWithStatus()` denial keeps its status, and one
+value. A denial without a message keeps the catalogue detail, a `denyWithStatus()` denial keeps a known status, and one
 rendered as a server error carries neither. `denyAsNotFound()` answers exactly as a missing record, while
 `denyAsNotFound('...')` gives up that concealment for its message. `abort()` text is never the detail: throw an
 `ApiException` with `detail:` instead.
