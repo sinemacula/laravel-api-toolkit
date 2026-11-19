@@ -97,7 +97,7 @@ final class PolymorphicCollectionTest extends TestCase
         $response->assertOk();
         $response->assertHeader('Total-Count', '2');
         $response->assertJsonPath('data.0._type', 'users');
-        $response->assertJsonPath('meta', ['total' => 2, 'count' => 1, 'continue' => true]);
+        $response->assertJsonPath('meta', ['total' => 2, 'total_capped' => false, 'count' => 1, 'continue' => true]);
         $response->assertJsonPath('links.self', url('/users/feed?page=1'));
         $response->assertJsonPath('links.next', url('/users/feed?page=2'));
     }

@@ -62,7 +62,7 @@ final class ControllerExportTest extends TestCase
             ->assertStatus(202)
             ->assertHeader(ExportingUserController::HEADER, 'index')
             ->assertHeader('Total-Count', '2')
-            ->assertJsonPath('meta', ['total' => 2, 'count' => 2, 'continue' => false])
+            ->assertJsonPath('meta', ['total' => 2, 'total_capped' => false, 'count' => 2, 'continue' => false])
             ->assertJsonPath('data.1.name', 'Bob');
     }
 
