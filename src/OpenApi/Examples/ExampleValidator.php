@@ -8,7 +8,8 @@ use SineMacula\ApiToolkit\OpenApi\Exceptions\ExampleMismatchException;
 use SineMacula\ApiToolkit\OpenApi\Schema\SchemaKeywords;
 
 /**
- * Validates every example a document carries against the schema beside it.
+ * Validates the examples of a document's operation bodies and schemas against
+ * the schema beside each.
  *
  * A media example is checked against its media type's schema, a referenced one
  * through its reference, and a schema's own examples against that schema.

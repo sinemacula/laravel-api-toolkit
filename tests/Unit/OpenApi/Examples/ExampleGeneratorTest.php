@@ -68,6 +68,7 @@ final class ExampleGeneratorTest extends TestCase
         yield 'items conjuncts' => [['type' => 'array', 'items' => ['allOf' => [['enum' => ['x', 'y']], ['type' => 'string']]]], ['x']];
         yield 'distinct list' => [['type' => 'array', 'items' => ['enum' => ['x', 'y', 'z']], 'minItems' => 2, 'uniqueItems' => true], ['x', 'y']];
         yield 'distinct list of one' => [['type' => 'array', 'items' => ['type' => 'string'], 'uniqueItems' => true], ['string']];
+        yield 'unique list with no workable item' => [['type' => 'array', 'items' => ['type' => 'string', 'pattern' => '^x$'], 'uniqueItems' => true], []];
     }
 
     /**
@@ -176,6 +177,21 @@ final class ExampleGeneratorTest extends TestCase
     }
 
     /**
+     * Test that a required property its schema rejects is kept for the final
+     * validation to report.
+     *
+     * @return void
+     */
+    public function testRejectedRequiredPropertyIsKept(): void
+    {
+        self::assertSame(['tags' => [['a' => 'string']]], $this->value([
+            'type'       => 'object',
+            'properties' => ['tags' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['a' => ['type' => 'string']], 'required' => ['a', 'ghost']]]],
+            'required'   => ['tags'],
+        ]));
+    }
+
+    /**
      * Test that unique items take distinct candidates the items accept, those
      * of a referenced schema included, and a list with too few, or whose items
      * the walk is already inside, is reported, as undocumented when its items
@@ -192,7 +208,7 @@ final class ExampleGeneratorTest extends TestCase
             ExampleScope::REQUEST,
             ['Status' => ['type' => 'string', 'enum' => ['active', 'banned', 'suspended']]],
         ));
-        self::assertEquals(new MissingValue(self::BODY), $this->generate([...$list, 'items' => ['type' => 'string']]));
+        self::assertEquals(new MissingValue(self::BODY), $this->generate([...$list, 'items' => ['enum' => ['x']]]));
         self::assertEquals(new MissingValue(self::BODY), $this->generate($list));
         self::assertEquals(new MissingValue(self::BODY), $this->generate([...$list, 'items' => false]));
         self::assertEquals(new MissingValue('/components/schemas/Node/properties/children'), $this->generate(
@@ -201,6 +217,21 @@ final class ExampleGeneratorTest extends TestCase
             ['Node' => ['type' => 'object', 'properties' => ['children' => [...$list, 'items' => ['$ref' => '#/components/schemas/Node']]], 'required' => ['children']]],
         ));
         self::assertEquals(new MissingValue(self::BODY . '/items', true), $this->generate([...$list, 'items' => ['x-undocumented' => true]]));
+    }
+
+    /**
+     * Test that unique scalar items take later variants of their type once
+     * their own candidates run out.
+     *
+     * @return void
+     */
+    public function testUniqueScalarItemsTakeVariantsOfTheirType(): void
+    {
+        $list = ['type' => 'array', 'uniqueItems' => true];
+
+        self::assertSame(['string', 'string2', 'string3'], $this->value([...$list, 'minItems' => 3, 'items' => ['type' => 'string']]));
+        self::assertSame([10, 15], $this->value([...$list, 'minItems' => 2, 'items' => ['type' => 'integer', 'minimum' => 7, 'multipleOf' => 5]]));
+        self::assertSame([true, false], $this->value([...$list, 'minItems' => 2, 'items' => ['type' => 'boolean']]));
     }
 
     /**
@@ -287,6 +318,24 @@ final class ExampleGeneratorTest extends TestCase
                 'code'        => ['type' => 'string', 'examples' => ['ABC']],
                 'code_repeat' => ['type' => 'string', 'x-confirms' => 'code'],
             ],
+        ]));
+    }
+
+    /**
+     * Test that a confirmation and the field it confirms share the
+     * confirmation's own value when only that value suits both.
+     *
+     * @return void
+     */
+    public function testConfirmationSharesTheValueBothFieldsAccept(): void
+    {
+        self::assertSame(['password' => 'stringxx', 'password_confirmation' => 'stringxx'], $this->value([
+            'type'       => 'object',
+            'properties' => [
+                'password'              => ['type' => 'string'],
+                'password_confirmation' => ['type' => 'string', 'minLength' => 8, 'x-confirms' => 'password'],
+            ],
+            'required' => ['password', 'password_confirmation'],
         ]));
     }
 
@@ -433,6 +482,42 @@ final class ExampleGeneratorTest extends TestCase
             'Alternative 4'   => ['data' => ['status' => 'locked']],
             'Signed in 2'     => ['data' => ['status' => 'refreshed']],
         ], $examples);
+    }
+
+    /**
+     * Test that a union on an object merges each shape into the object around
+     * it, the held shape for the first union and the first non-null shape for
+     * any other.
+     *
+     * @return void
+     */
+    public function testUnionOnAnObjectMergesItsShapeIntoTheObject(): void
+    {
+        $examples = $this->generate(
+            ['type' => 'object', 'properties' => [
+                'data' => ['allOf' => [['$ref' => '#/components/schemas/Base'], ['oneOf' => [['$ref' => '#/components/schemas/A'], ['$ref' => '#/components/schemas/B']]]]],
+                'meta' => ['type' => 'object', 'properties' => ['v' => ['type' => 'integer']], 'required' => ['v'], 'anyOf' => [['type' => 'null'], ['$ref' => '#/components/schemas/C']]],
+            ], 'required' => ['data', 'meta']],
+            ExampleScope::RESPONSE,
+            [
+                'Base' => ['type' => 'object', 'properties' => ['id' => ['type' => 'integer']], 'required' => ['id']],
+                'A'    => ['type' => 'object', 'properties' => ['a' => ['type' => 'string']], 'required' => ['a']],
+                'B'    => ['type' => 'object', 'properties' => ['b' => ['type' => 'boolean']], 'required' => ['b']],
+                'C'    => ['type' => 'object', 'properties' => ['c' => ['type' => 'string']], 'required' => ['c']],
+            ],
+        );
+
+        self::assertSame([
+            'A' => ['data' => ['id' => 1, 'a' => 'string'], 'meta' => ['v' => 1, 'c' => 'string']],
+            'B' => ['data' => ['id' => 1, 'b' => true], 'meta' => ['v' => 1, 'c' => 'string']],
+        ], $examples);
+        self::assertSame(
+            ['Signed in' => ['id' => 1, 'token' => 'string'], 'Alternative 2' => ['id' => 1]],
+            $this->generate(['type' => 'object', 'properties' => ['id' => ['type' => 'integer']], 'required' => ['id'], 'oneOf' => [
+                ['title' => 'Signed in', 'properties' => ['token' => ['type' => 'string']], 'required' => ['token']],
+                ['type' => 'object', 'not' => ['required' => ['token']]],
+            ]], ExampleScope::RESPONSE),
+        );
     }
 
     /**

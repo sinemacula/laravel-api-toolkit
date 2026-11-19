@@ -83,6 +83,8 @@ final class LiteralValuesTest extends TestCase
         yield 'number minimum' => ['number', ['minimum' => 2], 2];
         yield 'number maximum' => ['number', ['maximum' => 1], 1];
         yield 'number exclusive bounds' => ['number', ['exclusiveMinimum' => 2.25, 'exclusiveMaximum' => 4], 3];
+        yield 'range narrower than a unit' => ['number', ['minimum' => 1, 'exclusiveMaximum' => 1.5], 1.25];
+        yield 'exclusive range of a unit' => ['number', ['exclusiveMinimum' => 0, 'exclusiveMaximum' => 1], 0.5];
         yield 'number multiple' => ['number', ['multipleOf' => 0.5, 'minimum' => 1.75], 2.0];
         yield 'boolean' => ['boolean', [], true];
         yield 'null' => ['null', [], null];
@@ -100,5 +102,37 @@ final class LiteralValuesTest extends TestCase
     public function testScalarTypeBuildsItsValueWithinTheBounds(string $type, array $node, mixed $expected): void
     {
         self::assertSame($expected, (new LiteralValues)->scalar($type, $node));
+    }
+
+    /**
+     * Provide scalar types with their nodes, an ordinal and the value built.
+     *
+     * @return iterable<string, array{string, array<string, mixed>, int, mixed}>
+     */
+    public static function variantProvider(): iterable
+    {
+        yield 'string' => ['string', [], 2, 'string3'];
+        yield 'padded string' => ['string', ['minLength' => 8], 1, 'string2x'];
+        yield 'formatted string' => ['string', ['format' => 'email'], 1, 'user@example.com'];
+        yield 'integer' => ['integer', [], 2, 3];
+        yield 'integer multiple' => ['integer', ['minimum' => 7, 'multipleOf' => 5], 1, 15];
+        yield 'number' => ['number', [], 1, 2.5];
+        yield 'boolean' => ['boolean', [], 1, false];
+    }
+
+    /**
+     * Test that a later ordinal varies a plain string, a number by its step
+     * and a boolean, leaving a formatted string as it is.
+     *
+     * @param  string  $type
+     * @param  array<string, mixed>  $node
+     * @param  int  $ordinal
+     * @param  mixed  $expected
+     * @return void
+     */
+    #[DataProvider('variantProvider')]
+    public function testLaterOrdinalVariesTheValue(string $type, array $node, int $ordinal, mixed $expected): void
+    {
+        self::assertSame($expected, (new LiteralValues)->scalar($type, $node, $ordinal));
     }
 }

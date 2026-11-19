@@ -62,19 +62,21 @@ final readonly class LiteralValues
 
     /**
      * Build the value of a scalar type within the node's bounds, null for any
-     * other type.
+     * other type; each later ordinal varies a plain string, a number or a
+     * boolean, for items that must differ.
      *
      * @param  string  $type
      * @param  array<array-key, mixed>  $node
+     * @param  int  $ordinal
      * @return mixed
      */
-    public function scalar(string $type, array $node): mixed
+    public function scalar(string $type, array $node, int $ordinal = 0): mixed
     {
         return match ($type) {
-            'string'  => $this->string($node),
-            'integer' => (int) ceil($this->number($node, 1)),
-            'number'  => $this->number($node, 1.5),
-            'boolean' => true,
+            'string'  => $this->string($node, $ordinal),
+            'integer' => (int) ceil($this->number($node, 1)) + $ordinal * $this->step($node),
+            'number'  => $this->number($node, 1.5) + $ordinal * $this->step($node),
+            'boolean' => $ordinal === 0,
             default   => null,
         };
     }
@@ -83,9 +85,10 @@ final readonly class LiteralValues
      * Build a string in the node's format, else one sized to its length bounds.
      *
      * @param  array<array-key, mixed>  $node
+     * @param  int  $ordinal
      * @return string
      */
-    private function string(array $node): string
+    private function string(array $node, int $ordinal): string
     {
         $format = $node['format'] ?? null;
 
@@ -93,14 +96,15 @@ final readonly class LiteralValues
             return self::FORMATTED_STRINGS[$format];
         }
 
-        $value = str_pad('string', is_int($node['minLength'] ?? null) ? $node['minLength'] : 0, 'x');
+        $value = str_pad('string' . ($ordinal === 0 ? '' : $ordinal + 1), is_int($node['minLength'] ?? null) ? $node['minLength'] : 0, 'x');
 
         return is_int($node['maxLength'] ?? null) ? substr($value, 0, $node['maxLength']) : $value;
     }
 
     /**
-     * Clamp a number into the node's bounds, then raise it to the next multiple
-     * the node requires.
+     * Clamp a number into the node's bounds, stepping a whole unit inside an
+     * exclusive bound, or to the middle of a range narrower than that, then
+     * raise it to the next multiple the node requires.
      *
      * @param  array<array-key, mixed>  $node
      * @param  float|int  $value
@@ -108,11 +112,33 @@ final readonly class LiteralValues
      */
     private function number(array $node, float|int $value): float|int
     {
-        $value = max($value, $this->bound($node, 'minimum') ?? $value, ($this->bound($node, 'exclusiveMinimum') ?? $value - 1) + 1);
-        $value = min($value, $this->bound($node, 'maximum') ?? $value, ($this->bound($node, 'exclusiveMaximum') ?? $value + 1) - 1);
-        $step  = $this->bound($node, 'multipleOf');
+        $minimum = $this->bound($node, 'minimum');
+        $maximum = $this->bound($node, 'maximum');
+        $above   = $this->bound($node, 'exclusiveMinimum');
+        $below   = $this->bound($node, 'exclusiveMaximum');
+        $value   = max($value, $minimum ?? $value, ($above ?? $value - 1) + 1);
+        $value   = min($value, $maximum ?? $value, ($below ?? $value + 1) - 1);
+
+        if ($value < ($minimum ?? -INF) || $value <= ($above ?? -INF)) {
+            $value = (max($minimum ?? -INF, $above ?? -INF) + min($maximum ?? INF, $below ?? INF)) / 2;
+        }
+
+        $step = $this->bound($node, 'multipleOf');
 
         return $step === null || $step <= 0 ? $value : ceil($value / $step) * $step;
+    }
+
+    /**
+     * Read the step between a node's values: its multiple, else one.
+     *
+     * @param  array<array-key, mixed>  $node
+     * @return float|int
+     */
+    private function step(array $node): float|int
+    {
+        $step = $this->bound($node, 'multipleOf');
+
+        return $step === null || $step <= 0 ? 1 : $step;
     }
 
     /**
