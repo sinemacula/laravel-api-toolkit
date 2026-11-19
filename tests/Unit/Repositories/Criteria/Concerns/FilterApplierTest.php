@@ -19,12 +19,14 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\FilterValueShape;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
+use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\BetweenOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
@@ -45,10 +47,14 @@ use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Concerns\LocalisesToolkitMessages;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
+use Tests\Fixtures\Models\Article;
+use Tests\Fixtures\Models\Comment;
 use Tests\Fixtures\Models\Device;
 use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\CommentResource;
 use Tests\Fixtures\Resources\DeepTraversalPostResource;
 use Tests\Fixtures\Resources\DeviceResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -126,7 +132,12 @@ final class FilterApplierTest extends TestCase
 
         assert($this->app !== null);
 
-        $this->applier = new FilterApplier(new FilterValueGuard(new ColumnLiteral($this->app->make(SchemaIntrospectionProvider::class))));
+        $introspector = $this->app->make(SchemaIntrospectionProvider::class);
+
+        $this->applier = new FilterApplier(
+            new FilterValueGuard(new ColumnLiteral($introspector)),
+            new RelationTrashedGate($introspector, Request::create('/'), [Article::class => ArticleResource::class, Comment::class => CommentResource::class]),
+        );
     }
 
     /**
@@ -670,6 +681,54 @@ final class FilterApplierTest extends TestCase
     public function testEmptyRelationDocumentIsAnExistenceCheck(): void
     {
         $this->assertCompilesTo(['posts' => []], 'exists (select * from "posts" where "users"."id" = "posts"."user_id")', []);
+    }
+
+    /**
+     * Provide relation filters under each trashed state with the clause each
+     * compiles to.
+     *
+     * @return iterable<string, array{string, array<string, mixed>, string}>
+     */
+    public static function trashedRelationFilterProvider(): iterable
+    {
+        $articles = '(select * from "articles" where "users"."id" = "articles"."user_id"';
+        $comments = '(select * from "comments" where "users"."id" = "comments"."user_id"';
+
+        yield 'relation document, live only' => ['', ['articles' => []], 'exists ' . $articles . ' and "articles"."deleted_at" is null)'];
+        yield 'relation document, with trashed' => ['with', ['articles' => []], 'exists ' . $articles . ')'];
+        yield 'relation document, only trashed' => ['only', ['articles' => []], 'exists ' . $articles . ' and "articles"."deleted_at" is not null)'];
+        yield 'existence, with trashed' => ['with', ['$has' => ['articles']], 'exists ' . $articles . ')'];
+        yield 'absence, only trashed' => ['only', ['$hasnt' => ['articles']], 'not exists ' . $articles . ' and "articles"."deleted_at" is not null)'];
+        yield 'absence, live only' => ['', ['$hasnt' => ['articles']], 'not exists ' . $articles . ' and "articles"."deleted_at" is null)'];
+        yield 'closed relation, with trashed' => ['with', ['$has' => ['comments']], 'exists ' . $comments . ' and "comments"."deleted_at" is null)'];
+        yield 'closed relation document, only trashed' => ['only', ['comments' => []], 'exists ' . $comments . ' and "comments"."deleted_at" is null)'];
+    }
+
+    /**
+     * Test that a relation subquery sees trashed rows only where the relation
+     * opts in, under the requested state.
+     *
+     * @param  string  $trashed
+     * @param  array<string, mixed>  $filters
+     * @param  string  $where
+     * @return void
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    #[DataProvider('trashedRelationFilterProvider')]
+    public function testRelationSubqueryFollowsTheTrashedStateWhereTheRelationOptsIn(string $trashed, array $filters, string $where): void
+    {
+        ApiQuery::parse(Request::create('/', 'GET', $trashed === '' ? [] : ['trashed' => $trashed]));
+
+        $surface = $this->declaredSurface(
+            relations  : ['articles', 'comments'],
+            resourceMap: [Article::class => ArticleResource::class, Comment::class => CommentResource::class],
+        );
+
+        $query = $this->applier->apply((new User)->newQuery(), $filters, $this->operatorRegistry, $surface);
+
+        self::assertSame('select * from "users" where ' . $where, $query->toSql());
     }
 
     /**
