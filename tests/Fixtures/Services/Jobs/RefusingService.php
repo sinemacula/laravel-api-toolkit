@@ -6,15 +6,17 @@ namespace Tests\Fixtures\Services\Jobs;
 
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
+use SineMacula\ApiToolkit\Exceptions\PreconditionFailedException;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceContext;
 
 /**
  * Fixture service that refuses its run with the configured exception.
  *
- * authorize() throws an AuthorizationException and validate() a
- * ValidationException. The queue bridge builds the service itself, so the
- * refusal and the hook counts are held in static properties.
+ * authorize() throws an AuthorizationException, validate() a
+ * ValidationException and handle() a PreconditionFailedException. The queue
+ * bridge builds the service itself, so the refusal and the hook counts are held
+ * in static properties.
  *
  * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Contracts\ServiceInput, null>
  *
@@ -85,13 +87,19 @@ final class RefusingService extends Service
     }
 
     /**
-     * Complete the run.
+     * Throw a precondition refusal, or complete the run.
      *
      * @return null
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\PreconditionFailedException
      */
     #[\Override]
     protected function handle(): null
     {
+        if (self::$refusal instanceof PreconditionFailedException) {
+            throw self::$refusal;
+        }
+
         return null;
     }
 

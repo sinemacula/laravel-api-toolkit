@@ -18,6 +18,7 @@ use SineMacula\ApiToolkit\Exceptions\ForbiddenException;
 use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Exceptions\ServiceUnavailableException;
+use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -552,6 +553,17 @@ final class ErrorResponseBuilderTest extends TestCase
         self::assertSame($this->response('Unauthenticated.', ['Error10101']), $responses[401]);
         self::assertSame($this->response('Forbidden.', ['Error10102']), $responses[403]);
         self::assertSame($this->response('Too many requests.', ['Error10107'], self::RATE_LIMIT_HEADERS), $responses[429]);
+    }
+
+    /**
+     * Test that middleware documented from its route fact is not read for its
+     * throws, so its refusal stays off the verbs it lets through.
+     *
+     * @return void
+     */
+    public function testFactMiddlewareThrowsAreNotDocumented(): void
+    {
+        self::assertSame([500], array_keys($this->build($this->router()->get('reports', [PathPlainController::class, 'report'])->middleware(RequireIfMatch::class))));
     }
 
     /**
