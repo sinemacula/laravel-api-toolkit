@@ -211,7 +211,8 @@ final class OpenApiResponseParityTest extends TestCase
         if (!isset($declared['content'])) {
             self::assertSame('', $content);
         } else {
-            $result = $this->validateAgainstExported($document, $pointer . '/content/application~1json/schema', json_decode($content, false, 512, JSON_THROW_ON_ERROR));
+            $payload = json_decode($content, false, 512, JSON_THROW_ON_ERROR);
+            $result  = $this->validateAgainstExported($document, $this->renderedShape($document, $pointer . '/content/application~1json/schema', $headers, $payload), $payload);
 
             self::assertTrue($result->isValid(), sprintf('The %s %s body breaks its documented schema: %s', $method, $uri, $this->formatErrors($result)));
         }
@@ -269,6 +270,31 @@ final class OpenApiResponseParityTest extends TestCase
         $result = $this->validateAgainstExported($document, $pointer . '/schema', $typed);
 
         self::assertTrue($result->isValid(), sprintf('The header at %s breaks its schema: %s', $pointer, $this->formatErrors($result)));
+    }
+
+    /**
+     * Point at the collection shape the case expects, since a page with a
+     * malformed meta still satisfies the open members of the anyOf around it.
+     *
+     * @param  array<string, mixed>  $document
+     * @param  string  $pointer
+     * @param  list<string>  $headers
+     * @param  mixed  $payload
+     * @return string
+     */
+    private function renderedShape(array $document, string $pointer, array $headers, mixed $payload): string
+    {
+        $schema = $this->resolveReference($document, '#' . rawurldecode($pointer));
+
+        if (!is_array($schema) || !isset($schema['anyOf'])) {
+            return $pointer;
+        }
+
+        return $pointer . '/anyOf/' . match (true) {
+            in_array('Total-Count', $headers, true)      => 0,
+            is_object($payload) && isset($payload->meta) => 1,
+            default                                      => 2,
+        };
     }
 
     /**
