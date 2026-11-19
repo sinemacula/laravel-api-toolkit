@@ -4,11 +4,17 @@ declare(strict_types = 1);
 
 namespace Tests\Integration\Query;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
+use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\EagerLoadApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
@@ -16,8 +22,12 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterContext;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\LimitApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\OrderApplier;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Repositories\ArticleRepository;
+use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\BulkArticleResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -36,8 +46,12 @@ use Tests\TestCase;
 #[CoversClass(OrderApplier::class)]
 #[CoversClass(EagerLoadApplier::class)]
 #[CoversClass(LimitApplier::class)]
+#[CoversClass(ApiRepository::class)]
 final class ApiCriteriaIntegrationTest extends TestCase
 {
+    /** @var string A filter selecting only the seeded organization's users */
+    private const string ORGANIZATION = '{"organization_id":{"$eq":7}}';
+
     /**
      * Seed users and posts for integration tests.
      *
@@ -404,9 +418,200 @@ final class ApiCriteriaIntegrationTest extends TestCase
     }
 
     /**
+     * Test that a filtered update changes every filtered row and no other,
+     * where the full criteria change only the page the client asked for.
+     *
+     * @return void
+     */
+    public function testFilteredUpdateChangesEveryFilteredRow(): void
+    {
+        $this->seedOrganization();
+        $this->parseQuery(['filters' => self::ORGANIZATION, 'order' => 'name', 'limit' => '1']);
+
+        self::assertSame(1, $this->users()->withApiCriteria()->update(['password' => 'paged']));
+        self::assertSame(['Vera'], User::query()->where('password', 'paged')->pluck('name')->all());
+
+        self::assertSame(5, $this->users()->withApiFilters()->update(['password' => 'filtered']));
+        self::assertSame(['Zara', 'Yuri', 'Xena', 'Wade', 'Vera'], User::query()->where('password', 'filtered')->orderBy('id')->pluck('name')->all());
+        self::assertSame(3, User::query()->whereNull('password')->count());
+    }
+
+    /**
+     * Test that a filtered delete removes every filtered row and no other.
+     *
+     * @return void
+     */
+    public function testFilteredDeleteRemovesEveryFilteredRow(): void
+    {
+        $this->seedOrganization();
+        $this->parseQuery(['filters' => self::ORGANIZATION, 'order' => 'name', 'limit' => '1']);
+
+        self::assertSame(5, $this->users()->withApiFilters()->delete());
+        self::assertSame(['Alice', 'Bob', 'Charlie'], User::query()->orderBy('id')->pluck('name')->all());
+    }
+
+    /**
+     * Test that a filtered delete on a soft-deleting model trashes every
+     * filtered row and no other.
+     *
+     * @return void
+     */
+    public function testFilteredSoftDeleteTrashesEveryFilteredRow(): void
+    {
+        foreach (['launch' => 'published', 'recap' => 'published', 'roadmap' => 'published', 'draft' => 'draft'] as $slug => $status) {
+            Article::create(['user_id' => 1, 'title' => $slug, 'slug' => $slug, 'body' => $slug, 'summary' => $slug, 'status' => $status]);
+        }
+
+        $this->parseQuery(['filters' => '{"status":{"$eq":"published"}}', 'order' => 'views', 'limit' => '1']);
+
+        assert($this->app !== null);
+
+        self::assertSame(3, $this->app->make(ArticleRepository::class)->usingResource(BulkArticleResource::class)->withApiFilters()->delete());
+        self::assertSame(['launch', 'recap', 'roadmap'], Article::onlyTrashed()->orderBy('id')->pluck('slug')->all());
+        self::assertSame(['draft'], Article::query()->pluck('slug')->all());
+    }
+
+    /**
+     * Test that filtered keyset iteration visits every filtered row once under
+     * a client order, where the full criteria skip rows.
+     *
+     * @return void
+     */
+    public function testFilteredKeysetIterationVisitsEveryFilteredRowOnce(): void
+    {
+        $ids = $this->seedOrganization();
+
+        $this->parseQuery(['filters' => self::ORGANIZATION, 'order' => 'name']);
+
+        self::assertSame([$ids[4], $ids[3], $ids[4]], $this->chunkedKeys($this->users()->withApiCriteria()));
+        self::assertSame($ids, $this->chunkedKeys($this->users()->withApiFilters()));
+        self::assertSame($ids, $this->users()->withApiFilters()->lazyById(2)->pluck('id')->all());
+    }
+
+    /**
+     * Test that filtered keyset iteration is not capped by the client limit.
+     *
+     * @return void
+     */
+    public function testFilteredKeysetIterationIgnoresTheLimit(): void
+    {
+        $ids = $this->seedOrganization();
+
+        $this->parseQuery(['filters' => self::ORGANIZATION, 'limit' => '1']);
+
+        self::assertSame([$ids[0]], $this->users()->withApiCriteria()->lazyById(2)->pluck('id')->all());
+        self::assertSame($ids, $this->users()->withApiFilters()->lazyById(2)->pluck('id')->all());
+    }
+
+    /**
+     * Test that a grouped facet over the filtered set returns every surviving
+     * group under a client order and limit.
+     *
+     * @return void
+     */
+    public function testFilteredGroupedFacetReturnsEverySurvivingGroup(): void
+    {
+        $this->seedOrganization();
+        $this->parseQuery(['filters' => self::ORGANIZATION, 'order' => 'name', 'limit' => '1']);
+
+        self::assertSame(['active' => 2, 'banned' => 1, 'inactive' => 2], $this->statusFacet($this->users()->withApiFilters()));
+    }
+
+    /**
+     * Test that filtered models carry every column, where the full criteria
+     * narrow them to the requested fields.
+     *
+     * @return void
+     */
+    public function testFilteredModelsCarryEveryColumn(): void
+    {
+        Config::set('api-toolkit.resources.narrow_columns', true);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
+
+        $this->seedOrganization();
+        $this->parseQuery(['filters' => self::ORGANIZATION, 'fields' => ['users' => 'name']]);
+
+        $paged    = $this->users()->withApiCriteria()->first();
+        $filtered = $this->users()->withApiFilters()->first();
+
+        assert($paged instanceof User && $filtered instanceof User);
+
+        self::assertSame(['name', 'id'], array_keys($paged->getAttributes()));
+        self::assertSame(['id', 'organization_id', 'name', 'email', 'password', 'status', 'created_at', 'updated_at'], array_keys($filtered->getAttributes()));
+    }
+
+    /**
+     * Test that filtered models load no relation the request renders.
+     *
+     * @return void
+     */
+    public function testFilteredModelsLoadNoRequestedRelation(): void
+    {
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
+
+        $this->seedOrganization();
+        $this->parseQuery(['filters' => self::ORGANIZATION, 'fields' => ['users' => 'name,organization']]);
+
+        $paged    = $this->users()->withApiCriteria()->first();
+        $filtered = $this->users()->withApiFilters()->first();
+
+        assert($paged instanceof User && $filtered instanceof User);
+
+        self::assertTrue($paged->relationLoaded('organization'));
+        self::assertSame([], $filtered->getRelations());
+    }
+
+    /**
+     * Test that a repository scope and a relation filter still apply to the
+     * filtered set.
+     *
+     * @return void
+     */
+    public function testFilteredSetKeepsRepositoryScopesAndRelationFilters(): void
+    {
+        $ids = $this->seedOrganization();
+
+        Post::create(['user_id' => $ids[0], 'title' => 'Zara Post', 'body' => 'Content', 'published' => true]);
+        Post::create(['user_id' => $ids[3], 'title' => 'Wade Post', 'body' => 'Content', 'published' => true]);
+
+        $this->parseQuery(['filters' => '{"organization_id":{"$eq":7},"$has":"posts"}']);
+
+        $users = $this->users()->withApiFilters()->scopeByIds([$ids[0], $ids[1], $ids[2]])->get();
+
+        self::assertSame(['Zara'], $users->pluck('name')->all());
+    }
+
+    /**
+     * Test that a grouped facet under a client order is refused through the
+     * full criteria on PostgreSQL, and returns every surviving group through
+     * the filters alone.
+     *
+     * @return void
+     */
+    #[Group('pgsql')]
+    public function testGroupedFacetIsRefusedThroughTheFullCriteriaOnPostgres(): void
+    {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            self::markTestSkipped('The refused grouped facet is asserted on PostgreSQL only.');
+        }
+
+        $this->seedOrganization();
+        $this->parseQuery(['filters' => self::ORGANIZATION, 'order' => 'created_at']);
+
+        try {
+            $this->statusFacet($this->users()->withApiCriteria());
+            self::fail('Expected the grouped facet to be refused.');
+        } catch (QueryException $exception) {
+            self::assertSame('42803', $exception->getCode());
+        }
+
+        self::assertSame(['active' => 2, 'banned' => 1, 'inactive' => 2], $this->statusFacet($this->users()->withApiFilters()));
+    }
+
+    /**
      * Parse query parameters through the ApiQuery facade.
      *
-     * @param  array<string, string>  $params
+     * @param  array<string, mixed>  $params
      * @return void
      */
     private function parseQuery(array $params): void
@@ -429,6 +634,71 @@ final class ApiCriteriaIntegrationTest extends TestCase
         $criteria = $this->app->make(ApiCriteria::class);
 
         return $criteria->usingResource(UserResource::class);
+    }
+
+    /**
+     * Resolve a user repository bound to the user resource.
+     *
+     * @return \Tests\Fixtures\Repositories\UserRepository
+     */
+    private function users(): UserRepository
+    {
+        assert($this->app !== null);
+
+        return $this->app->make(UserRepository::class)->usingResource(UserResource::class);
+    }
+
+    /**
+     * Collect the keys a two-row keyset chunking visits, in order.
+     *
+     * @param  \Tests\Fixtures\Repositories\UserRepository  $users
+     * @return array<int, mixed>
+     */
+    private function chunkedKeys(UserRepository $users): array
+    {
+        $keys = [];
+
+        $users->chunkById(2, static function (Collection $chunk) use (&$keys): void {
+            array_push($keys, ...$chunk->pluck('id')->all());
+        });
+
+        return $keys;
+    }
+
+    /**
+     * Count the users per status the given handle selects.
+     *
+     * @param  \Tests\Fixtures\Repositories\UserRepository  $users
+     * @return array<string, int>
+     *
+     * @throws \Illuminate\Database\QueryException
+     */
+    private function statusFacet(UserRepository $users): array
+    {
+        return $users->query()->toBase()
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->orderBy('status')
+            ->get()
+            ->mapWithKeys(static fn (object $row): array => [$row->status => (int) $row->total])
+            ->all();
+    }
+
+    /**
+     * Seed one organization's users, with several statuses and names in reverse
+     * key order.
+     *
+     * @return array<int, int>
+     */
+    private function seedOrganization(): array
+    {
+        $ids = [];
+
+        foreach (['Zara' => 'active', 'Yuri' => 'inactive', 'Xena' => 'banned', 'Wade' => 'active', 'Vera' => 'inactive'] as $name => $status) {
+            $ids[] = User::create(['organization_id' => 7, 'name' => $name, 'email' => strtolower($name) . '@example.com', 'status' => $status])->id;
+        }
+
+        return $ids;
     }
 
     /**

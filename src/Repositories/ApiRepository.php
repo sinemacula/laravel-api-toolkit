@@ -46,7 +46,8 @@ abstract class ApiRepository extends Repository
     /**
      * Set a custom resource class to be used.
      *
-     * Mutates this handle, so call it before withApiCriteria() copies it.
+     * Mutates this handle, so call it before withApiCriteria() or
+     * withApiFilters() copies it.
      *
      * @param  string|null  $resourceClass
      * @return $this
@@ -89,13 +90,24 @@ abstract class ApiRepository extends Repository
      */
     public function withApiCriteria(): static
     {
-        $criteria = $this->app->make(ApiCriteria::class); // @phpstan-ignore possiblyImpure.methodCall
+        return $this->withCriteria($this->makeApiCriteria(false)); // @phpstan-ignore argument.type
+    }
 
-        if ($this->customResourceClass) {
-            $criteria->usingResource($this->customResourceClass); // @phpstan-ignore possiblyImpure.methodCall
-        }
-
-        return $this->withCriteria($criteria); // @phpstan-ignore argument.type
+    /**
+     * Compose only the request's filters, search and trashed into the next
+     * query, for work on the whole filtered set.
+     *
+     * The order, limit, fields and aggregates are neither applied nor checked.
+     * Returns a copy, as withApiCriteria() does, and the last of the two called
+     * on a handle wins.
+     *
+     * @return static
+     *
+     * @phpstan-pure
+     */
+    public function withApiFilters(): static
+    {
+        return $this->withCriteria($this->makeApiCriteria(true)); // @phpstan-ignore argument.type
     }
 
     /**
@@ -223,6 +235,25 @@ abstract class ApiRepository extends Repository
     protected function metadataCacheWriter(): MetadataCacheWriter
     {
         return $this->app->make(MetadataCacheWriter::class);
+    }
+
+    /**
+     * Make the API criteria for this handle's resource.
+     *
+     * @param  bool  $filtersOnly
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
+     *
+     * @phpstan-pure
+     */
+    private function makeApiCriteria(bool $filtersOnly): ApiCriteria
+    {
+        $criteria = $this->app->make(ApiCriteria::class, ['filtersOnly' => $filtersOnly]); // @phpstan-ignore possiblyImpure.methodCall
+
+        if ($this->customResourceClass) {
+            $criteria->usingResource($this->customResourceClass); // @phpstan-ignore possiblyImpure.methodCall
+        }
+
+        return $criteria;
     }
 
     /**

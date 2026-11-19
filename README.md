@@ -577,8 +577,9 @@ class UserRepository extends ApiRepository
 }
 ```
 
-`withApiCriteria()` applies the request's filters, sorts, eager loads and limit. It returns a copy and leaves the
-repository it was called on untouched, so run the read through the returned value:
+`withApiCriteria()` applies the request's filters, sorts, eager loads and limit, and narrows the select to the
+requested fields. It returns a copy and leaves the repository it was called on untouched, so run the read through the
+returned value:
 
 ```php
 $users = $repository->withApiCriteria()->paginate();
@@ -595,6 +596,28 @@ if ($caller->isExternal()) {
 
 $users = $scoped->paginate();
 ```
+
+**Working on the filtered set** - `withApiFilters()` applies only the request's `filters`, `search` and `trashed`,
+under the same allowlist and filter cost budget. `order`, `limit`, `fields` and `aggregates` are neither applied nor
+checked, so a bulk action sent the list screen's query string acts on every matching row. Persistent criteria,
+repository scopes, global scopes and a model's `$with` still apply, and the last of `withApiCriteria()` and
+`withApiFilters()` called on a handle wins. A terminal operation consumes the composition, so start each from its own
+call:
+
+```php
+$orders->withApiFilters()->update(['archived_at' => now()]);
+
+foreach ($orders->withApiFilters()->lazyById() as $order) {
+    $order->notifyCustomer();
+}
+
+$totals = $orders->withApiFilters()->query()->toBase()
+    ->selectRaw('status, count(*) as total')
+    ->groupBy('status')
+    ->pluck('total', 'status');
+```
+
+Through `paginate()`, `limit` is still the page size; render pages through `withApiCriteria()`.
 
 **Outside a request** - criteria apply only under a parsed query: the one `ParseApiQuery` parsed, or a snapshot given
 to `ApiQuery::using()`. Applied under none, as in a queued job, a console command or a route without the middleware,
@@ -613,10 +636,10 @@ ArchiveInvoices::make(new ArchiveInvoicesInput(ApiQuery::snapshot()))
     ->dispatch();
 
 // ArchiveInvoices::handle()
-return ApiQuery::using($this->input->query->without('order', 'fields'), function (): int {
+return ApiQuery::using($this->input->query, function (): int {
     $archived = 0;
 
-    foreach ($this->invoices->withApiCriteria()->lazyById() as $invoice) {
+    foreach ($this->invoices->withApiFilters()->lazyById() as $invoice) {
         $invoice->archive();
         $archived++;
     }
@@ -627,8 +650,8 @@ return ApiQuery::using($this->input->query->without('order', 'fields'), function
 
 - Read and render inside the callback. A `LazyCollection` keeps its filters after `using()` returns, but a resource
   rendered later reads the restored query, and a resource resolves its fields once, so build it where it renders.
-- Work that changes which rows match iterates with `lazyById()` on a snapshot `without('order')`. Keyset iteration
-  after a client order skips rows, and so does offset `lazy()` as the set changes.
+- Work that changes which rows match iterates with `withApiFilters()->lazyById()`, which ignores the client's order.
+  Keyset iteration after a client order skips rows, and so does offset `lazy()` as the set changes.
 - `allowsTrashed()` and field guards see the worker's console request, which is not reconstructed, so a carried
   `trashed` the worker's gate refuses, or a carried key a caller guard hides, fails the job.
 

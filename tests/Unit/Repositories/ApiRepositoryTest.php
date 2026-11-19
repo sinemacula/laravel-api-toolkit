@@ -93,6 +93,78 @@ final class ApiRepositoryTest extends TestCase
         self::assertFalse(
             $this->repository->getCriteria()->contains(fn ($c) => $c instanceof ApiCriteria),
         );
+
+        self::assertFalse($this->getProperty($this->apiCriteriaOf($result), 'filtersOnly'));
+    }
+
+    /**
+     * Test that withApiFilters composes filters-only criteria into a copy,
+     * leaving the original.
+     *
+     * @return void
+     */
+    public function testWithApiFiltersComposesFiltersOnlyCriteriaIntoACopy(): void
+    {
+        $result = $this->repository->withApiFilters();
+
+        self::assertNotSame($this->repository, $result);
+        self::assertTrue($this->getProperty($this->apiCriteriaOf($result), 'filtersOnly'));
+
+        self::assertFalse(
+            $this->repository->getCriteria()->contains(fn ($c) => $c instanceof ApiCriteria),
+        );
+    }
+
+    /**
+     * Test that withApiFilters after withApiCriteria leaves only the
+     * filters-only criteria on the handle.
+     *
+     * @return void
+     */
+    public function testWithApiFiltersReplacesTheApiCriteria(): void
+    {
+        $scoped = $this->repository->withApiCriteria()->withApiFilters();
+
+        self::assertCount(1, $scoped->getCriteria());
+        self::assertTrue($this->getProperty($this->apiCriteriaOf($scoped), 'filtersOnly'));
+    }
+
+    /**
+     * Test that withApiFilters carries an already-set resource over, and that
+     * naming one afterwards reaches the criteria.
+     *
+     * @return void
+     */
+    public function testWithApiFiltersCarriesTheNamedResource(): void
+    {
+        $after = $this->repository->withApiFilters()->usingResource(FilterableUserResource::class);
+
+        self::assertSame(FilterableUserResource::class, $this->getProperty($this->apiCriteriaOf($after), 'customResourceClass'));
+
+        $before = $this->repository->usingResource(UserResource::class)->withApiFilters();
+
+        self::assertSame(UserResource::class, $this->getProperty($this->apiCriteriaOf($before), 'customResourceClass'));
+    }
+
+    /**
+     * Test that a filters-only page past the offset cap is still refused.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testWithApiFiltersPagePastTheOffsetCapIsRefused(): void
+    {
+        Config::set('api-toolkit.query_cost.max_offset', 10);
+
+        $this->parseRequest(new Request(['limit' => '5', 'page' => '4']));
+
+        try {
+            $this->repository->usingResource(UserResource::class)->withApiFilters()->paginate();
+            self::fail('Expected the page to be refused.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame(['parameter' => 'page', 'pointer' => '', 'reason' => 'max_offset', 'limit' => 3, 'actual' => 4], $exception->getCustomMeta());
+        }
     }
 
     /**
@@ -828,6 +900,21 @@ final class ApiRepositoryTest extends TestCase
         self::assertCount(2, $firstRead);
         self::assertCount(2, $secondRead);
         self::assertTrue($repository->getCacheStatus()->isPopulated());
+    }
+
+    /**
+     * Resolve the API criteria the given handle carries.
+     *
+     * @param  \Tests\Fixtures\Repositories\UserRepository  $repository
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria
+     */
+    private function apiCriteriaOf(UserRepository $repository): ApiCriteria
+    {
+        $criteria = $repository->getCriteria()->first(fn ($c) => $c instanceof ApiCriteria);
+
+        self::assertInstanceOf(ApiCriteria::class, $criteria);
+
+        return $criteria;
     }
 
     /**
