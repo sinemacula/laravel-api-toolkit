@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Http\Resources;
 
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\JsonResource;
 use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Exceptions\ResourceMappingException;
@@ -16,7 +15,7 @@ use SineMacula\ApiToolkit\Exceptions\ResourceMappingException;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class PolymorphicResource extends JsonResource
+final class PolymorphicResource extends ToolkitResource
 {
     /** @var bool Whether to return all fields in the response */
     protected bool $all = false;
@@ -94,6 +93,18 @@ final class PolymorphicResource extends JsonResource
             '_type' => $resource::getResourceType(),
             ...$resource->resolve($request),
         ];
+    }
+
+    /**
+     * Create a new resource collection instance.
+     *
+     * @param  mixed  $resource
+     * @return \SineMacula\ApiToolkit\Http\Resources\PolymorphicCollection
+     */
+    #[\Override]
+    protected static function newCollection(#[\SensitiveParameter] mixed $resource): PolymorphicCollection
+    {
+        return new PolymorphicCollection($resource, self::class);
     }
 
     /**
