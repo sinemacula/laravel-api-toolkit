@@ -277,6 +277,20 @@ final class ColumnLiteralTest extends TestCase
     }
 
     /**
+     * Test that the type of a column is its catalogue type name, or null where
+     * the catalogue does not describe it.
+     *
+     * @return void
+     */
+    public function testTypeOfReadsTheCatalogueTypeName(): void
+    {
+        $literal = $this->literal('int4');
+
+        self::assertSame('int4', $literal->typeOf(new User, 'value'));
+        self::assertNull($literal->typeOf(new User, 'other'));
+    }
+
+    /**
      * Test that a NUL character is refused on every column, described or not.
      *
      * @return void

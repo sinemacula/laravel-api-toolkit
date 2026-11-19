@@ -30,8 +30,10 @@ resource that has not opted in to exposing its soft-deleted records, or a caller
 it does not permit, gets a 422 for it. Cursor paging adds two more, `pagination`
 and `cursor`, described in the Pagination section.
 
-Every operation in the OpenAPI document lists the parameters it accepts, by
-reference to the shared definitions in `components.parameters`.
+Every operation in the OpenAPI document lists the parameters it accepts. A list
+endpoint states its own `filters`, typed by its resource's filter schema, and
+`order`, listing the keys it accepts, and offers `search` only where a field is
+searchable; the rest reference the shared definitions in `components.parameters`.
 
 ## Fields
 

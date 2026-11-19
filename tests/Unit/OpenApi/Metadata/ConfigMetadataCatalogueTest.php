@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Concerns\QueryParameterValidator;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\ErrorCode;
+use SineMacula\ApiToolkit\Enums\FilterValueShape;
 use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ApiExceptionDiscoverer;
@@ -22,6 +23,7 @@ use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\EqualOperator;
+use SineMacula\ApiToolkit\Repositories\Criteria\Operators\InOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
 use Tests\Fixtures\Discovery\Primary\DiscoveredUserResource;
 use Tests\Fixtures\Discovery\Primary\Nested\DiscoveredPostResource;
@@ -152,22 +154,6 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that getOperatorTokens returns the registry's tokens.
-     *
-     * @return void
-     */
-    public function testGetOperatorTokensReturnsRegistryTokens(): void
-    {
-        $registry = new OperatorRegistry;
-        $registry->register('$eq', new EqualOperator, Capability::EXACT);
-        $registry->register('$neq', new NotEqualOperator, Capability::ENUM);
-
-        $catalogue = $this->makeCatalogueWithRegistry($registry);
-
-        self::assertSame(['$eq', '$neq'], $catalogue->getOperatorTokens());
-    }
-
-    /**
      * Test that getOperatorsFor returns the tokens the registry admits on the
      * capability.
      *
@@ -188,43 +174,22 @@ final class ConfigMetadataCatalogueTest extends TestCase
     }
 
     /**
-     * Test that getOperatorTokens covers the eleven defaults, without $like.
+     * Test that getOperatorShape returns the shape a registered handler
+     * declares, and null for a handler declaring none or an unknown token.
      *
      * @return void
      */
-    public function testGetOperatorTokensCoversAllDefaultTokens(): void
+    public function testGetOperatorShapeReturnsTheShapeTheHandlerDeclares(): void
     {
-        assert($this->app !== null);
+        $registry = new OperatorRegistry;
+        $registry->register('$in', new InOperator, Capability::EXACT);
+        $registry->register('$starts', static function (): void {}, Capability::EXACT);
 
-        /** @var \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry $registry */
-        $registry  = $this->app->make(OperatorRegistry::class);
         $catalogue = $this->makeCatalogueWithRegistry($registry);
 
-        $tokens = $catalogue->getOperatorTokens();
-
-        self::assertContains('$eq', $tokens);
-        self::assertContains('$neq', $tokens);
-        self::assertContains('$gt', $tokens);
-        self::assertContains('$lt', $tokens);
-        self::assertContains('$ge', $tokens);
-        self::assertContains('$le', $tokens);
-        self::assertNotContains('$like', $tokens);
-        self::assertContains('$in', $tokens);
-        self::assertContains('$between', $tokens);
-        self::assertContains('$contains', $tokens);
-        self::assertContains('$null', $tokens);
-        self::assertContains('$notNull', $tokens);
-        self::assertCount(11, $tokens);
-    }
-
-    /**
-     * Test that getStructuralOperators returns every structural token.
-     *
-     * @return void
-     */
-    public function testGetStructuralOperatorsReturnsEveryStructuralToken(): void
-    {
-        self::assertSame(['$and', '$or', '$has', '$hasnt', '$scope'], $this->makeCatalogue()->getStructuralOperators());
+        self::assertSame(FilterValueShape::LIST, $catalogue->getOperatorShape('$in'));
+        self::assertNull($catalogue->getOperatorShape('$starts'));
+        self::assertNull($catalogue->getOperatorShape('$eq'));
     }
 
     /**
@@ -289,6 +254,30 @@ final class ConfigMetadataCatalogueTest extends TestCase
 
         self::assertSame(['title'], array_column($columns, 'column'));
         self::assertSame(['$starts'], $columns[0]->operators);
+    }
+
+    /**
+     * Test that getQuerySurface reads the resource over the given model alone,
+     * with the resource governing each relation, and nothing unless given an
+     * API resource and a model.
+     *
+     * @return void
+     */
+    public function testGetQuerySurfaceReadsOneResourceOverTheGivenModel(): void
+    {
+        Config::set('api-toolkit.resources.paths', []);
+        Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class, Post::class => PostResource::class]);
+
+        $catalogue = $this->makeCatalogue();
+        $surface   = $catalogue->getQuerySurface(UserResource::class, User::class);
+
+        self::assertNotNull($surface);
+        self::assertSame([User::class], $surface->models);
+        self::assertSame(PostResource::class, array_column($surface->relations, 'resource', 'relation')['posts']);
+        self::assertNull($catalogue->getQuerySurface(User::class, User::class));
+        self::assertNull($catalogue->getQuerySurface(UserResource::class, UserResource::class));
+        self::assertNull($catalogue->getQuerySurface(null, User::class));
+        self::assertNull($catalogue->getQuerySurface(UserResource::class, null));
     }
 
     /**

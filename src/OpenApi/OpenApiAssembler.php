@@ -9,6 +9,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\FilterSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
@@ -68,6 +69,7 @@ final readonly class OpenApiAssembler
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRouteCollector  $routes
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\OperationDescriptions  $descriptions
      * @param  \SineMacula\ApiToolkit\OpenApi\Docs\TagList  $tags
+     * @param  \SineMacula\ApiToolkit\OpenApi\Builder\FilterSchemaBuilder  $filterBuilder
      * @param  \SineMacula\ApiToolkit\OpenApi\Examples\ExampleFileAudit  $exampleFiles
      */
     public function __construct(
@@ -113,6 +115,9 @@ final readonly class OpenApiAssembler
 
         /** The builder of the top-level tags list. */
         private TagList $tags,
+
+        /** The builder of each resource's filter document schema. */
+        private FilterSchemaBuilder $filterBuilder,
 
         /** The audit of the declared response example files. */
         private ExampleFileAudit $exampleFiles = new ExampleFileAudit,
@@ -321,7 +326,8 @@ final readonly class OpenApiAssembler
     /**
      * Build the schemas block, reduced to those reachable from the paths.
      *
-     * Resource schemas are built first so their enum references are registered.
+     * Resource and filter schemas are built first so their enum references are
+     * registered.
      *
      * @param  array<string, array<string, array<string, mixed>>>  $paths
      * @return array<string, array<string, mixed>>
@@ -343,10 +349,12 @@ final readonly class OpenApiAssembler
             $guard->claim($reserved, $name, ErrorResponseBuilder::class);
         }
 
+        $filterSchemas  = $this->filterBuilder->build($reserved);
         $definedSchemas = $this->definedSchemaBuilder->build($this->definedSchemas->classes(), $this->enums->classes(), $reserved);
 
         $schemas = array_replace(
             $resourceSchemas,
+            $filterSchemas,
             $envelopeSchemas,
             $errorSchemas,
             $definedSchemas,

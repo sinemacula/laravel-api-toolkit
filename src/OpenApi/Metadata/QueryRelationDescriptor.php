@@ -18,6 +18,7 @@ final readonly class QueryRelationDescriptor
      * @param  string  $relation
      * @param  class-string|null  $resource
      * @param  bool  $polymorphic
+     * @param  bool  $conditional
      */
     public function __construct(
 
@@ -29,5 +30,8 @@ final readonly class QueryRelationDescriptor
 
         /** Whether each concrete type of the relation governs its own keys */
         public bool $polymorphic = false,
+
+        /** Whether only some callers may descend through the relation */
+        public bool $conditional = false,
     ) {}
 }

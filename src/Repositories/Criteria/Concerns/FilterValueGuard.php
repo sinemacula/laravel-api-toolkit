@@ -4,11 +4,11 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
-use Illuminate\Contracts\Database\Eloquent\Castable;
 use Illuminate\Database\Eloquent\Model;
 use SineMacula\ApiToolkit\Enums\FilterValueShape;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Services\Input\Rules\Enum;
+use SineMacula\ApiToolkit\Support\EnumCast;
 use SineMacula\ApiToolkit\Support\PureEnumName;
 use SineMacula\ApiToolkit\Validation\Rejection;
 
@@ -184,7 +184,7 @@ final readonly class FilterValueGuard
             throw $this->rejectType($condition, $index, Rejection::message('filters.expected.scalar'));
         }
 
-        $enum     = $this->castEnum($model, $condition['column']);
+        $enum     = EnumCast::enumOf($model->getCasts()[$condition['column']] ?? null);
         $expected = $enum === null ? $this->literal->mismatch($model, $condition['column'], $item) : $this->enumMismatch($enum, $item);
 
         if ($expected !== null) {
@@ -192,21 +192,6 @@ final readonly class FilterValueGuard
         }
 
         return $enum === null ? $this->literal->resolve($model, $condition['column'], $item) : $item;
-    }
-
-    /**
-     * Return the enum the column is cast to, unless a caster of its own reads
-     * it, as Eloquent defers to one.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $column
-     * @return class-string<\UnitEnum>|null
-     */
-    private function castEnum(Model $model, string $column): ?string
-    {
-        $cast = $model->getCasts()[$column] ?? null;
-
-        return is_string($cast) && enum_exists($cast) && !is_subclass_of($cast, Castable::class) ? $cast : null;
     }
 
     /**

@@ -409,35 +409,41 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that every operator appears in the filter parameter.
+     * Test that an index's filters are JSON content typed by its resource's
+     * filter document, which recurses through its groups and relations, and the
+     * document stays valid.
      *
      * @return void
      */
-    public function testEveryOperatorAppearsInTheFilterParameter(): void
+    public function testIndexFiltersAreTypedByARecursiveFilterDocument(): void
     {
-        $document  = $this->export()->document;
-        $operators = $document['components']['parameters']['Filters']['schema']['x-operators'];
+        $this->registerUserRoutes();
 
-        $expected = [
-            '$eq', '$neq', '$gt', '$lt', '$ge', '$le', '$in',
-            '$between', '$contains', '$null', '$notNull',
-            '$and', '$or', '$has', '$hasnt',
-        ];
+        $document = $this->export()->document;
+        $result   = $this->validateDocument($document);
 
-        foreach ($expected as $operator) {
-            self::assertIsIterable($operators);
-            self::assertContains($operator, $operators);
-        }
+        self::assertTrue($result->isValid(), 'Emitted document is not valid OpenAPI 3.1: ' . $this->formatErrors($result));
 
-        self::assertNotContains('$like', $operators);
+        $this->assertReferencesResolve($document);
+
+        /** @var list<array<string, mixed>> $parameters */
+        $parameters = $document['paths']['/users']['get']['parameters'];
+        $filters    = array_column($parameters, 'content', 'name')['filters'] ?? null;
+        $schemas    = $document['components']['schemas'];
+
+        self::assertSame(['application/json' => ['schema' => ['$ref' => '#/components/schemas/UserFilters']]], $filters);
+        self::assertSame('#/components/schemas/UserFilters', $schemas['UserFilters']['properties']['$or']['items']['$ref']);
+        self::assertSame('#/components/schemas/PostFilters', $schemas['UserFilters']['properties']['posts']['$ref']);
+        self::assertSame('#/components/schemas/PostFilters', $schemas['PostFilters']['properties']['$and']['items']['$ref']);
     }
 
     /**
-     * Test that the index operation references the shared query parameters.
+     * Test that an index takes the shared query parameters and its resource's
+     * own filters and order.
      *
      * @return void
      */
-    public function testIndexOperationReferencesTheSharedQueryParameters(): void
+    public function testIndexOperationTakesTheSharedParametersAndItsResourcesOwn(): void
     {
         $this->registerUserRoutes();
 
@@ -445,7 +451,7 @@ final class OpenApiExporterValidityTest extends TestCase
         $paths = $this->export()->document['paths'];
 
         self::assertSame(
-            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Limit', 'Page', 'Cursor', 'Pagination'],
+            ['Fields', 'Aggregates', 'filters', 'order', 'Limit', 'Page', 'Cursor', 'Pagination'],
             $this->referencedParameterNames($paths['/users']['get']),
         );
     }
@@ -524,8 +530,8 @@ final class OpenApiExporterValidityTest extends TestCase
                     continue;
                 }
 
-                foreach ($this->referencedParameterNames($operation) as $name) {
-                    self::assertContains($name, $defined);
+                foreach (array_column((array) ($operation['parameters'] ?? []), '$ref') as $reference) {
+                    self::assertContains(str_replace('#/components/parameters/', '', (string) $reference), $defined);
                     $seen++;
                 }
             }
@@ -2026,7 +2032,8 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * List the shared query-parameter component names the operation references.
+     * List the query parameters the operation takes: a shared one by its
+     * component name, an inline one by the query parameter it carries.
      *
      * @param  array<array-key, mixed>  $operation
      * @return array<int, string>
@@ -2042,13 +2049,15 @@ final class OpenApiExporterValidityTest extends TestCase
 
         foreach ($parameters as $parameter) {
 
-            $reference = is_array($parameter) ? $parameter['$ref'] ?? null : null;
-
-            if (!is_string($reference)) {
+            if (!is_array($parameter) || ($parameter['in'] ?? 'query') !== 'query') {
                 continue;
             }
 
-            $names[] = str_replace('#/components/parameters/', '', $reference);
+            $name = $parameter['$ref'] ?? $parameter['name'] ?? null;
+
+            self::assertIsString($name);
+
+            $names[] = str_replace('#/components/parameters/', '', $name);
         }
 
         return $names;

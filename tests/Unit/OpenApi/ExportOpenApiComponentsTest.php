@@ -15,6 +15,7 @@ use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\FilterSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\PathParameterBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\QueryParameterBuilder;
@@ -28,6 +29,8 @@ use SineMacula\ApiToolkit\OpenApi\Docs\TagList;
 use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\ExportResult;
 use SineMacula\ApiToolkit\OpenApi\Metadata\ErrorCatalogueReader;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
+use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
 use SineMacula\ApiToolkit\OpenApi\OpenApiAssembler;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceResolver;
@@ -53,6 +56,8 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
 use SineMacula\ApiToolkit\Query\PageSize;
+use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
@@ -394,6 +399,12 @@ final class ExportOpenApiComponentsTest extends TestCase
             new DocumentedRouteCollector($router, $catalogue, new AudienceResolver, new AudienceConfiguration, new DocumentableRouteFilter, new TagResolver),
             new OperationDescriptions,
             new TagList,
+            new FilterSchemaBuilder(
+                $catalogue,
+                new ColumnLiteral($this->app->make(SchemaIntrospector::class)),
+                $enums,
+                new ScopeSchemaBuilder(new RulesToSchemaTranslator(new RuleNormaliser, new FieldSchemaBuilder($enums))),
+            ),
         );
 
         return (new ExportOpenApiComponents($assembler, $catalogue))->export($audience);
@@ -410,15 +421,23 @@ final class ExportOpenApiComponentsTest extends TestCase
     {
         assert($this->app !== null);
 
+        $reader   = new QuerySurfaceReader($this->app->make(SchemaIntrospector::class));
+        $registry = $this->app->make(OperatorRegistry::class);
+
         $catalogue = self::createStub(MetadataCatalogue::class);
         $catalogue->method('getResourceMap')->willReturn($resourceMap);
-        $catalogue->method('getOperatorTokens')->willReturn(['$eq', '$neq']);
         $catalogue->method('getOperatorsFor')->willReturnCallback(
             static fn (Capability $capability): array => array_values(array_intersect($capability->defaultOperators(), ['$eq', '$neq'])),
         );
-        $catalogue->method('getStructuralOperators')->willReturn(['$and', '$or']);
         $catalogue->method('getErrorCatalogue')->willReturn($this->app->make(ErrorCatalogueReader::class)->read());
         $catalogue->method('getPageSize')->willReturn(new PageSize(0, 50));
+        $catalogue->method('getQuerySurfaces')->willReturnCallback(static fn (): array => $reader->read($resourceMap, $registry));
+        $catalogue->method('getQuerySurface')->willReturnCallback(static function (string $resource, string $model) use ($reader, $resourceMap, $registry): QuerySurfaceDescriptor {
+
+            assert(class_exists($resource) && class_exists($model));
+
+            return $reader->readOne($resource, $model, $resourceMap, $registry);
+        });
 
         return $catalogue;
     }
