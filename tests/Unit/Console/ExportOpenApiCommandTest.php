@@ -106,7 +106,8 @@ final class ExportOpenApiCommandTest extends TestCase
     }
 
     /**
-     * Test that the exported document is pretty-printed with unescaped slashes.
+     * Test that the exported document is pretty-printed with unescaped slashes
+     * and ends with a newline.
      *
      * @return void
      */
@@ -122,6 +123,7 @@ final class ExportOpenApiCommandTest extends TestCase
 
         self::assertIsString($contents);
         self::assertStringContainsString("\n", $contents);
+        self::assertStringEndsWith("\n}\n", $contents);
         self::assertStringContainsString('#/components/schemas/', $contents);
         self::assertStringNotContainsString('#\/components\/schemas\/', $contents);
     }
