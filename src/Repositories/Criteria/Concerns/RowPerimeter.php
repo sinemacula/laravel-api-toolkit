@@ -86,7 +86,7 @@ final readonly class RowPerimeter
      */
     public static function declaredResource(?string $owner, string $relation): ?string
     {
-        if (!is_subclass_of($owner, ApiResource::class)) {
+        if ($owner === null || !is_subclass_of($owner, ApiResource::class)) {
             return null;
         }
 
@@ -480,9 +480,9 @@ final readonly class RowPerimeter
             $rule->getEagerLoads(), $rule->removedScopes(),
         ];
 
-        return array_filter($clauses, static fn (mixed $clause): bool => $clause !== null && $clause !== []) === []
-            && $base->from === $rule->getModel()->getTable()
-            && $rule->applyScopes() === $rule;
+        $dropped = array_filter($clauses, static fn (mixed $clause): bool => $clause !== null && $clause !== []);
+
+        return $dropped === [] && $base->from === $rule->getModel()->getTable() && $rule->applyScopes() === $rule;
     }
 
     /**

@@ -15,6 +15,7 @@ use Tests\Fixtures\Models\DefaultLoadingUser;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AliasedScalarUserResource;
+use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\OwnPostResource;
 use Tests\Fixtures\Resources\PostOwnerResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -192,8 +193,8 @@ final class ValidateRowPerimeterDefaultsTest extends TestCase
     }
 
     /**
-     * Test that the resource the serving resource declares over a default
-     * relation governs it rather than the resource mapped to its model.
+     * Test that the resource each level declares over a default relation
+     * governs it rather than the resource mapped to its model.
      *
      * @return void
      */
@@ -201,11 +202,26 @@ final class ValidateRowPerimeterDefaultsTest extends TestCase
     {
         $model = new DefaultLoadingUser;
 
+        $nested = new class extends DefaultLoadingUser {
+            /** @var array<int, string> */
+            protected $with = ['author.posts']; // @phpstan-ignore property.phpDocType
+        };
+
+        $counted = new class extends DefaultLoadingUser {
+            /** @var array<int, string> */
+            protected $with = []; // @phpstan-ignore property.phpDocType
+
+            /** @var array<int, string> */
+            protected $withCount = ['posts']; // @phpstan-ignore property.phpDocType
+        };
+
         self::assertSame([], $this->validate($model, UserResource::class));
+        self::assertSame([], $this->validate($nested, ArticleResource::class));
 
         Config::set('api-toolkit.resources.resource_map', [Post::class => PostResource::class]);
 
         self::assertEquals([self::refusal($model, 'posts', 'with', self::REACHES_POSTS, PostOwnerResource::class)], $this->validate($model, PostOwnerResource::class));
+        self::assertEquals([self::refusal($counted, 'posts', 'withCount', self::REACHES_POSTS, PostOwnerResource::class)], $this->validate($counted, PostOwnerResource::class));
     }
 
     /**
