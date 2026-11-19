@@ -20,7 +20,7 @@
         "php": "^8.3",
         "ext-pdo": "*",
         "laravel/framework": "^13.39",
-        "opis/json-schema": "^2.4",
+        "opis/json-schema": "^2.6",
         "sinemacula/http-primitives-php": "^2.0",
         "sinemacula/laravel-repositories": "^3.2.3"
     },

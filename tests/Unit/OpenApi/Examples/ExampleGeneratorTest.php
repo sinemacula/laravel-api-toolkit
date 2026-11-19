@@ -566,6 +566,26 @@ final class ExampleGeneratorTest extends TestCase
     }
 
     /**
+     * Test that a boolean union alternative adds nothing to its object while a
+     * later conjunct's union still merges its shape in.
+     *
+     * @return void
+     */
+    public function testBooleanAlternativeAddsNothingToItsObject(): void
+    {
+        self::assertSame(
+            ['id' => 1, 'c' => 'string'],
+            $this->value(
+                ['type' => 'object', 'properties' => ['id' => ['type' => 'integer']], 'required' => ['id'], 'anyOf' => [true], 'allOf' => [
+                    ['anyOf' => [['$ref' => '#/components/schemas/C']]],
+                ]],
+                ExampleScope::RESPONSE,
+                ['C' => ['type' => 'object', 'properties' => ['c' => ['type' => 'string']], 'required' => ['c']]],
+            ),
+        );
+    }
+
+    /**
      * Test that both pagination shapes of an index each get an example from
      * their own shape.
      *

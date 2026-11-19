@@ -23,9 +23,10 @@ That no longer holds.
 
 ## Decision
 
-Move `opis/json-schema` (`^2.4`) to `require`. The export validates every example against the schema it sits beside,
-and the generator checks each candidate value the same way, so it never emits a value the schema rejects. A mismatch
-fails the export, naming the example and the JSON pointer of the failure.
+Move `opis/json-schema` to `require` at `^2.6`, the first release that requires a string library free of PHP 8.1
+deprecations. The export validates every example against the schema it sits beside, and the generator checks each
+candidate value the same way, so it never emits a value the schema rejects. A mismatch fails the export, naming the
+example and the JSON pointer of the failure.
 
 Validation runs offline against the assembled document only: the resolver registers that one document and has no
 loaders, so no `$ref` is fetched. The validator runs in its specification-compliant mode: no `default` fills a missing
