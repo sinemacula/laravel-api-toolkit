@@ -333,6 +333,7 @@ class UserResource extends ApiResource
     public static function schema(): array
     {
         return Field::set(
+            Field::scalar('id'),
             Field::scalar('name')->filterable(Capability::EXACT)->sortable()->searchable(SearchStrategy::SUBSTRING),
             Field::scalar('email')->filterable(Capability::EXACT)->searchable(SearchStrategy::SUBSTRING),
             Field::timestamp('created_at')->sortable(),
@@ -344,6 +345,11 @@ class UserResource extends ApiResource
             Max::of('orders', 'created_at', 'last_order_at'),
             Exists::of('messages', 'has_unread_messages')->constrain(fn ($query) => $query->whereNull('read_at')),
         );
+    }
+
+    public function getFullName(): string
+    {
+        return "{$this->first_name} {$this->last_name}";
     }
 }
 ```
@@ -366,7 +372,7 @@ exported schema. The key defaults to Laravel's own attribute name and `as()` or 
 related rows. A sum or average is a JSON number on every engine, so a decimal column sums with float precision. A
 minimum or maximum is read the way the related model reads that column, so a timestamp renders as
 `2026-01-01T10:00:00.000000Z`, a `decimal:2` cast as an exact string such as `"12.50"` and a cast enum as its value. A
-key that reads as an integer, such as `12`, fails to compile. `api-toolkit:schemas:validate` rejects an aggregate over a
+key that reads as an integer, such as `12`, fails to compile. `api-toolkit:validate-schemas` rejects an aggregate over a
 sensitive or missing column, a sum or average over a non-numeric column, a minimum or maximum the related model would
 read back through an accessor or a non-scalar cast, a `MorphTo` relation, and an `aggregate_<key>` attribute the owner
 model already uses as a column, cast or setter.
