@@ -541,10 +541,10 @@ neither flag lets a defect pass. A searchable declaration on a connection listed
 `api-toolkit.search.unverified_connections` is not reported, since that listing already waives its index proof. Boot
 skips schema validation while this command runs, so the command reports everything itself.
 
-The index catalogue is read only during validation, never while a filter or sort is served. Two schema reads do sit on
-the request path, both cached in the shared store: search reads its index proof, and one read of the table's column
-definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks and a cursor-paginated
-sort's refusal of a nullable key.
+Filters and sorts never read the index catalogue while they are served; only validation checks their index backing. Two
+schema reads do sit on the request path, both cached in the shared store: search reads its index proof, and one read of
+the table's column definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks and
+a cursor-paginated sort's refusal of a nullable key.
 
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded

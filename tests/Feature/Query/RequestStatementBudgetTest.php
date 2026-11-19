@@ -51,10 +51,10 @@ final class RequestStatementBudgetTest extends TestCase
 
     /** @var array<string, string> The kind of read each statement pattern names */
     private const array KINDS = [
-        '/order by name asc, email asc, id desc limit /'                 => 'page',
-        '/^select count\(\*\) as aggregate from \(select 1 from users /' => 'count',
-        '/^select \* from (\w+) where \1\.\w+ in /'                      => 'eager load',
-        '/ over \(partition by [^)]+\) as laravel_row from (\w+) /'      => 'window',
+        '/order by (?:users\.)?name asc, (?:users\.)?email asc, (?:users\.)?id desc limit /' => 'page',
+        '/^select count\(\*\) as aggregate from \(select 1 from users /'                     => 'count',
+        '/^select \* from (\w+) where \1\.\w+ in /'                                          => 'eager load',
+        '/ over \(partition by [^)]+\) as laravel_row from (\w+) /'                          => 'window',
     ];
 
     /** @var array<int, string> The statements every warm read of the listing runs */
@@ -147,8 +147,8 @@ final class RequestStatementBudgetTest extends TestCase
      * Test that a cold read asks each catalogue question once, and that the
      * next read asks none and writes no metadata.
      *
-     * A cursor read both narrows its select and refuses a nullable sort key, so
-     * it reads the column names and their definitions.
+     * A cursor read wants the column names, to weigh narrowing its select, and
+     * their definitions, to refuse a nullable sort key.
      *
      * @return void
      */
@@ -329,13 +329,19 @@ final class RequestStatementBudgetTest extends TestCase
     }
 
     /**
-     * Request the given URI and return the statements it ran with the response.
+     * Request the given URI as a new operation and return the statements it ran
+     * with the response.
+     *
+     * The per-operation state is reset first, as a worker resets it between
+     * requests, so only the shared store can serve warm metadata.
      *
      * @param  string  $uri
      * @return array{0: list<string>, 1: \Illuminate\Testing\TestResponse<\Symfony\Component\HttpFoundation\Response>}
      */
     private function read(string $uri): array
     {
+        $this->app?->make(CacheManager::class)->flush();
+
         $response = null;
 
         $statements = $this->recordStatements(function () use ($uri, &$response): void {
