@@ -23,8 +23,11 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
+use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\CompiledScopeDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
+use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Device;
@@ -52,6 +55,8 @@ use Tests\TestCase;
 #[CoversClass(FilterSchemaBuilder::class)]
 final class FilterSchemaBuilderTest extends TestCase
 {
+    use InteractsWithNonPublicMembers;
+
     /** @var array<string, mixed> Any scalar, the value of a column of unknown type */
     private const array SCALAR = ['type' => ['string', 'number', 'boolean']];
 
@@ -187,10 +192,14 @@ final class FilterSchemaBuilderTest extends TestCase
         yield 'int4' => ['int4', ['type' => 'integer', 'minimum' => -2147483648, 'maximum' => 2147483647]];
         yield 'int2' => ['int2', ['type' => 'integer', 'minimum' => -32768, 'maximum' => 32767]];
         yield 'float8' => ['float8', ['type' => 'number']];
-        yield 'float4' => ['float4', ['type' => 'number', 'format' => 'float']];
+        yield 'float4' => ['float4', ['type' => 'number', 'format' => 'float', 'minimum' => -3.4028234663852886E+38, 'maximum' => 3.4028234663852886E+38]];
         yield 'boolean' => ['bool', ['type' => 'boolean']];
         yield 'date' => ['date', ['type' => 'string', 'format' => 'date']];
-        yield 'datetime' => ['timestamptz', ['type' => 'string', 'format' => 'date-time']];
+        yield 'datetime' => ['timestamptz', [
+            'type'    => 'string',
+            'format'  => 'date-time',
+            'pattern' => '^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d+)?(Z|[+-](0\d|1[0-4]):[0-5]\d)$',
+        ]];
         yield 'uuid' => ['uuid', ['type' => 'string', 'format' => 'uuid']];
         yield 'text' => ['varchar', ['type' => 'string']];
     }
@@ -454,18 +463,69 @@ final class FilterSchemaBuilderTest extends TestCase
 
     /**
      * Test that scopes each requiring an argument are invoked only by name
-     * keyed to their arguments.
+     * keyed to their arguments, with every required one listed, including one
+     * the rules leave optional.
      *
      * @return void
      */
     public function testScopesAllRequiringArgumentsAreInvokedOnlyWithThem(): void
     {
         $document = $this->document($this->surface(ManualUserResource::class, [], scopes: [
-            new QueryScopeDescriptor('near', null, ['lat' => true, 'lng' => false]),
+            new QueryScopeDescriptor('near', null, ['lat' => true, 'lng' => true, 'km' => true]),
+            new QueryScopeDescriptor('upcoming', null, ['from' => true]),
         ], models: [ManualUser::class]));
 
-        self::assertSame(['near'], array_keys((array) $document['properties']['$scope']['properties']));
-        self::assertSame('object', $document['properties']['$scope']['type']);
+        $arguments = $this->scopeBuilder()->build(SchemaCompiler::compile(ManualUserResource::class));
+
+        /** @var array<string, mixed> $upcoming */
+        $upcoming = $arguments['upcoming']['parameters'];
+
+        self::assertSame(['lat', 'lng', 'km'], $arguments['near']['parameters']['required']);
+        self::assertSame([
+            'type'                 => 'object',
+            'properties'           => ['near' => $arguments['near']['parameters'], 'upcoming' => [...$upcoming, 'required' => ['from']]],
+            'minProperties'        => 1,
+            'additionalProperties' => false,
+        ], $document['properties']['$scope']);
+    }
+
+    /**
+     * Test that a scope whose argument schema requires a key is not invoked by
+     * a bare name, though its descriptor marks no argument required.
+     *
+     * @return void
+     */
+    public function testAScopeWhoseArgumentSchemaRequiresAKeyTakesNoBareName(): void
+    {
+        $document = $this->document($this->surface(ManualUserResource::class, [], scopes: [
+            new QueryScopeDescriptor('near', null, ['lat' => false, 'lng' => false, 'km' => false]),
+            new QueryScopeDescriptor('upcoming'),
+        ], models: [ManualUser::class]));
+
+        self::assertSame(['type' => 'string', 'enum' => ['upcoming']], $document['properties']['$scope']['anyOf'][0]);
+    }
+
+    /**
+     * Test that a scope whose arguments must name one of several keys is not
+     * invoked by a bare name.
+     *
+     * @return void
+     */
+    public function testAScopeRequiringOneOfSeveralArgumentsTakesNoBareName(): void
+    {
+        $scope = new CompiledScopeDefinition('either', 'either', ['a' => 'required_without:b|string', 'b' => 'string'], ['a', 'b']);
+
+        $upcoming = new CompiledScopeDefinition('upcoming', 'upcoming');
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', [ManualUserResource::class => new CompiledSchema([], scopes: ['either' => $scope, 'upcoming' => $upcoming])]);
+
+        $document = $this->document($this->surface(ManualUserResource::class, [], scopes: [
+            new QueryScopeDescriptor('either', null, ['a' => false, 'b' => false]),
+            new QueryScopeDescriptor('upcoming'),
+        ], models: [ManualUser::class]));
+
+        self::assertSame(['type' => 'string', 'enum' => ['upcoming']], $document['properties']['$scope']['anyOf'][0]);
+        self::assertSame([['required' => ['a']], ['required' => ['b']]], $document['properties']['$scope']['anyOf'][2]['properties']['either']['anyOf']);
     }
 
     /**
@@ -481,12 +541,14 @@ final class FilterSchemaBuilderTest extends TestCase
         ], relations: [
             new QueryRelationDescriptor('posts', PostResource::class, conditional: true),
             new QueryRelationDescriptor('comments'),
+            new QueryRelationDescriptor('commentable', polymorphic: true, conditional: true),
         ], scopes: [
             new QueryScopeDescriptor('upcoming', conditional: true),
         ], models: [ManualUser::class]));
 
         self::assertSame(self::CONDITIONAL, $document['properties']['age']['description']);
         self::assertSame(['$ref' => '#/components/schemas/PostFilters', 'description' => self::CONDITIONAL], $document['properties']['posts']);
+        self::assertSame('Checked against the filters of each related type. ' . self::CONDITIONAL, $document['properties']['commentable']['description']);
         self::assertSame(self::CONDITIONAL, $document['properties']['$scope']['anyOf'][2]['properties']['upcoming']['description']);
         self::assertArrayNotHasKey('description', $document['properties']['email']);
         self::assertArrayNotHasKey('description', $document['properties']['comments']);

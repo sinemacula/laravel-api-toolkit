@@ -1360,9 +1360,10 @@ custom query serializer for the JSON one.
 A filter or order the schemas reject is refused, though the server also accepts other spellings, such as a digit-string
 integer or a date for a date-time. One they accept can still be refused: over a query cost cap, on a key the caller is
 not admitted to, with a repeated order key, with random, aggregate, relation or nullable keys under cursor pagination,
-with `relevance` and no search term, by a polymorphic relation body or the value of an operator declaring no shape
-(both left untyped), with an integer written as `1.0`, or on a column whose type differs between the models a resource
-is bound to.
+with `relevance` and no search term, by a polymorphic relation body or the value of an operator declaring no shape (both
+left untyped), with an integer written as `1.0`, a string carrying a NUL character, a single-precision value too small
+to store, a scope argument refused by a rule or parameter type the schema cannot express, or on a resource bound to
+several models that differ in a column's type or a relation.
 
 A resource schema requires only what every response carries: `_type`, and each fixed field read straight from its
 column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names

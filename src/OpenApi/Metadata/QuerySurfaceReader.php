@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
+use Illuminate\Database\Eloquent\Model;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\OpenApi\Schema\FieldPresence;
@@ -146,27 +147,59 @@ final readonly class QuerySurfaceReader
             $resourceClass,
             $columns,
             $this->readRelations($compiled, $edges),
-            array_values(array_map($this->readScope(...), $compiled->getScopes())),
+            array_values(array_map(fn (CompiledScopeDefinition $scope): QueryScopeDescriptor => $this->readScope($scope, $models), $compiled->getScopes())),
             $pageSize->differsFrom(PageSize::for(null)) ? $pageSize : null,
             $models,
         );
     }
 
     /**
-     * Read one named scope and whether its rules require each argument.
+     * Read one named scope and whether each argument is required, by its rules
+     * or by a parameter with no default on any model the surface filters.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledScopeDefinition  $scope
+     * @param  list<class-string>  $models
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QueryScopeDescriptor
      */
-    private function readScope(CompiledScopeDefinition $scope): QueryScopeDescriptor
+    private function readScope(CompiledScopeDefinition $scope, array $models): QueryScopeDescriptor
     {
+        $unbound   = $this->unboundArguments($scope, $models);
         $arguments = [];
 
         foreach ($scope->arguments as $argument) {
-            $arguments[$argument] = $this->presence->isRequired($this->normaliser->normalise($scope->parameters[$argument] ?? null));
+            $arguments[$argument] = in_array($argument, $unbound, true) || $this->presence->isRequired($this->normaliser->normalise($scope->parameters[$argument] ?? null));
         }
 
         return new QueryScopeDescriptor($scope->name, $scope->description, $arguments, $scope->callerGuards !== []);
+    }
+
+    /**
+     * List the parameters the scope's method declares with no default on any of
+     * the models, which a call must therefore name.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledScopeDefinition  $scope
+     * @param  list<class-string>  $models
+     * @return list<string>
+     */
+    private function unboundArguments(CompiledScopeDefinition $scope, array $models): array
+    {
+        $unbound = [];
+
+        foreach ($models as $modelClass) {
+
+            $parameters = is_subclass_of($modelClass, Model::class) ? $scope->method($modelClass)?->getParameters() ?? [] : [];
+
+            foreach (array_slice($parameters, 1) as $parameter) {
+
+                if ($parameter->isVariadic() || $parameter->isDefaultValueAvailable()) {
+                    continue;
+                }
+
+                $unbound[] = $parameter->getName();
+            }
+        }
+
+        return $unbound;
     }
 
     /**

@@ -43,6 +43,12 @@ final readonly class FilterSchemaBuilder
     /** @var array<string, mixed> Any scalar, for a value whose type is unknown */
     private const array SCALAR = ['type' => ['string', 'number', 'boolean']];
 
+    /** An RFC 3339 date-time with each part in the range the request-time guard reads */
+    private const string DATE_TIME_PATTERN = '^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d+)?(Z|[+-](0\d|1[0-4]):[0-5]\d)$';
+
+    /** The largest magnitude a single-precision column stores */
+    private const float SINGLE_MAX = 3.4028234663852886E+38;
+
     /** The description of a key only some callers may use */
     private const string CONDITIONAL = 'Refused, as an undeclared key is, for callers the resource does not admit.';
 
@@ -258,7 +264,7 @@ final readonly class FilterSchemaBuilder
             ColumnValueKind::NUMBER    => $this->buildNumber((string) $type),
             ColumnValueKind::BOOLEAN   => ['type' => 'boolean'],
             ColumnValueKind::DATE      => ['type' => 'string', 'format' => 'date'],
-            ColumnValueKind::DATETIME  => ['type' => 'string', 'format' => 'date-time'],
+            ColumnValueKind::DATETIME  => ['type' => 'string', 'format' => 'date-time', 'pattern' => self::DATE_TIME_PATTERN],
             ColumnValueKind::UUID      => ['type' => 'string', 'format' => 'uuid'],
             ColumnValueKind::TEXT      => ['type' => 'string'],
             ColumnValueKind::UNCHECKED => self::SCALAR,
@@ -288,7 +294,9 @@ final readonly class FilterSchemaBuilder
      */
     private function buildNumber(string $type): array
     {
-        return $type === 'float4' ? ['type' => 'number', 'format' => 'float'] : ['type' => 'number'];
+        return $type === 'float4'
+            ? ['type' => 'number', 'format' => 'float', 'minimum' => -self::SINGLE_MAX, 'maximum' => self::SINGLE_MAX]
+            : ['type' => 'number'];
     }
 
     /**
@@ -345,8 +353,8 @@ final readonly class FilterSchemaBuilder
 
     /**
      * Build the schema of the named scopes a document may invoke: a name or a
-     * list of names where no argument is required, or names keyed to their
-     * arguments.
+     * list of names where every argument may be left out, or names keyed to
+     * their arguments, each required one listed as such.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor  $surface
      * @return array<string, mixed>
@@ -362,9 +370,17 @@ final readonly class FilterSchemaBuilder
             /** @var array<string, mixed> $parameters */
             $parameters = $described[$scope->name]['parameters'] ?? [];
 
+            /** @var list<string> $declared */
+            $declared = $parameters['required'] ?? [];
+            $required = array_values(array_unique([...$declared, ...array_keys(array_filter($scope->arguments))]));
+
+            if ($required !== []) {
+                $parameters['required'] = $required;
+            }
+
             $arguments[$scope->name] = $this->describe($parameters, $scope->conditional);
 
-            if (in_array(true, $scope->arguments, true)) {
+            if ($required !== [] || array_key_exists('anyOf', $parameters)) {
                 continue;
             }
 
@@ -396,7 +412,8 @@ final readonly class FilterSchemaBuilder
     }
 
     /**
-     * Describe a key only some callers may use.
+     * Describe a key only some callers may use, after anything already said of
+     * it.
      *
      * @param  array<string, mixed>  $schema
      * @param  bool  $conditional
@@ -404,6 +421,12 @@ final readonly class FilterSchemaBuilder
      */
     private function describe(array $schema, bool $conditional): array
     {
-        return $conditional ? [...$schema, 'description' => self::CONDITIONAL] : $schema;
+        if (!$conditional) {
+            return $schema;
+        }
+
+        $schema['description'] = is_string($schema['description'] ?? null) ? $schema['description'] . ' ' . self::CONDITIONAL : self::CONDITIONAL;
+
+        return $schema;
     }
 }

@@ -600,6 +600,27 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
+     * Test that an argument the scope's method takes with no default is
+     * required whatever its rules say, and a variadic one is not.
+     *
+     * @return void
+     */
+    public function testAnArgumentTheMethodTakesWithoutADefaultIsRequired(): void
+    {
+        $scopes = [
+            'named'      => new CompiledScopeDefinition('named', 'named', ['first' => 'sometimes|string', 'second' => 'string'], ['first', 'second']),
+            'namedAmong' => new CompiledScopeDefinition('namedAmong', 'namedAmong', ['name' => 'nullable|string', 'ids' => 'array'], ['name', 'ids']),
+        ];
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => new CompiledSchema([], scopes: $scopes)]);
+
+        $surface = $this->ghostSurface('GhostResource', Gathering::class);
+
+        self::assertSame(['first' => true, 'second' => true], $surface->scopes[0]->arguments);
+        self::assertSame(['name' => true, 'ids' => false], $surface->scopes[1]->arguments);
+    }
+
+    /**
      * Test that each sortable aggregate and each sortable column of the
      * resource a sortable relation renders is read as an unindexed order key,
      * and the rendered resource is read in turn.
@@ -723,14 +744,15 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Read a single resource's surface.
+     * Read a single resource's surface over the given model.
      *
      * @param  class-string  $resourceClass
+     * @param  class-string  $modelClass
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
      */
-    private function surface(string $resourceClass): QuerySurfaceDescriptor
+    private function surface(string $resourceClass, string $modelClass = User::class): QuerySurfaceDescriptor
     {
-        return $this->reader()->read([User::class => $resourceClass], $this->registry())[0];
+        return $this->reader()->read([$modelClass => $resourceClass], $this->registry())[0];
     }
 
     /**
@@ -744,15 +766,17 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Read the surface of a resource name the compiler has been primed for.
+     * Read the surface of a resource name the compiler has been primed for,
+     * over the given model.
      *
      * @param  string  $resourceClass
+     * @param  class-string  $modelClass
      * @return \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor
      */
-    private function ghostSurface(string $resourceClass): QuerySurfaceDescriptor
+    private function ghostSurface(string $resourceClass, string $modelClass = User::class): QuerySurfaceDescriptor
     {
         /** @var class-string $resourceClass */
-        return $this->surface($resourceClass);
+        return $this->surface($resourceClass, $modelClass);
     }
 
     /**

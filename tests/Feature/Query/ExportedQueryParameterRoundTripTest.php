@@ -125,6 +125,7 @@ final class ExportedQueryParameterRoundTripTest extends TestCase
         yield 'token the column does not answer' => ['{"last_name":{"$gt":"A"}}'];
         yield 'scope missing its arguments' => ['{"$scope":"near"}'];
         yield 'empty group' => ['{"$or":[]}'];
+        yield 'lower-case date-time' => ['{"created_at":{"$ge":"2024-01-01t00:00:00z"}}'];
     }
 
     /**

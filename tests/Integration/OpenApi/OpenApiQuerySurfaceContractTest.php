@@ -168,6 +168,17 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
+     * Test that the scan reads tokens from keys as well as values, other than
+     * the JSON Schema reference keyword.
+     *
+     * @return void
+     */
+    public function testTheScanReadsKeysOtherThanTheReferenceKeyword(): void
+    {
+        self::assertSame(['$gone', '$stale'], $this->operatorTokensIn(['properties' => ['$gone' => ['$ref' => '#/components/schemas/X'], 'name' => '$stale']]));
+    }
+
+    /**
      * Test that a dropped token leaves every column and every filter document.
      *
      * @return void
@@ -1147,10 +1158,8 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     }
 
     /**
-     * Collect every distinct operator-shaped token in the document's values.
-     *
-     * Keys are skipped: the only dollar-prefixed key is the JSON Schema $ref
-     * keyword.
+     * Collect every distinct operator-shaped token in the document's keys and
+     * values, other than the JSON Schema $ref keyword.
      *
      * @param  array<string, mixed>  $document
      * @return array<int, string>
@@ -1179,7 +1188,12 @@ final class OpenApiQuerySurfaceContractTest extends TestCase
     {
         if (is_array($node)) {
 
-            foreach ($node as $value) {
+            foreach ($node as $key => $value) {
+
+                if ($key !== '$ref') {
+                    $this->collectTokens((string) $key, $tokens);
+                }
+
                 $this->collectTokens($value, $tokens);
             }
 

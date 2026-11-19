@@ -581,7 +581,7 @@ final class QueryParameterBuilderTest extends TestCase
     }
 
     /**
-     * Test that only an index reads its resource's query surface.
+     * Test that only an index takes its resource's filters, search and order.
      *
      * @return void
      */
