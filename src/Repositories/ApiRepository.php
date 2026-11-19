@@ -170,32 +170,32 @@ abstract class ApiRepository extends Repository
     }
 
     /**
-     * Scope the model by the given id.
+     * Scope the model by the given id, matched against its key by default.
      *
      * @param  int|string|null  $id
-     * @param  string  $column
+     * @param  string|null  $column
      * @return static
      *
      * @phpstan-pure
      */
-    public function scopeById(int|string|null $id, string $column = 'id'): static
+    public function scopeById(int|string|null $id, ?string $column = null): static
     {
         return $this->scopeByIds([$id], $column);
     }
 
     /**
-     * Scope the model by the given ids.
+     * Scope the model by the given ids, matched against its key by default.
      *
      * @param  array<int, int|string|null>  $ids
-     * @param  string  $column
+     * @param  string|null  $column
      * @return static
      *
      * @phpstan-pure
      */
-    public function scopeByIds(array $ids, string $column = 'id'): static
+    public function scopeByIds(array $ids, ?string $column = null): static
     {
         return $this->addScope(function (Builder $query) use ($column, $ids): void {
-            $query->getQuery()->whereIn($column, array_unique($ids));
+            $query->getQuery()->whereIn($query->qualifyColumn($column ?? $query->getModel()->getKeyName()), array_unique($ids));
         });
     }
 
