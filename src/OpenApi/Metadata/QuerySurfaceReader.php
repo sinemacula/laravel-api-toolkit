@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Metadata;
 
+use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
@@ -13,7 +14,7 @@ use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 
 /**
  * Reads the query surface each registered resource declares, and each resource
- * a filter reaches through one.
+ * a filter or an order reaches through one.
  *
  * Read from the compiled column maps the request-time gates use, so the surface
  * never claims a column a request would reject.
@@ -36,7 +37,7 @@ final readonly class QuerySurfaceReader
 
     /**
      * Read one query surface descriptor per resource in the given map, then per
-     * resource reached through a traversable relation.
+     * resource reached through a traversable or sortable relation.
      *
      * @param  array<class-string, class-string>  $resourceMap
      * @param  \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry  $registry
@@ -105,7 +106,94 @@ final readonly class QuerySurfaceReader
             $columns = [...$columns, ...$this->readColumns($property, $field, $compiled, $registry)];
         }
 
+        $columns = [...$columns, ...$this->readAggregateSorts($compiled), ...$this->readRelationSorts($compiled)];
+
         return new QuerySurfaceDescriptor($resourceClass, $columns, $this->readRelations($compiled, $edges));
+    }
+
+    /**
+     * Read one order key per sortable aggregate.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
+     * @return list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor>
+     */
+    private function readAggregateSorts(CompiledSchema $compiled): array
+    {
+        $columns = [];
+
+        foreach ($compiled->getSortableMetrics() as $key => $aggregate) {
+            $columns[] = new QueryColumnDescriptor(
+                property       : $key,
+                column         : $key,
+                sortable       : true,
+                unindexedReason: $aggregate->unindexedReason,
+                sortConditional: $aggregate->callerGuards !== [],
+            );
+        }
+
+        return $columns;
+    }
+
+    /**
+     * Read one order key per sortable column of the resource each sortable
+     * relation renders.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
+     * @return list<\SineMacula\ApiToolkit\OpenApi\Metadata\QueryColumnDescriptor>
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
+     */
+    private function readRelationSorts(CompiledSchema $compiled): array
+    {
+        $columns = [];
+
+        foreach ($compiled->getSortableRelations() as $relation => $declarers) {
+
+            $resource = $compiled->getTraversableResource($relation) ?? '';
+
+            if (!is_subclass_of($resource, ApiResourceInterface::class)) {
+                continue;
+            }
+
+            $child   = SchemaCompiler::compile($resource);
+            $guarded = array_filter($declarers, static fn (string $key): bool => $compiled->getField($key)?->callerGuards !== []) === $declarers;
+
+            foreach ($this->sortableColumns($child) as $column => $property) {
+                $columns[] = new QueryColumnDescriptor(
+                    property       : $declarers[0] . '.' . $property,
+                    column         : $relation . '.' . $column,
+                    sortable       : true,
+                    unindexedReason: $compiled->getField($declarers[0])?->sortThroughReason,
+                    sortConditional: $guarded || array_key_exists($column, $child->getConditionalSortKeys()),
+                );
+            }
+        }
+
+        return $columns;
+    }
+
+    /**
+     * Map each sortable column of a resource to its first declaring property.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
+     * @return array<string, string>
+     */
+    private function sortableColumns(CompiledSchema $compiled): array
+    {
+        $columns = [];
+
+        foreach ($compiled->getFieldKeys() as $property) {
+
+            $column = $compiled->getField($property)?->sortable;
+
+            if ($column === null || !in_array($column, $compiled->getSortableColumns(), true)) {
+                continue;
+            }
+
+            $columns[$column] ??= $property;
+        }
+
+        return $columns;
     }
 
     /**

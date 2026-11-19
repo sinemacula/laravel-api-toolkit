@@ -12,6 +12,9 @@ namespace SineMacula\ApiToolkit\Schema;
  */
 final readonly class CompiledSchema
 {
+    /** @var string The prefix an order key names a sortable aggregate under */
+    public const string AGGREGATE_SORT_PREFIX = 'aggregates.';
+
     /**
      * Create a new compiled schema.
      *
@@ -25,6 +28,7 @@ final readonly class CompiledSchema
      * @param  array<string, list<string>>  $conditionalFilterKeys
      * @param  array<string, list<string>>  $conditionalSortKeys
      * @param  array<string, list<string>>  $conditionalTraversalKeys
+     * @param  array<string, list<string>>  $sortableRelations
      */
     public function __construct(
 
@@ -46,7 +50,7 @@ final readonly class CompiledSchema
         /** Declared searchable column names mapped to their match strategy */
         private array $searchableColumns = [],
 
-        /** Traversable relation names mapped to the child resource declared over them */
+        /** Traversable and sortable relation names mapped to the child resource declared over them */
         private array $traversableResources = [],
 
         /** Filter keys only caller-guarded fields declare, mapped to those fields */
@@ -57,6 +61,9 @@ final readonly class CompiledSchema
 
         /** Relation keys only caller-guarded fields declare, mapped to those fields */
         private array $conditionalTraversalKeys = [],
+
+        /** Relation names an order may read through, mapped to the fields declaring them */
+        private array $sortableRelations = [],
     ) {}
 
     /**
@@ -128,6 +135,38 @@ final readonly class CompiledSchema
     }
 
     /**
+     * Return the sortable aggregates keyed by the order key naming each.
+     *
+     * @return array<string, \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition>
+     */
+    public function getSortableMetrics(): array
+    {
+        $metrics = [];
+
+        foreach ($this->aggregates as $key => $aggregate) {
+
+            if ($aggregate->unindexedReason === null) {
+                continue;
+            }
+
+            $metrics[self::AGGREGATE_SORT_PREFIX . $key] = $aggregate;
+        }
+
+        return $metrics;
+    }
+
+    /**
+     * Return the relation names an order may read through, mapped to the fields
+     * declaring them.
+     *
+     * @return array<string, list<string>>
+     */
+    public function getSortableRelations(): array
+    {
+        return $this->sortableRelations;
+    }
+
+    /**
      * Return the declared externally-traversable relation names.
      *
      * @return array<int, string>
@@ -138,7 +177,8 @@ final readonly class CompiledSchema
     }
 
     /**
-     * Return the child resource declared over a traversable relation, if any.
+     * Return the child resource declared over a traversable or sortable
+     * relation, if any.
      *
      * @param  string  $relation
      * @return string|null

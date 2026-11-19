@@ -811,6 +811,50 @@ final class ResourceSchemaBuilderTest extends TestCase
     }
 
     /**
+     * Test that a sortable aggregate documents its order key under the
+     * aggregates object, and a sortable relation the prefix its keys share,
+     * both unindexed and conditional where caller-guarded.
+     *
+     * @return void
+     */
+    public function testSortableAggregatesAndRelationsDocumentTheirUnindexedOrders(): void
+    {
+        $guard    = static fn (): bool => true;
+        $count    = new CompiledAggregateDefinition('posts_count', 'posts', AggregateFunction::COUNT, null, null, false, [], unindexedReason: 'Leaderboard');
+        $guarded  = new CompiledAggregateDefinition('spend', 'posts', AggregateFunction::SUM, 'id', null, false, [], callerGuards: [$guard], unindexedReason: 'Admin list');
+        $employer = new CompiledFieldDefinition(
+            accessor         : null,
+            compute          : null,
+            relation         : 'organization',
+            resource         : OrganizationResource::class,
+            fields           : null,
+            constraint       : null,
+            extras           : [],
+            needs            : [],
+            guards           : [],
+            transformers     : [],
+            callerGuards     : [$guard],
+            sortThroughReason: 'Back-office list',
+        );
+
+        $properties = $this->buildGhost(new CompiledSchema(
+            fields           : ['employer' => $employer],
+            aggregates       : ['posts_count' => $count, 'spend' => $guarded, 'posts_sum_id' => $this->aggregate('posts_sum_id', AggregateFunction::SUM, 'id')],
+            sortableRelations: ['organization' => ['employer']],
+        ))['properties'];
+
+        $aggregates = (array) $properties['aggregates']['properties'];
+        $unindexed  = static fn (array $naming, string $reason, bool $conditional = false): array => [
+            'sort' => [...$naming, 'indexed' => false, 'reason' => $reason, ...($conditional ? ['conditional' => true] : [])],
+        ];
+
+        self::assertSame($unindexed(['prefix' => 'organization'], 'Back-office list', true), $properties['employer']['x-query-surface']);
+        self::assertSame($unindexed(['key' => 'aggregates.posts_count'], 'Leaderboard'), $aggregates['posts_count']['x-query-surface']);
+        self::assertSame($unindexed(['key' => 'aggregates.spend'], 'Admin list', true), $aggregates['spend']['x-query-surface']);
+        self::assertArrayNotHasKey('x-query-surface', (array) $aggregates['posts_sum_id']);
+    }
+
+    /**
      * Test that an index-exempt sortable column documents it and the reason.
      *
      * @return void

@@ -4,13 +4,16 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\Schema\Validation\Rules;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use SineMacula\ApiToolkit\Contracts\SchemaValidationRule;
+use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationAggregateOrder;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 
 /**
- * Validate that relation names exist as methods on the associated model.
+ * Validate that relation names exist as methods on the associated model, and
+ * that a sortable relation renders a single row.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -68,7 +71,8 @@ final class ValidateRelationMethods implements SchemaValidationRule
                 continue;
             }
 
-            $error = $this->validateRelationMethod($resourceClass, $key, $modelClass, $field->relation);
+            $error = $this->validateRelationMethod($resourceClass, $key, $modelClass, $field->relation)
+                ?? $this->validateSortableRelation($resourceClass, $key, $modelClass, $field->relation, $field->sortThroughReason);
 
             if ($error === null) {
                 continue;
@@ -109,6 +113,36 @@ final class ValidateRelationMethods implements SchemaValidationRule
             resourceClass: $resourceClass,
             fieldKey: $fieldKey,
             defect: $this->describeReturnTypeDefect($returnType, $relationMethod, $modelClass),
+        );
+    }
+
+    /**
+     * Validate that a sortable relation renders the single row its order reads.
+     *
+     * @param  string  $resourceClass
+     * @param  string  $fieldKey
+     * @param  string  $modelClass
+     * @param  string  $relation
+     * @param  string|null  $sortReason
+     * @return \SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError|null
+     */
+    private function validateSortableRelation(string $resourceClass, string $fieldKey, string $modelClass, string $relation, ?string $sortReason): ?SchemaValidationError
+    {
+        if ($sortReason === null || !is_subclass_of($modelClass, Model::class)) {
+            return null;
+        }
+
+        if (RelationAggregateOrder::rendersOneRow((new $modelClass)->newModelQuery()->getRelation($relation))) {
+            return null;
+        }
+
+        return new SchemaValidationError(
+            resourceClass: $resourceClass,
+            fieldKey: $fieldKey,
+            defect: sprintf(
+                'Relation "%s" is sortable, so it must be a BelongsTo, or a HasOne, MorphOne or HasOneThrough declared with latestOfMany() or ofMany()',
+                $relation,
+            ),
         );
     }
 

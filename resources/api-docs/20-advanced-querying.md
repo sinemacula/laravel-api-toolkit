@@ -352,6 +352,19 @@ direction but `asc`, and may be followed by other keys to break ties:
 ?search=smith&order=relevance,name
 ```
 
+Where the resource declares it, a read can also be ordered by an aggregate, by
+the path its value renders under, or by a column of a related record, by the
+relation and the column:
+
+```text
+?order=aggregates.posts_count:desc
+?order=customer.name
+```
+
+A record with no related record, or with no value to aggregate, sorts as empty:
+first in ascending order on MySQL and SQLite, last on PostgreSQL. Neither key can
+order a cursor-paginated read.
+
 ## Limiting and paging
 
 On paginated endpoints, `limit` sets the page size and `page` selects the page.

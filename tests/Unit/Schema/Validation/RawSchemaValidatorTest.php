@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Exceptions\InvalidSchemaException;
+use SineMacula\ApiToolkit\Schema\BaseDefinition;
 use SineMacula\ApiToolkit\Schema\Count;
 use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
@@ -360,12 +361,14 @@ final class RawSchemaValidatorTest extends TestCase
     /**
      * Provide one query declaration of each kind.
      *
-     * @return iterable<string, array{\SineMacula\ApiToolkit\Schema\Field|\SineMacula\ApiToolkit\Schema\Relation, string}>
+     * @return iterable<string, array{\SineMacula\ApiToolkit\Schema\BaseDefinition, string}>
      */
     public static function rowGuardedQueryDeclarations(): iterable
     {
         yield 'filterable' => [Field::scalar('salary')->filterable(Capability::RANGE), 'filterable'];
         yield 'sortable' => [Field::scalar('salary')->sortable(), 'sortable'];
+        yield 'sortable aggregate' => [Count::of('posts')->sortable('Leaderboard'), 'sortable'];
+        yield 'sortable relation' => [Relation::to('organization', OrganizationResource::class)->sortable('Back-office list'), 'sortable'];
         yield 'searchable' => [Field::scalar('email')->searchable(SearchStrategy::SUBSTRING), 'searchable'];
         yield 'traversable' => [Relation::to('posts', PostResource::class)->traversable(), 'traversable'];
     }
@@ -374,12 +377,12 @@ final class RawSchemaValidatorTest extends TestCase
      * Test that a row guard refuses each declaration that would let a query
      * reach the values it hides.
      *
-     * @param  \SineMacula\ApiToolkit\Schema\Field|\SineMacula\ApiToolkit\Schema\Relation  $definition
+     * @param  \SineMacula\ApiToolkit\Schema\BaseDefinition  $definition
      * @param  string  $declaration
      * @return void
      */
     #[DataProvider('rowGuardedQueryDeclarations')]
-    public function testRefusesARowGuardedFieldOnTheQuerySurface(Field|Relation $definition, string $declaration): void
+    public function testRefusesARowGuardedFieldOnTheQuerySurface(BaseDefinition $definition, string $declaration): void
     {
         $errors = $this->collectErrors(Field::set($definition->guard(static fn (): bool => true)));
 
@@ -710,6 +713,91 @@ final class RawSchemaValidatorTest extends TestCase
             [self::RESOURCE, 'posts', self::sharedRelation('"posts", "bounded_posts"', 'posts')],
             [self::RESOURCE, 'comments', self::sharedRelation('"comments", "open_comments"', 'comments')],
         ], $errors);
+    }
+
+    /**
+     * Provide raw sortable aggregates and relations carrying no usable reason.
+     *
+     * @return iterable<string, array{array<string, mixed>}>
+     */
+    public static function reasonlessSortProvider(): iterable
+    {
+        yield 'aggregate without a reason' => [['metric' => 'count', 'relation' => 'posts', 'sortable' => true]];
+        yield 'aggregate with a blank reason' => [['metric' => 'count', 'relation' => 'posts', 'sortable' => true, 'unindexed' => ' ']];
+        yield 'relation with a non-string reason' => [['relation' => 'posts', 'resource' => PostResource::class, 'sortable' => true, 'unindexed' => true]];
+    }
+
+    /**
+     * Test that a raw sortable aggregate or relation must carry a reason.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return void
+     */
+    #[DataProvider('reasonlessSortProvider')]
+    public function testRefusesASortableAggregateOrRelationWithoutAReason(array $definition): void
+    {
+        self::assertSame(
+            [[self::RESOURCE, 'posts', 'A sortable relation or aggregate must carry the reason its order is unindexed']],
+            $this->collectErrors(['posts' => $definition]),
+        );
+    }
+
+    /**
+     * Test that a sortable relation must render a resource, run no constraint
+     * and not take the aggregate key prefix as its name.
+     *
+     * @return void
+     */
+    public function testRefusesASortableRelationItsOrderCannotHonour(): void
+    {
+        $errors = $this->collectErrors(Field::set(
+            Relation::to('organization', static fn (): null => null)->sortable('Back-office list'),
+            Relation::to('posts', PostResource::class)->constrain(self::constraint())->sortable('Back-office list'),
+            Relation::to('aggregates', OrganizationResource::class, 'grouped')->sortable('Back-office list'),
+        ));
+
+        self::assertSame([
+            [self::RESOURCE, 'organization', 'A sortable relation must render a child resource, whose sortable columns it orders by'],
+            [self::RESOURCE, 'posts', 'A sortable relation may not be constrained, as its order would read the rows the constraint hides'],
+            [self::RESOURCE, 'grouped', 'A sortable relation may not be named "aggregates", which prefixes the aggregate order keys'],
+        ], $errors);
+    }
+
+    /**
+     * Test that every defect of one sortable relation is reported.
+     *
+     * @return void
+     */
+    public function testReportsEveryDefectOfOneSortableRelation(): void
+    {
+        $errors = $this->collectErrors(['aggregates' => ['relation' => 'aggregates', 'constraint' => self::constraint(), 'sortable' => true]]);
+
+        self::assertSame([
+            [self::RESOURCE, 'aggregates', 'A sortable relation or aggregate must carry the reason its order is unindexed'],
+            [self::RESOURCE, 'aggregates', 'A sortable relation must render a child resource, whose sortable columns it orders by'],
+            [self::RESOURCE, 'aggregates', 'A sortable relation may not be constrained, as its order would read the rows the constraint hides'],
+            [self::RESOURCE, 'aggregates', 'A sortable relation may not be named "aggregates", which prefixes the aggregate order keys'],
+        ], $errors);
+    }
+
+    /**
+     * Test that a constrained sortable aggregate and a sortable relation over a
+     * resource are accepted, and that a sortable marker on a plain field is
+     * left to the column rules.
+     *
+     * @return void
+     */
+    public function testAcceptsSortableAggregatesAndRelationsItsOrderCanHonour(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        RawSchemaValidator::assertValid([
+            ...Field::set(
+                Count::of('posts')->constrain(self::constraint())->sortable('Leaderboard'),
+                Relation::to('organization', OrganizationResource::class)->sortable('Back-office list'),
+            ),
+            'flag' => ['sortable' => true],
+        ], self::RESOURCE);
     }
 
     /**

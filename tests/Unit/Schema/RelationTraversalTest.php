@@ -12,13 +12,16 @@ use SineMacula\ApiToolkit\Schema\Field;
 use SineMacula\ApiToolkit\Schema\Relation;
 use SineMacula\ApiToolkit\Schema\RelationEdge;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
+use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Note;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Resources\ArticleResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\PublicUserResource;
 use Tests\Fixtures\Resources\QueryableTagResource;
+use Tests\Fixtures\Resources\SortableUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -139,6 +142,45 @@ final class RelationTraversalTest extends TestCase
     public function testAClassThatIsNoModelHasNoEdges(): void
     {
         self::assertSame([], $this->traversal()->edges(UserResource::class, \stdClass::class));
+    }
+
+    /**
+     * Test that a relation an order reads through is an edge as well, once
+     * where it is also traversable, so the resource it reaches is validated and
+     * documented.
+     *
+     * @return void
+     */
+    public function testEdgesIncludeEachSortableRelationOnce(): void
+    {
+        $articles = new class (null) extends ApiResource {
+            /** @var string */
+            public const string RESOURCE_TYPE = 'traversal_articles';
+
+            /**
+             * Get the resource schema.
+             *
+             * @return array<string, array<string, mixed>>
+             */
+            #[\Override]
+            public static function schema(): array
+            {
+                return Field::set(
+                    Field::scalar('id'),
+                    Relation::to('author', PublicUserResource::class)->traversable()->sortable('Back-office list'),
+                    Relation::to('author', PublicUserResource::class, 'writer')->sortable('Back-office list'),
+                );
+            }
+        };
+
+        self::assertEquals(
+            [new RelationEdge('author', User::class, false, PublicUserResource::class)],
+            $this->traversal()->edges($articles::class, Article::class),
+        );
+        self::assertEquals(
+            [new RelationEdge('latestArticle', Article::class, false, ArticleResource::class)],
+            $this->traversal()->edges(SortableUserResource::class, User::class),
+        );
     }
 
     /**

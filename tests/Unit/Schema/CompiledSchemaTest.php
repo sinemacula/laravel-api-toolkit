@@ -350,4 +350,36 @@ final class CompiledSchemaTest extends TestCase
         self::assertSame([], $empty->getConditionalSortKeys());
         self::assertSame([], $empty->getConditionalTraversalKeys());
     }
+
+    /**
+     * Test that only the aggregates carrying a sort reason are sortable, keyed
+     * by the order key naming each.
+     *
+     * @return void
+     */
+    public function testGetSortableMetricsKeysTheSortableAggregatesByOrderKey(): void
+    {
+        $count = new CompiledAggregateDefinition('posts_count', 'posts', AggregateFunction::COUNT, null, null, false, [], unindexedReason: 'Leaderboard');
+        $plain = new CompiledAggregateDefinition('posts_sum_id', 'posts', AggregateFunction::SUM, 'id', null, false, []);
+        $spend = new CompiledAggregateDefinition('spend', 'orders', AggregateFunction::SUM, 'total', null, false, [], unindexedReason: 'Accounts list');
+
+        $schema = new CompiledSchema([], ['posts_sum_id' => $plain, 'posts_count' => $count, 'spend' => $spend]);
+
+        self::assertSame(['aggregates.posts_count' => $count, 'aggregates.spend' => $spend], $schema->getSortableMetrics());
+        self::assertSame([], (new CompiledSchema([]))->getSortableMetrics());
+    }
+
+    /**
+     * Test that getSortableRelations returns the relations mapped to their
+     * declaring fields, and defaults to empty.
+     *
+     * @return void
+     */
+    public function testGetSortableRelationsReturnsTheDeclaringFieldsAndDefaultsToEmpty(): void
+    {
+        $schema = new CompiledSchema([], sortableRelations: ['customer' => ['customer', 'buyer']]);
+
+        self::assertSame(['customer' => ['customer', 'buyer']], $schema->getSortableRelations());
+        self::assertSame([], (new CompiledSchema([]))->getSortableRelations());
+    }
 }
