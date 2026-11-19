@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
@@ -12,6 +13,7 @@ use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
 use SineMacula\ApiToolkit\Schema\ColumnNarrower;
+use SineMacula\ApiToolkit\Schema\ColumnProjection;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 
@@ -65,30 +67,58 @@ final readonly class ColumnProjectionApplier
             return $query;
         }
 
-        $model        = $query->getModel();
-        $relationKeys = $this->relationNames($metadataProvider->eagerLoadMapFor($resourceClass, $fields));
-        $safety       = $this->deriveSafetySet($query, $relationKeys, $order);
-        $columns      = $this->schemaIntrospector->getColumns($model);
-        $decision     = (new ColumnNarrower)->decide(FieldColumnMapper::for($resourceClass), $fields, $safety, $model, $columns);
-
-        if ($decision->shouldNarrow()) {
-            $query->getQuery()->select($model->qualifyColumns($decision->columns()));
-        } elseif ($decision->reason() !== null) {
-            Log::debug('Column narrowing fell back to a full select', [
-                'model'    => $model::class,
-                'resource' => $resourceClass,
-                'field'    => $decision->reason(),
-            ]);
-        }
+        $this->narrow($query, $metadataProvider, $resourceClass, $fields, $order);
 
         return $query;
     }
 
     /**
-     * Resolve the rendered field set for the resource class.
+     * Narrow the select to the fields' columns and the safety set, or log why
+     * it stays full.
      *
-     * The fixed fields join it, less those the schema does not declare, such as
-     * `_type`, which read no column.
+     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
+     * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
+     * @param  string  $resourceClass
+     * @param  array<int, string>  $fields
+     * @param  array<string, string>  $order
+     * @return void
+     */
+    private function narrow(Builder $query, ResourceMetadataProvider $metadataProvider, string $resourceClass, array $fields, array $order): void
+    {
+        $model      = $query->getModel();
+        $eagerLoads = [...$metadataProvider->eagerLoadMapFor($resourceClass, $fields), ...$query->getEagerLoads()];
+        $safety     = $this->safetySetDeriver->derive($model, $eagerLoads, $this->orderColumns($order));
+
+        if (!$safety->shouldNarrow()) {
+            $this->logFallback($model, $resourceClass, ['relation' => $safety->reason()]);
+
+            return;
+        }
+
+        $decision = (new ColumnNarrower)->decide(FieldColumnMapper::for($resourceClass), $fields, $safety->columns(), $model, $this->schemaIntrospector->getColumns($model));
+
+        if ($decision->shouldNarrow()) {
+            ColumnProjection::apply($query->getQuery(), $model->qualifyColumns($decision->columns()));
+        } elseif ($decision->reason() !== null) {
+            $this->logFallback($model, $resourceClass, ['field' => $decision->reason()]);
+        }
+    }
+
+    /**
+     * Log why the select was left unnarrowed.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @param  string  $resourceClass
+     * @param  array<string, string|null>  $cause
+     * @return void
+     */
+    private function logFallback(Model $model, string $resourceClass, array $cause): void
+    {
+        Log::debug('Column narrowing fell back to a full select', ['model' => $model::class, 'resource' => $resourceClass, ...$cause]);
+    }
+
+    /**
+     * Resolve the rendered field set for the resource class.
      *
      * @param  \SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider  $metadataProvider
      * @param  string  $resourceClass
@@ -97,52 +127,12 @@ final readonly class ColumnProjectionApplier
     private function resolveFields(ResourceMetadataProvider $metadataProvider, string $resourceClass): array
     {
         $resourceType = $metadataProvider->getResourceType($resourceClass);
-        $declared     = $metadataProvider->getAllFields($resourceClass);
 
         $fields = in_array(':all', ApiQuery::getFields($resourceType) ?? [], true)
-            ? $declared
+            ? [...$metadataProvider->getAllFields($resourceClass), 'aggregates']
             : $metadataProvider->resolveFields($resourceClass);
 
-        return [...$fields, ...array_intersect($metadataProvider->getFixedFields($resourceClass), $declared)];
-    }
-
-    /**
-     * Extract the base-model relation names from an eager-load map.
-     *
-     * Scoped relations are keyed by path; plain ones are list values.
-     *
-     * @param  array<int|string, mixed>  $map
-     * @return array<int, string>
-     */
-    private function relationNames(array $map): array
-    {
-        $names = [];
-
-        foreach ($map as $key => $value) {
-
-            $path = is_string($key) ? $key : $value;
-
-            if (!is_string($path)) {
-                continue;
-            }
-
-            $names[] = explode('.', $path)[0];
-        }
-
-        return $names;
-    }
-
-    /**
-     * Derive the columns the narrowed query must retain.
-     *
-     * @param  \Illuminate\Contracts\Database\Eloquent\Builder  $query
-     * @param  array<int, string>  $relationKeys
-     * @param  array<string, string>  $order
-     * @return array<int, string>
-     */
-    private function deriveSafetySet(Builder $query, array $relationKeys, array $order): array
-    {
-        return $this->safetySetDeriver->derive($query->getModel(), $relationKeys, $this->orderColumns($order));
+        return [...$fields, ...$metadataProvider->getFixedFields($resourceClass)];
     }
 
     /**

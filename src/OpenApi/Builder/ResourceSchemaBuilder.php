@@ -147,7 +147,9 @@ final readonly class ResourceSchemaBuilder
                 $limited[] = $fieldKey;
             }
 
-            $properties[$fieldKey] = $this->withQuerySurface($this->overrideProperty($field) ?? $property, $field, $compiled);
+            $schema = $this->overrideProperty($field) ?? $property;
+
+            $properties[$fieldKey] = $this->withQuerySurface($field->openApi?->annotate($schema) ?? $schema, $field, $compiled);
         }
 
         if ($compiled->getAggregateDefinitions() !== []) {
@@ -190,7 +192,7 @@ final readonly class ResourceSchemaBuilder
         }
 
         if (!is_subclass_of($modelClass, Model::class)) {
-            return ($field->openApi ?? OpenApiFieldSchema::undocumented())->toArray();
+            return OpenApiFieldSchema::undocumented()->toArray();
         }
 
         return $this->resolver->resolve($fieldKey, $field, $modelClass)->toArray();
@@ -199,19 +201,21 @@ final readonly class ResourceSchemaBuilder
     /**
      * Resolve the schema that replaces a field's inferred one, if any.
      *
-     * A declaration wins, and a transformer changes the value, so an undeclared
-     * one is undocumented.
+     * A declared shape wins, and a transformer changes the value, so an
+     * undeclared one is undocumented.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledFieldDefinition  $field
      * @return array<string, mixed>|null
      */
     private function overrideProperty(CompiledFieldDefinition $field): ?array
     {
-        return match (true) {
-            $field->openApi      !== null => $field->openApi->toArray(),
-            $field->transformers !== []   => OpenApiFieldSchema::undocumented()->toArray(),
-            default                       => null,
-        };
+        $declared = $field->openApi;
+
+        if ($declared !== null && !$declared->annotatesOnly()) {
+            return $declared->toArray();
+        }
+
+        return $field->transformers === [] ? null : OpenApiFieldSchema::undocumented()->toArray();
     }
 
     /**
@@ -325,7 +329,8 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Build the aggregates property, keyed by each aggregate's present key.
+     * Build the aggregates property, keyed by each aggregate's present key, and
+     * the order key of each sortable one.
      *
      * @param  \SineMacula\ApiToolkit\Schema\CompiledSchema  $compiled
      * @param  class-string  $modelClass
@@ -334,9 +339,20 @@ final readonly class ResourceSchemaBuilder
     private function buildAggregatesProperty(CompiledSchema $compiled, string $modelClass): array
     {
         $properties = [];
+        $sortable   = $compiled->getSortableMetrics();
 
         foreach ($compiled->getAggregateDefinitions() as $presentKey => $definition) {
-            $properties[$presentKey] = $this->resolver->resolveAggregate($definition, $modelClass);
+
+            $property = $this->resolver->resolveAggregate($definition, $modelClass);
+            $key      = CompiledSchema::AGGREGATE_SORT_PREFIX . $presentKey;
+
+            if (isset($sortable[$key])) {
+                $conditional = $definition->callerGuards === [] ? [] : ['conditional' => true];
+
+                $property[self::QUERY_SURFACE_KEY] = ['sort' => ['key' => $key, 'indexed' => false, 'reason' => $definition->unindexedReason, ...$conditional]];
+            }
+
+            $properties[$presentKey] = $property;
         }
 
         return ['type' => 'object', 'properties' => $properties];
@@ -462,7 +478,8 @@ final readonly class ResourceSchemaBuilder
     }
 
     /**
-     * Describe what an order may ask of the field's column.
+     * Describe what an order may ask of the field's column, or of the columns
+     * of the resource a sortable relation renders.
      *
      * `indexed` is the resource's claim (no exemption recorded), not a database
      * reading.
@@ -473,6 +490,12 @@ final readonly class ResourceSchemaBuilder
      */
     private function sortSurface(CompiledFieldDefinition $field, CompiledSchema $compiled): ?array
     {
+        if ($field->relation !== null && $field->sortThroughReason !== null) {
+            $conditional = $compiled->isConditionalSortRelation($field->relation) ? ['conditional' => true] : [];
+
+            return ['prefix' => $field->relation, 'indexed' => false, 'reason' => $field->sortThroughReason, ...$conditional];
+        }
+
         if ($field->sortable === null || !in_array($field->sortable, $compiled->getSortableColumns(), true)) {
             return null;
         }

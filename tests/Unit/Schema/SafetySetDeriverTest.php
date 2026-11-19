@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Schema\SafetySetDeriver;
 use Tests\Fixtures\Models\Document;
+use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
 /**
@@ -56,7 +57,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['uuid', 'name']);
 
-        $columns = $this->deriver->derive($model, [], []);
+        $columns = $this->deriver->derive($model, [], [])->columns();
 
         self::assertContains('uuid', $columns);
         self::assertNotContains('id', $columns);
@@ -75,7 +76,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn('deleted_at');
         $this->introspector->method('getColumns')->willReturn(['id', 'deleted_at', 'name']);
 
-        $columns = $this->deriver->derive($model, [], []);
+        $columns = $this->deriver->derive($model, [], [])->columns();
 
         self::assertContains('deleted_at', $columns);
     }
@@ -92,7 +93,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['id', 'name']);
 
-        $columns = $this->deriver->derive($model, [], []);
+        $columns = $this->deriver->derive($model, [], [])->columns();
 
         self::assertNotContains('deleted_at', $columns);
     }
@@ -108,7 +109,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['id', 'title', 'version']);
 
-        self::assertSame(['id', 'version'], $this->deriver->derive(new Document, [], []));
+        self::assertSame(['id', 'version'], $this->deriver->derive(new Document, [], [])->columns());
     }
 
     /**
@@ -127,29 +128,99 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('parentKeysFor')->willReturn(['taggable_type', 'taggable_id']);
         $this->introspector->method('getColumns')->willReturn(['id', 'taggable_type', 'taggable_id', 'name']);
 
-        $columns = $this->deriver->derive($model, ['taggable'], []);
+        $columns = $this->deriver->derive($model, ['taggable'], [])->columns();
 
         self::assertContains('taggable_type', $columns);
         self::assertContains('taggable_id', $columns);
     }
 
     /**
-     * Test that an unresolvable relation contributes nothing and does not
-     * throw.
+     * Test that a relation that does not resolve falls back, naming it.
      *
      * @return void
      */
-    public function testUnresolvableRelationContributesNothing(): void
+    public function testFallsBackForAnUnresolvableRelation(): void
     {
-        $model = $this->makeModel('id');
-
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('resolveRelation')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['id', 'name']);
 
-        $columns = $this->deriver->derive($model, ['nonexistent'], []);
+        $decision = $this->deriver->derive($this->makeModel('id'), ['nonexistent'], []);
 
-        self::assertSame(['id'], $columns);
+        self::assertFalse($decision->shouldNarrow());
+        self::assertSame('nonexistent', $decision->reason());
+    }
+
+    /**
+     * Test that a relation of a class whose parent keys are unknown falls back,
+     * naming it.
+     *
+     * @return void
+     */
+    public function testFallsBackForARelationOfAnUnrecognisedClass(): void
+    {
+        $this->introspector->method('getDeletedAtColumn')->willReturn(null);
+        $this->introspector->method('resolveRelation')->willReturn(self::createStub(Relation::class));
+        $this->introspector->method('parentKeysFor')->willReturn(null);
+        $this->introspector->method('getColumns')->willReturn(['id', 'name']);
+
+        $decision = $this->deriver->derive($this->makeModel('id'), ['custom'], []);
+
+        self::assertFalse($decision->shouldNarrow());
+        self::assertSame('custom', $decision->reason());
+    }
+
+    /**
+     * Test that a chaperoned relation falls back, since it replaces its nested
+     * loads with the narrowed parent.
+     *
+     * @return void
+     */
+    public function testFallsBackForAChaperonedRelation(): void
+    {
+        $user = new User;
+
+        $this->introspector->method('getDeletedAtColumn')->willReturn(null);
+        $this->introspector->method('resolveRelation')->willReturnCallback(static fn (string $key): ?Relation => match ($key) {
+            'comments' => $user->comments(),
+            'posts'    => $user->posts()->chaperone('user'),
+            default    => null,
+        });
+        $this->introspector->method('parentKeysFor')->willReturn(['id']);
+        $this->introspector->method('getColumns')->willReturn(['id', 'name']);
+
+        self::assertTrue($this->deriver->derive($user, ['comments'], [])->shouldNarrow());
+
+        $decision = $this->deriver->derive($user, ['comments', 'posts'], []);
+
+        self::assertFalse($decision->shouldNarrow());
+        self::assertSame('posts', $decision->reason());
+    }
+
+    /**
+     * Test that each eager-load entry names its relation by its first segment,
+     * whether listed, keyed or carrying a column selection.
+     *
+     * @return void
+     */
+    public function testReadsTheRelationNameOfEveryEagerLoadEntry(): void
+    {
+        $resolved = [];
+        $relation = self::createStub(Relation::class);
+
+        $this->introspector->method('getDeletedAtColumn')->willReturn(null);
+        $this->introspector->method('resolveRelation')->willReturnCallback(static function (string $key) use (&$resolved, $relation): Relation {
+            $resolved[] = $key;
+
+            return $relation;
+        });
+        $this->introspector->method('parentKeysFor')->willReturn(['author_id']);
+        $this->introspector->method('getColumns')->willReturn(['id', 'author_id']);
+
+        $decision = $this->deriver->derive($this->makeModel('id'), ['author.posts', 'tags' => static fn (): null => null, 'editor:id,name', 7, 'author'], []);
+
+        self::assertSame(['author', 'tags', 'editor'], $resolved);
+        self::assertSame(['id', 'author_id'], $decision->columns());
     }
 
     /**
@@ -164,7 +235,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['id', 'name', 'created_at']);
 
-        $columns = $this->deriver->derive($model, [], ['created_at']);
+        $columns = $this->deriver->derive($model, [], ['created_at'])->columns();
 
         self::assertContains('created_at', $columns);
     }
@@ -182,7 +253,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['id', 'status']);
 
-        self::assertSame(['id'], $this->deriver->derive($model, [], []));
+        self::assertSame(['id'], $this->deriver->derive($model, [], [])->columns());
     }
 
     /**
@@ -198,32 +269,9 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['id', 'name']);
 
-        $columns = $this->deriver->derive($model, [], ['virtual_order']);
+        $columns = $this->deriver->derive($model, [], ['virtual_order'])->columns();
 
         self::assertNotContains('virtual_order', $columns);
-    }
-
-    /**
-     * Test that an unresolvable relation is skipped so a later resolvable
-     * relation still contributes its parent keys.
-     *
-     * @return void
-     */
-    public function testSkipsUnresolvableRelationButProcessesLaterOnes(): void
-    {
-        $model    = $this->makeModel('id');
-        $relation = self::createStub(Relation::class);
-
-        $this->introspector->method('getDeletedAtColumn')->willReturn(null);
-        $this->introspector->method('resolveRelation')->willReturnCallback(
-            fn (string $key): ?Relation => $key === 'author' ? $relation : null,
-        );
-        $this->introspector->method('parentKeysFor')->willReturn(['author_id']);
-        $this->introspector->method('getColumns')->willReturn(['id', 'author_id', 'name']);
-
-        $columns = $this->deriver->derive($model, ['missing', 'author'], []);
-
-        self::assertContains('author_id', $columns);
     }
 
     /**
@@ -251,7 +299,7 @@ final class SafetySetDeriverTest extends TestCase
         );
         $this->introspector->method('getColumns')->willReturn(['id', 'author_id', 'category_id', 'name']);
 
-        $columns = $this->deriver->derive($model, ['author', 'category'], []);
+        $columns = $this->deriver->derive($model, ['author', 'category'], [])->columns();
 
         self::assertContains('author_id', $columns);
         self::assertContains('category_id', $columns);
@@ -270,7 +318,7 @@ final class SafetySetDeriverTest extends TestCase
         $this->introspector->method('getDeletedAtColumn')->willReturn(null);
         $this->introspector->method('getColumns')->willReturn(['id', 'name']);
 
-        $columns = $this->deriver->derive($model, [], ['id', 'ghost', 'name']);
+        $columns = $this->deriver->derive($model, [], ['id', 'ghost', 'name'])->columns();
 
         self::assertSame(['id', 'name'], $columns);
     }

@@ -37,6 +37,7 @@ use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AuthoredPostResource;
 use Tests\Fixtures\Resources\DeclaredOpenApiUserResource;
+use Tests\Fixtures\Resources\ExampledUserResource;
 use Tests\Fixtures\Resources\FixedFieldsUserResource;
 use Tests\Fixtures\Resources\GatheringResource;
 use Tests\Fixtures\Resources\GuardedQueryableUserResource;
@@ -701,9 +702,38 @@ final class ResourceSchemaBuilderTest extends TestCase
             'type'        => ['string', 'null'],
             'format'      => 'color',
             'enum'        => ['bronze', 'silver', 'gold'],
-            'example'     => 'gold',
+            'examples'    => ['gold'],
             'description' => 'The membership tier of the user',
         ], $schema['properties']['tier']);
+    }
+
+    /**
+     * Test that a declared example lays over the schema a field would have
+     * without it, inferred, self-declared or undocumented.
+     *
+     * @return void
+     */
+    public function testDeclaredExampleKeepsTheFieldsSchema(): void
+    {
+        $properties = $this->makeBuilder([User::class => ExampledUserResource::class])->build()['ExampledUser']['properties'];
+
+        self::assertSame(['type' => 'string', 'examples' => ['Ada Lovelace']], $properties['name']);
+        self::assertSame(['type' => ['string', 'null'], 'format' => 'date-time', 'examples' => ['2025-01-01T00:00:00Z']], $properties['created_at']);
+        self::assertSame(['x-undocumented' => true, 'examples' => ['AL']], $properties['initials']);
+    }
+
+    /**
+     * Test that a resource over a class that is no model leaves its fields
+     * undocumented, but for a declared shape, each keeping its example.
+     *
+     * @return void
+     */
+    public function testFieldsOfANonModelResourceAreUndocumentedButForADeclaredShape(): void
+    {
+        $properties = $this->makeBuilder([\stdClass::class => ExampledUserResource::class])->build()['ExampledUser']['properties'];
+
+        self::assertSame(['x-undocumented' => true, 'examples' => ['Ada Lovelace']], $properties['name']);
+        self::assertSame(['type' => ['string', 'null'], 'format' => 'date-time', 'examples' => ['2025-01-01T00:00:00Z']], $properties['created_at']);
     }
 
     /**
@@ -847,6 +877,84 @@ final class ResourceSchemaBuilderTest extends TestCase
             ['sort' => ['key' => 'created_at', 'indexed' => true]],
             $properties['created_at']['x-query-surface'],
         );
+    }
+
+    /**
+     * Test that a sortable aggregate documents its order key under the
+     * aggregates object, and a sortable relation the prefix its keys share,
+     * both unindexed and conditional where caller-guarded.
+     *
+     * @return void
+     */
+    public function testSortableAggregatesAndRelationsDocumentTheirUnindexedOrders(): void
+    {
+        $guard    = static fn (): bool => true;
+        $count    = new CompiledAggregateDefinition('posts_count', 'posts', AggregateFunction::COUNT, null, null, false, [], unindexedReason: 'Leaderboard');
+        $guarded  = new CompiledAggregateDefinition('spend', 'posts', AggregateFunction::SUM, 'id', null, false, [], callerGuards: [$guard], unindexedReason: 'Admin list');
+        $employer = new CompiledFieldDefinition(
+            accessor         : null,
+            compute          : null,
+            relation         : 'organization',
+            resource         : OrganizationResource::class,
+            fields           : null,
+            constraint       : null,
+            extras           : [],
+            needs            : [],
+            guards           : [],
+            transformers     : [],
+            callerGuards     : [$guard],
+            sortThroughReason: 'Back-office list',
+        );
+
+        $properties = $this->buildGhost(new CompiledSchema(
+            fields           : ['employer' => $employer],
+            aggregates       : ['posts_count' => $count, 'spend' => $guarded, 'posts_sum_id' => $this->aggregate('posts_sum_id', AggregateFunction::SUM, 'id')],
+            sortableRelations: ['organization' => ['employer']],
+        ))['properties'];
+
+        $aggregates = (array) $properties['aggregates']['properties'];
+        $unindexed  = static fn (array $naming, string $reason, bool $conditional = false): array => [
+            'sort' => [...$naming, 'indexed' => false, 'reason' => $reason, ...($conditional ? ['conditional' => true] : [])],
+        ];
+
+        self::assertSame($unindexed(['prefix' => 'organization'], 'Back-office list', true), $properties['employer']['x-query-surface']);
+        self::assertSame($unindexed(['key' => 'aggregates.posts_count'], 'Leaderboard'), $aggregates['posts_count']['x-query-surface']);
+        self::assertSame($unindexed(['key' => 'aggregates.spend'], 'Admin list', true), $aggregates['spend']['x-query-surface']);
+        self::assertArrayNotHasKey('x-query-surface', (array) $aggregates['posts_sum_id']);
+    }
+
+    /**
+     * Test that only a field declaring the relation sortable documents its
+     * order, conditional only while every sortable declarer is caller-guarded.
+     *
+     * @return void
+     */
+    public function testOnlySortableRelationFieldsDocumentTheOrderTheyShare(): void
+    {
+        $guard    = static fn (): bool => true;
+        $relation = static fn (array $callerGuards, ?string $reason): CompiledFieldDefinition => new CompiledFieldDefinition(
+            accessor         : null,
+            compute          : null,
+            relation         : 'organization',
+            resource         : OrganizationResource::class,
+            fields           : null,
+            constraint       : null,
+            extras           : [],
+            needs            : [],
+            guards           : [],
+            transformers     : [],
+            callerGuards     : $callerGuards,
+            sortThroughReason: $reason,
+        );
+
+        $properties = $this->buildGhost(new CompiledSchema(
+            fields           : ['employer' => $relation([$guard], 'Back-office list'), 'company' => $relation([], 'Admin list'), 'firm' => $relation([], null)],
+            sortableRelations: ['organization' => ['employer', 'company']],
+        ))['properties'];
+
+        self::assertSame(['sort' => ['prefix' => 'organization', 'indexed' => false, 'reason' => 'Back-office list']], $properties['employer']['x-query-surface']);
+        self::assertSame(['sort' => ['prefix' => 'organization', 'indexed' => false, 'reason' => 'Admin list']], $properties['company']['x-query-surface']);
+        self::assertArrayNotHasKey('x-query-surface', (array) $properties['firm']);
     }
 
     /**

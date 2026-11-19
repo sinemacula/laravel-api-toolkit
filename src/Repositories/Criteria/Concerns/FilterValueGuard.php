@@ -59,6 +59,7 @@ final readonly class FilterValueGuard
             FilterValueShape::LIST     => $this->resolveItems($model, $condition, $value, null),
             FilterValueShape::BOUNDS   => $this->resolveItems($model, $condition, $value, 2),
             FilterValueShape::PRESENCE => $value === true ? $value : throw $this->reject($condition, 'filters.value_presence'),
+            FilterValueShape::ELEMENTS => $this->resolveElements($condition, $value),
         };
     }
 
@@ -106,6 +107,60 @@ final readonly class FilterValueGuard
         }
 
         return array_map(fn (mixed $item, int $index): bool|float|int|string => $this->resolveItem($model, $condition, $item, $index), $value, array_keys($value));
+    }
+
+    /**
+     * Resolve a value that must be one JSON element or a non-empty list of
+     * them, which the column's type does not describe.
+     *
+     * @param  array{position: string, column: string, operator: string}  $condition
+     * @param  mixed  $value
+     * @return array<int, bool|float|int|string>|bool|float|int|string
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function resolveElements(array $condition, mixed $value): array|bool|float|int|string
+    {
+        if ($value === null) {
+            throw $this->reject($condition, 'filters.value_null');
+        }
+
+        if (!is_array($value)) {
+            return $this->resolveElement($condition, $value, null);
+        }
+
+        if ($value === [] || !array_is_list($value)) {
+            throw $this->reject($condition, 'filters.value_elements');
+        }
+
+        return array_map(fn (mixed $item, int $index): bool|float|int|string => $this->resolveElement($condition, $item, $index), $value, array_keys($value));
+    }
+
+    /**
+     * Resolve one JSON element of the value, located by its index in a list.
+     *
+     * @param  array{position: string, column: string, operator: string}  $condition
+     * @param  mixed  $item
+     * @param  int|null  $index
+     * @return bool|float|int|string
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function resolveElement(array $condition, mixed $item, ?int $index): bool|float|int|string
+    {
+        if (!is_scalar($item)) {
+            throw $this->rejectType($condition, $index, Rejection::message('filters.expected.scalar'));
+        }
+
+        if (is_float($item) && !is_finite($item)) {
+            throw $this->rejectType($condition, $index, Rejection::message('filters.expected.number'));
+        }
+
+        if (is_string($item) && str_contains($item, "\0")) {
+            throw $this->rejectType($condition, $index, Rejection::message('filters.expected.nul'));
+        }
+
+        return $item;
     }
 
     /**

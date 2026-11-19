@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Exceptions;
 
 use SineMacula\ApiToolkit\Enums\ErrorCode;
+use SineMacula\ApiToolkit\OpenApi\Contracts\DefinesErrorMeta;
 use SineMacula\Http\Enums\HttpStatus;
 
 /**
@@ -13,11 +14,26 @@ use SineMacula\Http\Enums\HttpStatus;
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ForbiddenException extends ApiException
+final class ForbiddenException extends ApiException implements DefinesErrorMeta
 {
     /** @var \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface The internal error code */
     public const \SineMacula\ApiToolkit\Contracts\ErrorCodeInterface CODE = ErrorCode::FORBIDDEN;
 
     /** @var \SineMacula\Http\Enums\HttpStatus The HTTP status code */
     public const HttpStatus HTTP_STATUS = HttpStatus::FORBIDDEN;
+
+    /**
+     * Return the schema of the meta, the code a policy denied the request with.
+     *
+     * @return array<string, mixed>
+     */
+    #[\Override]
+    public static function metaSchema(): array
+    {
+        return [
+            'type'                 => 'object',
+            'properties'           => ['reason' => ['type' => ['string', 'integer']]],
+            'additionalProperties' => false,
+        ];
+    }
 }

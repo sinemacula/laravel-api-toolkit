@@ -6,6 +6,7 @@ namespace Tests\Unit\OpenApi\Metadata;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
+use SineMacula\ApiToolkit\Enums\AggregateFunction;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Enums\SearchStrategy;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -14,7 +15,9 @@ use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryScopeDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceReader;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\CompiledScopeDefinition;
@@ -28,10 +31,15 @@ use Tests\Fixtures\Models\Organization;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\AliasedQueryableUserResource;
 use Tests\Fixtures\Resources\GatheringResource;
+use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
+use Tests\Fixtures\Resources\GuardedQueryableUserResource;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\PublicUserResource;
 use Tests\Fixtures\Resources\SharedColumnMarkerResource;
+use Tests\Fixtures\Resources\SortableAuthoredPostResource;
+use Tests\Fixtures\Resources\SortableUserResource;
 use Tests\Fixtures\Resources\SplitColumnMarkerResource;
 use Tests\Fixtures\Resources\UndeclaredQueryMarkerResource;
 use Tests\Fixtures\Resources\UserResource;
@@ -67,6 +75,18 @@ final class QuerySurfaceReaderTest extends TestCase
             [UserResource::class, OrganizationResource::class, PostResource::class],
             array_map(static fn (QuerySurfaceDescriptor $surface): string => $surface->resource, $surfaces),
         );
+    }
+
+    /**
+     * Test that only a resource whose page size bounds differ from the
+     * configured ones carries them.
+     *
+     * @return void
+     */
+    public function testOnlyAResourceWithItsOwnPageSizeCarriesIt(): void
+    {
+        self::assertEquals(new PageSize(2, 2), $this->surface(CappedPageUserResource::class)->pageSize);
+        self::assertNull($this->surface(UserResource::class)->pageSize);
     }
 
     /**
@@ -520,6 +540,129 @@ final class QuerySurfaceReaderTest extends TestCase
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => new CompiledSchema([], scopes: ['within' => $scope])]);
 
         self::assertSame(['km' => false, 'ids' => false, 'tag' => true], $this->ghostSurface('GhostResource')->scopes[0]->arguments);
+    }
+
+    /**
+     * Test that each sortable aggregate and each sortable column of the
+     * resource a sortable relation renders is read as an unindexed order key,
+     * and the rendered resource is read in turn.
+     *
+     * @return void
+     */
+    public function testSortableAggregatesAndRelationsAreReadAsUnindexedOrderKeys(): void
+    {
+        $surfaces = $this->reader()->read([User::class => SortableUserResource::class], $this->registry());
+        $orders   = [];
+
+        foreach ($surfaces[0]->columns as $column) {
+            $orders[$column->property] = [$column->column, $column->sortable, $column->unindexedReason];
+        }
+
+        self::assertSame(
+            [SortableUserResource::class, ArticleResource::class, SortableAuthoredPostResource::class],
+            array_map(static fn (QuerySurfaceDescriptor $surface): string => $surface->resource, $surfaces),
+        );
+        self::assertSame([
+            'name'                       => ['name', true, null],
+            'aggregates.posts_count'     => ['aggregates.posts_count', true, 'Leaderboard over a few hundred authors'],
+            'aggregates.published_posts' => ['aggregates.published_posts', true, 'Leaderboard over a few hundred authors'],
+            'aggregates.article_views'   => ['aggregates.article_views', true, 'Admin list of a few hundred authors'],
+            'latestArticle.views'        => ['latestArticle.views', true, 'Admin list of a few hundred authors'],
+            'latestPost.published'       => ['latestPost.published', true, 'Admin list of a few hundred authors'],
+        ], $orders);
+        self::assertSame([], $surfaces[0]->relations);
+    }
+
+    /**
+     * Test that an aggregate or relation order key is conditional where its
+     * aggregate, its relation or the related column is caller-guarded, and a
+     * relation rendering no API resource offers no key.
+     *
+     * @return void
+     */
+    public function testAggregateAndRelationOrderKeysCarryEveryGuardOnTheirPath(): void
+    {
+        $guard     = static fn (): bool => true;
+        $aggregate = static fn (string $key, array $guards): CompiledAggregateDefinition => new CompiledAggregateDefinition(
+            presentKey     : $key,
+            relation       : 'posts',
+            function       : AggregateFunction::COUNT,
+            column         : null,
+            constraint     : null,
+            isDefault      : false,
+            guards         : [],
+            callerGuards   : $guards,
+            unindexedReason: 'Leaderboard',
+        );
+        $relation = static fn (string $relation, array $guards): CompiledFieldDefinition => new CompiledFieldDefinition(
+            accessor         : null,
+            compute          : null,
+            relation         : $relation,
+            resource         : GuardedQueryableUserResource::class,
+            fields           : null,
+            constraint       : null,
+            extras           : [],
+            needs            : [],
+            guards           : [],
+            transformers     : [],
+            callerGuards     : $guards,
+            sortThroughReason: 'Admin list',
+        );
+
+        $schema = new CompiledSchema(
+            fields              : ['author' => $relation('author', []), 'checker' => $relation('reviewer', [$guard])],
+            aggregates          : ['posts_count' => $aggregate('posts_count', []), 'spend' => $aggregate('spend', [$guard])],
+            traversableResources: ['author' => GuardedQueryableUserResource::class, 'reviewer' => GuardedQueryableUserResource::class, 'plain' => \stdClass::class],
+            sortableRelations   : ['unrendered' => ['author'], 'plain' => ['author'], 'author' => ['author'], 'reviewer' => ['checker']],
+        );
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
+
+        $conditional = [];
+
+        foreach ($this->ghostSurface('GhostResource')->columns as $column) {
+            $conditional[$column->property . ' ' . $column->column] = $column->sortConditional;
+        }
+
+        self::assertSame([
+            'aggregates.posts_count aggregates.posts_count' => false,
+            'aggregates.spend aggregates.spend'             => true,
+            'author.id author.id'                           => false,
+            'author.name author.name'                       => false,
+            'author.email author.email'                     => true,
+            'checker.id reviewer.id'                        => true,
+            'checker.name reviewer.name'                    => true,
+            'checker.email reviewer.email'                  => true,
+        ], $conditional);
+    }
+
+    /**
+     * Test that a relation order key names each column the rendered resource
+     * sorts by once, under the first property declaring it, and no column the
+     * compiled sort map leaves out.
+     *
+     * @return void
+     */
+    public function testRelationOrderKeysNameEachSortableColumnOnceUnderItsFirstProperty(): void
+    {
+        $child  = static fn (string $column): CompiledFieldDefinition => new CompiledFieldDefinition(null, null, null, null, null, null, [], [], [], [], sortable: $column);
+        $writer = new CompiledFieldDefinition(null, null, 'author', PublicUserResource::class, null, null, [], [], [], [], sortThroughReason: 'Admin list');
+
+        $this->setStaticProperty(SchemaCompiler::class, 'cache', [
+            'GhostResource' => new CompiledSchema(
+                fields              : ['writer' => $writer],
+                traversableResources: ['author' => PublicUserResource::class],
+                sortableRelations   : ['author' => ['writer']],
+            ),
+            PublicUserResource::class => new CompiledSchema(
+                fields         : ['name' => $child('name'), 'label' => $child('name'), 'secret' => $child('secret')],
+                sortableColumns: ['name'],
+            ),
+        ]);
+
+        $columns = array_map(static fn (QueryColumnDescriptor $column): array => [$column->property, $column->column], $this->ghostSurface('GhostResource')->columns);
+
+        self::assertSame([['writer.name', 'author.name']], $columns);
     }
 
     /**

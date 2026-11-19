@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Str;
+use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Validation\Rejection;
 
 /**
@@ -26,11 +27,15 @@ final readonly class PageOrder
      * Create a new page order.
      *
      * @param  \SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral  $literal
+     * @param  \SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider  $introspector
      */
     public function __construct(
 
         /** Checks each cursor boundary against its column's storage type */
         private ColumnLiteral $literal,
+
+        /** Reports whether the model's table holds its key column */
+        private SchemaIntrospectionProvider $introspector,
     ) {}
 
     /**
@@ -73,6 +78,10 @@ final readonly class PageOrder
      */
     public function cursor(Builder $query, string $token): ?Cursor
     {
+        $model = $query->getModel();
+
+        $this->guardKeyed($query->getQuery(), $model);
+
         if ($token === '') {
             return null;
         }
@@ -84,7 +93,6 @@ final readonly class PageOrder
             throw Rejection::at('cursor', 'cursor.malformed');
         }
 
-        $model   = $query->getModel();
         $columns = array_unique($this->seekColumns($query->getQuery(), $model));
 
         if (count($parameters) !== count($columns) + 1) {
@@ -101,6 +109,77 @@ final readonly class PageOrder
         }
 
         return $cursor;
+    }
+
+    /**
+     * Bound the leading order column at the cursor, so the read seeks from it.
+     *
+     * The bound is implied by the seek predicate, but PostgreSQL reads that
+     * predicate's disjunction from the start of the index rather than as a
+     * range.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  \Illuminate\Pagination\Cursor|null  $cursor
+     * @return \Illuminate\Database\Eloquent\Builder<TModel>
+     */
+    public function seek(Builder $query, ?Cursor $cursor): Builder
+    {
+        $base   = $query->getQuery();
+        $column = $this->boundableColumn($base, $query->getModel());
+
+        if ($cursor === null || $column === null) {
+            return $query;
+        }
+
+        $forward = (($base->orders[0]['direction'] ?? null) === 'asc') === $cursor->pointsToNextItems();
+
+        $base->where($column, $forward ? '>=' : '<=', $cursor->parameter($column));
+
+        return $query;
+    }
+
+    /**
+     * Resolve the leading order column a seek gains from bounding, or null.
+     *
+     * A lone ordered column already seeks by range. Only a column of the
+     * queried table is bound, since an alias is not a column a where clause can
+     * name.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $base
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return string|null
+     */
+    private function boundableColumn(QueryBuilder $base, Model $model): ?string
+    {
+        $orders = $base->orders        ?? [];
+        $column = $orders[0]['column'] ?? null;
+
+        if (count($orders) < 2 || !empty($base->unions) || !is_string($column)) {
+            return null;
+        }
+
+        return str_starts_with($column, $model->getTable() . '.') ? $column : null;
+    }
+
+    /**
+     * Refuse a cursor over a table without its key column, which only a grouped
+     * and ordered read can seek without.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $base
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function guardKeyed(QueryBuilder $base, Model $model): void
+    {
+        $groupOrdered = !empty($base->groups) && $this->seekColumns($base, $model) !== [$model->getQualifiedKeyName()];
+
+        if (!$groupOrdered && !$this->storesKey($model)) {
+            throw Rejection::at('pagination', 'cursor.keyless');
+        }
     }
 
     /**
@@ -131,7 +210,8 @@ final readonly class PageOrder
     }
 
     /**
-     * Resolve the model key as the tiebreaker, unless the query cannot take it.
+     * Resolve the model key as the tiebreaker, unless the query cannot take it
+     * or the table has no such column.
      *
      * @param  \Illuminate\Database\Query\Builder  $base
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -142,11 +222,25 @@ final readonly class PageOrder
         $ordered = $this->columnsOf($base->orders ?? []);
         $keyed   = in_array($model->getKeyName(), $ordered, true) || in_array($model->getQualifiedKeyName(), $ordered, true);
 
-        if ($keyed || !empty($base->havings)) {
+        if ($keyed || !empty($base->havings) || !$this->storesKey($model)) {
             return [];
         }
 
         return [$model->getQualifiedKeyName()];
+    }
+
+    /**
+     * Determine whether the model's table holds its key column, assuming so
+     * where the catalogue cannot tell.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return bool
+     */
+    private function storesKey(Model $model): bool
+    {
+        $columns = $this->introspector->getColumnDefinitions($model);
+
+        return $columns === [] || array_key_exists($model->getKeyName(), $columns);
     }
 
     /**

@@ -386,6 +386,26 @@ final class RelationTrashedGateTest extends TestCase
     }
 
     /**
+     * Test that a gated constraint runs the given constraint, then widens the
+     * related rows where the related resource opts in.
+     *
+     * @return void
+     */
+    public function testGatedConstraintRunsTheConstraintThenTheGatedScope(): void
+    {
+        $constraint = static function (Builder $query): void {
+            $query->where('status', 'live');
+        };
+
+        $live    = $this->sqlAfter($this->gate()->gatedConstraint($constraint, TrashedState::NONE));
+        $widened = $this->sqlAfter($this->gate()->gatedConstraint($constraint, TrashedState::WITH));
+
+        self::assertSame('select * from "articles" where "status" = ? and "articles"."deleted_at" is null', $live);
+        self::assertSame('select * from "articles" where "status" = ?', $widened);
+        self::assertSame('select * from "articles"', $this->sqlAfter($this->gate()->gatedConstraint(null, TrashedState::WITH)));
+    }
+
+    /**
      * Test that one trashed request widens both the root and its relation.
      *
      * @return void

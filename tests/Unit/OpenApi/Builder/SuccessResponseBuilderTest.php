@@ -60,6 +60,23 @@ final class SuccessResponseBuilderTest extends TestCase
     }
 
     /**
+     * Test that a declared collection's body documents the total-count header
+     * its length-aware page carries.
+     *
+     * @return void
+     */
+    public function testCollectionBodyCarriesTheTotalCountHeader(): void
+    {
+        self::assertSame(
+            [
+                'headers' => self::TOTAL_COUNT_HEADER,
+                'content' => ['application/json' => ['schema' => (new EnvelopeBuilder)->anyCollectionEnvelopeFor(['$ref' => self::WIDGET_REF])]],
+            ],
+            $this->builder()->body(PathResponseSchemaController::class, 'widgets'),
+        );
+    }
+
+    /**
      * Test that the body falls back to the undocumented envelope.
      *
      * @return void

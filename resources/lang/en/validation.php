@@ -44,6 +44,7 @@ return [
         'value_list'           => 'The :operator condition on ":column" must be a list of values.',
         'value_bounds'         => 'The :operator condition on ":column" must be a list of two values, [low, high].',
         'value_presence'       => 'The :operator condition on ":column" takes only true; $null matches a missing value and $notNull a present one.',
+        'value_elements'       => 'The :operator condition on ":column" must be a single value or a non-empty list of values.',
         'value_type'           => 'The :operator condition on ":column" must be :expected.',
         'item_type'            => 'Item :index of the :operator condition on ":column" must be :expected.',
         'expected'             => [
@@ -67,6 +68,7 @@ return [
         'repeated_key'           => 'The ":key" key may appear in the order only once.',
         'random_cursor'          => 'Random order cannot be paged by cursor; use offset pagination.',
         'nullable_cursor'        => 'The ":key" key admits null, so it cannot order a cursor-paginated read; use offset pagination.',
+        'aggregate_cursor'       => 'The ":key" key cannot order a cursor-paginated read; use offset pagination.',
         'relevance_needs_search' => 'The relevance order ranks search matches, so it needs a search term.',
         'relevance_cursor'       => 'Relevance order cannot be paged by cursor; use offset pagination.',
         'relevance_direction'    => 'The relevance key accepts asc only.',
@@ -75,6 +77,7 @@ return [
     'cursor' => [
         'malformed' => 'The cursor could not be read; restart from the first page.',
         'mismatch'  => 'The cursor does not match the requested order; restart from the first page.',
+        'keyless'   => 'This collection has no key to page by cursor; use offset pagination.',
     ],
 
     'search' => [

@@ -6,6 +6,7 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria;
 
 use Illuminate\Http\Request;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
+use SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\CompiledScopeDefinition;
 
@@ -72,6 +73,17 @@ final class CallerAdmission
     public function admitsScope(CompiledScopeDefinition $scope): bool
     {
         return $this->scopes[$scope] ??= $this->guards->passesCallerGuards($scope->callerGuards, $this->request);
+    }
+
+    /**
+     * Determine whether an aggregate passes its caller guards.
+     *
+     * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $aggregate
+     * @return bool
+     */
+    public function admitsAggregate(CompiledAggregateDefinition $aggregate): bool
+    {
+        return $this->guards->passesCallerGuards($aggregate->callerGuards, $this->request);
     }
 
     /**
