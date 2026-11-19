@@ -148,7 +148,7 @@ final class ColumnNarrowingIntegrationTest extends TestCase
 
         $aggregates = array_column($rows, 'aggregates', 'name');
 
-        self::assertStringStartsWith('select id, name, (select count(*) from posts', $sql);
+        self::assertStringStartsWith('select users.id, users.name, (select count(*) from posts', $sql);
         self::assertSame(1, $aggregates['Alice']['posts_count']);
         self::assertTrue($aggregates['Alice']['has_published_posts']);
         self::assertSame(['posts_count' => 0, 'has_published_posts' => false], $aggregates['Bob']);
