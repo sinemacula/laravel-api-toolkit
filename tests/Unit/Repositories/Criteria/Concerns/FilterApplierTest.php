@@ -26,17 +26,8 @@ use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterApplier;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
-use SineMacula\ApiToolkit\Repositories\Criteria\Operators\BetweenOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Operators\EqualOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Operators\GreaterThanOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Operators\GreaterThanOrEqualOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\InOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LessThanOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Operators\LessThanOrEqualOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotEqualOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NotNullOperator;
-use SineMacula\ApiToolkit\Repositories\Criteria\Operators\NullOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
@@ -113,20 +104,9 @@ final class FilterApplierTest extends TestCase
     {
         parent::setUp();
 
-        $this->operatorRegistry = new OperatorRegistry;
-        $this->operatorRegistry->register('$eq', new EqualOperator);
-        $this->operatorRegistry->register('$neq', new NotEqualOperator);
-        $this->operatorRegistry->register('$gt', new GreaterThanOperator);
-        $this->operatorRegistry->register('$lt', new LessThanOperator);
-        $this->operatorRegistry->register('$ge', new GreaterThanOrEqualOperator);
-        $this->operatorRegistry->register('$le', new LessThanOrEqualOperator);
-        $this->operatorRegistry->register('$in', new InOperator);
-        $this->operatorRegistry->register('$between', new BetweenOperator);
-        $this->operatorRegistry->register('$contains', new ContainsOperator);
-        $this->operatorRegistry->register('$null', new NullOperator);
-        $this->operatorRegistry->register('$notNull', new NotNullOperator);
-
         assert($this->app !== null);
+
+        $this->operatorRegistry = $this->app->make(OperatorRegistry::class);
 
         $this->applier = new FilterApplier(new FilterValueGuard(new ColumnLiteral($this->app->make(SchemaIntrospectionProvider::class))));
     }
@@ -685,7 +665,7 @@ final class FilterApplierTest extends TestCase
      */
     public function testCustomOperatorAddingNoClauseIsRefused(): void
     {
-        $this->operatorRegistry->register('$noop', static function (): void {});
+        $this->operatorRegistry->register('$noop', static function (): void {}, Capability::EXACT);
 
         $this->assertRefusedAt(['name' => ['$eq' => 'Alice', '$noop' => 'x']], 'filters.name.$noop', self::addsNothing('filters.name.$noop'));
         $this->assertRefusedAt(['posts' => ['title' => ['$noop' => 'x']]], 'filters.posts.title.$noop', self::addsNothing('filters.posts.title.$noop'));
@@ -703,7 +683,7 @@ final class FilterApplierTest extends TestCase
     {
         $this->operatorRegistry->register('$either', static function (Builder $query, string $column, mixed $value): void {
             $query->orWhere($column, '=', $value);
-        });
+        }, Capability::EXACT);
 
         $this->assertCompilesTo(['name' => 'Alice', 'email' => ['$either' => 'b']], '"users"."name" = ? and ("users"."email" = ?)', ['Alice', 'b']);
 
@@ -732,7 +712,7 @@ final class FilterApplierTest extends TestCase
     {
         $this->operatorRegistry->register('$neither', static function (Builder $query, string $column, mixed $value): void {
             $query->orWhereNot($column, '=', $value);
-        });
+        }, Capability::EXACT);
 
         $this->assertCompilesTo(
             ['name' => 'Alice', 'email' => ['$neither' => 'b', '$in' => ['c']]],
@@ -752,7 +732,7 @@ final class FilterApplierTest extends TestCase
     {
         $this->operatorRegistry->register('$both', static function (Builder $query, string $column, mixed $value): void {
             $query->where($column, '=', $value)->whereNotNull($column);
-        });
+        }, Capability::EXACT);
 
         $this->assertCompilesTo(['name' => 'Alice', 'email' => ['$both' => 'b']], '"users"."name" = ? and "users"."email" = ? and "users"."email" is not null', ['Alice', 'b']);
     }
@@ -782,22 +762,14 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that $has dispatches structurally even when registered as an
-     * operator, and is refused as a column condition.
+     * Test that a structural token under a column is refused as no condition.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testHasFilterIsNotReappliedAsColumnConditionWhenRegistered(): void
+    public function testStructuralTokenUnderAColumnIsNotACondition(): void
     {
-        $this->operatorRegistry->register('$has', new EqualOperator);
-
-        $wheres = $this->applyFilters(['$has' => 'posts'])->getQuery()->wheres;
-
-        self::assertCount(1, $wheres);
-        self::assertSame('Exists', $wheres[0]['type']);
-
         $this->assertRefusedAt(['name' => ['$has' => 'posts']], 'filters.name.$has', self::notACondition('filters.name.$has'));
     }
 
@@ -1029,17 +1001,18 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a token outside the capability matrix reaches its handler.
+     * Test that a registered token reaches its handler on a column its
+     * capabilities admit.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testTokenTheMatrixDoesNotGovernReachesItsHandler(): void
+    public function testRegisteredTokenReachesItsHandlerOnAnAdmittedColumn(): void
     {
         $this->operatorRegistry->register('$starts', static function (Builder $query, string $column, mixed $value): void {
             $query->where($column, 'like', (is_scalar($value) ? (string) $value : '') . '%');
-        });
+        }, Capability::EXACT);
 
         $result = $this->applyFilters(['name' => ['$starts' => 'Ali']]);
         $wheres = $result->getQuery()->wheres;
@@ -1047,6 +1020,148 @@ final class FilterApplierTest extends TestCase
         self::assertNotEmpty($wheres);
         self::assertSame('like', $wheres[0]['operator']);
         self::assertSame('Ali%', $wheres[0]['value']);
+    }
+
+    /**
+     * Test that a registered token is gated against the schema of each level it
+     * appears at.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testRegisteredTokenIsGatedAgainstEachLevelsSchema(): void
+    {
+        $this->operatorRegistry->register('$starts', static function (Builder $query, string $column, mixed $value): void {
+            $query->where($column, 'like', (is_scalar($value) ? (string) $value : '') . '%');
+        }, Capability::RANGE);
+
+        $exists = 'exists (select * from "posts" where "users"."id" = "posts"."user_id" and "id" like ?)';
+
+        $this->assertCompilesTo(['$or' => [['id' => ['$starts' => 1]], ['name' => 'Alice']]], '(("id" like ?) or ("name" = ?))', ['1%', 'Alice']);
+        $this->assertCompilesTo(['posts' => ['id' => ['$starts' => 2]]], $exists, ['2%']);
+        $this->assertCompilesTo(['$has' => ['posts' => ['id' => ['$starts' => 3]]]], $exists, ['3%']);
+
+        $accepts = '$eq, $in, $null, $notNull';
+
+        $this->assertRejectsOperator(['$or' => [['name' => ['$starts' => 'A']]]], 'name', '$starts', $accepts);
+        $this->assertRejectsOperator(['posts' => ['title' => ['$starts' => 'a']]], 'title', '$starts', $accepts);
+        $this->assertRejectsOperator(['$has' => ['posts' => ['title' => ['$starts' => 'a']]]], 'title', '$starts', $accepts);
+    }
+
+    /**
+     * Test that the handler of a token the column refuses never runs.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testHandlerOfARefusedTokenNeverRuns(): void
+    {
+        $runs = 0;
+
+        $this->operatorRegistry->register('$starts', static function (Builder $query, string $column) use (&$runs): void {
+            $runs++;
+
+            $query->whereNotNull($column);
+        }, Capability::RANGE);
+
+        $this->assertRejectsOperator(['name' => ['$starts' => 'A']], 'name', '$starts', '$eq, $in, $null, $notNull');
+
+        self::assertSame(0, $runs);
+    }
+
+    /**
+     * Test that the bare shorthand is refused once $eq is removed, as the token
+     * itself is.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testBareShorthandIsRefusedOnceEqualityIsRemoved(): void
+    {
+        $this->operatorRegistry->remove('$eq');
+
+        $this->assertRejectsOperator(['name' => 'Alice'], 'name', '$eq', '$in, $null, $notNull');
+        $this->assertRefusedAt(['name' => ['$eq' => 'Alice']], 'filters.name.$eq', self::notACondition('filters.name.$eq'));
+    }
+
+    /**
+     * Test that an overridden $eq serves both the bare shorthand and the token,
+     * at the root and inside a group.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testOverriddenEqualityServesTheShorthandAndTheToken(): void
+    {
+        $calls = [];
+
+        $this->operatorRegistry->override('$eq', static function (Builder $query, string $column, mixed $value) use (&$calls): void {
+            $calls[] = [$column, $value];
+
+            $query->where($column, 'like', $value);
+        });
+
+        $this->assertCompilesTo(
+            ['name' => 'a', 'email' => ['$eq' => 'b'], '$or' => [['name' => 'c'], ['email' => ['$eq' => 'd']]]],
+            '"name" like ? and "email" like ? and (("name" like ?) or ("email" like ?))',
+            ['a', 'b', 'c', 'd'],
+        );
+
+        self::assertSame([['name', 'a'], ['email', 'b'], ['name', 'c'], ['email', 'd']], $calls);
+    }
+
+    /**
+     * Test that an overridden $eq joining its clause with OR cannot disjoin the
+     * clauses beside the shorthand.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testOverriddenEqualityJoiningWithOrIsGroupedUnderTheShorthand(): void
+    {
+        $this->operatorRegistry->override('$eq', static function (Builder $query, string $column, mixed $value): void {
+            $query->orWhere($column, '=', $value);
+        });
+
+        $this->assertCompilesTo(['email' => ['$in' => ['b']], 'name' => 'Alice'], '"email" in (?) and ("name" = ?)', ['b', 'Alice']);
+    }
+
+    /**
+     * Test that the bare shorthand holds an overridden $eq to the item count it
+     * reports, as the token form does.
+     *
+     * @return void
+     */
+    public function testShorthandCountsTheItemsAnOverriddenEqualityExpands(): void
+    {
+        Config::set('api-toolkit.query_cost.max_in_items', 2);
+
+        $this->operatorRegistry->override('$eq', new ContainsOperator);
+
+        $this->assertRejectedForCost(['name' => 'a,b,c'], QueryCostLimits::MAX_IN_ITEMS, '/name', 2, 3);
+        $this->assertRejectedForCost(['$or' => [['name' => 'a,b,c']]], QueryCostLimits::MAX_IN_ITEMS, '/$or/0/name', 2, 3);
+        $this->assertRejectedForCost(['name' => ['$eq' => 'a,b,c']], QueryCostLimits::MAX_IN_ITEMS, '/name/$eq', 2, 3);
+    }
+
+    /**
+     * Test that the bare shorthand checks its value against the shape an
+     * overridden $eq declares, at the column's position.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testShorthandChecksTheShapeAnOverriddenEqualityDeclares(): void
+    {
+        $this->operatorRegistry->override('$eq', new InOperator);
+
+        $this->assertRefusedAt(['name' => 'Alice'], 'filters.name', 'The $eq condition on "name" must be a list of values.');
+        $this->assertRefusedAt(['name' => ['$eq' => 'Alice']], 'filters.name.$eq', 'The $eq condition on "name" must be a list of values.');
     }
 
     /**
@@ -1912,7 +2027,7 @@ final class FilterApplierTest extends TestCase
             }
         };
 
-        $this->operatorRegistry->register('$after', $handler);
+        $this->operatorRegistry->register('$after', $handler, Capability::RANGE);
 
         $surface = $this->declaredSurface(['created_at' => Capability::RANGE]);
 
@@ -1920,7 +2035,7 @@ final class FilterApplierTest extends TestCase
 
         self::assertSame('2024-01-01 08:00:00', $handler->received);
 
-        $this->assertRefusedAt(['name' => ['$after' => null]], 'filters.name.$after', 'The $after condition on "name" ' . self::CANNOT_BE_NULL);
+        $this->assertRefusedAt(['id' => ['$after' => null]], 'filters.id.$after', 'The $after condition on "id" ' . self::CANNOT_BE_NULL);
     }
 
     /**
@@ -1939,7 +2054,7 @@ final class FilterApplierTest extends TestCase
             $received = $value;
 
             $query->getQuery()->whereNotNull($column);
-        });
+        }, Capability::EXACT);
 
         $this->applyFilters(['name' => ['$raw' => ['x' => [null]]]]);
 
@@ -1988,6 +2103,7 @@ final class FilterApplierTest extends TestCase
             SchemaCompiler::compile(PublicAuthorPostResource::class),
             new RelationTraversal(app(SchemaIntrospectionProvider::class), [User::class => UserResource::class]),
             new CallerAdmission(Request::create('/'), new GuardEvaluator),
+            $this->operatorRegistry,
         );
 
         $query = $this->applier->apply((new Post)->newQuery(), ['user' => ['name' => 'Alice']], $this->operatorRegistry, $surface);
@@ -2279,6 +2395,7 @@ final class FilterApplierTest extends TestCase
             new CompiledSchema([], [], $filterable, $sortable, $relations, [], $resources),
             new RelationTraversal(app(SchemaIntrospectionProvider::class), $resourceMap),
             new CallerAdmission(Request::create('/'), new GuardEvaluator),
+            $this->operatorRegistry,
         );
     }
 
