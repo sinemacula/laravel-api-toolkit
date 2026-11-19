@@ -43,10 +43,10 @@ use Tests\TestCase;
 final class NarrowedRenderQueryBoundTest extends TestCase
 {
     /** @var string The user selection: nested relations, a relation accessor and aggregates. */
-    private const string USER_QUERY = '/users?fields[users]=name,organization,profile_bio,posts,aggregates&fields[posts]=title,tags&fields[tags]=name';
+    private const string USER_QUERY = '/users?limit=100&fields[users]=name,organization,profile_bio,posts,aggregates&fields[posts]=title,tags&fields[tags]=name';
 
     /** @var string The article selection: an extras-backed accessor and a needs-backed accessor. */
-    private const string ARTICLE_QUERY = '/articles?fields[articles]=title,summary_excerpt,author_name';
+    private const string ARTICLE_QUERY = '/articles?limit=100&fields[articles]=title,summary_excerpt,author_name';
 
     /** @var array<int, int> The tag ids attached to every seeded post. */
     private array $tagIds = [];
@@ -104,8 +104,8 @@ final class NarrowedRenderQueryBoundTest extends TestCase
 
         [$large, $response] = $this->statementsFor(self::USER_QUERY);
 
-        // The count, users, organizations, profiles, posts and tags
-        self::assertCount(6, $large);
+        // The users, organizations, profiles, posts and tags
+        self::assertCount(5, $large);
         self::assertCount(count($small), $large);
 
         $response->assertJsonCount(50, 'data');
@@ -133,10 +133,10 @@ final class NarrowedRenderQueryBoundTest extends TestCase
 
         [$large, $response] = $this->statementsFor(self::ARTICLE_QUERY);
 
-        // The count, the narrowed articles and the extras-loaded authors
-        self::assertCount(3, $large);
+        // The narrowed articles and the extras-loaded authors
+        self::assertCount(2, $large);
         self::assertCount(count($small), $large);
-        self::assertStringNotContainsString('*', $large[1]);
+        self::assertStringNotContainsString('*', $large[0]);
 
         $response->assertJsonCount(50, 'data');
         $response->assertJsonPath('data.49.author_name', 'Author 50');
