@@ -6,17 +6,21 @@ namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Illuminate\Database\DatabaseTransactionRecord;
 use Illuminate\Database\DatabaseTransactionsManager;
+use Illuminate\Database\DeadlockException;
+use Illuminate\Database\DetectsLostConnections;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Detects whether the application has a transaction open on a connection, so a
- * deferred write auto-flush can wait for it.
+ * deferred write auto-flush can wait for it, and whether a failure ended one.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final readonly class DeferredWriteTransactionDetector
 {
+    use DetectsLostConnections;
+
     /**
      * Create a new deferred write transaction detector instance.
      *
@@ -58,5 +62,24 @@ final readonly class DeferredWriteTransactionDetector
         $wrapping     = $tracker->getPendingTransactions()->filter($onConnection)->count() - $tracker->callbackApplicableTransactions()->filter($onConnection)->count();
 
         return $level > $wrapping;
+    }
+
+    /**
+     * Determine whether a failure inside an open transaction ended it: a
+     * concurrency error raised from a nested transaction, or a lost connection.
+     *
+     * @param  \Throwable  $exception
+     * @return bool
+     *
+     * @phpstan-assert-if-true \PDOException|\ErrorException $exception
+     */
+    public function endsTransaction(\Throwable $exception): bool
+    {
+        // A dropped connection can surface as a PHP warning instead
+        if (!$exception instanceof \PDOException && !$exception instanceof \ErrorException) {
+            return false;
+        }
+
+        return $exception instanceof DeadlockException || $this->causedByLostConnection($exception);
     }
 }

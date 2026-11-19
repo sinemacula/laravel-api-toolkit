@@ -4,11 +4,13 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Http\Middleware;
 
-use Illuminate\Routing\Middleware\ThrottleRequestsWithRedis as BaseThrottleRequestsWithRedis;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
-use SineMacula\ApiToolkit\Http\Middleware\Concerns\ThrottleRequestsTrait;
+use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
+use Tests\Concerns\UsesRedis;
+use Tests\TestCase;
 
 /**
  * Tests for the ThrottleRequestsWithRedis middleware.
@@ -19,30 +21,41 @@ use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
  * @internal
  */
 #[CoversClass(ThrottleRequestsWithRedis::class)]
+#[Group('redis')]
 final class ThrottleRequestsWithRedisTest extends TestCase
 {
+    use UsesRedis;
+
     /**
-     * Test that the middleware extends Laravel's ThrottleRequestsWithRedis.
+     * Set up two routes the middleware limits to one request each.
      *
      * @return void
      */
-    public function testExtendsBaseThrottleRequestsWithRedis(): void
+    #[\Override]
+    protected function setUp(): void
     {
-        $parents = class_parents(ThrottleRequestsWithRedis::class);
+        parent::setUp();
 
-        self::assertIsArray($parents);
-        self::assertArrayHasKey(BaseThrottleRequestsWithRedis::class, $parents);
+        Config::set('database.redis.options.prefix', uniqid('api-toolkit-throttle-', true) . ':');
+
+        $this->requireRedis();
+
+        Route::middleware(ThrottleRequestsWithRedis::class . ':1,1')->group(static function (): void {
+            Route::get('/users/{user}', static fn (): array => []);
+            Route::get('/posts', static fn (): array => []);
+        });
     }
 
     /**
-     * Test that the middleware uses ThrottleRequestsTrait.
+     * Test that the redis limiter refuses a request beyond the limit of a route
+     * pattern while another pattern keeps its own budget.
      *
      * @return void
      */
-    public function testUsesThrottleRequestsTrait(): void
+    public function testEachRoutePatternIsLimitedOnItsOwnBudget(): void
     {
-        $traits = class_uses(ThrottleRequestsWithRedis::class);
-
-        self::assertArrayHasKey(ThrottleRequestsTrait::class, $traits);
+        $this->getJson('/users/1')->assertOk()->assertHeader('X-RateLimit-Remaining', 0);
+        $this->getJson('/posts')->assertOk();
+        $this->getJson('/users/2')->assertTooManyRequests();
     }
 }

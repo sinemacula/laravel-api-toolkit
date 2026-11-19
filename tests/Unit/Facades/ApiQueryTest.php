@@ -7,9 +7,12 @@ namespace Tests\Unit\Facades;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversClass;
+use SineMacula\ApiToolkit\ApiQueryParser;
 use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\Http\Enums\HttpMethod;
+use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
 /**
@@ -68,68 +71,55 @@ final class ApiQueryTest extends TestCase
     }
 
     /**
-     * Test that the facade proxies parse method calls.
+     * Test that the documented methods are exactly the parser's public methods,
+     * each with the parser's parameter count.
      *
      * @return void
      */
-    public function testFacadeProxiesParseMethodCalls(): void
+    public function testDocumentedMethodsMatchThePublicParserMethods(): void
     {
-        $request = Request::create('/test', HttpMethod::GET->getVerb());
+        $docComment = (string) (new \ReflectionClass(ApiQuery::class))->getDocComment();
 
-        ApiQuery::shouldReceive('parse')
-            ->once()
-            ->with($request);
+        preg_match_all('/@method static (?:.*\s)?(\w+)\((.*)\)$/m', $docComment, $tags, PREG_SET_ORDER);
 
-        ApiQuery::parse($request);
+        $documented = [];
+
+        foreach ($tags as [, $name, $parameters]) {
+            $documented[$name] = substr_count($parameters, '$');
+        }
+
+        // Every tag parsed, and none names a method twice
+        self::assertCount(substr_count($docComment, '@method'), $documented);
+
+        $public = [];
+
+        foreach ((new \ReflectionClass(ApiQueryParser::class))->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+            if ($method->isConstructor()) {
+                continue;
+            }
+
+            $public[$method->getName()] = $method->getNumberOfParameters();
+        }
+
+        ksort($documented);
+        ksort($public);
+
+        self::assertSame($public, $documented);
     }
 
     /**
-     * Test that the facade proxies getFields method calls.
+     * Test that the facade parses a request through the bound parser and serves
+     * what it parsed.
      *
      * @return void
      */
-    public function testFacadeProxiesGetFieldsCalls(): void
+    public function testFacadeParsesTheRequestAndServesItsFields(): void
     {
-        ApiQuery::shouldReceive('getFields')
-            ->once()
-            ->andReturn(null);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [UserResource::class]);
 
-        $result = ApiQuery::getFields('users');
+        ApiQuery::parse(Request::create('/test', HttpMethod::GET->getVerb(), ['fields' => ['users' => 'id,name']]));
 
-        self::assertNull($result);
-    }
-
-    /**
-     * Test that the facade proxies getPage method calls.
-     *
-     * @return void
-     */
-    public function testFacadeProxiesGetPageCalls(): void
-    {
-        ApiQuery::shouldReceive('getPage')
-            ->once()
-            ->andReturn(3);
-
-        $result = ApiQuery::getPage();
-
-        self::assertSame(3, $result);
-    }
-
-    /**
-     * Test that the facade proxies getFilters method calls.
-     *
-     * @return void
-     */
-    public function testFacadeProxiesGetFiltersCalls(): void
-    {
-        $filters = ['status' => 'active'];
-
-        ApiQuery::shouldReceive('getFilters')
-            ->once()
-            ->andReturn($filters);
-
-        $result = ApiQuery::getFilters();
-
-        self::assertSame($filters, $result);
+        self::assertTrue(ApiQuery::isParsed());
+        self::assertSame(['id', 'name'], ApiQuery::getFields('users'));
     }
 }

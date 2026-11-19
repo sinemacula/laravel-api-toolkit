@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace Tests\Unit\Repositories\Criteria;
 
 use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\ValidationException;
@@ -250,7 +249,7 @@ final class ApiCriteriaTest extends TestCase
         $query = $this->parser()->using($snapshot, fn (): BuilderContract => $this->searchableCriteria()->apply(new User));
 
         self::assertSame(['%smith%', '%smith%', 'banned'], $query->getQuery()->getBindings());
-        self::assertSame(['column' => 'id', 'direction' => 'desc'], $query->getQuery()->orders[0] ?? null);
+        self::assertSame(['column' => 'users.id', 'direction' => 'desc'], $query->getQuery()->orders[0] ?? null);
         self::assertNull($query->getQuery()->limit);
     }
 
@@ -289,7 +288,7 @@ final class ApiCriteriaTest extends TestCase
         $wheres = $this->filterGroupWheres($query);
 
         self::assertNotEmpty($wheres);
-        self::assertSame('name', $wheres[0]['column']);
+        self::assertSame('users.name', $wheres[0]['column']);
         self::assertSame('Alice', $wheres[0]['value']);
     }
 
@@ -446,7 +445,7 @@ final class ApiCriteriaTest extends TestCase
 
         self::assertNotEmpty($wheres);
         self::assertSame('Null', $wheres[0]['type']);
-        self::assertSame('organization_id', $wheres[0]['column']);
+        self::assertSame('users.organization_id', $wheres[0]['column']);
     }
 
     /**
@@ -532,7 +531,7 @@ final class ApiCriteriaTest extends TestCase
 
         $query = $this->metricFreeCriteria()->apply(new User);
 
-        self::assertSame('select * from "users" where ((("name" = ?) or ("email" = ?)))', $this->sqlOf($query));
+        self::assertSame('select * from "users" where ((("users"."name" = ?) or ("users"."email" = ?)))', $this->sqlOf($query));
     }
 
     /**
@@ -553,7 +552,7 @@ final class ApiCriteriaTest extends TestCase
         $query = $this->metricFreeCriteria()->apply(User::query()->where('status', 'active'));
 
         self::assertSame(
-            'select * from "users" where "status" = ? and ((("name" = ?) or ("email" = ?)))',
+            'select * from "users" where "status" = ? and ((("users"."name" = ?) or ("users"."email" = ?)))',
             $this->sqlOf($query),
         );
 
@@ -577,7 +576,7 @@ final class ApiCriteriaTest extends TestCase
 
         $query = $this->metricFreeCriteria()->apply(new User);
 
-        self::assertSame('select * from "users" where ((("name" = ?) and ("email" = ?)))', $this->sqlOf($query));
+        self::assertSame('select * from "users" where ((("users"."name" = ?) and ("users"."email" = ?)))', $this->sqlOf($query));
     }
 
     /**
@@ -625,7 +624,7 @@ final class ApiCriteriaTest extends TestCase
         $orders = $query->getQuery()->orders ?? [];
 
         self::assertNotEmpty($orders);
-        self::assertSame('name', $orders[0]['column']);
+        self::assertSame('users.name', $orders[0]['column']);
         self::assertSame('asc', $orders[0]['direction']);
     }
 
@@ -697,13 +696,14 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that eager loads are added from the resource schema.
+     * Test that the requested relation is eager loaded from the resource
+     * schema, and nothing else.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyEagerLoadingAddsEagerLoadsFromResource(): void
+    public function testApplyEagerLoadsTheRequestedRelation(): void
     {
         Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
 
@@ -716,9 +716,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        $eagerLoads = $query->getEagerLoads();
-
-        self::assertNotEmpty($eagerLoads);
+        self::assertSame(['organization'], array_keys($query->getEagerLoads()));
     }
 
     /**
@@ -767,13 +765,13 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that eager loading uses getAllFields when ':all' is requested.
+     * Test that the ':all' token eager loads every declared relation.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyEagerLoadingUsesGetAllFieldsWhenAllRequested(): void
+    public function testApplyEagerLoadsEveryDeclaredRelationUnderTheAllToken(): void
     {
         Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
 
@@ -786,8 +784,7 @@ final class ApiCriteriaTest extends TestCase
         $model = new User;
         $query = $this->criteria->apply($model);
 
-        self::assertNotNull($query->getQuery());
-        self::assertInstanceOf(Builder::class, $query);
+        self::assertEqualsCanonicalizing(['organization', 'posts', 'profile'], array_keys($query->getEagerLoads()));
     }
 
     /**
@@ -829,7 +826,7 @@ final class ApiCriteriaTest extends TestCase
 
         $query = $this->metricFreeCriteria()->apply(new User);
 
-        self::assertSame('select * from "users" where ((((("name" = ?) or ("email" = ?)))))', $this->sqlOf($query));
+        self::assertSame('select * from "users" where ((((("users"."name" = ?) or ("users"."email" = ?)))))', $this->sqlOf($query));
     }
 
     /**
@@ -852,7 +849,7 @@ final class ApiCriteriaTest extends TestCase
         $query = $this->metricFreeCriteria()->apply(new User);
 
         self::assertSame(
-            'select * from "users" where (exists (select * from "posts" where "users"."id" = "posts"."user_id" and (("title" = ?) or ("title" = ?))))',
+            'select * from "users" where (exists (select * from "posts" where "users"."id" = "posts"."user_id" and (("posts"."title" = ?) or ("posts"."title" = ?))))',
             $this->sqlOf($query),
         );
     }
@@ -927,7 +924,7 @@ final class ApiCriteriaTest extends TestCase
         $query = $this->metricFreeCriteria()->apply(new User);
 
         self::assertSame(
-            'select * from "users" where ((("name" = ?) or (exists (select * from "posts" where "users"."id" = "posts"."user_id"))))',
+            'select * from "users" where ((("users"."name" = ?) or (exists (select * from "posts" where "users"."id" = "posts"."user_id"))))',
             $this->sqlOf($query),
         );
     }
@@ -1025,7 +1022,7 @@ final class ApiCriteriaTest extends TestCase
 
         $query = $this->criteria->apply(new User);
 
-        self::assertStringContainsString('((("organization_id" is not null)))', $this->sqlOf($query));
+        self::assertStringContainsString('((("users"."organization_id" is not null)))', $this->sqlOf($query));
     }
 
     /**
