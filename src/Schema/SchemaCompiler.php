@@ -221,12 +221,13 @@ final class SchemaCompiler
     private static function buildAggregateDefinition(string $schemaKey, array $definition, AggregateFunction $function): CompiledAggregateDefinition
     {
         $presentKey = self::resolveAggregateKey($schemaKey, $definition);
+        $relation   = self::stringOr($definition['relation'] ?? null, $presentKey);
         $constraint = $definition['constraint'] ?? null;
         $column     = $definition['column']     ?? null;
 
         return new CompiledAggregateDefinition(
             presentKey     : $presentKey,
-            relation       : self::stringOr($definition['relation'] ?? null, $presentKey),
+            relation       : $relation,
             function       : $function,
             column         : is_string($column) ? $column : null,
             constraint     : $constraint instanceof \Closure ? $constraint : null,
@@ -235,7 +236,7 @@ final class SchemaCompiler
             transformers   : self::callableList($definition, 'transformers'),
             callerGuards   : self::callableList($definition, 'caller_guards'),
             openApi        : self::resolveOpenApi($definition),
-            unindexedReason: self::sortThroughReason($definition),
+            unindexedReason: self::sortThroughReason($definition, $relation),
         );
     }
 
@@ -352,7 +353,7 @@ final class SchemaCompiler
     private static function buildFieldDefinition(array $definition): CompiledFieldDefinition
     {
         $relation    = self::resolveFieldRelation($definition);
-        $sortThrough = $relation === null ? null : self::sortThroughReason($definition);
+        $sortThrough = self::sortThroughReason($definition, $relation);
 
         return new CompiledFieldDefinition(
             accessor         : $definition['accessor'] ?? null,
@@ -384,11 +385,12 @@ final class SchemaCompiler
      * when the definition is not sortable through one.
      *
      * @param  array<string, mixed>  $definition
+     * @param  string|null  $relation
      * @return string|null
      */
-    private static function sortThroughReason(array $definition): ?string
+    private static function sortThroughReason(array $definition, ?string $relation): ?string
     {
-        return ($definition['sortable'] ?? null) === true ? self::declaredColumn($definition, 'unindexed') : null;
+        return $relation !== null && ($definition['sortable'] ?? null) === true ? self::declaredColumn($definition, 'unindexed') : null;
     }
 
     /**
