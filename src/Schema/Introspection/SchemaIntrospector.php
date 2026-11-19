@@ -7,7 +7,9 @@ namespace SineMacula\ApiToolkit\Schema\Introspection;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOneOrMany;
+use Illuminate\Database\Eloquent\Relations\HasOneOrManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphOneOrMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -170,27 +172,58 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Get the relation's parent-side key columns, including morph type and id.
+     * Get the relation's parent-side key columns, including morph type and id,
+     * or null for an unrecognised relation class.
      *
      * @template TRelated of \Illuminate\Database\Eloquent\Model
      * @template TDeclaring of \Illuminate\Database\Eloquent\Model
      * @template TResult
      *
      * @param  \Illuminate\Database\Eloquent\Relations\Relation<TRelated, TDeclaring, TResult>  $relation
-     * @return array<int, string>
+     * @return array<int, string>|null
      */
     #[\Override]
-    public function parentKeysFor(Relation $relation): array
+    public function parentKeysFor(Relation $relation): ?array
     {
         $keys = match (true) {
-            $relation instanceof MorphTo        => [$relation->getForeignKeyName(), $relation->getMorphType()],
-            $relation instanceof BelongsTo      => [$relation->getForeignKeyName()],
-            $relation instanceof MorphOneOrMany => [$relation->getLocalKeyName()],
-            $relation instanceof HasOneOrMany   => [$relation->getLocalKeyName()],
-            default                             => [],
+            $relation instanceof MorphTo             => [$relation->getForeignKeyName(), $relation->getMorphType()],
+            $relation instanceof BelongsTo           => [$relation->getForeignKeyName()],
+            $relation instanceof HasOneOrMany        => [$relation->getLocalKeyName()],
+            $relation instanceof BelongsToMany       => [$relation->getParentKeyName()],
+            $relation instanceof HasOneOrManyThrough => [$relation->getLocalKeyName()],
+            default                                  => null,
         };
 
-        return array_values(array_unique(array_filter($keys, static fn (string $key): bool => $key !== '')));
+        return $keys === null ? null : $this->presentKeys($keys);
+    }
+
+    /**
+     * Get the related-side key columns the relation matches its results on, or
+     * null for a MorphTo or an unrecognised relation class.
+     *
+     * A through relation selects its own matching key, so it needs none.
+     *
+     * @template TRelated of \Illuminate\Database\Eloquent\Model
+     * @template TDeclaring of \Illuminate\Database\Eloquent\Model
+     * @template TResult
+     *
+     * @param  \Illuminate\Database\Eloquent\Relations\Relation<TRelated, TDeclaring, TResult>  $relation
+     * @return array<int, string>|null
+     */
+    #[\Override]
+    public function relatedKeysFor(Relation $relation): ?array
+    {
+        $keys = match (true) {
+            $relation instanceof MorphTo             => null,
+            $relation instanceof BelongsTo           => [$relation->getOwnerKeyName()],
+            $relation instanceof MorphOneOrMany      => [$relation->getForeignKeyName(), $relation->getMorphType()],
+            $relation instanceof HasOneOrMany        => [$relation->getForeignKeyName()],
+            $relation instanceof BelongsToMany       => [$relation->getRelatedKeyName()],
+            $relation instanceof HasOneOrManyThrough => [],
+            default                                  => null,
+        };
+
+        return $keys === null ? null : $this->presentKeys($keys);
     }
 
     /**
@@ -203,6 +236,17 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     {
         $this->columnDefinitions = [];
         $this->indexes           = [];
+    }
+
+    /**
+     * Drop empty key names and de-duplicate the rest into a list.
+     *
+     * @param  array<int, string>  $keys
+     * @return array<int, string>
+     */
+    private function presentKeys(array $keys): array
+    {
+        return array_values(array_unique(array_filter($keys, static fn (string $key): bool => $key !== '')));
     }
 
     /**

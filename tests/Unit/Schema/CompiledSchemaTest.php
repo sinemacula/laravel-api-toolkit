@@ -375,4 +375,69 @@ final class CompiledSchemaTest extends TestCase
         self::assertSame([], $empty->getConditionalSortKeys());
         self::assertSame([], $empty->getConditionalTraversalKeys());
     }
+
+    /**
+     * Test that only the aggregates carrying a sort reason are sortable, keyed
+     * by the order key naming each.
+     *
+     * @return void
+     */
+    public function testGetSortableMetricsKeysTheSortableAggregatesByOrderKey(): void
+    {
+        $count = new CompiledAggregateDefinition('posts_count', 'posts', AggregateFunction::COUNT, null, null, false, [], unindexedReason: 'Leaderboard');
+        $plain = new CompiledAggregateDefinition('posts_sum_id', 'posts', AggregateFunction::SUM, 'id', null, false, []);
+        $spend = new CompiledAggregateDefinition('spend', 'orders', AggregateFunction::SUM, 'total', null, false, [], unindexedReason: 'Accounts list');
+
+        $schema = new CompiledSchema([], ['posts_sum_id' => $plain, 'posts_count' => $count, 'spend' => $spend]);
+
+        self::assertSame(['aggregates.posts_count' => $count, 'aggregates.spend' => $spend], $schema->getSortableMetrics());
+        self::assertSame([], (new CompiledSchema([]))->getSortableMetrics());
+    }
+
+    /**
+     * Test that getSortableRelations returns the relations mapped to their
+     * declaring fields, and defaults to empty.
+     *
+     * @return void
+     */
+    public function testGetSortableRelationsReturnsTheDeclaringFieldsAndDefaultsToEmpty(): void
+    {
+        $schema = new CompiledSchema([], sortableRelations: ['customer' => ['customer', 'buyer']]);
+
+        self::assertSame(['customer' => ['customer', 'buyer']], $schema->getSortableRelations());
+        self::assertSame([], (new CompiledSchema([]))->getSortableRelations());
+    }
+
+    /**
+     * Test that a sortable relation is conditional only while every field
+     * declaring it is caller-guarded.
+     *
+     * @return void
+     */
+    public function testSortRelationIsConditionalOnlyWhileEveryDeclarerIsCallerGuarded(): void
+    {
+        $field = static fn (array $guards): CompiledFieldDefinition => new CompiledFieldDefinition(
+            accessor    : null,
+            compute     : null,
+            relation    : 'customer',
+            resource    : null,
+            fields      : null,
+            constraint  : null,
+            extras      : [],
+            needs       : [],
+            guards      : [],
+            transformers: [],
+            callerGuards: $guards,
+        );
+
+        $guard  = static fn (): bool => true;
+        $schema = new CompiledSchema(
+            fields           : ['customer' => $field([$guard]), 'buyer' => $field([$guard]), 'client' => $field([])],
+            sortableRelations: ['customer' => ['customer', 'buyer'], 'account' => ['customer', 'client']],
+        );
+
+        self::assertTrue($schema->isConditionalSortRelation('customer'));
+        self::assertFalse($schema->isConditionalSortRelation('account'));
+        self::assertFalse($schema->isConditionalSortRelation('supplier'));
+    }
 }

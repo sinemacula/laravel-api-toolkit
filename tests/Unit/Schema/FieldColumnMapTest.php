@@ -27,7 +27,7 @@ final class FieldColumnMapTest extends TestCase
      */
     public function testDeclaredFieldMapsToItsDeclaredColumns(): void
     {
-        $map = FieldColumnMap::make(['name' => ['first_name', 'last_name']], []);
+        $map = FieldColumnMap::make(['name' => ['first_name', 'last_name']], [], ['name']);
 
         self::assertTrue($map->isMapped('name'));
         self::assertFalse($map->isInferred('name'));
@@ -41,7 +41,7 @@ final class FieldColumnMapTest extends TestCase
      */
     public function testInferredFieldMapsToItsOwnKey(): void
     {
-        $map = FieldColumnMap::make([], ['email']);
+        $map = FieldColumnMap::make([], ['email'], ['email']);
 
         self::assertTrue($map->isMapped('email'));
         self::assertTrue($map->isInferred('email'));
@@ -55,7 +55,7 @@ final class FieldColumnMapTest extends TestCase
      */
     public function testDeclaredFieldWithNoColumnsIsMapped(): void
     {
-        $map = FieldColumnMap::make(['virtual' => []], []);
+        $map = FieldColumnMap::make(['virtual' => []], [], ['virtual']);
 
         self::assertTrue($map->isMapped('virtual'));
         self::assertSame([], $map->columnsFor('virtual'));
@@ -68,7 +68,7 @@ final class FieldColumnMapTest extends TestCase
      */
     public function testInferredKeysAreMatchedExactly(): void
     {
-        $map = FieldColumnMap::make([], ['10']);
+        $map = FieldColumnMap::make([], ['10'], ['10']);
 
         self::assertTrue($map->isInferred('10'));
         self::assertFalse($map->isInferred('1e1'));
@@ -82,10 +82,28 @@ final class FieldColumnMapTest extends TestCase
      */
     public function testEmptyMapMapsNothing(): void
     {
-        $map = FieldColumnMap::make([], []);
+        $map = FieldColumnMap::make([], [], []);
 
         self::assertFalse($map->isMapped('anything'));
         self::assertFalse($map->isInferred('anything'));
         self::assertNull($map->columnsFor('anything'));
+        self::assertFalse($map->declares('anything'));
+    }
+
+    /**
+     * Test that the map declares exactly the names it was built with, mapped or
+     * not.
+     *
+     * @return void
+     */
+    public function testDeclaresExactlyTheGivenNames(): void
+    {
+        $map = FieldColumnMap::make([], ['email'], ['email', 'avatar', '10']);
+
+        self::assertTrue($map->declares('email'));
+        self::assertTrue($map->declares('avatar'));
+        self::assertFalse($map->declares('_type'));
+        self::assertFalse($map->declares('Email'));
+        self::assertFalse($map->declares('1e1'));
     }
 }
