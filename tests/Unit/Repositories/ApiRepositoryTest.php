@@ -19,6 +19,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Group;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Exceptions\PreconditionFailedException;
+use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Http\Concurrency\EntityTag;
 use SineMacula\ApiToolkit\Http\Concurrency\IfMatch;
 use SineMacula\ApiToolkit\Repositories\ApiRepository;
@@ -294,6 +295,77 @@ final class ApiRepositoryTest extends TestCase
         $grammar = DB::connection()->getQueryGrammar();
 
         self::assertStringEndsWith(sprintf('order by %s desc, %s desc limit 10 offset 0', $grammar->wrap('name'), $grammar->wrap('users.id')), (string) end($queries));
+    }
+
+    /**
+     * Test that a page past the offset cap is refused, leaving the handle it
+     * was called on reusable.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testPagePastTheOffsetCapLeavesTheHandleReusable(): void
+    {
+        Config::set('api-toolkit.query_cost.max_offset', 10);
+
+        $alice = User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+        User::create(['name' => 'Bob', 'email' => self::BOB_EMAIL]);
+
+        $scoped = $this->repository->scopeById($alice->id);
+
+        $this->parseRequest(new Request(['limit' => '5', 'page' => '4']));
+
+        try {
+            $scoped->paginate();
+            self::fail('Expected the page to be refused.');
+        } catch (QueryTooExpensiveException $exception) {
+            self::assertSame(['parameter' => 'page', 'pointer' => '', 'reason' => 'max_offset', 'limit' => 3, 'actual' => 4], $exception->getCustomMeta());
+        }
+
+        $this->parseRequest(new Request(['limit' => '5', 'page' => '1']));
+
+        $page = $scoped->paginate();
+
+        self::assertInstanceOf(LengthAwarePaginator::class, $page);
+        self::assertCount(2, $page);
+    }
+
+    /**
+     * Test that a cursor read is not refused for a page past the offset cap.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testCursorReadIsNotRefusedForAPagePastTheOffsetCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_offset', 10);
+
+        User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        $this->parseRequest(new Request(['limit' => '5', 'page' => '4', 'pagination' => 'cursor']));
+
+        self::assertInstanceOf(CursorPaginator::class, $this->repository->paginate());
+    }
+
+    /**
+     * Test that a read through the criteria that does not page is not refused
+     * for a page past the offset cap.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testUnpagedCriteriaReadIsNotRefusedForAPagePastTheOffsetCap(): void
+    {
+        Config::set('api-toolkit.query_cost.max_offset', 10);
+
+        User::create(['name' => 'Alice', 'email' => self::ALICE_EMAIL]);
+
+        $this->parseRequest(new Request(['limit' => '5', 'page' => '4']));
+
+        self::assertCount(1, $this->repository->usingResource(UserResource::class)->withApiCriteria()->get());
     }
 
     /**

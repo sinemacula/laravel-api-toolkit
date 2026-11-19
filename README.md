@@ -287,7 +287,14 @@ selects none. A resource embedded through a `MorphTo` relation or a `Polymorphic
 ```
 
 **Pagination** - `?pagination=cursor` (or any `?cursor` token) selects cursor pagination; offset pagination is used
-otherwise.
+otherwise. A non-empty offset page shorter than `limit`, or an empty first page, derives its total without a count.
+Any other page counts at most the rows through the last page `query_cost.max_offset` allows: past that, `meta.total` is
+those rows, `meta.total_capped` is `true` and `Total-Count` is absent, so read further with cursor pagination. That
+bounds the rows the count admits, not the rows it examines; set `max_offset` to `0` for exact, unbounded totals. A
+capped page is a `CappedLengthAwarePaginator`, which a container binding of `LengthAwarePaginator` does not replace. A
+`simplePaginate()` result renders the cursor envelope. Offset pages do not support an ungrouped aggregate projection
+such as `selectRaw('max(id) as id')`, which is one row rather than a pageable set, nor a `distinct` or union over a join
+without an explicit projection, which MySQL refuses to count.
 
 **Soft deletes** - `?trashed=with` or `?trashed=only`, read as a `TrashedState` from `ApiQuery::getTrashed()`. The
 criteria layer applies it only where the model uses `SoftDeletes` and the resource opts in by overriding
@@ -412,7 +419,7 @@ operators the column answers. Any other operator is refused with a `422`:
 | `Capability::DOCUMENT` | a JSON column behind a containment index                         | `$contains`                                                               |
 | `Capability::OPAQUE`   | a column with no access path the resource will vouch for         | `$eq`                                                                     |
 
-Operators your application registers under new tokens are not gated by capability (see
+These are the shipped defaults. An operator your application registers names the capabilities that admit it (see
 [Filter-Operator Registry](#filter-operator-registry)).
 
 **Model binding and discovery** - `#[ForModel(...)]` binds a resource to its model, and may be repeated to bind one
@@ -806,28 +813,37 @@ documents a `412`.
 
 ### Filter-Operator Registry
 
-The `OperatorRegistry` singleton maps tokens to `FilterOperator` handlers. Register custom operators in a service
-provider's `boot()` method:
+The `OperatorRegistry` singleton maps tokens to `FilterOperator` handlers and the capabilities that admit each. Register
+custom operators in a service provider's `boot()` method:
 
 ```php
+use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
-use SineMacula\ApiToolkit\Contracts\FilterOperator;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function boot(OperatorRegistry $registry): void
     {
-        $registry->register('$regex', new RegexOperator);
+        $registry->register('$starts', new StartsWithOperator, Capability::RANGE);
 
-        // Override an existing operator
+        // Replace a registered operator's handler
         $registry->override('$contains', new StrictContainsOperator);
     }
 }
 ```
 
 An operator is a class implementing `SineMacula\ApiToolkit\Contracts\FilterOperator`, or a closure with the same
-signature, `apply(Builder $query, string $column, mixed $value): void`. `register()` throws `InvalidArgumentException`
-if the token is already taken; `override()` replaces it unconditionally.
+signature, `apply(Builder $query, string $column, mixed $value): void`. A token is `$` followed by a letter, then
+letters, digits or underscores, and may not be `$and`, `$or`, `$has` or `$hasnt`. `register()` throws
+`InvalidArgumentException` for any other token, or one already taken.
+
+A token is answered only on columns declaring one of the capabilities it was registered with, so `$starts` above is
+refused with a `422` on an `EXACT` or `OPAQUE` column. The shipped tokens are registered with the defaults in
+[Query capabilities](#schema-driven-apiresource). `override()` replaces the handler of a registered token and keeps its
+capabilities, so a replacement `$contains` still serves only `DOCUMENT` columns; it throws `InvalidArgumentException`
+for an unregistered token. To change a token's capabilities, shipped or not, `remove()` it and `register()` it again.
+The bare shorthand `{"name":"Alice"}` runs the registered `$eq` handler, so overriding `$eq` changes both spellings,
+and removing it refuses both. A column whose capability admits no registered token refuses every filter on it.
 
 An operator adds AND-joined predicates for one column; the applier owns the grouping, so an operator never chooses the
 connective, and clauses an operator joins with OR are grouped on their own. One that refuses its operand throws a
@@ -844,10 +860,8 @@ An operator that expands one value into a predicate per item should also impleme
 checked against the `max_in_items` cap, so a delimited string is bounded the same as an array. An operator without
 the contract counts as one item per non-list value.
 
-The capability gate covers only the shipped tokens. A token registered under a new name is allowed on any declared
-column, since the package cannot know which access path it needs. Overriding a shipped token keeps that token's
-capability rules, so a replacement `$contains` is still served only on `DOCUMENT` columns. An unregistered token is
-rejected with a 422, under a column or on its own.
+An unregistered token is rejected with a 422, under a column or on its own. The operators each column answers in the
+exported document and the generated docs are the registered tokens its capability admits, custom ones included.
 
 ### Exception Handling
 
@@ -1058,7 +1072,8 @@ php artisan api-toolkit:export-openapi --all
 
 Without options the default audience is written to `api-toolkit.openapi.output`. `--audience` exports one named
 audience. `--all` exports every configured audience, each to its own file with the audience inserted before the
-extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`.
+extension, so `openapi.json` becomes `openapi.public.json` and `openapi.internal.json`. Each file is staged beside its
+target and moved into place only once all are staged, so one that cannot be staged replaces none of them.
 
 Resources are optional: a route documented only through `#[RequestSchema]` and `#[ResponseSchema]` is exported with
 an empty resource map. Operations are not. Every target audience is built before anything is written, and if any of
@@ -1069,6 +1084,10 @@ exit successfully:
 ```bash
 php artisan api-toolkit:export-openapi --all --allow-empty
 ```
+
+Routes handled under a framework or tooling namespace (`api-toolkit.openapi.exclude.namespaces`) and `Route::fallback()`
+routes are left out. A closure in an application route file is documented, whether or not the routes are cached.
+Responses are documented as JSON; the formats the resource exporter negotiates, such as CSV, are not listed.
 
 List the hosts the API is served from under `api-toolkit.openapi.servers`, so interactive viewers call the API rather
 than the docs host and generated clients get a base URL. Each entry is an OpenAPI Server Object with a `url`, an
@@ -1095,13 +1114,20 @@ action honours. Every queryable property carries an `x-query-surface` extension 
 capability and the operators it answers, whether an index backs its sort (with the recorded reason where none does), its
 search strategy, and `conditional` on a filter or sort only some callers may use. The relations a filter may descend
 through are listed on the schema itself. All of this is read from the same compiled schema the request-time checks use,
-and the operators from the bound registry, so the document cannot offer a column the request would reject or an operator
-that is no longer registered. A column whose operators have all been removed from the registry is documented as
+and each column's operators from the tokens the bound registry admits on its capability, so the document cannot offer a
+column or an operator the request would reject. A column whose capability admits no registered token is documented as
 answering no filter.
 
 A resource schema requires only what every response carries: `_type`, and each fixed field read straight from its
 column, with no guard or transformer. Its `x-default-fields` extension lists the fields returned when a request names
 none for that type and no parent relation pins them: the declared `$default` fields, then the fixed ones.
+
+A field read straight from its column is typed from the value Eloquent returns: by the model's cast when it has one,
+else by the column type. Date casts and the model's timestamps are a `date-time`, a `decimal:N` cast a string, and any
+other date-time or time column the driver's string. A value with no fixed shape is marked `x-undocumented`: an `array`,
+`json`, `collection` or `object` cast, a cast class other than an enum, `AsStringable` or `AsUri`, and an uncast
+decimal, binary or JSON column. On PostgreSQL before PHP 8.4, a float column is a string, as the driver returns it.
+Declare the field's `openapi()` schema to document any of these.
 
 A relation rendered through a child resource is typed from its Eloquent relation: a to-many relation as an array of the
 related schema, and a to-one relation as the related schema or `null`, since it renders `null` when the related row is

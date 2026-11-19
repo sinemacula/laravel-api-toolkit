@@ -31,11 +31,18 @@ final class EnvelopeBuilderTest extends TestCase
         self::assertSame([
             'type'       => 'object',
             'properties' => [
-                'total'    => ['type' => 'integer'],
+                'total' => [
+                    'type'        => 'integer',
+                    'description' => 'The records the query matches, or only those offset pagination can reach when the total is capped.',
+                ],
+                'total_capped' => [
+                    'type'        => 'boolean',
+                    'description' => 'Whether more records match than the total reports; read past it with cursor pagination.',
+                ],
                 'count'    => ['type' => 'integer'],
                 'continue' => ['type' => 'boolean'],
             ],
-            'required' => ['total', 'count', 'continue'],
+            'required' => ['total', 'total_capped', 'count', 'continue'],
         ], $schema);
     }
 
@@ -123,7 +130,7 @@ final class EnvelopeBuilderTest extends TestCase
     {
         $header = (new EnvelopeBuilder)->buildHeaders()[EnvelopeBuilder::TOTAL_COUNT_HEADER_NAME];
 
-        self::assertArrayHasKey('description', $header);
+        self::assertSame('The total number of records across all pages of the length-aware collection, absent when the total is capped.', $header['description']);
         self::assertSame(['type' => 'integer', 'minimum' => 0], $header['schema']);
     }
 

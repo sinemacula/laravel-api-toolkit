@@ -868,11 +868,12 @@ final class OpenApiExporterValidityTest extends TestCase
     }
 
     /**
-     * Test that both pagination shapes validate against the index 200 schema.
+     * Test that every pagination shape validates against the index 200 schema,
+     * and that the length-aware meta requires the capped flag.
      *
      * @return void
      */
-    public function testIndexSchemaAcceptsBothPaginationShapes(): void
+    public function testIndexSchemaAcceptsEveryPaginationShape(): void
     {
         $this->registerUserRoutes();
 
@@ -892,13 +893,25 @@ final class OpenApiExporterValidityTest extends TestCase
 
         $lengthAware = [
             'data'  => [$user],
-            'meta'  => ['total' => 30, 'count' => 1, 'continue' => true],
+            'meta'  => ['total' => 30, 'total_capped' => false, 'count' => 1, 'continue' => true],
             'links' => [
                 'self'  => 'https://api.example.com/users?page=2',
                 'first' => 'https://api.example.com/users?page=1',
                 'prev'  => 'https://api.example.com/users?page=1',
                 'next'  => 'https://api.example.com/users?page=3',
                 'last'  => 'https://api.example.com/users?page=30',
+            ],
+        ];
+
+        $capped = ['meta' => ['total' => 500000, 'total_capped' => true, 'count' => 1, 'continue' => true]] + $lengthAware;
+
+        $simple = [
+            'data'  => [$user],
+            'meta'  => ['continue' => true],
+            'links' => [
+                'self' => 'https://api.example.com/users?page=2',
+                'prev' => 'https://api.example.com/users?page=1',
+                'next' => 'https://api.example.com/users?page=3',
             ],
         ];
 
@@ -912,7 +925,9 @@ final class OpenApiExporterValidityTest extends TestCase
             ],
         ];
 
-        foreach (['length-aware' => $lengthAware, 'cursor' => $cursor] as $shape => $page) {
+        self::assertSame(['total', 'total_capped', 'count', 'continue'], $document['components']['schemas']['PaginationMeta']['required'] ?? null);
+
+        foreach (['length-aware' => $lengthAware, 'capped' => $capped, 'simple' => $simple, 'cursor' => $cursor] as $shape => $page) {
 
             $result = $this->validateIndexPage($document, $page);
 
@@ -1118,6 +1133,37 @@ final class OpenApiExporterValidityTest extends TestCase
             $this->validateDocument($document)->isValid(),
             'A document with a requestBody must validate as OpenAPI 3.1: ' . $this->formatErrors($this->validateDocument($document)),
         );
+    }
+
+    /**
+     * Test that an update taking its FormRequest after the bound model emits
+     * the FormRequest's body.
+     *
+     * @return void
+     */
+    public function testUpdateTakingTheBodyAfterTheBoundModelEmitsItsBody(): void
+    {
+        $this->router()->put('users/{user}', [PathRequestBodyController::class, 'updateBound']);
+
+        $document = $this->export()->document;
+
+        self::assertSame([
+            'required' => true,
+            'content'  => [
+                'application/json' => [
+                    'schema' => [
+                        'type'       => 'object',
+                        'properties' => [
+                            'name'  => ['type' => 'string', 'maxLength' => 255],
+                            'email' => ['type' => 'string', 'format' => 'email'],
+                        ],
+                        'required' => ['name', 'email'],
+                    ],
+                ],
+            ],
+        ], $document['paths']['/users/{user}']['put']['requestBody']);
+
+        $this->assertValidDocument($document);
     }
 
     /**

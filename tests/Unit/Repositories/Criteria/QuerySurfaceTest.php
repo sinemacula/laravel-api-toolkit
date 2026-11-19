@@ -11,6 +11,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\GuardEvaluator;
 use SineMacula\ApiToolkit\Repositories\Criteria\CallerAdmission;
+use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
@@ -103,15 +104,75 @@ final class QuerySurfaceTest extends TestCase
     }
 
     /**
-     * Test that a token outside the capability matrix is permitted.
+     * Test that a registered token is admitted only on the capabilities it was
+     * registered with, and listed only where admitted.
      *
      * @return void
      */
-    public function testOperatorGatePermitsATokenTheMatrixDoesNotGovern(): void
+    public function testGatesARegisteredTokenByItsCapabilities(): void
     {
-        $surface = $this->make(filterable: ['email' => Capability::OPAQUE]);
+        $this->operators()->register('$starts', static function (): void {}, Capability::RANGE);
 
-        $this->assertPermits(fn () => $surface->guardFilterOperator('email', '$starts'), 'email');
+        $surface = $this->make(filterable: ['id' => Capability::RANGE, 'email' => Capability::EXACT, 'code' => Capability::OPAQUE]);
+
+        $this->assertPermits(fn () => $surface->guardFilterOperator('id', '$starts'), 'id');
+        $this->assertRejectsWith(fn () => $surface->guardFilterOperator('email', '$starts'), $this->unpermitted('$starts', 'email', '$eq, $in, $null, $notNull'));
+        $this->assertRejectsWith(fn () => $surface->guardFilterOperator('code', '$starts'), $this->unpermitted('$starts', 'code', '$eq'));
+        $this->assertRejectsWith(
+            fn () => $surface->guardFilterOperator('id', '$neq'),
+            $this->unpermitted('$neq', 'id', '$eq, $in, $gt, $ge, $lt, $le, $between, $null, $notNull, $starts'),
+        );
+    }
+
+    /**
+     * Test that a removed shipped token is refused and no longer offered.
+     *
+     * @return void
+     */
+    public function testRefusesAndStopsOfferingARemovedToken(): void
+    {
+        $this->operators()->remove('$between');
+
+        $surface = $this->make(filterable: ['id' => Capability::RANGE]);
+
+        $this->assertRejectsWith(
+            fn () => $surface->guardFilterOperator('id', '$between'),
+            $this->unpermitted('$between', 'id', '$eq, $in, $gt, $ge, $lt, $le, $null, $notNull'),
+        );
+    }
+
+    /**
+     * Test that a column whose capability admits no registered token refuses
+     * every operator as accepting none.
+     *
+     * @return void
+     */
+    public function testRefusesEveryOperatorOnACapabilityAdmittingNone(): void
+    {
+        $this->operators()->remove('$contains');
+
+        $surface = $this->make(filterable: ['settings' => Capability::DOCUMENT]);
+
+        $this->assertRejectsWith(
+            fn () => $surface->guardFilterOperator('settings', '$contains'),
+            ['filters.settings.$contains' => ['The "settings" key accepts no registered filter operators.']],
+        );
+    }
+
+    /**
+     * Test that a related level gates a registered token by its own column's
+     * capability.
+     *
+     * @return void
+     */
+    public function testGatesARegisteredTokenOnARelatedLevelByItsColumn(): void
+    {
+        $this->operators()->register('$starts', static function (): void {}, Capability::RANGE);
+
+        $author = $this->make(relations: ['author'], resourceMap: [User::class => UserResource::class])->through('author', new User, false);
+
+        $this->assertPermits(fn () => $author->guardFilterOperator('id', '$starts'), 'id');
+        $this->assertRejectsWith(fn () => $author->guardFilterOperator('name', '$starts'), $this->unpermitted('$starts', 'name', '$eq, $in, $null, $notNull'));
     }
 
     /**
@@ -124,15 +185,22 @@ final class QuerySurfaceTest extends TestCase
         $this->localiseToolkitMessages([
             'query.undeclared_key'         => 'Der Schlüssel ":key" ist nicht zulässig.',
             'filters.unpermitted_operator' => 'Der Operator ":operator" ist für ":key" nicht zulässig, erlaubt sind :accepts.',
+            'filters.no_operators'         => 'Der Schlüssel ":key" nimmt keine Operatoren an.',
         ]);
 
-        $surface = $this->make(filterable: ['email' => Capability::EXACT]);
+        $this->operators()->remove('$contains');
+
+        $surface = $this->make(filterable: ['email' => Capability::EXACT, 'settings' => Capability::DOCUMENT]);
 
         $this->assertRejectsWith(fn () => $surface->guardSort('secret'), ['order.secret' => ['Der Schlüssel "secret" ist nicht zulässig.']]);
         $this->assertRejectsWith(fn () => $surface->guardFilterOperator('password', '$eq'), ['filters.password' => ['Der Schlüssel "password" ist nicht zulässig.']]);
         $this->assertRejectsWith(
             fn () => $surface->guardFilterOperator('email', '$neq'),
             ['filters.email.$neq' => ['Der Operator "$neq" ist für "email" nicht zulässig, erlaubt sind $eq, $in, $null, $notNull.']],
+        );
+        $this->assertRejectsWith(
+            fn () => $surface->guardFilterOperator('settings', '$contains'),
+            ['filters.settings.$contains' => ['Der Schlüssel "settings" nimmt keine Operatoren an.']],
         );
     }
 
@@ -173,7 +241,7 @@ final class QuerySurfaceTest extends TestCase
      */
     public function testUngovernedSurfaceRejectsEveryKey(): void
     {
-        $surface = new QuerySurface(null, $this->traversal([Post::class => PostResource::class]), $this->admission());
+        $surface = new QuerySurface(null, $this->traversal([Post::class => PostResource::class]), $this->admission(), $this->operators());
 
         $this->assertRejects(fn () => $surface->guardFilter('title'), 'filters.title');
         $this->assertRejects(fn () => $surface->guardFilterOperator('title', '$eq'), 'filters.title');
@@ -354,7 +422,7 @@ final class QuerySurfaceTest extends TestCase
             conditionalSortKeys  : ['email' => ['email']],
         );
 
-        $surface = new QuerySurface($schema, $this->traversal([]), $this->admission());
+        $surface = new QuerySurface($schema, $this->traversal([]), $this->admission(), $this->operators());
 
         $surface->guardFilter('email');
         $surface->guardFilterOperator('email', '$eq');
@@ -376,7 +444,12 @@ final class QuerySurfaceTest extends TestCase
      */
     private function make(array $filterable = [], array $sortable = [], array $relations = [], array $resources = [], array $resourceMap = []): QuerySurface
     {
-        return new QuerySurface(new CompiledSchema([], [], $filterable, $sortable, $relations, [], $resources), $this->traversal($resourceMap), $this->admission());
+        return new QuerySurface(
+            new CompiledSchema([], [], $filterable, $sortable, $relations, [], $resources),
+            $this->traversal($resourceMap),
+            $this->admission(),
+            $this->operators(),
+        );
     }
 
     /**
@@ -407,6 +480,7 @@ final class QuerySurfaceTest extends TestCase
             SchemaCompiler::compile($resource),
             $this->traversal([User::class => GuardedQueryableUserResource::class, Post::class => GuardedQueryablePostResource::class]),
             $this->admission($asAdmin),
+            $this->operators(),
         );
     }
 
@@ -419,6 +493,31 @@ final class QuerySurfaceTest extends TestCase
     private function traversal(array $resourceMap): RelationTraversal
     {
         return new RelationTraversal(app(SchemaIntrospectionProvider::class), $resourceMap);
+    }
+
+    /**
+     * Return the bound operator registry the surfaces gate against.
+     *
+     * @return \SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry
+     */
+    private function operators(): OperatorRegistry
+    {
+        return app(OperatorRegistry::class);
+    }
+
+    /**
+     * Build the errors an operator a column does not admit is refused with.
+     *
+     * @param  string  $operator
+     * @param  string  $key
+     * @param  string  $accepts
+     * @return array<string, array<int, string>>
+     */
+    private function unpermitted(string $operator, string $key, string $accepts): array
+    {
+        $message = sprintf('The "%s" operator is not permitted on the "%s" key for this resource, which accepts %s.', $operator, $key, $accepts);
+
+        return ['filters.' . $key . '.' . $operator => [$message]];
     }
 
     /**
