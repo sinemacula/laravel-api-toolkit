@@ -9,6 +9,8 @@ use PHPUnit\Framework\Attributes\TestWith;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Schema\CompiledFieldDefinition;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
+use SineMacula\ApiToolkit\Schema\Field;
+use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Schema\Validation\Rules\ValidateNeedsColumns;
 use SineMacula\ApiToolkit\Schema\Validation\SchemaValidationError;
 use SineMacula\ApiToolkit\Schema\Validation\UnverifiedDeclaration;
@@ -81,6 +83,27 @@ final class ValidateNeedsColumnsTest extends TestCase
                 return [$error->fieldKey, $error->defect];
             }, $errors),
         );
+    }
+
+    /**
+     * Test that a date helper over a path or accessor the table lacks is not
+     * reported, since it declares no needs().
+     *
+     * @return void
+     */
+    public function testIgnoresDateHelpersOverAttributesTheTableLacks(): void
+    {
+        $resource = new class {
+            /**
+             * @return array<string, array<string, mixed>>
+             */
+            public static function schema(): array
+            {
+                return Field::set(Field::timestamp('pivot.created_at', 'joined_at'), Field::date('last_seen_on'));
+            }
+        };
+
+        self::assertSame([], $this->rule(['id', 'name'])->validate(UserResource::class, User::class, SchemaCompiler::compile($resource::class)));
     }
 
     /**

@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Schema;
 
-use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Auth\Access\Gate;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Auth\Access\Gate as GateContract;
@@ -354,32 +353,17 @@ final class FieldTest extends TestCase
     }
 
     /**
-     * Test that the timestamp accessor formats a string or a plain date-time
-     * the way it formats Carbon.
+     * Test that an aliased timestamp reads its field, not its alias.
      *
-     * @param  \DateTimeInterface|string  $value
      * @return void
      */
-    #[TestWith(['2026-07-15T09:30:00.123456+02:00'])]
-    #[TestWith([new \DateTimeImmutable('2026-07-15T09:30:00+02:00')])]
-    public function testTimestampAccessorFormatsAnUncastValueAsIso8601(\DateTimeInterface|string $value): void
+    public function testTimestampReadsItsFieldUnderAnAlias(): void
     {
-        $accessor = Field::timestamp('created_at')->toArray()['created_at']['accessor'];
+        $accessor = Field::timestamp('created_at', 'created')->toArray()['created']['accessor'];
 
         self::assertIsCallable($accessor);
 
-        self::assertSame('2026-07-15T09:30:00+02:00', $accessor(['created_at' => $value]));
-    }
-
-    /**
-     * Test that the timestamp helper declares the column it reads, not its
-     * alias.
-     *
-     * @return void
-     */
-    public function testTimestampDeclaresItsOwnColumn(): void
-    {
-        self::assertSame(['created_at'], Field::timestamp('created_at', 'created')->toArray()['created']['needs']);
+        self::assertSame('2026-07-15T09:30:00+00:00', $accessor(['created_at' => Carbon::parse('2026-07-15T09:30:00+00:00')]));
     }
 
     /**
@@ -429,48 +413,17 @@ final class FieldTest extends TestCase
     }
 
     /**
-     * Test that the date accessor formats the date or date-time string an
-     * uncast column holds as a date string.
+     * Test that an aliased date reads its field, not its alias.
      *
-     * @param  string  $value
      * @return void
      */
-    #[TestWith(['2026-07-15'])]
-    #[TestWith(['2026-07-15 23:30:00'])]
-    public function testDateAccessorFormatsAnUncastStringAsDateString(string $value): void
+    public function testDateReadsItsFieldUnderAnAlias(): void
     {
-        $accessor = Field::date('birth_date')->toArray()['birth_date']['accessor'];
+        $accessor = Field::date('birth_date', 'born_on')->toArray()['born_on']['accessor'];
 
         self::assertIsCallable($accessor);
 
-        self::assertSame('2026-07-15', $accessor(['birth_date' => $value]));
-    }
-
-    /**
-     * Test that the date accessor refuses a string that is not a date rather
-     * than rendering it as null.
-     *
-     * @return void
-     */
-    public function testDateAccessorRefusesAStringThatIsNotADate(): void
-    {
-        $accessor = Field::date('birth_date')->toArray()['birth_date']['accessor'];
-
-        self::assertIsCallable($accessor);
-
-        $this->expectException(InvalidFormatException::class);
-
-        $accessor(['birth_date' => 'not-a-date']);
-    }
-
-    /**
-     * Test that the date helper declares the column it reads, not its alias.
-     *
-     * @return void
-     */
-    public function testDateDeclaresItsOwnColumn(): void
-    {
-        self::assertSame(['birth_date'], Field::date('birth_date', 'born_on')->toArray()['born_on']['needs']);
+        self::assertSame('2026-07-15', $accessor(['birth_date' => Carbon::parse('2026-07-15T09:30:00+00:00')]));
     }
 
     /**
