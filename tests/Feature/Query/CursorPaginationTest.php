@@ -124,8 +124,8 @@ final class CursorPaginationTest extends TestCase
         $grammar    = DB::connection()->getQueryGrammar();
 
         self::assertStatementCount(1, $statements);
-        self::assertStringContainsString(sprintf('where (%1$s > ? or (%1$s = ? and (%2$s > ?)))', $grammar->wrap('name'), $grammar->wrap('users.id')), $statements[0]);
-        self::assertStringEndsWith(sprintf('order by %s asc, %s asc limit 6', $grammar->wrap('name'), $grammar->wrap('users.id')), $statements[0]);
+        self::assertStringContainsString(sprintf('where (%1$s > ? or (%1$s = ? and (%2$s > ?)))', $grammar->wrap('users.name'), $grammar->wrap('users.id')), $statements[0]);
+        self::assertStringEndsWith(sprintf('order by %s asc, %s asc limit 6', $grammar->wrap('users.name'), $grammar->wrap('users.id')), $statements[0]);
         self::assertStringNotContainsString('count(', $statements[0]);
         self::assertStringNotContainsString('offset', $statements[0]);
     }

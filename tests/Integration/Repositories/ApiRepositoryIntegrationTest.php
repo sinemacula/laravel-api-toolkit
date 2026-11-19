@@ -14,8 +14,13 @@ use SineMacula\ApiToolkit\Repositories\ApiRepository;
 use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
 use SineMacula\Http\Enums\HttpMethod;
 use Tests\Fixtures\Enums\UserStatus;
+use Tests\Fixtures\Models\Country;
+use Tests\Fixtures\Models\Log;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Repositories\CountryRepository;
+use Tests\Fixtures\Repositories\LogRepository;
 use Tests\Fixtures\Repositories\UserRepository;
+use Tests\Fixtures\Resources\LogResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -136,6 +141,89 @@ final class ApiRepositoryIntegrationTest extends TestCase
         self::assertCount(2, $results);
         self::assertTrue($results->pluck('name')->contains('Alice'));
         self::assertTrue($results->pluck('name')->contains('Bob'));
+    }
+
+    /**
+     * Test that scopeById reads a UUID-keyed model by its key.
+     *
+     * @return void
+     */
+    public function testScopeByIdReadsAUuidKeyedModel(): void
+    {
+        $target = Log::create(['level' => 'info', 'message' => 'Target']);
+
+        Log::create(['level' => 'info', 'message' => 'Other']);
+
+        /** @var \Tests\Fixtures\Models\Log|null $result */
+        $result = app(LogRepository::class)->scopeById($target->id)->first(); // @phpstan-ignore staticMethod.dynamicCall
+
+        self::assertSame('Target', $result?->message);
+    }
+
+    /**
+     * Test that scopeById reads a string-keyed model by its key, with or
+     * without the key column named.
+     *
+     * @return void
+     */
+    public function testScopeByIdReadsAStringKeyedModelWithOrWithoutTheColumn(): void
+    {
+        Country::create(['code' => 'GB', 'name' => 'United Kingdom']);
+        Country::create(['code' => 'FR', 'name' => 'France']);
+
+        $repository = app(CountryRepository::class);
+
+        self::assertSame(['United Kingdom'], $repository->scopeById('GB')->pluck('name')->all()); // @phpstan-ignore staticMethod.dynamicCall
+        self::assertSame(['France'], $repository->scopeById('FR', 'code')->pluck('name')->all()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that scopeByIds with no ids reads nothing.
+     *
+     * @return void
+     */
+    public function testScopeByIdsWithNoIdsReadsNothing(): void
+    {
+        self::assertCount(0, $this->repository->scopeByIds([])->get()); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that offset pages over UUID-keyed rows tied on the sorted column
+     * return every row once.
+     *
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    public function testOffsetPagesOverTiedUuidKeyedRowsReturnEveryRowOnce(): void
+    {
+        $ids = [];
+
+        foreach (['error', 'info', 'info', 'error', 'info'] as $level) {
+            $ids[] = Log::create(['level' => $level, 'message' => $level])->id;
+        }
+
+        $repository = app(LogRepository::class)->usingResource(LogResource::class);
+        $read       = [];
+
+        foreach ([1, 2, 3] as $page) {
+
+            ApiQuery::parse(Request::create('/test', HttpMethod::GET->getVerb(), ['order' => 'level', 'limit' => '2', 'page' => (string) $page]));
+
+            $results = $repository->withApiCriteria()->paginate();
+
+            self::assertInstanceOf(LengthAwarePaginator::class, $results);
+
+            foreach ($results->items() as $log) {
+
+                self::assertInstanceOf(Log::class, $log);
+
+                $read[] = [$log->level, $log->id];
+            }
+        }
+
+        self::assertSame(['error', 'error', 'info', 'info', 'info'], array_column($read, 0));
+        self::assertEqualsCanonicalizing($ids, array_column($read, 1));
     }
 
     /**

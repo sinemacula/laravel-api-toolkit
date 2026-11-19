@@ -37,6 +37,7 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Repositories\CacheableTagRepository;
+use Tests\Fixtures\Repositories\CountryRepository;
 use Tests\Fixtures\Repositories\DeferrableModelRepository;
 use Tests\Fixtures\Repositories\DocumentRepository;
 use Tests\Fixtures\Repositories\DummyRepository;
@@ -632,6 +633,49 @@ final class ApiRepositoryTest extends TestCase
         $result = $this->repository->scopeByIds($ids)->get(); // @phpstan-ignore staticMethod.dynamicCall
 
         self::assertCount(2, $result);
+    }
+
+    /**
+     * Test that scopeById scopes by the model key, qualified by its table.
+     *
+     * @return void
+     */
+    public function testScopeByIdScopesByTheQualifiedKey(): void
+    {
+        self::assertSame('users.id', $this->repository->scopeById(1)->getQuery()->wheres[0]['column']); // @phpstan-ignore staticMethod.dynamicCall
+    }
+
+    /**
+     * Test that scopeById and scopeByIds scope by a key not named id.
+     *
+     * @return void
+     */
+    public function testScopeByIdAndScopeByIdsScopeByAKeyNotNamedId(): void
+    {
+        assert($this->app !== null);
+
+        $repository = $this->app->make(CountryRepository::class);
+
+        $one  = $repository->scopeById('GB')->getQuery()->wheres[0]['column']; // @phpstan-ignore staticMethod.dynamicCall
+        $many = $repository->scopeByIds(['GB', 'FR'])->getQuery()->wheres[0]['column']; // @phpstan-ignore staticMethod.dynamicCall
+
+        self::assertSame('countries.code', $one);
+        self::assertSame('countries.code', $many);
+    }
+
+    /**
+     * Test that scopeByIds qualifies a given column and passes a qualified one
+     * through.
+     *
+     * @return void
+     */
+    public function testScopeByIdsQualifiesAGivenColumnAndPassesAQualifiedOneThrough(): void
+    {
+        $email = $this->repository->scopeByIds([self::ALICE_EMAIL], 'email')->getQuery()->wheres[0]['column']; // @phpstan-ignore staticMethod.dynamicCall
+        $post  = $this->repository->scopeByIds([1], 'posts.id')->getQuery()->wheres[0]['column']; // @phpstan-ignore staticMethod.dynamicCall
+
+        self::assertSame('users.email', $email);
+        self::assertSame('posts.id', $post);
     }
 
     /**
