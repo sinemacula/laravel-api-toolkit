@@ -1146,22 +1146,17 @@ final class OpenApiExporterValidityTest extends TestCase
         $this->router()->put('users/{user}', [PathRequestBodyController::class, 'updateBound']);
 
         $document = $this->export()->document;
+        $body     = $document['paths']['/users/{user}']['put']['requestBody'];
 
+        self::assertTrue($body['required']);
         self::assertSame([
-            'required' => true,
-            'content'  => [
-                'application/json' => [
-                    'schema' => [
-                        'type'       => 'object',
-                        'properties' => [
-                            'name'  => ['type' => 'string', 'maxLength' => 255],
-                            'email' => ['type' => 'string', 'format' => 'email'],
-                        ],
-                        'required' => ['name', 'email'],
-                    ],
-                ],
+            'type'       => 'object',
+            'properties' => [
+                'name'  => ['type' => 'string', 'maxLength' => 255],
+                'email' => ['type' => 'string', 'format' => 'email'],
             ],
-        ], $document['paths']['/users/{user}']['put']['requestBody']);
+            'required' => ['name', 'email'],
+        ], $body['content']['application/json']['schema']);
 
         $this->assertValidDocument($document);
     }

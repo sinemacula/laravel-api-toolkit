@@ -33,6 +33,12 @@ final readonly class EnvelopeBuilder
     /** The path prefix under which schema components are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
 
+    /** The page link the pagination component examples show */
+    private const string EXAMPLE_PAGE = 'https://example.com/resources?page=1';
+
+    /** The cursor link the pagination component examples show */
+    private const string EXAMPLE_CURSOR_PAGE = 'https://example.com/resources';
+
     /**
      * Build the shared envelope schemas, keyed by component name.
      *
@@ -127,6 +133,7 @@ final readonly class EnvelopeBuilder
     public function collectionEnvelopeFor(array $items): array
     {
         return [
+            'title'      => 'Length-aware page',
             'type'       => 'object',
             'properties' => [
                 'data'  => ['type' => 'array', 'items' => $items],
@@ -146,6 +153,7 @@ final readonly class EnvelopeBuilder
     public function cursorCollectionEnvelope(string $schemaRef): array
     {
         return [
+            'title'      => 'Cursor page',
             'type'       => 'object',
             'properties' => [
                 'data'  => ['type' => 'array', 'items' => ['$ref' => $schemaRef]],
@@ -178,6 +186,7 @@ final readonly class EnvelopeBuilder
                 'continue' => ['type' => 'boolean'],
             ],
             'required' => ['total', 'total_capped', 'count', 'continue'],
+            'examples' => [['total' => 1, 'total_capped' => false, 'count' => 1, 'continue' => false]],
         ];
     }
 
@@ -198,6 +207,7 @@ final readonly class EnvelopeBuilder
                 'last'  => $this->uri(),
             ],
             'required' => ['self', 'first', 'prev', 'next', 'last'],
+            'examples' => [['self' => self::EXAMPLE_PAGE, 'first' => self::EXAMPLE_PAGE, 'prev' => null, 'next' => null, 'last' => self::EXAMPLE_PAGE]],
         ];
     }
 
@@ -214,6 +224,7 @@ final readonly class EnvelopeBuilder
                 'continue' => ['type' => 'boolean'],
             ],
             'required' => ['continue'],
+            'examples' => [['continue' => false]],
         ];
     }
 
@@ -232,6 +243,7 @@ final readonly class EnvelopeBuilder
                 'next' => $this->nullableUri(),
             ],
             'required' => ['self', 'prev', 'next'],
+            'examples' => [['self' => self::EXAMPLE_CURSOR_PAGE, 'prev' => null, 'next' => null]],
         ];
     }
 

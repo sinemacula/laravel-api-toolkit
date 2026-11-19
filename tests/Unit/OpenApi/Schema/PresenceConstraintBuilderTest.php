@@ -37,7 +37,7 @@ final class PresenceConstraintBuilderTest extends TestCase
             'type'       => 'object',
             'properties' => [
                 'password'              => ['type' => 'string', 'minLength' => 8],
-                'password_confirmation' => ['type' => 'string'],
+                'password_confirmation' => ['type' => 'string', 'x-confirms' => 'password'],
                 'name'                  => [],
             ],
             'required' => ['password', 'password_confirmation'],
@@ -61,7 +61,7 @@ final class PresenceConstraintBuilderTest extends TestCase
             'type'       => 'object',
             'properties' => [
                 'count'              => ['type' => 'integer'],
-                'count_confirmation' => ['type' => 'integer'],
+                'count_confirmation' => ['type' => 'integer', 'x-confirms' => 'count'],
             ],
             'dependentRequired' => ['count' => ['count_confirmation']],
         ], $schema);
@@ -80,8 +80,8 @@ final class PresenceConstraintBuilderTest extends TestCase
             ['a' => ['confirmed'], 'b' => ['confirmed']],
         );
 
-        self::assertSame(['type' => 'string'], $schema['properties']['a_confirmation']);
-        self::assertSame(['type' => 'string'], $schema['properties']['b_confirmation']);
+        self::assertSame(['type' => 'string', 'x-confirms' => 'a'], $schema['properties']['a_confirmation']);
+        self::assertSame(['type' => 'string', 'x-confirms' => 'b'], $schema['properties']['b_confirmation']);
     }
 
     /**
@@ -97,8 +97,8 @@ final class PresenceConstraintBuilderTest extends TestCase
             ['tags' => ['confirmed'], 'meta' => ['confirmed']],
         );
 
-        self::assertSame(['type' => ['object', 'array']], $schema['properties']['tags_confirmation']);
-        self::assertSame(['type' => ['object', 'array']], $schema['properties']['meta_confirmation']);
+        self::assertSame(['type' => ['object', 'array'], 'x-confirms' => 'tags'], $schema['properties']['tags_confirmation']);
+        self::assertSame(['type' => ['object', 'array'], 'x-confirms' => 'meta'], $schema['properties']['meta_confirmation']);
     }
 
     /**
@@ -118,7 +118,7 @@ final class PresenceConstraintBuilderTest extends TestCase
             'type'       => 'object',
             'properties' => [
                 'password'        => ['type' => 'string'],
-                'repeat_password' => ['type' => 'string'],
+                'repeat_password' => ['type' => 'string', 'x-confirms' => 'password'],
                 'name'            => [],
             ],
             'required' => ['password', 'repeat_password'],
@@ -162,9 +162,42 @@ final class PresenceConstraintBuilderTest extends TestCase
 
         self::assertSame([
             'type'       => 'object',
-            'properties' => ['password_confirmation' => ['type' => 'string', 'minLength' => 8], 'password' => ['type' => 'string']],
+            'properties' => ['password_confirmation' => ['type' => 'string', 'minLength' => 8, 'x-confirms' => 'password'], 'password' => ['type' => 'string']],
             'required'   => ['password_confirmation', 'password'],
         ], $schema);
+    }
+
+    /**
+     * Test that a declared confirmation after the field it confirms names that
+     * field.
+     *
+     * @return void
+     */
+    public function testDeclaredConfirmationAfterItsFieldNamesIt(): void
+    {
+        $schema = $this->builder()->build(
+            ['type' => 'object', 'properties' => ['pin' => ['type' => 'string'], 'pin_repeat' => ['type' => 'string', 'minLength' => 4]]],
+            '',
+            ['pin' => ['confirmed:pin_repeat'], 'pin_repeat' => []],
+        );
+
+        self::assertSame(['type' => 'string', 'minLength' => 4, 'x-confirms' => 'pin'], $schema['properties']['pin_repeat']);
+    }
+
+    /**
+     * Test that a field confirmed twice into one sibling still names it.
+     *
+     * @return void
+     */
+    public function testRepeatedConfirmationStillNamesItsField(): void
+    {
+        $schema = $this->builder()->build(
+            ['type' => 'object', 'properties' => ['pin' => ['type' => 'string']]],
+            '',
+            ['pin' => ['confirmed', 'confirmed:pin_confirmation']],
+        );
+
+        self::assertSame(['type' => 'string', 'x-confirms' => 'pin'], $schema['properties']['pin_confirmation']);
     }
 
     /**
@@ -184,7 +217,7 @@ final class PresenceConstraintBuilderTest extends TestCase
             'type'       => 'object',
             'properties' => [
                 'password'              => ['type' => 'string'],
-                'password_confirmation' => ['type' => 'string'],
+                'password_confirmation' => ['type' => 'string', 'x-confirms' => 'password'],
             ],
             'dependentRequired' => ['password' => ['password_confirmation']],
         ], $schema);
@@ -205,7 +238,7 @@ final class PresenceConstraintBuilderTest extends TestCase
 
         self::assertSame([
             'type'              => 'object',
-            'properties'        => ['f' => false, 'a' => [], 'p' => [], 'p_confirmation' => ['type' => 'string']],
+            'properties'        => ['f' => false, 'a' => [], 'p' => [], 'p_confirmation' => ['type' => 'string', 'x-confirms' => 'p']],
             'dependentRequired' => ['p' => ['p_confirmation'], 'a' => ['f', 'p']],
             'anyOf'             => [['required' => ['f']], ['required' => ['a']]],
         ], $schema);
@@ -226,7 +259,7 @@ final class PresenceConstraintBuilderTest extends TestCase
 
         self::assertSame([
             'type'       => 'object',
-            'properties' => ['a' => [], 'f' => [], 'p' => ['type' => 'string'], 'p_confirmation' => ['type' => 'string']],
+            'properties' => ['a' => [], 'f' => [], 'p' => ['type' => 'string'], 'p_confirmation' => ['type' => 'string', 'x-confirms' => 'p']],
             'required'   => ['p'],
         ], $schema);
     }

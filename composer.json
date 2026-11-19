@@ -20,6 +20,7 @@
         "php": "^8.3",
         "ext-pdo": "*",
         "laravel/framework": "^13.39",
+        "opis/json-schema": "^2.4",
         "sinemacula/http-primitives-php": "^2.0",
         "sinemacula/laravel-repositories": "^3.2.3"
     },
@@ -40,7 +41,6 @@
         "infection/infection": "^0.33.2",
         "laravel/octane": "^2.0",
         "mockery/mockery": "^1.6",
-        "opis/json-schema": "^2.4",
         "orchestra/testbench": "^11.0",
         "phpbench/phpbench": "^1.7",
         "phpstan/extension-installer": "^1.4",

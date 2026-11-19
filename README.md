@@ -1269,7 +1269,8 @@ field narrowed by `only()` or `except()`, which lists its accepted values inline
 A request field's presence rules shape its object's schema:
 
 - A `confirmed` field documents its confirmation field (`<field>_confirmation`, or the one `confirmed:` names), required
-  always when the field is required and through `dependentRequired` when it is optional.
+  always when the field is required and through `dependentRequired` when it is optional. The confirmation field names
+  the field it repeats in `x-confirms`, unless it confirms several.
 - `required_with`, `required_with_all`, `required_without` and `required_without_all` are expressed with
   `dependentRequired`, `if`/`then` and `anyOf`. They reference only fields declared in the same object or array item:
   any other name is left out, and a `_all` rule naming one is dropped.
@@ -1385,6 +1386,52 @@ resources their filters reach through a relation that is not a `MorphTo`:
 ```bash
 php artisan api-toolkit:docs:generate
 ```
+
+#### Examples
+
+Every JSON request body and success body carries generated examples. A value comes from the schema node's `examples`,
+`const`, `enum`, `format` and `type`, within its bounds; nothing is random or guessed from a field name. A request
+example sends every field that can be sent, so its presence rules hold, and a confirmation repeats the field it
+confirms. A response example holds each resource's required and default fields. A body that may take several shapes,
+such as an index's two pagination shapes or a `#[ResponseSchema]` naming several classes, carries one example per
+shape, named by its title or component. A multipart body takes none.
+
+Give a value where the exporter finds none, such as for a field with a `regex` rule, or where a realistic one reads
+better. The structure around it stays generated:
+
+- `->openapi()->example()` on a resource field, exported under `examples`.
+- `fieldExamples()` on a rules source implementing `DefinesFieldExamples`, keyed by rules key. A value at a container
+  key, such as `items`, is used as that whole subtree. A key naming no field, or a prohibited one, fails the export.
+- An `examples` keyword anywhere in a `DefinesSchema`'s `schema()`.
+
+```php
+use SineMacula\ApiToolkit\OpenApi\Contracts\DefinesFieldExamples;
+use SineMacula\ApiToolkit\Services\Contracts\DefinesInputSchema;
+
+final class RedeemVoucher implements DefinesFieldExamples, DefinesInputSchema
+{
+    public static function rules(): array
+    {
+        return [
+            'code'        => ['required', 'string', 'regex:/^[A-Z]{3}-[0-9]{4}$/'],
+            'items'       => ['required', 'array'],
+            'items.*.sku' => ['required', 'string'],
+        ];
+    }
+
+    public static function fieldExamples(): array
+    {
+        return ['code' => 'ABC-1234', 'items' => [['sku' => 'TEE-M'], ['sku' => 'CAP-L']]];
+    }
+}
+```
+
+Every example the document carries, generated, declared or an error example, is validated against the schema beside it,
+offline. A mismatch fails the export, naming the example and where it fails, and so does a required field the exporter
+finds no value for. A body needing an undocumented field, such as an uncast column exported without a database, gets no
+example, and the export command warns, naming the operation and the field; a wholly undocumented body gets none
+silently. A `date_format` field is a `date` or `date-time` only when every format it lists renders that form, and its
+example is rendered in its own format.
 
 #### Operation Ids, Summaries and Descriptions
 

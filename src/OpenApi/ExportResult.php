@@ -20,6 +20,7 @@ final readonly class ExportResult
      * @param  int  $resourceCount
      * @param  int  $parameterCount
      * @param  int  $errorExampleCount
+     * @param  list<string>  $skippedExamples
      */
     public function __construct(
 
@@ -37,5 +38,8 @@ final readonly class ExportResult
 
         /** The number of error example components emitted */
         public int $errorExampleCount,
+
+        /** The reason each body that takes an example has none */
+        public array $skippedExamples = [],
     ) {}
 }
