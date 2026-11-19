@@ -6,6 +6,7 @@ namespace Tests\Unit\Services;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use SineMacula\ApiToolkit\Exceptions\SerializedException;
 use SineMacula\ApiToolkit\Exceptions\ServiceFailedException;
 use SineMacula\ApiToolkit\Services\Enums\ServiceStatus;
 use SineMacula\ApiToolkit\Services\ServiceResult;
@@ -177,6 +178,46 @@ final class ServiceResultTest extends TestCase
         $result = ServiceResult::success(null, [$error]);
 
         self::assertSame([$error], $result->sideEffectErrors());
+    }
+
+    /**
+     * Test that a serialised failure carries its exception as a stand-in and
+     * leaves the result it was taken from untouched.
+     *
+     * @return void
+     */
+    public function testSerialisedFailureCarriesItsExceptionAsAStandIn(): void
+    {
+        $exception = new \RuntimeException('boom');
+        $result    = ServiceResult::failure($exception, ['partial' => true]);
+
+        $restored = unserialize(serialize($result));
+
+        self::assertInstanceOf(ServiceResult::class, $restored);
+        self::assertSame(ServiceStatus::FAILED, $restored->status);
+        self::assertSame(['partial' => true], $restored->output);
+        self::assertInstanceOf(SerializedException::class, $restored->exception);
+        self::assertSame(\RuntimeException::class, $restored->exception->originalClass());
+        self::assertSame('boom', $restored->exception->getMessage());
+        self::assertSame($exception, $result->exception);
+    }
+
+    /**
+     * Test that a serialised success carries each side-effect error as a
+     * stand-in and no exception.
+     *
+     * @return void
+     */
+    public function testSerialisedSuccessCarriesItsSideEffectErrorsAsStandIns(): void
+    {
+        $restored = unserialize(serialize(ServiceResult::success('ok', [new \LogicException('first'), new \LogicException('second')])));
+
+        self::assertInstanceOf(ServiceResult::class, $restored);
+        self::assertSame(ServiceStatus::SUCCEEDED, $restored->status);
+        self::assertSame('ok', $restored->output);
+        self::assertNull($restored->exception);
+        self::assertContainsOnlyInstancesOf(SerializedException::class, $restored->sideEffectErrors);
+        self::assertSame(['first', 'second'], array_map(static fn (\Throwable $error): string => $error->getMessage(), $restored->sideEffectErrors));
     }
 
     /**

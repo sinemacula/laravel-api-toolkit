@@ -8,6 +8,7 @@ use Illuminate\Contracts\Database\Eloquent\Builder;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
 use SineMacula\ApiToolkit\Contracts\ResourceMetadataProvider;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
+use SineMacula\ApiToolkit\Http\Resources\Concerns\FieldResolver;
 
 /**
  * Applies eager loading to an Eloquent query builder.
@@ -33,9 +34,7 @@ final class EagerLoadApplier
             return $query;
         }
 
-        $fields = in_array(':all', ApiQuery::getFields($resourceType) ?? [], true)
-            ? $metadataProvider->getAllFields($resourceClass)
-            : $metadataProvider->resolveFields($resourceClass);
+        $fields = [...FieldResolver::effectiveFields($resourceClass, null, false), ...$metadataProvider->getFixedFields($resourceClass)];
 
         if (empty($fields)) {
             return $query;
@@ -50,8 +49,10 @@ final class EagerLoadApplier
             $query->with($with);
         }
 
-        foreach ($metadataProvider->eagerLoadAggregatesFor($resourceClass, ApiQuery::getAggregates($resourceType) ?? []) as $entry) {
-            $query->withAggregate($entry['relation'], $entry['column'], $entry['function']);
+        if (in_array('aggregates', $fields, true)) {
+            foreach ($metadataProvider->eagerLoadAggregatesFor($resourceClass, ApiQuery::getAggregates($resourceType) ?? []) as $entry) {
+                $query->withAggregate($entry['relation'], $entry['column'], $entry['function']);
+            }
         }
 
         return $query;

@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Resolution;
 
+use Illuminate\Container\Container;
 use Illuminate\Foundation\Http\FormRequest;
 use SineMacula\ApiToolkit\OpenApi\Attributes\RequestSchema;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
@@ -195,16 +196,15 @@ final readonly class RequestBodyResolver
     }
 
     /**
-     * Read a FormRequest's rules through a plainly constructed instance.
+     * Read a FormRequest's rules through a plainly constructed instance,
+     * injecting what rules() asks for as the request does.
      *
      * @param  class-string<\Illuminate\Foundation\Http\FormRequest>  $source
      * @return mixed
      */
     private function formRequestRules(string $source): mixed
     {
-        $callable = [new $source, 'rules'];
-
-        return is_callable($callable) ? $callable() : null;
+        return method_exists($source, 'rules') ? Container::getInstance()->call([new $source, 'rules']) : null;
     }
 
     /**

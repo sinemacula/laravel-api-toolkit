@@ -164,6 +164,29 @@ final class OpenApiSecurityExportTest extends TestCase
     }
 
     /**
+     * Test that a configured driver keeping the built-in scheme name replaces
+     * that scheme's definition.
+     *
+     * @return void
+     */
+    public function testConfiguredDriverKeepingTheSchemeNameReplacesItsDefinition(): void
+    {
+        $definition = ['type' => 'http', 'scheme' => 'bearer', 'bearerFormat' => 'Sanctum'];
+
+        $this->getConfig()->set('api-toolkit.openapi.security.drivers', [
+            'sanctum' => ['name' => 'bearerAuth', 'definition' => $definition],
+        ]);
+        $this->setGuard('sanctum', 'sanctum');
+
+        $document = $this->exportRoute('auth:sanctum');
+
+        self::assertSame([['bearerAuth' => []]], $document['paths']['/users']['get']['security']);
+        self::assertSame(['bearerAuth' => $definition], $document['components']['securitySchemes']);
+
+        $this->assertValidDocument($document);
+    }
+
+    /**
      * Test that guards mapping to different schemes stay separate as an OR.
      *
      * @return void

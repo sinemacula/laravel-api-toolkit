@@ -127,6 +127,8 @@ final readonly class DocumentedRouteCollector
      * Resolve the route and the audiences it joins, or null when it is not
      * documentable or joins none.
      *
+     * A fallback route answers unmatched paths, so it is never an operation.
+     *
      * @param  \Illuminate\Routing\Route  $route
      * @param  array<string, \SineMacula\ApiToolkit\Enums\AudiencePosture>  $postures
      * @param  bool  $idsEnabled
@@ -138,7 +140,7 @@ final readonly class DocumentedRouteCollector
         $action          = $route->getActionMethod();
         $verbs           = $this->verbs($route);
 
-        if ($verbs === [] || $this->routeFilter->isExcluded($controllerClass, $route)) {
+        if ($route->isFallback || $verbs === [] || $this->routeFilter->isExcluded($controllerClass, $route)) {
             return null;
         }
 

@@ -33,6 +33,9 @@ final readonly class PathBuilder
     /** The lowercased HTTP verbs that carry a documented request body */
     private const array BODY_VERBS = ['post', 'put', 'patch'];
 
+    /** @var \SineMacula\ApiToolkit\OpenApi\Builder\DomainServerBuilder */
+    private DomainServerBuilder $domainServers;
+
     /**
      * Constructor.
      *
@@ -66,34 +69,102 @@ final readonly class PathBuilder
 
         /** The builder applying what an action declares about its success. */
         private SuccessResponseBuilder $successResponse,
-    ) {}
+    ) {
+        $this->domainServers = new DomainServerBuilder;
+    }
 
     /**
-     * Build the paths object from the routes, in route order.
+     * Build the paths object from the audience's routes, in route order.
      *
-     * A later route claiming a path and verb replaces the earlier operation.
+     * A later route claiming a path and verb replaces the earlier operation,
+     * unless both answer on a domain through one controller action and build
+     * the same operation apart from its servers, which then lists both.
      *
      * @param  list<\SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute>  $routes
      * @param  array<string, string>  $descriptions
+     * @param  string  $audience
+     * @param  list<array<string, mixed>>  $servers
      * @return array<string, array<string, mixed>>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException
      */
-    public function build(array $routes, array $descriptions): array
+    public function build(array $routes, array $descriptions, string $audience, array $servers): array
     {
-        $paths = [];
+        $paths  = [];
+        $claims = [];
 
         foreach ($routes as $route) {
 
-            $operation  = $this->resolveOperation($route);
-            $operations = [];
+            $operation = $this->resolveOperation($route);
+            $domain    = $this->domainServersOf($route, $servers, $audience);
 
             foreach ($route->verbs as $verb) {
-                $operations[$verb] = ['tags' => [$route->tag]] + $this->documentation($route, $verb, $descriptions) + $operation;
-            }
 
-            $paths[$route->path] = array_merge($paths[$route->path] ?? [], $operations);
+                $built = ['tags' => [$route->tag]] + $this->documentation($route, $verb, $descriptions) + $operation;
+                $claim = $claims[$route->path][$verb] ?? null;
+                $hosts = $claim !== null && $this->joins($claim, $route, $built)
+                    ? [...$claim[2], ...array_filter($domain, static fn (array $server): bool => !in_array($server, $claim[2], true))]
+                    : $domain;
+
+                $claims[$route->path][$verb] = [$route, $built, $hosts];
+                $paths[$route->path][$verb]  = $hosts === [] ? $built : $built + ['servers' => $hosts];
+            }
         }
 
         return $paths;
+    }
+
+    /**
+     * Build the servers of a route answering on a domain, or none for any other
+     * route.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
+     * @param  list<array<string, mixed>>  $servers
+     * @param  string  $audience
+     * @return list<array<string, mixed>>
+     *
+     * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException
+     */
+    private function domainServersOf(DocumentedRoute $route, array $servers, string $audience): array
+    {
+        if ($this->domainOf($route) === '') {
+            return [];
+        }
+
+        return $this->domainServers->build($route, $this->pathParameters->hostVariables($route->route), $servers, $audience);
+    }
+
+    /**
+     * Determine whether the route joins the earlier claim on its path and verb:
+     * it answers on a domain through the claim's controller action and builds
+     * the same operation apart from its servers.
+     *
+     * A claim without a domain lists no servers, so joining it replaces it.
+     *
+     * @param  array{\SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute, array<string, mixed>, list<array<string, mixed>>}  $claim
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
+     * @param  array<string, mixed>  $operation
+     * @return bool
+     */
+    private function joins(array $claim, DocumentedRoute $route, array $operation): bool
+    {
+        [$owner, $claimed] = $claim;
+
+        return $claimed === $operation
+            && $this->domainOf($route) !== ''
+            && $route->controllerClass !== null
+            && [$owner->controllerClass, $owner->action] === [$route->controllerClass, $route->action];
+    }
+
+    /**
+     * Read the domain the route answers on, empty when it answers on any.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
+     * @return string
+     */
+    private function domainOf(DocumentedRoute $route): string
+    {
+        return (string) $route->route->getDomain();
     }
 
     /**

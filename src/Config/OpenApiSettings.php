@@ -20,6 +20,9 @@ final class OpenApiSettings
     /** @var string What a security driver mapping accepts */
     private const string SCHEME = 'an array with a non-empty string name and an array definition';
 
+    /** @var string What a driver mapping to an already declared scheme accepts */
+    private const string SHARED_SCHEME = 'the %s definition the %s driver declares';
+
     /** @var list<string> The keys an audience may declare */
     private const array AUDIENCE_KEYS = ['posture', 'info', 'servers'];
 
@@ -114,7 +117,8 @@ final class OpenApiSettings
     }
 
     /**
-     * Return the security scheme mappings keyed by auth driver.
+     * Return the security scheme mappings keyed by auth driver, refusing two
+     * drivers that give one scheme name different definitions.
      *
      * @return array<string, array{name: string, definition: array<string, mixed>}>
      *
@@ -123,11 +127,20 @@ final class OpenApiSettings
     public static function securityDrivers(): array
     {
         $schemes = [];
+        $owners  = [];
 
         foreach (ToolkitConfig::readMap('openapi.security.drivers') as $driver => $scheme) {
 
             if (!is_string($driver) || !self::isScheme($scheme)) {
                 throw InvalidConfigurationException::mustBe(ToolkitConfig::key('openapi.security.drivers.' . $driver), self::SCHEME, $scheme);
+            }
+
+            $owner = $owners[$scheme['name']] ??= $driver;
+
+            if ($owner !== $driver && $schemes[$owner]['definition'] !== $scheme['definition']) {
+                $key = ToolkitConfig::key('openapi.security.drivers.' . $driver . '.definition');
+
+                throw InvalidConfigurationException::mustBe($key, sprintf(self::SHARED_SCHEME, $scheme['name'], $owner), $scheme['definition']);
             }
 
             $schemes[$driver] = ['name' => $scheme['name'], 'definition' => $scheme['definition']];
