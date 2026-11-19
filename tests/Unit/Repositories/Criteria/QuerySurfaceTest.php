@@ -21,9 +21,11 @@ use SineMacula\ApiToolkit\Schema\CompiledSchema;
 use SineMacula\ApiToolkit\Schema\RelationTraversal;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\LocalisesToolkitMessages;
+use Tests\Fixtures\Models\Gathering;
 use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\FilterableUserResource;
+use Tests\Fixtures\Resources\GatheringResource;
 use Tests\Fixtures\Resources\GuardedQueryablePostResource;
 use Tests\Fixtures\Resources\GuardedQueryableUserResource;
 use Tests\Fixtures\Resources\PostResource;
@@ -436,6 +438,30 @@ final class QuerySurfaceTest extends TestCase
         $surface->guardSort('email');
 
         self::assertSame(1, $runs);
+    }
+
+    /**
+     * Test that a scope resolves at the root and on a related level, and an
+     * undeclared or caller-hidden one resolves to nothing.
+     *
+     * @return void
+     */
+    public function testResolvesADeclaredScopeTheCallerMayInvokeAtEachLevel(): void
+    {
+        $root     = new QuerySurface(SchemaCompiler::compile(GatheringResource::class), $this->traversal([]), $this->admission(), $this->operators());
+        $sessions = $root->through('sessions', new Gathering, false);
+
+        self::assertSame('near', $root->scopeFor('near')?->scope);
+        self::assertSame('hasStarted', $sessions->scopeFor('past')?->scope);
+        self::assertNull($sessions->scopeFor('near'));
+        self::assertNull($root->scopeFor('cancelled'));
+        self::assertNull($root->scopeFor('mine'));
+        self::assertNull($this->make()->scopeFor('near'));
+        self::assertNull((new QuerySurface(null, $this->traversal([]), $this->admission(), $this->operators()))->scopeFor('near'));
+
+        $member = new QuerySurface(SchemaCompiler::compile(GatheringResource::class), $this->traversal([]), $this->admission(true), $this->operators());
+
+        self::assertSame('ownedByCaller', $member->scopeFor('mine')?->scope);
     }
 
     /**

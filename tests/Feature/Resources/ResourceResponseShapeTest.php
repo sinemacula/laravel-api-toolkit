@@ -8,6 +8,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\DataProvider;
+use SineMacula\ApiToolkit\Concerns\OrdersFields;
 use SineMacula\ApiToolkit\Concerns\QuerySelectionValidator;
 use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResource;
@@ -28,6 +31,7 @@ use Tests\Fixtures\Repositories\LogRepository;
 use Tests\Fixtures\Repositories\UserRepository;
 use Tests\Fixtures\Resources\LogResource;
 use Tests\Fixtures\Resources\PostResource;
+use Tests\Fixtures\Resources\RequestOrderedUserResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
 
@@ -47,12 +51,13 @@ use Tests\TestCase;
 #[CoversClass(EagerLoadApplier::class)]
 #[CoversClass(FilterApplier::class)]
 #[CoversClass(QuerySelectionValidator::class)]
+#[CoversTrait(OrdersFields::class)]
 final class ResourceResponseShapeTest extends TestCase
 {
     use RecordsStatements, RegistersApiExceptionHandler;
 
     /**
-     * Set up each test with a repository-backed users route and seeded data.
+     * Set up each test with repository-backed users routes and seeded data.
      *
      * @return void
      */
@@ -61,16 +66,23 @@ final class ResourceResponseShapeTest extends TestCase
     {
         parent::setUp();
 
-        Config::set(ResourceDiscovery::RESOURCES_KEY, [LogResource::class, UserResource::class, PostResource::class]);
+        Config::set(ResourceDiscovery::RESOURCES_KEY, [
+            LogResource::class,
+            UserResource::class,
+            PostResource::class,
+            RequestOrderedUserResource::class,
+        ]);
 
         $this->registerApiExceptionHandler();
 
-        Route::middleware(ParseApiQuery::class)->get('/users', function (UserRepository $repository): ApiResourceCollection {
+        foreach (['/users' => UserResource::class, '/request-ordered-users' => RequestOrderedUserResource::class] as $uri => $resource) {
+            Route::middleware(ParseApiQuery::class)->get($uri, function (UserRepository $repository) use ($resource): ApiResourceCollection {
 
-            $users = $repository->usingResource(UserResource::class)->withApiCriteria()->paginate();
+                $users = $repository->usingResource($resource)->withApiCriteria()->paginate();
 
-            return new ApiResourceCollection($users, UserResource::class);
-        });
+                return new ApiResourceCollection($users, $resource);
+            });
+        }
 
         Route::middleware(ParseApiQuery::class)->post('/users', static function (Request $request): UserResource {
 
@@ -112,6 +124,40 @@ final class ResourceResponseShapeTest extends TestCase
         self::assertArrayHasKey('_type', $posts[0]);
         self::assertArrayNotHasKey('body', $posts[0]);
         self::assertArrayNotHasKey('published', $posts[0]);
+    }
+
+    /**
+     * Provide selections of a resource ordering its keys as requested, with the
+     * keys each renders in order.
+     *
+     * @return iterable<string, array{array<string, mixed>, array<int, string>}>
+     */
+    public static function requestedOrderProvider(): iterable
+    {
+        yield 'requested order' => [['fields' => ['request_ordered_users' => 'email,name,id']], ['email', 'name', 'id', '_type']];
+        yield 'default order' => [[], ['name', 'email', 'id', '_type']];
+        yield 'unrequested keys trail' => [
+            ['fields' => ['request_ordered_users' => 'email,posts,aggregates,name']],
+            ['email', 'posts', 'aggregates', 'name', '_type', 'id', '_truncated'],
+        ];
+    }
+
+    /**
+     * Test that a resource ordering its keys as requested renders them in that
+     * order, followed by the keys the selection did not name.
+     *
+     * @param  array<string, mixed>  $query
+     * @param  array<int, string>  $keys
+     * @return void
+     */
+    #[DataProvider('requestedOrderProvider')]
+    public function testRequestedFieldOrderingRendersKeysInTheRequestedOrder(array $query, array $keys): void
+    {
+        $response = $this->getJson('/request-ordered-users?' . http_build_query($query));
+
+        $response->assertOk();
+
+        self::assertSame($keys, array_keys((array) $response->json('data.0')));
     }
 
     /**

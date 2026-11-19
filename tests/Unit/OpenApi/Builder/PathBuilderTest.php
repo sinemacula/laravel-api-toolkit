@@ -49,6 +49,7 @@ use SineMacula\ApiToolkit\OpenApi\Schema\RuleNormaliser;
 use SineMacula\ApiToolkit\OpenApi\Schema\RulesToSchemaTranslator;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeMapper;
 use SineMacula\ApiToolkit\OpenApi\Security\SecuritySchemeResolver;
+use SineMacula\ApiToolkit\Query\PageSize;
 use SineMacula\ApiToolkit\Query\QueryCostLimits;
 use Tests\Fixtures\Models\Article;
 use Tests\Fixtures\Models\Document;
@@ -77,6 +78,7 @@ use Tests\Fixtures\OpenApi\PathStatusConflictController;
 use Tests\Fixtures\OpenApi\PathStatusUserController;
 use Tests\Fixtures\OpenApi\PathUnmappedController;
 use Tests\Fixtures\Resources\ArticleResource;
+use Tests\Fixtures\Resources\CappedPageUserResource;
 use Tests\Fixtures\Resources\DocumentResource;
 use Tests\Fixtures\Resources\UserResource;
 use Tests\TestCase;
@@ -92,6 +94,9 @@ use Tests\TestCase;
 #[CoversClass(PathBuilder::class)]
 final class PathBuilderTest extends TestCase
 {
+    /** The description of the page size parameter */
+    private const string LIMIT_DESCRIPTION = 'Page size: the maximum number of records to return per page. A request above the ceiling is rejected rather than reduced to it.';
+
     /** The reference to the widget shape's component */
     private const string WIDGET_REF = '#/components/schemas/WidgetShape';
 
@@ -111,6 +116,13 @@ final class PathBuilderTest extends TestCase
                 'pending'   => '#/components/schemas/PendingSignInShape',
             ],
         ],
+    ];
+
+    /** @var array<class-string, class-string> The resource map the catalogue reports */
+    private array $resourceMap = [
+        User::class     => UserResource::class,
+        Article::class  => ArticleResource::class,
+        Document::class => DocumentResource::class,
     ];
 
     /**
@@ -517,6 +529,56 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
+     * Test that an index over a resource with its own page size bounds states
+     * them in an inline limit, and its other actions keep the shared grammar.
+     *
+     * @return void
+     */
+    public function testIndexOverALoweredResourceExportsItsOwnLimit(): void
+    {
+        $this->resourceMap[User::class] = CappedPageUserResource::class;
+
+        $this->registerRestRoutes();
+
+        $paths = $this->build();
+
+        self::assertIsArray($paths['/users']['get']['parameters']);
+        self::assertContains(
+            [
+                'name'        => 'limit',
+                'in'          => 'query',
+                'required'    => false,
+                'description' => self::LIMIT_DESCRIPTION,
+                'schema'      => ['type' => 'integer', 'minimum' => 1, 'maximum' => 2, 'default' => 2],
+            ],
+            $paths['/users']['get']['parameters'],
+        );
+        self::assertSame(
+            ['Fields', 'Aggregates', 'Filters', 'Search', 'Order', 'Page', 'Cursor', 'Pagination'],
+            $this->referencedParameterNames($paths['/users']['get']),
+        );
+        self::assertSame(['Fields', 'Aggregates'], $this->referencedParameterNames($paths['/users/{user}']['get']));
+    }
+
+    /**
+     * Test that an index over a resource with its own ceiling documents the
+     * query cost refusal while every configured cap is disabled.
+     *
+     * @return void
+     */
+    public function testIndexOverALoweredResourceDocumentsTheQueryCostRefusal(): void
+    {
+        config()->set('api-toolkit.query_cost', array_fill_keys(QueryCostLimits::NAMES, null));
+        config()->set('api-toolkit.parser.max_limit', null);
+
+        $this->resourceMap[User::class] = CappedPageUserResource::class;
+
+        $this->registerRestRoutes();
+
+        self::assertSame(['Error10106', 'Error10201'], $this->examplesOf($this->build(), '/users', 'get', 422));
+    }
+
+    /**
      * Test that a model without soft deletes gets no visibility parameter.
      *
      * @return void
@@ -867,7 +929,7 @@ final class PathBuilderTest extends TestCase
         $schema = $this->build()['/collection']['get']['responses']['200']['content']['application/json']['schema'];
 
         self::assertSame(
-            (new EnvelopeBuilder)->collectionEnvelope('#/components/schemas/User'),
+            (new EnvelopeBuilder)->anyCollectionEnvelopeFor(['$ref' => '#/components/schemas/User']),
             $schema,
         );
     }
@@ -901,11 +963,9 @@ final class PathBuilderTest extends TestCase
         $schema = $this->build()['/widgets']['get']['responses']['200']['content']['application/json']['schema'];
 
         self::assertSame(
-            (new EnvelopeBuilder)->collectionEnvelope(self::WIDGET_REF),
+            (new EnvelopeBuilder)->anyCollectionEnvelopeFor(['$ref' => self::WIDGET_REF]),
             $schema,
         );
-        self::assertSame(['$ref' => self::WIDGET_REF], $schema['properties']['data']['items']);
-        self::assertSame(['data', 'meta', 'links'], $schema['required']);
     }
 
     /**
@@ -1012,7 +1072,8 @@ final class PathBuilderTest extends TestCase
         self::assertSame([206, 403, 500], array_keys($paths['/users']['get']['responses']));
         self::assertSame([
             'description' => 'Partial Content.',
-            'content'     => ['application/json' => ['schema' => $envelope->collectionEnvelope(self::WIDGET_REF)]],
+            'headers'     => $envelope->collectionHeaders(),
+            'content'     => ['application/json' => ['schema' => $envelope->anyCollectionEnvelopeFor(['$ref' => self::WIDGET_REF])]],
         ], $paths['/users']['get']['responses'][206]);
         self::assertIsArray($paths['/users/{user}']['delete']['responses']);
         self::assertSame([200, 403, 404, 500], array_keys($paths['/users/{user}']['delete']['responses']));
@@ -1134,7 +1195,8 @@ final class PathBuilderTest extends TestCase
         self::assertArrayNotHasKey('parameters', $store);
         self::assertSame([
             'description' => 'The request succeeded and a resource was created.',
-            'content'     => ['application/json' => ['schema' => $envelope->collectionEnvelope('#/components/schemas/User')]],
+            'headers'     => $envelope->collectionHeaders(),
+            'content'     => ['application/json' => ['schema' => $envelope->anyCollectionEnvelopeFor(['$ref' => '#/components/schemas/User'])]],
         ], $store['responses'][201]);
         self::assertSame([], $this->referencedParameterNames($update));
         self::assertSame([
@@ -2511,8 +2573,8 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Build a catalogue mapping the user and article models to their resources,
-     * with the package's error catalogue and the configured query limits.
+     * Build a catalogue over the resource map, with the package's error
+     * catalogue and the configured query limits and page sizes.
      *
      * @return \SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue
      */
@@ -2523,13 +2585,10 @@ final class PathBuilderTest extends TestCase
         assert($app !== null);
 
         $catalogue = self::createStub(MetadataCatalogue::class);
-        $catalogue->method('getResourceMap')->willReturn([
-            User::class     => UserResource::class,
-            Article::class  => ArticleResource::class,
-            Document::class => DocumentResource::class,
-        ]);
+        $catalogue->method('getResourceMap')->willReturn($this->resourceMap);
         $catalogue->method('getErrorCatalogue')->willReturn($app->make(ErrorCatalogueReader::class)->read());
         $catalogue->method('getQueryLimits')->willReturnCallback(static fn (): array => $app->make(MetadataCatalogue::class)->getQueryLimits());
+        $catalogue->method('getPageSize')->willReturnCallback(PageSize::for(...));
 
         return $catalogue;
     }

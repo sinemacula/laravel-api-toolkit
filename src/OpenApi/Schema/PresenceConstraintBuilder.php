@@ -9,13 +9,15 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
  * and conditional presence rules of its fields.
  *
  * Only sibling references are expressed; a partial `_all` rule is dropped so it
- * never demands more than the validator.
+ * never demands more than the validator. A confirmation names the one field it
+ * repeats, which no schema keyword can express.
  *
  * @phpstan-type Constraints array{
  *     properties: array<string, mixed>,
  *     required: list<string>,
  *     dependentRequired: array<string, list<string>>,
  *     conditions: array<string, array<string, mixed>>,
+ *     confirms: array<string, list<string>>,
  * }
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
@@ -23,6 +25,9 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
  */
 final readonly class PresenceConstraintBuilder
 {
+    /** The property extension naming the field a confirmation repeats */
+    public const string CONFIRMS_KEY = 'x-confirms';
+
     /** The rules requiring a field by the presence or absence of others */
     private const array CONDITIONAL_RULES = [
         'required_with', 'required_with_all', 'required_without', 'required_without_all',
@@ -58,7 +63,7 @@ final readonly class PresenceConstraintBuilder
         /** @var list<string> $required */
         $required = $object['required'] ?? [];
 
-        $constraints = ['properties' => [], 'required' => $required, 'dependentRequired' => [], 'conditions' => []];
+        $constraints = ['properties' => [], 'required' => $required, 'dependentRequired' => [], 'conditions' => [], 'confirms' => []];
 
         foreach ($properties as $key => $schema) {
             $constraints['properties'][$key] = $schema;
@@ -106,6 +111,8 @@ final readonly class PresenceConstraintBuilder
 
                 $constraints['properties'][$target] = ($constraints['properties'][$target] ?? $schema) === $schema ? $schema : [];
             }
+
+            $constraints['confirms'][$target][] = $name;
 
             $constraints = match (true) {
                 $excludable                                     => $constraints,
@@ -269,6 +276,7 @@ final readonly class PresenceConstraintBuilder
      * Fold the collected constraints into the object schema.
      *
      * A lone non-clashing condition is inlined; any others combine under allOf.
+     * A confirmation of a single field is marked with it.
      *
      * @param  array<string, mixed>  $object
      * @param  Constraints  $constraints
@@ -276,7 +284,7 @@ final readonly class PresenceConstraintBuilder
      */
     private function assemble(array $object, array $constraints): array
     {
-        $object['properties'] = $constraints['properties'];
+        $object['properties'] = $this->withConfirms($constraints['properties'], $constraints['confirms']);
 
         if ($constraints['required'] !== []) {
             $object['required'] = $constraints['required'];
@@ -297,6 +305,29 @@ final readonly class PresenceConstraintBuilder
         }
 
         return $object;
+    }
+
+    /**
+     * Mark each confirmation with the single field it repeats.
+     *
+     * @param  array<string, mixed>  $properties
+     * @param  array<string, list<string>>  $confirms
+     * @return array<string, mixed>
+     */
+    private function withConfirms(array $properties, array $confirms): array
+    {
+        foreach ($confirms as $target => $originals) {
+
+            $originals = array_values(array_unique($originals));
+
+            if (count($originals) !== 1 || !is_array($properties[$target])) {
+                continue;
+            }
+
+            $properties[$target][self::CONFIRMS_KEY] = $originals[0];
+        }
+
+        return $properties;
     }
 
     /**

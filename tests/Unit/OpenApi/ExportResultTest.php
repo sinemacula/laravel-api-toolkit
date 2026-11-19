@@ -35,5 +35,18 @@ final class ExportResultTest extends TestCase
         self::assertSame(3, $result->resourceCount);
         self::assertSame(2, $result->parameterCount);
         self::assertSame(1, $result->errorExampleCount);
+        self::assertSame([], $result->skippedExamples);
+    }
+
+    /**
+     * Test that the result exposes the reason each body has no example.
+     *
+     * @return void
+     */
+    public function testExposesEachSkippedExample(): void
+    {
+        $result = new ExportResult([], 0, 0, 0, 0, ['No example for GET /opaque response 200.']);
+
+        self::assertSame(['No example for GET /opaque response 200.'], $result->skippedExamples);
     }
 }

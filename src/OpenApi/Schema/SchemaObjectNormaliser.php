@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace SineMacula\ApiToolkit\OpenApi\Schema;
 
+use SineMacula\ApiToolkit\OpenApi\Builder\ResourceSchemaBuilder;
+
 /**
  * Rewrites the empty schemas of an assembled document as empty objects.
  *
@@ -15,26 +17,11 @@ namespace SineMacula\ApiToolkit\OpenApi\Schema;
  */
 final readonly class SchemaObjectNormaliser
 {
-    /** The keywords whose value is a single subschema */
-    private const array SCHEMA_KEYWORDS = [
-        'items', 'not', 'additionalProperties', 'contains', 'propertyNames', 'if', 'then', 'else',
-        'unevaluatedItems', 'unevaluatedProperties', 'contentSchema',
-    ];
-
-    /** The keywords whose value is a list of subschemas */
-    private const array SCHEMA_LIST_KEYWORDS = ['allOf', 'anyOf', 'oneOf', 'prefixItems'];
-
-    /** The keywords whose value is a map of named subschemas */
-    private const array SCHEMA_MAP_KEYWORDS = ['properties', 'patternProperties', 'dependentSchemas', '$defs'];
-
     /** The keywords whose value maps property names to lists of names */
     private const array NAME_MAP_KEYWORDS = ['dependentRequired'];
 
     /** The keyword whose mapping keys discriminator values to references */
     private const string DISCRIMINATOR_KEYWORD = 'discriminator';
-
-    /** The keywords holding example data rather than document structure */
-    private const array EXAMPLE_KEYWORDS = ['example', 'examples'];
 
     /** The keywords whose value maps names, never keywords, to objects */
     private const array NAMED_MAP_KEYWORDS = [
@@ -61,11 +48,11 @@ final readonly class SchemaObjectNormaliser
     private function components(array $components): array
     {
         foreach ($components as $key => $value) {
-            if (!is_array($value) || in_array($key, self::EXAMPLE_KEYWORDS, true)) {
+            if (!is_array($value) || in_array($key, SchemaKeywords::EXAMPLE, true)) {
                 continue;
             }
 
-            $components[$key] = $key === 'schemas' ? $this->schemaMap($value) : array_map($this->entry(...), $value);
+            $components[$key] = $key === 'schemas' ? $this->schemaMap(array_map($this->scoped(...), $value)) : array_map($this->entry(...), $value);
         }
 
         return $components;
@@ -80,7 +67,7 @@ final readonly class SchemaObjectNormaliser
     private function walk(array $node): array
     {
         foreach ($node as $key => $value) {
-            if (!is_array($value) || in_array($key, self::EXAMPLE_KEYWORDS, true)) {
+            if (!is_array($value) || in_array($key, SchemaKeywords::EXAMPLE, true)) {
                 continue;
             }
 
@@ -124,12 +111,12 @@ final readonly class SchemaObjectNormaliser
             }
 
             $schema[$keyword] = match (true) {
-                in_array($keyword, self::SCHEMA_KEYWORDS, true)      => $this->schema($value),
-                in_array($keyword, self::SCHEMA_LIST_KEYWORDS, true) => array_map($this->subschema(...), $value),
-                in_array($keyword, self::SCHEMA_MAP_KEYWORDS, true)  => $this->schemaMap($value),
-                in_array($keyword, self::NAME_MAP_KEYWORDS, true)    => $this->nameMap($value),
-                $keyword === self::DISCRIMINATOR_KEYWORD             => $this->discriminator($value),
-                default                                              => $value,
+                in_array($keyword, SchemaKeywords::SCHEMA, true)      => $this->schema($value),
+                in_array($keyword, SchemaKeywords::SCHEMA_LIST, true) => array_map($this->subschema(...), $value),
+                in_array($keyword, SchemaKeywords::SCHEMA_MAP, true)  => $this->schemaMap($value),
+                in_array($keyword, self::NAME_MAP_KEYWORDS, true)     => $this->nameMap($value),
+                $keyword === self::DISCRIMINATOR_KEYWORD              => $this->discriminator($value),
+                default                                               => $value,
             };
         }
 
@@ -160,6 +147,37 @@ final readonly class SchemaObjectNormaliser
         }
 
         return $discriminator;
+    }
+
+    /**
+     * Normalise the argument schemas of a component's named scopes, which sit
+     * under an extension keyword the walk does not enter.
+     *
+     * @param  mixed  $component
+     * @return mixed
+     */
+    private function scoped(mixed $component): mixed
+    {
+        if (is_array($component) && is_array($component[ResourceSchemaBuilder::SCOPES_KEY] ?? null)) {
+            $component[ResourceSchemaBuilder::SCOPES_KEY] = array_map($this->scope(...), $component[ResourceSchemaBuilder::SCOPES_KEY]);
+        }
+
+        return $component;
+    }
+
+    /**
+     * Normalise one named scope's argument schema.
+     *
+     * @param  mixed  $scope
+     * @return mixed
+     */
+    private function scope(mixed $scope): mixed
+    {
+        if (is_array($scope) && is_array($scope['parameters'] ?? null)) {
+            $scope['parameters'] = $this->schema($scope['parameters']);
+        }
+
+        return $scope;
     }
 
     /**
