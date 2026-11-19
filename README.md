@@ -1708,9 +1708,10 @@ tenant's schema separately, provided it purges the connection when it switches. 
 come from code and are shared across tenants. Where each tenant has its own cache prefix, each has its own generation,
 so invalidate per tenant.
 
-The generation is replaced automatically when a migration run finishes. A run with nothing to migrate, or a
-`--pretend` run, leaves the metadata warm. If the cache store cannot be written, the hook logs a warning instead of
-failing the migration. Set `API_TOOLKIT_LIFECYCLE_MIGRATIONS=false` to turn the hook off.
+The generation is replaced automatically when a migration run finishes or loads a stored schema dump. A run with nothing
+to migrate and no dump to load, or a `--pretend` run, leaves the metadata warm. If the cache store cannot be written,
+the hook logs a warning instead of failing the migration. Set `API_TOOLKIT_LIFECYCLE_MIGRATIONS=false` to turn the hook
+off.
 
 The hook is not enough on its own: migrations run before the new release takes traffic, so workers still on the old
 code can refill the new generation with their resource mappings and relation lookups. Run this on every deploy,

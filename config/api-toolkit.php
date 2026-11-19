@@ -409,9 +409,9 @@ return [
     | long-lived workers do not grow and pick up invalidations made elsewhere.
     |
     | `migrations` invalidates the cached schema metadata whenever a migration
-    | run applies or rolls back a migration. Old-code workers can refill it
-    | before the release goes live, so also run api-toolkit:invalidate-metadata
-    | once it is.
+    | run applies or rolls back a migration or loads a stored schema dump.
+    | Old-code workers can refill it before the release goes live, so also run
+    | api-toolkit:invalidate-metadata once it is.
     */
 
     'lifecycle' => [

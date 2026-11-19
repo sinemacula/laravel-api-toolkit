@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Providers\Registrars;
 
 use Illuminate\Database\Events\MigrationsEnded;
+use Illuminate\Database\Events\SchemaLoaded;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Laravel\Octane\Contracts\OperationTerminated;
@@ -86,7 +87,7 @@ final class LifecycleRegistrar
             return;
         }
 
-        Event::listen(MigrationsEnded::class, MigrationInvalidationListener::class);
+        Event::listen([MigrationsEnded::class, SchemaLoaded::class], MigrationInvalidationListener::class);
 
         $app = app();
 

@@ -5,9 +5,11 @@ declare(strict_types = 1);
 namespace Tests\Unit\Listeners;
 
 use Illuminate\Database\Events\MigrationsEnded;
+use Illuminate\Database\Events\SchemaLoaded;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -60,6 +62,20 @@ final class MigrationInvalidationListenerTest extends TestCase
         $before = $this->generation()->current();
 
         $this->listener()->handle(new MigrationsEnded($method, $options));
+
+        self::assertNotSame($before, (new MetadataGeneration)->current());
+    }
+
+    /**
+     * Test that loading a stored schema invalidates the toolkit metadata.
+     *
+     * @return void
+     */
+    public function testLoadedSchemaInvalidatesMetadata(): void
+    {
+        $before = $this->generation()->current();
+
+        $this->listener()->handle(new SchemaLoaded(DB::connection(), 'database/schema/testing-schema.sql'));
 
         self::assertNotSame($before, (new MetadataGeneration)->current());
     }
@@ -126,6 +142,25 @@ final class MigrationInvalidationListenerTest extends TestCase
                     && array_keys($context) === ['exception']
                     && $context['exception'] instanceof MetadataInvalidationException;
             });
+
+        $this->listener()->handle(new MigrationsEnded('up', []));
+    }
+
+    /**
+     * Test that a store failing with an error rather than an exception is
+     * logged, not thrown.
+     *
+     * @return void
+     */
+    public function testStoreFailingWithAnErrorIsLoggedNotThrown(): void
+    {
+        $error = new \Error('Class "Redis" not found');
+
+        $this->useUnreachableCacheStore($error);
+
+        Log::shouldReceive('warning')
+            ->once()
+            ->with(self::WARNING . 'Class "Redis" not found' . self::REMEDY, ['exception' => $error]);
 
         $this->listener()->handle(new MigrationsEnded('up', []));
     }

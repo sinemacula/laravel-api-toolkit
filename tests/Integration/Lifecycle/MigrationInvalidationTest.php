@@ -8,6 +8,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\Attributes\DefineEnvironment;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -42,6 +43,9 @@ final class MigrationInvalidationTest extends TestCase
     /** @var string The metadata key the earlier process writes. */
     private const string KEY = 'migration-probe-metadata';
 
+    /** @var string The name of the probe migration. */
+    private const string MIGRATION = '2026_01_01_000000_create_probe_table';
+
     /** @var string|null The directory holding the probe migration. */
     private ?string $migrationPath = null;
 
@@ -61,7 +65,7 @@ final class MigrationInvalidationTest extends TestCase
 
         $filesystem = new Filesystem;
         $filesystem->ensureDirectoryExists($this->migrationPath);
-        $filesystem->put($this->migrationPath . '/2026_01_01_000000_create_probe_table.php', <<<'PHP'
+        $filesystem->put($this->migrationPath . '/' . self::MIGRATION . '.php', <<<'PHP'
             <?php
 
             use Illuminate\Database\Migrations\Migration;
@@ -82,6 +86,12 @@ final class MigrationInvalidationTest extends TestCase
                 }
             };
             PHP);
+
+        $filesystem->put($this->schemaPath(), sprintf(<<<'SQL'
+            CREATE TABLE "migrations" ("id" integer primary key autoincrement not null, "migration" varchar not null, "batch" integer not null);
+            CREATE TABLE "probe" ("id" integer primary key autoincrement not null);
+            INSERT INTO "migrations" ("migration", "batch") VALUES ('%s', 1);
+            SQL, self::MIGRATION));
     }
 
     /**
@@ -141,6 +151,58 @@ final class MigrationInvalidationTest extends TestCase
         $this->migrate();
 
         self::assertSame('warm', $this->freshProcess()->readMetadata(self::KEY));
+    }
+
+    /**
+     * Test that loading a schema dump retires metadata although it leaves
+     * nothing to migrate.
+     *
+     * @return void
+     */
+    public function testMigrateLoadingASchemaDumpRetiresMetadataWrittenBeforeIt(): void
+    {
+        $this->writeAsEarlierProcess();
+
+        $this->migrate('migrate', ['--schema-path' => $this->schemaPath()]);
+
+        self::assertNull($this->freshProcess()->readMetadata(self::KEY));
+    }
+
+    /**
+     * Test that rebuilding the database from a schema dump retires metadata.
+     *
+     * @return void
+     */
+    public function testFreshMigrateFromASchemaDumpRetiresMetadataWrittenBeforeIt(): void
+    {
+        $this->migrate();
+        $this->writeAsEarlierProcess();
+
+        $this->migrate('migrate:fresh', ['--schema-path' => $this->schemaPath()]);
+
+        self::assertNull($this->freshProcess()->readMetadata(self::KEY));
+    }
+
+    /**
+     * Test that a store failing with an error still lets migrate succeed, with
+     * a warning naming the remedy.
+     *
+     * @return void
+     */
+    public function testMigrateSucceedsWithAWarningWhenTheStoreFailsWithAnError(): void
+    {
+        $this->useUnreachableCacheStore(new \Error('Class "Redis" not found'));
+
+        $warning = 'Toolkit metadata could not be invalidated after migrations: Class "Redis" not found'
+            . ' Run php artisan api-toolkit:invalidate-metadata once the cache store is available.';
+
+        Log::shouldReceive('warning')
+            ->once()
+            ->withArgs(static fn (string $message, array $context): bool => $message === $warning && $context['exception'] instanceof \Error);
+
+        $this->migrate();
+
+        self::assertTrue(Schema::connection(self::CONNECTION)->hasTable('probe'));
     }
 
     /**
@@ -256,6 +318,16 @@ final class MigrationInvalidationTest extends TestCase
         $store = Cache::build(['driver' => 'database', 'table' => 'cache', 'connection' => $connection]);
 
         return $store->get(CacheKeys::METADATA_GENERATION->resolveKey());
+    }
+
+    /**
+     * Return the path of the schema dump recording the probe migration.
+     *
+     * @return string
+     */
+    private function schemaPath(): string
+    {
+        return $this->migrationPath . '/probe-schema.sql';
     }
 
     /**
