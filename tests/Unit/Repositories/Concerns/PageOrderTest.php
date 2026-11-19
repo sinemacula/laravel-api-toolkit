@@ -494,6 +494,35 @@ final class PageOrderTest extends TestCase
     }
 
     /**
+     * Test that a grouped read of a table without the key column takes a cursor
+     * over its group columns.
+     *
+     * @return void
+     */
+    public function testGroupedReadOfATableWithoutTheKeyColumnTakesACursor(): void
+    {
+        $pageOrder = $this->overCatalogue(['status' => new ColumnDefinition('status', 'varchar', false)]);
+        $query     = $pageOrder->complete($this->users(static fn (QueryBuilder $query) => $query->select('status')->groupBy('status')));
+
+        self::assertNull($pageOrder->cursor($query, ''));
+        self::assertSame(['active'], $pageOrder->cursor($query, (new Cursor(['status' => 'active']))->encode())?->parameters(['status']));
+    }
+
+    /**
+     * Test that an unordered grouped read of a table without the key column is
+     * refused a cursor, which would seek by the missing key.
+     *
+     * @return void
+     */
+    public function testUnorderedGroupedReadOfATableWithoutTheKeyColumnIsRefusedACursor(): void
+    {
+        $pageOrder = $this->overCatalogue(['name' => new ColumnDefinition('name', 'varchar', false)]);
+        $query     = $pageOrder->complete($this->users(static fn (QueryBuilder $query) => $query->selectRaw('lower(name) as name')->groupByRaw('lower(name)')));
+
+        $this->assertCursorRejected(fn () => $pageOrder->cursor($query, ''), self::KEYLESS, 'pagination');
+    }
+
+    /**
      * Test that raw and expression orders ask nothing of the token.
      *
      * @return void

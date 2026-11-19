@@ -256,8 +256,8 @@ orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode
 ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column cannot hold is rejected
 with a `422` on `cursor`; restart from the first page. A cursor carries each ordered column as the row stores it, not as
 the model casts it, so a microsecond timestamp, an enum or a value object seeks from exactly where its page ended. A
-model whose table has no column for its key is offset-paged without the appended key and refused cursor pagination with
-a `422` on `pagination`.
+model whose table has no column for its key is offset-paged without the appended key, and refused cursor pagination with
+a `422` on `pagination` unless the read is grouped and ordered.
 
 Filters and sorts compare by each column's collation, and each engine places NULLs its own way; the toolkit normalises
 neither. With default settings, MySQL matches `{"name":"alice"}` to `Alice` and sorts `anna`, `Ben`, `cara`;
@@ -555,8 +555,8 @@ skips schema validation while this command runs, so the command reports everythi
 
 The index catalogue is read only during validation, never while a filter or sort is served. Three schema reads do sit
 on the request path, all cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads
-the table's column listing, search reads its index proof, and a paginated read reads the column definitions to find
-its key column and, by cursor, to refuse a nullable key.
+the table's column listing, search reads its index proof, and filters and paginated reads read the column definitions to
+type filter values, find the key column and, by cursor, refuse a nullable key.
 
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded

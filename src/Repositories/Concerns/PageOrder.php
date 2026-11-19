@@ -80,7 +80,7 @@ final readonly class PageOrder
     {
         $model = $query->getModel();
 
-        $this->guardKeyed($model);
+        $this->guardKeyed($query->getQuery(), $model);
 
         if ($token === '') {
             return null;
@@ -112,17 +112,20 @@ final readonly class PageOrder
     }
 
     /**
-     * Refuse a cursor over a table without its key column, which has no unique
-     * order to seek by.
+     * Refuse a cursor over a table without its key column, which only a grouped
+     * and ordered read can seek without.
      *
+     * @param  \Illuminate\Database\Query\Builder  $base
      * @param  \Illuminate\Database\Eloquent\Model  $model
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
-    private function guardKeyed(Model $model): void
+    private function guardKeyed(QueryBuilder $base, Model $model): void
     {
-        if (!$this->storesKey($model)) {
+        $groupOrdered = !empty($base->groups) && $this->seekColumns($base, $model) !== [$model->getQualifiedKeyName()];
+
+        if (!$groupOrdered && !$this->storesKey($model)) {
             throw Rejection::at('pagination', 'cursor.keyless');
         }
     }
