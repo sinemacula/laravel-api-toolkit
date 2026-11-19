@@ -129,25 +129,28 @@ final class ValueResolver
         }
 
         /** @var array<string, mixed> $attributes */
-        $attributes = $owner->getAttributes();
-        $requested  = (array) ApiQuery::getAggregates($resourceType);
-        $result     = [];
+        $attributes  = $owner->getAttributes();
+        $definitions = $schema->getAggregateDefinitions();
+        $requested   = (array) ApiQuery::getAggregates($resourceType);
+        $result      = [];
 
-        foreach ($schema->getAggregateDefinitions() as $presentKey => $definition) {
+        $selected = $requested !== []
+            ? array_intersect_key($definitions, array_flip($requested))
+            : array_filter($definitions, static fn (CompiledAggregateDefinition $definition): bool => $definition->isDefault);
 
-            $include = $requested !== []
-                ? in_array($presentKey, $requested, true)
-                : $definition->isDefault;
+        foreach ($selected as $presentKey => $definition) {
 
-            if (!$include || !$this->hasRenderableAggregate($definition, $attributes) || !$this->guardEvaluator->passesCallerGuards($definition->callerGuards, $request)) {
+            $value = $this->readAggregate($owner, $definition, $attributes);
+
+            if (
+                $value instanceof MissingValue
+                || !$this->guardEvaluator->passesCallerGuards($definition->callerGuards, $request)
+                || !$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)
+            ) {
                 continue;
             }
 
-            if (!$this->guardEvaluator->passesGuards($definition->guards, $resource, $request)) {
-                continue;
-            }
-
-            $result[$presentKey] = $this->applyTransformers($definition->transformers, $resource, $this->readAggregate($owner, $definition, $attributes[$definition->attribute()]));
+            $result[$presentKey] = $this->applyTransformers($definition->transformers, $resource, $value);
         }
 
         return $result;
@@ -413,35 +416,23 @@ final class ValueResolver
     }
 
     /**
-     * Determine whether the owner carries a renderable value for the aggregate.
+     * Read a loaded aggregate the way its function defines it.
      *
-     * A column aggregate over no related values is null and renders so; a null
-     * count or existence check is left out.
-     *
-     * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $definition
-     * @param  array<string, mixed>  $attributes
-     * @return bool
-     */
-    private function hasRenderableAggregate(CompiledAggregateDefinition $definition, array $attributes): bool
-    {
-        $attribute = $definition->attribute();
-
-        return array_key_exists($attribute, $attributes)
-            && ($attributes[$attribute] !== null || $definition->function->requiresColumn());
-    }
-
-    /**
-     * Read a raw aggregate value the way its function defines it.
+     * A column aggregate over no related values is null; a null count or
+     * existence check, like an aggregate never loaded, is missing.
      *
      * @param  object  $owner
      * @param  \SineMacula\ApiToolkit\Schema\CompiledAggregateDefinition  $definition
-     * @param  mixed  $raw
+     * @param  array<string, mixed>  $attributes
      * @return mixed
      */
-    private function readAggregate(object $owner, CompiledAggregateDefinition $definition, mixed $raw): mixed
+    private function readAggregate(object $owner, CompiledAggregateDefinition $definition, array $attributes): mixed
     {
+        $attribute = $definition->attribute();
+        $raw       = $attributes[$attribute] ?? null;
+
         if ($raw === null) {
-            return null;
+            return array_key_exists($attribute, $attributes) && $definition->function->requiresColumn() ? null : new MissingValue;
         }
 
         return match ($definition->function) {
