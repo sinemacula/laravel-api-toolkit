@@ -24,6 +24,8 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface as SymfonyHttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\PreconditionFailedHttpException;
+use Symfony\Component\HttpKernel\Exception\PreconditionRequiredHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
@@ -42,18 +44,20 @@ final readonly class ExceptionMap
 {
     /** The built-in entries, specific types before the interfaces they implement */
     private const array DEFAULTS = [
-        NotFoundHttpException::class           => NotFoundException::class,
-        MethodNotAllowedHttpException::class   => NotAllowedException::class,
-        BadRequestHttpException::class         => BadRequestException::class,
-        LaravelUnauthorizedException::class    => ForbiddenException::class,
-        AccessDeniedHttpException::class       => ForbiddenException::class,
-        AuthenticationException::class         => UnauthenticatedException::class,
-        ValidationException::class             => InvalidInputException::class,
-        TooManyRequestsHttpException::class    => TooManyRequestsException::class,
-        LockUnavailableException::class        => TooManyRequestsException::class,
-        ServiceUnavailableHttpException::class => ServiceUnavailableException::class,
-        PostTooLargeException::class           => PayloadTooLargeException::class,
-        SymfonyHttpExceptionInterface::class   => HttpException::class,
+        NotFoundHttpException::class             => NotFoundException::class,
+        MethodNotAllowedHttpException::class     => NotAllowedException::class,
+        BadRequestHttpException::class           => BadRequestException::class,
+        LaravelUnauthorizedException::class      => ForbiddenException::class,
+        AccessDeniedHttpException::class         => ForbiddenException::class,
+        AuthenticationException::class           => UnauthenticatedException::class,
+        ValidationException::class               => InvalidInputException::class,
+        TooManyRequestsHttpException::class      => TooManyRequestsException::class,
+        LockUnavailableException::class          => TooManyRequestsException::class,
+        ServiceUnavailableHttpException::class   => ServiceUnavailableException::class,
+        PostTooLargeException::class             => PayloadTooLargeException::class,
+        PreconditionFailedHttpException::class   => PreconditionFailedException::class,
+        PreconditionRequiredHttpException::class => PreconditionRequiredException::class,
+        SymfonyHttpExceptionInterface::class     => HttpException::class,
     ];
 
     /** The types Laravel converts before rendering, so a key of one never matches */
@@ -75,7 +79,9 @@ final readonly class ExceptionMap
         403 => AccessDeniedHttpException::class,
         404 => NotFoundHttpException::class,
         405 => MethodNotAllowedHttpException::class,
+        412 => PreconditionFailedHttpException::class,
         413 => PostTooLargeException::class,
+        428 => PreconditionRequiredHttpException::class,
         429 => TooManyRequestsHttpException::class,
         503 => ServiceUnavailableHttpException::class,
     ];
