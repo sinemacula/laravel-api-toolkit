@@ -7,18 +7,23 @@ namespace Tests\Integration\Services;
 use Illuminate\Database\DeadlockException;
 use Illuminate\Database\Events\TransactionCommitting;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Services\Events\ServiceCompleted;
 use SineMacula\ApiToolkit\Services\Events\ServiceFailed;
+use SineMacula\ApiToolkit\Services\Pipeline\LockStage;
 use SineMacula\ApiToolkit\Services\Pipeline\TransactionStage;
 use SineMacula\ApiToolkit\Services\Service;
 use SineMacula\ApiToolkit\Services\ServiceResult;
 use SineMacula\ApiToolkit\Services\ServiceRunner;
 use Tests\Concerns\CommitsRealTransactions;
+use Tests\Fixtures\Exceptions\ServiceExecutionException;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\Services\Concerns\RecordingConcern;
 use Tests\Fixtures\Services\RetrySafeRenameService;
+use Tests\Fixtures\Services\RetryTraceService;
 use Tests\Fixtures\Services\TransactionRecordingService;
 use Tests\TestCase;
 
@@ -33,6 +38,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ServiceRunner::class)]
 #[CoversClass(TransactionStage::class)]
+#[CoversClass(LockStage::class)]
 final class ServiceTransactionRetryTest extends TestCase
 {
     use CommitsRealTransactions;
@@ -170,6 +176,114 @@ final class ServiceTransactionRetryTest extends TestCase
         self::assertSame([2], $service->levels);
         self::assertSame(1, $levelAfterRun);
         self::assertSame(0, DB::transactionLevel());
+    }
+
+    /**
+     * Test that a run meeting a concurrency error on every attempt stops at the
+     * attempt limit and fails once with that error.
+     *
+     * @return void
+     */
+    public function testRetriesStopAtTheAttemptLimit(): void
+    {
+        Event::fake([ServiceFailed::class]);
+
+        $deadlock = self::deadlock();
+        $service  = new TransactionRecordingService(static fn (): never => throw $deadlock, 3);
+
+        $result = $this->runAtTopLevel($service);
+
+        self::assertTrue($result->failed());
+        self::assertSame($deadlock, $result->exception);
+        self::assertSame([1, 1, 1], $service->levels);
+        self::assertSame([$deadlock], $service->failures);
+        self::assertSame([], $service->commitLevels);
+
+        Event::assertDispatchedTimes(ServiceFailed::class, 1);
+    }
+
+    /**
+     * Test that an error other than a concurrency error fails the run on its
+     * first attempt, whatever attempts remain.
+     *
+     * @return void
+     */
+    public function testNonConcurrencyErrorIsNotRetried(): void
+    {
+        $error   = new ServiceExecutionException('Not a concurrency error.');
+        $service = new TransactionRecordingService(static fn (): never => throw $error, 3);
+
+        $result = $this->runAtTopLevel($service);
+
+        self::assertTrue($result->failed());
+        self::assertSame($error, $result->exception);
+        self::assertSame([1], $service->levels);
+        self::assertSame([$error], $service->failures);
+    }
+
+    /**
+     * Test that a concurrency error at commit rolls the attempt back and runs
+     * the transaction again while attempts remain.
+     *
+     * @return void
+     */
+    public function testCommitConcurrencyErrorIsRetriedWhenAttemptsRemain(): void
+    {
+        $deadlock = self::deadlock();
+        $commits  = 0;
+
+        Event::listen(TransactionCommitting::class, static function () use ($deadlock, &$commits): void {
+            if (++$commits === 1) {
+                throw $deadlock;
+            }
+        });
+
+        $service = new TransactionRecordingService(static function (): string {
+            DB::table('users')->insert(['name' => 'committed', 'email' => 'committed@service.test']);
+
+            return 'done';
+        }, 2);
+
+        $result = $this->runAtTopLevel($service);
+
+        self::assertTrue($result->succeeded());
+        self::assertSame([1, 1], $service->levels);
+        self::assertSame([0], $service->commitLevels);
+        self::assertSame([], $service->failures);
+        self::assertSame(1, DB::table('users')->count());
+    }
+
+    /**
+     * Test that each attempt runs the concerns, prepare() and handle() again.
+     *
+     * @return void
+     */
+    public function testEachAttemptRerunsConcernsAndPrepare(): void
+    {
+        RecordingConcern::reset();
+
+        $result = $this->runAtTopLevel(new RetryTraceService(self::deadlock()));
+
+        self::assertSame('done', $result->output());
+        self::assertSame(['outer:before', 'prepare', 'handle', 'outer:before', 'prepare', 'handle', 'outer:after'], RecordingConcern::$trace);
+    }
+
+    /**
+     * Test that a lockable run takes its lock once, holds it through every
+     * attempt and releases it after the commit.
+     *
+     * @return void
+     */
+    public function testLockIsAcquiredOnceAcrossAttempts(): void
+    {
+        $service = new RetryTraceService(self::deadlock());
+
+        $result = $this->runAtTopLevel($service);
+
+        self::assertTrue($result->succeeded());
+        self::assertSame(1, $service->locks);
+        self::assertSame([false, false], $service->lockFree);
+        self::assertTrue(Cache::lock($service->getLockKey(), 1)->get(static fn (): bool => true));
     }
 
     /**

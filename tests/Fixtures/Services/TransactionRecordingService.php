@@ -11,7 +11,8 @@ use SineMacula\ApiToolkit\Services\ServiceContext;
 
 /**
  * Fixture service that runs a given body as handle(), recording the transaction
- * level of each attempt and of each afterCommit() run.
+ * level of each attempt and of each afterCommit() run, and the exception each
+ * onFailure() run received.
  *
  * @extends \SineMacula\ApiToolkit\Services\Service<\SineMacula\ApiToolkit\Services\Input\ArrayInput, mixed>
  *
@@ -25,6 +26,9 @@ final class TransactionRecordingService extends Service
 
     /** @var array<int, int> The transaction level seen by each afterCommit() run */
     public array $commitLevels = [];
+
+    /** @var array<int, \Throwable> The exception each onFailure() run received */
+    public array $failures = [];
 
     /** @var \SineMacula\ApiToolkit\Services\ServiceContext|null The context afterCommit() read */
     public ?ServiceContext $commitContext = null;
@@ -83,5 +87,17 @@ final class TransactionRecordingService extends Service
         }
 
         ($this->onCommit)();
+    }
+
+    /**
+     * Record the exception the failed run ended with.
+     *
+     * @param  \Throwable  $exception
+     * @return void
+     */
+    #[\Override]
+    protected function onFailure(\Throwable $exception): void
+    {
+        $this->failures[] = $exception;
     }
 }
