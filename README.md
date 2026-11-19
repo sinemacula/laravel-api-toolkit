@@ -413,6 +413,26 @@ follows the state where its own resource opts in and otherwise stays live, where
 filtered on (`$has` and `$hasnt` too). A read that applies no criteria, such as implicit route-model binding, only
 checks the value.
 
+**Row visibility** - override `restrictRows()` on a resource to limit the rows a request may see through it:
+
+```php
+public static function restrictRows(Builder $query, Request $request): void
+{
+    $query->whereIn($query->qualifyColumn('workspace_id'), $request->user()?->workspaceIds() ?? []);
+}
+```
+
+The rule applies to the root query and its total, a single record (an invisible one is a 404), every include through the
+criteria or `loadMissing`, every relation filter (`$has` means "has a visible row") and every relation aggregate,
+rendered or ordered by. A related row follows the resource its parent declares over the relation, else the one mapped to
+its model. Qualify each column and add only wheres; anything else throws. Write it to fail closed: an empty `whereIn()`
+matches nothing for a request without a user, while `where($column, null)` matches every row whose column is null. Not
+covered: route-model binding and queries the application builds, relations or aggregates loaded before rendering,
+repository scopes and persistent criteria, writes, and compute fields or accessors that query. With `validate_schemas`
+on, a model whose `$with` or `$withCount` default reaches a restricted resource is refused. Use a global scope for an
+invariant of the model everywhere, a relation method for a fixed predicate of one relation, `constrain()` to shape an
+include, a policy to authorise an action, and `restrictRows()` for what a caller may see through the API.
+
 ### Schema-Driven ApiResource
 
 Extend `ApiResource` and declare a `schema()` method using the `Field` and `Relation` helpers and the relation aggregate
