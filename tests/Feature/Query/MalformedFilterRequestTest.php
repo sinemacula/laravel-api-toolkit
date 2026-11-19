@@ -65,9 +65,7 @@ final class MalformedFilterRequestTest extends TestCase
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);
         $response->assertJsonPath('error.code', 10106);
-
-        self::assertArrayHasKey('filters', (array) $response->json('error.meta'));
-        self::assertArrayNotHasKey('filters.status', (array) $response->json('error.meta'));
+        $response->assertJsonPath('error.meta', ['filters' => ['The filters field must be a valid JSON string.']]);
     }
 
     /**
@@ -84,8 +82,7 @@ final class MalformedFilterRequestTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);
-
-        self::assertArrayHasKey('filters', (array) $response->json('error.meta'));
+        $response->assertJsonPath('error.meta', ['filters' => ['The filters field must be a valid JSON string.']]);
     }
 
     /**
@@ -99,8 +96,7 @@ final class MalformedFilterRequestTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);
-
-        self::assertArrayHasKey('filters', (array) $response->json('error.meta'));
+        $response->assertJsonPath('error.meta', ['filters' => ['The filters parameter must be a JSON object.']]);
     }
 
     /**
@@ -111,12 +107,13 @@ final class MalformedFilterRequestTest extends TestCase
      */
     public function testFieldGivenABareListOfValuesIsRejected(): void
     {
+        $message = 'The filters.name filter must name a field or a condition. To match any of several values, give the field a condition such as $in.';
+
         $response = $this->getJson('/users?filters=' . urlencode('{"name":["Alice","Bob"]}'));
 
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);
-
-        self::assertArrayHasKey('filters.name', (array) $response->json('error.meta'));
+        $response->assertJsonPath('error.meta', ['filters.name' => [$message]]);
     }
 
     /**
@@ -133,7 +130,6 @@ final class MalformedFilterRequestTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJsonPath('error.status', 422);
-
-        self::assertArrayHasKey('filters.$or', (array) $response->json('error.meta'));
+        $response->assertJsonPath('error.meta', ['filters.$or' => ['The filters.$or filter must be a non-empty list of filter documents.']]);
     }
 }
