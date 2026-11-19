@@ -548,10 +548,10 @@ neither flag lets a defect pass. A searchable declaration on a connection listed
 `api-toolkit.search.unverified_connections` is not reported, since that listing already waives its index proof. Boot
 skips schema validation while this command runs, so the command reports everything itself.
 
-The index catalogue is read only during validation, never while a filter or sort is served. Three schema reads do sit
-on the request path, all cached in the shared store: column narrowing (`api-toolkit.resources.narrow_columns`) reads
-the table's column listing, search reads its index proof, and a cursor-paginated sort reads the column definitions to
-refuse a nullable key.
+Filters and sorts never read the index catalogue while they are served; only validation checks their index backing. Two
+schema reads do sit on the request path, both cached in the shared store: search reads its index proof, and one read of
+the table's column definitions serves column narrowing (`api-toolkit.resources.narrow_columns`), filter value checks and
+a cursor-paginated sort's refusal of a nullable key.
 
 **Column narrowing** - with `api-toolkit.resources.narrow_columns` on (the default), the base-table select is narrowed
 to the columns the resolved fields read, plus the primary key, the soft-delete column, the parent keys of eager-loaded
@@ -1488,16 +1488,16 @@ audience uses fails the export, as does a tag file that matches no tag, under th
 
 ### Metadata Invalidation
 
-Schema metadata (column listings and definitions, index catalogues, relation lookups and the
-model-to-resource map) is cached in the application's cache store and shared by every process. The Octane and queue
+Schema metadata (column definitions, index catalogues, relation lookups and the model-to-resource
+map) is cached in the application's cache store and shared by every process. The Octane and queue
 boundary flushes reset only each worker's per-operation state, so a schema or mapping change needs the shared entries
 retired explicitly. Every metadata key is stored under a generation held in the same store; replacing the generation
-makes every earlier entry unreachable in every process at once. A column listing that reads empty, as it does before
-its table exists, is never stored.
+makes every earlier entry unreachable in every process at once. Column definitions that read empty, as they do before
+their table exists, are never stored.
 
 Under Octane the boundary is the end of every request, task and tick; on a queue worker it is the end of every job
 attempt, including one that fails or is released for a retry. It drops the memoised generation, the per-operation
-index proofs, the in-memory column listings, column definitions and index catalogues, the field and eager-load memos
+index proofs, the in-memory column definitions and index catalogues, the field and eager-load memos
 and the query parser's state. The compiled schemas, search plans, field-to-column maps and cast reflections come from
 code alone, so they live for the worker and are rebuilt only when it restarts; reload Octane and queue workers on
 every deploy. An application that runs its own reset can call `CacheManager::flush()`; a second reset is harmless.
