@@ -84,7 +84,7 @@ final readonly class PathBuilder
      * @param  array<string, string>  $descriptions
      * @param  string  $audience
      * @param  list<array<string, mixed>>  $servers
-     * @return array<string, array<string, mixed>>
+     * @return array<string, array<string, array<string, mixed>>>
      *
      * @throws \SineMacula\ApiToolkit\OpenApi\Exceptions\ServerConfigurationException
      */

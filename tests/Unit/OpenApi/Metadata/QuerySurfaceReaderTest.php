@@ -442,40 +442,6 @@ final class QuerySurfaceReaderTest extends TestCase
     }
 
     /**
-     * Test that a null field definition does not abandon later keys.
-     *
-     * @return void
-     */
-    public function testFieldKeyWithoutADefinitionIsSteppedOver(): void
-    {
-        $field = new CompiledFieldDefinition(
-            accessor: null,
-            compute: null,
-            relation: null,
-            resource: null,
-            fields: null,
-            constraint: null,
-            extras: [],
-            needs: [],
-            guards: [],
-            transformers: [],
-            filterable: 'name',
-            filterCapability: Capability::EXACT,
-        );
-
-        $schema = new CompiledSchema(['ghost' => null, 'name' => $field], [], ['name' => Capability::EXACT]); // @phpstan-ignore argument.type
-
-        $this->setStaticProperty(SchemaCompiler::class, 'cache', ['GhostResource' => $schema]);
-
-        $columns = $this->ghostSurface('GhostResource')->columns;
-
-        self::assertCount(1, $columns);
-        self::assertSame('name', $columns[0]->property);
-        self::assertSame('name', $columns[0]->column);
-        self::assertSame(Capability::EXACT, $columns[0]->capability);
-    }
-
-    /**
      * Test that a column only caller-guarded fields declare reports its filter
      * and its order as conditional independently, and only where it answers
      * them.

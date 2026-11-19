@@ -65,23 +65,19 @@ final readonly class RequestBodyResolver
     /**
      * Determine whether the schema refuses an empty body.
      *
-     * @param  mixed  $schema
+     * @param  array<array-key, mixed>  $schema
      * @return bool
      */
-    private function demandsBody(mixed $schema): bool
+    private function demandsBody(array $schema): bool
     {
-        if (!is_array($schema)) {
-            return false;
-        }
-
         if (($schema['required'] ?? []) !== []) {
             return true;
         }
 
-        $anyOf = is_array($schema['anyOf'] ?? null) ? $schema['anyOf'] : [];
-        $allOf = is_array($schema['allOf'] ?? null) ? $schema['allOf'] : [];
+        $anyOf = array_filter((array) ($schema['anyOf'] ?? []), is_array(...));
+        $allOf = array_filter((array) ($schema['allOf'] ?? []), is_array(...));
 
-        return ($anyOf !== [] && array_filter($anyOf, fn (mixed $branch): bool => !$this->demandsBody($branch)) === [])
+        return ($anyOf !== [] && array_filter($anyOf, fn (array $branch): bool => !$this->demandsBody($branch)) === [])
             || array_filter($allOf, $this->demandsBody(...)) !== [];
     }
 
