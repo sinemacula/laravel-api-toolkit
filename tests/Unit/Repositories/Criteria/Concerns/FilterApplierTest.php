@@ -2262,7 +2262,8 @@ final class FilterApplierTest extends TestCase
         $query = $this->applyToGatherings(['$or' => [['visibility' => 'private'], ['$scope' => ['near' => ['lat' => 51.5, 'lng' => -0.5, 'km' => 1]]]]]);
 
         self::assertSame(
-            'select * from "gatherings" where (("visibility" = ?) or (("latitude" between ? and ? and "longitude" between ? and ?))) and "gatherings"."deleted_at" is null',
+            'select * from "gatherings" where (("gatherings"."visibility" = ?) or (("latitude" between ? and ? and "longitude" between ? and ?)))'
+            . ' and "gatherings"."deleted_at" is null',
             $query->toSql(),
         );
         self::assertSame(['private', 51.5 - 1 / 111, 51.5 + 1 / 111, -0.5 - 1 / 111, -0.5 + 1 / 111], $query->getBindings());

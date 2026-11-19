@@ -98,13 +98,13 @@ final class ScopeApplierTest extends TestCase
 
         $this->assertCompilesTo(
             ['visibility' => 'public', '$scope' => $named],
-            '"visibility" = ? and (("name" = ? or "name" = ?))',
+            '"gatherings"."visibility" = ? and (("name" = ? or "name" = ?))',
             ['public', 'Launch', 'Retro'],
         );
 
         $this->assertCompilesTo(
             ['$or' => [['visibility' => 'public'], ['$scope' => $named]]],
-            '(("visibility" = ?) or ((("name" = ? or "name" = ?))))',
+            '(("gatherings"."visibility" = ?) or ((("name" = ? or "name" = ?))))',
             ['public', 'Launch', 'Retro'],
         );
     }
@@ -163,7 +163,7 @@ final class ScopeApplierTest extends TestCase
     {
         $this->assertCompilesTo(
             ['$or' => [['$scope' => ['predicate' => ['case' => 'nothing']]], ['visibility' => 'public']]],
-            '(((1 = 1)) or ("visibility" = ?))',
+            '(((1 = 1)) or ("gatherings"."visibility" = ?))',
             ['public'],
         );
     }
