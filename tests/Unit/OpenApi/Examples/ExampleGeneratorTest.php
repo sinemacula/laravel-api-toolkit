@@ -176,8 +176,9 @@ final class ExampleGeneratorTest extends TestCase
     }
 
     /**
-     * Test that unique items take distinct candidates, through a reference,
-     * and a list with too few is reported, as undocumented when its items are.
+     * Test that unique items take distinct candidates the items accept, those
+     * of a referenced schema included, and a list with too few is reported, as
+     * undocumented when its items are.
      *
      * @return void
      */
@@ -185,10 +186,10 @@ final class ExampleGeneratorTest extends TestCase
     {
         $list = ['type' => 'array', 'minItems' => 2, 'uniqueItems' => true];
 
-        self::assertSame(['active', 'banned'], $this->value(
-            [...$list, 'items' => ['$ref' => '#/components/schemas/Status']],
+        self::assertSame(['banned', 'suspended'], $this->value(
+            [...$list, 'items' => ['$ref' => '#/components/schemas/Status', 'not' => ['const' => 'active']]],
             ExampleScope::REQUEST,
-            ['Status' => ['type' => 'string', 'enum' => ['active', 'banned']]],
+            ['Status' => ['type' => 'string', 'enum' => ['active', 'banned', 'suspended']]],
         ));
         self::assertEquals(new MissingValue(self::BODY), $this->generate([...$list, 'items' => ['type' => 'string']]));
         self::assertEquals(new MissingValue(self::BODY), $this->generate($list));

@@ -65,7 +65,7 @@ final class ExampleComposerTest extends TestCase
      *
      * @return void
      */
-    public function testUndocumentedFieldIsReportedUnlessTheWholePayloadIs(): void
+    public function testUndocumentedFieldIsReportedUnlessTheBodyIsTheUndocumentedEnvelope(): void
     {
         $data   = ['type' => 'object', 'properties' => ['meta' => ['x-undocumented' => true]], 'required' => ['meta']];
         $partly = ['type' => 'object', 'properties' => ['data' => $data], 'required' => ['data']];

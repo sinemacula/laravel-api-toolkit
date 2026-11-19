@@ -518,7 +518,7 @@ final class ExampleGenerator
         $count   = is_int($node['maxItems'] ?? null) ? min(max($minimum, 1), $node['maxItems']) : max($minimum, 1);
 
         if ($count > 1 && ($node['uniqueItems'] ?? false) === true) {
-            return $this->distinctItems($pointer, $node, $count, $stack);
+            return $this->distinctItems($pointer, $count, $stack);
         }
 
         $item = $count > 0 && array_key_exists('items', $node) ? $this->value(SchemaDocument::append($pointer, 'items'), $stack) : 'string';
@@ -531,24 +531,24 @@ final class ExampleGenerator
     }
 
     /**
-     * Build a list of distinct items from the candidates its items accept, a
-     * referenced items schema's own, or report the list when too few differ.
+     * Build a list of distinct items its items accept, from the candidates of
+     * the items schema or of the one it references, or report the list when
+     * too few differ.
      *
      * @param  string  $pointer
-     * @param  array<array-key, mixed>  $node
      * @param  int  $count
      * @param  list<string>  $stack
      * @return list<mixed>|\SineMacula\ApiToolkit\OpenApi\Examples\MissingValue
      */
-    private function distinctItems(string $pointer, array $node, int $count, array $stack): array|MissingValue
+    private function distinctItems(string $pointer, int $count, array $stack): array|MissingValue
     {
         $items     = SchemaDocument::append($pointer, 'items');
         $reference = $this->schemas->node(SchemaDocument::append($items, '$ref'));
-        $items     = is_string($reference) ? substr($reference, 1) : $items;
-        $schema    = $this->schemas->node($items);
+        $source    = is_string($reference) ? substr($reference, 1) : $items;
+        $schema    = $this->schemas->node($source);
         $distinct  = [];
 
-        foreach (is_array($schema) && !in_array($items, $stack, true) ? $this->candidates($items, $schema, [...$stack, $items]) : [] as $candidate) {
+        foreach (is_array($schema) && !in_array($source, $stack, true) ? $this->candidates($source, $schema, [...$stack, $source]) : [] as $candidate) {
 
             if ($candidate instanceof MissingValue && $candidate->undocumented) {
                 return $candidate;
