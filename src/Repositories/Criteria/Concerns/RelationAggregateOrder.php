@@ -112,8 +112,7 @@ final readonly class RelationAggregateOrder
      * Name the column of the single row a to-one relation renders.
      *
      * The column is read as stored, so every type orders, and is qualified by
-     * its table unless the relation reaches the model's own table, whose alias
-     * the subquery then resolves.
+     * its table, or by the alias the subquery gives the model's own table.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
@@ -121,7 +120,7 @@ final readonly class RelationAggregateOrder
      * @param  string  $relation
      * @param  string  $column
      * @param  string  $resourceClass
-     * @return \Illuminate\Database\Query\Expression
+     * @return \Illuminate\Database\Query\Expression<literal-string>
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\InvalidSchemaException
      */
@@ -135,9 +134,9 @@ final readonly class RelationAggregateOrder
             throw new InvalidSchemaException([new SchemaValidationError($resourceClass, $relation, $defect)]);
         }
 
-        $related = $instance->getRelated();
-        $name    = $related->getTable() === $probe->getModel()->getTable() ? $column : $related->qualifyColumn($column);
+        $table = $instance->getRelated()->getTable();
+        $alias = $table === $probe->getModel()->getTable() ? $instance->getRelationCountHash(false) : $table;
 
-        return new Expression($probe->getQuery()->getGrammar()->wrap($name));
+        return new Expression($probe->getQuery()->getGrammar()->wrap($alias . '.' . $column)); // @phpstan-ignore argument.type
     }
 }

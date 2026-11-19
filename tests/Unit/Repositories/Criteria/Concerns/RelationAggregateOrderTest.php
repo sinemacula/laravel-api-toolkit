@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -104,37 +105,50 @@ final class RelationAggregateOrderTest extends TestCase
     }
 
     /**
-     * Test that a belongs-to relation reads the related column qualified by its
-     * table, and a relation to the model's own table reads it through the
-     * subquery's alias.
+     * Test that a to-one relation reads the related column qualified by its
+     * table, or by the subquery's alias where the relation reaches the model's
+     * own table, so a one-of-many join over that table leaves it unambiguous.
      *
      * @return void
      */
-    public function testToOneColumnIsQualifiedUnlessTheRelationReachesItsOwnTable(): void
+    public function testToOneColumnIsQualifiedByTheTableOrTheSelfRelationAlias(): void
     {
         $model = new #[Table('users')] class extends Model {
             /**
              * Get the parent user.
              *
-             * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Illuminate\Database\Eloquent\Model, $this>
+             * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<self, $this>
              */
             public function parent(): BelongsTo
             {
                 return $this->belongsTo(self::class, 'organization_id');
             }
+
+            /**
+             * Get the latest user sharing this user's key as its organization.
+             *
+             * @return \Illuminate\Database\Eloquent\Relations\HasOne<self, $this>
+             */
+            public function latestMember(): HasOne
+            {
+                return $this->hasOne(self::class, 'organization_id')->latestOfMany();
+            }
         };
 
-        $post = Post::query();
-        $self = $model->newQuery();
+        $post   = Post::query();
+        $parent = $model->newQuery();
+        $member = $model->newQuery();
 
         $this->order()->apply($post, SortTarget::related('user', 'name'), 'asc', UserResource::class);
-        $this->order()->apply($self, SortTarget::related('parent', 'name'), 'asc', UserResource::class);
+        $this->order()->apply($parent, SortTarget::related('parent', 'name'), 'asc', UserResource::class);
+        $this->order()->apply($member, SortTarget::related('latestMember', 'organization_id'), 'asc', UserResource::class);
 
         self::assertSame('(select "users"."name" from "users" where "posts"."user_id" = "users"."id" limit 1)', $this->orderSql($post));
         self::assertSame(
-            '(select "name" from "users" as "laravel_reserved_0" where "laravel_reserved_0"."id" = "users"."organization_id" limit 1)',
-            $this->orderSql($self),
+            '(select "laravel_reserved_0"."name" from "users" as "laravel_reserved_0" where "laravel_reserved_0"."id" = "users"."organization_id" limit 1)',
+            $this->orderSql($parent),
         );
+        self::assertSame([], $member->toBase()->get()->all());
     }
 
     /**

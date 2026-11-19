@@ -391,7 +391,20 @@ final class CompiledSchemaTest extends TestCase
      */
     public function testSortRelationIsConditionalOnlyWhileEveryDeclarerIsCallerGuarded(): void
     {
-        $field  = static fn (array $callerGuards): CompiledFieldDefinition => new CompiledFieldDefinition(null, null, 'customer', null, null, null, [], [], [], [], callerGuards: $callerGuards);
+        $field = static fn (array $guards): CompiledFieldDefinition => new CompiledFieldDefinition(
+            accessor    : null,
+            compute     : null,
+            relation    : 'customer',
+            resource    : null,
+            fields      : null,
+            constraint  : null,
+            extras      : [],
+            needs       : [],
+            guards      : [],
+            transformers: [],
+            callerGuards: $guards,
+        );
+
         $guard  = static fn (): bool => true;
         $schema = new CompiledSchema(
             fields           : ['customer' => $field([$guard]), 'buyer' => $field([$guard]), 'client' => $field([])],

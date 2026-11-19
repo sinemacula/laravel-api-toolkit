@@ -508,7 +508,10 @@ final class QuerySurfaceReaderTest extends TestCase
             $orders[$column->property] = [$column->column, $column->sortable, $column->unindexedReason];
         }
 
-        self::assertSame([SortableUserResource::class, ArticleResource::class, SortableAuthoredPostResource::class], array_map(static fn (QuerySurfaceDescriptor $surface): string => $surface->resource, $surfaces));
+        self::assertSame(
+            [SortableUserResource::class, ArticleResource::class, SortableAuthoredPostResource::class],
+            array_map(static fn (QuerySurfaceDescriptor $surface): string => $surface->resource, $surfaces),
+        );
         self::assertSame([
             'name'                       => ['name', true, null],
             'aggregates.posts_count'     => ['aggregates.posts_count', true, 'Leaderboard over a few hundred authors'],
