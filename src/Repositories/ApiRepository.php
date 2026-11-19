@@ -37,7 +37,7 @@ abstract class ApiRepository extends Repository
     use ResolvesResource;
 
     /** The message for a locked read composed with request criteria */
-    private const string CRITERIA_MESSAGE = '%s::findForUpdate() cannot apply request criteria; call it on a handle without withApiCriteria().';
+    private const string CRITERIA_MESSAGE = '%s::findForUpdate() cannot apply request criteria; call it on a handle without withApiCriteria() or withApiFilters().';
 
     /** The message for a locked read outside a transaction on its connection */
     private const string UNLOCKED_MESSAGE = '%s::findForUpdate() must run inside a transaction on the [%s] connection, or its lock is released at once.';

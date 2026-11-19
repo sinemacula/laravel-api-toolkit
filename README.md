@@ -826,10 +826,10 @@ $this->orders->persist($order, $this->input->attributes);
 `findForUpdate()` reads the row afresh under `lockForUpdate()`. A missing or scoped-out row is a `404` before the
 precondition is checked, and an `If-Match` naming neither the current tag nor `*` throws `PreconditionFailedException`
 (`412`, code `10114`), which rolls the transaction back. A malformed `If-Match` matches nothing. It throws a
-`LogicException` outside a transaction on the model's connection, or on a handle carrying `withApiCriteria()`.
-`ServiceContext::fromRequest()` captures the field, so a queued run compares on the worker, where a `412` fails the job
-without a retry. A request without the field writes unconditionally: add `RequireIfMatch` to a route group to answer a
-`PUT`, `PATCH` or `DELETE` without it with a `428` (code `10115`), while other methods pass.
+`LogicException` outside a transaction on the model's connection, or on a handle carrying `withApiCriteria()` or
+`withApiFilters()`. `ServiceContext::fromRequest()` captures the field, so a queued run compares on the worker, where a
+`412` fails the job without a retry. A request without the field writes unconditionally: add `RequireIfMatch` to a route
+group to answer a `PUT`, `PATCH` or `DELETE` without it with a `428` (code `10115`), while other methods pass.
 
 Tags compare weakly on both sides, where RFC 9110 compares `If-Match` strongly: the toolkit's tags are weak, and proxies
 such as nginx weaken a strong tag they compress. A `412` carries no tag, so the client re-reads before retrying. The

@@ -70,7 +70,7 @@ final class ApiRepositoryTest extends TestCase
     private const string BOB_EMAIL = 'bob@example.com';
 
     /** @var string The refusal of a locked read composed with request criteria */
-    private const string CRITERIA_MESSAGE = '%s::findForUpdate() cannot apply request criteria; call it on a handle without withApiCriteria().';
+    private const string CRITERIA_MESSAGE = '%s::findForUpdate() cannot apply request criteria; call it on a handle without withApiCriteria() or withApiFilters().';
 
     /** @var string The refusal of a locked read outside a transaction */
     private const string UNLOCKED_MESSAGE = '%s::findForUpdate() must run inside a transaction on the [%s] connection, or its lock is released at once.';
@@ -1052,6 +1052,20 @@ final class ApiRepositoryTest extends TestCase
         $this->expectExceptionObject(new \LogicException(sprintf(self::CRITERIA_MESSAGE, DocumentRepository::class)));
 
         $this->documents()->withApiCriteria()->findForUpdate($document->id);
+    }
+
+    /**
+     * Test that findForUpdate() refuses to apply the request's filters.
+     *
+     * @return void
+     */
+    public function testFindForUpdateRefusesRequestFilters(): void
+    {
+        $document = Document::create(['title' => 'Draft']);
+
+        $this->expectExceptionObject(new \LogicException(sprintf(self::CRITERIA_MESSAGE, DocumentRepository::class)));
+
+        $this->documents()->withApiFilters()->findForUpdate($document->id);
     }
 
     /**
