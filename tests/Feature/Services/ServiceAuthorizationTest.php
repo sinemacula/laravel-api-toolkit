@@ -135,6 +135,24 @@ final class ServiceAuthorizationTest extends TestCase
     }
 
     /**
+     * Test that the gate decides for the run's actor, not the authenticated
+     * user.
+     *
+     * @return void
+     */
+    public function testGateDecidesForTheRunActorNotTheAuthenticatedUser(): void
+    {
+        $this->actingAs(User::create(['name' => 'Other', 'email' => 'other@service.test']));
+
+        $title = (new RetitlePostService(new ArrayInput(['post' => $this->post->id, 'title' => 'Published'])))
+            ->by(EloquentActor::for($this->author))
+            ->runOrFail();
+
+        self::assertSame('Published', $title);
+        self::assertSame('Published', $this->post->refresh()->title);
+    }
+
+    /**
      * Test that a service dispatched by a system actor skips the gate, which
      * would deny it as a guest, at dispatch and on the worker.
      *

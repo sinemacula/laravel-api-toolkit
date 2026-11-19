@@ -783,7 +783,7 @@ final class ServiceRunnerTest extends TestCase
 
     /**
      * Test that a concern class that does not implement the contract fails the
-     * run before prepare() rather than throwing from it.
+     * run with a TypeError before prepare(), without run() throwing.
      *
      * @return void
      */

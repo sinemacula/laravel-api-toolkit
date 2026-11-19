@@ -276,13 +276,19 @@ final class ServiceTransactionRetryTest extends TestCase
      */
     public function testLockIsAcquiredOnceAcrossAttempts(): void
     {
-        $service = new RetryTraceService(self::deadlock());
+        $service      = new RetryTraceService(self::deadlock());
+        $freeAtCommit = [];
+
+        Event::listen(TransactionCommitting::class, static function () use ($service, &$freeAtCommit): void {
+            $freeAtCommit[] = Cache::lock($service->getLockKey(), 1)->get(static fn (): bool => true) === true;
+        });
 
         $result = $this->runAtTopLevel($service);
 
         self::assertTrue($result->succeeded());
         self::assertSame(1, $service->locks);
         self::assertSame([false, false], $service->lockFree);
+        self::assertSame([false], $freeAtCommit);
         self::assertTrue(Cache::lock($service->getLockKey(), 1)->get(static fn (): bool => true));
     }
 
