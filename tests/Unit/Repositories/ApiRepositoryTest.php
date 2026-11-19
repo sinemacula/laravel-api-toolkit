@@ -383,16 +383,25 @@ final class ApiRepositoryTest extends TestCase
      */
     public function testPaginateBoundsTheCursorReadOnItsLeadingColumn(): void
     {
-        $this->parseRequest(new Request(['cursor' => (new Cursor(['users.id' => 1]))->encode()]));
+        $this->parseRequest(new Request(['cursor' => (new Cursor(['users.name' => 'Alice', 'users.id' => 1]))->encode()]));
 
         DB::enableQueryLog();
 
-        $this->repository->paginate();
+        $this->repository->addScope(static function (Builder $query): void {
+            $query->getQuery()->orderBy('users.name');
+        })->paginate();
 
-        $reads = array_values(array_filter(DB::getQueryLog(), static fn (array $entry): bool => str_starts_with($entry['query'], 'select * from "users"')));
+        $log     = DB::getQueryLog();
+        $read    = (array) end($log);
+        $grammar = DB::connection()->getQueryGrammar();
+        $name    = $grammar->wrap('users.name');
+        $key     = $grammar->wrap('users.id');
 
-        self::assertSame('select * from "users" where "users"."id" >= ? and ("users"."id" > ?) order by "users"."id" asc limit 51', $reads[0]['query']);
-        self::assertSame([1, 1], $reads[0]['bindings']);
+        self::assertSame(
+            sprintf('select * from %s where %2$s >= ? and (%2$s > ? or (%2$s = ? and (%3$s > ?))) order by %2$s asc, %3$s asc limit 51', $grammar->wrapTable('users'), $name, $key),
+            $read['query'] ?? null,
+        );
+        self::assertSame(['Alice', 'Alice', 'Alice', 1], $read['bindings'] ?? null);
     }
 
     /**

@@ -551,7 +551,7 @@ final class PageOrderTest extends TestCase
         yield 'expression' => [static fn (QueryBuilder $query) => $query->orderBy(new Expression('lower(name)'))->orderBy(self::KEY)];
         yield 'unqualified' => [static fn (QueryBuilder $query) => $query->orderBy('name')->orderBy(self::KEY)];
         yield 'another table' => [static fn (QueryBuilder $query) => $query->orderBy('users_archive.name')->orderBy(self::KEY)];
-        yield 'union' => [static fn (QueryBuilder $query) => $query->orderBy('users.name')->union(User::query()->getQuery())];
+        yield 'union' => [static fn (QueryBuilder $query) => $query->orderBy('users.name')->orderBy(self::KEY)->union(User::query()->getQuery())];
     }
 
     /**
@@ -571,13 +571,28 @@ final class PageOrderTest extends TestCase
     }
 
     /**
+     * Test that a lone ordered column is left unbounded, since its seek is
+     * already a range.
+     *
+     * @return void
+     */
+    public function testALoneOrderedColumnIsLeftUnbounded(): void
+    {
+        $query = $this->users(static fn (QueryBuilder $query) => $query->orderBy('users.name'));
+
+        $this->pageOrder->seek($query, new Cursor(['users.name' => 'Ann']));
+
+        self::assertSame([], $query->getQuery()->wheres);
+    }
+
+    /**
      * Test that the first page is left unbounded.
      *
      * @return void
      */
     public function testFirstPageIsLeftUnbounded(): void
     {
-        $query = $this->users(static fn (QueryBuilder $query) => $query->orderBy('users.name'));
+        $query = $this->users(static fn (QueryBuilder $query) => $query->orderBy('users.name')->orderBy(self::KEY));
 
         self::assertSame($query, $this->pageOrder->seek($query, null));
         self::assertSame([], $query->getQuery()->wheres);

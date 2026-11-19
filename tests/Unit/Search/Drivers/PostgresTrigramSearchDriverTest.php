@@ -283,8 +283,8 @@ final class PostgresTrigramSearchDriverTest extends TestCase
      */
     public static function schemaQualifiedTrigramDefinitions(): iterable
     {
-        yield 'bare schema' => ['CREATE INDEX widgets_name_trgm ON tenant_a.users USING gin (name public.gin_trgm_ops)'];
-        yield 'quoted schema' => ['CREATE INDEX widgets_name_trgm ON tenant_a.users USING gist (name "Shared Ext".gist_trgm_ops)'];
+        yield 'bare schema' => ['CREATE INDEX users_name_trgm ON tenant_a.users USING gin (name public.gin_trgm_ops)'];
+        yield 'quoted schema' => ['CREATE INDEX users_name_trgm ON tenant_a.users USING gist (name "Shared Ext".gist_trgm_ops)'];
     }
 
     /**
