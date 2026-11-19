@@ -1051,7 +1051,10 @@ Exceptions are mapped to `ApiException` subclasses and rendered as JSON error re
 - `'json_when_expected'` - JSON only when the request expects it (Laravel's `expectsJson()`, e.g.
   `Accept: application/json`).
 
-Every error renders as one envelope:
+Every `ApiException` implements Symfony's `HttpExceptionInterface`, so one left to Laravel's renderer keeps its status
+and headers, such as a maintenance `503` with its `Retry-After`.
+
+Every error the toolkit renders shares one envelope:
 
 ```json
 {

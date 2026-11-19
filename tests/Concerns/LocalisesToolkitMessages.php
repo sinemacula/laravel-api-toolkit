@@ -38,13 +38,14 @@ trait LocalisesToolkitMessages
 
     /**
      * Point the application at a lang path whose vendor override holds the
-     * given validation lines, as a published override would.
+     * given lines of the group, as a published override would.
      *
-     * @param  array<string, mixed>  $lines
+     * @param  array<array-key, mixed>  $lines
      * @param  string  $locale
+     * @param  string  $group
      * @return void
      */
-    protected function overrideToolkitMessages(array $lines, string $locale = 'de'): void
+    protected function overrideToolkitMessages(array $lines, string $locale = 'de', string $group = 'validation'): void
     {
         $app       = App::getFacadeRoot();
         $path      = sys_get_temp_dir() . '/api-toolkit-lang-' . getmypid() . '-' . uniqid('', true);
@@ -53,8 +54,8 @@ trait LocalisesToolkitMessages
         assert($app instanceof Application);
 
         mkdir($directory, 0o755, true);
-        file_put_contents($directory . '/validation.json', json_encode($lines, JSON_THROW_ON_ERROR));
-        file_put_contents($directory . '/validation.php', '<?php return json_decode(file_get_contents(__DIR__ . \'/validation.json\'), true);');
+        file_put_contents(sprintf('%s/%s.json', $directory, $group), json_encode($lines, JSON_THROW_ON_ERROR));
+        file_put_contents(sprintf('%s/%s.php', $directory, $group), sprintf('<?php return json_decode(file_get_contents(__DIR__ . \'/%s.json\'), true);', $group));
 
         $this->beforeApplicationDestroyed(static function () use ($path): void {
             (new Filesystem)->deleteDirectory($path);
