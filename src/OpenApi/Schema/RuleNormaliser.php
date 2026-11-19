@@ -223,11 +223,7 @@ final readonly class RuleNormaliser
      */
     private function enumType(Enum $rule): ?string
     {
-        try {
-            $type = (new \ReflectionProperty($rule, 'type'))->getValue($rule);
-        } catch (\Throwable) {
-            return null;
-        }
+        $type = (new \ReflectionProperty($rule, 'type'))->getValue($rule);
 
         return is_string($type) && enum_exists($type) ? $type : null;
     }
@@ -266,12 +262,8 @@ final readonly class RuleNormaliser
      */
     private function acceptedCases(Enum $rule, string $type): ?array
     {
-        try {
-            $only   = (new \ReflectionProperty($rule, 'only'))->getValue($rule);
-            $except = (new \ReflectionProperty($rule, 'except'))->getValue($rule);
-        } catch (\Throwable) {
-            return null;
-        }
+        $only   = (new \ReflectionProperty($rule, 'only'))->getValue($rule);
+        $except = (new \ReflectionProperty($rule, 'except'))->getValue($rule);
 
         if (!is_array($only) || !is_array($except)) {
             return null;
@@ -320,11 +312,7 @@ final readonly class RuleNormaliser
      */
     private function passwordTokens(Password $rule): array
     {
-        try {
-            $min = (new \ReflectionProperty($rule, 'min'))->getValue($rule);
-        } catch (\Throwable) {
-            return ['string'];
-        }
+        $min = (new \ReflectionProperty($rule, 'min'))->getValue($rule);
 
         return is_int($min) && $min > 0 ? ['string', 'min:' . $min] : ['string'];
     }

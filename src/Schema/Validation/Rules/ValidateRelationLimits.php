@@ -41,10 +41,9 @@ final class ValidateRelationLimits implements SchemaValidationRule
         /** @var array<string, int> $limits */
         $limits = [];
 
-        foreach ($schema->getFieldKeys() as $key) {
+        foreach ($schema->getFields() as $key => $field) {
 
-            $field  = $schema->getField($key);
-            $defect = $field?->relation === null ? null : $this->describeFieldDefect($field, $field->relation, $modelClass, $limits);
+            $defect = $field->relation === null ? null : $this->describeFieldDefect($field, $field->relation, $modelClass, $limits);
 
             if ($defect === null) {
                 continue;

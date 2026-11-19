@@ -19,11 +19,9 @@ final readonly class EnumSchemaBuilder
     /**
      * Build the schema map for the referenced enums, keyed by component name.
      *
-     * @param  list<class-string>  $enums
+     * @param  list<class-string<\UnitEnum>>  $enums
      * @param  array<string, string>  $reserved
      * @return array<string, array<string, mixed>>
-     *
-     * @throws \LogicException
      */
     public function build(array $enums, array $reserved = []): array
     {
@@ -32,10 +30,6 @@ final readonly class EnumSchemaBuilder
         $schemas = [];
 
         foreach ($enums as $enum) {
-
-            if (!enum_exists($enum)) {
-                throw new \LogicException(sprintf('The referenced class [%s] is not an enum', $enum));
-            }
 
             $name = SchemaComponentName::fromClass($enum);
 

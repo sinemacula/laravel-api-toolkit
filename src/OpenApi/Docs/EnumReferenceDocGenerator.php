@@ -36,7 +36,7 @@ final readonly class EnumReferenceDocGenerator
     /**
      * Render the enum reference section as Markdown for the given enum classes.
      *
-     * @param  list<class-string>  $enums
+     * @param  list<class-string<\UnitEnum>>  $enums
      * @return string
      */
     public function generate(array $enums): string
@@ -73,8 +73,8 @@ final readonly class EnumReferenceDocGenerator
     /**
      * Compare two enum classes by their component name.
      *
-     * @param  class-string  $a
-     * @param  class-string  $b
+     * @param  class-string<\UnitEnum>  $a
+     * @param  class-string<\UnitEnum>  $b
      * @return int
      */
     private function compareByComponentName(string $a, string $b): int
@@ -85,18 +85,12 @@ final readonly class EnumReferenceDocGenerator
     /**
      * Render one enum as a subsection heading followed by its case table.
      *
-     * @param  class-string  $enum
+     * @param  class-string<\UnitEnum>  $enum
      * @param  string  $level
      * @return list<string>
-     *
-     * @throws \LogicException
      */
     private function enumSection(string $enum, string $level): array
     {
-        if (!enum_exists($enum)) {
-            throw new \LogicException(sprintf('The referenced class [%s] is not an enum', $enum));
-        }
-
         $lines = [
             '',
             $level . ' ' . SchemaComponentName::fromClass($enum),

@@ -70,6 +70,9 @@ final class QueryParameterValidatorTest extends TestCase
         yield 'search string' => [['search' => 'john smith']];
         yield 'trashed with' => [['trashed' => 'with']];
         yield 'trashed only' => [['trashed' => 'only']];
+        yield 'cursor pagination' => [['pagination' => 'cursor']];
+        yield 'null pagination' => [['pagination' => null]];
+        yield 'empty pagination' => [['pagination' => '']];
     }
 
     /**
@@ -106,6 +109,10 @@ final class QueryParameterValidatorTest extends TestCase
         yield 'integer search' => [['search' => 42]];
         yield 'array fields resource value' => [['fields' => ['user' => ['name', 'email']]]];
         yield 'array aggregates resource value' => [['aggregates' => ['user' => ['posts_count', 'orders_sum_total']]]];
+        yield 'misspelt pagination' => [['pagination' => 'curser']];
+        yield 'capitalised pagination' => [['pagination' => 'Cursor']];
+        yield 'list pagination' => [['pagination' => ['cursor']]];
+        yield 'malformed pagination' => [['pagination' => "\xFF"]];
     }
 
     /**
@@ -276,7 +283,7 @@ final class QueryParameterValidatorTest extends TestCase
         yield 'multibyte order' => [['order' => 'nämé']];
         yield 'multibyte selection' => [['fields' => ['users' => 'nämé'], 'aggregates' => ['nämé' => null]]];
         yield 'integer page and limit' => [['page' => 2, 'limit' => 10]];
-        yield 'application parameters' => [['q' => "\xFF", 'pretty' => "\xFF", 'pagination' => "\xFF"]];
+        yield 'application parameters' => [['q' => "\xFF", 'pretty' => "\xFF"]];
     }
 
     /**

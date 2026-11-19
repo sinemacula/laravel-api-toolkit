@@ -13,8 +13,12 @@ use SineMacula\ApiToolkit\OpenApi\ExportOpenApiComponents;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QueryRelationDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor;
 use SineMacula\ApiToolkit\OpenApi\Resolution\AudienceConfiguration;
+use Tests\Fixtures\Models\Organization;
+use Tests\Fixtures\Models\Tag;
 use Tests\Fixtures\Models\User;
+use Tests\Fixtures\OpenApi\InternalOnlyTagController;
 use Tests\Fixtures\OpenApi\PathFixtureController;
+use Tests\Fixtures\OpenApi\PathOrganizationController;
 use Tests\Fixtures\Resources\OrganizationResource;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\ProfileResource;
@@ -63,13 +67,62 @@ final class AudienceQuerySurfaceCollectorTest extends TestCase
             new QuerySurfaceDescriptor(OrganizationResource::class, []),
         ];
 
+        self::assertSame(['public' => [$surfaces[1], $surfaces[2], $surfaces[3], $surfaces[4]]], $this->collect($surfaces));
+    }
+
+    /**
+     * Test that each configured audience is told about only the surfaces its
+     * own document keeps.
+     *
+     * @return void
+     */
+    public function testEachAudienceKeepsOnlyTheSurfacesItsDocumentKeeps(): void
+    {
+        Config::set('api-toolkit.openapi.audiences', ['public' => [], 'internal' => []]);
+        Config::set('api-toolkit.resources.resource_map', [
+            Organization::class => OrganizationResource::class,
+            Tag::class          => QueryableTagResource::class,
+        ]);
+
+        app(Router::class)->get('organizations', [PathOrganizationController::class, 'index']);
+        app(Router::class)->get('tags', [InternalOnlyTagController::class, 'index']);
+
+        $organization = new QuerySurfaceDescriptor(OrganizationResource::class, []);
+        $tag          = new QuerySurfaceDescriptor(QueryableTagResource::class, []);
+
+        self::assertSame(['public' => [$organization], 'internal' => [$organization, $tag]], $this->collect([$organization, $tag]));
+    }
+
+    /**
+     * Test that the default audience is collected when no audience is
+     * configured.
+     *
+     * @return void
+     */
+    public function testCollectsTheDefaultAudienceWhenNoneIsConfigured(): void
+    {
+        Config::set('api-toolkit.openapi.audiences', []);
+        Config::set('api-toolkit.resources.resource_map', [User::class => UserResource::class]);
+
+        app(Router::class)->get('users', [PathFixtureController::class, 'index']);
+
+        $surface = new QuerySurfaceDescriptor(UserResource::class, []);
+
+        self::assertSame(['public' => [$surface]], $this->collect([$surface]));
+    }
+
+    /**
+     * Collect the given surfaces for every configured audience.
+     *
+     * @param  array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>  $surfaces
+     * @return array<string, array<int, \SineMacula\ApiToolkit\OpenApi\Metadata\QuerySurfaceDescriptor>>
+     */
+    private function collect(array $surfaces): array
+    {
         $catalogue = self::createStub(MetadataCatalogue::class);
 
         $catalogue->method('getQuerySurfaces')->willReturn($surfaces);
 
-        $collected = (new AudienceQuerySurfaceCollector(app(ExportOpenApiComponents::class), $catalogue, new AudienceConfiguration))->collect();
-
-        self::assertSame(['public'], array_keys($collected));
-        self::assertSame([$surfaces[1], $surfaces[2], $surfaces[3], $surfaces[4]], $collected['public']);
+        return (new AudienceQuerySurfaceCollector(app(ExportOpenApiComponents::class), $catalogue, new AudienceConfiguration))->collect();
     }
 }
