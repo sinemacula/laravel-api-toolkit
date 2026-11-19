@@ -404,12 +404,8 @@ final readonly class PathBuilder
         return [
             '200' => [
                 'description' => 'A paginated collection of resources. Length-aware by default; sending ?cursor or ?pagination=cursor returns the cursor shape.',
-                'headers'     => [
-                    EnvelopeBuilder::TOTAL_COUNT_HEADER_NAME => [
-                        '$ref' => self::HEADER_REF_PREFIX . EnvelopeBuilder::TOTAL_COUNT_HEADER_NAME,
-                    ],
-                ],
-                'content' => [
+                'headers'     => $this->envelope->collectionHeaders(),
+                'content'     => [
                     self::MEDIA_TYPE => [
                         'schema' => [
                             'anyOf' => [

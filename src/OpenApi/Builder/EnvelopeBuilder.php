@@ -33,6 +33,9 @@ final readonly class EnvelopeBuilder
     /** The path prefix under which schema components are referenced */
     private const string SCHEMA_REF_PREFIX = '#/components/schemas/';
 
+    /** The path prefix under which header components are referenced */
+    private const string HEADER_REF_PREFIX = '#/components/headers/';
+
     /**
      * Build the shared envelope schemas, keyed by component name.
      *
@@ -59,6 +62,16 @@ final readonly class EnvelopeBuilder
             self::TOTAL_COUNT_HEADER_NAME => $this->buildTotalCountHeader(),
             self::ETAG_HEADER_NAME        => $this->buildEtagHeader(),
         ];
+    }
+
+    /**
+     * Build the headers of a response that may be a length-aware page.
+     *
+     * @return array<string, array{'$ref': string}>
+     */
+    public function collectionHeaders(): array
+    {
+        return [self::TOTAL_COUNT_HEADER_NAME => ['$ref' => self::HEADER_REF_PREFIX . self::TOTAL_COUNT_HEADER_NAME]];
     }
 
     /**
@@ -118,13 +131,48 @@ final readonly class EnvelopeBuilder
     }
 
     /**
+     * Build the cursor collection envelope for the given schema reference.
+     *
+     * @param  string  $schemaRef
+     * @return array<string, mixed>
+     */
+    public function cursorCollectionEnvelope(string $schemaRef): array
+    {
+        return $this->cursorCollectionEnvelopeFor(['$ref' => $schemaRef]);
+    }
+
+    /**
+     * Build the envelope of a collection of the given item schema node that is
+     * a length-aware page, a cursor page or an unpaginated list.
+     *
+     * @param  array<string, mixed>  $items
+     * @return array<string, mixed>
+     */
+    public function anyCollectionEnvelopeFor(array $items): array
+    {
+        return [
+            'anyOf' => [
+                $this->collectionEnvelopeFor($items),
+                $this->cursorCollectionEnvelopeFor($items),
+                [
+                    'type'       => 'object',
+                    'properties' => [
+                        'data' => ['type' => 'array', 'items' => $items],
+                    ],
+                    'required' => ['data'],
+                ],
+            ],
+        ];
+    }
+
+    /**
      * Build the length-aware collection envelope for the given item schema
      * node.
      *
      * @param  array<string, mixed>  $items
      * @return array<string, mixed>
      */
-    public function collectionEnvelopeFor(array $items): array
+    private function collectionEnvelopeFor(array $items): array
     {
         return [
             'type'       => 'object',
@@ -138,17 +186,17 @@ final readonly class EnvelopeBuilder
     }
 
     /**
-     * Build the cursor collection envelope for the given schema reference.
+     * Build the cursor collection envelope for the given item schema node.
      *
-     * @param  string  $schemaRef
+     * @param  array<string, mixed>  $items
      * @return array<string, mixed>
      */
-    public function cursorCollectionEnvelope(string $schemaRef): array
+    private function cursorCollectionEnvelopeFor(array $items): array
     {
         return [
             'type'       => 'object',
             'properties' => [
-                'data'  => ['type' => 'array', 'items' => ['$ref' => $schemaRef]],
+                'data'  => ['type' => 'array', 'items' => $items],
                 'meta'  => ['$ref' => self::SCHEMA_REF_PREFIX . self::CURSOR_PAGINATION_META_SCHEMA_NAME],
                 'links' => ['$ref' => self::SCHEMA_REF_PREFIX . self::CURSOR_PAGINATION_LINKS_SCHEMA_NAME],
             ],
