@@ -467,6 +467,36 @@ final class QueryParameterExtractorTest extends TestCase
     }
 
     /**
+     * Provide orders that name one column more than once.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function repeatedOrderColumnProvider(): iterable
+    {
+        yield 'same direction' => ['name,email,name'];
+        yield 'opposite direction' => ['name,name:desc'];
+        yield 'padded copy' => ['name:desc, name :asc'];
+    }
+
+    /**
+     * Test that a column ordered by more than once is rejected on its key
+     * rather than taking the last direction.
+     *
+     * @param  string  $orderString
+     * @return void
+     */
+    #[DataProvider('repeatedOrderColumnProvider')]
+    public function testExtractRejectsARepeatedOrderColumn(string $orderString): void
+    {
+        try {
+            $this->extractor->extract(['order' => $orderString]);
+            self::fail('Expected a ValidationException for the repeated order column.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['order.name' => ['The "name" key may appear in the order only once.']], $exception->errors());
+        }
+    }
+
+    /**
      * Test that a search term is normalised into a parsed term.
      *
      * @return void

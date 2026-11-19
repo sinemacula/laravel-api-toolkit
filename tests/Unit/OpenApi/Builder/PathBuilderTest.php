@@ -593,18 +593,116 @@ final class PathBuilderTest extends TestCase
     }
 
     /**
-     * Test that an optional route parameter renders as required.
+     * Test that an optional route parameter exports a path item per form: the
+     * bare one without parameters or an inferred 404, the full one requiring
+     * the parameter, both otherwise alike.
      *
      * @return void
      */
-    public function testOptionalParameterRendersWithoutMarker(): void
+    public function testOptionalParameterExportsAPathItemPerForm(): void
     {
-        $this->router()->get('users/{user?}', [PathFixtureController::class, 'show']);
+        $this->router()->get('reports/{period?}', [PathPlainController::class, 'report'])->middleware('auth');
+
+        $paths = $this->build();
+        $bare  = $this->operationOf($paths, '/reports', 'get');
+        $full  = $this->operationOf($paths, '/reports/{period}', 'get');
+
+        self::assertSame(['/reports', '/reports/{period}'], array_keys($paths));
+        self::assertArrayNotHasKey('parameters', $bare);
+        self::assertSame([['name' => 'period', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string']]], $full['parameters']);
+        self::assertSame([200, 401, 500], $this->statusesOf($paths, '/reports', 'get'));
+        self::assertSame([200, 401, 404, 500], $this->statusesOf($paths, '/reports/{period}', 'get'));
+
+        unset($full['parameters'], $full['responses'][404]);
+
+        self::assertSame($bare, $full);
+    }
+
+    /**
+     * Test that the bare form keeps a 404 when a default still binds the
+     * omitted parameter, or the action declares one.
+     *
+     * @return void
+     */
+    public function testBareFormKeepsA404ThatStillApplies(): void
+    {
+        $this->router()->get('users/{user?}', [PathPlainController::class, 'report'])->defaults('user', 1);
+        $this->router()->get('members/{user?}', [PathFixtureController::class, 'show']);
 
         $paths = $this->build();
 
-        self::assertArrayHasKey('/users/{user}', $paths);
-        self::assertSame('user', $paths['/users/{user}']['get']['parameters'][0]['name']);
+        self::assertSame([200, 404, 500], $this->statusesOf($paths, '/users', 'get'));
+        self::assertSame([200, 403, 404, 422, 500], $this->statusesOf($paths, '/members', 'get'));
+    }
+
+    /**
+     * Provide whether the explicit route is registered before the optional one.
+     *
+     * @return iterable<string, array{bool}>
+     */
+    public static function provideRegistrationOrders(): iterable
+    {
+        yield 'explicit route first' => [true];
+
+        yield 'explicit route last' => [false];
+    }
+
+    /**
+     * Test that an explicit route keeps the path and verb a bare form also
+     * matches, while the bare form fills the verbs the explicit route leaves
+     * free.
+     *
+     * @param  bool  $explicitFirst
+     * @return void
+     */
+    #[DataProvider('provideRegistrationOrders')]
+    public function testExplicitRouteKeepsThePathAndVerbABareFormMatches(bool $explicitFirst): void
+    {
+        config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $explicit = fn (): mixed => $this->router()->get('reports', [PathPlainController::class, 'index'])->name('reports.index');
+
+        if ($explicitFirst) {
+            $explicit();
+        }
+
+        $this->router()->match(['GET', 'POST'], 'reports/{period?}', [PathPlainController::class, 'report'])->name('reports.show');
+
+        if (!$explicitFirst) {
+            $explicit();
+        }
+
+        $paths = $this->build();
+        $shape = array_map(array_keys(...), $paths);
+
+        self::assertSame(['/reports' => ['get', 'post'], '/reports/{period}' => ['get', 'post']], $shape);
+        self::assertSame('reports.index', $this->operationOf($paths, '/reports', 'get')['operationId']);
+        self::assertSame('reports.show.post', $this->operationOf($paths, '/reports', 'post')['operationId']);
+        self::assertSame('reports.show.period', $this->operationOf($paths, '/reports/{period}', 'get')['operationId']);
+        self::assertSame('reports.show.period.post', $this->operationOf($paths, '/reports/{period}', 'post')['operationId']);
+        self::assertSame($shape, array_map(array_keys(...), $this->collector()->collect(['public'])->operations('public')));
+    }
+
+    /**
+     * Test that a route's description describes every form, unless a form has
+     * its own.
+     *
+     * @return void
+     */
+    public function testRouteDescriptionDescribesEveryFormUnlessAFormHasItsOwn(): void
+    {
+        config()->set('api-toolkit.openapi.operation_ids', true);
+
+        $this->router()->get('reports/{a?}/{b?}', [PathPlainController::class, 'report'])->name('reports.show');
+
+        $paths = $this->builder()->build($this->collector()->collect(['public'])->in('public'), [
+            'reports.show'   => 'Shows a report.',
+            'reports.show.a' => 'Shows a report for one period.',
+        ], 'public', []);
+
+        self::assertSame('Shows a report.', $this->operationOf($paths, '/reports', 'get')['description']);
+        self::assertSame('Shows a report for one period.', $this->operationOf($paths, '/reports/{a}', 'get')['description']);
+        self::assertSame('Shows a report.', $this->operationOf($paths, '/reports/{a}/{b}', 'get')['description']);
     }
 
     /**
@@ -1452,6 +1550,23 @@ final class PathBuilderTest extends TestCase
         );
         self::assertSame(['/reports'], array_keys($paths));
         self::assertSame(['get', 'post'], array_keys($paths['/reports']));
+    }
+
+    /**
+     * Test that every form of one action with an optional parameter on two
+     * domains lists the servers of both.
+     *
+     * @return void
+     */
+    public function testEveryFormOfOneActionOnTwoDomainsListsBothServers(): void
+    {
+        RouteFacade::domain('a.example.com')->get('reports/{period?}', [PathPlainController::class, 'report']);
+        RouteFacade::domain('b.example.com')->get('reports/{period?}', [PathPlainController::class, 'report']);
+
+        $paths = $this->build();
+
+        self::assertSame(['https://a.example.com', 'https://b.example.com'], $this->serverUrlsOf($paths, '/reports', 'get'));
+        self::assertSame(['https://a.example.com', 'https://b.example.com'], $this->serverUrlsOf($paths, '/reports/{period}', 'get'));
     }
 
     /**

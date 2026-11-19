@@ -244,7 +244,7 @@ final readonly class QueryParameterBuilder
         return $this->parameter(
             'order',
             'Ordering: a comma-separated list of fields, each optionally suffixed with :asc or :desc in any case, e.g. order=name,created_at:desc. '
-            . 'Any other direction is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
+            . 'Any other direction, or a repeated field, is rejected. The key is appended last when the order lacks it, so tied rows never repeat or go missing '
             . 'between pages. Random order and columns that admit null cannot order a cursor-paginated read. order=relevance ranks rows by how '
             . 'closely they match search: the whole value, then the start, then the start of a word, then anywhere; it needs search and offset '
             . 'pagination.',
@@ -314,7 +314,7 @@ final readonly class QueryParameterBuilder
     {
         return $this->parameter(
             'pagination',
-            'Pagination mode: set to cursor to switch from the default length-aware pagination to cursor pagination.',
+            'Pagination mode: set to cursor to switch from the default length-aware pagination to cursor pagination. Any other non-empty value is rejected.',
             ['type' => 'string', 'enum' => ['cursor']],
         );
     }
