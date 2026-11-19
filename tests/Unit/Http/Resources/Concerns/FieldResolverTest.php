@@ -260,6 +260,41 @@ final class FieldResolverTest extends TestCase
     }
 
     /**
+     * Test that the selected fields drop exclusions and duplicates and never
+     * gain the fixed fields.
+     *
+     * @return void
+     */
+    public function testGetSelectedFieldsOmitsExclusionsDuplicatesAndFixedFields(): void
+    {
+        Config::set('api-toolkit.resources.fixed_fields', ['id', '_type']);
+
+        $this->resolver->withoutFields(['email']);
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(['name', 'email', 'name', 'status']);
+
+        self::assertSame(['name', 'status'], $this->resolver->getSelectedFields(UserResource::class));
+    }
+
+    /**
+     * Test that the selected fields follow the defaults with nothing excluded.
+     *
+     * @return void
+     */
+    public function testGetSelectedFieldsReturnsTheDefaultsWithoutExclusions(): void
+    {
+        Config::set('api-toolkit.resources.fixed_fields', ['_type']);
+
+        ApiQuery::shouldReceive('getFields')
+            ->with('users')
+            ->andReturn(null);
+
+        self::assertSame(['id', 'name', 'email'], $this->resolver->getSelectedFields(UserResource::class));
+    }
+
+    /**
      * Provide the selections and the fields each one resolves to.
      *
      * A null expectation stands for every field and the aggregates.
