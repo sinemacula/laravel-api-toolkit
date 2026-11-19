@@ -854,7 +854,7 @@ final class FilterApplierTest extends TestCase
             $columns[] = $column;
 
             $query->where($column, '=', $value);
-        });
+        }, Capability::EXACT);
 
         $this->applyFilters(['name' => ['$record' => 'Alice'], 'posts' => ['title' => ['$record' => 'Hello']]]);
 
@@ -1036,9 +1036,9 @@ final class FilterApplierTest extends TestCase
             $query->where($column, 'like', (is_scalar($value) ? (string) $value : '') . '%');
         }, Capability::RANGE);
 
-        $exists = 'exists (select * from "posts" where "users"."id" = "posts"."user_id" and "id" like ?)';
+        $exists = 'exists (select * from "posts" where "users"."id" = "posts"."user_id" and "posts"."id" like ?)';
 
-        $this->assertCompilesTo(['$or' => [['id' => ['$starts' => 1]], ['name' => 'Alice']]], '(("id" like ?) or ("name" = ?))', ['1%', 'Alice']);
+        $this->assertCompilesTo(['$or' => [['id' => ['$starts' => 1]], ['name' => 'Alice']]], '(("users"."id" like ?) or ("users"."name" = ?))', ['1%', 'Alice']);
         $this->assertCompilesTo(['posts' => ['id' => ['$starts' => 2]]], $exists, ['2%']);
         $this->assertCompilesTo(['$has' => ['posts' => ['id' => ['$starts' => 3]]]], $exists, ['3%']);
 
@@ -1107,11 +1107,11 @@ final class FilterApplierTest extends TestCase
 
         $this->assertCompilesTo(
             ['name' => 'a', 'email' => ['$eq' => 'b'], '$or' => [['name' => 'c'], ['email' => ['$eq' => 'd']]]],
-            '"name" like ? and "email" like ? and (("name" like ?) or ("email" like ?))',
+            '"users"."name" like ? and "users"."email" like ? and (("users"."name" like ?) or ("users"."email" like ?))',
             ['a', 'b', 'c', 'd'],
         );
 
-        self::assertSame([['name', 'a'], ['email', 'b'], ['name', 'c'], ['email', 'd']], $calls);
+        self::assertSame([['users.name', 'a'], ['users.email', 'b'], ['users.name', 'c'], ['users.email', 'd']], $calls);
     }
 
     /**
@@ -1128,7 +1128,7 @@ final class FilterApplierTest extends TestCase
             $query->orWhere($column, '=', $value);
         });
 
-        $this->assertCompilesTo(['email' => ['$in' => ['b']], 'name' => 'Alice'], '"email" in (?) and ("name" = ?)', ['b', 'Alice']);
+        $this->assertCompilesTo(['email' => ['$in' => ['b']], 'name' => 'Alice'], '"users"."email" in (?) and ("users"."name" = ?)', ['b', 'Alice']);
     }
 
     /**
