@@ -378,7 +378,7 @@ final readonly class ResourceDiscovery
             $real = $file->getRealPath();
 
             if ($real === false) {
-                continue; // @codeCoverageIgnore
+                continue;
             }
 
             $files[] = $real;
@@ -403,7 +403,7 @@ final readonly class ResourceDiscovery
         }
 
         if ($contents === false) {
-            return null; // @codeCoverageIgnore
+            return null;
         }
 
         return $contents;
