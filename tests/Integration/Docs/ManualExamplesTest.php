@@ -175,6 +175,7 @@ final class ManualExamplesTest extends TestCase
 
         $response = $this->getJson($self)->assertOk();
 
+        $response->assertJsonCount(25, 'data');
         $response->assertJsonPath('data.0', data_get($example, 'data.0'));
         $response->assertJsonPath('links', $example['links']);
         $response->assertJsonPath('meta', $example['meta']);

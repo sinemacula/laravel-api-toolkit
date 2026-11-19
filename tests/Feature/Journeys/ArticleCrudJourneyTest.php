@@ -253,20 +253,20 @@ final class ArticleCrudJourneyTest extends TestCase
 
         $this->actingAs($this->author);
 
-        $slugs = [];
+        $pages = [];
         $url   = '/articles?pagination=cursor&limit=2';
 
         while (is_string($url)) {
 
             $page = $this->getJson($url)->assertOk()->assertHeaderMissing('Total-Count');
 
-            $slugs = [...$slugs, ...(array) $page->json('data.*.slug')];
-            $url   = $page->json('links.next');
+            $pages[] = $page->json('data.*.slug');
+            $url     = $page->json('links.next');
 
             $page->assertJsonPath('meta', ['continue' => is_string($url)]);
         }
 
-        self::assertSame(['a', 'b', 'c'], $slugs);
+        self::assertSame([['a', 'b'], ['c']], $pages);
     }
 
     /**
