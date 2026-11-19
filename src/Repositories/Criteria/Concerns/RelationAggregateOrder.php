@@ -100,10 +100,6 @@ final readonly class RelationAggregateOrder
         $select  = (string) end($columns);
         $suffix  = ' as ' . $probe->getQuery()->getGrammar()->wrap(self::ALIAS);
 
-        if (!str_ends_with($select, $suffix)) {
-            throw new \LogicException(sprintf('The aggregate subquery over "%s" did not end in its alias', $target->relation));
-        }
-
         $base->orderBy(new Expression(substr($select, 0, -strlen($suffix))), $direction); // @phpstan-ignore argument.type
         $base->addBinding($probe->getQuery()->getRawBindings()['select'], 'order');
     }
