@@ -47,6 +47,9 @@ final class WritePoolFlushSubscriberTest extends TestCase
 {
     use CreatesDeferredWriteTargets, SwapsExceptionHandler;
 
+    /** @var string The message MySQL raises for a deadlock */
+    private const string DEADLOCK = 'SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock';
+
     /**
      * Set up the test environment.
      *
@@ -459,7 +462,7 @@ final class WritePoolFlushSubscriberTest extends TestCase
     {
         Exceptions::fake();
 
-        $pool       = $this->poolDeadlockingOnTheAuditConnection();
+        $pool       = $this->poolFailingOnTheAuditConnection(new QueryException('audit', 'insert', [], new \PDOException(self::DEADLOCK)));
         $subscriber = $this->subscriberFlushing($pool);
         $attempts   = 0;
 
@@ -476,18 +479,33 @@ final class WritePoolFlushSubscriberTest extends TestCase
     }
 
     /**
-     * Test that a deadlock ending a transaction the flush after a job timeout
+     * Provide each form of a transaction-ending insert failure and the class
+     * of the error that reaches the boundary.
+     *
+     * @return iterable<string, array{\Throwable, class-string<\Throwable>}>
+     */
+    public static function transactionEndingFailureProvider(): iterable
+    {
+        yield 'deadlock' => [new QueryException('audit', 'insert', [], new \PDOException(self::DEADLOCK)), DeadlockException::class];
+        yield 'lost connection warning' => [new \ErrorException('PDO::exec(): MySQL server has gone away'), \ErrorException::class];
+    }
+
+    /**
+     * Test that an error ending a transaction the flush after a job timeout
      * joined is reported instead, so the worker still stops the job.
      *
+     * @param  \Throwable  $failure
+     * @param  class-string<\Throwable>  $reported
      * @return void
      *
      * @throws \Throwable
      */
-    public function testHandleTimedOutFlushReportsADeadlockEndingTheTransactionItJoined(): void
+    #[DataProvider('transactionEndingFailureProvider')]
+    public function testHandleTimedOutFlushReportsAnErrorEndingTheTransactionItJoined(\Throwable $failure, string $reported): void
     {
         Exceptions::fake();
 
-        $pool       = $this->poolDeadlockingOnTheAuditConnection();
+        $pool       = $this->poolFailingOnTheAuditConnection($failure);
         $subscriber = $this->subscriberFlushing($pool);
 
         DB::connection('audit')->transaction(static function () use ($pool, $subscriber): void {
@@ -496,24 +514,26 @@ final class WritePoolFlushSubscriberTest extends TestCase
         });
 
         Exceptions::assertReportedCount(1);
-        Exceptions::assertReported(DeadlockException::class);
+        Exceptions::assertReported($reported);
         self::assertTrue($pool->isEmpty());
     }
 
     /**
-     * Build a pool whose first insert on the audit connection deadlocks.
+     * Build a pool whose first insert on the audit connection fails with the
+     * given error.
      *
+     * @param  \Throwable  $failure
      * @return \SineMacula\ApiToolkit\Repositories\Concerns\WritePool
      */
-    private function poolDeadlockingOnTheAuditConnection(): WritePool
+    private function poolFailingOnTheAuditConnection(\Throwable $failure): WritePool
     {
         $this->useAuditConnection();
 
         $inserts = 0;
 
-        DB::connection('audit')->beforeExecuting(static function (string $query) use (&$inserts): void {
+        DB::connection('audit')->beforeExecuting(static function (string $query) use ($failure, &$inserts): void {
             if (str_starts_with($query, 'insert') && ++$inserts === 1) {
-                throw new QueryException('audit', $query, [], new \PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock'));
+                throw $failure;
             }
         });
 
