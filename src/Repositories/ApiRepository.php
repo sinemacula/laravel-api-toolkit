@@ -127,8 +127,10 @@ abstract class ApiRepository extends Repository
             $query = $this->pageOrder->complete($query);
 
             if ($cursor) {
+                $boundary = $this->pageOrder->cursor($query, ApiQuery::getCursor() ?? '');
+
                 // A null cursor would make the paginator re-read the request
-                $results = $query->cursorPaginate($limit, '*', 'cursor', $this->pageOrder->cursor($query, ApiQuery::getCursor() ?? '') ?? '');
+                $results = $this->pageOrder->seek($query, $boundary)->cursorPaginate($limit, '*', 'cursor', $boundary ?? '');
             } else {
                 $results = $this->offsetPaginator->paginate($query, $page, $limit);
             }

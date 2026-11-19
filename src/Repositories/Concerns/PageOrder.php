@@ -104,6 +104,37 @@ final readonly class PageOrder
     }
 
     /**
+     * Bound the leading order column at the cursor, so the read seeks from it.
+     *
+     * The bound is implied by the seek predicate, but PostgreSQL reads that
+     * predicate's disjunction from the start of the index rather than as a
+     * range. Only a column of the queried table is bound, since an alias is not
+     * a column a where clause can name.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @param  \Illuminate\Pagination\Cursor|null  $cursor
+     * @return \Illuminate\Database\Eloquent\Builder<TModel>
+     */
+    public function seek(Builder $query, ?Cursor $cursor): Builder
+    {
+        $base   = $query->getQuery();
+        $order  = $base->orders[0] ?? [];
+        $column = $order['column'] ?? null;
+
+        if ($cursor === null || !empty($base->unions) || !is_string($column) || !str_starts_with($column, $query->getModel()->getTable() . '.')) {
+            return $query;
+        }
+
+        $forward = (($order['direction'] ?? null) === 'asc') === $cursor->pointsToNextItems();
+
+        $base->where($column, $forward ? '>=' : '<=', $cursor->parameter($column));
+
+        return $query;
+    }
+
+    /**
      * Resolve the columns to append, or none where no safe tiebreaker exists.
      *
      * A DISTINCT ON query must lead its order with the distinct columns, and a
