@@ -215,6 +215,20 @@ final class EnvelopeBuilderTest extends TestCase
     }
 
     /**
+     * Test that the collection envelope wraps any item schema.
+     *
+     * @return void
+     */
+    public function testCollectionEnvelopeWrapsAnyItemSchema(): void
+    {
+        $items    = ['oneOf' => [['$ref' => '#/components/schemas/A'], ['$ref' => '#/components/schemas/B']]];
+        $envelope = (new EnvelopeBuilder)->collectionEnvelopeFor($items);
+
+        self::assertSame('Length-aware page', $envelope['title']);
+        self::assertSame(['type' => 'array', 'items' => $items], $envelope['properties']['data']);
+    }
+
+    /**
      * Test that the cursor collection envelope carries cursor meta and links.
      *
      * @return void

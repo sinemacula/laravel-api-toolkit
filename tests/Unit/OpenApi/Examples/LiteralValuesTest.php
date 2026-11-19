@@ -28,6 +28,7 @@ final class LiteralValuesTest extends TestCase
     public static function listedProvider(): iterable
     {
         yield 'every source' => [['examples' => ['a', 'b'], 'example' => 'c', 'const' => 'd', 'enum' => [null, 'e', 'f']], ['a', 'c', 'd', 'e', 'f', null]];
+        yield 'single example' => [['examples' => ['a']], ['a']];
         yield 'null const' => [['const' => null], [null]];
         yield 'empty examples' => [['examples' => [], 'enum' => []], []];
         yield 'nothing listed' => [['type' => 'string'], []];
@@ -71,11 +72,11 @@ final class LiteralValuesTest extends TestCase
         yield 'cut string' => ['string', ['maxLength' => 3], 'str'];
         yield 'integer' => ['integer', [], 1];
         yield 'integer minimum' => ['integer', ['minimum' => 5], 5];
-        yield 'fractional minimum' => ['integer', ['minimum' => 1.5], 2];
+        yield 'fractional minimum' => ['integer', ['minimum' => 1.25], 2];
         yield 'exclusive minimum' => ['integer', ['exclusiveMinimum' => 5], 6];
         yield 'integer maximum' => ['integer', ['maximum' => -3], -3];
         yield 'exclusive maximum' => ['integer', ['exclusiveMaximum' => 1], 0];
-        yield 'multiple' => ['integer', ['minimum' => 3, 'multipleOf' => 5], 5];
+        yield 'multiple' => ['integer', ['minimum' => 7, 'multipleOf' => 5], 10];
         yield 'non-positive multiple' => ['integer', ['minimum' => 3, 'multipleOf' => 0], 3];
         yield 'non-numeric bound' => ['integer', ['minimum' => '5'], 1];
         yield 'number' => ['number', [], 1.5];

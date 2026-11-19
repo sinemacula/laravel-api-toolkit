@@ -44,6 +44,16 @@ final class ExampleGeneratorTest extends TestCase
         yield 'list without items' => [['type' => 'array'], ['string']];
         yield 'list of none' => [['type' => 'array', 'maxItems' => 0], []];
         yield 'typeless list' => [['items' => ['type' => 'integer']], [1]];
+        yield 'typeless object' => [['properties' => ['a' => ['type' => 'integer']]], ['a' => 1]];
+        yield 'list up to its maximum' => [['type' => 'array', 'items' => ['type' => 'integer'], 'maxItems' => 5], [1]];
+        yield 'empty list of undocumented items' => [['type' => 'array', 'items' => ['x-undocumented' => true], 'maxItems' => 0], []];
+        yield 'null type when nothing else' => [['type' => ['null', 'string'], 'pattern' => '^x$'], null];
+        yield 'true alternative' => [['anyOf' => [true, ['type' => 'integer']]], 'string'];
+        yield 'null alternative when nothing else' => [['oneOf' => [['type' => 'string', 'pattern' => '^x$'], ['type' => 'null']]], null];
+        yield 'union value after an undocumented alternative' => [
+            ['oneOf' => [['x-undocumented' => true], ['type' => 'string'], ['type' => 'string', 'minLength' => 1]]],
+            'string',
+        ];
         yield 'invalid example' => [['type' => 'integer', 'examples' => ['x']], 1];
         yield 'nullable enum' => [['type' => ['string', 'null'], 'enum' => [null, 'x']], 'x'];
         yield 'null enum value' => [['type' => ['string', 'null'], 'enum' => ['x', null], 'pattern' => '^y$'], null];
@@ -114,7 +124,48 @@ final class ExampleGeneratorTest extends TestCase
         $properties = ['a' => ['type' => 'string'], 'b' => ['type' => 'string'], 'c' => ['type' => 'string']];
 
         self::assertSame(['a' => 'string', 'c' => 'string'], $this->value(['type' => 'object', 'properties' => $properties, 'required' => ['c'], 'maxProperties' => 2]));
+        self::assertSame(['a' => 'string', 'b' => 'string'], $this->value(['type' => 'object', 'properties' => $properties, 'required' => ['a'], 'maxProperties' => 2]));
         self::assertSame(['c' => 'string'], $this->value(['type' => 'object', 'properties' => $properties, 'required' => ['c'], 'dependentRequired' => ['a' => ['d']]]));
+        self::assertSame(
+            ['a' => 'string', 'b' => 'string', 'c' => 'string', 'd' => 'string'],
+            $this->value([
+                'type'          => 'object',
+                'properties'    => [...$properties, 'd' => ['type' => 'string'], 'e' => ['type' => 'string']],
+                'required'      => ['b', 'd'],
+                'maxProperties' => 4,
+            ]),
+        );
+    }
+
+    /**
+     * Test that an object whose candidates its schema all rejects falls back to
+     * its first, never to a presence alternative's value.
+     *
+     * @return void
+     */
+    public function testRejectedObjectFallsBackToItsFirstCandidate(): void
+    {
+        self::assertSame(['a' => 'string'], $this->value([
+            'type'          => 'object',
+            'properties'    => ['a' => ['type' => 'string']],
+            'anyOf'         => [['required' => ['a']], ['required' => ['b']]],
+            'maxProperties' => 0,
+        ]));
+        self::assertSame(['a' => 'string'], $this->value(['type' => 'object', 'properties' => ['a' => ['type' => 'string']], 'required' => ['a', 'ghost']]));
+    }
+
+    /**
+     * Test that a numbered property the generator finds no value for is
+     * reported when required.
+     *
+     * @return void
+     */
+    public function testNumberedRequiredPropertyWithoutAValueIsReported(): void
+    {
+        self::assertEquals(
+            new MissingValue(self::BODY . '/properties/0'),
+            $this->generate(['type' => 'object', 'properties' => ['0' => ['type' => 'string', 'pattern' => '^x$']], 'required' => ['0']]),
+        );
     }
 
     /**
@@ -132,6 +183,10 @@ final class ExampleGeneratorTest extends TestCase
             ExampleScope::RESPONSE,
         ));
         self::assertSame(['id' => 1], $this->value(['type' => 'object', 'properties' => $properties, 'required' => ['id']], ExampleScope::RESPONSE));
+        self::assertSame(['id' => 1, 'name' => 'string'], $this->value(
+            ['type' => 'object', 'properties' => $properties, 'x-default-fields' => ['name', 'id']],
+            ExampleScope::RESPONSE,
+        ));
         self::assertSame(['id' => 1], $this->value(
             ['type' => 'object', 'properties' => $properties, 'required' => ['id'], 'x-default-fields' => ['name'], 'maxProperties' => 1],
             ExampleScope::RESPONSE,
@@ -175,9 +230,14 @@ final class ExampleGeneratorTest extends TestCase
      */
     public function testConfirmationOfAnAbsentFieldTakesItsOwnValue(): void
     {
-        self::assertSame(['pin_repeat' => 'string'], $this->value([
+        self::assertSame(['pin_repeat' => 'string', 'code' => 'ABC', 'code_repeat' => 'ABC'], $this->value([
             'type'       => 'object',
-            'properties' => ['pin' => ['type' => 'string', 'pattern' => '^x$'], 'pin_repeat' => ['type' => 'string', 'x-confirms' => 'pin']],
+            'properties' => [
+                'pin'         => ['type' => 'string', 'pattern' => '^x$'],
+                'pin_repeat'  => ['type' => 'string', 'x-confirms' => 'pin'],
+                'code'        => ['type' => 'string', 'examples' => ['ABC']],
+                'code_repeat' => ['type' => 'string', 'x-confirms' => 'code'],
+            ],
         ]));
     }
 
@@ -215,6 +275,21 @@ final class ExampleGeneratorTest extends TestCase
             ]],
             ExampleScope::RESPONSE,
             ['Base' => ['type' => 'object', 'properties' => ['id' => ['type' => 'integer'], 'bio' => ['type' => 'string']], 'required' => ['id']]],
+        ));
+    }
+
+    /**
+     * Test that a property its node and a conjunct both declare takes the
+     * node's own schema.
+     *
+     * @return void
+     */
+    public function testOwnPropertyWinsOverAConjunctsOfTheSameName(): void
+    {
+        self::assertSame(['id' => 5], $this->value(
+            ['properties' => ['id' => ['type' => 'integer', 'minimum' => 5]], 'allOf' => [['$ref' => '#/components/schemas/Base']]],
+            ExampleScope::REQUEST,
+            ['Base' => ['type' => 'object', 'properties' => ['id' => ['type' => 'integer']]]],
         ));
     }
 

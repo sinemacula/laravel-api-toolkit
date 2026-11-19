@@ -114,6 +114,39 @@ final class ExampleValidatorTest extends TestCase
             . ' at the root: The data (integer) must match the type: string',
         ];
 
+        yield 'second media example' => [
+            ['paths' => ['/users' => ['get' => ['responses' => [200 => ['content' => ['application/json' => [
+                'schema'   => ['type' => 'integer'],
+                'examples' => ['one' => ['value' => 1], 'many' => ['value' => 'many']],
+            ]]]]]]]],
+            'The declared example [many] for GET /users response 200 in the [public] audience does not match its schema'
+            . ' at the root: The data (string) must match the type: integer',
+        ];
+
+        yield 'alternative example' => [
+            ['components' => ['schemas' => ['Id' => ['anyOf' => [['type' => 'integer'], ['type' => 'string', 'examples' => [1]]]]]]],
+            'The schema example [0] for #/components/schemas/Id/anyOf/1 in the [public] audience does not match its schema'
+            . ' at the root: The data (integer) must match the type: string',
+        ];
+
+        yield 'pattern property example' => [
+            ['components' => ['schemas' => ['Map' => ['required' => ['a'], 'patternProperties' => ['^a' => ['type' => 'integer', 'examples' => ['a']]]]]]],
+            'The schema example [0] for #/components/schemas/Map/patternProperties/^a in the [public] audience does not match its schema'
+            . ' at the root: The data (string) must match the type: integer',
+        ];
+
+        yield 'property after a prohibited one' => [
+            ['components' => ['schemas' => ['Member' => ['properties' => ['retired' => false, 'age' => ['type' => 'integer', 'examples' => ['old']]]]]]],
+            'The schema example [0] for #/components/schemas/Member/properties/age in the [public] audience does not match its schema'
+            . ' at the root: The data (string) must match the type: integer',
+        ];
+
+        yield 'component parameter schema example' => [
+            ['components' => ['parameters' => ['Page' => ['name' => 'page', 'in' => 'query', 'schema' => ['type' => 'integer', 'examples' => ['first']]]]]],
+            'The schema example [0] for #/components/parameters/Page/schema in the [public] audience does not match its schema'
+            . ' at the root: The data (string) must match the type: integer',
+        ];
+
         yield 'parameter schema example' => [
             ['paths' => ['/users' => ['get' => ['parameters' => [['name' => 'page', 'in' => 'query', 'schema' => ['type' => 'integer', 'examples' => ['first']]]]]]]],
             'The schema example [0] for #/paths/~1users/get/parameters/0/schema in the [public] audience does not match its schema'

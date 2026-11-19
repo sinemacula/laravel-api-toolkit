@@ -52,6 +52,19 @@ final class ShapeUnionFinderTest extends TestCase
             [self::BODY . '/properties/data', [self::BODY . '/properties/data/oneOf/0', self::BODY . '/properties/data/oneOf/1']],
         ];
         yield 'through items' => [['type' => 'array', 'items' => self::UNION], [self::BODY . '/items', [self::BODY . '/items/oneOf/0', self::BODY . '/items/oneOf/1']]];
+        yield 'null among shapes' => [
+            ['oneOf' => [['type' => 'integer'], ['type' => 'null'], ['type' => 'string']]],
+            [self::BODY, [self::BODY . '/oneOf/0', self::BODY . '/oneOf/2']],
+        ];
+        yield 'through a later required property' => [
+            ['properties' => ['id' => ['type' => 'integer'], 'data' => self::UNION], 'required' => ['id', 'data']],
+            [self::BODY . '/properties/data', [self::BODY . '/properties/data/oneOf/0', self::BODY . '/properties/data/oneOf/1']],
+        ];
+        yield 'first of two required unions' => [
+            ['properties' => ['data' => self::UNION, 'meta' => ['anyOf' => [['type' => 'integer'], ['type' => 'string']]]], 'required' => ['data', 'meta']],
+            [self::BODY . '/properties/data', [self::BODY . '/properties/data/oneOf/0', self::BODY . '/properties/data/oneOf/1']],
+        ];
+        yield 'mutual references' => [['$ref' => '#/components/schemas/Ping'], null];
         yield 'not through an optional property' => [['properties' => ['data' => self::UNION]], null];
         yield 'nullable union' => [['anyOf' => [['type' => 'integer'], ['type' => 'null']]], null];
         yield 'presence union' => [['properties' => ['a' => [], 'b' => []], 'anyOf' => [['required' => ['a']], ['required' => ['b']]]], null];
@@ -113,6 +126,8 @@ final class ShapeUnionFinderTest extends TestCase
             'Shape'  => ['anyOf' => [['type' => 'integer'], ['type' => 'string']]],
             'Titled' => ['title' => 'Awaiting a code', 'type' => 'object'],
             'Loop'   => ['$ref' => '#/components/schemas/Loop'],
+            'Ping'   => ['$ref' => '#/components/schemas/Pong'],
+            'Pong'   => ['$ref' => '#/components/schemas/Ping'],
         ]]]));
     }
 }

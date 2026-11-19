@@ -24,9 +24,6 @@ final class ExampleGenerator
     /** The keywords an alternative carrying only presence rules is made of */
     private const array PRESENCE_KEYWORDS = ['required', 'dependentRequired', 'minProperties', 'maxProperties'];
 
-    /** The keywords that give a typeless node its values */
-    private const array VALUE_KEYWORDS = ['$ref', 'const', 'enum', 'oneOf', 'anyOf', 'allOf'];
-
     /** The keywords whose alternatives offer a value each */
     private const array UNION_KEYWORDS = ['oneOf', 'anyOf'];
 
@@ -107,12 +104,7 @@ final class ExampleGenerator
      */
     private function value(string $pointer, array $stack): mixed
     {
-        $node = $this->schemas->node($pointer);
-
-        if ($node === false) {
-            return new MissingValue($pointer);
-        }
-
+        $node     = $this->schemas->node($pointer);
         $node     = is_array($node) ? $node : [];
         $rejected = [];
 
@@ -141,15 +133,22 @@ final class ExampleGenerator
     private function fallback(string $pointer, array $node, array $rejected): mixed
     {
         $union   = array_intersect_key($node, array_flip(self::UNION_KEYWORDS)) !== [];
-        $missing = array_filter($rejected, static fn (mixed $candidate): bool => $candidate instanceof MissingValue);
+        $missing = null;
 
-        foreach (array_diff_key($rejected, $missing) as $value) {
-            if ($union || is_array($value) || $value instanceof \stdClass) {
-                return $value;
+        foreach ($rejected as $candidate) {
+
+            if ($candidate instanceof MissingValue) {
+                $missing ??= $candidate;
+
+                continue;
+            }
+
+            if ($union || is_array($candidate) || $candidate instanceof \stdClass) {
+                return $candidate;
             }
         }
 
-        return array_values($missing)[0] ?? new MissingValue($pointer);
+        return $missing ?? new MissingValue($pointer);
     }
 
     /**
@@ -270,16 +269,15 @@ final class ExampleGenerator
 
         if ($types === []) {
             return match (true) {
-                $object                                                             => ['object'],
-                array_key_exists('items', $node)                                    => ['array'],
-                array_intersect_key($node, array_flip(self::VALUE_KEYWORDS)) !== [] => [],
-                default                                                             => ['string'],
+                $object                          => ['object'],
+                array_key_exists('items', $node) => ['array'],
+                default                          => ['string'],
             };
         }
 
         $values = array_values(array_diff($types, ['null']));
 
-        return count($values) < count($types) ? [...$values, 'null'] : $values;
+        return in_array('null', $types, true) ? [...$values, 'null'] : $values;
     }
 
     /**
@@ -356,7 +354,7 @@ final class ExampleGenerator
         $required = array_values(array_intersect($names, $required));
         $resolved = [];
 
-        foreach (array_unique($this->propertySets($node, $names, $required), SORT_REGULAR) as $set) {
+        foreach ($this->propertySets($node, $names, $required) as $set) {
 
             $object = $this->object($set, $properties, $required, $resolved, $stack);
 

@@ -64,6 +64,19 @@ final class SchemaDocumentTest extends TestCase
     }
 
     /**
+     * Test that a schema beneath a templated path is validated.
+     *
+     * @return void
+     */
+    public function testSchemaBeneathATemplatedPathIsValidated(): void
+    {
+        $document = SchemaDocument::of(['paths' => ['/users/{user}' => ['get' => ['schema' => ['type' => 'integer']]]]]);
+
+        self::assertNull($document->mismatch(1, '/paths/~1users~1{user}/get/schema'));
+        self::assertSame('at the root: The data (string) must match the type: integer', $document->mismatch('one', '/paths/~1users~1{user}/get/schema'));
+    }
+
+    /**
      * Test that a mismatch names the deepest failure and where it lies.
      *
      * @return void

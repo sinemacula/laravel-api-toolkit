@@ -45,7 +45,7 @@ final class BodyTest extends TestCase
                         'default' => ['content' => ['application/json' => ['schema' => $schema]]],
                     ],
                 ],
-                'post' => ['requestBody' => ['content' => ['application/json' => ['schema' => $schema, 'example' => []], 'text/plain' => 'none']]],
+                'post' => ['requestBody' => ['content' => ['text/plain' => 'none', 'application/json' => ['schema' => $schema, 'example' => []]]]],
                 'get'  => ['responses' => [200 => ['content' => ['application/json' => ['description' => 'No schema.']]]]],
             ],
             '/empty' => 'none',

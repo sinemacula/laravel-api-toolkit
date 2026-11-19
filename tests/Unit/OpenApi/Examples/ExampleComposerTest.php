@@ -37,13 +37,13 @@ final class ExampleComposerTest extends TestCase
         $present = ['schema' => $object, 'examples' => ['given' => ['value' => ['name' => 'Ada']]]];
 
         $composition = (new ExampleComposer)->compose(['paths' => ['/users' => [
-            'post' => [
-                'requestBody' => ['content' => ['application/json' => ['schema' => $object]]],
-                'responses'   => [201 => ['content' => ['application/json' => ['schema' => $object]]], 422 => ['content' => ['application/json' => $error]]],
-            ],
             'put' => [
                 'requestBody' => ['content' => ['multipart/form-data' => $upload]],
                 'responses'   => [200 => ['content' => ['application/json' => $present]]],
+            ],
+            'post' => [
+                'requestBody' => ['content' => ['application/json' => ['schema' => $object]]],
+                'responses'   => [201 => ['content' => ['application/json' => ['schema' => $object]]], 422 => ['content' => ['application/json' => $error]]],
             ],
         ]]], 'public');
 
@@ -52,6 +52,7 @@ final class ExampleComposerTest extends TestCase
 
         self::assertSame($generated, json_encode($operations['post']['requestBody']['content']['application/json']['examples'], JSON_THROW_ON_ERROR));
         self::assertSame($generated, json_encode($operations['post']['responses'][201]['content']['application/json']['examples'], JSON_THROW_ON_ERROR));
+        self::assertSame($object, $operations['post']['responses'][201]['content']['application/json']['schema']);
         self::assertSame($error, $operations['post']['responses'][422]['content']['application/json']);
         self::assertSame($upload, $operations['put']['requestBody']['content']['multipart/form-data']);
         self::assertSame($present, $operations['put']['responses'][200]['content']['application/json']);
@@ -73,6 +74,7 @@ final class ExampleComposerTest extends TestCase
         $composition = (new ExampleComposer)->compose(['paths' => [
             '/partly' => ['get' => ['responses' => [200 => ['content' => ['application/json' => ['schema' => $partly]]]]]],
             '/wholly' => ['get' => ['responses' => [200 => ['content' => ['application/json' => ['schema' => $wholly]]]]]],
+            '/fully'  => ['get' => ['responses' => [200 => ['content' => ['application/json' => ['schema' => ['type' => 'boolean']]]]]]],
         ]], 'public');
 
         self::assertSame(
@@ -84,6 +86,7 @@ final class ExampleComposerTest extends TestCase
         );
         self::assertArrayNotHasKey('examples', (array) $composition->document['paths']['/partly']['get']['responses'][200]['content']['application/json']);
         self::assertArrayNotHasKey('examples', (array) $composition->document['paths']['/wholly']['get']['responses'][200]['content']['application/json']);
+        self::assertSame(['default' => ['value' => true]], $composition->document['paths']['/fully']['get']['responses'][200]['content']['application/json']['examples']);
     }
 
     /**
