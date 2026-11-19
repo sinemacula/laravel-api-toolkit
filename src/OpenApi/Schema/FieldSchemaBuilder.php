@@ -39,6 +39,12 @@ final readonly class FieldSchemaBuilder
     /** The rule tokens accepting only a string, beyond the format tokens */
     private const array STRING_RULES = ['date', 'ip'];
 
+    /** The date formats each rendering an RFC 3339 date-time */
+    private const array DATE_TIME_FORMATS = [DATE_RFC3339, 'Y-m-d\TH:i:sp', DATE_RFC3339_EXTENDED, 'Y-m-d\TH:i:s.uP'];
+
+    /** The instant a date_format field's example renders */
+    private const string EXAMPLE_INSTANT = '2025-01-01T00:00:00Z';
+
     /** The values the accepted and declined rules admit */
     private const array ACCEPTANCE_VALUES = [
         'accepted' => ['yes', 'on', '1', 1, true, 'true'],
@@ -282,8 +288,7 @@ final readonly class FieldSchemaBuilder
     }
 
     /**
-     * Apply the field's format tokens, mapping the date_format token to a
-     * date-time format.
+     * Apply the field's format tokens.
      *
      * The ip rule admits either address family, and json any encoded value.
      *
@@ -305,15 +310,53 @@ final readonly class FieldSchemaBuilder
             $schema['anyOf'] = [['format' => 'ipv4'], ['format' => 'ipv6']];
         }
 
-        if ($this->argument($tokens, 'date_format') !== null) {
-            $schema['format'] = 'date-time';
-        }
+        $this->applyDateFormat($schema, $tokens);
 
         if (!$this->hasToken($tokens, 'json')) {
             return;
         }
 
         $schema['contentMediaType'] = 'application/json';
+    }
+
+    /**
+     * Apply a date_format token's formats: a date or date-time format when
+     * every listed format renders that form, and an example in the first that
+     * reads back what it renders.
+     *
+     * @param  array<string, mixed>  $schema
+     * @param  list<string>  $tokens
+     * @return void
+     */
+    private function applyDateFormat(array &$schema, array $tokens): void
+    {
+        $argument = $this->argument($tokens, 'date_format');
+
+        if ($argument === null) {
+            return;
+        }
+
+        $formats = array_map(static fn (?string $format): string => (string) $format, str_getcsv($argument, ',', '"', '\\'));
+
+        if (array_diff($formats, ['Y-m-d']) === []) {
+            $schema['format'] = 'date';
+        } elseif (array_diff($formats, self::DATE_TIME_FORMATS) === []) {
+            $schema['format'] = 'date-time';
+        }
+
+        $instant = new \DateTimeImmutable(self::EXAMPLE_INSTANT);
+
+        foreach ($formats as $format) {
+
+            $rendered = $instant->format($format);
+            $parsed   = \DateTimeImmutable::createFromFormat('!' . $format, $rendered);
+
+            if ($parsed !== false && $parsed->format($format) === $rendered) {
+                $schema['examples'] = [$rendered];
+
+                return;
+            }
+        }
     }
 
     /**
