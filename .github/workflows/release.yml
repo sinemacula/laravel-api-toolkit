@@ -21,3 +21,5 @@ jobs:
         with:
             # The org tag ruleset only accepts tags created with the GitHub App token
             use-app-token: true
+            # The last release on master is too far back for release-please to find, so pin the major; drop once 2.0.0 is tagged
+            release-as: 2.0.0
