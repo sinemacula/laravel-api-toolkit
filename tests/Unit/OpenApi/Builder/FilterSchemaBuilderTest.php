@@ -267,14 +267,14 @@ final class FilterSchemaBuilderTest extends TestCase
     }
 
     /**
-     * Test that a day past its month's end, which no portable pattern states,
-     * matches the exported date-time and is refused by the parser.
+     * Test that a day no calendar holds, a day past its month's end or in year
+     * 0000, matches the exported date-time and is refused by the parser.
      *
      * @return void
      */
-    public function testADayPastItsMonthsEndIsLeftToTheParser(): void
+    public function testADayNoCalendarHoldsIsLeftToTheParser(): void
     {
-        foreach (['2024-02-30', '2023-02-29T10:00', '2024-04-31 10:00:00Z'] as $value) {
+        foreach (['2024-02-30', '2023-02-29T10:00', '2024-04-31 10:00:00Z', '0000-01-01'] as $value) {
             self::assertTrue($this->matchesExportedDateTime($value));
             self::assertNotNull($this->literal(['at' => 'timestamptz'])->mismatch(new User, 'at', $value));
         }
