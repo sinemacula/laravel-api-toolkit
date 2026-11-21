@@ -61,13 +61,7 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      */
     public static function from(array|Request $source): static
     {
-        $data = $source;
-
-        if ($data instanceof Request) {
-            $body = $data->isJson() ? $data->json() : $data->request;
-            $data = array_replace_recursive($body->all(), $data->allFiles());
-        }
-
+        $data       = $source instanceof Request ? $source->duplicate(query: [])->all() : $source;
         $rules      = static::rules();
         $keys       = self::bodyKeys(static::class);
         $parameters = self::promotedParameters();

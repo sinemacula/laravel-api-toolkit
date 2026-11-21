@@ -61,14 +61,16 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Provide a JSON and a form request carrying the same body.
+     * Provide JSON and form requests carrying the same body.
      *
      * @return iterable<string, array{\Illuminate\Http\Request}>
      */
     public static function bodyRequestProvider(): iterable
     {
         yield 'json body' => [Request::create('/', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: '{"city":"Paris","age":30}')];
+        yield 'json body on get' => [Request::create('/', 'GET', server: ['CONTENT_TYPE' => 'application/json'], content: '{"city":"Paris","age":30}')];
         yield 'form body' => [Request::create('/', 'POST', ['city' => 'Paris', 'age' => '30'])];
+        yield 'form body on patch' => [Request::create('/', 'PATCH', ['city' => 'Paris', 'age' => '30'])];
     }
 
     /**
@@ -91,8 +93,11 @@ final class PayloadTest extends TestCase
     public static function requestMethodProvider(): iterable
     {
         yield 'get' => ['GET'];
+        yield 'head' => ['HEAD'];
         yield 'post' => ['POST'];
+        yield 'put' => ['PUT'];
         yield 'patch' => ['PATCH'];
+        yield 'delete' => ['DELETE'];
     }
 
     /**
@@ -136,6 +141,25 @@ final class PayloadTest extends TestCase
         $request = Request::create('/', 'POST', files: ['attachment' => $file]);
 
         self::assertSame($file, AttachmentPayload::from($request)->attachment);
+    }
+
+    /**
+     * Test that a filled body field keeps its key over a same-named uploaded
+     * file, as the request's own input does.
+     *
+     * @return void
+     */
+    public function testFromRequestKeepsAFilledBodyFieldOverASameNamedFile(): void
+    {
+        $request = Request::create('/', 'POST', ['attachment' => 'spec.pdf'], files: ['attachment' => UploadedFile::fake()->create('spec.pdf')]);
+
+        try {
+            AttachmentPayload::from($request);
+
+            self::fail('Expected a ValidationException for the non-file attachment.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['attachment' => ['The attachment field must be a file.']], $exception->errors());
+        }
     }
 
     /**
