@@ -47,8 +47,8 @@ Every setting is validated once the application boots to serve requests or queue
 only where they read the invalid setting, which for a setting read at boot is every command. Under a cached
 configuration the message names the cache file to delete before rebuilding it.
 
-Run `php artisan api-toolkit:config:validate` in CI or a deploy step to apply the same check from the console. It
-lists every problem and exits with a failure, so a removed or misnamed setting is caught before it stops the workers.
+Run `php artisan api-toolkit:config:validate` in CI or a deploy step to apply the same check from the console. It exits
+with a failure and the message boot would throw, so a removed or misnamed setting is caught before it stops the workers.
 
 The Markdown templates for the generated API manual are published with `--tag=api-toolkit-docs`.
 

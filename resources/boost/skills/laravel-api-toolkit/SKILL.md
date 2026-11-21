@@ -196,7 +196,7 @@ Choose the narrowest row that is true of the column. README "Schema-Driven ApiRe
 ## Verify
 
 - After changing `config/api-toolkit.php` or upgrading the toolkit, run `php artisan api-toolkit:config:validate`. A
-  failure names each unknown or invalid setting: remove or correct it. README "Configuration".
+  failure names the settings to remove or correct. README "Configuration".
 - After a schema or migration change, run `php artisan api-toolkit:validate-schemas` against a migrated, reachable
   database. A failure names the declaration and its missing backing: fix the migration or the declaration, never pass
   `--allow-empty` or `--allow-unverified` or turn off `api-toolkit.resources.validate_schemas`. README "Schema-Driven
