@@ -44,7 +44,7 @@ final class PageOrderTest extends TestCase
     private const string KEYLESS = 'This collection has no key to page by cursor; use offset pagination.';
 
     /** @var string */
-    private const string RAW_ORDER = 'This collection is ordered by an expression a cursor cannot page by; use offset pagination.';
+    private const string UNSEEKABLE = 'This collection is ordered by an expression a cursor cannot page by; use offset pagination.';
 
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\PageOrder */
     private PageOrder $pageOrder;
@@ -537,6 +537,7 @@ final class PageOrderTest extends TestCase
         yield 'random' => [static fn (QueryBuilder $query) => $query->inRandomOrder()];
         yield 'expression' => [static fn (QueryBuilder $query) => $query->orderBy(new Expression('lower(name)'))];
         yield 'subquery' => [static fn (QueryBuilder $query) => $query->orderBy(Post::query()->selectRaw('count(*)')->whereColumn('posts.user_id', self::KEY))];
+        yield 'value sequence' => [static fn (QueryBuilder $query) => $query->inOrderOf('name', ['Ann', 'Bob'])];
         yield 'raw union order' => [static fn (QueryBuilder $query) => $query->union(User::query()->getQuery())->orderByRaw('lower(name)')];
     }
 
@@ -552,8 +553,8 @@ final class PageOrderTest extends TestCase
     {
         $query = $this->pageOrder->complete($this->users($shape));
 
-        $this->assertCursorRejected(fn () => $this->pageOrder->cursor($query, ''), self::RAW_ORDER, 'pagination');
-        $this->assertCursorRejected(fn () => $this->pageOrder->cursor($query, (new Cursor(['name' => 'Ann', self::KEY => 1]))->encode()), self::RAW_ORDER, 'pagination');
+        $this->assertCursorRejected(fn () => $this->pageOrder->cursor($query, ''), self::UNSEEKABLE, 'pagination');
+        $this->assertCursorRejected(fn () => $this->pageOrder->cursor($query, (new Cursor(['name' => 'Ann', self::KEY => 1]))->encode()), self::UNSEEKABLE, 'pagination');
     }
 
     /**

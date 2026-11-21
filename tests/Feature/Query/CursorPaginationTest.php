@@ -456,6 +456,7 @@ final class CursorPaginationTest extends TestCase
         yield 'raw' => [static fn (QueryBuilder $query) => $query->orderByRaw('email desc')];
         yield 'expression' => [static fn (QueryBuilder $query) => $query->orderBy(DB::raw('lower(email)'), 'desc')];
         yield 'subquery' => [static fn (QueryBuilder $query) => $query->orderBy(DB::table('posts')->selectRaw('count(*)')->whereColumn('posts.user_id', 'users.id'))];
+        yield 'value sequence' => [static fn (QueryBuilder $query) => $query->inOrderOf('email', ['cara', 'anna'])];
     }
 
     /**

@@ -81,7 +81,7 @@ final readonly class PageOrder
         $model = $query->getModel();
 
         $this->guardKeyed($query->getQuery(), $model);
-        $this->guardCarried($query->getQuery());
+        $this->guardSeekable($query->getQuery());
 
         if ($token === '') {
             return null;
@@ -184,23 +184,23 @@ final readonly class PageOrder
     }
 
     /**
-     * Refuse a cursor over an order other than a named column, such as raw SQL,
-     * an expression or a subquery, which a cursor cannot carry a boundary for.
+     * Refuse a cursor over an order other than a named column and direction,
+     * such as raw SQL, an expression, a subquery or a sequence of values.
      *
-     * The paginator drops a raw order from the seek and cannot name an
-     * expression, so pages would skip or repeat rows.
+     * The paginator leaves an undirected order out of the seek, so pages would
+     * skip or repeat rows, and cannot carry a boundary for an expression.
      *
      * @param  \Illuminate\Database\Query\Builder  $base
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Validation\Rejection
      */
-    private function guardCarried(QueryBuilder $base): void
+    private function guardSeekable(QueryBuilder $base): void
     {
-        $orders = $this->seekOrders($base);
-
-        if (count($this->columnsOf($orders)) !== count($orders)) {
-            throw Rejection::at('pagination', 'cursor.raw_order');
+        foreach ($this->seekOrders($base) as $order) {
+            if (!is_string($order['column'] ?? null) || !isset($order['direction'])) {
+                throw Rejection::at('pagination', 'cursor.unseekable');
+            }
         }
     }
 
