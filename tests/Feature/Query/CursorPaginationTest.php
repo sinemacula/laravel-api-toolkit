@@ -447,11 +447,11 @@ final class CursorPaginationTest extends TestCase
     }
 
     /**
-     * Provide repository scope orders that name no column a cursor can carry.
+     * Provide repository scope orders a cursor cannot seek by.
      *
      * @return iterable<string, array{\Closure(\Illuminate\Database\Query\Builder): mixed}>
      */
-    public static function uncarriedScopeOrderProvider(): iterable
+    public static function unseekableScopeOrderProvider(): iterable
     {
         yield 'raw' => [static fn (QueryBuilder $query) => $query->orderByRaw('email desc')];
         yield 'expression' => [static fn (QueryBuilder $query) => $query->orderBy(DB::raw('lower(email)'), 'desc')];
@@ -460,14 +460,14 @@ final class CursorPaginationTest extends TestCase
     }
 
     /**
-     * Test that a repository scope ordering by something other than a column is
-     * refused cursor pagination, on the first page and on a later one.
+     * Test that a repository scope order a cursor cannot seek by is refused
+     * cursor pagination, on the first page and on a later one.
      *
      * @param  \Closure(\Illuminate\Database\Query\Builder): mixed  $order
      * @return void
      */
-    #[DataProvider('uncarriedScopeOrderProvider')]
-    public function testScopeOrderTheCursorCannotCarryIsRefused(\Closure $order): void
+    #[DataProvider('unseekableScopeOrderProvider')]
+    public function testScopeOrderACursorCannotSeekByIsRefused(\Closure $order): void
     {
         $this->routeOrderedBy($order);
 

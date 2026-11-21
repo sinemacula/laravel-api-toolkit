@@ -527,11 +527,11 @@ final class PageOrderTest extends TestCase
     }
 
     /**
-     * Provide orders that name no column a cursor can carry a boundary for.
+     * Provide orders a cursor cannot seek by.
      *
      * @return iterable<string, array{\Closure(\Illuminate\Database\Query\Builder): mixed}>
      */
-    public static function uncarriedOrderProvider(): iterable
+    public static function unseekableOrderProvider(): iterable
     {
         yield 'raw' => [static fn (QueryBuilder $query) => $query->orderBy('name')->orderByRaw('lower(email) desc')];
         yield 'random' => [static fn (QueryBuilder $query) => $query->inRandomOrder()];
@@ -542,14 +542,14 @@ final class PageOrderTest extends TestCase
     }
 
     /**
-     * Test that an order the cursor cannot carry is refused a cursor, on the
+     * Test that an order a cursor cannot seek by is refused a cursor, on the
      * first page and on a later one.
      *
      * @param  \Closure(\Illuminate\Database\Query\Builder): mixed  $shape
      * @return void
      */
-    #[DataProvider('uncarriedOrderProvider')]
-    public function testOrderTheCursorCannotCarryIsRefusedACursor(\Closure $shape): void
+    #[DataProvider('unseekableOrderProvider')]
+    public function testOrderACursorCannotSeekByIsRefusedACursor(\Closure $shape): void
     {
         $query = $this->pageOrder->complete($this->users($shape));
 
