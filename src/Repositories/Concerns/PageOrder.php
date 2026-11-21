@@ -81,6 +81,7 @@ final readonly class PageOrder
         $model = $query->getModel();
 
         $this->guardKeyed($query->getQuery(), $model);
+        $this->guardCarried($query->getQuery());
 
         if ($token === '') {
             return null;
@@ -179,6 +180,27 @@ final readonly class PageOrder
 
         if (!$groupOrdered && !$this->storesKey($model)) {
             throw Rejection::at('pagination', 'cursor.keyless');
+        }
+    }
+
+    /**
+     * Refuse a cursor over an order other than a named column, such as raw SQL,
+     * an expression or a subquery, which a cursor cannot carry a boundary for.
+     *
+     * The paginator drops a raw order from the seek and cannot name an
+     * expression, so pages would skip or repeat rows.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $base
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Validation\Rejection
+     */
+    private function guardCarried(QueryBuilder $base): void
+    {
+        $orders = $this->seekOrders($base);
+
+        if (count($this->columnsOf($orders)) !== count($orders)) {
+            throw Rejection::at('pagination', 'cursor.raw_order');
         }
     }
 
@@ -310,9 +332,21 @@ final readonly class PageOrder
      */
     private function seekColumns(QueryBuilder $base, Model $model): array
     {
-        $orders = empty($base->unionOrders) ? ($base->orders ?? []) : $base->unionOrders;
+        $orders = $this->seekOrders($base);
 
         return $orders === [] ? [$model->getQualifiedKeyName()] : $this->columnsOf($orders);
+    }
+
+    /**
+     * Resolve the orders the paginator seeks by, a union's own where it has
+     * them.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $base
+     * @return array<int, array<string, mixed>>
+     */
+    private function seekOrders(QueryBuilder $base): array
+    {
+        return empty($base->unionOrders) ? ($base->orders ?? []) : $base->unionOrders;
     }
 
     /**
