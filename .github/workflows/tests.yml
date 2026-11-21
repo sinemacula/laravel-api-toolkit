@@ -211,6 +211,7 @@ jobs:
             -   name: Run the toolkit commands
                 working-directory: ${{ runner.temp }}/app
                 run: |
+                    php artisan api-toolkit:config:validate
                     php artisan api-toolkit:validate-schemas
                     php artisan api-toolkit:export-openapi --output=openapi.json
                     jq -e '.openapi == "3.1.0" and .paths["/users/{user}"].get.responses["200"].content["application/json"].schema.properties.data["$ref"] == "#/components/schemas/User"' openapi.json
