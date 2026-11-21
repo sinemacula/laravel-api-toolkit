@@ -154,7 +154,7 @@ Choose the narrowest row that is true of the column. README "Schema-Driven ApiRe
   failure. A controller calls `runOrFail()`; `run()` returns a `ServiceResult` to branch on. README "Services".
 - The input is a `ServiceInput`, usually a `Payload` with static `rules()` and promoted readonly properties. Mark
   secrets `#[\SensitiveParameter]`, which drops them from the lifecycle events' input summary and encrypts a queued
-  run. README "Services".
+  run. A payload reads the request body and uploaded files, never the query string. README "Services".
 - Transactions and locks are properties: `$transactional`, `$transactionAttempts` and `$lockable`, with `lockId()`
   returning the lock identity when lockable. UPGRADE "Services: transactions and locking move to class properties".
 - Pass the caller with `withContext(ServiceContext::fromRequest($request, EloquentActor::for($request->user())))`,

@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Unit\Services\Input;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Validation\Rule;
@@ -17,6 +18,7 @@ use SineMacula\ApiToolkit\Services\Input\Payload;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Fixtures\Enums\Magnitude;
 use Tests\Fixtures\Enums\Platform;
+use Tests\Fixtures\Input\AttachmentPayload;
 use Tests\Fixtures\Input\OptionalRulePayload;
 use Tests\Fixtures\Input\SampleInput;
 use Tests\Fixtures\Input\StorePayload;
@@ -59,17 +61,81 @@ final class PayloadTest extends TestCase
     }
 
     /**
-     * Test that from(Request) validates and hydrates a typed instance.
+     * Provide a JSON and a form request carrying the same body.
+     *
+     * @return iterable<string, array{\Illuminate\Http\Request}>
+     */
+    public static function bodyRequestProvider(): iterable
+    {
+        yield 'json body' => [Request::create('/', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: '{"city":"Paris","age":30}')];
+        yield 'form body' => [Request::create('/', 'POST', ['city' => 'Paris', 'age' => '30'])];
+    }
+
+    /**
+     * Test that from(Request) validates and hydrates from a JSON or form body.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return void
+     */
+    #[DataProvider('bodyRequestProvider')]
+    public function testFromRequestHydratesFromTheBody(Request $request): void
+    {
+        self::assertSame(['city' => 'Paris', 'age' => 30], SampleInput::from($request)->toArray());
+    }
+
+    /**
+     * Provide request methods a query string can ride on.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function requestMethodProvider(): iterable
+    {
+        yield 'get' => ['GET'];
+        yield 'post' => ['POST'];
+        yield 'patch' => ['PATCH'];
+    }
+
+    /**
+     * Test that a field sent only in the query string is reported missing.
+     *
+     * @param  string  $method
+     * @return void
+     */
+    #[DataProvider('requestMethodProvider')]
+    public function testFromRequestReportsAQueryStringOnlyFieldMissing(string $method): void
+    {
+        try {
+            SampleInput::from(Request::create('/?city=Paris', $method));
+
+            self::fail('Expected a ValidationException for the missing city.');
+        } catch (ValidationException $exception) {
+            self::assertSame(['city' => ['The city field is required.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test that a body field wins and the query string's fields are ignored.
      *
      * @return void
      */
-    public function testFromRequestValidatesAndHydrates(): void
+    public function testFromRequestIgnoresQueryFieldsBesideTheBody(): void
     {
-        $request = Request::create('/', 'GET', ['city' => 'Paris']);
-        $input   = SampleInput::from($request);
+        $request = Request::create('/?city=Rome&age=40', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: '{"city":"Paris"}');
 
-        self::assertSame('Paris', $input->city);
-        self::assertNull($input->age);
+        self::assertSame(['city' => 'Paris'], SampleInput::from($request)->toArray());
+    }
+
+    /**
+     * Test that from(Request) validates and hydrates an uploaded file.
+     *
+     * @return void
+     */
+    public function testFromRequestHydratesAnUploadedFile(): void
+    {
+        $file    = UploadedFile::fake()->create('spec.pdf');
+        $request = Request::create('/', 'POST', files: ['attachment' => $file]);
+
+        self::assertSame($file, AttachmentPayload::from($request)->attachment);
     }
 
     /**
