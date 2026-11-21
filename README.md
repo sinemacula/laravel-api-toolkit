@@ -126,11 +126,12 @@ Each built-in operator takes a value of one shape:
 `null` is never a value: a missing value is matched by `{"name":{"$null":true}}`, so `{"name":null}` is refused. Every
 value is also checked against the column's type, read from the schema catalogue. An integer column takes an integer, a
 digit string or a boolean, a boolean column `true`, `false`, `0` or `1`, a number column a finite number, a `uuid`
-column a UUID, a date `YYYY-MM-DD`, and a date-time `YYYY-MM-DDTHH:MM[:SS[.fraction]]` with an optional `Z` or offset.
-A date-time with an offset is converted to the application timezone, so a timestamp a resource emitted can be sent
-back as it is. A column cast to an enum takes only its cases' values, or a pure enum's lowercase names. A value outside
-its shape or its column's type is rejected with a 422 at its position, naming the form expected. Where the catalogue
-cannot be read, only the shape is checked.
+column a UUID, a date `YYYY-MM-DD`, and a date-time column a date or `YYYY-MM-DDTHH:MM[:SS[.fraction]]`, with a space
+allowed in place of the `T` and an optional `Z` or offset such as `+02` or `+02:00`. A date-time with an offset is
+converted to the application timezone, so a timestamp a resource emitted can be sent back as it is. A column cast to an
+enum takes only its cases' values, or a pure enum's lowercase names. A value outside its shape or its column's type is
+rejected with a 422 at its position, naming the form expected. Where the catalogue cannot be read, only the shape is
+checked.
 
 `$contains` matches an element of a JSON array, or a whole scalar document, of the same JSON type, so `1` matches
 neither `"1"` nor `true`. Its list must not be empty, and its items are not checked against the column's type. A string

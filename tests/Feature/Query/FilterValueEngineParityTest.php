@@ -305,15 +305,14 @@ final class FilterValueEngineParityTest extends TestCase
      */
     private function canonicalValue(array $schema): bool|float|int|string
     {
-        return match ([$schema['type'], $schema['format'] ?? null]) {
-            ['integer', null]       => 1,
-            ['number', null]        => 0.5,
-            ['number', 'float']     => 0.5,
-            ['boolean', null]       => true,
-            ['string', 'date']      => '2024-01-01',
-            ['string', 'date-time'] => '2024-01-01T10:00:00Z',
-            ['string', 'uuid']      => self::FIRST_TOKEN,
-            default                 => 'alpha',
+        return match ([$schema['type'], $schema['format'] ?? $schema['pattern'] ?? null]) {
+            ['integer', null]                            => 1,
+            ['number', null], ['number', 'float']        => 0.5,
+            ['boolean', null]                            => true,
+            ['string', 'date']                           => '2024-01-01',
+            ['string', ColumnLiteral::DATE_TIME_PATTERN] => '2024-01-01T10:00:00Z',
+            ['string', 'uuid']                           => self::FIRST_TOKEN,
+            default                                      => 'alpha',
         };
     }
 

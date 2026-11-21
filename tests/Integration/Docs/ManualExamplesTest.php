@@ -16,6 +16,7 @@ use SineMacula\ApiToolkit\Http\Middleware\ParseApiQuery;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
+use SineMacula\ApiToolkit\OpenApi\Builder\FilterSchemaBuilder;
 use SineMacula\ApiToolkit\Repositories\Criteria\ApiCriteria;
 use Tests\Concerns\RegistersApiExceptionHandler;
 use Tests\Concerns\ValidatesOpenApiDocuments;
@@ -39,6 +40,7 @@ use Tests\TestCase;
  */
 #[CoversClass(ApiCriteria::class)]
 #[CoversClass(EnvelopeBuilder::class)]
+#[CoversClass(FilterSchemaBuilder::class)]
 final class ManualExamplesTest extends TestCase
 {
     use RegistersApiExceptionHandler, ValidatesOpenApiDocuments;
@@ -203,6 +205,47 @@ final class ManualExamplesTest extends TestCase
 
             self::assertTrue($result->isValid(), sprintf('The example %s does not match %s: %s', $member, $schema, $this->formatErrors($result)));
         }
+    }
+
+    /**
+     * Provide every date and date-time the README and the manual show.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function documentedDateTimes(): iterable
+    {
+        $documents = [self::path('README.md'), ...glob(self::path('resources/api-docs/*.md')) ?: []];
+
+        foreach ($documents as $document) {
+
+            preg_match_all('/["`](\d{4}-\d{2}-\d{2}[^"`]*)["`]/', (string) file_get_contents($document), $matches);
+
+            foreach (array_unique($matches[1]) as $value) {
+                yield basename($document) . ' ' . $value => [$value];
+            }
+        }
+    }
+
+    /**
+     * Test that every date and date-time the documentation shows matches the
+     * exported filter document and is answered as a filter value.
+     *
+     * @param  string  $value
+     * @return void
+     */
+    #[DataProvider('documentedDateTimes')]
+    public function testEveryDocumentedDateTimeIsExportedAndAnswered(string $value): void
+    {
+        assert($this->app !== null);
+
+        $claimed  = [];
+        $document = ['components' => ['schemas' => $this->app->make(FilterSchemaBuilder::class)->build($claimed)]];
+        $filter   = ['created_at' => ['$ge' => $value]];
+        $result   = $this->validateAgainstExported($document, '/components/schemas/' . FilterSchemaBuilder::nameOf(ManualUserResource::class), $filter);
+
+        self::assertTrue($result->isValid(), $this->formatErrors($result));
+
+        $this->getJson('/users?' . http_build_query(['filters' => json_encode($filter)]))->assertOk();
     }
 
     /**

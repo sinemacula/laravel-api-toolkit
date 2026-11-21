@@ -55,7 +55,7 @@ return [
             'single'          => 'a number within single-precision range',
             'boolean'         => 'true, false, 0 or 1',
             'date'            => 'a date as YYYY-MM-DD',
-            'datetime'        => 'a date-time as YYYY-MM-DDTHH:MM[:SS[.fraction]], optionally ending in Z or an offset such as +02:00, or a date as YYYY-MM-DD',
+            'datetime'        => 'a date-time as YYYY-MM-DDTHH:MM[:SS[.fraction]], or with a space in place of the T, optionally ending in Z or an offset such as +02 or +02:00, or a date as YYYY-MM-DD',
             'uuid'            => 'a UUID',
             'text'            => 'a string or a number',
             'nul'             => 'free of NUL characters',

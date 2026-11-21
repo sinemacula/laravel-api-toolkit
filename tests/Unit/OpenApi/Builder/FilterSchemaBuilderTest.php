@@ -28,6 +28,7 @@ use SineMacula\ApiToolkit\Schema\CompiledScopeDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use Tests\Concerns\InteractsWithNonPublicMembers;
+use Tests\Concerns\ValidatesOpenApiDocuments;
 use Tests\Fixtures\Enums\Platform;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\Models\Device;
@@ -55,7 +56,7 @@ use Tests\TestCase;
 #[CoversClass(FilterSchemaBuilder::class)]
 final class FilterSchemaBuilderTest extends TestCase
 {
-    use InteractsWithNonPublicMembers;
+    use InteractsWithNonPublicMembers, ValidatesOpenApiDocuments;
 
     /** @var array<string, mixed> Any scalar, the value of a column of unknown type */
     private const array SCALAR = ['type' => ['string', 'number', 'boolean']];
@@ -197,8 +198,7 @@ final class FilterSchemaBuilderTest extends TestCase
         yield 'date' => ['date', ['type' => 'string', 'format' => 'date']];
         yield 'datetime' => ['timestamptz', [
             'type'    => 'string',
-            'format'  => 'date-time',
-            'pattern' => '^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d+)?(Z|[+-](0\d|1[0-4]):[0-5]\d)$',
+            'pattern' => '^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])([T ]([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9](\.[0-9]+)?)?(Z|[+-](0[0-9]|1[0-4])(:[0-5][0-9])?)?)?$',
         ]];
         yield 'uuid' => ['uuid', ['type' => 'string', 'format' => 'uuid']];
         yield 'text' => ['varchar', ['type' => 'string']];
@@ -216,6 +216,68 @@ final class FilterSchemaBuilderTest extends TestCase
     public function testAColumnValueIsTypedFromItsStorageType(string $type, array $expected): void
     {
         self::assertSame($expected, $this->valueOf(User::class, 'name', ['name' => $type]));
+    }
+
+    /**
+     * Provide date-time values, with whether the parser accepts each.
+     *
+     * @return iterable<string, array{string, bool}>
+     */
+    public static function dateTimeProvider(): iterable
+    {
+        yield 'date alone' => ['2024-01-01', true];
+        yield 'space separator' => ['2024-01-01 00:00:00', true];
+        yield 'minutes' => ['2024-01-01T10:00', true];
+        yield 'fraction in UTC' => ['2024-01-01T10:00:00.123456Z', true];
+        yield 'hour offset' => ['2024-01-01 10:00:00.5+00', true];
+        yield 'furthest offset' => ['2024-01-31T23:59:59+14:00', true];
+        yield 'half-hour offset' => ['2024-01-01T10:00-05:30', true];
+        yield 'slashed date' => ['2024/01/01', false];
+        yield 'missing month separator' => ['202401-01T10:00', false];
+        yield 'time alone' => ['10:00:00', false];
+        yield 'month 00' => ['2024-00-01', false];
+        yield 'month 13' => ['2024-13-01', false];
+        yield 'day 00' => ['2024-01-00', false];
+        yield 'day 32' => ['2024-01-32', false];
+        yield 'hour 24' => ['2024-01-01T24:00', false];
+        yield 'minute 60' => ['2024-01-01T10:60', false];
+        yield 'second 60' => ['2024-01-01T10:00:60', false];
+        yield 'fraction without seconds' => ['2024-01-01T10:00.5', false];
+        yield 'zone on a date' => ['2024-01-01Z', false];
+        yield 'offset past 14 hours' => ['2024-01-01T10:00+15:00', false];
+        yield 'offset minute 60' => ['2024-01-01T10:00+02:60', false];
+        yield 'one-digit offset' => ['2024-01-01T10:00+2', false];
+        yield 'lowercase separator' => ['2024-01-01t10:00', false];
+        yield 'trailing newline' => ["2024-01-01T10:00\n", false];
+    }
+
+    /**
+     * Test that the exported date-time filter value matches exactly the values
+     * the parser accepts.
+     *
+     * @param  string  $value
+     * @param  bool  $accepted
+     * @return void
+     */
+    #[DataProvider('dateTimeProvider')]
+    public function testTheExportedDateTimeMatchesExactlyWhatTheParserAccepts(string $value, bool $accepted): void
+    {
+        self::assertSame($accepted, $this->literal(['at' => 'timestamptz'])->mismatch(new User, 'at', $value) === null);
+        self::assertSame($accepted, $this->matchesExportedDateTime($value));
+    }
+
+    /**
+     * Test that a day past its month's end, which no portable pattern states,
+     * matches the exported date-time and is refused by the parser.
+     *
+     * @return void
+     */
+    public function testADayPastItsMonthsEndIsLeftToTheParser(): void
+    {
+        foreach (['2024-02-30', '2023-02-29T10:00', '2024-04-31 10:00:00Z'] as $value) {
+            self::assertTrue($this->matchesExportedDateTime($value));
+            self::assertNotNull($this->literal(['at' => 'timestamptz'])->mismatch(new User, 'at', $value));
+        }
     }
 
     /**
@@ -605,6 +667,20 @@ final class FilterSchemaBuilderTest extends TestCase
     }
 
     /**
+     * Determine whether the value validates against the filter value schema
+     * exported for a date-time column.
+     *
+     * @param  string  $value
+     * @return bool
+     */
+    private function matchesExportedDateTime(string $value): bool
+    {
+        $document = ['components' => ['schemas' => ['Value' => $this->valueOf(User::class, 'at', ['at' => 'timestamptz'])]]];
+
+        return $this->validateAgainstExported($document, '/components/schemas/Value', $value)->isValid();
+    }
+
+    /**
      * Read the operators a 64-bit integer column answering the given tokens
      * exports under the item cap.
      *
@@ -668,6 +744,18 @@ final class FilterSchemaBuilderTest extends TestCase
         $catalogue->method('getQueryLimits')->willReturn($items === null ? [] : [QueryCostLimits::MAX_IN_ITEMS => $items]);
         $catalogue->method('getOperatorShape')->willReturnCallback(static fn (string $token): ?FilterValueShape => self::SHAPES[$token] ?? null);
 
+        return new FilterSchemaBuilder($catalogue, $this->literal($types), $this->enums, $this->scopeBuilder());
+    }
+
+    /**
+     * Build the column literal resolver over a catalogue of the given column
+     * types, keyed by column, or by model class and then column.
+     *
+     * @param  array<string, mixed>  $types
+     * @return \SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral
+     */
+    private function literal(array $types): ColumnLiteral
+    {
         $introspector = self::createStub(SchemaIntrospectionProvider::class);
         $introspector->method('getColumnDefinitions')->willReturnCallback(static function (object $model) use ($types): array {
 
@@ -676,7 +764,7 @@ final class FilterSchemaBuilderTest extends TestCase
             return array_map(static fn (string $type): ColumnDefinition => new ColumnDefinition('column', $type, false), array_filter($columns, is_string(...)));
         });
 
-        return new FilterSchemaBuilder($catalogue, new ColumnLiteral($introspector), $this->enums, $this->scopeBuilder());
+        return new ColumnLiteral($introspector);
     }
 
     /**
