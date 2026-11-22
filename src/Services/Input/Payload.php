@@ -49,6 +49,9 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      * float and bool parameters are cast from the strings their rules accept. A
      * precognitive request validates only the fields it names.
      *
+     * A request is read from its JSON or form body and its uploaded files,
+     * never its query string.
+     *
      * @param  array<string, mixed>|\Illuminate\Http\Request  $source
      * @return static
      *
@@ -58,7 +61,7 @@ abstract class Payload implements DefinesInputSchema, ServiceInput
      */
     public static function from(array|Request $source): static
     {
-        $data       = $source instanceof Request ? $source->all() : $source;
+        $data       = $source instanceof Request ? $source->duplicate(query: [])->all() : $source;
         $rules      = static::rules();
         $keys       = self::bodyKeys(static::class);
         $parameters = self::promotedParameters();

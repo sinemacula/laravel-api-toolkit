@@ -154,7 +154,7 @@ Choose the narrowest row that is true of the column. README "Schema-Driven ApiRe
   failure. A controller calls `runOrFail()`; `run()` returns a `ServiceResult` to branch on. README "Services".
 - The input is a `ServiceInput`, usually a `Payload` with static `rules()` and promoted readonly properties. Mark
   secrets `#[\SensitiveParameter]`, which drops them from the lifecycle events' input summary and encrypts a queued
-  run. README "Services".
+  run. A payload built from the request reads its body and uploaded files, never the query string. README "Services".
 - Transactions and locks are properties: `$transactional`, `$transactionAttempts` and `$lockable`, with `lockId()`
   returning the lock identity when lockable. UPGRADE "Services: transactions and locking move to class properties".
 - Pass the caller with `withContext(ServiceContext::fromRequest($request, EloquentActor::for($request->user())))`,
@@ -195,6 +195,8 @@ Choose the narrowest row that is true of the column. README "Schema-Driven ApiRe
 
 ## Verify
 
+- After changing `config/api-toolkit.php` or upgrading the toolkit, run `php artisan api-toolkit:config:validate`. A
+  failure names the settings to remove or correct. README "Configuration".
 - After a schema or migration change, run `php artisan api-toolkit:validate-schemas` against a migrated, reachable
   database. A failure names the declaration and its missing backing: fix the migration or the declaration, never pass
   `--allow-empty` or `--allow-unverified` or turn off `api-toolkit.resources.validate_schemas`. README "Schema-Driven

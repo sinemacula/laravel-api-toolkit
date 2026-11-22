@@ -47,6 +47,9 @@ Every setting is validated once the application boots to serve requests or queue
 only where they read the invalid setting, which for a setting read at boot is every command. Under a cached
 configuration the message names the cache file to delete before rebuilding it.
 
+Run `php artisan api-toolkit:config:validate` in CI or a deploy step to apply the same check from the console. It exits
+with a failure and the message boot would throw, so a removed or misnamed setting is caught before it stops the workers.
+
 The Markdown templates for the generated API manual are published with `--tag=api-toolkit-docs`.
 
 ### Translations
@@ -318,12 +321,13 @@ adds cannot be ordered by.
 A cursor can only seek by a column that holds a value in every row, so a cursor-paginated read rejects `random` and
 any column the cached column catalogue reports as nullable, such as the `created_at` that `timestamps()` creates;
 declare the column `NOT NULL` to cursor-page by it. Offset pagination sorts by either. Columns a repository scope
-orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, does not carry a value for every
-ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column cannot hold is rejected
-with a `422` on `cursor`; restart from the first page. A cursor carries each ordered column as the row stores it, not as
-the model casts it, so a microsecond timestamp, an enum or a value object seeks from exactly where its page ended. A
-model whose table has no column for its key is offset-paged without the appended key, and refused cursor pagination with
-a `422` on `pagination` unless the read is grouped and ordered.
+orders by must be `NOT NULL` for cursor pages too. A read ordered by raw SQL (`orderByRaw()`), an expression, a subquery
+or `inOrderOf()` is refused cursor pagination with a `422` on `pagination`. A cursor that does not decode, does not
+carry a value for every ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column
+cannot hold is rejected with a `422` on `cursor`; restart from the first page. A cursor carries each ordered column as
+the row stores it, not as the model casts it, so a microsecond timestamp, an enum or a value object seeks from exactly
+where its page ended. A model whose table has no column for its key is offset-paged without the appended key, and
+refused cursor pagination with a `422` on `pagination` unless the read is grouped and ordered.
 
 Filters and sorts compare by each column's collation, and each engine places NULLs its own way; the toolkit normalises
 neither. With default settings, MySQL matches `{"name":"alice"}` to `Alice` and sorts `anna`, `Ben`, `cara`;
@@ -1834,6 +1838,10 @@ public function signIn(SignInPayload $payload): UserResource
 
 SignInPayload::from(['email' => 'a@example.com', 'password' => 'secret']);
 ```
+
+A payload built from the request reads the JSON or form body and the uploaded files, never the query string, so a
+required field sent only in the URL is reported missing. Build one from the query string with
+`from($request->query->all())`.
 
 Form, multipart and query string values arrive as strings, so an `int`, `float` or `bool` property is cast from any
 value the `integer`, `numeric`, `boolean`, `accepted` or `declined` rule accepts. A property its rules let be absent

@@ -473,7 +473,7 @@ final class ContainerBindingRegistrarTest extends TestCase
     {
         $app = $this->getApplication();
 
-        $app->instance('request', Request::create('/', 'GET', [
+        $app->instance('request', Request::create('/', 'POST', [
             'title'    => 'Widget',
             'quantity' => 5,
             'status'   => 'active',
