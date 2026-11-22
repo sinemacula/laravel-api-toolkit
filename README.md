@@ -1838,6 +1838,10 @@ public function signIn(SignInPayload $payload): UserResource
 SignInPayload::from(['email' => 'a@example.com', 'password' => 'secret']);
 ```
 
+A payload built from the request reads the JSON or form body and the uploaded files, never the query string, so a
+required field sent only in the URL is reported missing. Build one from the query string with
+`from($request->query->all())`.
+
 Form, multipart and query string values arrive as strings, so an `int`, `float` or `bool` property is cast from any
 value the `integer`, `numeric`, `boolean`, `accepted` or `declined` rule accepts. A property its rules let be absent
 needs a default; without one, `from()` throws a `LogicException` naming it.
