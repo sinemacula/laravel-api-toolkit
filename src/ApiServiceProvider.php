@@ -19,6 +19,7 @@ use SineMacula\ApiToolkit\Console\ExportOpenApiCommand;
 use SineMacula\ApiToolkit\Console\GenerateDocsCommand;
 use SineMacula\ApiToolkit\Console\InvalidateMetadataCommand;
 use SineMacula\ApiToolkit\Console\MakeResourceCommand;
+use SineMacula\ApiToolkit\Console\ValidateConfigCommand;
 use SineMacula\ApiToolkit\Console\ValidateSchemasCommand;
 use SineMacula\ApiToolkit\Http\Resources\ResourceDiscovery;
 use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
@@ -91,6 +92,7 @@ final class ApiServiceProvider extends ServiceProvider
 
         $this->commands([
             ValidateSchemasCommand::class,
+            ValidateConfigCommand::class,
             ExportOpenApiCommand::class,
             GenerateDocsCommand::class,
             InvalidateMetadataCommand::class,
