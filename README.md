@@ -320,12 +320,13 @@ adds cannot be ordered by.
 A cursor can only seek by a column that holds a value in every row, so a cursor-paginated read rejects `random` and
 any column the cached column catalogue reports as nullable, such as the `created_at` that `timestamps()` creates;
 declare the column `NOT NULL` to cursor-page by it. Offset pagination sorts by either. Columns a repository scope
-orders by must be `NOT NULL` for cursor pages too. A cursor that does not decode, does not carry a value for every
-ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column cannot hold is rejected
-with a `422` on `cursor`; restart from the first page. A cursor carries each ordered column as the row stores it, not as
-the model casts it, so a microsecond timestamp, an enum or a value object seeks from exactly where its page ended. A
-model whose table has no column for its key is offset-paged without the appended key, and refused cursor pagination with
-a `422` on `pagination` unless the read is grouped and ordered.
+orders by must be `NOT NULL` for cursor pages too. A read ordered by raw SQL (`orderByRaw()`), an expression, a subquery
+or `inOrderOf()` is refused cursor pagination with a `422` on `pagination`. A cursor that does not decode, does not
+carry a value for every ordered column (the client changed `?order` and kept `?cursor`), or carries a value its column
+cannot hold is rejected with a `422` on `cursor`; restart from the first page. A cursor carries each ordered column as
+the row stores it, not as the model casts it, so a microsecond timestamp, an enum or a value object seeks from exactly
+where its page ended. A model whose table has no column for its key is offset-paged without the appended key, and
+refused cursor pagination with a `422` on `pagination` unless the read is grouped and ordered.
 
 Filters and sorts compare by each column's collation, and each engine places NULLs its own way; the toolkit normalises
 neither. With default settings, MySQL matches `{"name":"alice"}` to `Alice` and sorts `anna`, `Ben`, `cara`;

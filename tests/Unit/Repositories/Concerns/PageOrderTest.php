@@ -16,6 +16,7 @@ use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Repositories\Concerns\ColumnLiteral;
 use SineMacula\ApiToolkit\Repositories\Concerns\PageOrder;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
+use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\TestCase;
 
@@ -41,6 +42,9 @@ final class PageOrderTest extends TestCase
 
     /** @var string */
     private const string KEYLESS = 'This collection has no key to page by cursor; use offset pagination.';
+
+    /** @var string */
+    private const string UNSEEKABLE = 'This collection is ordered by an expression a cursor cannot page by; use offset pagination.';
 
     /** @var \SineMacula\ApiToolkit\Repositories\Concerns\PageOrder */
     private PageOrder $pageOrder;
@@ -523,15 +527,46 @@ final class PageOrderTest extends TestCase
     }
 
     /**
-     * Test that raw and expression orders ask nothing of the token.
+     * Provide orders a cursor cannot seek by.
+     *
+     * @return iterable<string, array{\Closure(\Illuminate\Database\Query\Builder): mixed}>
+     */
+    public static function unseekableOrderProvider(): iterable
+    {
+        yield 'raw' => [static fn (QueryBuilder $query) => $query->orderBy('name')->orderByRaw('lower(email) desc')];
+        yield 'random' => [static fn (QueryBuilder $query) => $query->inRandomOrder()];
+        yield 'expression' => [static fn (QueryBuilder $query) => $query->orderBy(new Expression('lower(name)'))];
+        yield 'subquery' => [static fn (QueryBuilder $query) => $query->orderBy(Post::query()->selectRaw('count(*)')->whereColumn('posts.user_id', self::KEY))];
+        yield 'value sequence' => [static fn (QueryBuilder $query) => $query->inOrderOf('name', ['Ann', 'Bob'])];
+        yield 'raw union order' => [static fn (QueryBuilder $query) => $query->union(User::query()->getQuery())->orderByRaw('lower(name)')];
+    }
+
+    /**
+     * Test that an order a cursor cannot seek by is refused a cursor, on the
+     * first page and on a later one.
+     *
+     * @param  \Closure(\Illuminate\Database\Query\Builder): mixed  $shape
+     * @return void
+     */
+    #[DataProvider('unseekableOrderProvider')]
+    public function testOrderACursorCannotSeekByIsRefusedACursor(\Closure $shape): void
+    {
+        $query = $this->pageOrder->complete($this->users($shape));
+
+        $this->assertCursorRejected(fn () => $this->pageOrder->cursor($query, ''), self::UNSEEKABLE, 'pagination');
+        $this->assertCursorRejected(fn () => $this->pageOrder->cursor($query, (new Cursor(['name' => 'Ann', self::KEY => 1]))->encode()), self::UNSEEKABLE, 'pagination');
+    }
+
+    /**
+     * Test that a union is checked by its own order, not its first select's.
      *
      * @return void
      */
-    public function testRawAndExpressionOrdersAskNothingOfTheToken(): void
+    public function testUnionIsCheckedByItsOwnOrder(): void
     {
-        $query = $this->users(static fn (QueryBuilder $query) => $query->inRandomOrder()->orderBy(new Expression('lower(name)'))->orderBy(self::KEY));
+        $query = $this->users(static fn (QueryBuilder $query) => $query->orderByRaw('lower(name)')->union(User::query()->getQuery())->orderBy('name'));
 
-        self::assertInstanceOf(Cursor::class, $this->pageOrder->cursor($query, (new Cursor([self::KEY => 1]))->encode()));
+        self::assertNull($this->pageOrder->cursor($query, ''));
     }
 
     /**
