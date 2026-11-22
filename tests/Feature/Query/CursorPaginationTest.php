@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\Feature\Query;
 
 use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
@@ -446,6 +447,55 @@ final class CursorPaginationTest extends TestCase
     }
 
     /**
+     * Provide repository scope orders a cursor cannot seek by.
+     *
+     * @return iterable<string, array{\Closure(\Illuminate\Database\Query\Builder): mixed}>
+     */
+    public static function unseekableScopeOrderProvider(): iterable
+    {
+        yield 'raw' => [static fn (QueryBuilder $query) => $query->orderByRaw('email desc')];
+        yield 'expression' => [static fn (QueryBuilder $query) => $query->orderBy(DB::raw('lower(email)'), 'desc')];
+        yield 'subquery' => [static fn (QueryBuilder $query) => $query->orderBy(DB::table('posts')->selectRaw('count(*)')->whereColumn('posts.user_id', 'users.id'))];
+        yield 'value sequence' => [static fn (QueryBuilder $query) => $query->inOrderOf('email', ['cara', 'anna'])];
+    }
+
+    /**
+     * Test that a repository scope order a cursor cannot seek by is refused
+     * cursor pagination, on the first page and on a later one.
+     *
+     * @param  \Closure(\Illuminate\Database\Query\Builder): mixed  $order
+     * @return void
+     */
+    #[DataProvider('unseekableScopeOrderProvider')]
+    public function testScopeOrderACursorCannotSeekByIsRefused(\Closure $order): void
+    {
+        $this->routeOrderedBy($order);
+
+        $cursor = (new Cursor(['users.id' => 2]))->encode();
+
+        foreach (['pagination=cursor', 'cursor=' . $cursor] as $mode) {
+            $this->getJson('/users-ordered?limit=2&' . $mode)
+                ->assertUnprocessable()
+                ->assertJsonPath('error.meta', ['pagination' => ['This collection is ordered by an expression a cursor cannot page by; use offset pagination.']]);
+        }
+    }
+
+    /**
+     * Test that a repository scope's raw order still pages by offset.
+     *
+     * @return void
+     */
+    public function testScopeRawOrderStillPagesByOffset(): void
+    {
+        $this->routeOrderedBy(static fn (QueryBuilder $query) => $query->orderByRaw('email desc'));
+
+        $pages = array_map(fn (int $page): TestResponse => $this->getJson('/users-ordered?limit=2&page=' . $page), [1, 2, 3]);
+
+        self::assertSame([['evan', 'dan'], ['cara', 'ben'], ['anna']], array_map($this->emails(...), $pages));
+        $pages[0]->assertJsonPath('meta.total', 5);
+    }
+
+    /**
      * Test that a narrowed projection still pages tied rows by the key.
      *
      * @return void
@@ -464,6 +514,27 @@ final class CursorPaginationTest extends TestCase
 
         self::assertSame([['dan', 'evan'], ['anna', 'ben'], ['cara']], array_map($this->emails(...), $pages));
         end($pages)->assertJsonMissingPath('data.0.name');
+    }
+
+    /**
+     * Register a users route whose repository scope orders the query as given.
+     *
+     * @param  \Closure(\Illuminate\Database\Query\Builder): mixed  $order
+     * @return void
+     */
+    private function routeOrderedBy(\Closure $order): void
+    {
+        Route::middleware(ParseApiQuery::class)->get('/users-ordered', function (UserRepository $repository) use ($order): ApiResourceCollection {
+
+            $users = $repository->usingResource(FilterableUserResource::class)
+                ->withApiCriteria()
+                ->addScope(static function (Builder $query) use ($order): void {
+                    $order($query->getQuery());
+                })
+                ->paginate();
+
+            return new ApiResourceCollection($users, FilterableUserResource::class);
+        });
     }
 
     /**

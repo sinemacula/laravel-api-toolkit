@@ -129,6 +129,7 @@ final class PublicSurfaceSnapshotTest extends TestCase
 
     /** @var list<string> The package's Artisan commands with their arguments and options. */
     private const array COMMANDS = [
+        'api-toolkit:config:validate',
         'api-toolkit:docs:generate',
         'api-toolkit:export-openapi [--output [OUTPUT]] [--audience [AUDIENCE]] [--all] [--allow-empty]',
         'api-toolkit:invalidate-metadata',

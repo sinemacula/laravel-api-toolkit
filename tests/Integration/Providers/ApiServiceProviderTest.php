@@ -1100,6 +1100,16 @@ final class ApiServiceProviderTest extends TestCase
     }
 
     /**
+     * Test that the validate config command is registered.
+     *
+     * @return void
+     */
+    public function testValidateConfigCommandIsRegistered(): void
+    {
+        self::assertArrayHasKey('api-toolkit:config:validate', Artisan::all());
+    }
+
+    /**
      * Test that the invalidate metadata command is registered.
      *
      * @return void
