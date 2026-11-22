@@ -31,13 +31,9 @@ final readonly class ColumnLiteral
         'int8' => [PHP_INT_MIN, PHP_INT_MAX],
     ];
 
-    /** @var string A date, then optionally a time with an optional zone */
-    private const string DATE_TIME = '/^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})'
-        . '(?:[T ](?<hour>\d{2}):(?<minute>\d{2})(?::(?<second>\d{2})(?:\.\d+)?)?'
-        . '(?<zone>Z|[+-](?<offsetHour>\d{2})(?::(?<offsetMinute>\d{2}))?)?)?$/';
-
-    /** @var array<string, int> The highest value each time part of a date-time may take */
-    private const array TIME_LIMITS = ['hour' => 23, 'minute' => 59, 'second' => 59, 'offsetHour' => 14, 'offsetMinute' => 59];
+    /** @var string A date, then optionally a time with an optional zone, as a portable JSON Schema pattern */
+    public const string DATE_TIME_PATTERN = '^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])'
+        . '([T ]([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9](\.[0-9]+)?)?(Z|[+-](0[0-9]|1[0-4])(:[0-5][0-9])?)?)?$';
 
     /**
      * Create a new column literal resolver.
@@ -91,7 +87,7 @@ final readonly class ColumnLiteral
     public function fitsBoundary(Model $model, string $column, bool|float|int|string $value): bool
     {
         if (is_string($value) && $this->typeOf($model, $column) === 'date' && preg_match('/ \d{2}:\d{2}:\d{2}$/', $value) === 1) {
-            return $this->dateTimeParts($value) !== null;
+            return $this->isDateTime($value);
         }
 
         return $this->mismatch($model, $column, $value) === null;
@@ -128,7 +124,8 @@ final readonly class ColumnLiteral
 
         $timezone = date_default_timezone_get();
 
-        if (($this->dateTimeParts($value)['zone'] ?? null) !== null) {
+        // Past the time separator, only a zone holds Z, + or -
+        if (preg_match('/[T ].*[Z+-]/', $value) === 1) {
             return CarbonImmutable::parse($value)->setTimezone($timezone)->format($format);
         }
 
@@ -165,7 +162,7 @@ final readonly class ColumnLiteral
             ColumnValueKind::NUMBER   => !is_bool($value) && $this->isNumber($type, $value),
             ColumnValueKind::BOOLEAN  => in_array($value, [true, false, 0, 1, '0', '1'], true),
             ColumnValueKind::DATE     => is_string($value) && $this->isDate($value),
-            ColumnValueKind::DATETIME => is_string($value) && $this->dateTimeParts($value) !== null,
+            ColumnValueKind::DATETIME => is_string($value) && $this->isDateTime($value),
             ColumnValueKind::UUID     => is_string($value) && Str::isUuid($value),
             default                   => !is_bool($value),
         };
@@ -233,31 +230,26 @@ final readonly class ColumnLiteral
      */
     private function isDate(string $value): bool
     {
-        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 && $this->dateTimeParts($value) !== null;
+        return strlen($value) === 10 && $this->isDateTime($value);
     }
 
     /**
-     * Return the parts of a date or date-time naming a real instant, or null
-     * when the value is not one.
+     * Determine whether the value is a date or date-time naming a real instant.
      *
-     * Checked before parsing, which would roll 2024-02-30 and 24:00 over.
+     * Checked before parsing, which would roll 2024-02-30 over.
      *
      * @param  string  $value
-     * @return array<array-key, string|null>|null
+     * @return bool
      */
-    private function dateTimeParts(string $value): ?array
+    private function isDateTime(string $value): bool
     {
-        if (preg_match(self::DATE_TIME, $value, $parts, PREG_UNMATCHED_AS_NULL) !== 1) {
-            return null;
+        if (preg_match('/' . self::DATE_TIME_PATTERN . '/D', $value, $parts) !== 1) {
+            return false;
         }
 
-        foreach (self::TIME_LIMITS as $part => $limit) {
-            if ((int) $parts[$part] > $limit) {
-                return null;
-            }
-        }
+        [, $year, $month, $day] = $parts;
 
-        return checkdate((int) $parts['month'], (int) $parts['day'], (int) $parts['year']) ? $parts : null;
+        return checkdate((int) $month, (int) $day, (int) $year);
     }
 
     /**

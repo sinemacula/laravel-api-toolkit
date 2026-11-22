@@ -50,7 +50,8 @@ final class ColumnLiteralTest extends TestCase
     private const string DATE = 'a date as YYYY-MM-DD';
 
     /** @var string */
-    private const string DATE_TIME = 'a date-time as YYYY-MM-DDTHH:MM[:SS[.fraction]], optionally ending in Z or an offset such as +02:00, or a date as YYYY-MM-DD';
+    private const string DATE_TIME = 'a date-time as YYYY-MM-DDTHH:MM[:SS[.fraction]], or with a space in place of the T, '
+        . 'optionally ending in Z or an offset such as +02 or +02:00, or a date as YYYY-MM-DD';
 
     /** @var string|null */
     private ?string $timezone = null;
@@ -186,7 +187,13 @@ final class ColumnLiteralTest extends TestCase
         yield 'date with a prefix' => ['date', 'x2024-01-01', self::DATE];
         yield 'date with a suffix' => ['date', '2024-01-01x', self::DATE];
         yield 'date int' => ['date', 20240101, self::DATE];
+        yield 'date with a trailing newline' => ['date', "2024-01-01\n", self::DATE];
         yield 'datetime past the month end' => ['datetime', '2024-02-30T10:00', self::DATE_TIME];
+        yield 'datetime month 13' => ['datetime', '2024-13-01', self::DATE_TIME];
+        yield 'datetime slashed date' => ['datetime', '2024/01/01 10:00', self::DATE_TIME];
+        yield 'datetime time alone' => ['datetime', '10:00:00', self::DATE_TIME];
+        yield 'datetime fraction without seconds' => ['datetime', '2024-01-01T10:00.5', self::DATE_TIME];
+        yield 'datetime trailing newline' => ['timestamp', "2024-01-01T10:00\n", self::DATE_TIME];
         yield 'datetime hour 24' => ['datetime', '2024-01-01T24:00', self::DATE_TIME];
         yield 'datetime minute 60' => ['datetime', '2024-01-01T10:60', self::DATE_TIME];
         yield 'datetime second 60' => ['datetime', '2024-01-01T10:00:60', self::DATE_TIME];

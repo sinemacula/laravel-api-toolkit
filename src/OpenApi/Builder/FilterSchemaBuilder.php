@@ -43,9 +43,6 @@ final readonly class FilterSchemaBuilder
     /** @var array<string, mixed> Any scalar, for a value whose type is unknown */
     private const array SCALAR = ['type' => ['string', 'number', 'boolean']];
 
-    /** An RFC 3339 date-time with each part in the range the request-time guard reads */
-    private const string DATE_TIME_PATTERN = '^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d+)?(Z|[+-](0\d|1[0-4]):[0-5]\d)$';
-
     /** The largest magnitude a single-precision column stores */
     private const float SINGLE_MAX = 3.4028234663852886E+38;
 
@@ -264,7 +261,7 @@ final readonly class FilterSchemaBuilder
             ColumnValueKind::NUMBER    => $this->buildNumber((string) $type),
             ColumnValueKind::BOOLEAN   => ['type' => 'boolean'],
             ColumnValueKind::DATE      => ['type' => 'string', 'format' => 'date'],
-            ColumnValueKind::DATETIME  => ['type' => 'string', 'format' => 'date-time', 'pattern' => self::DATE_TIME_PATTERN],
+            ColumnValueKind::DATETIME  => ['type' => 'string', 'pattern' => ColumnLiteral::DATE_TIME_PATTERN],
             ColumnValueKind::UUID      => ['type' => 'string', 'format' => 'uuid'],
             ColumnValueKind::TEXT      => ['type' => 'string'],
             ColumnValueKind::UNCHECKED => self::SCALAR,
