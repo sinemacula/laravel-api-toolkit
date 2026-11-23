@@ -59,41 +59,12 @@ final class MetadataCacheWriterTest extends TestCase
     }
 
     /**
-     * Test that rememberMetadataForever returns the callback's value.
-     *
-     * @return void
-     */
-    public function testRememberMetadataForeverReturnsTheCallbackValue(): void
-    {
-        $writer = new MetadataCacheWriter(new MetadataGeneration);
-
-        $value = $writer->rememberMetadataForever('test-key', fn () => 'expected-value');
-
-        self::assertSame('expected-value', $value);
-    }
-
-    /**
-     * Test that rememberMetadataForever persists the value to the memo store.
-     *
-     * @return void
-     */
-    public function testRememberMetadataForeverWritesToTheMemoStore(): void
-    {
-        $writer = new MetadataCacheWriter(new MetadataGeneration);
-        $key    = 'memo-store-key';
-
-        $writer->rememberMetadataForever($key, fn () => 'stored-value');
-
-        self::assertSame('stored-value', Cache::memo()->get($writer->storageKey($key)));
-    }
-
-    /**
-     * Test that rememberMetadataForever serves a value already stored under the
+     * Test that rememberMetadata serves a value already stored under the
      * current generation without running the callback.
      *
      * @return void
      */
-    public function testRememberMetadataForeverServesAWarmValueWithoutTheCallback(): void
+    public function testRememberMetadataServesAWarmValueWithoutTheCallback(): void
     {
         $key    = self::warmKey();
         $writer = new MetadataCacheWriter(new MetadataGeneration);
@@ -102,11 +73,11 @@ final class MetadataCacheWriterTest extends TestCase
 
         $calls = 0;
 
-        $value = $writer->rememberMetadataForever($key, static function () use (&$calls, $key): string {
+        $value = $writer->rememberMetadata($key, static function () use (&$calls, $key): string {
             $calls++;
 
             return $key;
-        });
+        }, 60);
 
         self::assertSame('pre-warmed-value', $value);
         self::assertSame(0, $calls);
@@ -170,75 +141,157 @@ final class MetadataCacheWriterTest extends TestCase
     }
 
     /**
-     * Test that storeMetadataForever writes the value under the current
-     * generation, replacing whatever the store held under the key.
+     * Test that storeMetadata writes the value under the current generation,
+     * replacing whatever the store held under the key.
      *
      * @return void
      */
-    public function testStoreMetadataForeverReplacesTheStoredValue(): void
+    public function testStoreMetadataReplacesTheStoredValue(): void
     {
         $writer = $this->writer();
 
         Cache::memo()->forever($writer->storageKey('stored-key'), 'stale'); // @phpstan-ignore method.notFound
 
-        $writer->storeMetadataForever('stored-key', ['fresh']);
+        $writer->storeMetadata('stored-key', ['fresh']);
 
         self::assertSame(['fresh'], Cache::memo()->get($writer->storageKey('stored-key')));
         self::assertSame(['fresh'], $writer->readMetadata('stored-key'));
     }
 
     /**
-     * Test that storeMetadataForever stores the value with no expiry.
+     * Test that storeMetadata stores the value for the configured metadata
+     * time-to-live, never forever.
      *
      * @return void
      */
-    public function testStoreMetadataForeverWritesWithoutAnExpiry(): void
+    public function testStoreMetadataWritesForTheConfiguredTtl(): void
     {
+        Config::set('api-toolkit.cache.metadata_ttl', '4321');
+
         $writer     = $this->writer();
-        $storageKey = $writer->storageKey('forever-key');
+        $storageKey = $writer->storageKey('expiring-key');
 
         $repository = \Mockery::mock(Repository::class);
-        $repository->shouldReceive('forever')->once()->with($storageKey, 'value')->andReturnTrue();
+        $repository->shouldReceive('put')->once()->with($storageKey, 'value', 4321)->andReturnTrue();
 
         Cache::shouldReceive('memo')->andReturn($repository);
 
-        $writer->storeMetadataForever('forever-key', 'value');
+        $writer->storeMetadata('expiring-key', 'value');
 
         Exceptions::assertNothingReported();
     }
 
     /**
-     * Test that storeMetadataForever reports a write the store rejects.
+     * Test that a stored entry is gone once the metadata time-to-live lapses.
      *
      * @return void
      */
-    public function testStoreMetadataForeverReportsARejectedWrite(): void
+    public function testAStoredEntryExpiresAfterTheMetadataTtl(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-11-23 12:00:00'));
+        Config::set('api-toolkit.cache.metadata_ttl', 60);
+
+        $writer     = $this->writer();
+        $storageKey = $writer->storageKey('expiring-key');
+
+        $writer->storeMetadata('expiring-key', 'value');
+
+        Carbon::setTestNow(Carbon::parse('2026-11-23 12:00:59'));
+
+        self::assertSame('value', Cache::get($storageKey));
+
+        Carbon::setTestNow(Carbon::parse('2026-11-23 12:01:00'));
+
+        self::assertNull(Cache::get($storageKey));
+    }
+
+    /**
+     * Test that the entries a retired generation holds age out of the store.
+     *
+     * @return void
+     */
+    public function testARetiredGenerationsEntriesExpire(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-11-23 12:00:00'));
+        Config::set('api-toolkit.cache.metadata_ttl', 60);
+
+        $generation = new MetadataGeneration;
+        $writer     = new MetadataCacheWriter($generation);
+        $retired    = $writer->storageKey('retired-key');
+
+        $writer->storeMetadata('retired-key', 'value');
+        $generation->advance();
+
+        self::assertSame('value', Cache::get($retired));
+
+        Carbon::setTestNow(Carbon::parse('2026-11-23 12:01:00'));
+
+        self::assertNull(Cache::get($retired));
+    }
+
+    /**
+     * Provide metadata time-to-live values below a second or not whole.
+     *
+     * @return iterable<string, array{mixed, string}>
+     */
+    public static function invalidMetadataTtlProvider(): iterable
+    {
+        yield 'zero' => [0, '0'];
+        yield 'negative' => [-1, '-1'];
+        yield 'fraction' => ['1.5', '\'1.5\''];
+    }
+
+    /**
+     * Test that storeMetadata refuses a metadata time-to-live below a second
+     * rather than storing forever or nothing.
+     *
+     * @param  mixed  $ttl
+     * @param  string  $given
+     * @return void
+     */
+    #[DataProvider('invalidMetadataTtlProvider')]
+    public function testStoreMetadataRefusesAnInvalidTtl(mixed $ttl, string $given): void
+    {
+        Config::set('api-toolkit.cache.metadata_ttl', $ttl);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage(sprintf('The api-toolkit.cache.metadata_ttl setting must be an integer of at least 1; [%s] given.', $given));
+
+        $this->writer()->storeMetadata('refused-key', 'value');
+    }
+
+    /**
+     * Test that storeMetadata reports a write the store rejects.
+     *
+     * @return void
+     */
+    public function testStoreMetadataReportsARejectedWrite(): void
     {
         $writer     = $this->writer();
         $storageKey = $writer->storageKey('rejected-store-key');
 
         $repository = \Mockery::mock(Repository::class);
-        $repository->shouldReceive('forever')->once()->with($storageKey, 'value')->andReturnFalse();
+        $repository->shouldReceive('put')->once()->with($storageKey, 'value', \Mockery::type('int'))->andReturnFalse();
 
         Cache::shouldReceive('memo')->andReturn($repository);
 
-        $writer->storeMetadataForever('rejected-store-key', 'value');
+        $writer->storeMetadata('rejected-store-key', 'value');
 
         Exceptions::assertReportedCount(1);
         Exceptions::assertReported(static fn (MetadataCacheUnavailableException $exception): bool => $exception->context()['key'] === 'rejected-store-key');
     }
 
     /**
-     * Test that storeMetadataForever reports an unreachable store once, at the
+     * Test that storeMetadata reports an unreachable store once, at the
      * generation read.
      *
      * @return void
      */
-    public function testStoreMetadataForeverReportsAnUnreachableStore(): void
+    public function testStoreMetadataReportsAnUnreachableStore(): void
     {
         $this->useUnreachableCacheStore();
 
-        $this->writer()->storeMetadataForever('outage-key', 'value');
+        $this->writer()->storeMetadata('outage-key', 'value');
 
         Exceptions::assertReportedCount(1);
         Exceptions::assertReported(static fn (MetadataCacheUnavailableException $exception): bool => $exception->context()['operation'] === 'generation');
@@ -253,7 +306,7 @@ final class MetadataCacheWriterTest extends TestCase
     {
         $writer = $this->writer();
 
-        $writer->storeMetadataForever('decoded-key', 'stored');
+        $writer->storeMetadata('decoded-key', 'stored');
 
         self::assertSame('decoded stored', $writer->readMetadata('decoded-key', 'missing', static fn (mixed $stored): string => 'decoded ' . (is_string($stored) ? $stored : '')));
     }
@@ -267,7 +320,7 @@ final class MetadataCacheWriterTest extends TestCase
     {
         $writer = $this->writer();
 
-        $writer->storeMetadataForever('rejected-shape-key', 'unreadable');
+        $writer->storeMetadata('rejected-shape-key', 'unreadable');
 
         self::assertSame('missing', $writer->readMetadata('rejected-shape-key', 'missing', static fn (mixed $stored): mixed => null));
     }
@@ -368,36 +421,11 @@ final class MetadataCacheWriterTest extends TestCase
         $generation = new MetadataGeneration;
         $writer     = new MetadataCacheWriter($generation);
 
-        $writer->rememberMetadataForever('retired-key', fn (): string => 'before');
+        $writer->rememberMetadata('retired-key', fn (): string => 'before', 60);
         $generation->advance();
 
         self::assertNull($writer->readMetadata('retired-key'));
-        self::assertSame('after', $writer->rememberMetadataForever('retired-key', fn (): string => 'after'));
-    }
-
-    /**
-     * Test that rememberMetadataForever computes the value once and reports the
-     * store failure when the store is unreachable.
-     *
-     * @return void
-     */
-    public function testRememberMetadataForeverComputesTheValueWhenTheStoreIsUnreachable(): void
-    {
-        $this->useUnreachableCacheStore();
-
-        $calls = 0;
-
-        $value = $this->writer()->rememberMetadataForever('outage-key', static function () use (&$calls): string {
-            $calls++;
-
-            return 'computed';
-        });
-
-        self::assertSame('computed', $value);
-        self::assertSame(1, $calls);
-
-        Exceptions::assertReportedCount(1);
-        Exceptions::assertReported(static fn (MetadataCacheUnavailableException $exception): bool => $exception->getPrevious()?->getMessage() === UnreachableCacheStore::MESSAGE);
+        self::assertSame('after', $writer->rememberMetadata('retired-key', fn (): string => 'after', 60));
     }
 
     /**
@@ -422,7 +450,7 @@ final class MetadataCacheWriterTest extends TestCase
         self::assertSame(1, $calls);
 
         Exceptions::assertReportedCount(1);
-        Exceptions::assertReported(MetadataCacheUnavailableException::class);
+        Exceptions::assertReported(static fn (MetadataCacheUnavailableException $exception): bool => $exception->getPrevious()?->getMessage() === UnreachableCacheStore::MESSAGE);
     }
 
     /**
@@ -453,11 +481,11 @@ final class MetadataCacheWriterTest extends TestCase
 
         $repository = \Mockery::mock(Repository::class);
         $repository->shouldReceive('get')->once()->with($storageKey)->andReturnNull();
-        $repository->shouldReceive('forever')->once()->andThrow(new \RuntimeException('Write failed.'));
+        $repository->shouldReceive('put')->once()->andThrow(new \RuntimeException('Write failed.'));
 
         Cache::shouldReceive('memo')->andReturn($repository);
 
-        self::assertSame('computed', $writer->rememberMetadataForever('write-failure-key', static fn (): string => 'computed'));
+        self::assertSame('computed', $writer->rememberMetadata('write-failure-key', static fn (): string => 'computed', 60));
 
         Exceptions::assertReportedCount(1);
         Exceptions::assertReported(static fn (MetadataCacheUnavailableException $exception): bool => $exception->getPrevious()?->getMessage() === 'Write failed.');
@@ -508,21 +536,21 @@ final class MetadataCacheWriterTest extends TestCase
 
         $repository = \Mockery::mock(Repository::class);
         $repository->shouldReceive('get')->times(3)->with($storageKey)->andReturnNull();
-        $repository->shouldReceive('forever')->times(3)->with($storageKey, \Mockery::any())->andReturnFalse();
+        $repository->shouldReceive('put')->times(3)->with($storageKey, \Mockery::any(), 60)->andReturnFalse();
 
         Cache::shouldReceive('memo')->andReturn($repository);
 
-        $writer->rememberMetadataForever('rejected-key', static fn (): string => 'first');
+        $writer->rememberMetadata('rejected-key', static fn (): string => 'first', 60);
 
         Carbon::setTestNow(Carbon::parse('2026-10-25 12:00:29'));
 
-        $writer->rememberMetadataForever('rejected-key', static fn (): string => 'second');
+        $writer->rememberMetadata('rejected-key', static fn (): string => 'second', 60);
 
         Exceptions::assertReportedCount(1);
 
         Carbon::setTestNow(Carbon::parse('2026-10-25 12:00:30'));
 
-        $writer->rememberMetadataForever('rejected-key', static fn (): string => 'third');
+        $writer->rememberMetadata('rejected-key', static fn (): string => 'third', 60);
 
         Exceptions::assertReportedCount(2);
     }
@@ -537,7 +565,7 @@ final class MetadataCacheWriterTest extends TestCase
         Config::set('cache.stores.none', ['driver' => 'null']);
         Config::set('cache.default', 'none');
 
-        self::assertSame('computed', $this->writer()->rememberMetadataForever('null-store-key', static fn (): string => 'computed'));
+        self::assertSame('computed', $this->writer()->rememberMetadata('null-store-key', static fn (): string => 'computed', 60));
 
         Exceptions::assertNothingReported();
     }
@@ -597,17 +625,17 @@ final class MetadataCacheWriterTest extends TestCase
 
         $repository = \Mockery::mock(Repository::class);
         $repository->shouldReceive('get')->once()->with($storageKey)->andThrow(new \RuntimeException('Read failed.'));
-        $repository->shouldReceive('forever')->never();
+        $repository->shouldReceive('put')->never();
 
         Cache::shouldReceive('memo')->andReturn($repository);
 
         $calls = 0;
 
-        $value = $writer->rememberMetadataForever('remember-read-failure-key', static function () use (&$calls): string {
+        $value = $writer->rememberMetadata('remember-read-failure-key', static function () use (&$calls): string {
             $calls++;
 
             return 'computed';
-        });
+        }, 60);
 
         self::assertSame('computed', $value);
         self::assertSame(1, $calls);
@@ -698,11 +726,11 @@ final class MetadataCacheWriterTest extends TestCase
         $this->expectExceptionMessage('Callback failed.');
 
         try {
-            $this->writer()->rememberMetadataForever('callback-failure-key', static function () use (&$calls): never {
+            $this->writer()->rememberMetadata('callback-failure-key', static function () use (&$calls): never {
                 $calls++;
 
                 throw new \LogicException('Callback failed.');
-            });
+            }, 60);
         } finally {
             self::assertSame(1, $calls);
 
@@ -724,11 +752,11 @@ final class MetadataCacheWriterTest extends TestCase
 
         $writer = $this->writer();
 
-        $writer->rememberMetadataForever('window-key', static fn (): string => 'first');
+        $writer->rememberMetadata('window-key', static fn (): string => 'first', 60);
 
         Carbon::setTestNow(Carbon::parse('2026-10-25 12:00:29'));
 
-        self::assertSame('second', $writer->rememberMetadataForever('window-key', static fn (): string => 'second'));
+        self::assertSame('second', $writer->rememberMetadata('window-key', static fn (): string => 'second', 60));
         self::assertSame('third', $writer->rememberMetadata('window-key', static fn (): string => 'third', 60));
         self::assertNull($writer->readMetadata('window-key'));
 
@@ -736,7 +764,7 @@ final class MetadataCacheWriterTest extends TestCase
 
         Carbon::setTestNow(Carbon::parse('2026-10-25 12:00:30'));
 
-        $writer->rememberMetadataForever('window-key', static fn (): string => 'fourth');
+        $writer->rememberMetadata('window-key', static fn (): string => 'fourth', 60);
 
         Exceptions::assertReportedCount(2);
     }
@@ -873,12 +901,12 @@ final class MetadataCacheWriterTest extends TestCase
 
         $writer = $this->writer();
 
-        $writer->rememberMetadataForever('recovery-key', static fn (): string => 'during-outage');
+        $writer->rememberMetadata('recovery-key', static fn (): string => 'during-outage', 60);
 
         Config::set('cache.default', $default);
         Carbon::setTestNow(Carbon::parse('2026-10-25 12:01:00'));
 
-        self::assertSame('recovered', $writer->rememberMetadataForever('recovery-key', static fn (): string => 'recovered'));
+        self::assertSame('recovered', $writer->rememberMetadata('recovery-key', static fn (): string => 'recovered', 60));
 
         $generation = Cache::get(CacheKeys::METADATA_GENERATION->resolveKey());
 

@@ -235,7 +235,7 @@ final class MetadataGenerationTest extends TestCase
         $after  = null;
 
         try {
-            $this->process()->rememberMetadataForever($key, fn (): string => 'before');
+            $this->process()->storeMetadata($key, 'before');
 
             self::assertSame('before', $this->process()->readMetadata($key));
 
@@ -243,7 +243,7 @@ final class MetadataGenerationTest extends TestCase
             $reader = $this->process();
 
             self::assertNull($reader->readMetadata($key));
-            self::assertSame('after', $reader->rememberMetadataForever($key, fn (): string => 'after'));
+            self::assertSame('after', $reader->rememberMetadata($key, fn (): string => 'after', 60));
             self::assertSame('after', $this->process()->readMetadata($key));
         } finally {
             Cache::forget($key . ':' . $before);

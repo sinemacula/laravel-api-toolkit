@@ -116,7 +116,7 @@ final class ApiCriteria implements CriteriaInterface
         /** Registry of per-connection search drivers */
         private readonly SearchDriverRegistry $searchDriverRegistry,
 
-        /** Writes resolved resource metadata to the persistent cache */
+        /** Shares the search index proofs through the persistent cache */
         private readonly MetadataCacheWriter $metadataCacheWriter,
 
         /** Whether to apply only the filters, search and trashed */
@@ -186,17 +186,6 @@ final class ApiCriteria implements CriteriaInterface
             $this->relationColumnNarrower,
             $this->rowPerimeter,
         );
-    }
-
-    /**
-     * Get the metadata cache writer used by the ResolvesResource concern.
-     *
-     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
-     */
-    #[\Override]
-    protected function metadataCacheWriter(): MetadataCacheWriter
-    {
-        return $this->metadataCacheWriter;
     }
 
     /**

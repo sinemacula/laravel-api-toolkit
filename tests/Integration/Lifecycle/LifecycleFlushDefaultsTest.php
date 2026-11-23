@@ -130,7 +130,7 @@ final class LifecycleFlushDefaultsTest extends TestCase
         $key    = 'integration:php-fpm-no-flush-test';
         $writer = $this->writer();
 
-        $writer->rememberMetadataForever($key, static fn () => 'value');
+        $writer->storeMetadata($key, 'value');
         self::assertSame('value', Cache::memo()->get($this->metadataStorageKey($key))); // @phpstan-ignore method.notFound
 
         $this->octaneListener()->handle(new \stdClass);
@@ -173,7 +173,7 @@ final class LifecycleFlushDefaultsTest extends TestCase
         $toolkitKey    = 'integration:toolkit-key';
         $nonToolkitKey = 'app:user-prefs';
 
-        $this->writer()->rememberMetadataForever($toolkitKey, static fn () => 'toolkit-value');
+        $this->writer()->storeMetadata($toolkitKey, 'toolkit-value');
 
         Cache::memo()->rememberForever($nonToolkitKey, static fn () => 'keep-me'); // @phpstan-ignore method.notFound
 
@@ -234,7 +234,7 @@ final class LifecycleFlushDefaultsTest extends TestCase
      */
     private function remember(string $key, string $value): mixed
     {
-        return $this->writer()->rememberMetadataForever($key, static fn (): string => $value);
+        return $this->writer()->rememberMetadata($key, static fn (): string => $value, 60);
     }
 
     /**

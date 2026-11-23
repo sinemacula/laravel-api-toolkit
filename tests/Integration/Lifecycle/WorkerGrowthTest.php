@@ -25,6 +25,7 @@ use SineMacula\ApiToolkit\Http\Resources\ResourceTypeIndex;
 use SineMacula\ApiToolkit\Listeners\OctaneFlushListener;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
+use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchPlan;
@@ -74,6 +75,7 @@ final class WorkerGrowthTest extends TestCase
         ResourceTypeIndex::class . '::$source',
         ResourceTypeIndex::class . '::$types',
         SchemaCompiler::class . '::$cache',
+        SchemaIntrospector::class . '::$relationMethods',
         SearchPlan::class . '::$cache',
         ValueResolver::class . '::$castAccessorCache',
         ValueResolver::class . '::$relatedModelCache',

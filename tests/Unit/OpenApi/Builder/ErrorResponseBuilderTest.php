@@ -19,6 +19,7 @@ use SineMacula\ApiToolkit\Exceptions\InvalidInputException;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Exceptions\ServiceUnavailableException;
 use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
+use SineMacula\ApiToolkit\Http\Middleware\RequireJsonBody;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorResponseBuilder;
 use SineMacula\ApiToolkit\OpenApi\Contracts\MetadataCatalogue;
@@ -594,7 +595,9 @@ final class ErrorResponseBuilderTest extends TestCase
      */
     public function testFactMiddlewareThrowsAreNotDocumented(): void
     {
-        self::assertSame([500], array_keys($this->build($this->router()->get('reports', [PathPlainController::class, 'report'])->middleware(RequireIfMatch::class))));
+        $route = $this->router()->get('reports', [PathPlainController::class, 'report'])->middleware([RequireIfMatch::class, RequireJsonBody::class]);
+
+        self::assertSame([500], array_keys($this->build($route)));
     }
 
     /**

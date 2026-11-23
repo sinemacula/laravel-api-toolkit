@@ -8,8 +8,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\CoversTrait;
-use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
-use SineMacula\ApiToolkit\Enums\CacheKeys;
 use SineMacula\ApiToolkit\Repositories\Concerns\ResolvesResource;
 use Tests\Concerns\InteractsWithNonPublicMembers;
 use Tests\Fixtures\Models\Tag;
@@ -175,23 +173,24 @@ final class ResolvesResourceTest extends TestCase
     }
 
     /**
-     * Test that a resolved resource is stored under the MODEL_RESOURCES key.
+     * Test that the resource is read from the configured map, never the cache
+     * store, so a changed map is followed at once.
      *
      * @return void
      */
-    public function testResolveResourceStoresUnderTheResourcesKey(): void
+    public function testGetResourceFromModelFollowsTheConfiguredMapWithoutTheCacheStore(): void
     {
         Config::set('api-toolkit.resources.resource_map.' . User::class, UserResource::class);
 
-        assert($this->app !== null);
+        Cache::shouldReceive('memo')->never();
 
         $consumer = $this->createConsumer();
 
-        $this->invokeMethod($consumer, 'resolveResource', new User);
+        self::assertSame(UserResource::class, $this->invokeMethod($consumer, 'getResourceFromModel', new User));
 
-        $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_RESOURCES->resolveKey([User::class]));
+        Config::set('api-toolkit.resources.resource_map.' . User::class, TagResource::class);
 
-        self::assertSame(UserResource::class, Cache::memo()->get($expectedKey));
+        self::assertSame(TagResource::class, $this->invokeMethod($consumer, 'getResourceFromModel', new User));
     }
 
     /**
@@ -201,33 +200,8 @@ final class ResolvesResourceTest extends TestCase
      */
     private function createConsumer(): object
     {
-        assert($this->app !== null);
-
-        return new class ($this->app->make(MetadataCacheWriter::class)) {
+        return new class {
             use ResolvesResource;
-
-            /**
-             * Create the consumer with the injected metadata cache writer.
-             *
-             * @param  \SineMacula\ApiToolkit\Cache\MetadataCacheWriter  $writer
-             * @return void
-             */
-            public function __construct(
-
-                /** The metadata cache writer backing the trait. */
-                private readonly MetadataCacheWriter $writer,
-            ) {}
-
-            /**
-             * Get the injected metadata cache writer.
-             *
-             * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
-             */
-            #[\Override]
-            protected function metadataCacheWriter(): MetadataCacheWriter
-            {
-                return $this->writer;
-            }
         };
     }
 }

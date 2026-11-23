@@ -25,6 +25,7 @@ use SineMacula\ApiToolkit\Http\Resources\Concerns\PivotColumns;
 use SineMacula\ApiToolkit\Http\Resources\Concerns\ValueResolver;
 use SineMacula\ApiToolkit\Runtime\RuntimeContext;
 use SineMacula\ApiToolkit\Schema\FieldColumnMapper;
+use SineMacula\ApiToolkit\Schema\Introspection\SchemaIntrospector;
 use SineMacula\ApiToolkit\Schema\SchemaCompiler;
 use SineMacula\ApiToolkit\Search\IndexProof;
 use SineMacula\ApiToolkit\Search\SearchPlan;
@@ -116,6 +117,7 @@ abstract class TestCase extends OrchestraTestCase
         FieldColumnMapper::clearCache();
         SearchPlan::clearCache();
         IndexProof::clearCache();
+        SchemaIntrospector::clearCache();
         MetadataCacheWriter::reset();
         RuntimeContext::reset();
 

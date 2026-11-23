@@ -363,7 +363,7 @@ final class MigrationInvalidationTest extends TestCase
      */
     private function writeAsEarlierProcess(): void
     {
-        $this->freshProcess()->rememberMetadataForever(self::KEY, fn (): string => 'warm');
+        $this->freshProcess()->storeMetadata(self::KEY, 'warm');
     }
 
     /**

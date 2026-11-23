@@ -55,6 +55,7 @@ use Symfony\Component\HttpKernel\Exception\PreconditionRequiredHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
+use Symfony\Component\HttpKernel\Exception\UnsupportedMediaTypeHttpException;
 use Tests\Fixtures\Enums\Magnitude;
 use Tests\Fixtures\Enums\UserStatus;
 use Tests\Fixtures\OpenApi\PaymentRequiredException;
@@ -152,6 +153,12 @@ final class ApiExceptionHandlerTest extends TestCase
             10110,
         ];
 
+        yield 'UnsupportedMediaTypeHttpException -> 415' => [
+            new UnsupportedMediaTypeHttpException,
+            415,
+            10116,
+        ];
+
         yield 'PreconditionFailedHttpException -> 412' => [
             new PreconditionFailedHttpException,
             412,
@@ -210,6 +217,12 @@ final class ApiExceptionHandlerTest extends TestCase
             new SymfonyHttpException(413),
             413,
             10110,
+        ];
+
+        yield 'abort(415) -> 415' => [
+            new SymfonyHttpException(415),
+            415,
+            10116,
         ];
 
         yield 'token mismatch -> 419' => [
@@ -1777,6 +1790,12 @@ final class ApiExceptionHandlerTest extends TestCase
             PostTooLargeException::class,
             static fn (): \Throwable => new PostTooLargeException,
             413,
+        ];
+
+        yield 'unsupported media type http' => [
+            UnsupportedMediaTypeHttpException::class,
+            static fn (): \Throwable => new UnsupportedMediaTypeHttpException,
+            415,
         ];
 
         yield 'precondition failed http' => [

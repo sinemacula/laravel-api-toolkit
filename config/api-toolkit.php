@@ -25,14 +25,20 @@ return [
     |
     | `prefix` namespaces the toolkit's cache keys.
     |
+    | `metadata_ttl` is the seconds a cached schema metadata entry lives. An
+    | expired entry is rebuilt on its next read, and on a store that expires
+    | keys itself the entries a migration or api-toolkit:invalidate-metadata
+    | retires age out.
+    |
     | `retry_after` is the seconds a failing cache store is bypassed for, during
     | which metadata is computed uncached and reported once. 0 retries, and
     | reports, on every call.
     */
 
     'cache' => [
-        'prefix'      => 'api-toolkit',
-        'retry_after' => env('API_TOOLKIT_CACHE_RETRY_AFTER', 30),
+        'prefix'       => 'api-toolkit',
+        'metadata_ttl' => env('API_TOOLKIT_CACHE_METADATA_TTL', 86400),
+        'retry_after'  => env('API_TOOLKIT_CACHE_RETRY_AFTER', 30),
     ],
 
     /*
@@ -266,10 +272,6 @@ return [
         // sort reads the whole table; while off it is treated as a column name
         'allow_random_order' => env('API_TOOLKIT_REPOSITORIES_ALLOW_RANDOM_ORDER', false),
 
-        // Seconds a relation-detection lookup is cached, bounding a key space
-        // that client input can grow
-        'relation_cache_ttl' => env('API_TOOLKIT_REPOSITORIES_RELATION_CACHE_TTL', 86400),
-
     ],
 
     /*
@@ -412,8 +414,6 @@ return [
     |
     | `migrations` invalidates the cached schema metadata whenever a migration
     | run applies or rolls back a migration or loads a stored schema dump.
-    | Old-code workers can refill it before the release goes live, so also run
-    | api-toolkit:invalidate-metadata once it is.
     */
 
     'lifecycle' => [

@@ -1197,13 +1197,14 @@ Map the exception it becomes:
 - `AuthorizationException` becomes `AccessDeniedHttpException`, or an `HttpException` with its status when it has one.
 - `OriginMismatchException` and Laravel's `TokenMismatchException` become an `HttpException` with `403` and `419`.
 
-An `HttpException` carrying only a status, from `abort()` or a denial such as `denyAsNotFound()`, renders as the key
-its status stands for, so a hidden record answers exactly as a missing one: `400` as `BadRequestHttpException`, `401` as
+An `HttpException` carrying only a status, from `abort()` or a denial such as `denyAsNotFound()`, renders as the key its
+status stands for, so a hidden record answers exactly as a missing one: `400` as `BadRequestHttpException`, `401` as
 `AuthenticationException`, `403` as `AccessDeniedHttpException`, `404` as `NotFoundHttpException`, `405` as
-`MethodNotAllowedHttpException`, `413` as `PostTooLargeException`, `429` as `TooManyRequestsHttpException` and `503` as
-`ServiceUnavailableHttpException`. `419` renders as a token mismatch, any other status as a generic HTTP error, and an
-unrecognised status such as `499` as a generic `500`. A key naming `HttpException` or `HttpExceptionInterface` itself
-takes precedence over all of these.
+`MethodNotAllowedHttpException`, `412` as `PreconditionFailedHttpException`, `413` as `PostTooLargeException`, `415` as
+`UnsupportedMediaTypeHttpException`, `428` as `PreconditionRequiredHttpException`, `429` as
+`TooManyRequestsHttpException` and `503` as `ServiceUnavailableHttpException`. `419` renders as a token mismatch, any
+other status as a generic HTTP error, and an unrecognised status such as `499` as a generic `500`. A key naming
+`HttpException` or `HttpExceptionInterface` itself takes precedence over all of these.
 
 A target must be an instantiable `ApiException` with a `CODE`, a 4xx or 5xx status, and `ApiException`'s own constructor
 and `getStatusCode()`. The map is validated with every other setting, and an invalid one throws
@@ -1333,6 +1334,13 @@ Laravel's `TrustProxies` middleware so `$request->ip()` resolves the real client
 To key guests by something else, such as an API key, set `api-toolkit.middleware.throttle.class` to your own
 middleware that uses `ThrottleRequestsTrait` and overrides `resolveRequestSignature()`.
 
+**JSON bodies** - Laravel reads a body that is not valid JSON as empty input, so it fails validation field by field or
+succeeds as a no-op, and it reads a form body as input too. `RequireJsonBody` refuses both on a `POST`, `PUT` or
+`PATCH`: a body sent under a type other than `application/json` or a `+json` type, whatever its parameters, is a `415`
+(code `10116`), and one that is not a JSON object or array, such as a scalar or `null`, is a `400` (code `10100`). An
+empty body and other methods pass, and a JSON type in any case is passed on lowercased, as Laravel reads JSON only under
+that case. It is not registered, so add it to the route groups that take JSON.
+
 ### Schema Introspection and OpenAPI Export
 
 The schema compiler resolves the filterable and sortable columns, traversable relations and field keys of any
@@ -1444,28 +1452,28 @@ Every operation also lists the errors it can return, derived from the route: an 
 middleware, a denied one behind an authorization check (a `can:` gate, an `#[Authorize]` attribute, an
 `AuthorizedController` resource action, or an action marked `#[CustomAuthorization]`), a missing record when the route
 binds a parameter, a validation failure when the operation accepts a request body or the toolkit's query parameters, a
-refusal behind a rate limit, a missing `If-Match` on a `PUT`, `PATCH` or `DELETE` behind `RequireIfMatch`, and an
-unhandled exception always. Each is documented as the exception map renders it: by default a `401`, `403`, `404`, `422`,
-`428`, `429` and `500`. A list operation also documents the query cost refusal under `422` while any query cost cap is
-enabled. The unhandled exception is looked up as a `Throwable`, so a `Throwable` key changes it and a narrower catch-all
-such as `RuntimeException` does not. A denial with a status of its own is documented only where the route already lists
-the error that status stands for, as a path with parameters does for `denyAsNotFound()`. Middleware is read as the
-router resolves it, so a guard or limit applied through a group counts and one removed with `withoutMiddleware()` does
-not.
+refusal behind a rate limit, a missing `If-Match` on a `PUT`, `PATCH` or `DELETE` behind `RequireIfMatch`, a body that
+is not JSON on a `POST`, `PUT` or `PATCH` behind `RequireJsonBody`, and an unhandled exception always. Each is
+documented as the exception map renders it: by default a `400`, `401`, `403`, `404`, `415`, `422`, `428`, `429` and
+`500`. A list operation also documents the query cost refusal under `422` while any query cost cap is enabled. The
+unhandled exception is looked up as a `Throwable`, so a `Throwable` key changes it and a narrower catch-all such as
+`RuntimeException` does not. A denial with a status of its own is documented only where the route already lists the
+error that status stands for, as a path with parameters does for `denyAsNotFound()`. Middleware is read as the router
+resolves it, so a guard or limit applied through a group counts and one removed with `withoutMiddleware()` does not.
 
 Each `ApiException` subclass named in the `@throws` tags of the action, or of the `handle()` (else `__invoke()`) of any
 middleware the route runs, read as the router resolves it, is added under its status too; other throwables in those tags
-are ignored. Global middleware is not read, nor is `RequireIfMatch`, which is documented from its route fact, and a
-middleware the container rebinds is read from the class the route names. Class names in `@throws` resolve as PHP would
-in the file declaring the method, so imported, aliased, same-namespace and fully qualified names all work, and a union
-such as `@throws A|B` names both. Each error code is documented once, as the `components.examples` entry `Error<code>`
-(such as `Error10107`) carrying the code's catalogue title and detail, and as the `components.schemas` envelope
-`Error<code>`, which pins `error.code` and types `error.meta` as the code's exception declares it, else as an open
-object. `InvalidInputException` declares its field errors and `QueryTooExpensiveException` the limit it exceeded. Every
-error response references the examples of its exceptions, and its schema is the envelope of its code, or a `oneOf` of
-the envelopes where the status carries several codes. The export fails when a documented exception has no `CODE`, which
-the handler cannot render, when its code is not in the error catalogue (add its namespace to
-`api-toolkit.openapi.exception_namespaces`), or when it shares a code with an exception answering another status or
+are ignored. Global middleware is not read, nor are `RequireIfMatch` and `RequireJsonBody`, which are documented from
+their route facts, and a middleware the container rebinds is read from the class the route names. Class names in
+`@throws` resolve as PHP would in the file declaring the method, so imported, aliased, same-namespace and fully
+qualified names all work, and a union such as `@throws A|B` names both. Each error code is documented once, as the
+`components.examples` entry `Error<code>` (such as `Error10107`) carrying the code's catalogue title and detail, and as
+the `components.schemas` envelope `Error<code>`, which pins `error.code` and types `error.meta` as the code's exception
+declares it, else as an open object. `InvalidInputException` declares its field errors and `QueryTooExpensiveException`
+the limit it exceeded. Every error response references the examples of its exceptions, and its schema is the envelope of
+its code, or a `oneOf` of the envelopes where the status carries several codes. The export fails when a documented
+exception has no `CODE`, which the handler cannot render, when its code is not in the error catalogue (add its namespace
+to `api-toolkit.openapi.exception_namespaces`), or when it shares a code with an exception answering another status or
 declaring another meta.
 
 Each path parameter is typed from what the router enforces on its segment. A `where` constraint comes first:
@@ -1735,19 +1743,20 @@ audience uses fails the export, as does a tag file that matches no tag, under th
 
 ### Metadata Invalidation
 
-Schema metadata (column definitions, index catalogues, relation lookups and the model-to-resource
-map) is cached in the application's cache store and shared by every process. The Octane and queue
-boundary flushes reset only each worker's per-operation state, so a schema or mapping change needs the shared entries
-retired explicitly. Every metadata key is stored under a generation held in the same store; replacing the generation
-makes every earlier entry unreachable in every process at once. Column definitions that read empty, as they do before
-their table exists, are never stored.
+Schema metadata (column definitions and index catalogues) is cached in the application's cache store and shared by every
+process. The Octane and queue boundary flushes reset only each worker's per-operation state, so a schema change needs
+the shared entries retired explicitly. Relation lookups and the model-to-resource map come from code and config, so they
+are never stored and a deploy needs no invalidation. Every metadata key is stored under a generation held in the same
+store; replacing the generation makes every earlier entry unreachable in every process at once. Column definitions that
+read empty, as they do before their table exists, are never stored.
 
 Under Octane the boundary is the end of every request, task and tick; on a queue worker it is the end of every job
 attempt, including one that fails or is released for a retry. It drops the memoised generation, the per-operation
 index proofs, the in-memory column definitions and index catalogues, the field and eager-load memos
-and the query parser's state. The compiled schemas, search plans, field-to-column maps and cast reflections come from
-code alone, so they live for the worker and are rebuilt only when it restarts; reload Octane and queue workers on
-every deploy. An application that runs its own reset can call `CacheManager::flush()`; a second reset is harmless.
+and the query parser's state. The compiled schemas, search plans, field-to-column maps, cast reflections and relation
+lookups come from code alone, so they live for the worker and are rebuilt only when it restarts; reload Octane and queue
+workers on every deploy. An application that runs its own reset can call `CacheManager::flush()`; a second reset is
+harmless.
 
 Entries are stored as arrays and scalars, never objects, so the cache works under Laravel's default
 `cache.serializable_classes => false`. An entry that does not read back in the expected shape is treated as a miss
@@ -1776,18 +1785,15 @@ The bypass limits how many store calls fail, not how long each takes, so give th
 
 Schema entries are keyed by the schema the connection actually reads (its name, database, table prefix, Postgres
 search path, database user and configured server), so a tenancy switcher that repoints one connection name reads each
-tenant's schema separately, provided it purges the connection when it switches. Relation lookups and the resource map
-come from code and are shared across tenants. Where each tenant has its own cache prefix, each has its own generation,
-so invalidate per tenant.
+tenant's schema separately, provided it purges the connection when it switches. Where each tenant has its own cache
+prefix, each has its own generation, so invalidate per tenant.
 
 The generation is replaced automatically when a migration run finishes or loads a stored schema dump. A run with nothing
 to migrate and no dump to load, or a `--pretend` run, leaves the metadata warm. If the cache store cannot be written,
 the hook logs a warning instead of failing the migration. Set `API_TOOLKIT_LIFECYCLE_MIGRATIONS=false` to turn the hook
 off.
 
-The hook is not enough on its own: migrations run before the new release takes traffic, so workers still on the old
-code can refill the new generation with their resource mappings and relation lookups. Run this on every deploy,
-after the new release is live:
+A schema changed outside a migration, or while the hook is off or failed to write, is retired by hand:
 
 ```bash
 php artisan api-toolkit:invalidate-metadata
@@ -1798,8 +1804,12 @@ It exits with a failure if the cache store rejects the new generation.
 The build should run `php artisan optimize`, which compiles the resource map along with the framework's caches.
 Reload PHP workers after a rebuild, since OPcache with `validate_timestamps=0` keeps serving the previous file.
 
-Entries under a retired generation are no longer read but stay in the store until it evicts or clears them, so each
-invalidation leaves at most one stale copy behind.
+Every schema entry expires after `api-toolkit.cache.metadata_ttl` seconds (`API_TOOLKIT_CACHE_METADATA_TTL`, default
+`86400`) and is rebuilt on its next read. The expiry bounds how long a retired generation's entries stay in a store
+that expires keys itself, such as Redis or Memcached, even one that evicts only expiring keys; the file and database
+stores drop an expired entry only when it is read or the store is cleared. It is not a freshness guarantee: a schema
+change is still retired by a migration or the command above. The generation itself is the one key stored without an
+expiry.
 
 ### Services
 
