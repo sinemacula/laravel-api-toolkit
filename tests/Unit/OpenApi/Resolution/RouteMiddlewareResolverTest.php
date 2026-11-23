@@ -13,6 +13,7 @@ use Illuminate\Routing\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Http\Middleware\EnsureActionIsAuthorized;
 use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
+use SineMacula\ApiToolkit\Http\Middleware\RequireJsonBody;
 use SineMacula\ApiToolkit\Http\Middleware\ThrottleRequestsWithRedis;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
 use Tests\Fixtures\Controllers\CustomActionController;
@@ -177,6 +178,17 @@ final class RouteMiddlewareResolverTest extends TestCase
     {
         self::assertTrue($this->resolver()->requiresIfMatch($this->route(RequireIfMatch::class)));
         self::assertFalse($this->resolver()->requiresIfMatch($this->route('throttle:60,1')));
+    }
+
+    /**
+     * Test that requiring a JSON body is recognised.
+     *
+     * @return void
+     */
+    public function testRequiringAJsonBodyIsRecognised(): void
+    {
+        self::assertTrue($this->resolver()->requiresJsonBody($this->route(RequireJsonBody::class)));
+        self::assertFalse($this->resolver()->requiresJsonBody($this->route(RequireIfMatch::class)));
     }
 
     /**

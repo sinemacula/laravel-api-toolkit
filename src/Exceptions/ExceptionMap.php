@@ -28,6 +28,7 @@ use Symfony\Component\HttpKernel\Exception\PreconditionFailedHttpException;
 use Symfony\Component\HttpKernel\Exception\PreconditionRequiredHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
+use Symfony\Component\HttpKernel\Exception\UnsupportedMediaTypeHttpException;
 
 /**
  * The ordered map of exceptions to the ApiException each renders as.
@@ -55,6 +56,7 @@ final readonly class ExceptionMap
         LockUnavailableException::class          => TooManyRequestsException::class,
         ServiceUnavailableHttpException::class   => ServiceUnavailableException::class,
         PostTooLargeException::class             => PayloadTooLargeException::class,
+        UnsupportedMediaTypeHttpException::class => UnsupportedMediaTypeException::class,
         PreconditionFailedHttpException::class   => PreconditionFailedException::class,
         PreconditionRequiredHttpException::class => PreconditionRequiredException::class,
         SymfonyHttpExceptionInterface::class     => HttpException::class,
@@ -81,6 +83,7 @@ final readonly class ExceptionMap
         405 => MethodNotAllowedHttpException::class,
         412 => PreconditionFailedHttpException::class,
         413 => PostTooLargeException::class,
+        415 => UnsupportedMediaTypeHttpException::class,
         428 => PreconditionRequiredHttpException::class,
         429 => TooManyRequestsHttpException::class,
         503 => ServiceUnavailableHttpException::class,

@@ -45,6 +45,7 @@ final class ErrorCodeTest extends TestCase
         yield 'HTTP_ERROR' => [ErrorCode::HTTP_ERROR, 10113];
         yield 'PRECONDITION_FAILED' => [ErrorCode::PRECONDITION_FAILED, 10114];
         yield 'PRECONDITION_REQUIRED' => [ErrorCode::PRECONDITION_REQUIRED, 10115];
+        yield 'UNSUPPORTED_MEDIA_TYPE' => [ErrorCode::UNSUPPORTED_MEDIA_TYPE, 10116];
         yield 'MAINTENANCE_MODE' => [ErrorCode::MAINTENANCE_MODE, 10200];
         yield 'QUERY_TOO_EXPENSIVE' => [ErrorCode::QUERY_TOO_EXPENSIVE, 10201];
     }
@@ -97,6 +98,7 @@ final class ErrorCodeTest extends TestCase
             'HTTP_ERROR',
             'PRECONDITION_FAILED',
             'PRECONDITION_REQUIRED',
+            'UNSUPPORTED_MEDIA_TYPE',
             'MAINTENANCE_MODE',
             'QUERY_TOO_EXPENSIVE',
         ];
