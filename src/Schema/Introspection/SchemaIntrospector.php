@@ -314,7 +314,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         }
 
         if ($definitions !== []) {
-            $this->metadataCacheWriter->storeMetadataForever($cacheKey, StoredSchema::fromColumnDefinitions($definitions));
+            $this->metadataCacheWriter->storeMetadata($cacheKey, StoredSchema::fromColumnDefinitions($definitions));
         }
 
         return $definitions;
@@ -341,7 +341,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         $indexes = $this->readIndexes($model, $connection);
 
         if ($indexes !== null) {
-            $this->metadataCacheWriter->storeMetadataForever($cacheKey, StoredSchema::fromIndexes($indexes));
+            $this->metadataCacheWriter->storeMetadata($cacheKey, StoredSchema::fromIndexes($indexes));
         }
 
         return $indexes;

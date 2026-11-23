@@ -25,6 +25,7 @@ final class PublicSurfaceSnapshotTest extends TestCase
 {
     /** @var list<string> The environment variables the config file reads. */
     private const array ENVIRONMENT_VARIABLES = [
+        'API_TOOLKIT_CACHE_METADATA_TTL',
         'API_TOOLKIT_CACHE_RETRY_AFTER',
         'API_TOOLKIT_DEFERRED_WRITES_CHUNK_SIZE',
         'API_TOOLKIT_DEFERRED_WRITES_INVALIDATE_QUERY_CACHE',
@@ -64,6 +65,7 @@ final class PublicSurfaceSnapshotTest extends TestCase
 
     /** @var list<string> Every setting the config file ships, by full key. */
     private const array CONFIG_KEYS = [
+        'api-toolkit.cache.metadata_ttl',
         'api-toolkit.cache.prefix',
         'api-toolkit.cache.retry_after',
         'api-toolkit.deferred_writes.chunk_size',

@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Schema\Introspection;
 
+use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
@@ -608,6 +609,70 @@ final class SchemaIntrospectorTest extends TestCase
         $key = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class, 'users']));
 
         self::assertSame(array_map(static fn (IndexDefinition $index): array => $index->toArray(), $indexes), Cache::memo()->get($key));
+    }
+
+    /**
+     * Test that the column definitions and index catalogue are stored for the
+     * configured metadata time-to-live, never forever.
+     *
+     * @return void
+     */
+    public function testSchemaWritesCarryTheMetadataTtl(): void
+    {
+        Config::set('api-toolkit.cache.metadata_ttl', 7200);
+
+        $identity   = SchemaIdentity::of(DB::connection('testing'));
+        $columnsKey = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([$identity, User::class, 'users']));
+        $indexesKey = $this->metadataStorageKey(CacheKeys::MODEL_SCHEMA_INDEXES->resolveKey([$identity, User::class, 'users']));
+
+        $repository = \Mockery::mock(Repository::class);
+        $repository->shouldReceive('get')->andReturnNull();
+        $repository->shouldReceive('put')->once()->with($columnsKey, \Mockery::type('array'), 7200)->andReturnTrue();
+        $repository->shouldReceive('put')->once()->with($indexesKey, \Mockery::type('array'), 7200)->andReturnTrue();
+
+        Cache::shouldReceive('memo')->andReturn($repository);
+
+        $introspector = $this->makeIntrospector();
+
+        self::assertNotSame([], $introspector->getColumnDefinitions(new User));
+        self::assertIsArray($introspector->getIndexes(new User));
+    }
+
+    /**
+     * Test that a schema entry past the metadata time-to-live is read from the
+     * catalogue again and stored afresh.
+     *
+     * @return void
+     */
+    public function testAnExpiredSchemaEntryIsRebuiltOnTheNextRead(): void
+    {
+        Config::set('api-toolkit.cache.metadata_ttl', 60);
+
+        $this->freezeTime();
+
+        $builder = self::createMock(SchemaBuilder::class);
+
+        $builder->expects(self::exactly(2))
+            ->method('getColumns')
+            ->willReturn([['name' => 'id', 'type_name' => 'integer', 'nullable' => false]]);
+
+        $model = $this->modelReadingFrom($builder);
+
+        $this->makeIntrospector()->getColumns($model);
+
+        $this->travel(59)->seconds();
+        $this->startAnotherProcess();
+
+        $this->makeIntrospector()->getColumns($model);
+
+        $this->travel(1)->seconds();
+        $this->startAnotherProcess();
+
+        self::assertSame(['id'], $this->makeIntrospector()->getColumns($model));
+
+        $this->startAnotherProcess();
+
+        $this->makeIntrospector()->getColumns($model);
     }
 
     /**

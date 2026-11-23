@@ -82,7 +82,7 @@ final class LifecycleDefaultEngagementTest extends TestCase
 
         $key = 'integration:default-engagement-octane';
 
-        $this->writer()->rememberMetadataForever($key, static fn () => 'value');
+        $this->writer()->storeMetadata($key, 'value');
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
 
         $this->octaneListener()->handle(new \stdClass);
@@ -106,7 +106,7 @@ final class LifecycleDefaultEngagementTest extends TestCase
 
         $key = 'integration:default-engagement-queue';
 
-        $this->writer()->rememberMetadataForever($key, static fn () => 'value');
+        $this->writer()->storeMetadata($key, 'value');
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);
 
         $event = new JobAttempted('database', self::createStub(Job::class));

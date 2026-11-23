@@ -1796,8 +1796,12 @@ It exits with a failure if the cache store rejects the new generation.
 The build should run `php artisan optimize`, which compiles the resource map along with the framework's caches.
 Reload PHP workers after a rebuild, since OPcache with `validate_timestamps=0` keeps serving the previous file.
 
-Entries under a retired generation are no longer read but stay in the store until it evicts or clears them, so each
-invalidation leaves at most one stale copy behind.
+Every schema entry expires after `api-toolkit.cache.metadata_ttl` seconds (`API_TOOLKIT_CACHE_METADATA_TTL`, default
+`86400`) and is rebuilt on its next read. The expiry bounds how long a retired generation's entries stay in a store
+that expires keys itself, such as Redis or Memcached, even one that evicts only expiring keys; the file and database
+stores drop an expired entry only when it is read or the store is cleared. It is not a freshness guarantee: a schema
+change is still retired by a migration or the command above. The generation itself is the one key stored without an
+expiry.
 
 ### Services
 

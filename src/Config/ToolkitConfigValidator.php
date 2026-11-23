@@ -65,6 +65,7 @@ final class ToolkitConfigValidator
     {
         return [
             LifecycleSettings::cachePrefix(...),
+            LifecycleSettings::metadataTtl(...),
             LifecycleSettings::cacheRetryAfter(...),
             HttpSettings::renderStrategy(...),
             HttpSettings::shouldIncludeDebugInfo(...),

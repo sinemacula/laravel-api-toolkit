@@ -14,7 +14,8 @@ use SineMacula\ApiToolkit\Exceptions\MetadataCacheUnavailableException;
  * The single path for reading and writing toolkit metadata.
  *
  * Keys are namespaced by the metadata generation, which is the only thing that
- * retires a stored entry besides its expiry. Store only arrays and scalars:
+ * retires a stored entry besides its expiry. Every entry expires, so a store
+ * that expires keys drops a retired generation. Store only arrays and scalars:
  * Laravel's serializable_classes setting can stop objects reading back.
  *
  * A throwing store is bypassed for the retry window, so an outage costs
@@ -58,29 +59,16 @@ final class MetadataCacheWriter
     }
 
     /**
-     * Store a forever-memoised metadata value under the current generation.
-     *
-     * @template TValue
-     *
-     * @param  string  $key
-     * @param  callable():TValue  $callback
-     * @return TValue
-     */
-    public function rememberMetadataForever(string $key, callable $callback): mixed
-    {
-        return $this->remember($key, $callback, null);
-    }
-
-    /**
-     * Store a metadata value forever under the current generation.
+     * Store a metadata value under the current generation for the metadata
+     * time-to-live.
      *
      * @param  string  $key
      * @param  mixed  $value
      * @return void
      */
-    public function storeMetadataForever(string $key, mixed $value): void
+    public function storeMetadata(string $key, mixed $value): void
     {
-        $this->persist($key, $this->attempt('generation', $key, fn (): string => $this->storageKey($key)), $value, null);
+        $this->persist($key, $this->attempt('generation', $key, fn (): string => $this->storageKey($key)), $value, LifecycleSettings::metadataTtl());
     }
 
     /**
@@ -150,10 +138,10 @@ final class MetadataCacheWriter
      *
      * @param  string  $key
      * @param  callable():TValue  $callback
-     * @param  int|null  $ttl
+     * @param  int  $ttl
      * @return TValue
      */
-    private function remember(string $key, callable $callback, ?int $ttl): mixed
+    private function remember(string $key, callable $callback, int $ttl): mixed
     {
         $storageKey = $this->attempt('generation', $key, fn (): string => $this->storageKey($key));
         $stored     = $storageKey === null ? null : $this->attempt('get', $key, static fn (): mixed => Cache::memo()->get($storageKey)); // @phpstan-ignore method.notFound
@@ -175,12 +163,18 @@ final class MetadataCacheWriter
      * @param  string  $key
      * @param  string|null  $storageKey
      * @param  mixed  $value
-     * @param  int|null  $ttl
+     * @param  int  $ttl
      * @return void
      */
-    private function persist(string $key, ?string $storageKey, mixed $value, ?int $ttl): void
+    private function persist(string $key, ?string $storageKey, mixed $value, int $ttl): void
     {
-        if ($storageKey === null || $this->attempt('write', $key, static fn (): bool => self::write($storageKey, $value, $ttl)) !== false) {
+        if ($storageKey === null) {
+            return;
+        }
+
+        $written = $this->attempt('write', $key, static fn (): bool => Cache::memo()->put($storageKey, $value, $ttl)); // @phpstan-ignore method.notFound
+
+        if ($written !== false) {
             return;
         }
 
@@ -291,20 +285,5 @@ final class MetadataCacheWriter
         $driver = Config::get('cache.stores.' . self::store() . '.driver');
 
         return is_string($driver) ? $driver : null;
-    }
-
-    /**
-     * Write the value, forever when no time-to-live is given.
-     *
-     * @param  string  $storageKey
-     * @param  mixed  $value
-     * @param  int|null  $ttl
-     * @return bool
-     */
-    private static function write(string $storageKey, mixed $value, ?int $ttl): bool
-    {
-        return $ttl === null
-            ? Cache::memo()->forever($storageKey, $value) // @phpstan-ignore method.notFound
-            : Cache::memo()->put($storageKey, $value, $ttl); // @phpstan-ignore method.notFound
     }
 }

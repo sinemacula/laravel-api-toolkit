@@ -97,7 +97,7 @@ final class OctaneBoundaryFlushTest extends TestCase
         $toolkitKey    = 'integration:octane-boundary-toolkit';
         $nonToolkitKey = 'app:octane-boundary-keep';
 
-        $this->writer()->rememberMetadataForever($toolkitKey, static fn () => 'toolkit-value');
+        $this->writer()->storeMetadata($toolkitKey, 'toolkit-value');
         Cache::memo()->rememberForever($nonToolkitKey, static fn () => 'keep-me'); // @phpstan-ignore method.notFound
 
         $this->setStaticProperty(SchemaCompiler::class, 'cache', ['FakeResource' => 'compiled']);

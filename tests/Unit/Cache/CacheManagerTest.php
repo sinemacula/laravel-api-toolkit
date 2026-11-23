@@ -416,7 +416,7 @@ final class CacheManagerTest extends TestCase
         /** @var \SineMacula\ApiToolkit\Cache\MetadataCacheWriter $writer */
         $writer = $this->app->make(MetadataCacheWriter::class); // @phpstan-ignore method.nonObject
 
-        $writer->rememberMetadataForever('invalidated-key', fn (): string => 'stale');
+        $writer->storeMetadata('invalidated-key', 'stale');
         $this->setStaticProperty(FieldResolver::class, 'resolvedCache', ['name|||' => ['name']]);
 
         $this->manager()->invalidateMetadata();
@@ -456,7 +456,7 @@ final class CacheManagerTest extends TestCase
         $key = CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS->resolveKey([SchemaIdentity::of(DB::connection('testing')), User::class, 'users']);
 
         $earlier = new MetadataCacheWriter(new MetadataGeneration);
-        $earlier->rememberMetadataForever($key, fn (): array => [['name' => 'stale-column', 'type_name' => 'varchar', 'nullable' => true]]);
+        $earlier->storeMetadata($key, [['name' => 'stale-column', 'type_name' => 'varchar', 'nullable' => true]]);
 
         $this->generation()->forget();
 

@@ -70,6 +70,16 @@ final class SettingCases
             self::refused('cache.prefix', 'a non-empty string', '\'\''),
         ];
 
+        yield 'metadata lifetime' => [
+            LifecycleSettings::class,
+            'cache.metadata_ttl',
+            LifecycleSettings::metadataTtl(...),
+            '1',
+            1,
+            0,
+            self::refused('cache.metadata_ttl', 'an integer of at least 1', '0'),
+        ];
+
         yield 'cache retry' => [
             LifecycleSettings::class,
             'cache.retry_after',

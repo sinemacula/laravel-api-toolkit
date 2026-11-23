@@ -25,14 +25,20 @@ return [
     |
     | `prefix` namespaces the toolkit's cache keys.
     |
+    | `metadata_ttl` is the seconds a cached schema metadata entry lives. An
+    | expired entry is rebuilt on its next read, and on a store that expires
+    | keys itself the entries a migration or api-toolkit:invalidate-metadata
+    | retires age out.
+    |
     | `retry_after` is the seconds a failing cache store is bypassed for, during
     | which metadata is computed uncached and reported once. 0 retries, and
     | reports, on every call.
     */
 
     'cache' => [
-        'prefix'      => 'api-toolkit',
-        'retry_after' => env('API_TOOLKIT_CACHE_RETRY_AFTER', 30),
+        'prefix'       => 'api-toolkit',
+        'metadata_ttl' => env('API_TOOLKIT_CACHE_METADATA_TTL', 86400),
+        'retry_after'  => env('API_TOOLKIT_CACHE_RETRY_AFTER', 30),
     ],
 
     /*
