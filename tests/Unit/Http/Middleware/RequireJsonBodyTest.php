@@ -41,6 +41,8 @@ final class RequireJsonBodyTest extends TestCase
             yield $method . ' with a number' => [$method, '42'];
             yield $method . ' with null' => [$method, 'null'];
         }
+
+        yield 'PATCH with a vertical tab, which is not JSON whitespace' => ['PATCH', "\v"];
     }
 
     /**
@@ -73,6 +75,7 @@ final class RequireJsonBodyTest extends TestCase
             yield $method . ' with text' => [$method, 'text/plain', '{"title": "Draft"}'];
             yield $method . ' without a type' => [$method, null, '{"title": "Draft"}'];
             yield $method . ' with a type merely containing json' => [$method, 'application/jsonp', '{"title": "Draft"}'];
+            yield $method . ' with a type merely containing +json' => [$method, 'application/vnd.example+json-seq', '{"title": "Draft"}'];
         }
     }
 
@@ -97,19 +100,50 @@ final class RequireJsonBodyTest extends TestCase
     }
 
     /**
-     * Test that a form-encoded body, which leaves the raw body empty once
-     * parsed, is refused as an unsupported media type.
+     * Provide the form media types PHP parses into fields.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function formTypeProvider(): iterable
+    {
+        yield 'form-encoded' => ['application/x-www-form-urlencoded'];
+        yield 'multipart' => ['multipart/form-data; boundary=x'];
+    }
+
+    /**
+     * Test that form fields parsed from the body, which leave no raw body, are
+     * refused as an unsupported media type.
+     *
+     * @param  string  $contentType
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\BadRequestException
+     * @throws \SineMacula\ApiToolkit\Exceptions\UnsupportedMediaTypeException
+     */
+    #[DataProvider('formTypeProvider')]
+    public function testFormFieldIsUnsupported(string $contentType): void
+    {
+        $this->expectException(UnsupportedMediaTypeException::class);
+
+        $this->handle(Request::create('/documents', 'POST', ['title' => 'Draft'], server: ['CONTENT_TYPE' => $contentType]));
+    }
+
+    /**
+     * Test that fields an earlier middleware adds to a request without a body
+     * are not mistaken for a form body.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\BadRequestException
      * @throws \SineMacula\ApiToolkit\Exceptions\UnsupportedMediaTypeException
      */
-    public function testFormFieldIsUnsupported(): void
+    public function testFieldsAddedWithoutABodyReachTheAction(): void
     {
-        $this->expectException(UnsupportedMediaTypeException::class);
+        $request = $this->request('POST', null, '');
 
-        $this->handle(Request::create('/documents', 'POST', ['title' => 'Draft']));
+        $request->merge(['team' => 1]);
+
+        self::assertSame('reached', $this->handle($request)->getContent());
     }
 
     /**
@@ -145,6 +179,7 @@ final class RequireJsonBodyTest extends TestCase
         yield 'POST with a +json type' => ['POST', 'application/vnd.api+json', '{"data": {}}'];
         yield 'POST with a mixed case type' => ['POST', 'Application/JSON', '{"title": "Draft"}'];
         yield 'POST with an empty body' => ['POST', null, ''];
+        yield 'POST with a form type and no fields' => ['POST', 'application/x-www-form-urlencoded', ''];
         yield 'PATCH with a whitespace-only body' => ['PATCH', 'text/plain', " \t\r\n"];
         yield 'GET with a form type and invalid body' => ['GET', 'application/x-www-form-urlencoded', '{'];
         yield 'DELETE with invalid JSON' => ['DELETE', 'application/json', '{'];

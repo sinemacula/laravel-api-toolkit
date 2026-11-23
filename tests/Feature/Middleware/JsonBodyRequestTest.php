@@ -108,7 +108,7 @@ final class JsonBodyRequestTest extends TestCase
             ->assertStatus(415)
             ->assertJsonPath('error.code', 10116)
             ->assertJsonPath('error.title', 'Unsupported Media Type')
-            ->assertJsonPath('error.detail', 'The request body must be JSON, please send it with a JSON Content-Type');
+            ->assertJsonPath('error.detail', 'The request body is in a format this endpoint does not accept, please check its Content-Type');
     }
 
     /**
@@ -119,7 +119,7 @@ final class JsonBodyRequestTest extends TestCase
      */
     public function testMultipartFileIsUnsupported(): void
     {
-        $this->call('POST', '/documents', ['title' => 'Draft'], [], ['scan' => UploadedFile::fake()->create('scan.pdf')], [
+        $this->call('POST', '/documents', [], [], ['scan' => UploadedFile::fake()->create('scan.pdf')], [
             'CONTENT_TYPE' => 'multipart/form-data; boundary=x',
             'HTTP_ACCEPT'  => 'application/json',
         ])->assertStatus(415)->assertJsonPath('error.code', 10116);

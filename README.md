@@ -1197,13 +1197,14 @@ Map the exception it becomes:
 - `AuthorizationException` becomes `AccessDeniedHttpException`, or an `HttpException` with its status when it has one.
 - `OriginMismatchException` and Laravel's `TokenMismatchException` become an `HttpException` with `403` and `419`.
 
-An `HttpException` carrying only a status, from `abort()` or a denial such as `denyAsNotFound()`, renders as the key
-its status stands for, so a hidden record answers exactly as a missing one: `400` as `BadRequestHttpException`, `401` as
+An `HttpException` carrying only a status, from `abort()` or a denial such as `denyAsNotFound()`, renders as the key its
+status stands for, so a hidden record answers exactly as a missing one: `400` as `BadRequestHttpException`, `401` as
 `AuthenticationException`, `403` as `AccessDeniedHttpException`, `404` as `NotFoundHttpException`, `405` as
-`MethodNotAllowedHttpException`, `413` as `PostTooLargeException`, `429` as `TooManyRequestsHttpException` and `503` as
-`ServiceUnavailableHttpException`. `419` renders as a token mismatch, any other status as a generic HTTP error, and an
-unrecognised status such as `499` as a generic `500`. A key naming `HttpException` or `HttpExceptionInterface` itself
-takes precedence over all of these.
+`MethodNotAllowedHttpException`, `412` as `PreconditionFailedHttpException`, `413` as `PostTooLargeException`, `415` as
+`UnsupportedMediaTypeHttpException`, `428` as `PreconditionRequiredHttpException`, `429` as
+`TooManyRequestsHttpException` and `503` as `ServiceUnavailableHttpException`. `419` renders as a token mismatch, any
+other status as a generic HTTP error, and an unrecognised status such as `499` as a generic `500`. A key naming
+`HttpException` or `HttpExceptionInterface` itself takes precedence over all of these.
 
 A target must be an instantiable `ApiException` with a `CODE`, a 4xx or 5xx status, and `ApiException`'s own constructor
 and `getStatusCode()`. The map is validated with every other setting, and an invalid one throws

@@ -28,6 +28,9 @@ final class RequireJsonBody
     /** The characters JSON treats as insignificant whitespace */
     private const string WHITESPACE = " \t\r\n";
 
+    /** The media types PHP parses into form fields */
+    private const array FORM_TYPES = ['application/x-www-form-urlencoded', 'multipart/form-data'];
+
     /**
      * Handle an incoming request.
      *
@@ -40,7 +43,7 @@ final class RequireJsonBody
      */
     public function handle(Request $request, \Closure $next): Response
     {
-        if (in_array($request->getMethod(), self::METHODS, true) && $this->hasBody($request)) {
+        if (in_array($request->getMethod(), self::METHODS, true)) {
             $this->admitJsonBody($request);
         }
 
@@ -48,27 +51,12 @@ final class RequireJsonBody
     }
 
     /**
-     * Determine whether the request sends a body.
-     *
-     * PHP parses a multipart body into fields and files, leaving no raw body.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return bool
-     */
-    private function hasBody(Request $request): bool
-    {
-        return trim($request->getContent(), self::WHITESPACE) !== ''
-            || $request->request->count() > 0
-            || $request->files->count()   > 0;
-    }
-
-    /**
      * Refuse a body sent under another media type, or one that does not decode
-     * to a JSON object or array, and admit any other.
+     * to a JSON object or array, and pass any other on under its lowercased
+     * media type, as Laravel reads JSON only under that case.
      *
      * The raw body is decoded afresh, as Laravel keeps a failed decode as empty
-     * input, and the parser's message is left out of the response. The media
-     * type passes on lowercased, as Laravel reads JSON only under that case.
+     * input, and the parser's message is left out of the response.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return void
@@ -81,6 +69,10 @@ final class RequireJsonBody
         $contentType = (string) $request->headers->get(HttpHeader::CONTENT_TYPE->getName());
         $length      = strcspn($contentType, ';');
         $mediaType   = strtolower(trim(substr($contentType, 0, $length)));
+
+        if (!$this->hasBody($request, $mediaType)) {
+            return;
+        }
 
         if ($mediaType !== 'application/json' && !str_ends_with($mediaType, '+json')) {
             throw new UnsupportedMediaTypeException;
@@ -97,5 +89,23 @@ final class RequireJsonBody
         }
 
         $request->headers->set(HttpHeader::CONTENT_TYPE->getName(), $mediaType . substr($contentType, $length));
+    }
+
+    /**
+     * Determine whether the request sends a body.
+     *
+     * PHP parses a multipart body into fields and files, leaving no raw body.
+     * Fields under any other type were read from a raw body or added by the
+     * application.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  string  $mediaType
+     * @return bool
+     */
+    private function hasBody(Request $request, string $mediaType): bool
+    {
+        return trim($request->getContent(), self::WHITESPACE) !== ''
+            || $request->files->count() > 0
+            || ($request->request->count() > 0 && in_array($mediaType, self::FORM_TYPES, true));
     }
 }

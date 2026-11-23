@@ -97,7 +97,7 @@ return [
     // Media type errors
     ErrorCode::UNSUPPORTED_MEDIA_TYPE->getCode() => [
         'title'  => 'Unsupported Media Type',
-        'detail' => 'The request body must be JSON, please send it with a JSON Content-Type',
+        'detail' => 'The request body is in a format this endpoint does not accept, please check its Content-Type',
     ],
 
     // Application errors
