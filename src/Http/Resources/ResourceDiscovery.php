@@ -351,16 +351,24 @@ final readonly class ResourceDiscovery
     /**
      * List every PHP file beneath a single path.
      *
-     * A missing directory, or one removed mid-scan, yields an empty list.
+     * A missing path is skipped before the iterator is built, so the routine
+     * absence of a default directory throws nothing at boot. A directory that
+     * cannot be opened, or a subdirectory that cannot be read, is skipped.
      *
      * @param  string  $path
      * @return array<int, string>
      */
     private function listPhpFiles(string $path): array
     {
+        if (!is_dir($path)) {
+            return [];
+        }
+
         try {
             $iterator = new \RecursiveIteratorIterator(
                 new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::LEAVES_ONLY,
+                \RecursiveIteratorIterator::CATCH_GET_CHILD,
             );
         } catch (\UnexpectedValueException) {
             return [];
