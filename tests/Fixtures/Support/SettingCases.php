@@ -360,16 +360,6 @@ final class SettingCases
             self::refused('repositories.allow_random_order', self::BOOLEAN, '\'random\''),
         ];
 
-        yield 'relation cache' => [
-            QuerySettings::class,
-            'repositories.relation_cache_ttl',
-            QuerySettings::relationCacheTtl(...),
-            '600',
-            600,
-            '1.5',
-            self::refused('repositories.relation_cache_ttl', 'an integer of at least 0', '\'1.5\''),
-        ];
-
         yield 'query cost cap' => [
             QuerySettings::class,
             'query_cost.max_nodes',

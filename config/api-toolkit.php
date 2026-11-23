@@ -266,10 +266,6 @@ return [
         // sort reads the whole table; while off it is treated as a column name
         'allow_random_order' => env('API_TOOLKIT_REPOSITORIES_ALLOW_RANDOM_ORDER', false),
 
-        // Seconds a relation-detection lookup is cached, bounding a key space
-        // that client input can grow
-        'relation_cache_ttl' => env('API_TOOLKIT_REPOSITORIES_RELATION_CACHE_TTL', 86400),
-
     ],
 
     /*
@@ -412,8 +408,6 @@ return [
     |
     | `migrations` invalidates the cached schema metadata whenever a migration
     | run applies or rolls back a migration or loads a stored schema dump.
-    | Old-code workers can refill it before the release goes live, so also run
-    | api-toolkit:invalidate-metadata once it is.
     */
 
     'lifecycle' => [

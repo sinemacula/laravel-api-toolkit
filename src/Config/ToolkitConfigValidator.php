@@ -88,7 +88,6 @@ final class ToolkitConfigValidator
             QuerySettings::maxLimit(...),
             QuerySettings::defaultLimit(...),
             QuerySettings::canOrderRandomly(...),
-            QuerySettings::relationCacheTtl(...),
             ...array_map(static fn (string $cap): \Closure => static fn (): int => QuerySettings::costCap($cap), QueryCostLimits::NAMES),
             QuerySettings::minWordLength(...),
             QuerySettings::maxSearchLength(...),

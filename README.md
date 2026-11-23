@@ -1735,19 +1735,20 @@ audience uses fails the export, as does a tag file that matches no tag, under th
 
 ### Metadata Invalidation
 
-Schema metadata (column definitions, index catalogues, relation lookups and the model-to-resource
-map) is cached in the application's cache store and shared by every process. The Octane and queue
-boundary flushes reset only each worker's per-operation state, so a schema or mapping change needs the shared entries
-retired explicitly. Every metadata key is stored under a generation held in the same store; replacing the generation
-makes every earlier entry unreachable in every process at once. Column definitions that read empty, as they do before
-their table exists, are never stored.
+Schema metadata (column definitions and index catalogues) is cached in the application's cache store and shared by every
+process. The Octane and queue boundary flushes reset only each worker's per-operation state, so a schema change needs
+the shared entries retired explicitly. Relation lookups and the model-to-resource map come from code and config, so they
+are never stored and a deploy needs no invalidation. Every metadata key is stored under a generation held in the same
+store; replacing the generation makes every earlier entry unreachable in every process at once. Column definitions that
+read empty, as they do before their table exists, are never stored.
 
 Under Octane the boundary is the end of every request, task and tick; on a queue worker it is the end of every job
 attempt, including one that fails or is released for a retry. It drops the memoised generation, the per-operation
 index proofs, the in-memory column definitions and index catalogues, the field and eager-load memos
-and the query parser's state. The compiled schemas, search plans, field-to-column maps and cast reflections come from
-code alone, so they live for the worker and are rebuilt only when it restarts; reload Octane and queue workers on
-every deploy. An application that runs its own reset can call `CacheManager::flush()`; a second reset is harmless.
+and the query parser's state. The compiled schemas, search plans, field-to-column maps, cast reflections and relation
+lookups come from code alone, so they live for the worker and are rebuilt only when it restarts; reload Octane and queue
+workers on every deploy. An application that runs its own reset can call `CacheManager::flush()`; a second reset is
+harmless.
 
 Entries are stored as arrays and scalars, never objects, so the cache works under Laravel's default
 `cache.serializable_classes => false`. An entry that does not read back in the expected shape is treated as a miss
@@ -1776,18 +1777,15 @@ The bypass limits how many store calls fail, not how long each takes, so give th
 
 Schema entries are keyed by the schema the connection actually reads (its name, database, table prefix, Postgres
 search path, database user and configured server), so a tenancy switcher that repoints one connection name reads each
-tenant's schema separately, provided it purges the connection when it switches. Relation lookups and the resource map
-come from code and are shared across tenants. Where each tenant has its own cache prefix, each has its own generation,
-so invalidate per tenant.
+tenant's schema separately, provided it purges the connection when it switches. Where each tenant has its own cache
+prefix, each has its own generation, so invalidate per tenant.
 
 The generation is replaced automatically when a migration run finishes or loads a stored schema dump. A run with nothing
 to migrate and no dump to load, or a `--pretend` run, leaves the metadata warm. If the cache store cannot be written,
 the hook logs a warning instead of failing the migration. Set `API_TOOLKIT_LIFECYCLE_MIGRATIONS=false` to turn the hook
 off.
 
-The hook is not enough on its own: migrations run before the new release takes traffic, so workers still on the old
-code can refill the new generation with their resource mappings and relation lookups. Run this on every deploy,
-after the new release is live:
+A schema changed outside a migration, or while the hook is off or failed to write, is retired by hand:
 
 ```bash
 php artisan api-toolkit:invalidate-metadata

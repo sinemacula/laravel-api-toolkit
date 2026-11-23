@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace Tests\Unit\Schema\Introspection;
 
-use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
@@ -29,7 +28,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
-use SineMacula\ApiToolkit\Exceptions\InvalidConfigurationException;
 use SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\IndexDefinition;
 use SineMacula\ApiToolkit\Schema\Introspection\SchemaIdentity;
@@ -939,93 +937,97 @@ final class SchemaIntrospectorTest extends TestCase
     }
 
     /**
-     * Test that isRelation caches results across calls.
+     * Test that isRelation answers from code alone, never the cache store.
      *
      * @return void
      */
-    public function testIsRelationCachesResults(): void
+    public function testIsRelationDoesNotTouchTheCacheStore(): void
+    {
+        Cache::shouldReceive('memo')->never();
+
+        $introspector = $this->makeIntrospector();
+
+        self::assertTrue($introspector->isRelation('posts', new User));
+        self::assertFalse($introspector->isRelation('getKey', new User));
+        self::assertFalse($introspector->isRelation('nonExistent', new User));
+    }
+
+    /**
+     * Test that isRelation memoises a method's answer for the worker, under the
+     * class and the lowercased method name.
+     *
+     * @return void
+     */
+    public function testIsRelationMemoisesAMethodAnswerAcrossInstances(): void
+    {
+        $this->makeIntrospector()->isRelation('Posts', new User);
+        $this->makeIntrospector()->isRelation('getKey', new User);
+
+        self::assertSame([User::class . '::posts' => true, User::class . '::getkey' => false], $this->getStaticProperty(SchemaIntrospector::class, 'relationMethods'));
+
+        $this->setStaticProperty(SchemaIntrospector::class, 'relationMethods', [User::class . '::posts' => false]);
+
+        self::assertFalse($this->makeIntrospector()->isRelation('posts', new User));
+    }
+
+    /**
+     * Test that a key naming no method is not memoised, so client input cannot
+     * grow the memo.
+     *
+     * @return void
+     */
+    public function testIsRelationDoesNotMemoiseAKeyNamingNoMethod(): void
     {
         $introspector = $this->makeIntrospector();
-        $model        = new User;
 
-        $first  = $introspector->isRelation('posts', $model);
-        $second = $introspector->isRelation('posts', $model);
+        foreach (['nonExistent', 'name', 'email'] as $key) {
+            self::assertFalse($introspector->isRelation($key, new User));
+        }
 
-        self::assertTrue($first);
-        self::assertSame($first, $second);
+        self::assertSame([], $this->getStaticProperty(SchemaIntrospector::class, 'relationMethods'));
     }
 
     /**
-     * Test that isRelation caches its result under the configured TTL.
+     * Test that a relation registered after a first miss is seen.
      *
      * @return void
      */
-    public function testIsRelationCachesWithConfiguredTtl(): void
+    public function testIsRelationSeesARelationRegisteredAfterAMiss(): void
     {
-        Config::set('api-toolkit.repositories.relation_cache_ttl', 4321);
+        $property = new \ReflectionProperty(Model::class, 'relationResolvers');
+        $original = $property->getValue();
 
-        $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']));
+        $introspector = $this->makeIntrospector();
 
-        $repository = \Mockery::mock(Repository::class);
-        $repository->shouldReceive('get')
-            ->once()
-            ->with($expectedKey)
-            ->andReturnNull();
-        $repository->shouldReceive('put')
-            ->once()
-            ->with($expectedKey, true, 4321)
-            ->andReturnTrue();
+        try {
+            self::assertFalse($introspector->isRelation('latePosts', new User));
 
-        Cache::shouldReceive('memo')
-            ->twice()
-            ->andReturn($repository);
+            User::resolveRelationUsing('latePosts', fn (User $model) => $model->hasMany(Post::class));
 
-        self::assertTrue($this->makeIntrospector()->isRelation('posts', new User));
+            self::assertTrue($introspector->isRelation('latePosts', new User));
+        } finally {
+            $property->setValue(null, $original);
+        }
     }
 
     /**
-     * Test that isRelation reads a TTL of digits, as the environment gives, as
-     * an integer.
+     * Test that a lifecycle flush keeps the relation answers, which only
+     * clearCache forgets.
      *
      * @return void
      */
-    public function testIsRelationReadsADigitStringTtlAsAnInteger(): void
+    public function testRelationAnswersOutliveAFlushUntilCleared(): void
     {
-        Config::set('api-toolkit.repositories.relation_cache_ttl', '600');
+        $introspector = $this->makeIntrospector();
+        $introspector->isRelation('posts', new User);
 
-        $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']));
+        $introspector->flush();
 
-        $repository = \Mockery::mock(Repository::class);
-        $repository->shouldReceive('get')
-            ->once()
-            ->with($expectedKey)
-            ->andReturnNull();
-        $repository->shouldReceive('put')
-            ->once()
-            ->with($expectedKey, true, 600)
-            ->andReturnTrue();
+        self::assertSame([User::class . '::posts' => true], $this->getStaticProperty(SchemaIntrospector::class, 'relationMethods'));
 
-        Cache::shouldReceive('memo')
-            ->twice()
-            ->andReturn($repository);
+        SchemaIntrospector::clearCache();
 
-        self::assertTrue($this->makeIntrospector()->isRelation('posts', new User));
-    }
-
-    /**
-     * Test that isRelation fails for a TTL that is not a whole number of
-     * seconds, rather than caching for a day.
-     *
-     * @return void
-     */
-    public function testIsRelationFailsForANonNumericTtl(): void
-    {
-        Config::set('api-toolkit.repositories.relation_cache_ttl', 'not-a-number');
-
-        $this->expectException(InvalidConfigurationException::class);
-        $this->expectExceptionMessage('The api-toolkit.repositories.relation_cache_ttl setting must be an integer of at least 0; [\'not-a-number\'] given.');
-
-        $this->makeIntrospector()->isRelation('posts', new User);
+        self::assertSame([], $this->getStaticProperty(SchemaIntrospector::class, 'relationMethods'));
     }
 
     /**
@@ -1614,22 +1616,6 @@ final class SchemaIntrospectorTest extends TestCase
             ]);
 
         self::assertEquals(['title' => new ColumnDefinition('title', 'varchar', false)], $this->makeIntrospector()->getColumnDefinitions($this->modelReadingFrom($builder)));
-    }
-
-    /**
-     * Test that isRelation caches its answer keyed by model class alone.
-     *
-     * A relation is declared in code, so it reads the same for every tenant.
-     *
-     * @return void
-     */
-    public function testIsRelationStoresUnderAKeyFreeOfTheSchemaIdentity(): void
-    {
-        $this->makeIntrospector()->isRelation('posts', new User);
-
-        $expectedKey = $this->metadataStorageKey(CacheKeys::MODEL_RELATIONS->resolveKey([User::class, 'posts']));
-
-        self::assertTrue(Cache::memo()->get($expectedKey));
     }
 
     /**
