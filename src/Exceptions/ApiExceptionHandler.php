@@ -104,7 +104,6 @@ final class ApiExceptionHandler
             return null;
         }
 
-        // Laravel renders the mapped exception, so its status and headers match
         if (self::isLeftToLaravel($request, $prepared['strategy'])) {
             return self::isRenderedAsThrown($exception, $prepared['exception']) ? null : $handler->render($request, $prepared['exception']);
         }
