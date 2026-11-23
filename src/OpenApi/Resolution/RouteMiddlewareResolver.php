@@ -12,10 +12,11 @@ use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
 use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
+use SineMacula\ApiToolkit\Http\Middleware\RequireJsonBody;
 
 /**
  * Reads the middleware classes of a route and its authentication,
- * authorization, throttling and If-Match facts.
+ * authorization, throttling, If-Match and JSON body facts.
  *
  * Middleware is resolved as the router dispatches it, so groups, aliases and
  * exclusions apply.
@@ -26,7 +27,7 @@ use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
 final readonly class RouteMiddlewareResolver
 {
     /** The middleware documented from its route fact, not from its throws tags */
-    public const array FACT_MIDDLEWARE = [RequireIfMatch::class];
+    public const array FACT_MIDDLEWARE = [RequireIfMatch::class, RequireJsonBody::class];
 
     /** The default guard assumed when none is configured */
     private const string DEFAULT_GUARD_FALLBACK = 'web';
@@ -126,6 +127,17 @@ final readonly class RouteMiddlewareResolver
     public function requiresIfMatch(Route $route): bool
     {
         return $this->parametersOf($route, RequireIfMatch::class) !== [];
+    }
+
+    /**
+     * Determine whether the route refuses a write whose body is not JSON.
+     *
+     * @param  \Illuminate\Routing\Route  $route
+     * @return bool
+     */
+    public function requiresJsonBody(Route $route): bool
+    {
+        return $this->parametersOf($route, RequireJsonBody::class) !== [];
     }
 
     /**

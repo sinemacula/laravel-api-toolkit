@@ -40,6 +40,9 @@ enum ErrorCode: int implements ErrorCodeInterface
     case PRECONDITION_FAILED   = 10114;
     case PRECONDITION_REQUIRED = 10115;
 
+    // Media type errors
+    case UNSUPPORTED_MEDIA_TYPE = 10116;
+
     // API errors
     case MAINTENANCE_MODE    = 10200;
     case QUERY_TOO_EXPENSIVE = 10201;

@@ -79,6 +79,7 @@ final class ErrorCatalogueReaderTest extends TestCase
         yield 'CONFLICT -> 409' => [ErrorCode::CONFLICT, 409];
         yield 'GONE -> 410' => [ErrorCode::GONE, 410];
         yield 'PAYLOAD_TOO_LARGE -> 413' => [ErrorCode::PAYLOAD_TOO_LARGE, 413];
+        yield 'UNSUPPORTED_MEDIA_TYPE -> 415' => [ErrorCode::UNSUPPORTED_MEDIA_TYPE, 415];
         yield 'LOCKED -> 423' => [ErrorCode::LOCKED, 423];
         yield 'SERVICE_UNAVAILABLE -> 503' => [ErrorCode::SERVICE_UNAVAILABLE, 503];
         yield 'HTTP_ERROR -> 500' => [ErrorCode::HTTP_ERROR, 500];
