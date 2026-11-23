@@ -157,7 +157,7 @@ final class OctaneRequestIsolationTest extends TestCase
         Relation::morphMap(['users' => User::class]);
 
         $key = 'integration:octane-schema-survival';
-        $this->writer()->rememberMetadataForever($key, static fn () => 'value');
+        $this->writer()->storeMetadata($key, 'value');
 
         $this->octaneListener()->handle(new \stdClass);
 
@@ -170,7 +170,7 @@ final class OctaneRequestIsolationTest extends TestCase
         $app->make(CacheManager::class)->invalidateMetadata();
 
         self::assertNull($this->writer()->readMetadata($key));
-        self::assertSame('rebuilt', $this->writer()->rememberMetadataForever($key, static fn () => 'rebuilt'));
+        self::assertSame('rebuilt', $this->writer()->rememberMetadata($key, static fn () => 'rebuilt', 60));
     }
 
     /**

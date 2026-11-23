@@ -5,10 +5,8 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Repositories\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
-use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Config\ResourceSettings;
 use SineMacula\ApiToolkit\Contracts\ApiResourceInterface;
-use SineMacula\ApiToolkit\Enums\CacheKeys;
 
 /**
  * Provides automatic resolution of API resource classes for Eloquent models.
@@ -35,13 +33,6 @@ trait ResolvesResource
     }
 
     /**
-     * Get the metadata cache writer used to persist resolved resource mappings.
-     *
-     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
-     */
-    abstract protected function metadataCacheWriter(): MetadataCacheWriter;
-
-    /**
      * Resolve the resource class for the given model.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
@@ -60,17 +51,12 @@ trait ResolvesResource
      */
     protected function getResourceFromModel(Model $model): ?string
     {
-        $class = $model::class;
+        $resource = ResourceSettings::resourceMap()[$model::class] ?? null;
 
-        return $this->metadataCacheWriter()->rememberMetadataForever(CacheKeys::MODEL_RESOURCES->resolveKey([$class]), function () use ($class): ?string {
+        if ($resource !== null && class_exists($resource) && in_array(ApiResourceInterface::class, class_implements($resource) ?: [], true)) {
+            return $resource;
+        }
 
-            $resource = ResourceSettings::resourceMap()[$class] ?? null;
-
-            if ($resource !== null && class_exists($resource) && in_array(ApiResourceInterface::class, class_implements($resource) ?: [], true)) {
-                return $resource;
-            }
-
-            return null;
-        });
+        return null;
     }
 }

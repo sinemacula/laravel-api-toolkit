@@ -16,7 +16,6 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
 use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
-use SineMacula\ApiToolkit\Config\QuerySettings;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Enums\CacheKeys;
 
@@ -24,12 +23,18 @@ use SineMacula\ApiToolkit\Enums\CacheKeys;
  * Schema introspector for Eloquent models.
  *
  * Reads use the model's own connection; cache keys include its schema identity.
+ * Relation answers come from code, so they are memoised for the worker.
+ *
+ * @managed-static
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
 final class SchemaIntrospector implements SchemaIntrospectionProvider
 {
+    /** @var array<string, bool> Whether each model method returns a relation, by class and lowercased name */
+    private static array $relationMethods = [];
+
     /** @var array<string, array<string, \SineMacula\ApiToolkit\Schema\Introspection\ColumnDefinition>> */
     private array $columnDefinitions = [];
 
@@ -116,16 +121,12 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     #[\Override]
     public function isRelation(string $key, Model $model): bool
     {
-        return $this->metadataCacheWriter->rememberMetadata(CacheKeys::MODEL_RELATIONS->resolveKey([
-            $model::class,
-            $key,
-        ]), function () use ($key, $model): bool {
-            if (method_exists($model, $key)) {
-                return $this->hasRelationReturnType(new \ReflectionMethod($model, $key));
-            }
-
+        // Only real methods are memoised, so client input cannot grow the memo
+        if (!method_exists($model, $key)) {
             return $model->relationResolver($model::class, $key) !== null;
-        }, QuerySettings::relationCacheTtl());
+        }
+
+        return self::$relationMethods[$model::class . '::' . strtolower($key)] ??= $this->hasRelationReturnType(new \ReflectionMethod($model, $key));
     }
 
     /**
@@ -227,7 +228,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     }
 
     /**
-     * Clear all internally cached schema data.
+     * Clear the memoised column definitions and indexes.
      *
      * @return void
      */
@@ -236,6 +237,19 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
     {
         $this->columnDefinitions = [];
         $this->indexes           = [];
+    }
+
+    /**
+     * Clear the memoised relation answers.
+     *
+     * Relation answers live for the worker, so a lifecycle flush leaves them;
+     * this is for test isolation.
+     *
+     * @return void
+     */
+    public static function clearCache(): void
+    {
+        self::$relationMethods = [];
     }
 
     /**
@@ -300,7 +314,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         }
 
         if ($definitions !== []) {
-            $this->metadataCacheWriter->storeMetadataForever($cacheKey, StoredSchema::fromColumnDefinitions($definitions));
+            $this->metadataCacheWriter->storeMetadata($cacheKey, StoredSchema::fromColumnDefinitions($definitions));
         }
 
         return $definitions;
@@ -327,7 +341,7 @@ final class SchemaIntrospector implements SchemaIntrospectionProvider
         $indexes = $this->readIndexes($model, $connection);
 
         if ($indexes !== null) {
-            $this->metadataCacheWriter->storeMetadataForever($cacheKey, StoredSchema::fromIndexes($indexes));
+            $this->metadataCacheWriter->storeMetadata($cacheKey, StoredSchema::fromIndexes($indexes));
         }
 
         return $indexes;

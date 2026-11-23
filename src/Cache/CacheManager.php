@@ -53,10 +53,10 @@ final readonly class CacheManager
      *
      * The generation, index proofs, schema introspection, field and eager-load
      * memos and the query parser are reset. Memos derived from code alone, the
-     * compiled schemas, search plans, field-column maps and cast reflections,
-     * live for the worker. The shared store is left alone; forgetting the
-     * generation lets a long-lived worker pick up an invalidation made
-     * elsewhere.
+     * compiled schemas, search plans, field-column maps, cast reflections and
+     * relation answers, live for the worker. The shared store is left alone;
+     * forgetting the generation lets a long-lived worker pick up an
+     * invalidation made elsewhere.
      *
      * @return void
      */

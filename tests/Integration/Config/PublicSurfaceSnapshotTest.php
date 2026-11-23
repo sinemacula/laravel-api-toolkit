@@ -25,6 +25,7 @@ final class PublicSurfaceSnapshotTest extends TestCase
 {
     /** @var list<string> The environment variables the config file reads. */
     private const array ENVIRONMENT_VARIABLES = [
+        'API_TOOLKIT_CACHE_METADATA_TTL',
         'API_TOOLKIT_CACHE_RETRY_AFTER',
         'API_TOOLKIT_DEFERRED_WRITES_CHUNK_SIZE',
         'API_TOOLKIT_DEFERRED_WRITES_INVALIDATE_QUERY_CACHE',
@@ -51,7 +52,6 @@ final class PublicSurfaceSnapshotTest extends TestCase
         'API_TOOLKIT_QUERY_COST_MAX_ORDER_KEYS',
         'API_TOOLKIT_QUERY_COST_MAX_PARSE_DEPTH',
         'API_TOOLKIT_REPOSITORIES_ALLOW_RANDOM_ORDER',
-        'API_TOOLKIT_REPOSITORIES_RELATION_CACHE_TTL',
         'API_TOOLKIT_RESOURCES_ENABLE_DYNAMIC_MORPH_MAPPING',
         'API_TOOLKIT_RESOURCES_NARROW_COLUMNS',
         'API_TOOLKIT_RESOURCES_RELATION_LIMIT',
@@ -65,6 +65,7 @@ final class PublicSurfaceSnapshotTest extends TestCase
 
     /** @var list<string> Every setting the config file ships, by full key. */
     private const array CONFIG_KEYS = [
+        'api-toolkit.cache.metadata_ttl',
         'api-toolkit.cache.prefix',
         'api-toolkit.cache.retry_after',
         'api-toolkit.deferred_writes.chunk_size',
@@ -110,7 +111,6 @@ final class PublicSurfaceSnapshotTest extends TestCase
         'api-toolkit.query_cost.max_order_keys',
         'api-toolkit.query_cost.max_parse_depth',
         'api-toolkit.repositories.allow_random_order',
-        'api-toolkit.repositories.relation_cache_ttl',
         'api-toolkit.resources.enable_dynamic_morph_mapping',
         'api-toolkit.resources.fixed_fields',
         'api-toolkit.resources.narrow_columns',

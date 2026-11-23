@@ -11,7 +11,7 @@ use SineMacula\ApiToolkit\Exceptions\MetadataInvalidationException;
 /**
  * Artisan command to invalidate the toolkit's cached schema metadata.
  *
- * Run on every deploy once the new release is live.
+ * Run after a schema change made outside a migration.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.

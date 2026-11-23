@@ -70,6 +70,16 @@ final class SettingCases
             self::refused('cache.prefix', 'a non-empty string', '\'\''),
         ];
 
+        yield 'metadata lifetime' => [
+            LifecycleSettings::class,
+            'cache.metadata_ttl',
+            LifecycleSettings::metadataTtl(...),
+            '1',
+            1,
+            0,
+            self::refused('cache.metadata_ttl', 'an integer of at least 1', '0'),
+        ];
+
         yield 'cache retry' => [
             LifecycleSettings::class,
             'cache.retry_after',
@@ -358,16 +368,6 @@ final class SettingCases
             false,
             'random',
             self::refused('repositories.allow_random_order', self::BOOLEAN, '\'random\''),
-        ];
-
-        yield 'relation cache' => [
-            QuerySettings::class,
-            'repositories.relation_cache_ttl',
-            QuerySettings::relationCacheTtl(...),
-            '600',
-            600,
-            '1.5',
-            self::refused('repositories.relation_cache_ttl', 'an integer of at least 0', '\'1.5\''),
         ];
 
         yield 'query cost cap' => [

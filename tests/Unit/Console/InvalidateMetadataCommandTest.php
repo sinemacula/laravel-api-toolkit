@@ -58,7 +58,7 @@ final class InvalidateMetadataCommandTest extends TestCase
     public function testCommandRetiresMetadataAnEarlierProcessWrote(): void
     {
         $earlier = new MetadataCacheWriter(new MetadataGeneration);
-        $earlier->rememberMetadataForever('deployed-metadata', fn (): string => 'stale');
+        $earlier->storeMetadata('deployed-metadata', 'stale');
 
         $this->runCommand()->assertExitCode(0)->run();
 

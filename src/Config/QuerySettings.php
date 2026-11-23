@@ -47,16 +47,6 @@ final class QuerySettings
     }
 
     /**
-     * Return the seconds a relation-detection lookup is cached.
-     *
-     * @return int
-     */
-    public static function relationCacheTtl(): int
-    {
-        return ToolkitConfig::readInteger('repositories.relation_cache_ttl', 0);
-    }
-
-    /**
      * Return the given query cost cap, 0 when it is disabled.
      *
      * @param  string  $cap

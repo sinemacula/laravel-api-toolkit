@@ -205,5 +205,5 @@ Choose the narrowest row that is true of the column. README "Schema-Driven ApiRe
   `php artisan api-toolkit:resources:clear` or `php artisan optimize`. README "Schema-Driven ApiResource".
 - After changing a documented route, run `php artisan api-toolkit:export-openapi` and
   `php artisan api-toolkit:docs:generate`. README "Schema Introspection and OpenAPI Export".
-- On deploy, run `php artisan optimize`, then `php artisan api-toolkit:invalidate-metadata` once the release is live,
-  and reload PHP, Octane and queue workers. README "Metadata Invalidation".
+- On deploy, run `php artisan optimize` and reload PHP, Octane and queue workers. After a schema change made outside a
+  migration, run `php artisan api-toolkit:invalidate-metadata`. README "Metadata Invalidation".

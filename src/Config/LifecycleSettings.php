@@ -28,6 +28,16 @@ final class LifecycleSettings
     }
 
     /**
+     * Return the seconds a cached schema metadata entry lives.
+     *
+     * @return int
+     */
+    public static function metadataTtl(): int
+    {
+        return ToolkitConfig::readInteger('cache.metadata_ttl', 1);
+    }
+
+    /**
      * Return the seconds a failing cache store is bypassed for.
      *
      * @return int
