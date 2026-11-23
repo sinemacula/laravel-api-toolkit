@@ -51,6 +51,8 @@ package_filters = ["slevomat", "dealerdirect", "sinemacula"]
 name = "php-cs-fixer"
 extra_packages = ["sinemacula/coding-standards@1.31.2"]
 
+# Ahead of the shared standard's 2.3.5, which the deprecation rules now reject
 [[plugin]]
 name = "phpstan"
+version = "2.3.7"
 package_file = "composer.json"
