@@ -131,8 +131,8 @@ multiple fields are supplied without a wrapper, they are combined with `$and` by
 default.
 
 A string given to `$contains` is one value, matched exactly, even when it holds
-a comma. To match a document holding any of several values, combine
-`$contains` conditions with `$or`:
+a comma. To match a document holding any of several values, combine `$contains`
+conditions with `$or`:
 
 ```json
 {
