@@ -38,7 +38,7 @@ default = true
 [[source]]
 name = "sinemacula"
 repository = "https://github.com/sinemacula/coding-standards"
-tag = "v1.31.2"
+tag = "v1.31.3"
 
 [[plugin]]
 name = "php-codesniffer"
@@ -49,7 +49,7 @@ package_filters = ["slevomat", "dealerdirect", "sinemacula"]
 # setting one silently drops extra_packages.
 [[plugin]]
 name = "php-cs-fixer"
-extra_packages = ["sinemacula/coding-standards@1.31.2"]
+extra_packages = ["sinemacula/coding-standards@1.31.3"]
 
 # Ahead of the shared standard's 2.3.5, which the deprecation rules now reject
 [[plugin]]
