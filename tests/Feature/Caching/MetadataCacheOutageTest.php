@@ -131,8 +131,8 @@ final class MetadataCacheOutageTest extends TestCase
     }
 
     /**
-     * Test that a repository write, which looks up relations through the store,
-     * is served during an outage.
+     * Test that a repository write, whose relation lookups come from code, is
+     * served during an outage without touching the store.
      *
      * @return void
      */
@@ -148,7 +148,6 @@ final class MetadataCacheOutageTest extends TestCase
         $response->assertJsonPath('name', 'Bravo Updated');
         $response->assertJsonPath('status', 'banned');
 
-        Exceptions::assertReportedCount(1);
-        Exceptions::assertReported(MetadataCacheUnavailableException::class);
+        Exceptions::assertNothingReported();
     }
 }

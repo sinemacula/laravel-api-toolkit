@@ -32,8 +32,6 @@ final class CacheKeysTest extends TestCase
     {
         yield 'MODEL_SCHEMA_COLUMN_DEFINITIONS' => [CacheKeys::MODEL_SCHEMA_COLUMN_DEFINITIONS, 'model-schema-column-definitions:%s:%s:%s'];
         yield 'MODEL_SCHEMA_INDEXES' => [CacheKeys::MODEL_SCHEMA_INDEXES, 'model-schema-indexes:%s:%s:%s'];
-        yield 'MODEL_RELATIONS' => [CacheKeys::MODEL_RELATIONS, 'model-relations:%s:%s'];
-        yield 'MODEL_RESOURCES' => [CacheKeys::MODEL_RESOURCES, 'model-resources:%s'];
         yield 'SEARCH_INDEX_PROOF' => [CacheKeys::SEARCH_INDEX_PROOF, 'search-index-proof:%s:%s'];
         yield 'METADATA_GENERATION' => [CacheKeys::METADATA_GENERATION, 'metadata-generation'];
     }
@@ -63,7 +61,7 @@ final class CacheKeysTest extends TestCase
      */
     public function testResolveKeyUsesTheShippedPrefix(): void
     {
-        self::assertSame('api-toolkit:model-resources:User', CacheKeys::MODEL_RESOURCES->resolveKey(['User']));
+        self::assertSame('api-toolkit:metadata-generation', CacheKeys::METADATA_GENERATION->resolveKey());
     }
 
     /**
@@ -79,21 +77,7 @@ final class CacheKeysTest extends TestCase
         $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('The api-toolkit.cache.prefix setting is missing; add it from the published config.');
 
-        CacheKeys::MODEL_RESOURCES->resolveKey(['User']);
-    }
-
-    /**
-     * Test that resolveKey replaces single placeholders.
-     *
-     * @return void
-     */
-    public function testResolveKeyWithSingleReplacement(): void
-    {
-        Config::set('api-toolkit.cache.prefix', 'app');
-
-        $result = CacheKeys::MODEL_RESOURCES->resolveKey(['User']);
-
-        self::assertSame('app:model-resources:User', $result);
+        CacheKeys::METADATA_GENERATION->resolveKey();
     }
 
     /**
@@ -105,9 +89,9 @@ final class CacheKeysTest extends TestCase
     {
         Config::set('api-toolkit.cache.prefix', 'app');
 
-        $result = CacheKeys::MODEL_RELATIONS->resolveKey(['User', 'posts']);
+        $result = CacheKeys::SEARCH_INDEX_PROOF->resolveKey(['sqlite', 'users']);
 
-        self::assertSame('app:model-relations:User:posts', $result);
+        self::assertSame('app:search-index-proof:sqlite:users', $result);
     }
 
     /**
@@ -130,7 +114,7 @@ final class CacheKeysTest extends TestCase
      */
     public function testExpectedCaseCount(): void
     {
-        self::assertCount(6, CacheKeys::cases());
+        self::assertCount(4, CacheKeys::cases());
     }
 
     /**

@@ -19,7 +19,6 @@ use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
-use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Exceptions\PreconditionFailedException;
 use SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException;
 use SineMacula\ApiToolkit\Http\Concurrency\EntityTag;
@@ -266,40 +265,6 @@ final class ApiRepositoryTest extends TestCase
         $result = $this->repository->getResourceClass();
 
         self::assertNull($result);
-    }
-
-    /**
-     * Test that a subclass override of the metadata cache writer is honoured.
-     *
-     * @return void
-     *
-     * @throws \SineMacula\Repositories\Exceptions\RepositoryException
-     */
-    public function testResourceResolutionUsesSubclassMetadataCacheWriterOverride(): void
-    {
-        assert($this->app !== null);
-
-        $repository = new class ($this->app) extends UserRepository {
-            /** @var bool Whether the overridden writer accessor was invoked. */
-            public bool $writerAccessed = false;
-
-            /**
-             * Record that the accessor was invoked and return the real writer.
-             *
-             * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
-             */
-            #[\Override]
-            protected function metadataCacheWriter(): MetadataCacheWriter
-            {
-                $this->writerAccessed = true;
-
-                return $this->app->make(MetadataCacheWriter::class);
-            }
-        };
-
-        $repository->getResourceClass();
-
-        self::assertTrue($repository->writerAccessed);
     }
 
     /**

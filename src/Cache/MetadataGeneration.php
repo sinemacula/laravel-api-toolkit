@@ -15,6 +15,8 @@ use SineMacula\ApiToolkit\Exceptions\MetadataInvalidationException;
  * A random token, not a counter: a lost counter would restart at an old value
  * and serve stale entries back, while a lost token only costs a cold cache.
  *
+ * The token is the one metadata key stored without an expiry.
+ *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */

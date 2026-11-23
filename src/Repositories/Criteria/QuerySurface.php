@@ -152,7 +152,7 @@ final readonly class QuerySurface
     /**
      * Determine whether the key is a traversable relation the caller may use.
      *
-     * Lets the router skip the cached relation lookup for undeclared keys.
+     * Lets the router skip the relation lookup for undeclared keys.
      *
      * @param  string  $relation
      * @return bool

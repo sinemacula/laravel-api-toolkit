@@ -8,7 +8,6 @@ use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Request;
-use SineMacula\ApiToolkit\Cache\MetadataCacheWriter;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Exceptions\FailureReporter;
 use SineMacula\ApiToolkit\Exceptions\PreconditionFailedException;
@@ -278,17 +277,6 @@ abstract class ApiRepository extends Repository
         $this->pageOrder       = new PageOrder(new ColumnLiteral($introspector), $introspector);
         $this->offsetPaginator = new OffsetPaginator;
         $this->attributeSetter = new AttributeSetter($introspector);
-    }
-
-    /**
-     * Get the metadata cache writer used by the ResolvesResource concern.
-     *
-     * @return \SineMacula\ApiToolkit\Cache\MetadataCacheWriter
-     */
-    #[\Override]
-    protected function metadataCacheWriter(): MetadataCacheWriter
-    {
-        return $this->app->make(MetadataCacheWriter::class);
     }
 
     /**
