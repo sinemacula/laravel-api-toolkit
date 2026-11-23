@@ -37,6 +37,9 @@ final class ExceptionReportingTest extends TestCase
     /** @var string The message of the unhandled exception the route throws. */
     private const string UNHANDLED_MESSAGE = 'Order storage is unavailable';
 
+    /** @var string The message of the application failure the map renders as a conflict. */
+    private const string SETTLED_MESSAGE = 'The order is already settled';
+
     /**
      * Set up each test with a capturing default log channel and failing routes.
      *
@@ -66,6 +69,10 @@ final class ExceptionReportingTest extends TestCase
 
         Route::get('/hand-thrown', static function (): never {
             throw new UnhandledException;
+        });
+
+        Route::get('/settled', static function (): never {
+            throw new \DomainException(self::SETTLED_MESSAGE);
         });
     }
 
@@ -149,6 +156,28 @@ final class ExceptionReportingTest extends TestCase
 
         self::assertCount(1, $records);
         self::assertInstanceOf(UnhandledException::class, $records[0]->context['exception']);
+    }
+
+    /**
+     * Test that a mapped exception left to Laravel's renderer is reported once,
+     * as thrown.
+     *
+     * @return void
+     */
+    public function testMappedExceptionLeftToLaravelIsReportedOnceAsThrown(): void
+    {
+        Config::set('api-toolkit.exceptions.render_strategy', 'json_when_expected');
+        Config::set('api-toolkit.exceptions.map', [\DomainException::class => ConflictException::class]);
+
+        $this->registerApiExceptionHandler();
+
+        $this->get('/settled', ['Accept' => 'text/html'])->assertStatus(409);
+
+        $records = $this->capturedRecords();
+
+        self::assertCount(1, $records);
+        self::assertInstanceOf(\DomainException::class, $records[0]->context['exception']);
+        self::assertSame(self::SETTLED_MESSAGE, $records[0]->message);
     }
 
     /**
