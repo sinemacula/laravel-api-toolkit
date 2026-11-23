@@ -6,8 +6,11 @@ namespace SineMacula\ApiToolkit\OpenApi\Builder;
 
 use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Contracts\Versioned;
+use SineMacula\ApiToolkit\Exceptions\BadRequestException;
 use SineMacula\ApiToolkit\Exceptions\PreconditionRequiredException;
+use SineMacula\ApiToolkit\Exceptions\UnsupportedMediaTypeException;
 use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
+use SineMacula\ApiToolkit\Http\Middleware\RequireJsonBody;
 use SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RequestBodyResolver;
 use SineMacula\ApiToolkit\OpenApi\Resolution\RouteMiddlewareResolver;
@@ -19,7 +22,8 @@ use SineMacula\Http\Enums\HttpHeader;
  *
  * A resource action keeps the full resource contract; any other route still
  * documents an operation with an undocumented body. A verb that replaces,
- * modifies or deletes documents its If-Match precondition.
+ * modifies or deletes documents its If-Match precondition, and one that sends a
+ * body its JSON body refusals.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
@@ -76,7 +80,7 @@ final readonly class PathBuilder
         /** The builder applying what an action declares about its success. */
         private SuccessResponseBuilder $successResponse,
 
-        /** The resolver reading whether a route requires If-Match. */
+        /** The resolver reading whether a route requires If-Match or a JSON body. */
         private RouteMiddlewareResolver $middleware,
     ) {
         $this->domainServers = new DomainServerBuilder;
@@ -114,7 +118,8 @@ final readonly class PathBuilder
                 $path        = $route->form->path;
                 $claim       = $claims[$path][$verb] ?? null;
                 $conditional = in_array(strtoupper($verb), RequireIfMatch::METHODS, true);
-                $operation   = $resolved[$conditional] ??= $this->resolveOperation($route, $conditional);
+                $bodied      = in_array(strtoupper($verb), RequireJsonBody::METHODS, true);
+                $operation   = $resolved[$conditional][$bodied] ??= $this->resolveOperation($route, $conditional, $bodied);
 
                 $built = ['tags' => [$route->tag]] + $this->documentation($route, $verb, $descriptions) + $operation;
 
@@ -276,14 +281,15 @@ final readonly class PathBuilder
     }
 
     /**
-     * Resolve the operation object shared by the route's conditional verbs, or
-     * by its other verbs.
+     * Resolve the operation object shared by the route's verbs that agree on
+     * whether they are conditional and whether they send a body.
      *
      * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
      * @param  bool  $conditional
+     * @param  bool  $bodied
      * @return array<string, mixed>
      */
-    private function resolveOperation(DocumentedRoute $route, bool $conditional): array
+    private function resolveOperation(DocumentedRoute $route, bool $conditional, bool $bodied): array
     {
         $controllerClass = $route->controllerClass;
         $action          = $route->action;
@@ -306,7 +312,7 @@ final readonly class PathBuilder
                 $this->queryParameters->exceptionsFor($action, $resource['model'], $resource['resource']),
             ];
 
-        $inputExceptions = [...$bodyExceptions, ...$queryExceptions, ...$this->preconditionExceptions($route, $conditional)];
+        $inputExceptions = [...$bodyExceptions, ...$queryExceptions, ...$this->preconditionExceptions($route, $conditional), ...$this->jsonBodyExceptions($route, $bodied)];
 
         $responses += $this->errors->build($controllerClass, $action, $route->route, $route->form, $inputExceptions);
 
@@ -323,6 +329,18 @@ final readonly class PathBuilder
     private function preconditionExceptions(DocumentedRoute $route, bool $conditional): array
     {
         return $conditional && $this->middleware->requiresIfMatch($route->route) ? [PreconditionRequiredException::class] : [];
+    }
+
+    /**
+     * List the exceptions a verb sending a body raises before its action runs.
+     *
+     * @param  \SineMacula\ApiToolkit\OpenApi\Resolution\DocumentedRoute  $route
+     * @param  bool  $bodied
+     * @return list<class-string<\Throwable>>
+     */
+    private function jsonBodyExceptions(DocumentedRoute $route, bool $bodied): array
+    {
+        return $bodied && $this->middleware->requiresJsonBody($route->route) ? [BadRequestException::class, UnsupportedMediaTypeException::class] : [];
     }
 
     /**

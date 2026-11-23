@@ -26,6 +26,7 @@ use SineMacula\ApiToolkit\Exceptions\TokenMismatchException;
 use SineMacula\ApiToolkit\Exceptions\TooManyRequestsException;
 use SineMacula\ApiToolkit\Exceptions\UnauthenticatedException;
 use SineMacula\ApiToolkit\Exceptions\UnhandledException;
+use SineMacula\ApiToolkit\Exceptions\UnsupportedMediaTypeException;
 
 /**
  * Parametric tests covering all concrete ApiException subclasses.
@@ -53,6 +54,7 @@ use SineMacula\ApiToolkit\Exceptions\UnhandledException;
 #[CoversClass(TooManyRequestsException::class)]
 #[CoversClass(UnauthenticatedException::class)]
 #[CoversClass(UnhandledException::class)]
+#[CoversClass(UnsupportedMediaTypeException::class)]
 final class ConcreteExceptionsTest extends TestCase
 {
     /**
@@ -80,6 +82,7 @@ final class ConcreteExceptionsTest extends TestCase
         yield 'TooManyRequestsException' => [TooManyRequestsException::class, 10107, 429];
         yield 'UnauthenticatedException' => [UnauthenticatedException::class, 10101, 401];
         yield 'UnhandledException' => [UnhandledException::class, 10001, 500];
+        yield 'UnsupportedMediaTypeException' => [UnsupportedMediaTypeException::class, 10116, 415];
     }
 
     /**

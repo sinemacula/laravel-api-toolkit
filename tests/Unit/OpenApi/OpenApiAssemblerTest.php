@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use SineMacula\ApiToolkit\Enums\Capability;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
+use SineMacula\ApiToolkit\Http\Middleware\RequireJsonBody;
 use SineMacula\ApiToolkit\OpenApi\Builder\DefinedSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnumSchemaBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
@@ -489,6 +490,29 @@ final class OpenApiAssemblerTest extends TestCase
         self::assertSame([200, 403, 404, 412, 422, 428, 500], array_keys($responses));
         self::assertArrayHasKey('Error10114', $examples);
         self::assertArrayHasKey('Error10115', $examples);
+
+        $this->assertValidDocument($document);
+    }
+
+    /**
+     * Test that a document of writes requiring a JSON body is a valid OpenAPI
+     * document whose body refusals resolve.
+     *
+     * @return void
+     */
+    public function testJsonBodyWritesExportAValidDocument(): void
+    {
+        $this->router()->match(['PUT', 'PATCH'], 'documents/{document}', [PathDocumentController::class, 'update'])->middleware(RequireJsonBody::class);
+
+        $document  = $this->makeAssembler([Document::class => DocumentResource::class, Tag::class => TagResource::class])->assemble();
+        $responses = $document['paths']['/documents/{document}']['put']['responses'] ?? null;
+        $examples  = $document['components']['examples']                             ?? null;
+
+        self::assertIsArray($responses);
+        self::assertIsArray($examples);
+        self::assertSame([200, 400, 403, 404, 412, 415, 422, 500], array_keys($responses));
+        self::assertArrayHasKey('Error10100', $examples);
+        self::assertArrayHasKey('Error10116', $examples);
 
         $this->assertValidDocument($document);
     }
