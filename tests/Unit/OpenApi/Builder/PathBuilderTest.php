@@ -13,6 +13,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use SineMacula\ApiToolkit\Contracts\SchemaIntrospectionProvider;
 use SineMacula\ApiToolkit\Exceptions\ExceptionMap;
 use SineMacula\ApiToolkit\Http\Middleware\RequireIfMatch;
+use SineMacula\ApiToolkit\Http\Middleware\RequireJsonBody;
 use SineMacula\ApiToolkit\Http\Resources\ApiResourceCollection;
 use SineMacula\ApiToolkit\OpenApi\Builder\EnvelopeBuilder;
 use SineMacula\ApiToolkit\OpenApi\Builder\ErrorExampleBuilder;
@@ -2184,6 +2185,67 @@ final class PathBuilderTest extends TestCase
             self::assertSame([], $this->headerParametersOf($paths, $path, $verb));
             self::assertNotContains(428, $this->statusesOf($paths, $path, $verb));
         }
+    }
+
+    /**
+     * Test that a route requiring a JSON body documents a 400 and a 415 on the
+     * verbs that send a body, and on no other verb of the same route.
+     *
+     * @return void
+     */
+    public function testRequiredJsonBodyIsDocumentedOnBodiedVerbsOnly(): void
+    {
+        $this->registerDocumentRoutes(RequireJsonBody::class);
+        $this->router()->match(['GET', 'POST'], 'documents/{document}/copy', [PathDocumentController::class, 'show'])->middleware(RequireJsonBody::class);
+        $this->router()->match(['PATCH', 'DELETE'], 'documents/{document}/archive', [PathDocumentController::class, 'destroy'])->middleware(RequireJsonBody::class);
+
+        $paths = $this->build();
+
+        $bodied = [
+            ['/documents', 'post'],
+            ['/documents/{document}', 'put'],
+            ['/documents/{document}', 'patch'],
+            ['/documents/{document}/copy', 'post'],
+            ['/documents/{document}/archive', 'patch'],
+        ];
+        $other = [
+            ['/documents', 'get'],
+            ['/documents/{document}', 'get'],
+            ['/documents/{document}', 'delete'],
+            ['/documents/{document}/copy', 'get'],
+            ['/documents/{document}/archive', 'delete'],
+        ];
+
+        foreach ($bodied as [$path, $verb]) {
+            self::assertContains(400, $this->statusesOf($paths, $path, $verb));
+            self::assertContains(415, $this->statusesOf($paths, $path, $verb));
+        }
+
+        foreach ($other as [$path, $verb]) {
+            self::assertNotContains(400, $this->statusesOf($paths, $path, $verb));
+            self::assertNotContains(415, $this->statusesOf($paths, $path, $verb));
+        }
+    }
+
+    /**
+     * Test that a route requiring both If-Match and a JSON body documents each
+     * refusal only on the verbs it guards.
+     *
+     * @return void
+     */
+    public function testIfMatchAndJsonBodyAreDocumentedOnTheirOwnVerbs(): void
+    {
+        $this->router()->match(['POST', 'PATCH', 'DELETE'], 'documents/{document}', [PathDocumentController::class, 'update'])
+            ->middleware([RequireIfMatch::class, RequireJsonBody::class]);
+
+        $paths    = $this->build();
+        $refusals = [];
+
+        foreach (['post', 'patch', 'delete'] as $verb) {
+            $refusals[$verb] = array_values(array_intersect($this->statusesOf($paths, '/documents/{document}', $verb), [415, 428]));
+        }
+
+        self::assertSame(['post' => [415], 'patch' => [415, 428], 'delete' => [428]], $refusals);
     }
 
     /**

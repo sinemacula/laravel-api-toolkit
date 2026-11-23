@@ -94,6 +94,12 @@ return [
         'detail' => 'This request must be conditional, please send the If-Match header with the tag of the resource it changes',
     ],
 
+    // Media type errors
+    ErrorCode::UNSUPPORTED_MEDIA_TYPE->getCode() => [
+        'title'  => 'Unsupported Media Type',
+        'detail' => 'The request body is in a format this endpoint does not accept, please check its Content-Type',
+    ],
+
     // Application errors
     ErrorCode::MAINTENANCE_MODE->getCode() => [
         'title'  => 'Maintenance Mode',
