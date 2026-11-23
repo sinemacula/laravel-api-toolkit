@@ -24,6 +24,7 @@ use Tests\Fixtures\Models\Post;
 use Tests\Fixtures\Models\User;
 use Tests\Fixtures\Resources\PostResource;
 use Tests\Fixtures\Resources\UserResource;
+use Tests\Fixtures\Support\DirectoryOpenRecorder;
 use Tests\Fixtures\Support\FunctionOverrides;
 use Tests\TestCase;
 
@@ -154,15 +155,57 @@ final class ResourceDiscoveryTest extends TestCase
     }
 
     /**
-     * Test that a configured path that does not exist is skipped without error.
+     * Test that a configured path that does not exist is skipped without an
+     * attempt to open it, which would throw even when the throw is caught.
      *
      * @return void
      */
-    public function testMissingPathIsSkipped(): void
+    public function testMissingPathIsSkippedWithoutOpeningIt(): void
     {
-        Config::set('api-toolkit.resources.paths', [$this->fixturePath('DoesNotExist')]);
+        DirectoryOpenRecorder::register();
 
-        self::assertSame([], $this->discovery()->discover());
+        try {
+            Config::set('api-toolkit.resources.paths', [DirectoryOpenRecorder::SCHEME . '://missing']);
+
+            self::assertSame([], $this->discovery()->discover());
+            self::assertSame([], DirectoryOpenRecorder::$opened);
+        } finally {
+            DirectoryOpenRecorder::unregister();
+        }
+    }
+
+    /**
+     * Test that a subdirectory the scan cannot read is skipped while its
+     * siblings are still scanned.
+     *
+     * @return void
+     */
+    public function testUnreadableSubdirectoryIsSkipped(): void
+    {
+        $directory = sys_get_temp_dir() . '/resource-discovery-' . uniqid((string) getmypid(), true);
+        $locked    = $directory . '/Locked';
+
+        mkdir($locked, 0o755, true);
+        copy($this->fixturePath('Primary') . '/DiscoveredUserResource.php', $directory . '/DiscoveredUserResource.php');
+        chmod($locked, 0o000);
+        clearstatcache();
+
+        try {
+            if (is_readable($locked)) {
+                self::markTestSkipped('The subdirectory stayed readable, so the iterator failure cannot be provoked.');
+            }
+
+            Config::set('api-toolkit.resources.paths', [$directory]);
+
+            self::assertSame([
+                User::class => DiscoveredUserResource::class,
+            ], $this->discovery()->discover());
+        } finally {
+            chmod($locked, 0o755);
+            rmdir($locked);
+            unlink($directory . '/DiscoveredUserResource.php');
+            rmdir($directory);
+        }
     }
 
     /**
