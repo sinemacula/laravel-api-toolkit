@@ -9,7 +9,6 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\Grammars\SQLiteGrammar;
 use SineMacula\ApiToolkit\Contracts\DeclaresValueShape;
-use SineMacula\ApiToolkit\Contracts\ExpandsValueList;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Enums\FilterValueShape;
 
@@ -18,13 +17,12 @@ use SineMacula\ApiToolkit\Enums\FilterValueShape;
  *
  * Each item matches an element of an array document, or the whole of a scalar
  * document, of the same JSON type; on MySQL, also an element of a nested array.
- * A list matches when every item does, a comma-separated string when any of its
- * items does.
+ * A string is one item, matched as sent; a list matches when every item does.
  *
  * @author      Ben Carey <bdmc@sinemacula.co.uk>
  * @copyright   2026 Sine Macula Limited.
  */
-final class ContainsOperator implements DeclaresValueShape, ExpandsValueList, FilterOperator
+final class ContainsOperator implements DeclaresValueShape, FilterOperator
 {
     /**
      * Return the shape of the value the operator accepts.
@@ -50,58 +48,16 @@ final class ContainsOperator implements DeclaresValueShape, ExpandsValueList, Fi
     #[\Override]
     public function apply(Builder $query, string $column, mixed $value): void
     {
-        $items = $this->listItems($value);
+        /** @var array<int, bool|float|int|string> $items */
+        $items = (array) $value;
 
-        if ($items === null) {
-
-            /** @var array<int, bool|float|int|string> $elements */
-            $elements = (array) $value;
-
-            foreach ($elements as $item) {
-                $this->whereContains($query->getQuery(), $column, $item, 'and');
-            }
-
-            return;
+        foreach ($items as $item) {
+            $this->whereContains($query->getQuery(), $column, $item);
         }
-
-        $query->getQuery()->where(function (QueryBuilder $group) use ($column, $items): void {
-            foreach ($items as $item) {
-                $this->whereContains($group, $column, $item, 'or');
-            }
-        });
     }
 
     /**
-     * Return the number of containment clauses the given value expands to.
-     *
-     * @param  mixed  $value
-     * @return int
-     */
-    #[\Override]
-    public function countValueItems(mixed $value): int
-    {
-        $items = $this->listItems($value);
-
-        return $items === null ? 1 : count($items);
-    }
-
-    /**
-     * Split a comma-separated value into items, or null for a single clause.
-     *
-     * @param  mixed  $value
-     * @return array<int, string>|null
-     */
-    private function listItems(mixed $value): ?array
-    {
-        if (!is_string($value) || !str_contains($value, ',')) {
-            return null;
-        }
-
-        return array_filter(array_map('trim', explode(',', $value)), static fn (string $item): bool => $item !== '');
-    }
-
-    /**
-     * Constrain the document to contain the item, joined by the given boolean.
+     * Constrain the document to contain the item.
      *
      * SQLite's own clause compares the bare SQL value of every member, so it
      * cannot tell true from 1 or an object's values from an array's elements. A
@@ -110,13 +66,12 @@ final class ContainsOperator implements DeclaresValueShape, ExpandsValueList, Fi
      * @param  \Illuminate\Database\Query\Builder  $query
      * @param  string  $column
      * @param  bool|float|int|string  $item
-     * @param  string  $boolean
      * @return void
      */
-    private function whereContains(QueryBuilder $query, string $column, bool|float|int|string $item, string $boolean): void
+    private function whereContains(QueryBuilder $query, string $column, bool|float|int|string $item): void
     {
         if (!$query->getGrammar() instanceof SQLiteGrammar) {
-            $query->whereJsonContains($column, $item, $boolean);
+            $query->whereJsonContains($column, $item);
             return;
         }
 
@@ -133,6 +88,6 @@ final class ContainsOperator implements DeclaresValueShape, ExpandsValueList, Fi
                 is_string($item) => $elements->where('json_each.type', 'text')->where('json_each.value', $item),
                 default          => $elements->whereIn('json_each.type', ['integer', 'real'])->whereRaw('json_each.value = cast(? as numeric)', [json_encode($item)]),
             };
-        }, $boolean);
+        });
     }
 }

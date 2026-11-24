@@ -103,7 +103,7 @@ narrowing it, and nothing in the response would say so.
 | `$le`       | Less than or equal to the given value.                 |
 | `$in`       | Matches any value in the given array.                  |
 | `$between`  | Falls within the given `[min, max]` range.             |
-| `$contains` | JSON containment: the column contains the given value. |
+| `$contains` | JSON containment of the value, or of every array item. |
 | `$null`     | The field is null.                                     |
 | `$notNull`  | The field is not null.                                 |
 
@@ -129,6 +129,19 @@ the query is built, so a rejected request reads nothing.
 Two logical operators combine a list of conditions: `$and` and `$or`. When
 multiple fields are supplied without a wrapper, they are combined with `$and` by
 default.
+
+A string given to `$contains` is one value, matched exactly, even when it holds
+a comma. To match a document holding any of several values, combine `$contains`
+conditions with `$or`:
+
+```json
+{
+  "$or": [
+    {"tags": {"$contains": "php"}},
+    {"tags": {"$contains": "rust"}}
+  ]
+}
+```
 
 ### Relationship filters
 

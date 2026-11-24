@@ -67,6 +67,10 @@ final class ContainsFilterHttpTest extends TestCase
         Log::create(['level' => 'info', 'message' => 'flag', 'context' => [true]]);
         Log::create(['level' => 'info', 'message' => 'object', 'context' => ['role' => 'admin']]);
         Log::create(['level' => 'info', 'message' => 'scalar', 'context' => 'rust']);
+        Log::create(['level' => 'info', 'message' => 'name', 'context' => ['Smith, John']]);
+        Log::create(['level' => 'info', 'message' => 'name parts', 'context' => ['Smith', 'John']]);
+        Log::create(['level' => 'info', 'message' => 'colour', 'context' => ['red']]);
+        Log::create(['level' => 'info', 'message' => 'padded colour', 'context' => [' red']]);
     }
 
     /**
@@ -81,7 +85,11 @@ final class ContainsFilterHttpTest extends TestCase
         yield 'list held whole by no row' => [['php', 'rust'], []];
         yield 'string' => ['rust', ['rust', 'scalar']];
         yield 'value of an object member' => ['admin', []];
-        yield 'comma-separated string' => ['laravel,rust', ['pair', 'rust', 'scalar']];
+        yield 'string holding a comma' => ['Smith, John', ['name']];
+        yield 'list of the parts of a string holding a comma' => [['Smith', 'John'], ['name parts']];
+        yield 'string with a leading space' => [' red', ['padded colour']];
+        yield 'string without the leading space' => ['red', ['colour']];
+        yield 'string of only commas' => [',,', []];
         yield 'JSON-encoded list' => ['["php"]', []];
         yield 'JSON-encoded object' => ['{"role":"admin"}', []];
         yield 'integer' => [1, ['numbers']];
@@ -89,7 +97,7 @@ final class ContainsFilterHttpTest extends TestCase
         yield 'float equal to an integer' => [2.0, ['numbers']];
         yield 'float of full precision' => [1.2345678901234567, ['precise']];
         yield 'digit string' => ['1', []];
-        yield 'numeric comma-separated string' => ['1,2', []];
+        yield 'digit string holding a comma' => ['1,2', []];
         yield 'true' => [true, ['flag']];
         yield 'false' => [false, []];
     }
@@ -128,7 +136,6 @@ final class ContainsFilterHttpTest extends TestCase
         yield 'null' => [null, 'The $contains condition on "context" cannot be null; $null matches a missing value and $notNull a present one.'];
         yield 'nested list' => [[['php']], 'Item 0 of the $contains condition on "context" must be a single value other than null.'];
         yield 'NUL character' => ["php\0", 'The $contains condition on "context" must be free of NUL characters.'];
-        yield 'only delimiters' => [',,', 'The filters.context.$contains filter adds no condition, so it would match every row.'];
     }
 
     /**
@@ -148,6 +155,25 @@ final class ContainsFilterHttpTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJsonPath('error.meta', [self::POSITION => [$message]]);
+    }
+
+    /**
+     * Test that $or over two $contains conditions matches a row holding either
+     * value.
+     *
+     * @return void
+     */
+    #[Group('mysql')]
+    #[Group('pgsql')]
+    public function testOrOverContainsConditionsMatchesEitherValue(): void
+    {
+        $filters = (string) json_encode(['$or' => [['context' => ['$contains' => 'laravel']], ['context' => ['$contains' => 'rust']]]]);
+
+        $response = $this->getJson('/logs?filters=' . urlencode($filters));
+
+        $response->assertOk();
+
+        self::assertEqualsCanonicalizing(['pair', 'rust', 'scalar'], array_column((array) $response->json('data'), 'message'));
     }
 
     /**

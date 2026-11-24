@@ -975,13 +975,14 @@ final class ApiCriteriaTest extends TestCase
     }
 
     /**
-     * Test that a comma-separated $contains adds several JSON conditions.
+     * Test that a $contains string holding a comma adds one containment clause
+     * for the whole string.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testContainsWithCommaSeparatedStringCreatesMultipleConditions(): void
+    public function testContainsWithStringHoldingACommaAddsOneContainmentClause(): void
     {
         $this->parseRequest(new Request([
             'filters' => json_encode(['context' => [self::OPERATOR_CONTAINS => 'php,rust']]),
@@ -989,7 +990,8 @@ final class ApiCriteriaTest extends TestCase
 
         $query = $this->documentCriteria()->apply(new Log);
 
-        self::assertNotEmpty($query->getQuery()->wheres);
+        self::assertCount(1, $query->getQuery()->wheres);
+        self::assertSame(['object', 'text', 'php,rust'], $query->getBindings());
     }
 
     /**

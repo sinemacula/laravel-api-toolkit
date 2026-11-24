@@ -5,7 +5,9 @@ declare(strict_types = 1);
 namespace SineMacula\ApiToolkit\Exceptions;
 
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Foundation\Exceptions\Handler;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -16,6 +18,7 @@ use Illuminate\Validation\ValidationException;
 use SineMacula\ApiToolkit\Config\HttpSettings;
 use SineMacula\ApiToolkit\Enums\RenderStrategy;
 use SineMacula\Http\Enums\HttpStatus;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface as SymfonyHttpExceptionInterface;
 
 /**
@@ -40,7 +43,9 @@ final class ApiExceptionHandler
     {
         $exceptions->dontReportWhen(fn (\Throwable $exception): bool => self::isHandled($exception));
 
-        $exceptions->render(fn (\Throwable $exception, Request $request) => self::render($exception, $request));
+        $handler = $exceptions->handler;
+
+        $exceptions->render(fn (\Throwable $exception, Request $request) => self::render($handler, $exception, $request));
     }
 
     /**
@@ -86,24 +91,43 @@ final class ApiExceptionHandler
      * An invalid configuration is left to Laravel's renderer, so rendering it
      * cannot fail again.
      *
+     * @param  \Illuminate\Foundation\Exceptions\Handler  $handler
      * @param  \Throwable  $exception
      * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse|null
+     * @return \Symfony\Component\HttpFoundation\Response|null
      */
-    private static function render(\Throwable $exception, Request $request): ?JsonResponse
+    private static function render(Handler $handler, \Throwable $exception, Request $request): ?SymfonyResponse
     {
         $prepared = $exception instanceof InvalidConfigurationException ? null : self::prepare($exception);
 
-        if ($prepared === null || self::isLeftToLaravel($request, $prepared['strategy'])) {
+        if ($prepared === null) {
             return null;
         }
 
-        // Precognition clients read Laravel's validation body
+        if (self::isLeftToLaravel($request, $prepared['strategy'])) {
+            return self::isRenderedAsThrown($exception, $prepared['exception']) ? null : $handler->render($request, $prepared['exception']);
+        }
+
+        return self::renderWithJson($request, $exception, $prepared['exception'], $prepared['debug']);
+    }
+
+    /**
+     * Render the API exception as the JSON envelope, or a precognitive
+     * validation failure as the Laravel body Precognition clients read.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \Throwable  $exception
+     * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $mapped
+     * @param  bool  $includeDebug
+     * @return \Illuminate\Http\JsonResponse
+     */
+    private static function renderWithJson(Request $request, \Throwable $exception, ApiException $mapped, bool $includeDebug): JsonResponse
+    {
         if ($exception instanceof ValidationException && $request->isPrecognitive()) {
             return Response::json(['message' => $exception->getMessage(), 'errors' => $exception->errors()], $exception->status, [], JSON_INVALID_UTF8_SUBSTITUTE);
         }
 
-        return self::renderApiExceptionWithJson($request, $prepared['exception'], $prepared['debug']);
+        return self::renderApiExceptionWithJson($request, $mapped, $includeDebug);
     }
 
     /**
@@ -141,6 +165,26 @@ final class ApiExceptionHandler
         // Auto mode leaves non-JSON requests in debug to Laravel's renderer
         return !$request->expectsJson()
             && ($strategy === RenderStrategy::JSON_WHEN_EXPECTED || ($strategy === RenderStrategy::AUTO && (bool) Config::get('app.debug')));
+    }
+
+    /**
+     * Determine whether Laravel renders the exception as thrown, not as the
+     * exception it maps to.
+     *
+     * Debug mode keeps the original so the error page shows the real exception,
+     * and Laravel keeps its own redirects for authentication and validation.
+     *
+     * @param  \Throwable  $exception
+     * @param  \SineMacula\ApiToolkit\Exceptions\ApiException  $mapped
+     * @return bool
+     */
+    private static function isRenderedAsThrown(\Throwable $exception, ApiException $mapped): bool
+    {
+        if ($exception instanceof AuthenticationException || $exception instanceof ValidationException) {
+            return true;
+        }
+
+        return $mapped === $exception || $mapped instanceof UnhandledException || (bool) Config::get('app.debug');
     }
 
     /**

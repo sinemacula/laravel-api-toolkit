@@ -7,7 +7,6 @@ namespace SineMacula\ApiToolkit\Repositories\Criteria\Concerns;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use SineMacula\ApiToolkit\Contracts\DeclaresValueShape;
-use SineMacula\ApiToolkit\Contracts\ExpandsValueList;
 use SineMacula\ApiToolkit\Contracts\FilterOperator;
 use SineMacula\ApiToolkit\Enums\TrashedState;
 use SineMacula\ApiToolkit\Facades\ApiQuery;
@@ -326,8 +325,8 @@ final class FilterApplier
     }
 
     /**
-     * Run an admitted handler on its operand, held to the handler's item count
-     * and value shape.
+     * Run an admitted handler on its operand, held to the item cap and the
+     * handler's value shape.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
@@ -347,31 +346,15 @@ final class FilterApplier
     {
         $model = $query->getModel();
 
-        $this->limits->enforce(QueryCostLimits::MAX_IN_ITEMS, $this->countValueItems($handler, $operand), 'filters', $pointer);
+        if (is_array($operand)) {
+            $this->limits->enforce(QueryCostLimits::MAX_IN_ITEMS, count($operand), 'filters', $pointer);
+        }
 
         if ($handler instanceof DeclaresValueShape) {
             $operand = $this->guard->resolve($model, $column, $token, $handler->valueShape(), $operand, $position);
         }
 
         $handler->apply($query, $query->qualifyColumn($column), PureEnumFilterValue::resolve($model, $column, $operand));
-    }
-
-    /**
-     * Count the items the given handler will read out of the operator value.
-     *
-     * A handler that fans a delimited string out reports its own count.
-     *
-     * @param  \SineMacula\ApiToolkit\Contracts\FilterOperator  $handler
-     * @param  mixed  $value
-     * @return int
-     */
-    private function countValueItems(FilterOperator $handler, mixed $value): int
-    {
-        if (is_array($value)) {
-            return count($value);
-        }
-
-        return $handler instanceof ExpandsValueList ? $handler->countValueItems($value) : 1;
     }
 
     /**

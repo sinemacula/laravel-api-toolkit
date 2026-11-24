@@ -59,6 +59,7 @@ final class ManualUserResource extends ApiResource
             Field::scalar('email')->filterable(Capability::EXACT)->searchable(SearchStrategy::SUBSTRING),
             Field::scalar('age')->filterable(Capability::RANGE),
             Field::scalar('status')->filterable(Capability::EXACT),
+            Field::scalar('tags')->filterable(Capability::DOCUMENT),
             Field::timestamp('created_at')->filterable(Capability::RANGE)->sortable(),
             Relation::to('organization', ManualOrganizationResource::class)->sortable('Admin list of a few hundred users'),
             Relation::to('posts', PostResource::class)->traversable(),
