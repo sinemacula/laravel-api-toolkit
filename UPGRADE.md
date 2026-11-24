@@ -830,8 +830,8 @@ before this release has none of these keys, and every cap still applies at its d
 
 `max_bytes` and `max_parse_depth` are checked while the query string is validated, before the filter is interpreted;
 a malformed document keeps its own validation error. The rest are checked as the criteria are applied, before any SQL
-is issued. `max_in_items` counts the items an operator will read, so a delimited string is bounded the same as an
-array. `max_aggregates` counts counts, sums and averages together. `max_offset` counts rows skipped (page number times
+is issued. `max_in_items` counts the items of an operator's value list, and a single value as one item.
+`max_aggregates` counts counts, sums and averages together. `max_offset` counts rows skipped (page number times
 page size), applies only when a page number is requested, and does not apply to cursor pagination. The default allows
 page 10,000 at the default page size of 50, and page 5,000 at the `max_limit` of 100. The refusal still names the
 furthest page available, not a row count.
