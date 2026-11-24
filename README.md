@@ -1105,7 +1105,10 @@ Exceptions are mapped to `ApiException` subclasses and rendered as JSON error re
   `Accept: application/json`).
 
 Every `ApiException` implements Symfony's `HttpExceptionInterface`, so one left to Laravel's renderer keeps its status
-and headers, such as a maintenance `503` with its `Retry-After`.
+and headers, such as a maintenance `503` with its `Retry-After`. Outside debug mode Laravel renders a mapped exception
+as the `ApiException` it maps to, so a browser gets the status a JSON client does. In debug mode it renders the
+original, so the error page shows the real exception and trace. An exception the map does not match is rendered as
+thrown, and authentication and validation failures keep Laravel's redirects.
 
 Every error the toolkit renders shares one envelope:
 

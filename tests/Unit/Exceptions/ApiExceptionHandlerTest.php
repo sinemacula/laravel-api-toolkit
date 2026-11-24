@@ -684,6 +684,106 @@ final class ApiExceptionHandlerTest extends TestCase
     }
 
     /**
+     * Test that a mapped exception left to Laravel outside debug mode reaches
+     * Laravel's renderer as the mapped exception, with the original behind it.
+     *
+     * @return void
+     */
+    public function testMappedExceptionLeftToLaravelOutsideDebugIsRenderedAsMapped(): void
+    {
+        config()->set('app.debug', false);
+        config()->set('api-toolkit.exceptions.render_strategy', 'json_when_expected');
+        config()->set('api-toolkit.exceptions.map', [\DomainException::class => ConflictException::class]);
+
+        $exception = new \DomainException('The order is already settled');
+
+        [$received, $response] = $this->renderObservingLaravel($exception, self::htmlRequest());
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertStringStartsWith('text/html', (string) $response->headers->get('Content-Type'));
+        self::assertCount(1, $received);
+        self::assertInstanceOf(ConflictException::class, $received[0]);
+        self::assertSame($exception, $received[0]->getPrevious());
+    }
+
+    /**
+     * Provide exceptions Laravel renders as thrown when left to it, with the
+     * debug mode and the status each renders with.
+     *
+     * @return iterable<string, array{\Closure(): \Throwable, bool, array<class-string, class-string>, int}>
+     */
+    public static function renderedAsThrownProvider(): iterable
+    {
+        $mapped = [\DomainException::class => ConflictException::class];
+
+        yield 'mapped in debug mode' => [static fn (): \Throwable => new \DomainException('The order is already settled'), true, $mapped, 500];
+
+        yield 'unmapped' => [static fn (): \Throwable => new \RuntimeException('Order storage is unavailable'), false, [], 500];
+
+        yield 'thrown api exception' => [static fn (): \Throwable => new ConflictException, false, [], 409];
+    }
+
+    /**
+     * Test that Laravel's renderer receives the exception as thrown when debug
+     * mode is on, when the map leaves it unhandled, or when it is an
+     * ApiException.
+     *
+     * @param  \Closure(): \Throwable  $factory
+     * @param  bool  $debug
+     * @param  array<class-string, class-string>  $map
+     * @param  int  $status
+     * @return void
+     */
+    #[DataProvider('renderedAsThrownProvider')]
+    public function testExceptionLeftToLaravelIsRenderedAsThrown(\Closure $factory, bool $debug, array $map, int $status): void
+    {
+        config()->set('app.debug', $debug);
+        config()->set('api-toolkit.exceptions.render_strategy', 'json_when_expected');
+        config()->set('api-toolkit.exceptions.map', $map);
+
+        $exception = $factory();
+
+        [$received, $response] = $this->renderObservingLaravel($exception, self::htmlRequest());
+
+        self::assertSame($status, $response->getStatusCode());
+        self::assertSame([$exception], $received);
+    }
+
+    /**
+     * Provide the failures Laravel answers with its own redirect.
+     *
+     * @return iterable<string, array{\Closure(): \Throwable, string}>
+     */
+    public static function laravelRedirectProvider(): iterable
+    {
+        yield 'authentication' => [static fn (): \Throwable => new AuthenticationException('Unauthenticated.', [], '/login'), 'http://localhost/login'];
+
+        yield 'validation' => [
+            static fn (): \Throwable => ValidationException::withMessages(['title' => ['The title field is required.']])->redirectTo('/orders/create'),
+            'http://localhost/orders/create',
+        ];
+    }
+
+    /**
+     * Test that a mapped failure Laravel answers with a redirect keeps that
+     * redirect when left to Laravel outside debug mode.
+     *
+     * @param  \Closure(): \Throwable  $factory
+     * @param  string  $location
+     * @return void
+     */
+    #[DataProvider('laravelRedirectProvider')]
+    public function testLaravelRedirectIsKeptForAMappedFailure(\Closure $factory, string $location): void
+    {
+        config()->set('app.debug', false);
+        config()->set('api-toolkit.exceptions.render_strategy', 'json_when_expected');
+
+        $response = $this->render($factory(), self::htmlRequest());
+
+        self::assertTrue($response->isRedirect($location));
+    }
+
+    /**
      * Test that JSON output is compact when the pretty request parameter is not
      * provided.
      *
@@ -1986,6 +2086,29 @@ final class ApiExceptionHandlerTest extends TestCase
 
     /**
      * Render the exception through the application's exception handler, with
+     * the toolkit registered first, returning the exceptions the render
+     * callbacks after it received and the response.
+     *
+     * @param  \Throwable  $exception
+     * @param  \Illuminate\Http\Request  $request
+     * @return array{list<\Throwable>, \Symfony\Component\HttpFoundation\Response}
+     */
+    private function renderObservingLaravel(\Throwable $exception, Request $request): array
+    {
+        $handler  = $this->registeredHandler();
+        $received = [];
+
+        (new Exceptions($handler))->render(static function (\Throwable $exception) use (&$received): void {
+            $received[] = $exception;
+        });
+
+        $response = $handler->render($request, $exception);
+
+        return [$received, $response];
+    }
+
+    /**
+     * Render the exception through the application's exception handler, with
      * the toolkit registered against it.
      *
      * @param  \Throwable  $exception
@@ -2067,6 +2190,20 @@ final class ApiExceptionHandlerTest extends TestCase
         $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb(), $query);
 
         $request->headers->set('Accept', self::ACCEPT_JSON);
+
+        return $request;
+    }
+
+    /**
+     * Build a request for an HTML page, which does not expect JSON.
+     *
+     * @return \Illuminate\Http\Request
+     */
+    private static function htmlRequest(): Request
+    {
+        $request = Request::create(self::API_PATH, HttpMethod::GET->getVerb());
+
+        $request->headers->set('Accept', 'text/html');
 
         return $request;
     }
