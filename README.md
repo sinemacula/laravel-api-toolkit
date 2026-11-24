@@ -138,8 +138,13 @@ checked.
 
 `$contains` matches an element of a JSON array, or a whole scalar document, of the same JSON type, so `1` matches
 neither `"1"` nor `true`. Its list must not be empty, and its items are not checked against the column's type. A string
-is never decoded as JSON; a comma-separated string matches any of its items, each a string. On MySQL an item also
-matches an element of a nested array.
+is one element, matched as sent and never split or decoded as JSON, so `"Smith, John"` matches only that element. On
+MySQL an item also matches an element of a nested array. A list needs every item; to match any of several, join
+`$contains` conditions with `$or`:
+
+```json
+{"$or":[{"tags":{"$contains":"php"}},{"tags":{"$contains":"rust"}}]}
+```
 
 The entries of a filter document AND together, at every depth. `$and` and `$or` take a non-empty list of filter
 documents, each grouped on its own and joined by AND or OR:
@@ -1074,11 +1079,6 @@ An operator whose value has a fixed shape can implement `SineMacula\ApiToolkit\C
 return a `FilterValueShape` from `valueShape()`. Its value is then checked against that shape and the column's type,
 and resolved as the built-in operators' values are, before `apply()` runs. A closure, or an operator without the
 contract, receives the value as sent.
-
-An operator that expands one value into a predicate per item should also implement
-`SineMacula\ApiToolkit\Contracts\ExpandsValueList` and return the item count from `countValueItems()`. That count is
-checked against the `max_in_items` cap, so a delimited string is bounded the same as an array. An operator without
-the contract counts as one item per non-list value.
 
 An unregistered token is rejected with a 422, under a column or on its own. The operators each column answers in the
 exported document and the generated docs are the registered tokens its capability admits, custom ones included.

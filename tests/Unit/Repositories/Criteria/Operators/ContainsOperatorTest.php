@@ -73,9 +73,14 @@ final class ContainsOperatorTest extends TestCase
         yield 'SQLite false' => [SQLiteGrammar::class, false, $boolean, ['object', 'false']];
         yield 'SQLite list' => [SQLiteGrammar::class, ['php', 2], $string . ' and ' . $number, ['object', 'text', 'php', 'object', 'integer', 'real', '2']];
         yield 'SQLite JSON-encoded string' => [SQLiteGrammar::class, '["php"]', $string, ['object', 'text', '["php"]']];
+        yield 'SQLite string holding a comma' => [SQLiteGrammar::class, 'Smith, John', $string, ['object', 'text', 'Smith, John']];
+        yield 'SQLite string with a leading space' => [SQLiteGrammar::class, ' red', $string, ['object', 'text', ' red']];
         yield 'MySQL string' => [MySqlGrammar::class, 'php', self::MYSQL_ELEMENT, ['"php"']];
+        yield 'MySQL string holding a comma' => [MySqlGrammar::class, 'Smith, John', self::MYSQL_ELEMENT, ['"Smith, John"']];
+        yield 'MySQL list of strings holding commas' => [MySqlGrammar::class, ['a,b', ' c'], self::MYSQL_ELEMENT . ' and ' . self::MYSQL_ELEMENT, ['"a,b"', '" c"']];
         yield 'MySQL list' => [MySqlGrammar::class, ['php', true], self::MYSQL_ELEMENT . ' and ' . self::MYSQL_ELEMENT, ['"php"', 'true']];
         yield 'PostgreSQL string' => [PostgresGrammar::class, 'php', self::PGSQL_ELEMENT, ['"php"']];
+        yield 'PostgreSQL string holding a comma' => [PostgresGrammar::class, 'Smith, John', self::PGSQL_ELEMENT, ['"Smith, John"']];
         yield 'PostgreSQL list' => [PostgresGrammar::class, ['php', 2], self::PGSQL_ELEMENT . ' and ' . self::PGSQL_ELEMENT, ['"php"', '2']];
     }
 
@@ -98,85 +103,6 @@ final class ContainsOperatorTest extends TestCase
 
         self::assertStringEndsWith(' where ' . $where, $query->toSql());
         self::assertSame($bindings, $query->getBindings());
-    }
-
-    /**
-     * Test that a comma-separated string matches any of its trimmed items,
-     * grouped apart from an earlier clause.
-     *
-     * @return void
-     */
-    public function testCommaSeparatedStringMatchesAnyOfItsItemsInOneGroup(): void
-    {
-        $query = $this->logsQuery(MySqlGrammar::class);
-
-        $query->where('level', 'info');
-
-        (new ContainsOperator)->apply($query, self::COLUMN, ' php , , rust ');
-
-        self::assertStringEndsWith(' where `level` = ? and (' . self::MYSQL_ELEMENT . ' or ' . self::MYSQL_ELEMENT . ')', $query->toSql());
-        self::assertSame(['info', '"php"', '"rust"'], $query->getBindings());
-    }
-
-    /**
-     * Test that a comma-separated string matches any of its items on SQLite.
-     *
-     * @return void
-     */
-    public function testCommaSeparatedStringMatchesAnyOfItsItemsOnSqlite(): void
-    {
-        $query = $this->logsQuery(SQLiteGrammar::class);
-
-        (new ContainsOperator)->apply($query, self::COLUMN, 'php,rust');
-
-        $string = sprintf(self::SQLITE_ELEMENT, self::SQLITE_STRING);
-
-        self::assertStringEndsWith(' where (' . $string . ' or ' . $string . ')', $query->toSql());
-        self::assertSame(['object', 'text', 'php', 'object', 'text', 'rust'], $query->getBindings());
-    }
-
-    /**
-     * Test that a string of only delimiters adds no clause.
-     *
-     * @return void
-     */
-    public function testStringOfOnlyDelimitersAddsNoClause(): void
-    {
-        $query = $this->logsQuery(MySqlGrammar::class);
-
-        (new ContainsOperator)->apply($query, self::COLUMN, ' , ,');
-
-        self::assertSame([], $query->getQuery()->wheres);
-    }
-
-    /**
-     * Test that a comma-separated value reports one item per clause.
-     *
-     * @return void
-     */
-    public function testCommaSeparatedValueReportsItsExpandedItemCount(): void
-    {
-        $operator = new ContainsOperator;
-
-        self::assertSame(2, $operator->countValueItems('Alice,Bob'));
-        self::assertSame(3, $operator->countValueItems('a,b,c'));
-        self::assertSame(2, $operator->countValueItems(' Alice , , Bob '));
-        self::assertSame(2, $operator->countValueItems('["a","b"]'));
-        self::assertSame(0, $operator->countValueItems(',,'));
-    }
-
-    /**
-     * Test that a value applied without splitting reports one item.
-     *
-     * @return void
-     */
-    public function testValueAppliedWithoutSplittingReportsOneItem(): void
-    {
-        $operator = new ContainsOperator;
-
-        self::assertSame(1, $operator->countValueItems('Alice'));
-        self::assertSame(1, $operator->countValueItems('["a"]'));
-        self::assertSame(1, $operator->countValueItems(123));
     }
 
     /**

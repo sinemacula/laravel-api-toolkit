@@ -29,7 +29,6 @@ use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\FilterValueGuard;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RelationTrashedGate;
 use SineMacula\ApiToolkit\Repositories\Criteria\Concerns\RowPerimeter;
 use SineMacula\ApiToolkit\Repositories\Criteria\OperatorRegistry;
-use SineMacula\ApiToolkit\Repositories\Criteria\Operators\ContainsOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\Operators\InOperator;
 use SineMacula\ApiToolkit\Repositories\Criteria\QuerySurface;
 use SineMacula\ApiToolkit\Schema\CompiledSchema;
@@ -369,18 +368,36 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a comma-separated $contains adds several conditions.
+     * Test that a $contains string holding a comma adds one condition matching
+     * the whole string.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testApplyWithContainsCommaSeparatedStringCreatesMultipleConditions(): void
+    public function testApplyWithContainsStringHoldingACommaAddsOneCondition(): void
     {
-        $query = $this->applyFilters(['name' => 'Alice', 'context' => [self::OPERATOR_CONTAINS => 'php,rust']]);
+        $query = $this->applyFilters(['name' => 'Alice', 'context' => [self::OPERATOR_CONTAINS => 'Smith, John']]);
 
-        self::assertStringEndsWith('where "users"."name" = ? and (' . self::CONTAINS_STRING . ' or ' . self::CONTAINS_STRING . ')', $query->toSql());
-        self::assertSame(['Alice', 'object', 'text', 'php', 'object', 'text', 'rust'], $query->getBindings());
+        self::assertStringEndsWith('where "users"."name" = ? and ' . self::CONTAINS_STRING, $query->toSql());
+        self::assertSame(['Alice', 'object', 'text', 'Smith, John'], $query->getBindings());
+    }
+
+    /**
+     * Test that $or over two $contains conditions matches a document holding
+     * either value.
+     *
+     * @return void
+     *
+     * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
+     */
+    public function testOrOverContainsConditionsMatchesEitherValue(): void
+    {
+        $this->assertCompilesTo(
+            ['$or' => [['context' => [self::OPERATOR_CONTAINS => 'php']], ['context' => [self::OPERATOR_CONTAINS => 'rust']]]],
+            '((' . self::CONTAINS_STRING . ') or (' . self::CONTAINS_STRING . '))',
+            ['object', 'text', 'php', 'object', 'text', 'rust'],
+        );
     }
 
     /**
@@ -1185,23 +1202,6 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that the bare shorthand holds an overridden $eq to the item count it
-     * reports, as the token form does.
-     *
-     * @return void
-     */
-    public function testShorthandCountsTheItemsAnOverriddenEqualityExpands(): void
-    {
-        Config::set('api-toolkit.query_cost.max_in_items', 2);
-
-        $this->operatorRegistry->override('$eq', new ContainsOperator);
-
-        $this->assertRejectedForCost(['name' => 'a,b,c'], QueryCostLimits::MAX_IN_ITEMS, '/name', 2, 3);
-        $this->assertRejectedForCost(['$or' => [['name' => 'a,b,c']]], QueryCostLimits::MAX_IN_ITEMS, '/$or/0/name', 2, 3);
-        $this->assertRejectedForCost(['name' => ['$eq' => 'a,b,c']], QueryCostLimits::MAX_IN_ITEMS, '/name/$eq', 2, 3);
-    }
-
-    /**
      * Test that the bare shorthand checks its value against the shape an
      * overridden $eq declares, at the column's position.
      *
@@ -1594,39 +1594,29 @@ final class FilterApplierTest extends TestCase
     }
 
     /**
-     * Test that a delimited value list of exactly the item cap is applied.
+     * Test that a $contains string holding commas counts as one item.
      *
      * @return void
      *
      * @throws \SineMacula\ApiToolkit\Exceptions\QueryTooExpensiveException
      */
-    public function testDelimitedValueListAtExactlyTheItemCapIsApplied(): void
+    public function testContainsStringHoldingCommasCountsAsOneItem(): void
     {
-        Config::set('api-toolkit.query_cost.max_in_items', 3);
+        Config::set('api-toolkit.query_cost.max_in_items', 1);
 
-        $result = $this->applyFilters(['context' => [self::OPERATOR_CONTAINS => 'php,rust,go']]);
-        $wheres = $result->getQuery()->wheres;
-
-        self::assertNotEmpty($wheres);
-        self::assertCount(3, $wheres[0]['query']->wheres);
+        $this->assertCompilesTo(['context' => [self::OPERATOR_CONTAINS => 'php,rust,go']], self::CONTAINS_STRING, ['object', 'text', 'php,rust,go']);
     }
 
     /**
-     * Test that a delimited value list one item over the cap is rejected.
+     * Test that a $contains list over the item cap is rejected.
      *
      * @return void
      */
-    public function testDelimitedValueListOverTheItemCapIsRejected(): void
+    public function testContainsListOverTheItemCapIsRejected(): void
     {
-        Config::set('api-toolkit.query_cost.max_in_items', 3);
+        Config::set('api-toolkit.query_cost.max_in_items', 1);
 
-        $this->assertRejectedForCost(
-            ['context' => [self::OPERATOR_CONTAINS => 'php,rust,go,zig']],
-            QueryCostLimits::MAX_IN_ITEMS,
-            '/context/$contains',
-            3,
-            4,
-        );
+        $this->assertRejectedForCost(['context' => [self::OPERATOR_CONTAINS => ['php', 'rust']]], QueryCostLimits::MAX_IN_ITEMS, '/context/$contains', 1, 2);
     }
 
     /**
@@ -1760,7 +1750,6 @@ final class FilterApplierTest extends TestCase
         yield 'one-value $between' => [['id' => ['$between' => [1]]], 'filters.id.$between', self::BETWEEN_BOUNDS];
         yield 'one-value $between alone in an $or' => [['$or' => [['id' => ['$between' => [1]]]]], 'filters.$or.0.id.$between', self::BETWEEN_BOUNDS];
         yield '$gt beside a one-value $between' => [['id' => ['$gt' => 1, '$between' => [2]]], 'filters.id.$between', self::BETWEEN_BOUNDS];
-        yield '$contains of only delimiters' => [['context' => ['$contains' => ',,']], 'filters.context.$contains', self::addsNothing('filters.context.$contains')];
     }
 
     /**
@@ -1795,7 +1784,7 @@ final class FilterApplierTest extends TestCase
         yield 'plain key under a column' => [['name' => ['email' => 'Alice']], 'filters.name.email', 'Der Filter filters.name.email ist keine Bedingung.'];
         yield 'condition at the root' => [['$eq' => 'Alice'], 'filters.$eq', 'Die Bedingung filters.$eq braucht ein Feld.'];
         yield 'one-value $between' => [['id' => ['$between' => [1]]], 'filters.id.$between', 'Die Bedingung $between auf "id" braucht zwei Werte.'];
-        yield '$contains of only delimiters' => [['context' => ['$contains' => ',,']], 'filters.context.$contains', 'Der Filter filters.context.$contains bewirkt nichts.'];
+        yield 'empty list under $has' => [['$has' => []], 'filters.$has', 'Der Filter filters.$has bewirkt nichts.'];
     }
 
     /**

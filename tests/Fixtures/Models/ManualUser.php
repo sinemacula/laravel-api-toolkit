@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * Fixture user carrying the fields the API documentation's examples name.
  *
  * Reads the users table once the test serving the examples has added the name
- * parts, age, location, start time and soft-delete column to it.
+ * parts, age, location, start time, tags and soft-delete column to it.
  *
  * @property int $id
  * @property string $name
@@ -29,6 +29,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property float|null $latitude
  * @property float|null $longitude
  * @property \Illuminate\Support\Carbon|null $starts_at
+ * @property string|null $tags
  *
  * @method static static create(array<string, mixed> $attributes = [])
  *

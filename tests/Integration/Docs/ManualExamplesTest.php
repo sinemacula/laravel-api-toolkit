@@ -296,6 +296,7 @@ final class ManualExamplesTest extends TestCase
             $table->double('latitude')->nullable();
             $table->double('longitude')->nullable();
             $table->timestamp('starts_at')->nullable();
+            $table->json('tags')->nullable();
             $table->softDeletes();
         });
 
